@@ -172,3 +172,47 @@ def test_online_session_accepts_missing_feature_values_for_strategies_that_do_no
     )
     [result] = session.add_fov(observations, first.to_dict())
     assert result.decision == "stop"
+
+
+def test_online_session_rejects_fov_identifier_contract_drift():
+    observations = pd.DataFrame(
+        {
+            "image_file": ["a.tif"],
+            "feature_a": [1.0],
+            "feature_b": [2.0],
+        }
+    )
+    session = OnlineSession(
+        strategies=[FixedFOVStrategy(2)],
+        feature_cols=list(FEATURE_COLS),
+        objective=POPULATION,
+    )
+    session.add_fov(observations, {"image_file": "a.tif"})
+    later = observations.assign(image_file="b.tif", position_id="P2")
+    with pytest.raises(ValueError, match="higher-priority FOV identifier"):
+        session.add_fov(
+            later,
+            {"image_file": "b.tif", "position_id": "P2"},
+        )
+
+
+def test_online_session_rejects_grouping_contract_drift():
+    observations = pd.DataFrame(
+        {
+            "image_file": ["a.tif"],
+            "feature_a": [1.0],
+            "feature_b": [2.0],
+        }
+    )
+    session = OnlineSession(
+        strategies=[FixedFOVStrategy(2)],
+        feature_cols=list(FEATURE_COLS),
+        objective=POPULATION,
+    )
+    session.add_fov(observations, {"image_file": "a.tif"})
+    later = observations.assign(image_file="b.tif", repeat="R1")
+    with pytest.raises(ValueError, match="changes the automatically resolved grouping contract"):
+        session.add_fov(
+            later,
+            {"image_file": "b.tif", "repeat": "R1"},
+        )
