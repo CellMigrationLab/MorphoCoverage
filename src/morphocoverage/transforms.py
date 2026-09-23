@@ -16,7 +16,7 @@ phenotype geometry of every result can be reproduced (AGENTS.md section 3).
 What this cannot detect: features normalized or projected over the whole
 dataset upstream, before they reach MorphoCoverage. Record that as provenance.
 
-A transform that cannot be fitted on the visible data (too few objects, a
+A transform that cannot be fitted on the visible data (too few observations, a
 feature with zero spread) returns a fitted transform with a ``reason``.
 Estimators should then report their quantities as insufficient data rather
 than guess a scale.
@@ -182,7 +182,7 @@ class PCA(FeatureTransform):
     Components come from the SVD of the centred visible matrix. Each
     component's sign is fixed so that its largest-magnitude loading is
     positive, so the projection is deterministic. Not fitted unless there are
-    more objects than components and at least as many features as components.
+    more observations than components and at least as many features as components.
     The explained-variance ratios are recorded in the fitted state.
     """
 
@@ -208,11 +208,11 @@ class PCA(FeatureTransform):
         """Visible mean, leading components and their explained-variance ratios."""
         if np.isnan(matrix).any():
             return "missing feature values; choose or implement an explicit missing-data policy"
-        n_objects, n_features = matrix.shape
+        n_observations, n_features = matrix.shape
         if n_features < self.n_components:
             return f"{n_features} features cannot give {self.n_components} components"
-        if n_objects <= self.n_components:
-            return f"{n_objects} objects cannot define {self.n_components} components"
+        if n_observations <= self.n_components:
+            return f"{n_observations} observations cannot define {self.n_components} components"
         mean = matrix.mean(axis=0)
         _, singular, vt = np.linalg.svd(matrix - mean, full_matrices=False)
         total = float((singular**2).sum())
