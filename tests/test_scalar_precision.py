@@ -13,6 +13,7 @@ from morphocoverage import (
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
     run_strategies,
+    validate_input_tables,
 )
 from morphocoverage.strategies.scalar_precision import (
     cell_averaging_cv,
