@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Mapping, Any
+from collections.abc import Mapping
+from typing import Any
 
 from ..objectives import ObjectiveConfig
 from ..results import StrategyResult

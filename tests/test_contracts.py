@@ -116,7 +116,7 @@ class _Probe(SamplingStrategy):
 
 def _agents_section_9_ids() -> set[str]:
     text = (Path(__file__).resolve().parents[1] / "AGENTS.md").read_text()
-    section = re.search(r"^## 9\..*?(?=^## 10\.)", text, flags=re.S | re.M)
+    section = re.search(r"^## 9\..*?(?=^## 10\.)", text, flags=re.DOTALL | re.MULTILINE)
     assert section, "AGENTS.md §9 not found"
     items = [line for line in section.group(0).splitlines() if line.startswith("- ")]
     return {match for line in items for match in re.findall(r"`([a-z0-9_]+)`", line)}

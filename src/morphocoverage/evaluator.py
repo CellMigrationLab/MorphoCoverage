@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Iterable
 from dataclasses import replace
 from time import perf_counter
-from typing import Iterable
 
 import pandas as pd
 

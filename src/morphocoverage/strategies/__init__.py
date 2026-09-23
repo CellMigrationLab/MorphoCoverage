@@ -8,8 +8,8 @@ from .stabilization import DescriptorPlateauStrategy, DescriptorSpreadStrategy
 __all__ = [
     "DescriptorPlateauStrategy",
     "DescriptorSpreadStrategy",
-    "SamplingStrategy",
     "FixedFOVStrategy",
     "FixedObjectStrategy",
+    "SamplingStrategy",
     "ScalarPrecisionStrategy",
 ]
