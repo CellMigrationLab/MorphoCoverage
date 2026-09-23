@@ -51,6 +51,7 @@ def restrict_input(
         fov_col=data.fov_col,
         group_cols=data.group_cols,
         fov_key=data.fov_key,
+        observation_unit=data.observation_unit,
     )
 
 
@@ -133,7 +134,8 @@ def _build_result(
         component_decisions=component_decisions,
         compute_seconds=compute_seconds,
         n_fovs=effort.n_fovs,
-        n_objects=effort.n_objects,
+        n_observations=effort.n_observations,
+        observation_unit=effort.observation_unit,
         group=dict(group or {}),
         parameters=dict(strategy.parameters),
         configuration=strategy.configuration,
@@ -164,7 +166,7 @@ def evaluate_strategy(
     runs = [_recompute(estimator, data, objective) for estimator in strategy.estimators]
     recompute_seconds = sum(seconds for _, seconds in runs)
     evidence = _merge_evidence(strategy, [evidence for evidence, _ in runs])
-    effort = Effort(n_fovs=len(data.fovs), n_objects=len(data.objects))
+    effort = Effort(n_fovs=len(data.fovs), n_observations=len(data.objects), observation_unit=data.observation_unit)
     result = _build_result(
         strategy,
         objective=objective,
@@ -199,7 +201,7 @@ class IncrementalReplay:
         self.objective = objective
         self.group = group
         self.n_fovs = 0
-        self.n_objects = 0
+        self.n_observations = 0
         wall = perf_counter()
         template = restrict_input(group_data, group_data.objects.iloc[:0], group_data.fovs.iloc[:0])
         self._estimators = [copy.deepcopy(estimator) for estimator in strategy.estimators]
@@ -238,7 +240,7 @@ class IncrementalReplay:
         """
         wall = perf_counter()
         self.n_fovs += len(new.fovs)
-        self.n_objects += len(new.objects)
+        self.n_observations += len(new.objects)
         evidences: list[Evidence] = []
         update_seconds = recompute_seconds = 0.0
         data = None
@@ -261,7 +263,7 @@ class IncrementalReplay:
             return None
 
         evidence = _merge_evidence(self.strategy, evidences)
-        effort = Effort(n_fovs=self.n_fovs, n_objects=self.n_objects)
+        effort = Effort(n_fovs=self.n_fovs, n_observations=self.n_observations, observation_unit=new.observation_unit)
         result = _build_result(
             self.strategy,
             objective=self.objective,
