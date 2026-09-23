@@ -278,7 +278,7 @@ The first prospective question is:
 
 > Should another representative FOV be acquired?
 
-Prospective deployment uses `OnlineSession.add_fov(observations, fov_metadata)`. The session receives exactly one newly acquired spatial position at a time and must never require identifiers, metadata, or phenotype values for future FOVs. Online and retrospective replay must use the same estimators and policies; incremental estimators must remain equivalent to full recomputation.
+Prospective deployment uses `OnlineSession.add_fov(observations, fov_metadata)`. The session receives exactly one newly acquired spatial position at a time and must never require identifiers, metadata, or phenotype values for future FOVs. The first FOV fixes the automatically resolved FOV identifier and grouping contract for that session; later FOVs may not silently change it. Online and retrospective replay must use the same estimators and policies; incremental estimators must remain equivalent to full recomputation.
 
 Only after representative continue/stop is validated should the package support:
 
@@ -430,4 +430,4 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 
 ### Multidimensional acquisition rule
 
-When feature extraction is performed slice-by-slice or frame-by-frame, retain lowercase `z`, `c`, and/or `t` on object/feature rows as applicable. All such rows from one spatial acquisition position must share the same `position_id` (or another explicitly supplied `fov_col`). Sequential replay and benchmarking must reveal the whole position atomically. Extra z-planes/channels/time points increase information within a FOV; they do not count as additional sampled positions.
+When feature extraction is performed slice-by-slice or frame-by-frame, retain lowercase `z`, `c`, and/or `t` on observation rows as applicable. All such rows from one spatial acquisition position must share the same `position_id` (or another explicitly supplied `fov_col`). Sequential replay and benchmarking must reveal the whole position atomically. Extra z-planes/channels/time points increase information within a FOV; they do not count as additional sampled positions.
