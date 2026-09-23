@@ -1,6 +1,6 @@
 # MorphoCoverage
 
-MorphoCoverage is a feature-agnostic Python project for studying whether microscopy experiments have sampled a declared phenotypic representation adequately. It treats **fields of view (FOVs), defined as independently selected spatial acquisition positions, rather than individual objects/cells or z-planes, as the primary operational acquisition units** and asks whether additional representative imaging is likely to provide useful new phenotypic information.
+MorphoCoverage is a feature-agnostic Python project for studying whether microscopy experiments have sampled a declared phenotypic representation adequately. It treats **fields of view (FOVs), defined as independently selected spatial acquisition positions, rather than individual observations/cells or z-planes, as the primary operational acquisition units** and asks whether additional representative imaging is likely to provide useful new phenotypic information.
 
 ## Project boundary
 
