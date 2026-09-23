@@ -1,4 +1,4 @@
-"""High-level entry points for strategy comparison on feature tables."""
+"""High-level entry points for strategy comparison on phenotype feature tables."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def run_strategies(
     group_cols: Sequence[str] | None = None,
     observation_unit: str = "object",
 ) -> list[StrategyResult]:
-    """Validate one feature dataset and run strategies within resolved groups.
+    """Validate one phenotype-observation table and run strategies within resolved groups.
 
     By default, canonical MorphoBricks condition and repeat columns are kept
     separate when available. Pass group_cols=[] only when intentional pooling
