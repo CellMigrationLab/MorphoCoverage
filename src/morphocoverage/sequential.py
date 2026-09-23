@@ -12,12 +12,11 @@ from .evaluator import (
     IncrementalReplay,
     evaluate_strategy,
     iter_analysis_groups,
-    objects_in_fovs,
     restrict_input,
 )
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
-from .schema import ValidatedInput, validate_input_tables
+from .schema import ValidatedInput, fov_positions, validate_input_tables
 from .strategies.base import SamplingStrategy
 
 
@@ -112,7 +111,8 @@ def evaluate_acquisition_prefixes(
         ordered_keys = list(ordered.loc[:, key].itertuples(index=False, name=None))
         replay = _replay_incremental if incremental else _replay_full
         for step, result in replay(
-            strategy_list, group, group_data, ordered, objective=objective, min_fovs=min_fovs
+            strategy_list, group, _Acquisition(group_data, ordered), objective=objective,
+            min_fovs=min_fovs,
         ):
             all_results.append(
                 SequentialResult(
@@ -126,17 +126,38 @@ def evaluate_acquisition_prefixes(
     return all_results
 
 
-def _prefix(group_data: ValidatedInput, ordered: pd.DataFrame, step: int) -> ValidatedInput:
-    """The first ``step`` FOVs of ``ordered`` and their phenotype observations, as a visible input."""
-    fovs = ordered.iloc[:step]
-    return restrict_input(group_data, objects_in_fovs(group_data, fovs), fovs)
+class _Acquisition:
+    """One analysis group in acquisition order, sliced into prefixes and new FOVs.
+
+    Each observation's acquisition rank is computed once, so building a prefix
+    is a boolean mask rather than a new key match. Observations keep their
+    original table order within every prefix.
+    """
+
+    def __init__(self, group_data: ValidatedInput, ordered: pd.DataFrame) -> None:
+        self.data = group_data
+        self.ordered = ordered
+        self.rank = fov_positions(group_data, ordered)
+        self.n_fovs = len(ordered)
+
+    def _select(self, first: int, last: int) -> ValidatedInput:
+        mask = (self.rank >= first) & (self.rank < last)
+        return restrict_input(self.data, self.data.objects.loc[mask], self.ordered.iloc[first:last])
+
+    def prefix(self, step: int) -> ValidatedInput:
+        """The first ``step`` FOVs and their observations, as a visible input."""
+        return self._select(0, step)
+
+    def new_fov(self, step: int) -> ValidatedInput:
+        """Only the FOV revealed at ``step`` and its observations."""
+        return self._select(step - 1, step)
 
 
-def _replay_full(strategies, group, group_data, ordered, *, objective, min_fovs):
+def _replay_full(strategies, group, acquisition, *, objective, min_fovs):
     """Full recomputation of every strategy on every prefix (the reference)."""
-    for step in range(min_fovs, len(ordered) + 1):
+    for step in range(min_fovs, acquisition.n_fovs + 1):
         started = perf_counter()
-        prefix = _prefix(group_data, ordered, step)
+        prefix = acquisition.prefix(step)
         setup_seconds = perf_counter() - started
         for strategy in strategies:
             yield step, evaluate_strategy(
@@ -147,30 +168,31 @@ def _replay_full(strategies, group, group_data, ordered, *, objective, min_fovs)
 class _LazyPrefix:
     """Builds the visible prefix at most once per step, only if an estimator recomputes."""
 
-    def __init__(self, group_data: ValidatedInput, ordered: pd.DataFrame, step: int) -> None:
-        self.args = (group_data, ordered, step)
+    def __init__(self, acquisition: _Acquisition, step: int) -> None:
+        self.acquisition = acquisition
+        self.step = step
         self.data: ValidatedInput | None = None
 
     def __call__(self) -> tuple[ValidatedInput, float]:
+        """The prefix, and the time spent building it on this call (0 once cached)."""
         if self.data is not None:
             return self.data, 0.0
         started = perf_counter()
-        self.data = _prefix(*self.args)
+        self.data = self.acquisition.prefix(self.step)
         return self.data, perf_counter() - started
 
 
-def _replay_incremental(strategies, group, group_data, ordered, *, objective, min_fovs):
+def _replay_incremental(strategies, group, acquisition, *, objective, min_fovs):
     """Feed each newly revealed FOV to incremental estimators; recompute the others."""
     replays = [
-        IncrementalReplay(strategy, group_data, objective=objective, group=group)
+        IncrementalReplay(strategy, acquisition.data, objective=objective, group=group)
         for strategy in strategies
     ]
-    for step in range(1, len(ordered) + 1):
+    for step in range(1, acquisition.n_fovs + 1):
         started = perf_counter()
-        new_fovs = ordered.iloc[step - 1 : step]
-        new = restrict_input(group_data, objects_in_fovs(group_data, new_fovs), new_fovs)
+        new = acquisition.new_fov(step)
         setup_seconds = perf_counter() - started
-        prefix = _LazyPrefix(group_data, ordered, step)
+        prefix = _LazyPrefix(acquisition, step)
         for replay in replays:
             result = replay.step(new, prefix, record=step >= min_fovs, setup_seconds=setup_seconds)
             if result is not None:

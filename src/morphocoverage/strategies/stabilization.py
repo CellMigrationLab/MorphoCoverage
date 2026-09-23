@@ -89,6 +89,63 @@ def _describe_many(samples: np.ndarray, descriptors) -> dict[str, np.ndarray]:
     return {name: available[name] for name in descriptors}
 
 
+# Upper bound on values held at once when resampling whole FOVs.
+_MAX_RESAMPLED_VALUES = 5_000_000
+
+
+def _describe_fov_resamples(
+    grouped: np.ndarray, counts: np.ndarray, draws: np.ndarray, descriptors
+) -> dict[str, np.ndarray]:
+    """Descriptors of each resample of whole FOVs, without a Python loop over resamples.
+
+    ``grouped`` holds the values ordered by FOV, ``counts`` the values per FOV
+    and ``draws`` one row of FOV indices per resample. Each resample is the
+    concatenation of its FOVs' values, as in ``describe``; quantiles use the
+    same linear interpolation as ``np.percentile``. Resamples with fewer than
+    2 values give NaN.
+    """
+    n_resamples = len(draws)
+    starts = np.cumsum(counts) - counts
+    chosen = draws.ravel()
+    lengths = counts[chosen]
+    # Index of every value of every chosen FOV, and the resample it belongs to.
+    offsets = np.repeat(starts[chosen] - (np.cumsum(lengths) - lengths), lengths)
+    members = offsets + np.arange(lengths.sum())
+    values = grouped[members]
+    resample = np.repeat(np.repeat(np.arange(n_resamples), draws.shape[1]), lengths)
+    sizes = np.bincount(resample, minlength=n_resamples)
+    defined = sizes >= 2
+    safe = np.maximum(sizes, 1)
+
+    mean = np.bincount(resample, weights=values, minlength=n_resamples) / safe
+    deviations = np.bincount(resample, weights=(values - mean[resample]) ** 2, minlength=n_resamples)
+    sd = np.sqrt(deviations / np.maximum(sizes - 1, 1))
+
+    # Values sorted within each resample: one integer sort on (resample, value rank).
+    by_value = np.argsort(grouped, kind="stable")
+    rank = np.empty_like(by_value)
+    rank[by_value] = np.arange(len(grouped))
+    keys = np.sort(resample * len(grouped) + rank[members])
+    # A trailing NaN keeps indexing valid for resamples made only of empty FOVs.
+    ordered = np.append(grouped[by_value][keys % max(1, len(grouped))], np.nan)
+    first = np.cumsum(sizes) - sizes
+
+    def quantile(q: float) -> np.ndarray:
+        position = q * (safe - 1)
+        low = np.floor(position).astype(np.int64)
+        high = np.minimum(low + 1, safe - 1)
+        a, b = ordered[first + low], ordered[first + high]
+        return a + (b - a) * (position - low)
+
+    available = {
+        "mean": lambda: mean,
+        "sd": lambda: sd,
+        "median": lambda: quantile(0.5),
+        "iqr": lambda: quantile(0.75) - quantile(0.25),
+    }
+    return {name: np.where(defined, available[name](), np.nan) for name in descriptors}
+
+
 def _check_tolerance(tolerance) -> None:
     if not (tolerance > 0 and np.isfinite(tolerance)):
         raise ValueError("tolerance must be positive and finite (in the feature's units)")
@@ -279,13 +336,16 @@ class DescriptorSpreadEstimator(Estimator):
         if k < 2 or len(values) == 0:
             return "fewer than 2 acquired FOVs or no objects"
         positions = fov_positions(data, data.fovs)
-        members = [values[positions == j] for j in range(k)]
-        results: dict[str, list[float]] = {name: [] for name in self.descriptors}
-        for chosen in rng.integers(0, k, size=(self.n_resamples, k)):
-            sample = np.concatenate([members[j] for j in chosen])
-            for name, value in describe(sample, self.descriptors).items():
-                results[name].append(value)
-        return {name: np.asarray(series) for name, series in results.items()}
+        by_fov = np.argsort(positions, kind="stable")  # values grouped by FOV
+        counts = np.bincount(positions, minlength=k)
+        draws = rng.integers(0, k, size=(self.n_resamples, k))
+        # Bound memory: each chunk materializes its resamples' values at once.
+        chunk = max(1, int(_MAX_RESAMPLED_VALUES // max(1, len(values))))
+        parts = [
+            _describe_fov_resamples(values[by_fov], counts, draws[i : i + chunk], self.descriptors)
+            for i in range(0, len(draws), chunk)
+        ]
+        return {name: np.concatenate([part[name] for part in parts]) for name in self.descriptors}
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_spread`` across resamples of the visible data."""

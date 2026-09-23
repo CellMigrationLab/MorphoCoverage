@@ -27,9 +27,8 @@ def _visible_table(table: pd.DataFrame) -> pd.DataFrame:
     withheld between visible ones.
     """
     visible = table.reset_index(drop=True)
-    for column in visible.columns:
-        if isinstance(visible[column].dtype, pd.CategoricalDtype):
-            visible[column] = visible[column].cat.remove_unused_categories()
+    for column in visible.select_dtypes("category").columns:
+        visible[column] = visible[column].cat.remove_unused_categories()
     return visible
 
 
