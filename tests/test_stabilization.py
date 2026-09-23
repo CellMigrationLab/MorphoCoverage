@@ -283,3 +283,19 @@ def test_current_practice_rules_are_unsupported_for_rare_discovery():
     assert {r.result.decision for r in results} == {"unsupported"}
     # The population verdict is still reported, for comparison.
     assert "stop" in {r.result.component_decisions["population"] for r in results}
+
+
+@pytest.mark.parametrize(
+    "strategy",
+    [
+        DescriptorPlateauStrategy("area", 0.1, 2, "order"),
+        DescriptorSpreadStrategy("area", 0.1, "object", 20, 0),
+    ],
+)
+def test_descriptor_rules_do_not_silently_drop_missing_values(strategy):
+    objects, fovs = _tables([[1.0, float("nan")], [2.0, 3.0], [4.0, 5.0]])
+    result = _evaluate(objects, fovs, strategy)
+    [quantity] = result.evidence.quantities.values()
+    assert quantity.availability == "not_applicable"
+    assert result.decision is None
+    assert "missing values" in quantity.reason
