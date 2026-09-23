@@ -125,7 +125,7 @@ representative stopping stream.
 ## Stable live metadata contract
 
 The first FOV fixes the session's automatically resolved spatial identifier
-and grouping columns. Later FOVs may not silently introduce a higher-priority
+and grouping columns. This identity/grouping contract is immutable for the session. Later FOVs may not silently introduce a higher-priority
 identifier (for example `position_id` after the session began with
 `image_file`) or change the automatically resolved condition/repeat grouping.
 Start a new session, or specify `fov_col` and `group_cols` explicitly, when
