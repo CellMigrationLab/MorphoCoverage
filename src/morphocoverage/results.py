@@ -10,7 +10,7 @@ from .objectives import ObjectiveConfig
 
 @dataclass(frozen=True)
 class StrategyResult:
-    """One strategy evaluation at one acquisition state."""
+    """One strategy evaluation for one analysis group and acquisition state."""
 
     strategy: str
     objective: ObjectiveConfig
@@ -20,5 +20,6 @@ class StrategyResult:
     runtime_seconds: float | None = None
     n_fovs: int | None = None
     n_objects: int | None = None
+    group: Mapping[str, Any] = field(default_factory=dict)
     diagnostics: Mapping[str, Any] = field(default_factory=dict)
     parameters: Mapping[str, Any] = field(default_factory=dict)
