@@ -27,15 +27,21 @@ from .objectives import ObjectiveConfig
 from .provenance import class_identity, config_hash
 from .results import Decision, StrategyResult
 
-_EFFORTS = ("n_fovs", "n_objects")
+_EFFORTS = ("n_fovs", "n_observations", "n_objects")
 
 
 @dataclass(frozen=True)
 class Effort:
-    """Framework-owned acquisition effort: acquired FOVs (including empty ones) and objects."""
+    """Framework-owned acquisition effort."""
 
     n_fovs: int
-    n_objects: int
+    n_observations: int
+    observation_unit: str = "object"
+
+    @property
+    def n_objects(self) -> int:
+        """Backward-compatible alias for n_observations."""
+        return self.n_observations
 
 
 class DecisionPolicy(ABC):
@@ -234,7 +240,7 @@ def redecide(
     (kept from the original estimate). Use it for threshold sweeps.
     """
     policies = tuple(policies)
-    effort = Effort(n_fovs=result.n_fovs, n_objects=result.n_objects)
+    effort = Effort(n_fovs=result.n_fovs, n_observations=result.n_observations, observation_unit=result.observation_unit)
     decision, component_decisions = decide(result.evidence, effort, policies, result.objective)
     estimators = result.configuration.get("estimators", [])
     configuration = {
