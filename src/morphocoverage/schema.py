@@ -137,6 +137,35 @@ def validate_input_tables(
 
     _require_columns(objects, [*fov_key, *feature_cols], "objects")
 
+    # When an explicit spatial position spans several source files (for example
+    # one TIFF per z-plane/channel/timepoint), require within-position metadata
+    # so those files are not an undocumented pseudo-FOV axis.
+    if resolved_fov_col == "position_id" and "image_file" in objects.columns:
+        file_counts = objects.groupby(list(fov_key), dropna=False)["image_file"].nunique()
+        multi_file_positions = file_counts[file_counts > 1]
+        if len(multi_file_positions):
+            present_axes = [
+                column for column in WITHIN_FOV_METADATA_COLUMNS if column in objects.columns
+            ]
+            if not present_axes:
+                raise ValueError(
+                    "a position_id maps to multiple image_file values, but no z/c/t "
+                    "metadata is present. When one spatial position is split across "
+                    "plane/channel/time files, document the relevant within-FOV axis."
+                )
+            ambiguous_keys = set(multi_file_positions.index.tolist())
+            key_values = list(objects.loc[:, list(fov_key)].itertuples(index=False, name=None))
+            ambiguous_mask = np.fromiter(
+                (key_value in ambiguous_keys for key_value in key_values),
+                dtype=bool,
+                count=len(objects),
+            )
+            if objects.loc[ambiguous_mask, present_axes].isna().all(axis=1).any():
+                raise ValueError(
+                    "rows from a multi-file spatial position are missing z/c/t metadata; "
+                    "document the relevant within-FOV coordinate on every such row."
+                )
+
     if objects[resolved_fov_col].isna().any():
         raise ValueError(
             f"objects[{resolved_fov_col!r}] contains missing FOV identifiers"
