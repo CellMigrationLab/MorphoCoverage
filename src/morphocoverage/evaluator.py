@@ -56,14 +56,14 @@ def restrict_input(
 
 
 def objects_in_fovs(data: ValidatedInput, fovs: pd.DataFrame) -> pd.DataFrame:
-    """Return the objects belonging to the given FOV rows, matched on the full FOV key."""
+    """Return the observations belonging to the given FOV rows, matched on the full FOV key."""
     return data.objects.loc[fov_positions(data, fovs) >= 0]
 
 
 def iter_analysis_groups(
     data: ValidatedInput,
 ) -> Iterable[tuple[dict[str, object], ValidatedInput]]:
-    """Yield independent analysis groups, preserving zero-object FOV groups."""
+    """Yield independent analysis groups, preserving zero-observation FOV groups."""
     if not data.group_cols:
         yield {}, restrict_input(data, data.objects, data.fovs)
         return
@@ -158,7 +158,7 @@ def evaluate_strategy(
     the input tables, so neither estimator state nor in-place edits to the
     data can flow to another estimator, analysis group or acquisition prefix.
     ``estimate`` is therefore a pure full recomputation on the data it
-    receives. Effort (``n_fovs``, ``n_objects``) is computed from the original
+    receives. Effort (``n_fovs``, ``n_observations``) is computed from the original
     input and given to the policies. ``setup_seconds`` (for example building
     the visible prefix) is counted as framework overhead.
     """
