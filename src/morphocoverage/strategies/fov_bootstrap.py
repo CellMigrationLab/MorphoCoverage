@@ -37,7 +37,12 @@ stated in the roadmap and not removed by any setting here:
   ``(k - 1) / k``), hence the explicit ``min_fovs``;
 - tail quantiles are poorly supported by few FOVs or observations;
 - neighbouring FOVs that are spatially correlated make independent FOV
-  resampling optimistic;
+  resampling optimistic. ``block_col`` names an FOV-table column of spatial
+  blocks (for example from ``reservoir.spatial_blocks``); whole blocks are then
+  resampled, so correlation within a block is kept (a spatial block bootstrap,
+  roadmap 8.4). Blocks should be at least as large as the correlation length;
+  correlation between blocks is still ignored, and ``min_fovs`` then also
+  requires that many blocks;
 - the value depends on feature scale, so ``transform`` is explicit (``None``
   means raw feature units). The transform is fitted once on the visible data
   and held fixed across resamples.
@@ -119,17 +124,19 @@ def covariance_resamples(counts, sums, outer, weights) -> np.ndarray:
         return (cross - mean_outer / n[:, None]) / (n - 1)[:, None]
 
 
-def quantile_resamples(values, positions, k, draws, quantiles) -> np.ndarray:
+def quantile_resamples(values, positions, weights, quantiles) -> np.ndarray:
     """Per-feature quantiles of the pooled observations of each resample, flattened.
 
-    ``draws[b]`` lists the FOV indices (of ``k``) in resample ``b``. Resamples
-    without observations are NaN. One ``np.quantile`` call per resample.
+    ``weights[b, j]`` is how often FOV ``j`` was drawn in resample ``b``.
+    Resamples without observations are NaN. One ``np.quantile`` call per
+    resample.
     """
+    k = weights.shape[1]
     by_fov = np.argsort(positions, kind="stable")
     rows_of = np.split(by_fov, np.cumsum(np.bincount(positions, minlength=k))[:-1])
-    out = np.full((len(draws), len(quantiles) * values.shape[1]), np.nan)
-    for b, fovs in enumerate(draws):
-        rows = np.concatenate([rows_of[j] for j in fovs])
+    out = np.full((len(weights), len(quantiles) * values.shape[1]), np.nan)
+    for b, counts in enumerate(weights.astype(int)):
+        rows = np.concatenate([rows_of[j] for j in np.repeat(np.arange(k), counts)])
         if len(rows):
             out[b] = np.quantile(values[rows], quantiles, axis=0).ravel()
     return out
@@ -162,6 +169,17 @@ def _meta(units: str) -> dict[str, Any]:
     }
 
 
+def _visible_blocks(data: ValidatedInput, block_col: str | None) -> int | None:
+    """Number of visible spatial blocks, or ``None`` without blocks; checks the column."""
+    if block_col is None:
+        return None
+    if block_col not in data.fovs.columns:
+        raise ValueError(f"block_col {block_col!r} is not a column of the FOV table")
+    if data.fovs[block_col].isna().any():
+        raise ValueError(f"block_col {block_col!r} contains missing values")
+    return int(data.fovs[block_col].nunique())
+
+
 def _pca_reason(estimator: FOVBootstrapEstimator, values: np.ndarray) -> str | None:
     """Why a PCA summary is undefined for these features, if it is."""
     d = values.shape[1]
@@ -188,10 +206,13 @@ class FOVBootstrapEstimator(Estimator):
     min_fovs: int
     quantiles: tuple[float, ...] | None = None
     n_components: int | None = None
+    block_col: str | None = None
 
     def __post_init__(self) -> None:
         if self.quantiles is not None:
             object.__setattr__(self, "quantiles", tuple(float(q) for q in self.quantiles))
+        if self.block_col is not None and not isinstance(self.block_col, str):
+            raise TypeError("block_col must be an FOV-table column name or None")
         _check(
             self.summary,
             self.n_resamples,
@@ -225,6 +246,7 @@ class FOVBootstrapEstimator(Estimator):
             "min_fovs": self.min_fovs,
             "quantiles": None if self.quantiles is None else list(self.quantiles),
             "n_components": self.n_components,
+            "block_col": self.block_col,
         }
 
     def _values(self, data: ValidatedInput) -> tuple[np.ndarray | None, dict[str, Any], str]:
@@ -237,13 +259,26 @@ class FOVBootstrapEstimator(Estimator):
             return None, {"transform": fitted.provenance()}, units
         return fitted.apply(data), {"transform": fitted.provenance()}, units
 
-    def _resampled(self, values: np.ndarray, positions: np.ndarray, k: int) -> np.ndarray:
-        """The summary's components for each bootstrap resample of whole FOVs."""
-        draws = np.random.default_rng(self.random_state).integers(0, k, (self.n_resamples, k))
+    def _weights(self, data: ValidatedInput) -> np.ndarray:
+        """How often each visible FOV enters each resample: FOVs, or whole blocks, drawn."""
+        if self.block_col is None:
+            block_of_fov = np.arange(len(data.fovs))
+        else:
+            block_of_fov = np.unique(data.fovs[self.block_col].to_numpy(), return_inverse=True)[1]
+        n_blocks = int(block_of_fov.max()) + 1
+        rng = np.random.default_rng(self.random_state)
+        draws = rng.integers(0, n_blocks, (self.n_resamples, n_blocks))
+        block_weights = np.zeros((self.n_resamples, n_blocks))
+        np.add.at(block_weights, (np.arange(self.n_resamples)[:, None], draws), 1.0)
+        return block_weights[:, block_of_fov]
+
+    def _resampled(
+        self, values: np.ndarray, positions: np.ndarray, weights: np.ndarray
+    ) -> np.ndarray:
+        """The summary's components for each resample described by ``weights``."""
+        k = weights.shape[1]
         if self.summary == "quantiles":
-            return quantile_resamples(values, positions, k, draws, self.quantiles)
-        weights = np.zeros((self.n_resamples, k))
-        np.add.at(weights, (np.arange(self.n_resamples)[:, None], draws), 1.0)
+            return quantile_resamples(values, positions, weights, self.quantiles)
         counts = np.bincount(positions, minlength=k).astype(float)
         sums = _per_fov_sums(values, positions, k)
         if self.summary == "centroid":
@@ -272,12 +307,16 @@ class FOVBootstrapEstimator(Estimator):
             quantity = Quantity.not_applicable(reason, **_meta("units of the selected features"))
             return Evidence({name: quantity}, {"undefined_reason": reason})
         positions = fov_positions(data, data.fovs)
-        k = len(data.fovs)
         with_observations = len(np.unique(positions))
         values, diagnostics, units = self._values(data)
         diagnostics["fovs_with_observations"] = with_observations
+        blocks = _visible_blocks(data, self.block_col)
+        if blocks is not None:
+            diagnostics["visible_blocks"] = blocks
         if with_observations < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
+        elif blocks is not None and blocks < self.min_fovs:
+            reason = f"fewer than {self.min_fovs} visible spatial blocks"
         elif values is None:
             reason = f"the transform could not be fitted: {diagnostics['transform']['reason']}"
         elif self.summary in ("eigenspectrum", "subspace") and _pca_reason(self, values):
@@ -290,7 +329,7 @@ class FOVBootstrapEstimator(Estimator):
             diagnostics["undefined_reason"] = reason
             return Evidence({name: Quantity.insufficient(reason, **_meta(units))}, diagnostics)
 
-        components = self._resampled(values, positions, k)
+        components = self._resampled(values, positions, self._weights(data))
         defined = ~np.isnan(components).any(axis=1)
         diagnostics["undefined_resamples"] = int((~defined).sum())
         if defined.sum() < 2:
@@ -328,6 +367,7 @@ class FOVBootstrapStrategy(SamplingStrategy):
     min_fovs: int
     quantiles: tuple[float, ...] | None = None
     n_components: int | None = None
+    block_col: str | None = None
 
     def __post_init__(self) -> None:
         if not (self.tolerance > 0 and np.isfinite(self.tolerance)):
@@ -366,6 +406,7 @@ class FOVBootstrapStrategy(SamplingStrategy):
                 self.min_fovs,
                 self.quantiles,
                 self.n_components,
+                self.block_col,
             ),
         )
 

@@ -15,6 +15,7 @@ from morphocoverage import (
     validate_input_tables,
 )
 from morphocoverage.evaluator import objects_in_fovs, restrict_input
+from morphocoverage.reservoir import spatial_blocks
 from morphocoverage.schema import fov_positions
 from morphocoverage.strategies import FOVBootstrapEstimator, FOVBootstrapStrategy
 from morphocoverage.strategies.fov_bootstrap import (
@@ -57,7 +58,7 @@ def test_resample_helpers_match_brute_force_pooling():
     outer = np.array([products[positions == j].sum(axis=0) for j in range(4)])
     centroids = centroid_resamples(counts.astype(float), sums, weights)
     covariances = covariance_resamples(counts.astype(float), sums, outer, weights)
-    quantiles = quantile_resamples(values, positions, 4, draws, (0.2, 0.5))
+    quantiles = quantile_resamples(values, positions, weights, (0.2, 0.5))
     for b, fovs in enumerate(draws):
         pooled = np.concatenate([values[positions == j] for j in fovs])
         if len(pooled) == 0:
@@ -262,3 +263,51 @@ def test_pca_summaries_need_several_features_and_fewer_components():
 def test_n_components_belongs_to_the_subspace_summary(build):
     with pytest.raises(ValueError):
         build()
+
+
+# --- spatial block bootstrap ----------------------------------------------------
+
+
+def _with_blocks(scenario, blocks):
+    built = SCENARIOS[scenario]()
+    fovs = built.fovs.assign(block=blocks(built.fovs))
+    return validate_input_tables(built.objects, fovs=fovs, feature_cols=["feature_a"])
+
+
+def _block_se(data, block_col="block", min_fovs=2, n=2000):
+    estimator = FOVBootstrapEstimator("centroid", None, n, 0, min_fovs, None, None, block_col)
+    return estimator.estimate(data, objective=POPULATION).quantities[estimator.quantity]
+
+
+def test_single_fov_blocks_reproduce_the_fov_bootstrap_exactly():
+    data = _with_blocks("neighbour_correlation", lambda fovs: np.arange(len(fovs)))
+    assert _block_se(data).value == _block_se(data, block_col=None).value
+
+
+def test_blocks_widen_uncertainty_when_neighbouring_fovs_are_correlated():
+    # The phenotype drifts smoothly with stage position: FOVs within a 300 um
+    # block are alike, so resampling single FOVs understates the uncertainty.
+    data = _with_blocks(
+        "neighbour_correlation", lambda fovs: spatial_blocks(fovs, "stage_x", "stage_y", 300.0)
+    )
+    assert _block_se(data).value > 1.5 * _block_se(data, block_col=None).value
+
+
+def test_too_few_blocks_are_insufficient_data():
+    data = _with_blocks(
+        "neighbour_correlation", lambda fovs: spatial_blocks(fovs, "stage_x", "stage_y", 600.0)
+    )
+    quantity = _block_se(data, min_fovs=3)
+    assert quantity.availability.value == "insufficient_data"
+    assert "blocks" in quantity.reason
+
+
+def test_block_column_must_exist_and_be_complete():
+    data = _data("neighbour_correlation", features=("feature_a",))
+    with pytest.raises(ValueError, match="not a column"):
+        _block_se(data)
+    gaps = _with_blocks("neighbour_correlation", lambda fovs: [np.nan] + [1.0] * (len(fovs) - 1))
+    with pytest.raises(ValueError, match="missing values"):
+        _block_se(gaps)
+    strategy = FOVBootstrapStrategy("centroid", 0.1, None, 10, 0, 2, None, None, "block")
+    assert strategy.parameters["block_col"] == "block"
