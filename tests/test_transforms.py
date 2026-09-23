@@ -60,7 +60,7 @@ def test_pca_matches_numpy_and_has_a_deterministic_sign():
 
 def test_pca_needs_enough_objects_and_features():
     assert "features" in PCA(3).fit(_data([[1.0, 2.0], [2.0, 1.0], [0.0, 0.0]])).reason
-    assert "objects" in PCA(2).fit(_data([[1.0, 2.0], [2.0, 1.0]])).reason
+    assert "observations" in PCA(2).fit(_data([[1.0, 2.0], [2.0, 1.0]])).reason
     with pytest.raises(ValueError):
         PCA(0)
 
