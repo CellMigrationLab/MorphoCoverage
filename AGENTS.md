@@ -155,36 +155,47 @@ Future modules should be added only when the corresponding behavior is implement
 Do not skip directly to a polished `analyze()` API.
 
 1. Strict linked FOV/object input contracts and validation.
-2. Build synthetic benchmark generators and a leakage-safe sequential holdout harness without assuming a coverage estimator.
-3. Define measurable held-out outcomes for future FOVs.
-4. Reproduce simple/current-practice baselines, including fixed cells/FOVs and the scoped scalar cell-averaging problem.
-5. Build falsification datasets with known structure, including spatially correlated and zero-object FOVs.
-6. Implement substantially different candidate solution families separately.
-7. Benchmark candidates against held-out FOV outcomes and simple baselines.
-8. Select a default estimator or decision rule only if evidence supports one.
-9. Add uncertainty, grouping, plotting, and user-facing convenience APIs only after the scientific core stabilizes.
+2. Define explicit sampling objectives: population representation, rare-phenotype discovery, and balanced sampling.
+3. Build one modular strategy interface and one canonical result/provenance contract.
+4. Build leakage-safe sequential evaluation for deeply sampled real acquisitions.
+5. Reproduce simple/current-practice baselines, including fixed cells/FOVs and the scoped scalar cell-averaging problem.
+6. Implement substantially different strategy families behind the same interface.
+7. Benchmark candidates on deeply sampled real datasets using strategy-independent scientific and computational criteria.
+8. Add targeted counterexamples and regression fixtures when real-data failures reveal them.
+9. Select a default estimator or decision rule only if evidence supports one.
 10. Validate continue/stop decisions prospectively before considering targeted smart-microscopy acquisition.
 
-## 9. Required synthetic scientific tests
+## 9. Validation philosophy and required contract tests
 
-As relevant modules are introduced, tests must include:
+Deeply sampled real microscopy datasets are the primary scientific benchmark. Constructed or synthetic data are supporting tools for unit tests, explicit counterexamples, and regression tests after a failure mode is identified; they are not the main evidence that a strategy works.
 
-- homogeneous phenotype distribution;
-- clearly separated multimodal phenotypes;
-- rare states at controlled prevalence, e.g. 10%, 1%, 0.1%;
-- identical rare-state prevalence distributed uniformly versus clustered into few FOVs;
-- unequal numbers of objects per FOV;
-- acquired FOVs with zero detected objects;
-- unequal physical FOV area when area metadata are available;
-- correlation between neighbouring FOVs;
-- direct comparison against fixed-cell, fixed-FOV, and scalar-precision baselines;
-- duplicated objects within an existing FOV versus acquisition of new FOVs;
-- optional condition/repeat groups kept independent;
-- technical/batch shifts;
-- deterministic results under a fixed seed;
-- no future-FOV leakage in prospective estimators.
+Constructed data are still required for **contract tests**: acquisitions whose structure is known by construction, used to prove that the framework and every strategy handle that structure correctly. The scenarios below are implemented in `tests/scenarios.py` and exercised by `tests/test_contracts.py`. Each backticked id must have either a fixture or a named framework contract; `test_agents_section_9_matches_contract_tests` fails if this list and the tests drift apart.
 
-A high line-coverage percentage is not a substitute for these behavior tests.
+Required scenarios:
+
+- homogeneous phenotype distribution: `homogeneous`;
+- clearly separated multimodal phenotypes: `multimodal`;
+- rare states at controlled prevalence, e.g. 10%, 1%, 0.1%: `rare_prevalence_10pct`, `rare_prevalence_1pct`, `rare_prevalence_0p1pct`;
+- identical rare-state prevalence distributed uniformly versus clustered into few FOVs: `rare_uniform`, `rare_clustered`;
+- unequal numbers of objects per FOV: `unequal_objects_per_fov`;
+- acquired FOVs with zero detected objects: `zero_object_fovs`;
+- unequal physical FOV area when area metadata are available: `unequal_fov_area`;
+- correlation between neighbouring FOVs: `neighbour_correlation`;
+- direct comparison against fixed-cell, fixed-FOV, and scalar-precision baselines: `baseline_comparison`;
+- duplicated objects within an existing FOV versus acquisition of new FOVs: `duplicated_objects`;
+- optional condition/repeat groups kept independent: `condition_repeat_groups`;
+- technical/batch shifts: `batch_shift`;
+- deterministic results under a fixed seed: `deterministic_under_seed`;
+- no future-FOV leakage in prospective estimators: `no_future_fov_leakage`.
+
+Rules for these tests:
+
+- Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
+- Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-object FOVs counted as effort) apply to all strategies automatically.
+- Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
+- `baseline_comparison` covers the fixed-cell, fixed-FOV, JCB-style scalar-precision (`ScalarPrecisionStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
+
+A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 
 ## 10. JCB comparison rules
 
@@ -288,3 +299,13 @@ For substantive work, report briefly:
 - which tests/validation actually ran;
 - assumptions and known limitations;
 - unresolved scientific questions that should block broader claims.
+
+## 17. Sampling objectives, MorphoBricks defaults, and benchmarking
+
+The sampling objective is separate from the mathematical strategy. Supported high-level objectives are population representation, rare-phenotype discovery with an explicit user target, and balanced sampling.
+
+MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; image_file is preferred as the FOV identifier (one image file, including a multidimensional stack, is one FOV); and shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
+
+Strategies must not reimplement condition/repeat splitting. Each strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, object/FOV counts, and measured runtime.
+
+Scientific and computational benchmarking are separate dimensions. Runtime is first-class because smart microscopy requires a decision before the next acquisition is needed. See docs/sampling_objectives.md, docs/benchmarking.md, and docs/architecture.md.

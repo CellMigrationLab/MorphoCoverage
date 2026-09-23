@@ -112,7 +112,9 @@ def test_allows_same_fov_id_in_different_groups():
 
 
 def test_rejects_duplicate_fov_rows_within_group():
-    fovs = pd.DataFrame({"repeat": ["R1", "R1"], "fov_id": ["F1", "F1"]})
+    fovs = pd.DataFrame(
+        {"condition": ["control", "control"], "repeat": ["R1", "R1"], "fov_id": ["F1", "F1"]}
+    )
     with pytest.raises(ValueError, match="exactly one row"):
         validate_input_tables(
             _objects(),
