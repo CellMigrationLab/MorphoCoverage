@@ -44,11 +44,12 @@ from morphocoverage import (
     Evidence,
     FixedFOVStrategy,
     FixedObjectStrategy,
+    PlannedCellCountStrategy,
     SamplingStrategy,
     ScalarPrecisionStrategy,
+    plan_cells_to_average,
     run_strategies,
 )
-from morphocoverage.strategies import PlannedCellCountStrategy, plan_cells_to_average
 
 # §9 items that are properties of the framework rather than datasets.
 FRAMEWORK_CONTRACTS = {

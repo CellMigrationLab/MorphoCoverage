@@ -8,16 +8,14 @@ import pandas as pd
 import pytest
 
 from morphocoverage import (
+    CellCountPlan,
     Decision,
     ObjectiveConfig,
+    PlannedCellCountStrategy,
     SamplingObjective,
     evaluate_acquisition_prefixes,
-    run_strategies,
-)
-from morphocoverage.strategies import (
-    CellCountPlan,
-    PlannedCellCountStrategy,
     plan_cells_to_average,
+    run_strategies,
 )
 from morphocoverage.strategies.scalar_precision import sd_upper_bound_factor
 

@@ -16,15 +16,16 @@ from morphocoverage import (
     FixedObjectStrategy,
     FixedObservationStrategy,
     ObjectiveConfig,
+    PlannedCellCountStrategy,
     RareTarget,
     SamplingObjective,
     SamplingStrategy,
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
     outcomes,
+    plan_cells_to_average,
     transforms,
 )
-from morphocoverage.strategies import PlannedCellCountStrategy, plan_cells_to_average
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 _RARE = RareTarget(

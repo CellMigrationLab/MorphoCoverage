@@ -9,6 +9,7 @@ from .results import Decision, StrategyResult
 from .schema import ValidatedInput, validate_input_tables
 from .sequential import SequentialResult, evaluate_acquisition_prefixes
 from .strategies import (
+    CellCountPlan,
     DescriptorPlateauEstimator,
     DescriptorPlateauStrategy,
     DescriptorSpreadEstimator,
@@ -17,13 +18,17 @@ from .strategies import (
     FixedFOVStrategy,
     FixedObjectStrategy,
     FixedObservationStrategy,
+    PlannedCellCountEstimator,
+    PlannedCellCountStrategy,
     SamplingStrategy,
     ScalarPrecisionEstimator,
     ScalarPrecisionStrategy,
+    plan_cells_to_average,
 )
 
 __all__ = [
     "Availability",
+    "CellCountPlan",
     "Component",
     "Decision",
     "DecisionPolicy",
@@ -41,6 +46,8 @@ __all__ = [
     "FixedObservationStrategy",
     "ObjectiveConfig",
     "OnlineSession",
+    "PlannedCellCountEstimator",
+    "PlannedCellCountStrategy",
     "Quantity",
     "RareTarget",
     "SamplingObjective",
@@ -52,6 +59,7 @@ __all__ = [
     "ThresholdPolicy",
     "ValidatedInput",
     "evaluate_acquisition_prefixes",
+    "plan_cells_to_average",
     "redecide",
     "run_strategies",
     "validate_input_tables",
