@@ -29,7 +29,7 @@ Synthetic data remain useful for unit tests, explicit counterexamples, and regre
   
   `records_to_frame` flattens the records to one row each.
 - **Outcome metrics** are functions of (full group, stop prefix) → value. They never see a strategy's evidence or decision, so two strategies that stop at the same prefix get identical outcomes; a contract test checks this. They are retrospective and must never be used inside an estimator. The first metrics are:
-  - `RelativeMeanError(feature)`: the realized relative error of the object mean at the stop.
+  - `RelativeMeanError(feature)`: the realized relative error of the observation mean at the stop.
   - `RandomCellRelativeError(feature)`: the expected relative RMSE had the same number of cells been drawn at random from the full group (simple random sampling with finite-population correction). It is the comparator in `data/crick_idr/fov_vs_cells.py`. Across permuted orders, the RMSE of `RelativeMeanError` divided by this value is the error inflation from acquiring whole FOVs.
   - `RareStateDetected(label_col, min_fov_occurrences)`: whether the stop prefix shows an independently labelled state in enough FOVs. It is `None` when the full acquisition never does.
 
@@ -90,7 +90,7 @@ Evaluate sensitivity to:
 
 At minimum benchmark:
 
-- fixed object/cell count;
+- fixed observation/cell count;
 - fixed FOV count;
 - fixed imaged area when available;
 - JCB/Zweifach-style scalar averaging precision;
