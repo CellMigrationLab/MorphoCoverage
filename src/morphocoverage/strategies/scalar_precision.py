@@ -62,7 +62,7 @@ from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from .base import Estimator, EstimatorState, SamplingStrategy
+from .base import Estimator, EstimatorState, SamplingStrategy, require_observation_unit
 
 _UNITS = ("object", "fov")
 _SD_ESTIMATES = ("point", "upper_95")
@@ -325,6 +325,9 @@ class ScalarPrecisionEstimator(Estimator):
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """Averaging CV of the visible data, and the pilot's projection when configured."""
+        require_observation_unit(
+            data, ("object", "cell", "nucleus"), method="ScalarPrecisionEstimator"
+        )
         data.feature_values(self.feature)  # fails early on a non-feature column
         self._check_order_col(data.fovs)
         current = self._precision(data, data.fovs)
@@ -374,6 +377,9 @@ class ScalarPrecisionEstimator(Estimator):
 
     def start(self, template: ValidatedInput, *, objective: ObjectiveConfig) -> EstimatorState:
         """Incremental version: keeps sufficient statistics per acquired FOV."""
+        require_observation_unit(
+            template, ("object", "cell", "nucleus"), method="ScalarPrecisionEstimator"
+        )
         template.feature_values(self.feature)
         self._check_order_col(template.fovs)
         return _ScalarPrecisionState(self)
