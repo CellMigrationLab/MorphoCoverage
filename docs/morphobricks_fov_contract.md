@@ -97,7 +97,7 @@ NucleiSky does not produce per-object phenotype feature tables, so it needs no c
 ### Ecosystem-level
 
 - **Keep the shared column contract in one place.** CellPatcher's and fiberfeatures' AGENTS.md copies already disagree: `repeat` is "Always" in one and "If used" in the other. A single spec (e.g. in the organization `.github` or `docs-hub` repository), copied by reference into each AGENTS.md, would stop further drift.
-- **Add a contract test to each producer:** a fixture with a zero-object image and duplicate basenames across two repeats, asserting the per-image table has every image and that `(condition, repeat, image_file)` is unique.
+- **Add a contract test to each producer:** a fixture with a zero-object image and duplicate basenames across two repeats, asserting the per-position table has every acquired spatial position and that `(condition, repeat, position_id)` is unique when `position_id` is used (otherwise use the documented one-file/one-position `image_file` fallback).
 
 ## 3. What MorphoCoverage does today with non-conforming input
 
