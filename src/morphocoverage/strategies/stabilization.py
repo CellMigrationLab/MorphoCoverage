@@ -46,7 +46,7 @@ from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from .base import Estimator, SamplingStrategy
+from .base import Estimator, SamplingStrategy, require_observation_unit
 
 PAPER_DESCRIPTORS = ("mean", "median", "sd", "iqr")
 _UNITS = ("object", "fov")
@@ -170,6 +170,9 @@ class DescriptorPlateauEstimator(Estimator):
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_range`` over the trailing window of growth steps."""
+        require_observation_unit(
+            data, ("object", "cell", "nucleus"), method="DescriptorPlateauEstimator"
+        )
         values = data.feature_values(self.feature)
         if np.isnan(values).any():
             reason = "missing values in the selected feature"
@@ -279,6 +282,9 @@ class DescriptorSpreadEstimator(Estimator):
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_spread`` across resamples of the visible data."""
+        require_observation_unit(
+            data, ("object", "cell", "nucleus"), method="DescriptorSpreadEstimator"
+        )
         values = data.feature_values(self.feature)
         if np.isnan(values).any():
             reason = "missing values in the selected feature"
