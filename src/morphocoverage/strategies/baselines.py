@@ -11,7 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..policies import EffortPolicy
+from ..evidence import Component
+from ..policies import DecisionPolicy, Effort, EffortPolicy
+from ..results import Decision
 from .base import SamplingStrategy
 
 
@@ -49,6 +51,28 @@ class FixedFOVStrategy(SamplingStrategy):
 
 
 @dataclass(frozen=True)
+class _ObjectCountPolicy(DecisionPolicy):
+    """Legacy object-count policy with explicit row-semantics guard."""
+
+    target: int
+    name: str = "effort:n_objects"
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {"effort": "n_objects", "target": self.target}
+
+    def decide(self, evidence, effort: Effort):
+        if effort.observation_unit not in {"object", "cell", "nucleus"}:
+            raise ValueError(
+                "FixedObjectStrategy requires observation_unit 'object', 'cell' or "
+                f"'nucleus', got {effort.observation_unit!r}; use FixedObservationStrategy "
+                "for generic feature rows"
+            )
+        reached = effort.n_observations >= self.target
+        return Component.POPULATION, Decision.STOP if reached else Decision.CONTINUE
+
+
+@dataclass(frozen=True)
 class FixedObjectStrategy(SamplingStrategy):
     """Legacy row-count baseline for object-style feature tables.
 
@@ -73,9 +97,9 @@ class FixedObjectStrategy(SamplingStrategy):
         return ()
 
     @property
-    def policies(self) -> tuple[EffortPolicy]:
-        """Stop once feature-table rows reach the legacy object target."""
-        return (EffortPolicy("n_objects", self.target_objects),)
+    def policies(self) -> tuple[_ObjectCountPolicy]:
+        """Stop once object-like observations reach the legacy object target."""
+        return (_ObjectCountPolicy(self.target_objects),)
 
 
 @dataclass(frozen=True)
