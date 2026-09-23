@@ -408,3 +408,19 @@ def test_benchmark_records_generic_observation_effort():
     assert record.observation_unit == "slice"
     assert record.n_observations == record.n_objects
     assert record.total_observations == record.total_objects
+
+
+def test_outcome_metrics_do_not_silently_drop_missing_feature_values():
+    scenario = SCENARIOS["homogeneous"]()
+    objects = scenario.objects.copy()
+    objects.loc[objects.index[0], "feature_a"] = float("nan")
+    data = validate_input_tables(
+        objects,
+        fovs=scenario.fovs,
+        feature_cols=list(FEATURE_COLS),
+    )
+    fovs = data.fovs.nsmallest(3, ORDER_COL)
+    stopped = restrict_input(data, objects_in_fovs(data, fovs), fovs)
+
+    assert RelativeMeanError("feature_a").evaluate(data, stopped) is None
+    assert RandomCellRelativeError("feature_a").evaluate(data, stopped) is None
