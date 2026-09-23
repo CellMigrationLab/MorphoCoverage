@@ -72,3 +72,30 @@ class FixedObjectStrategy(SamplingStrategy):
     def policies(self) -> tuple[EffortPolicy]:
         """Stop once detected objects reach the target, regardless of FOV count."""
         return (EffortPolicy("n_objects", self.target_objects),)
+
+
+@dataclass(frozen=True)
+class FixedObservationStrategy(SamplingStrategy):
+    """Stop after a user-defined number of phenotype observations.
+
+    Unlike FixedObjectStrategy, this baseline is agnostic to whether rows are
+    cells, nuclei, patches, slices, embeddings, or another declared unit.
+    """
+
+    target_observations: int
+    name: str = "fixed_observations"
+
+    def __post_init__(self) -> None:
+        _require_positive_int(self.target_observations, "target_observations")
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {"target_observations": self.target_observations}
+
+    @property
+    def estimators(self) -> tuple:
+        return ()
+
+    @property
+    def policies(self) -> tuple[EffortPolicy]:
+        return (EffortPolicy("n_observations", self.target_observations),)
