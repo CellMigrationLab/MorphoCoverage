@@ -80,6 +80,28 @@ def test_records_generic_observation_semantics():
         )
 
 
+@pytest.mark.parametrize(
+    ("given", "canonical"),
+    [
+        ("cell", "cell"),
+        ("Cells", "cell"),
+        (" nuclei ", "nucleus"),
+        ("Objects", "object"),
+        ("slices", "slice"),
+        ("FOV summary", "fov_summary"),
+        ("fov-summaries", "fov_summary"),
+        ("embedding", "embedding"),
+        ("tile", "tile"),
+    ],
+)
+def test_observation_unit_is_normalized_to_one_label(given, canonical):
+    # "cells" and "Cell" must not count as a different unit from "cell".
+    result = validate_input_tables(
+        _objects(), feature_cols=["area"], fov_col="fov_id", observation_unit=given
+    )
+    assert result.observation_unit == canonical
+
+
 def test_rejects_metadata_used_as_feature():
     with pytest.raises(ValueError, match="group columns cannot also"):
         validate_input_tables(

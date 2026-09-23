@@ -111,6 +111,7 @@ and the framework must raise rather than guess.
 Loading a table and applying a method are separate contracts. MorphoCoverage
 may load feature rows representing cells, nuclei, patches, slices, embeddings,
 or FOV summaries, but an estimator may be scientifically valid for only some
-of those units. Such methods must reject incompatible `observation_unit`
-values explicitly. Generic table support must not turn a cell-count criterion
+of those units. Such methods must report their evidence as not applicable,
+with the reason, for incompatible `observation_unit` values; the decision is
+then undefined rather than an error, and never a reinterpretation. Generic table support must not turn a cell-count criterion
 into a slice-count criterion by accident.

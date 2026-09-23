@@ -18,7 +18,7 @@ from .evaluator import IncrementalReplay
 from .metadata import MORPHOBRICKS_FOV_CANDIDATES, MORPHOBRICKS_GROUP_COLUMNS
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
-from .schema import ValidatedInput, validate_input_tables
+from .schema import ValidatedInput, normalize_observation_unit, validate_input_tables
 from .strategies.base import SamplingStrategy
 
 
@@ -67,9 +67,7 @@ class OnlineSession:
             raise TypeError("group_cols must be a sequence of column names, not a string")
         self._requested_fov_col = fov_col
         self._requested_group_cols = None if group_cols is None else tuple(group_cols)
-        if not isinstance(observation_unit, str) or not observation_unit.strip():
-            raise ValueError("observation_unit must be a non-empty description")
-        self.observation_unit = observation_unit.strip()
+        self.observation_unit = normalize_observation_unit(observation_unit)
         self._resolved_fov_col: str | None = None
         self._resolved_group_cols: tuple[str, ...] | None = None
         self._groups: dict[tuple[object, ...], _GroupSession] = {}

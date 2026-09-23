@@ -8,6 +8,7 @@ from morphocoverage import (
     Evidence,
     FixedFOVStrategy,
     FixedObjectStrategy,
+    FixedObservationStrategy,
     ObjectiveConfig,
     Quantity,
     RareTarget,
@@ -144,15 +145,33 @@ def test_strategy_cannot_read_metadata_as_a_feature():
         )
 
 
-def test_fixed_object_strategy_rejects_generic_slice_rows():
+def test_fixed_object_strategy_is_undefined_for_generic_slice_rows():
+    # A slice count is not an object count: no decision, but no crash either,
+    # so a benchmark or live session with other strategies keeps running.
     objects, fovs = _tables()
-    with pytest.raises(ValueError, match="FixedObjectStrategy requires observation_unit"):
-        run_strategies(
-            objects,
-            fovs=fovs,
-            strategies=[FixedObjectStrategy(2)],
-            feature_cols=["area"],
-            fov_col="fov_id",
-            objective=ObjectiveConfig(SamplingObjective.POPULATION),
-            observation_unit="slice",
-        )
+    by_objects, by_observations = run_strategies(
+        objects,
+        fovs=fovs,
+        strategies=[FixedObjectStrategy(2), FixedObservationStrategy(2)],
+        feature_cols=["area"],
+        fov_col="fov_id",
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        observation_unit="slice",
+    )
+    assert by_objects.decision is None
+    assert by_observations.decision == "stop"
+
+
+@pytest.mark.parametrize("unit", ["cells", "Cell", "nuclei", " Objects "])
+def test_fixed_object_strategy_accepts_spelling_variants_of_object_units(unit):
+    objects, fovs = _tables()
+    [result] = run_strategies(
+        objects,
+        fovs=fovs,
+        strategies=[FixedObjectStrategy(2)],
+        feature_cols=["area"],
+        fov_col="fov_id",
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        observation_unit=unit,
+    )
+    assert result.decision == "stop"

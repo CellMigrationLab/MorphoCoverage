@@ -216,3 +216,24 @@ def test_online_session_rejects_grouping_contract_drift():
             later,
             {"image_file": "b.tif", "repeat": "R1"},
         )
+
+
+def test_online_session_keeps_running_when_a_rule_does_not_fit_the_rows():
+    # A cell-based rule on slice rows is not applicable; it must not stop the
+    # live session, and FOV-based rules keep deciding.
+    scenario = SCENARIOS["homogeneous"]()
+    session, outputs = _feed_session(
+        scenario,
+        [
+            ScalarPrecisionStrategy("feature_a", 0.05, "object", "point"),
+            ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
+            FixedFOVStrategy(3),
+        ],
+        observation_unit="Slices",
+    )
+    assert session.observation_unit == "slice"
+    object_rule, fov_rule, fixed = outputs[-1]
+    assert object_rule.decision is None
+    assert object_rule.evidence.quantities["averaging_cv"].availability == "not_applicable"
+    assert fov_rule.evidence.quantities["averaging_cv"].availability == "available"
+    assert fixed.decision == "stop"

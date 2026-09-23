@@ -308,14 +308,35 @@ def test_descriptor_rules_do_not_silently_drop_missing_values(strategy):
         DescriptorSpreadStrategy("area", 0.1, "object", 20, 0),
     ],
 )
-def test_cell_stabilization_rules_reject_slice_observations(strategy):
+def test_cell_stabilization_rules_are_not_applicable_to_slice_observations(strategy):
     objects, fovs = _tables([[1.0, 2.0], [2.0, 3.0], [4.0, 5.0]])
-    with pytest.raises(ValueError, match="observation_unit"):
+    [result] = run_strategies(
+        objects,
+        fovs=fovs,
+        strategies=[strategy],
+        feature_cols=["area"],
+        objective=POPULATION,
+        observation_unit="slice",
+    )
+    [quantity] = result.evidence.quantities.values()
+    assert quantity.availability == "not_applicable"
+    assert "'slice'" in quantity.reason
+    assert result.decision is None
+
+
+def test_fov_spread_variant_applies_to_any_observation_unit():
+    # Resampling whole FOVs does not assume the rows are cells.
+    objects, fovs = _tables([[2.0, 2.0]] * 5)
+    results = [
         run_strategies(
             objects,
             fovs=fovs,
-            strategies=[strategy],
+            strategies=[_spread(0.01, "fov")],
             feature_cols=["area"],
             objective=POPULATION,
-            observation_unit="slice",
-        )
+            observation_unit=unit,
+        )[0]
+        for unit in ("slice", "cell")
+    ]
+    assert [r.decision for r in results] == ["stop", "stop"]
+    assert results[0].evidence == results[1].evidence

@@ -289,10 +289,19 @@ must make its observation-unit assumptions explicit.
 
 - generic distributional/novelty methods may accept cells, nuclei, patches,
   slices, embeddings or FOV summaries where scientifically meaningful;
-- cell/object-derived current-practice baselines reject incompatible units;
+- cell/object-derived current-practice baselines report their evidence as
+  not applicable for other units (decision `None`), rather than raising, so a
+  benchmark or live session with several strategies keeps running;
+- the scope follows the method's sampling assumption, not its name: the
+  object-unit JCB criterion, the descriptor plateau and the object-unit
+  descriptor spread need object-like rows (`object`, `cell`, `nucleus`); the
+  FOV-unit JCB variant and the FOV-unit descriptor spread resample whole FOVs
+  and accept any unit;
 - `FixedObservationStrategy` is the generic row-count baseline;
-- `FixedObjectStrategy` is retained for backward compatibility and accepts
-  only object-like units.
+- `FixedObjectStrategy` is retained for backward compatibility; for
+  non-object units it gives no decision;
+- `observation_unit` labels are normalized (lowercase, singular, `_` for
+  spaces), so `Cells`, `cell` and `cells` are one unit.
 
 A generic input contract must never silently change the meaning of a published
 cell-count method.

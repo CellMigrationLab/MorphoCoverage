@@ -61,8 +61,8 @@ import numpy as np
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
-from ..schema import ValidatedInput, fov_positions
-from .base import Estimator, EstimatorState, SamplingStrategy, require_observation_unit
+from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
+from .base import Estimator, EstimatorState, SamplingStrategy, unsupported_observation_unit
 
 _UNITS = ("object", "fov")
 _SD_ESTIMATES = ("point", "upper_95")
@@ -323,13 +323,23 @@ class ScalarPrecisionEstimator(Estimator):
         if self.pilot_fovs is not None and self.order_col not in fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
+    def _unit_reason(self, data: ValidatedInput) -> str | None:
+        """The published criterion averages cells; the FOV-unit variant any observation."""
+        if self.resampling_unit != "object":
+            return None
+        return unsupported_observation_unit(
+            data, OBJECT_LIKE_UNITS, method="the object-unit JCB criterion"
+        )
+
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """Averaging CV of the visible data, and the pilot's projection when configured."""
-        require_observation_unit(
-            data, ("object", "cell", "nucleus"), method="ScalarPrecisionEstimator"
-        )
         data.feature_values(self.feature)  # fails early on a non-feature column
         self._check_order_col(data.fovs)
+        reason = self._unit_reason(data)
+        if reason is not None:
+            return self._evidence(
+                ("not_applicable", reason), None, len(data.objects), len(data.fovs)
+            )
         current = self._precision(data, data.fovs)
         pilot = None
         if self.pilot_fovs is not None and len(data.fovs) >= self.pilot_fovs:
@@ -375,13 +385,18 @@ class ScalarPrecisionEstimator(Estimator):
             projected = pilot["cv_mean" + self._suffix()] * math.sqrt(self.pilot_fovs / n_fovs)
         return _cv_quantity(projected)
 
-    def start(self, template: ValidatedInput, *, objective: ObjectiveConfig) -> EstimatorState:
-        """Incremental version: keeps sufficient statistics per acquired FOV."""
-        require_observation_unit(
-            template, ("object", "cell", "nucleus"), method="ScalarPrecisionEstimator"
-        )
+    def start(
+        self, template: ValidatedInput, *, objective: ObjectiveConfig
+    ) -> EstimatorState | None:
+        """Incremental version: keeps sufficient statistics per acquired FOV.
+
+        Returns ``None`` (full recomputation, which reports not applicable)
+        when the observation unit does not fit the criterion.
+        """
         template.feature_values(self.feature)
         self._check_order_col(template.fovs)
+        if self._unit_reason(template) is not None:
+            return None
         return _ScalarPrecisionState(self)
 
 

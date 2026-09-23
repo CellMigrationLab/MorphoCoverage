@@ -38,7 +38,7 @@ from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
 from .results import Decision
-from .schema import ValidatedInput, validate_input_tables
+from .schema import ValidatedInput, normalize_observation_unit, validate_input_tables
 from .sequential import SequentialResult, evaluate_acquisition_prefixes
 from .strategies.base import SamplingStrategy
 
@@ -86,6 +86,9 @@ class BenchmarkDataset:
             object.__setattr__(self, "group_cols", tuple(self.group_cols))
         if not callable(self.load):
             raise TypeError("load must be a callable returning (objects, fovs)")
+        object.__setattr__(
+            self, "observation_unit", normalize_observation_unit(self.observation_unit)
+        )
 
 
 class BenchmarkRegistry:

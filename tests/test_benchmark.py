@@ -424,3 +424,21 @@ def test_outcome_metrics_do_not_silently_drop_missing_feature_values():
 
     assert RelativeMeanError("feature_a").evaluate(data, stopped) is None
     assert RandomCellRelativeError("feature_a").evaluate(data, stopped) is None
+
+
+def test_benchmark_completes_when_a_rule_does_not_fit_the_rows():
+    dataset = _dataset("slices", observation_unit="Slices")
+    assert dataset.observation_unit == "slice"
+    records = _run(
+        BenchmarkRegistry([dataset]),
+        "slices",
+        strategies=[
+            ScalarPrecisionStrategy("feature_a", 0.05, "object", "point"),
+            FixedObjectStrategy(10),
+            FixedFOVStrategy(2),
+        ],
+    )
+    by_name = {record.strategy: record for record in records}
+    for name in ("scalar_precision_object", "fixed_objects"):
+        assert (by_name[name].stopped, by_name[name].final_decision) == (False, None)
+    assert by_name["fixed_fov"].stop_step == 2

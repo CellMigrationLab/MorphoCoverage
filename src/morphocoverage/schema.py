@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -16,6 +17,36 @@ from .metadata import (
     resolve_group_cols,
     resolve_identity_cols,
 )
+
+# Units whose rows are individual detected objects, as the cell-number
+# baselines (JCB, Marcotti) assume.
+OBJECT_LIKE_UNITS = frozenset({"object", "cell", "nucleus"})
+
+# Plural and spelling variants mapped to one canonical label, so that "cells"
+# and "Cell" do not silently count as a different unit from "cell".
+_UNIT_ALIASES = {
+    "objects": "object",
+    "cells": "cell",
+    "nuclei": "nucleus",
+    "nucleuses": "nucleus",
+    "patches": "patch",
+    "slices": "slice",
+    "planes": "plane",
+    "embeddings": "embedding",
+    "fov_summaries": "fov_summary",
+}
+
+
+def normalize_observation_unit(unit: object) -> str:
+    """Canonical observation-unit label: lowercase, ``_`` for spaces/hyphens, singular.
+
+    Any non-empty label is accepted, since rows may be of a kind this package
+    does not know; known plurals are mapped to their singular.
+    """
+    if not isinstance(unit, str) or not unit.strip():
+        raise ValueError("observation_unit must be a non-empty description such as 'cell' or 'slice'")
+    label = re.sub(r"[\s-]+", "_", unit.strip().lower())
+    return _UNIT_ALIASES.get(label, label)
 
 
 @dataclass(frozen=True)
@@ -141,9 +172,7 @@ def validate_input_tables(
         raise TypeError("fovs must be a pandas DataFrame when provided")
     if isinstance(feature_cols, str):
         raise TypeError("feature_cols must be a sequence of column names, not a string")
-    if not isinstance(observation_unit, str) or not observation_unit.strip():
-        raise ValueError("observation_unit must be a non-empty description such as 'cell' or 'slice'")
-    observation_unit = observation_unit.strip()
+    observation_unit = normalize_observation_unit(observation_unit)
 
     explicit_columns = [*(group_cols or ()), *([fov_col] if fov_col is not None else [])]
     check_canonical_spellings(objects, fovs, explicit_columns)

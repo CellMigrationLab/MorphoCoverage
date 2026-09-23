@@ -14,6 +14,7 @@ from typing import Any
 from ..evidence import Component
 from ..policies import DecisionPolicy, Effort, EffortPolicy
 from ..results import Decision
+from ..schema import OBJECT_LIKE_UNITS
 from .base import SamplingStrategy
 
 
@@ -62,12 +63,14 @@ class _ObjectCountPolicy(DecisionPolicy):
         return {"effort": "n_objects", "target": self.target}
 
     def decide(self, evidence, effort: Effort):
-        if effort.observation_unit not in {"object", "cell", "nucleus"}:
-            raise ValueError(
-                "FixedObjectStrategy requires observation_unit 'object', 'cell' or "
-                f"'nucleus', got {effort.observation_unit!r}; use FixedObservationStrategy "
-                "for generic feature rows"
-            )
+        """Undefined (``None``) unless rows are objects; else stop at the target count.
+
+        A count of slices or patches is not a count of objects, so the rule
+        gives no decision rather than an error; use FixedObservationStrategy
+        for generic rows.
+        """
+        if effort.observation_unit not in OBJECT_LIKE_UNITS:
+            return Component.POPULATION, None
         reached = effort.n_observations >= self.target
         return Component.POPULATION, Decision.STOP if reached else Decision.CONTINUE
 

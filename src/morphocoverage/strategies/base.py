@@ -142,21 +142,24 @@ class SamplingStrategy:
         )
 
 
-def require_observation_unit(
+def unsupported_observation_unit(
     data: ValidatedInput,
     allowed: Iterable[str],
     *,
     method: str,
-) -> None:
-    """Require an estimator's scientifically valid observation semantics.
+) -> str | None:
+    """Why ``method`` does not apply to these rows, or ``None`` if it does.
 
     Generic MorphoCoverage inputs may contain cells, nuclei, patches, slices,
     embeddings or FOV summaries. A method derived for cell/object sampling must
-    refuse incompatible row semantics rather than silently reinterpret them.
+    not reinterpret other rows as cells. It reports its quantities as
+    ``not_applicable`` with this reason, so a benchmark or live session keeps
+    running and the decision is undefined rather than an error.
     """
-    allowed_units = tuple(allowed)
-    if data.observation_unit not in allowed_units:
-        raise ValueError(
-            f"{method} requires observation_unit in {allowed_units}, "
-            f"got {data.observation_unit!r}"
-        )
+    allowed_units = tuple(sorted(allowed))
+    if data.observation_unit in allowed_units:
+        return None
+    return (
+        f"{method} assumes observation rows are individual objects "
+        f"(observation_unit in {allowed_units}), got {data.observation_unit!r}"
+    )
