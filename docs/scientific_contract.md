@@ -104,3 +104,13 @@ can be stored only in the FOV table when the FOV identifier is globally
 unambiguous. MorphoCoverage may attach that metadata to observation rows for
 analysis. If the identifier is reused across groups, the mapping is ambiguous
 and the framework must raise rather than guess.
+
+
+## Observation-unit semantics
+
+Loading a table and applying a method are separate contracts. MorphoCoverage
+may load feature rows representing cells, nuclei, patches, slices, embeddings,
+or FOV summaries, but an estimator may be scientifically valid for only some
+of those units. Such methods must reject incompatible `observation_unit`
+values explicitly. Generic table support must not turn a cell-count criterion
+into a slice-count criterion by accident.
