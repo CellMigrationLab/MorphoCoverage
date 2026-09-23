@@ -96,7 +96,7 @@ results = session.add_fov(
 )
 ```
 
-Only the current position is provided. Future positions do not need to exist yet.
+Only the current position is provided. Future positions do not need to exist yet. See [`docs/online.md`](docs/online.md) for the live-acquisition contract and timing model.
 
 To add a strategy, follow AGENTS.md section 20. Preliminary real-data observations are in [`docs/preliminary_findings.md`](docs/preliminary_findings.md).
 
