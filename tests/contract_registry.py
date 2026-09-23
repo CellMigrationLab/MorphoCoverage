@@ -22,6 +22,7 @@ from morphocoverage import (
     SamplingStrategy,
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
+    multivariate_outcomes,
     outcomes,
     plan_cells_to_average,
     transforms,
@@ -77,6 +78,13 @@ METRICS_UNDER_CONTRACT: list[outcomes.OutcomeMetric] = [
     outcomes.RelativeMeanError("feature_a"),
     outcomes.RandomCellRelativeError("feature_a"),
     outcomes.RareStateDetected("true_state", 1),
+    multivariate_outcomes.CentroidError(FEATURE_COLS, True),
+    multivariate_outcomes.CovarianceError(FEATURE_COLS, True),
+    multivariate_outcomes.QuantileError(FEATURE_COLS, True, (0.05, 0.5, 0.95)),
+    multivariate_outcomes.FrechetError(FEATURE_COLS, False),
+    multivariate_outcomes.EnergyError(FEATURE_COLS, True, 200, 0),
+    multivariate_outcomes.MMDError(FEATURE_COLS, True, 200, 0, 1.0),
+    multivariate_outcomes.SlicedWassersteinError(FEATURE_COLS, True, 20, 0),
 ]
 METRIC_IDS = [metric.name for metric in METRICS_UNDER_CONTRACT]
 

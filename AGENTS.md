@@ -182,6 +182,8 @@ src/morphocoverage/
     sequential.py          # leakage-safe acquisition-prefix replay
     online.py              # live OnlineSession: add one newly acquired spatial FOV at a time
     outcomes.py            # retrospective outcome metrics, strategy-independent
+    multivariate_outcomes.py  # distribution-level outcome metrics (centroid ... MMD)
+    distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
     framework.py           # run_strategies convenience entry point

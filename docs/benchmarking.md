@@ -32,10 +32,11 @@ Synthetic data remain useful for unit tests, explicit counterexamples, and regre
   - `RelativeMeanError(feature)`: the realized relative error of the observation mean at the stop.
   - `RandomCellRelativeError(feature)`: the expected relative RMSE had the same number of cells been drawn at random from the full group (simple random sampling with finite-population correction). It is the comparator in `data/crick_idr/fov_vs_cells.py`. Across permuted orders, the RMSE of `RelativeMeanError` divided by this value is the error inflation from acquiring whole FOVs.
   - `RareStateDetected(label_col, min_fov_occurrences)`: whether the stop prefix shows an independently labelled state in enough FOVs. It is `None` when the full acquisition never does.
+  - Multivariate distribution outcomes in `morphocoverage.multivariate_outcomes`, over explicit `features`, optionally standardized by the reference's mean and SD: `CentroidError` (RMS difference of feature means), `CovarianceError` (relative Frobenius error), `QuantileError` (RMS difference of chosen quantiles), `FrechetError`, `EnergyError` and `MMDError` (unbiased U-statistics, with a seeded subsample limit because they are quadratic), and `SlicedWassersteinError` (seeded projections). The pure distance functions are in `morphocoverage.distances`. The plug-in metrics (centroid, covariance, quantile, Fréchet) are biased upward for small stops, so compare them at matched observation counts; the U-statistics are not. They are outcomes, not stopping rules.
 
 - **Timing.** Every record carries estimator compute time, whole-decision latency up to the stop, and the median and maximum per-step decision latency. Only decisions up to the actual stop contribute to these summaries; later replay steps are retrospective and must not inflate the latency of a microscope that would already have stopped. `run_benchmark(..., incremental=True)` replays incremental estimators FOV by FOV, as online acquisition would. The `Timing` breakdown on each result separates estimator time from framework overhead.
 
-Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an agreed adequacy definition), distribution-level outcome metrics, and aggregation into a regime map.
+Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an agreed adequacy definition) and aggregation into a regime map.
 
 ## Scientific performance dimensions
 
