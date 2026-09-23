@@ -240,3 +240,29 @@ See [`morphobricks_fov_contract.md`](morphobricks_fov_contract.md) for what upst
 ## Multidimensional FOV semantics
 
 The framework's FOV is a spatial acquisition position, not a plane or file. `position_id` is the preferred explicit identifier when file layout does not map one-to-one to positions. Rows produced slice-by-slice or frame-by-frame may vary in `z`, `c`, and `t`, but those columns are within-FOV metadata and all rows from one position are revealed together during sequential replay.
+
+
+## Offline and online execution share one core
+
+MorphoCoverage has two orchestration surfaces over the same estimator/policy machinery:
+
+```text
+completed acquisition                  live microscope
+        |                                   |
+evaluate_acquisition_prefixes()        OnlineSession.add_fov()
+        |                                   |
+        +-------------+---------------------+
+                      |
+                SamplingStrategy
+              Estimator(s) + Policy
+                      |
+                StrategyResult
+```
+
+`OnlineSession` owns only prospective orchestration. It does not know future FOVs and does not implement strategy-specific logic. Incremental estimators use `EstimatorState`; non-incremental estimators are recomputed on accumulated visible observations.
+
+## Observation semantics
+
+The historical API name `objects` is retained for compatibility, but rows are generic phenotype observations. `ValidatedInput.observations`, `n_observations`, and `observation_unit` are the canonical semantics. This permits cell-, nucleus-, patch-, slice-, embedding- and FOV-summary tables without changing strategy plumbing.
+
+NaN phenotype values may enter the framework. They are never automatically imputed or discarded. Methods must either support missingness explicitly or report that their evidence is not applicable/available.
