@@ -8,10 +8,29 @@ Evidence was gathered from CellPatcher, fiberfeatures and NucleiSky at their def
 
 ### FOV identity
 
-- **One `image_file` is one FOV.** A z-stack, time-lapse, or multichannel image acquired at one stage position is one FOV. Planes are described by separate metadata columns (`z`, `t`, `c`), never by a different `image_file`.
-- **A container holding several stage positions is not a valid `image_file`.** Multi-scene `.czi`/`.nd2`/`.lif` files and tiled plate acquisitions must be split upstream into one file per position, with the position readable from the name (e.g. `A01_s03.tif`). The FOV must be understandable from the image name.
-- **FOV identity is `(condition, repeat, image_file)`.** `image_file` only needs to be unique within one `condition × repeat`. Names such as `img_001.tif` may recur in every repeat folder; MorphoCoverage keeps them distinct even when the analysis pools repeats.
-- **`image_file` holds the file name (basename), not a path.** A full path makes the same FOV look different across machines and tools, and breaks joins between tables. If a path is needed, store it in a separate column such as `image_path`.
+- **One FOV is one independently selected spatial acquisition position (XY position).** This is the unit MorphoCoverage counts when asking how many positions are required.
+- **Z, C and T are nested within a FOV.** A z-stack, multichannel acquisition, or time series at one position is still one FOV. Extra planes/channels/time points increase information within that position; they do not increase the number of sampled positions.
+- **Use `position_id` when file layout is not 1:1 with positions.** This is the preferred explicit identifier. Examples:
+  - one OME-TIFF containing one complete z-stack at one position: `image_file` may identify the FOV;
+  - one TIFF per z-plane: every plane file shares the same `position_id`;
+  - one ND2/CZI/LIF containing multiple stage positions: each position must have its own `position_id`, even though `image_file` is shared.
+- **`image_file` is storage provenance, not the fundamental scientific definition of an FOV.** It remains a valid fallback identifier only when one file corresponds to exactly one spatial position.
+- **FOV identity is therefore normally `(condition, repeat, position_id)` when `position_id` exists, otherwise `(condition, repeat, image_file)` when the one-file/one-position assumption holds.**
+- **`image_file` holds the file name (basename), not a machine-specific path.** If a path is needed, store it separately as `image_path`.
+
+### Slice-by-slice or multidimensional feature extraction
+
+Feature extraction may be 2D, 3D, per-slice, per-channel, per-timepoint, or any combination. MorphoCoverage does not prescribe how features are computed.
+
+If features are computed on individual planes or frames, the object/feature rows must preserve the relevant lowercase metadata:
+
+- `z` for z-plane or z-index;
+- `c` for channel;
+- `t` for timepoint.
+
+All rows from the same spatial position must carry the same `position_id`. MorphoCoverage treats `z`, `c`, and `t` as within-FOV acquisition metadata and rejects them as phenotype features.
+
+Sequential replay reveals an entire spatial position atomically. It must never reveal one z-plane from a stack as if it were a newly sampled FOV.
 
 ### Column names
 
@@ -25,7 +44,9 @@ An object table cannot represent an image in which nothing was detected: that im
 
 | Column | Required | Notes |
 | --- | --- | --- |
-| `condition`, `repeat`, `image_file` | yes | FOV identity |
+| `condition`, `repeat` | yes | analysis grouping / identity context |
+| `position_id` | preferred | explicit spatial acquisition-position identity; required when file != position |
+| `image_file` | yes | storage provenance; may identify FOV only when one file = one position |
 | `status` | yes | `processed`, or `failed`/`skipped` with a `reason` |
 | `n_objects` | yes | Objects retained after the tool's own filters; may be 0 |
 | `n_objects_detected` | recommended | Before size/border filters, so filtering is visible |
@@ -52,8 +73,8 @@ Already compatible:
 Needed:
 
 1. **Emit a per-image table** (e.g. `images.csv` next to `patches.csv`). It should include images that produced zero patches and give the reason (no labels, all objects filtered by border or size). Today `patches.csv` has one row per accepted patch only, so these images disappear.
-2. **Do not present `image_id` as an FOV identifier.** It is positional within a run (`image_{idx:04d}`, `pipeline.py:331,345,369,397`), so it changes if the input list changes. Document that `(condition, repeat, image_file)` is the FOV key.
-3. **Keep plane metadata as columns.** Multi-plane images yield several planes per `image_file` (`preprocess.py:343-387`), and `t/z/c` are already stamped on patches. The rule "one file = one FOV" should be documented. For time-lapse, the same cell can appear in many frames; downstream tools need `t` (and ideally a track id) to avoid counting it as independent objects.
+2. **Do not present `image_id` as an FOV identifier.** It is positional within a run (`image_{idx:04d}`, `pipeline.py:331,345,369,397`), so it changes if the input list changes. Prefer a stable `position_id` for the spatial acquisition position.
+3. **Keep plane metadata as columns.** Multi-plane images already carry `t/z/c` metadata. These must remain nested within one spatial position. If CellPatcher emits one row per plane, all rows from the same position should share `position_id`. For time-lapse, the same cell can appear in many frames; downstream tools need `t` (and ideally a track id) to avoid counting it as independent objects.
 4. **Warn or refuse when `condition`/`repeat` are unset.** Direct `run_patching()` calls leave them `None` (`types.py:26-33`). MorphoCoverage rejects missing group values, so this surfaces late rather than at the source.
 
 ### fiberfeatures
@@ -85,7 +106,9 @@ NucleiSky does not produce object feature tables, so it needs no change for Morp
 | `condition`/`repeat` present in one linked table only | raises |
 | `Repeat`/`Condition` spelling | raises unless named explicitly in `group_cols` |
 | Same `image_file` in different repeats, pooled | kept as distinct FOVs |
-| Several objects/planes from one `image_file` | one FOV |
+| Several objects/planes from one `position_id` | one FOV, regardless of file layout |
+| One file per z-plane with shared `position_id` | one FOV; all planes revealed together |
+| One multidimensional file containing several positions | requires explicit `position_id`; `image_file` alone is not sufficient |
 | `image_file` in objects but not in FOV table | raises (no fallback to `fov_id`) |
 | Objects whose FOV is missing from the FOV table | raises |
 | No FOV table supplied | FOVs derived from objects; zero-object FOVs cannot be represented |
