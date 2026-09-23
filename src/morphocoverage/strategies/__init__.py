@@ -1,7 +1,7 @@
 """Interchangeable sampling strategies and the estimators they are built from."""
 
 from .base import Estimator, EstimatorState, SamplingStrategy
-from .baselines import FixedFOVStrategy, FixedObjectStrategy
+from .baselines import FixedFOVStrategy, FixedObjectStrategy, FixedObservationStrategy
 from .scalar_precision import ScalarPrecisionEstimator, ScalarPrecisionStrategy
 from .stabilization import (
     DescriptorPlateauEstimator,
@@ -19,6 +19,7 @@ __all__ = [
     "EstimatorState",
     "FixedFOVStrategy",
     "FixedObjectStrategy",
+    "FixedObservationStrategy",
     "SamplingStrategy",
     "ScalarPrecisionEstimator",
     "ScalarPrecisionStrategy",
