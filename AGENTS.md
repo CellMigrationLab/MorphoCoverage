@@ -175,6 +175,7 @@ src/morphocoverage/
     evaluator.py           # group iteration, isolation, timing, framework-built results
     sequential.py          # leakage-safe acquisition-prefix replay
     outcomes.py            # retrospective outcome metrics, strategy-independent
+    transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
     framework.py           # run_strategies convenience entry point
     strategies/
@@ -239,6 +240,7 @@ Rules for these tests:
 - Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
 - Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-object FOVs counted as effort) apply to all strategies automatically.
 - Every outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
+- Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
 - `baseline_comparison` covers the fixed-cell, fixed-FOV, JCB-style scalar-precision (`ScalarPrecisionStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
 
@@ -395,6 +397,7 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | Component | The part of an objective a quantity or policy addresses: `population` or `rare`. |
 | config_id | A stable hash of an estimator's, policy's or strategy's class and parameters. |
 | Objective | What "enough imaging" means: population representation, rare-phenotype discovery or balanced sampling. |
+| Feature transform | Preprocessing (standardization, PCA, ...) fitted inside `estimate` on the visible prefix only; its fitted state is recorded as provenance. |
 | Outcome metric | A retrospective, strategy-independent score of a stop against the full acquisition of the same group. |
 | Dataset role | `development` (may be used for tuning) or `held_out` (never tuned on); declared in a `BenchmarkRegistry`. |
 | Prefix / replay | The first k acquired FOVs of a real acquisition; replay evaluates strategies on successive prefixes. |
@@ -407,8 +410,9 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 1. Subclass `Estimator` in a module under `strategies/`. Give it a `name` (a constant, or a property that names the variant), a `parameters` property holding every setting that defines the estimate (JSON-serializable, since it defines `config_id`), and `estimate(data, *, objective) -> Evidence`.
 2. Read phenotype values only through `data.feature_values(name)` or `data.feature_matrix()`, and FOV identity through `data.fov_key`. Treat the input as one analysis group; never split conditions or repeats.
 3. Report each estimate as a named `Quantity` with its `direction`, `units` and `component` (`population` or `rare`). Report a quantity that cannot be computed yet as `insufficient_data`, and one that is undefined for these data as `not_applicable`, each with a reason; never NaN. Only claim the `rare` component for evidence about the objective's `RareTarget`. Never report effort (`n_fovs`, `n_objects`): the framework owns it.
-4. Do not decide inside the estimator. Thresholds belong to a `DecisionPolicy` (usually `ThresholdPolicy`), so they are explicit, sweepable with `redecide`, and part of `config_id`.
-5. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter.
-6. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
-7. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
+4. Preprocess features only with a `FeatureTransform` from `morphocoverage.transforms`, declared as a parameter (use `transform.describe()` in `parameters`) and fitted inside `estimate` on the data received. Record `fitted.provenance()` in the diagnostics, and report quantities as `insufficient_data` when the transform cannot be fitted. Never fit on data from outside the call.
+5. Do not decide inside the estimator. Thresholds belong to a `DecisionPolicy` (usually `ThresholdPolicy`), so they are explicit, sweepable with `redecide`, and part of `config_id`.
+6. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter.
+7. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
+8. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
 

@@ -1,9 +1,9 @@
 # Proposal: architecture hardening before the strategy zoo
 
 **Status:** all items approved by the project owner (2026-09-23), with
-`runtime_seconds` kept as an alias of `compute_seconds`. Items 1–4 are
+`runtime_seconds` kept as an alias of `compute_seconds`. Items 1–5 are
 implemented, including the `compute_seconds` rename from item 6; the rest of
-items 5–7 is not yet implemented. Every item changes a public contract
+items 6–7 is not yet implemented. Every item changes a public contract
 (AGENTS.md section 15).
 
 **As implemented (items 1–3).** `Evidence`/`Quantity` in `evidence.py`;
@@ -33,6 +33,15 @@ text below:
   agreed.
 - `fov_vs_cells.py` is unchanged, so its tracked results stay reproducible
   without the 2 GB download.
+
+**As implemented (item 5).** `morphocoverage.transforms` provides
+`FeatureTransform`, `FittedTransform`, `Standardize`, `PCA` and `Chain`, as a
+submodule. Transforms are fitted on a `ValidatedInput`, which is how the
+framework delivers the visible prefix. The contract "output at step k is
+unchanged when future FOVs are altered" covers every transform on every §9
+scenario, and a transform with cross-call state fails it. A transform that
+cannot be fitted returns a reason rather than guessing a scale. No estimator
+uses a transform yet.
 
 **Origin:** the ChatGPT audit of `main` at `da3953c` (2026-09-23), plus Claude's
 earlier review. The small, clear defects from that audit are fixed separately.
