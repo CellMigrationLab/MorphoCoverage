@@ -267,3 +267,16 @@ evaluate_acquisition_prefixes()        OnlineSession.add_fov()
 The historical API name `objects` is retained for compatibility, but rows are generic phenotype observations. `ValidatedInput.observations`, `n_observations`, and `observation_unit` are the canonical semantics. This permits cell-, nucleus-, patch-, slice-, embedding- and FOV-summary tables without changing strategy plumbing.
 
 NaN phenotype values may enter the framework. They are never automatically imputed or discarded. Methods must either support missingness explicitly or report that their evidence is not applicable/available.
+
+
+### Lean feature tables
+
+A feature table does not have to duplicate all FOV-level metadata. If observation
+rows contain a globally unique FOV/position identifier and the FOV table carries
+`condition`, `repeat`, or explicitly requested grouping columns, validation
+attaches those columns to the observations before grouping.
+
+This join is performed only when one FOV identifier maps to exactly one metadata
+value. Reused basenames or position IDs across groups are not guessed: the
+observation table must then carry the relevant identity columns or use a
+globally unique FOV identifier.
