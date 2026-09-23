@@ -99,7 +99,10 @@ def validate_input_tables(
     acquisition metadata and cannot be selected as phenotype features.
 
     Supplying a complete FOV table preserves acquired positions containing zero
-    detected objects.
+    detected objects. If columns such as z/z0/z1/c/t describe the acquisition,
+    keep them as metadata by simply not including them in feature_cols. Their
+    names are not globally reserved because scientific feature tables may
+    legitimately use short names such as "c".
     """
     if not isinstance(objects, pd.DataFrame):
         raise TypeError("objects must be a pandas DataFrame")
@@ -122,13 +125,6 @@ def validate_input_tables(
         raise ValueError("feature_cols contains duplicate column names")
     if resolved_fov_col in feature_cols:
         raise ValueError("fov_col cannot also be a phenotype feature")
-    within_fov_features = set(feature_cols).intersection(WITHIN_FOV_METADATA_COLUMNS)
-    if within_fov_features:
-        raise ValueError(
-            "within-FOV acquisition metadata cannot be phenotype features: "
-            f"{sorted(within_fov_features)}. Preserve z/c/t as metadata while all "
-            "planes/channels/time points from the same position share one FOV identity."
-        )
     if resolved_fov_col in identity_cols:
         raise ValueError("fov_col cannot also be a group column")
     overlap = set(feature_cols).intersection(identity_cols)
