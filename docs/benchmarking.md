@@ -2,6 +2,8 @@
 
 MorphoCoverage is a method-comparison framework. Candidate strategies must be evaluated using common criteria that are independent of any one strategy's internal score.
 
+The proposed next-generation estimator and benchmark roadmap is documented in [`docs/proposals/candidate_estimators_roadmap.md`](proposals/candidate_estimators_roadmap.md).
+
 ## Primary scientific benchmark: deeply sampled real datasets
 
 The primary benchmark will use real microscopy datasets acquired substantially deeper than routine experiments.
