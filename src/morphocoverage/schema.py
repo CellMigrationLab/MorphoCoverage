@@ -13,6 +13,7 @@ from .metadata import (
     resolve_fov_col,
     resolve_group_cols,
     resolve_identity_cols,
+    WITHIN_FOV_METADATA_COLUMNS,
 )
 
 
@@ -91,8 +92,13 @@ def validate_input_tables(
     columns are used automatically when available. Pass group_cols=[] to pool
     intentionally; condition/repeat still remain part of FOV identity.
 
-    When fov_col is omitted, image_file is preferred, followed by fov_id.
-    Supplying a complete FOV table preserves acquired fields containing zero
+    When fov_col is omitted, position_id is preferred, followed by image_file
+    and then fov_id. FOV means one independently selected spatial acquisition
+    position. Z planes, channels and time points are nested observations within
+    that position, not additional FOVs. Lowercase z/c/t columns are reserved
+    acquisition metadata and cannot be selected as phenotype features.
+
+    Supplying a complete FOV table preserves acquired positions containing zero
     detected objects.
     """
     if not isinstance(objects, pd.DataFrame):
@@ -116,6 +122,13 @@ def validate_input_tables(
         raise ValueError("feature_cols contains duplicate column names")
     if resolved_fov_col in feature_cols:
         raise ValueError("fov_col cannot also be a phenotype feature")
+    within_fov_features = set(feature_cols).intersection(WITHIN_FOV_METADATA_COLUMNS)
+    if within_fov_features:
+        raise ValueError(
+            "within-FOV acquisition metadata cannot be phenotype features: "
+            f"{sorted(within_fov_features)}. Preserve z/c/t as metadata while all "
+            "planes/channels/time points from the same position share one FOV identity."
+        )
     if resolved_fov_col in identity_cols:
         raise ValueError("fov_col cannot also be a group column")
     overlap = set(feature_cols).intersection(identity_cols)
