@@ -1,7 +1,7 @@
 """Interchangeable sampling strategies and the estimators they are built from."""
 
 from .base import Estimator, EstimatorState, SamplingStrategy
-from .baselines import FixedFOVStrategy, FixedObjectStrategy, FixedObservationStrategy
+from .baselines import FixedFOVStrategy, FixedObjectStrategy, FixedObservationStrategy, FixedObservationStrategy
 from .scalar_precision import ScalarPrecisionEstimator, ScalarPrecisionStrategy
 from .stabilization import (
     DescriptorPlateauEstimator,
