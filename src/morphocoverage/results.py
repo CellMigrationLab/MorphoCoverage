@@ -92,7 +92,8 @@ class StrategyResult:
     compute_seconds: float | None = None
     timing: Timing | None = None
     n_fovs: int | None = None
-    n_objects: int | None = None
+    n_observations: int | None = None
+    observation_unit: str = "object"
     group: Mapping[str, Any] = field(default_factory=dict)
     parameters: Mapping[str, Any] = field(default_factory=dict)
     configuration: Mapping[str, Any] = field(default_factory=dict)
@@ -102,6 +103,12 @@ class StrategyResult:
     def without_timing(self) -> StrategyResult:
         """This result with the time measurements removed, for comparing results."""
         return replace(self, compute_seconds=None, timing=None)
+
+    @property
+    @property
+    def n_objects(self) -> int | None:
+        """Backward-compatible alias for n_observations."""
+        return self.n_observations
 
     @property
     def runtime_seconds(self) -> float | None:
