@@ -38,7 +38,10 @@ def _tables(values_per_fov):
 
 def _evaluate(objects, fovs, strategy, feature_cols=("area",)):
     [result] = run_strategies(
-        objects, fovs=fovs, strategies=[strategy], feature_cols=list(feature_cols),
+        objects,
+        fovs=fovs,
+        strategies=[strategy],
+        feature_cols=list(feature_cols),
         objective=POPULATION,
     )
     return result
@@ -46,8 +49,12 @@ def _evaluate(objects, fovs, strategy, feature_cols=("area",)):
 
 def _replay(objects, fovs, strategies, order="order", feature_cols=("area",)):
     return evaluate_acquisition_prefixes(
-        objects, fovs, strategies=strategies, feature_cols=list(feature_cols),
-        acquisition_order_col=order, objective=POPULATION,
+        objects,
+        fovs,
+        strategies=strategies,
+        feature_cols=list(feature_cols),
+        acquisition_order_col=order,
+        objective=POPULATION,
     )
 
 
@@ -86,7 +93,7 @@ def _plateau_oracle(objects, fovs, tolerance, window):
         visible = objects[objects["image_file"].isin(ordered[:step])]["area"].to_numpy()
         if objects["image_file"].eq(ordered[step - 1]).any():
             states.append(describe(visible))
-        recent = states[-(window + 1):]
+        recent = states[-(window + 1) :]
         if len(recent) == window + 1:
             ranges = [np.ptp([s[name] for s in recent]) for name in recent[0]]
             if not np.isnan(ranges).any() and max(ranges) <= tolerance:
@@ -141,9 +148,10 @@ def test_spread_shrinks_with_more_cells():
     rng = np.random.default_rng(1)
     small = _tables([rng.normal(10, 1, 40)])
     large = _tables([rng.normal(10, 1, 4000)])
-    assert _score(_evaluate(*large, _spread(1.0, "object"))) < _score(
-        _evaluate(*small, _spread(1.0, "object"))
-    ) / 5
+    assert (
+        _score(_evaluate(*large, _spread(1.0, "object")))
+        < _score(_evaluate(*small, _spread(1.0, "object"))) / 5
+    )
 
 
 def test_spatial_clustering_inflates_only_the_fov_variant():
@@ -228,8 +236,12 @@ def test_names_and_parameters_record_the_variant():
     spread = DescriptorSpreadStrategy("area", 0.1, "fov", 100, 3, descriptors=("iqr",))
     assert spread.name == "descriptor_spread_fov"
     assert spread.parameters == {
-        "feature": "area", "tolerance": 0.1, "resampling_unit": "fov",
-        "n_resamples": 100, "random_state": 3, "descriptors": ["iqr"],
+        "feature": "area",
+        "tolerance": 0.1,
+        "resampling_unit": "fov",
+        "n_resamples": 100,
+        "random_state": 3,
+        "descriptors": ["iqr"],
     }
 
 
@@ -277,8 +289,12 @@ def test_current_practice_rules_are_unsupported_for_rare_discovery():
         ScalarPrecisionStrategy("feature_a", 0.01, "object", "upper_95"),
     ]
     results = evaluate_acquisition_prefixes(
-        scenario.objects, scenario.fovs, strategies=strategies, feature_cols=list(FEATURE_COLS),
-        acquisition_order_col=ORDER_COL, objective=rare,
+        scenario.objects,
+        scenario.fovs,
+        strategies=strategies,
+        feature_cols=list(FEATURE_COLS),
+        acquisition_order_col=ORDER_COL,
+        objective=rare,
     )
     assert {r.result.decision for r in results} == {"unsupported"}
     # The population verdict is still reported, for comparison.

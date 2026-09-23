@@ -154,10 +154,7 @@ def test_effort_policy_uses_framework_effort():
 
 def _combined(objective, **values):
     evidence = _evidence(
-        **{
-            name: _quantity(value, component=name.split("_")[0])
-            for name, value in values.items()
-        }
+        **{name: _quantity(value, component=name.split("_")[0]) for name, value in values.items()}
     )
     policies = [ThresholdPolicy(name, 1.0) for name in values]
     return decide(evidence, EFFORT, policies, objective)

@@ -64,6 +64,7 @@ class Effort:
         """Backward-compatible alias for n_observations."""
         return self.n_observations
 
+
 class DecisionPolicy(ABC):
     """Maps evidence and effort to a decision for one objective component.
 
@@ -264,7 +265,11 @@ def redecide(
     (kept from the original estimate). Use it for threshold sweeps.
     """
     policies = tuple(policies)
-    effort = Effort(n_fovs=result.n_fovs, n_observations=result.n_observations, observation_unit=result.observation_unit)
+    effort = Effort(
+        n_fovs=result.n_fovs,
+        n_observations=result.n_observations,
+        observation_unit=result.observation_unit,
+    )
     decision, component_decisions = decide(result.evidence, effort, policies, result.objective)
     if "estimators" not in result.configuration:
         raise ValueError("result has no recorded estimator configuration to re-decide from")

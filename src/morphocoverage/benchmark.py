@@ -384,7 +384,9 @@ def run_benchmark(
     data = validate_input_tables(objects, fovs=fovs, **columns)
     if dataset.area_col is not None and dataset.area_col not in data.fovs.columns:
         raise ValueError(f"area_col {dataset.area_col!r} is not a column of the FOV table")
-    full_groups = {_group_key(group): group_data for group, group_data in iter_analysis_groups(data)}
+    full_groups = {
+        _group_key(group): group_data for group, group_data in iter_analysis_groups(data)
+    }
 
     records: list[BenchmarkRecord] = []
     for order in orders:

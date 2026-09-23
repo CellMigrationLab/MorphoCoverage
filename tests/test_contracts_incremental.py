@@ -1,7 +1,4 @@
-"""Incremental-update and timing contracts: incremental replay equals recomputation.
-"""
-
-
+"""Incremental-update and timing contracts: incremental replay equals recomputation."""
 
 import pytest
 from contract_registry import (

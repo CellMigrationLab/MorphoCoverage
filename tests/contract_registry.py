@@ -5,7 +5,6 @@ adding it here (AGENTS.md section 9); coverage tests fail otherwise. The
 contract tests themselves are in ``test_contracts*.py``.
 """
 
-
 from dataclasses import replace
 
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
@@ -91,5 +90,3 @@ def replay(scenario, strategies, objective=POPULATION, **kwargs):
 def without_timing(results):
     """Replay results with time measurements removed, for exact comparison."""
     return [replace(item, result=item.result.without_timing()) for item in results]
-
-

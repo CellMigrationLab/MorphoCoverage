@@ -56,10 +56,7 @@ def test_run_strategies_keeps_morphobricks_groups_separate_by_default():
     groups = {(r.group["condition"], r.group["repeat"]) for r in results}
     assert groups == {("control", "R1"), ("control", "R2"), ("drug", "R1")}
 
-    by_group = {
-        (r.group["condition"], r.group["repeat"]): (r.n_fovs, r.decision)
-        for r in results
-    }
+    by_group = {(r.group["condition"], r.group["repeat"]): (r.n_fovs, r.decision) for r in results}
     assert by_group[("control", "R1")] == (1, "continue")
     assert by_group[("control", "R2")] == (1, "continue")
     assert by_group[("drug", "R1")] == (2, "stop")
@@ -200,7 +197,9 @@ def test_per_plane_files_are_accepted_with_position_id_or_an_explicit_fov_col():
     with_position = _per_plane_files().assign(position_id=["p1", "p1", "p1", "p2", "p2"])
     assert len(validate_input_tables(with_position, feature_cols=["area"]).fovs) == 2
     # Naming the column explicitly is the caller's statement that files are positions.
-    explicit = validate_input_tables(_per_plane_files(), feature_cols=["area"], fov_col="image_file")
+    explicit = validate_input_tables(
+        _per_plane_files(), feature_cols=["area"], fov_col="image_file"
+    )
     assert len(explicit.fovs) == 4
 
 

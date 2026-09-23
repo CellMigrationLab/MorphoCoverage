@@ -118,7 +118,9 @@ def _describe_fov_resamples(
     safe = np.maximum(sizes, 1)
 
     mean = np.bincount(resample, weights=values, minlength=n_resamples) / safe
-    deviations = np.bincount(resample, weights=(values - mean[resample]) ** 2, minlength=n_resamples)
+    deviations = np.bincount(
+        resample, weights=(values - mean[resample]) ** 2, minlength=n_resamples
+    )
     sd = np.sqrt(deviations / np.maximum(sizes - 1, 1))
 
     # Values sorted within each resample: one integer sort on (resample, value rank).
@@ -263,20 +265,19 @@ class DescriptorPlateauEstimator(Estimator):
         growth_points = np.flatnonzero(per_fov) + 1
         states = [
             describe(values[(positions >= 0) & (positions < n_fovs)], self.descriptors)
-            for n_fovs in growth_points[-(self.window + 1):]
+            for n_fovs in growth_points[-(self.window + 1) :]
         ]
 
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
-            "fovs_in_window": [int(n) for n in growth_points[-(self.window + 1):]],
+            "fovs_in_window": [int(n) for n in growth_points[-(self.window + 1) :]],
         }
         reason = None
         if len(states) < self.window + 1:
             reason = f"fewer than {self.window + 1} acquired FOVs with objects"
         else:
             ranges = {
-                name: float(np.ptp([state[name] for state in states]))
-                for name in self.descriptors
+                name: float(np.ptp([state[name] for state in states])) for name in self.descriptors
             }
             diagnostics["window_ranges"] = _reported(ranges)
             if any(np.isnan(value) for value in ranges.values()):

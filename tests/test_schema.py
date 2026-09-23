@@ -39,7 +39,9 @@ def test_does_not_infer_numeric_metadata_as_features():
 
 def test_requires_fov_column():
     with pytest.raises(ValueError, match="missing required columns"):
-        validate_input_tables(_objects().drop(columns="fov_id"), feature_cols=["area"], fov_col="fov_id")
+        validate_input_tables(
+            _objects().drop(columns="fov_id"), feature_cols=["area"], fov_col="fov_id"
+        )
 
 
 def test_requires_features_to_be_numeric():

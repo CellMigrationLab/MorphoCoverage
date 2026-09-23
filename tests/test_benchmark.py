@@ -132,9 +132,11 @@ def test_stop_effort_matches_the_first_stop_of_each_group():
         ]
         first = set(group_fovs.nsmallest(3, ORDER_COL)["image_file"])
         objects = scenario.objects
-        expected = objects["condition"].eq(record.group["condition"]) & objects["repeat"].eq(
-            record.group["repeat"]
-        ) & objects["image_file"].isin(first)
+        expected = (
+            objects["condition"].eq(record.group["condition"])
+            & objects["repeat"].eq(record.group["repeat"])
+            & objects["image_file"].isin(first)
+        )
         assert record.n_objects == expected.sum()
 
 
@@ -322,17 +324,13 @@ def test_outcome_features_must_be_explicit():
 def test_metric_config_ids_distinguish_parameters():
     assert RelativeMeanError("a").config_id != RelativeMeanError("b").config_id
     assert RelativeMeanError("a").config_id != RandomCellRelativeError("a").config_id
-    assert (
-        RareStateDetected("x", 1).config_id != RareStateDetected("x", 2).config_id
-    )
+    assert RareStateDetected("x", 1).config_id != RareStateDetected("x", 2).config_id
 
 
 def test_benchmark_input_tables_are_not_modified():
     scenario = SCENARIOS["homogeneous"]()
     objects, fovs = scenario.objects.copy(), scenario.fovs.copy()
-    dataset = BenchmarkDataset(
-        "d", "development", lambda: (objects, fovs), FEATURE_COLS, ORDER_COL
-    )
+    dataset = BenchmarkDataset("d", "development", lambda: (objects, fovs), FEATURE_COLS, ORDER_COL)
     _run(
         BenchmarkRegistry([dataset]),
         "d",

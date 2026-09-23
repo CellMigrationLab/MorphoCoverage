@@ -294,7 +294,10 @@ def test_group_does_not_expose_other_groups_fov_ids_via_categorical_levels():
         }
     )
     results = run_strategies(
-        objects, strategies=[_strategy(_VisibleFovIds())], feature_cols=["area"], objective=POPULATION
+        objects,
+        strategies=[_strategy(_VisibleFovIds())],
+        feature_cols=["area"],
+        objective=POPULATION,
     )
     assert [r.diagnostics["ids"] for r in results] == [{"C1"}, {"D1"}]
 
@@ -425,7 +428,10 @@ class _Reader(Estimator):
 
     def estimate(self, data, *, objective):
         return Evidence(
-            diagnostics={"sum": float(data.feature_values("area").sum()), "fov_rows": len(data.fovs)}
+            diagnostics={
+                "sum": float(data.feature_values("area").sum()),
+                "fov_rows": len(data.fovs),
+            }
         )
 
 

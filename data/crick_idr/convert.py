@@ -37,7 +37,7 @@ MEDIA = (
 )
 # SHA-256 of each source file (equal to its Git LFS object id at SOURCE_COMMIT).
 SOURCE_SHA256 = {
-    "idr0028-screenB-annotation.csv": "898914f2c72808fbe97f162d90ade0c7ea1013cdbcece47470aa93449708a802",
+    "idr0028-screenB-annotation.csv": "898914f2c72808fbe97f162d90ade0c7ea1013cdbcece47470aa93449708a802",  # noqa: E501
     "idr0028_1A_Cytoplasm.csv": "a212e43ef4196caee91fd27cd004abeff416b51b7746e2fca0c154f6ad2d2b6e",
     "idr0028_1A_Image.csv": "56762eee76dfbdfcf5cadb8c5e4aac2e18063ccff000a4490a0a3bdf9a99b4b5",
     "idr0028_1A_Nuclei.csv": "a8608f7bff4d480fd2313cee51d4ffb5f087b36dd7c88481738f152648cf2092",
@@ -50,7 +50,7 @@ SOURCE_SHA256 = {
     "idr0028_2B_Image.csv": "da8543f3e3b2b8a60716c77b6dda27d7df5f46701ffefbe8d1092f707694dac7",
     "idr0028_2B_Nuclei.csv": "9c72a10f11e1ee7649fd5d0283b9c7208c2911d0279dbfa68f0f0be193670265",
     "idr0028_2B_index.tsv": "0122f109773888e4abc1d9ee989b4f32d388bc667e781e5d45097b2ed1804c09",
-    "idr0139-screenA-annotation.csv": "4ce347396467cb2948e5ec2857ebe42b2506ca76d00a3b5be3b3f9c69886d20a",
+    "idr0139-screenA-annotation.csv": "4ce347396467cb2948e5ec2857ebe42b2506ca76d00a3b5be3b3f9c69886d20a",  # noqa: E501
     "idr0139_Cytoplasm.csv": "83b1cf0d59ce4baa6645e1a5f8263f5e90badfbb453c583c2708a3aa08d7c2fa",
     "idr0139_Image.csv": "b7b33467e79c585e50c65e0957411115ba2b4d1ca211a78d6e011e01e3ea8480",
     "idr0139_Nuclei.csv": "2cba4c0d66385deea4062e8d56561795eb52b031a978c84ad75e0d919551c690",
@@ -123,8 +123,9 @@ def _objects(raw_dir: Path, prefix: str, image_numbers) -> pd.DataFrame:
     nuclei = pd.read_csv(raw_dir / f"{prefix}_Nuclei.csv")
     nuclei = nuclei[nuclei["ImageNumber"].isin(image_numbers)]
     intensity = [c for c in nuclei.columns if c.startswith("Intensity_")]
-    nuclei = nuclei[["ImageNumber", "ObjectNumber", "Location_Center_X", "Location_Center_Y",
-                     *intensity]].rename(columns={c: f"Nuclei_{c}" for c in intensity})
+    nuclei = nuclei[
+        ["ImageNumber", "ObjectNumber", "Location_Center_X", "Location_Center_Y", *intensity]
+    ].rename(columns={c: f"Nuclei_{c}" for c in intensity})
     cytoplasm = pd.read_csv(raw_dir / f"{prefix}_Cytoplasm.csv")
     cytoplasm = cytoplasm[cytoplasm["ImageNumber"].isin(image_numbers)]
     intensity = [c for c in cytoplasm.columns if c.startswith("Intensity_")]
@@ -152,8 +153,10 @@ def convert_idr0028(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
                 "stage_x_um": index["PositionX@um"].to_numpy(),
                 "stage_y_um": index["PositionY@um"].to_numpy(),
                 "area_um2": (
-                    index["ImageWidth"] * index["ImageResolutionX@um"]
-                    * index["ImageHeight"] * index["ImageResolutionY@um"]
+                    index["ImageWidth"]
+                    * index["ImageResolutionX@um"]
+                    * index["ImageHeight"]
+                    * index["ImageResolutionY@um"]
                 ).to_numpy(),
             }
         )
@@ -179,24 +182,50 @@ def convert_idr0028(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         images["image_file"] = images["Metadata_FileLocation"].str.rsplit("/", n=1).str[-1]
         images = images[images["image_file"].isin(fovs["image_file"])]
         objects = _objects(raw_dir, f"idr0028_{plate}", images["ImageNumber"])
-        objects = objects.merge(images[["ImageNumber", "image_file"]], on="ImageNumber",
-                                validate="many_to_one")
-        objects = objects.merge(fovs[["image_file", "condition", "repeat", "well"]],
-                                on="image_file", validate="many_to_one")
+        objects = objects.merge(
+            images[["ImageNumber", "image_file"]], on="ImageNumber", validate="many_to_one"
+        )
+        objects = objects.merge(
+            fovs[["image_file", "condition", "repeat", "well"]],
+            on="image_file",
+            validate="many_to_one",
+        )
         fov_tables.append(fovs)
         object_tables.append(objects)
 
     fovs = pd.concat(fov_tables, ignore_index=True)
     objects = pd.concat(object_tables, ignore_index=True).rename(
-        columns={"ObjectNumber": "label_id", "Location_Center_X": "nucleus_x_px",
-                 "Location_Center_Y": "nucleus_y_px"}
+        columns={
+            "ObjectNumber": "label_id",
+            "Location_Center_X": "nucleus_x_px",
+            "Location_Center_Y": "nucleus_y_px",
+        }
     )
-    fov_cols = ["condition", "repeat", "well", "image_file", "field", "acquisition_order",
-                "acquisition_time_s", "stage_x_um", "stage_y_um", "area_um2",
-                "control_type", "quality_control"]
+    fov_cols = [
+        "condition",
+        "repeat",
+        "well",
+        "image_file",
+        "field",
+        "acquisition_order",
+        "acquisition_time_s",
+        "stage_x_um",
+        "stage_y_um",
+        "area_um2",
+        "control_type",
+        "quality_control",
+    ]
     feature_cols = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
-    object_cols = ["condition", "repeat", "well", "image_file", "label_id",
-                   "nucleus_x_px", "nucleus_y_px", *feature_cols]
+    object_cols = [
+        "condition",
+        "repeat",
+        "well",
+        "image_file",
+        "label_id",
+        "nucleus_x_px",
+        "nucleus_y_px",
+        *feature_cols,
+    ]
     return fovs[fov_cols], objects[object_cols]
 
 
@@ -230,19 +259,40 @@ def convert_idr0139(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     fovs, images = fovs[keep], images[keep]
 
     objects = _objects(raw_dir, "idr0139", images["ImageNumber"])
-    objects = objects.merge(images[["ImageNumber", "FileName_DNA"]], on="ImageNumber",
-                            validate="many_to_one").rename(columns={"FileName_DNA": "image_file"})
-    objects = objects.merge(fovs[["image_file", "condition", "repeat", "well"]],
-                            on="image_file", validate="many_to_one")
+    objects = objects.merge(
+        images[["ImageNumber", "FileName_DNA"]], on="ImageNumber", validate="many_to_one"
+    ).rename(columns={"FileName_DNA": "image_file"})
+    objects = objects.merge(
+        fovs[["image_file", "condition", "repeat", "well"]], on="image_file", validate="many_to_one"
+    )
     objects = objects.rename(
-        columns={"ObjectNumber": "label_id", "Location_Center_X": "nucleus_x_px",
-                 "Location_Center_Y": "nucleus_y_px"}
+        columns={
+            "ObjectNumber": "label_id",
+            "Location_Center_X": "nucleus_x_px",
+            "Location_Center_Y": "nucleus_y_px",
+        }
     )
     feature_cols = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
-    fov_cols = ["condition", "repeat", "well", "image_file", "field", "acquisition_order",
-                "control_type", "quality_control"]
-    object_cols = ["condition", "repeat", "well", "image_file", "label_id",
-                   "nucleus_x_px", "nucleus_y_px", *feature_cols]
+    fov_cols = [
+        "condition",
+        "repeat",
+        "well",
+        "image_file",
+        "field",
+        "acquisition_order",
+        "control_type",
+        "quality_control",
+    ]
+    object_cols = [
+        "condition",
+        "repeat",
+        "well",
+        "image_file",
+        "label_id",
+        "nucleus_x_px",
+        "nucleus_y_px",
+        *feature_cols,
+    ]
     return fovs[fov_cols], objects[object_cols]
 
 

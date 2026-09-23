@@ -1,6 +1,4 @@
-"""Feature-transform contracts: no future-FOV leakage and JSON provenance.
-"""
-
+"""Feature-transform contracts: no future-FOV leakage and JSON provenance."""
 
 from dataclasses import replace
 
@@ -94,5 +92,3 @@ def test_fitted_transforms_are_json_provenance(transform):
         assert json.loads(json.dumps(record)) == record
         assert record["config_id"] == transform.config_id
         assert record["n_fit_fovs"] == item.step
-
-

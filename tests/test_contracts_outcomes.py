@@ -1,6 +1,4 @@
-"""Outcome-metric contracts: finite, deterministic, input-preserving and strategy-independent.
-"""
-
+"""Outcome-metric contracts: finite, deterministic, input-preserving and strategy-independent."""
 
 import math
 
@@ -85,5 +83,3 @@ def test_outcomes_depend_on_the_stop_not_on_the_strategy():
     assert by_fovs.stop_step == by_objects.stop_step == 4
     assert by_fovs.config_id != by_objects.config_id
     assert by_fovs.outcomes == by_objects.outcomes
-
-

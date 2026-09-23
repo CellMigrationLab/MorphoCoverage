@@ -22,3 +22,5 @@ jobs:
         run: pytest
       - name: Lint
         run: ruff check src tests data
+      - name: Format
+        run: ruff format --check src tests data

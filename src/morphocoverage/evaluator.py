@@ -167,7 +167,11 @@ def evaluate_strategy(
     runs = [_recompute(estimator, data, objective) for estimator in strategy.estimators]
     recompute_seconds = sum(seconds for _, seconds in runs)
     evidence = _merge_evidence(strategy, [evidence for evidence, _ in runs])
-    effort = Effort(n_fovs=len(data.fovs), n_observations=len(data.objects), observation_unit=data.observation_unit)
+    effort = Effort(
+        n_fovs=len(data.fovs),
+        n_observations=len(data.objects),
+        observation_unit=data.observation_unit,
+    )
     result = _build_result(
         strategy,
         objective=objective,
@@ -264,7 +268,11 @@ class IncrementalReplay:
             return None
 
         evidence = _merge_evidence(self.strategy, evidences)
-        effort = Effort(n_fovs=self.n_fovs, n_observations=self.n_observations, observation_unit=new.observation_unit)
+        effort = Effort(
+            n_fovs=self.n_fovs,
+            n_observations=self.n_observations,
+            observation_unit=new.observation_unit,
+        )
         result = _build_result(
             self.strategy,
             objective=self.objective,
@@ -275,8 +283,12 @@ class IncrementalReplay:
             compute_seconds=update_seconds + recompute_seconds,
         )
         overhead = (
-            perf_counter() - wall - update_seconds - recompute_seconds
-            + setup_seconds + self._pending_overhead
+            perf_counter()
+            - wall
+            - update_seconds
+            - recompute_seconds
+            + setup_seconds
+            + self._pending_overhead
         )
         timing = Timing(recompute_seconds, update_seconds, self._pending_initial, overhead)
         self._pending_initial = self._pending_overhead = 0.0

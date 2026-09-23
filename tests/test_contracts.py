@@ -17,7 +17,6 @@ outcome-metric, transform and incremental contracts are in the other
 ``test_contracts_*.py`` modules.
 """
 
-
 import re
 from collections import Counter
 from dataclasses import replace
@@ -230,9 +229,7 @@ def test_counts_match_the_acquisition_record(name, strategy):
 def test_replay_reveals_whole_fovs_in_acquisition_order(name):
     scenario = SCENARIOS[name]()
     key = ["condition", "repeat", "image_file"]
-    all_objects_per_fov = Counter(
-        scenario.objects.loc[:, key].itertuples(index=False, name=None)
-    )
+    all_objects_per_fov = Counter(scenario.objects.loc[:, key].itertuples(index=False, name=None))
     for item in replay(scenario, [_probe()]):
         group = item.result.group
         ordered = (
@@ -433,5 +430,3 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
         stop = first_stop(strategy.name)
         assert stop.n_fovs >= 1 and stop.n_objects >= 1
         assert stop.evidence.value(quantity) <= strategy.tolerance
-
-

@@ -12,7 +12,7 @@
 | Position | Step 3 of the MorphoBricks pipeline (analysis & applications). It consumes features; it does not extract them. See section 18. |
 | Language | Python 3.11+ |
 | Tests | `pytest` (all tests, including real-data tests on `data/crick_idr`) |
-| Lint | `ruff check src tests data` (ruff pinned in `pyproject.toml`) |
+| Lint | `ruff check src tests data` and `ruff format --check src tests data` (ruff pinned in `pyproject.toml`; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
 Key dependencies: `numpy`, `pandas`, `scipy` (runtime); `pytest`, `ruff` (development). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
@@ -305,7 +305,8 @@ For substantive code changes, when the environment permits:
 
 ```bash
 pytest
-ruff check src tests
+ruff check src tests data
+ruff format --check src tests data
 ```
 
 Never claim a command passed unless it actually ran successfully.

@@ -56,7 +56,9 @@ def normalize_observation_unit(unit: object) -> str:
     does not know; known plurals are mapped to their singular.
     """
     if not isinstance(unit, str) or not unit.strip():
-        raise ValueError("observation_unit must be a non-empty description such as 'cell' or 'slice'")
+        raise ValueError(
+            "observation_unit must be a non-empty description such as 'cell' or 'slice'"
+        )
     label = re.sub(r"[\s-]+", "_", unit.strip().lower())
     return _UNIT_ALIASES.get(label, label)
 
@@ -159,6 +161,7 @@ def _attach_fov_metadata(
             )
         enriched = enriched.merge(mapping, on=fov_col, how="left", validate="many_to_one")
     return enriched
+
 
 def _within_fov_axes(objects: pd.DataFrame, feature_cols: Sequence[str]) -> list[str]:
     """The z/c/t-style columns that describe acquisition within a position."""
@@ -322,7 +325,9 @@ def validate_input_tables(
     resolved_fov_col = resolve_fov_col(objects, fovs, fov_col)
     metadata_to_attach = list(MORPHOBRICKS_GROUP_COLUMNS)
     if group_cols is not None:
-        metadata_to_attach.extend(column for column in group_cols if column not in metadata_to_attach)
+        metadata_to_attach.extend(
+            column for column in group_cols if column not in metadata_to_attach
+        )
     objects = _attach_fov_metadata(objects, fovs, resolved_fov_col, metadata_to_attach)
     resolved_group_cols = resolve_group_cols(objects, fovs, group_cols)
     identity_cols = resolve_identity_cols(objects, fovs, resolved_group_cols, resolved_fov_col)

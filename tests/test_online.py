@@ -24,9 +24,7 @@ def _feed_session(scenario, strategies, *, observation_unit=None):
         observation_unit=observation_unit,
     )
     outputs = []
-    ordered = scenario.fovs.sort_values(
-        ["condition", "repeat", ORDER_COL], kind="stable"
-    )
+    ordered = scenario.fovs.sort_values(["condition", "repeat", ORDER_COL], kind="stable")
     for _, fov in ordered.iterrows():
         mask = pd.Series(True, index=scenario.objects.index)
         for column in ("condition", "repeat", "image_file"):

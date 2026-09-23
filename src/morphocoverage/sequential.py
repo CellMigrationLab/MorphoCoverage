@@ -83,7 +83,9 @@ def evaluate_acquisition_prefixes(
 
     all_results: list[SequentialResult] = []
     for group, group_data in groups:
-        acquisition = _Acquisition(group_data, _in_acquisition_order(group, group_data, acquisition_order_col))
+        acquisition = _Acquisition(
+            group_data, _in_acquisition_order(group, group_data, acquisition_order_col)
+        )
         for step, result in replay(
             strategy_list, group, acquisition, objective=objective, min_fovs=min_fovs
         ):
@@ -175,8 +177,11 @@ def _replay_full(strategies, group, acquisition, *, objective, min_fovs):
         prefix = acquisition.prefix(step)
         setup_seconds = perf_counter() - started
         for strategy in strategies:
-            yield step, evaluate_strategy(
-                strategy, prefix, objective=objective, group=group, setup_seconds=setup_seconds
+            yield (
+                step,
+                evaluate_strategy(
+                    strategy, prefix, objective=objective, group=group, setup_seconds=setup_seconds
+                ),
             )
 
 

@@ -89,8 +89,11 @@ class _ExternalMean(Estimator):
 
     def estimate(self, data, *, objective):
         values = data.feature_values(self.feature)
-        meta = {"direction": Direction.HIGHER_IS_BETTER, "units": "area units",
-                "component": Component.POPULATION}
+        meta = {
+            "direction": Direction.HIGHER_IS_BETTER,
+            "units": "area units",
+            "component": Component.POPULATION,
+        }
         if not len(values):
             return Evidence({"mean": Quantity.insufficient("no objects", **meta)})
         return Evidence({"mean": Quantity.available(float(values.mean()), **meta)})

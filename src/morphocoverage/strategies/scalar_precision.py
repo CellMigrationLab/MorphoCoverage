@@ -196,7 +196,9 @@ class ScalarPrecisionEstimator(Estimator):
     def __post_init__(self) -> None:
         if not isinstance(self.feature, str):
             raise TypeError("feature must be one column name")
-        _check_configuration(self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col)
+        _check_configuration(
+            self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
+        )
 
     @property
     def name(self) -> str:
@@ -252,8 +254,7 @@ class ScalarPrecisionEstimator(Estimator):
             return "insufficient_data", "fewer than 2 acquired FOVs or no objects"
         if has_negative:
             return "not_applicable", (
-                "negative values; the CV criterion applies to non-negative "
-                "whole-cell measurements"
+                "negative values; the CV criterion applies to non-negative whole-cell measurements"
             )
         if sums.sum() <= 0:
             return "not_applicable", (
@@ -422,7 +423,9 @@ class _ScalarPrecisionState(EstimatorState):
             mean = float(members.mean()) if len(members) else 0.0
             self.fovs.append(
                 _FovSummary(
-                    order=None if estimator.order_col is None else new.fovs[estimator.order_col].iloc[j],
+                    order=None
+                    if estimator.order_col is None
+                    else new.fovs[estimator.order_col].iloc[j],
                     count=len(members),
                     total=float(members.sum()),
                     mean=mean,
@@ -484,7 +487,9 @@ class ScalarPrecisionStrategy(SamplingStrategy):
             raise TypeError("feature must be one column name")
         if not 0 < self.target_cv < 1:
             raise ValueError("target_cv must be between 0 and 1")
-        _check_configuration(self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col)
+        _check_configuration(
+            self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
+        )
 
     @property
     def name(self) -> str:
@@ -513,7 +518,11 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         """The averaging-CV estimator with this strategy's settings."""
         return (
             ScalarPrecisionEstimator(
-                self.feature, self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
+                self.feature,
+                self.resampling_unit,
+                self.sd_estimate,
+                self.pilot_fovs,
+                self.order_col,
             ),
         )
 
