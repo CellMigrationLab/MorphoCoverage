@@ -107,7 +107,7 @@ MorphoCoverage consumes two linked logical tables.
 
 ### FOV table
 
-One row per acquired FOV, including FOVs with zero detected objects.
+One row per acquired FOV, including FOVs with zero phenotype observations.
 
 Required:
 - caller-specified spatial-position/FOV identifier column. Prefer `position_id` when storage layout does not map one file to one position; `image_file` is a fallback only when one file equals one position.
@@ -231,7 +231,7 @@ Required scenarios:
 - clearly separated multimodal phenotypes: `multimodal`;
 - rare states at controlled prevalence, e.g. 10%, 1%, 0.1%: `rare_prevalence_10pct`, `rare_prevalence_1pct`, `rare_prevalence_0p1pct`;
 - identical rare-state prevalence distributed uniformly versus clustered into few FOVs: `rare_uniform`, `rare_clustered`;
-- unequal numbers of objects per FOV: `unequal_objects_per_fov`;
+- unequal numbers of observations per FOV: `unequal_objects_per_fov`;
 - acquired FOVs with zero detected objects: `zero_object_fovs`;
 - unequal physical FOV area when area metadata are available: `unequal_fov_area`;
 - correlation between neighbouring FOVs: `neighbour_correlation`;
@@ -245,7 +245,7 @@ Required scenarios:
 Rules for these tests:
 
 - Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
-- Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-object FOVs counted as effort) apply to all strategies automatically.
+- Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-observation FOVs counted as effort) apply to all strategies automatically.
 - An estimator that supports incremental updates (`Estimator.start`) must give, at every step and on every scenario, the same evidence and decisions under `incremental=True` replay as under full recomputation, to floating-point rounding. The incremental-equivalence contract in `tests/test_contracts.py` runs this for every strategy in `STRATEGIES_UNDER_CONTRACT`.
 - Every outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
