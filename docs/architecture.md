@@ -260,7 +260,7 @@ evaluate_acquisition_prefixes()        OnlineSession.add_fov()
                 StrategyResult
 ```
 
-`OnlineSession` owns only prospective orchestration. It does not know future FOVs and does not implement strategy-specific logic. Incremental estimators use `EstimatorState`; non-incremental estimators are recomputed on accumulated visible observations.
+`OnlineSession` owns only prospective orchestration. It does not know future FOVs and does not implement strategy-specific logic. The first FOV fixes the session's identity/grouping contract; later updates cannot silently change it. Incremental estimators use `EstimatorState`; non-incremental estimators are recomputed on accumulated visible observations.
 
 ## Observation semantics
 
