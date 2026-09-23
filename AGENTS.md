@@ -197,6 +197,7 @@ src/morphocoverage/
         fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
         rare_planning.py   # binomial FOV-incidence planning for a RareTarget
         support_novelty.py # leave-one-FOV-out epsilon-support novelty
+        incidence_coverage.py  # Chao-Jost incidence coverage and Chao2 on fixed labels
 
 tests/
     scenarios.py           # constructed acquisitions for contract tests (section 9)

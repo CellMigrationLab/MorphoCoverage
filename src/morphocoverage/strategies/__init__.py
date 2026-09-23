@@ -7,6 +7,7 @@ from .baselines import (
     FixedObservationStrategy,
 )
 from .fov_bootstrap import FOVBootstrapEstimator, FOVBootstrapStrategy
+from .incidence_coverage import IncidenceCoverageEstimator, IncidenceCoverageStrategy
 from .jcb_planning import (
     CellCountPlan,
     PlannedCellCountEstimator,
@@ -38,6 +39,8 @@ __all__ = [
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "FixedObservationStrategy",
+    "IncidenceCoverageEstimator",
+    "IncidenceCoverageStrategy",
     "PlannedCellCountEstimator",
     "PlannedCellCountStrategy",
     "SamplingStrategy",
