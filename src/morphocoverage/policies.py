@@ -30,19 +30,39 @@ from .results import Decision, StrategyResult
 _EFFORTS = ("n_fovs", "n_observations", "n_objects")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class Effort:
-    """Framework-owned acquisition effort."""
+    """Framework-owned acquisition effort.
+
+    n_observations is canonical. Legacy construction with n_objects= is
+    accepted so existing policy code remains source-compatible.
+    """
 
     n_fovs: int
     n_observations: int
     observation_unit: str = "object"
 
+    def __init__(
+        self,
+        n_fovs: int,
+        n_observations: int | None = None,
+        observation_unit: str = "object",
+        *,
+        n_objects: int | None = None,
+    ) -> None:
+        if n_observations is None and n_objects is None:
+            raise TypeError("provide n_observations (or legacy n_objects)")
+        if n_observations is not None and n_objects is not None and n_observations != n_objects:
+            raise ValueError("n_observations and n_objects disagree")
+        count = n_objects if n_observations is None else n_observations
+        object.__setattr__(self, "n_fovs", n_fovs)
+        object.__setattr__(self, "n_observations", count)
+        object.__setattr__(self, "observation_unit", observation_unit)
+
     @property
     def n_objects(self) -> int:
         """Backward-compatible alias for n_observations."""
         return self.n_observations
-
 
 class DecisionPolicy(ABC):
     """Maps evidence and effort to a decision for one objective component.
