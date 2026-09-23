@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 
 from .metadata import (
+    WITHIN_FOV_METADATA_COLUMNS,
     check_canonical_spellings,
     resolve_fov_col,
     resolve_group_cols,
     resolve_identity_cols,
-    WITHIN_FOV_METADATA_COLUMNS,
 )
 
 
