@@ -10,6 +10,7 @@ from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 from morphocoverage import (
     ObjectiveConfig,
     SamplingObjective,
+    ScalarPrecisionEstimator,
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
     run_strategies,
