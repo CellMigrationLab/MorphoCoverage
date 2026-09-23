@@ -62,7 +62,7 @@ from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from .base import Estimator, SamplingStrategy
+from .base import Estimator, EstimatorState, SamplingStrategy
 
 _UNITS = ("object", "fov")
 _SD_ESTIMATES = ("point", "upper_95")
@@ -130,9 +130,11 @@ def sd_upper_bound_factor(df: int, confidence: float = 0.95) -> float:
 
 def cell_averaging_cv(values: np.ndarray) -> dict[str, float]:
     """Between-cell CV and averaging CV of the mean, treating cells as independent."""
-    n = len(values)
-    mean = float(np.mean(values))
-    cv_cells = float(np.std(values, ddof=1)) / mean
+    return _cell_cv_from_moments(len(values), float(np.mean(values)), float(np.std(values, ddof=1)))
+
+
+def _cell_cv_from_moments(n: int, mean: float, sd: float) -> dict[str, float]:
+    cv_cells = sd / mean
     cv_cells_upper = cv_cells * sd_upper_bound_factor(n - 1)
     return {
         "mean": mean,
@@ -271,13 +273,24 @@ class ScalarPrecisionEstimator(Estimator):
         values = data.feature_values(self.feature)[inside]
         sums = np.bincount(positions[inside], weights=values, minlength=len(fovs))
         counts = np.bincount(positions[inside], minlength=len(fovs)).astype(float)
+        return self._precision_from(
+            sums,
+            counts,
+            has_negative=bool((values < 0).any()),
+            cells=lambda: cell_averaging_cv(values),
+        )
+
+    def _precision_from(
+        self, sums: np.ndarray, counts: np.ndarray, *, has_negative: bool, cells
+    ) -> dict[str, Any] | tuple[str, str]:
+        """The estimate from per-FOV sums and counts; ``cells()`` gives the cell-level CVs."""
         n_objects = int(counts.sum())
         if self.resampling_unit == "object":
             if n_objects < 2:
                 return "insufficient_data", "fewer than 2 objects"
-        elif len(fovs) < 2 or n_objects == 0:
+        elif len(sums) < 2 or n_objects == 0:
             return "insufficient_data", "fewer than 2 acquired FOVs or no objects"
-        if (values < 0).any():
+        if has_negative:
             return "not_applicable", (
                 "negative values; the CV criterion applies to non-negative "
                 "whole-cell measurements"
@@ -287,33 +300,45 @@ class ScalarPrecisionEstimator(Estimator):
                 "non-positive mean; CV is only defined for positive-valued measurements"
             )
 
-        cells = cell_averaging_cv(values) if n_objects >= 2 else None
+        cell_cvs = cells() if n_objects >= 2 else None
         if self.resampling_unit == "object":
-            estimate: dict[str, Any] = dict(cells)
+            estimate: dict[str, Any] = dict(cell_cvs)
         else:
             estimate = fov_averaging_cv(sums, counts)
-            if cells is not None and cells["cv_mean"] > 0:
+            if cell_cvs is not None and cell_cvs["cv_mean"] > 0:
                 # Variance inflation from treating FOVs, not cells, as the sampling unit.
-                estimate["design_effect"] = (estimate["cv_mean"] / cells["cv_mean"]) ** 2
-        if cells is not None and cells["cv_cells"] > _MAX_TRUSTED_CV:
+                estimate["design_effect"] = (estimate["cv_mean"] / cell_cvs["cv_mean"]) ** 2
+        if cell_cvs is not None and cell_cvs["cv_cells"] > _MAX_TRUSTED_CV:
             estimate["warning"] = (
                 "between-cell SD exceeds 50% CV; the paper advises acquiring more data "
                 "and repeating the estimate"
             )
         estimate["n_objects"] = n_objects
-        estimate["n_fovs"] = len(fovs)
+        estimate["n_fovs"] = len(sums)
         return estimate
+
+    def _check_order_col(self, fovs) -> None:
+        if self.pilot_fovs is not None and self.order_col not in fovs.columns:
+            raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """Averaging CV of the visible data, and the pilot's projection when configured."""
         data.feature_values(self.feature)  # fails early on a non-feature column
+        self._check_order_col(data.fovs)
+        current = self._precision(data, data.fovs)
+        pilot = None
+        if self.pilot_fovs is not None and len(data.fovs) >= self.pilot_fovs:
+            ordered = data.fovs.sort_values(self.order_col, kind="stable")
+            pilot = self._precision(data, ordered.iloc[: self.pilot_fovs])
+        return self._evidence(current, pilot, len(data.objects), len(data.fovs))
+
+    def _evidence(self, current, pilot, n_objects: int, n_fovs: int) -> Evidence:
+        """Quantities and diagnostics from the current and (if complete) pilot estimates."""
         diagnostics: dict[str, Any] = {
             "scalar_parameter": f"mean of {self.feature!r} over objects",
             "assumes_spatial_uniformity": self.resampling_unit == "object",
         }
         quantities: dict[str, Quantity] = {}
-
-        current = self._precision(data, data.fovs)
         if isinstance(current, tuple):
             availability, reason = current
             diagnostics["undefined_reason"] = reason
@@ -321,24 +346,18 @@ class ScalarPrecisionEstimator(Estimator):
         else:
             diagnostics.update(current)
             quantities["averaging_cv"] = _cv_quantity(current["cv_mean" + self._suffix()])
-        if self.pilot_fovs is None:
-            return Evidence(quantities, diagnostics)
-
-        quantities["pilot_projected_averaging_cv"] = self._projection(
-            data, current, diagnostics
-        )
+        if self.pilot_fovs is not None:
+            quantities["pilot_projected_averaging_cv"] = self._projection(
+                current, pilot, n_objects, n_fovs, diagnostics
+            )
         return Evidence(quantities, diagnostics)
 
-    def _projection(self, data: ValidatedInput, current, diagnostics) -> Quantity:
-        if self.order_col not in data.fovs.columns:
-            raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
+    def _projection(self, current, pilot, n_objects, n_fovs, diagnostics) -> Quantity:
         if isinstance(current, tuple) and current[0] == "not_applicable":
             return _cv_quantity(None, *current)
-        if len(data.fovs) < self.pilot_fovs:
+        if n_fovs < self.pilot_fovs:
             diagnostics["pilot_status"] = "pilot not yet complete"
             return _cv_quantity(None, "insufficient_data", "pilot not yet complete")
-        pilot_fovs = data.fovs.sort_values(self.order_col, kind="stable").iloc[: self.pilot_fovs]
-        pilot = self._precision(data, pilot_fovs)
         if isinstance(pilot, tuple):
             # The pilot is fixed once complete, so more acquisition cannot fix it.
             reason = f"pilot: {pilot[1]}"
@@ -346,12 +365,94 @@ class ScalarPrecisionEstimator(Estimator):
             return _cv_quantity(None, "not_applicable", reason)
         diagnostics["pilot"] = pilot
         if self.resampling_unit == "object":
-            projected = pilot["cv_cells" + self._suffix()] / math.sqrt(len(data.objects))
+            projected = pilot["cv_cells" + self._suffix()] / math.sqrt(n_objects)
         else:
-            projected = pilot["cv_mean" + self._suffix()] * math.sqrt(
-                self.pilot_fovs / len(data.fovs)
-            )
+            projected = pilot["cv_mean" + self._suffix()] * math.sqrt(self.pilot_fovs / n_fovs)
         return _cv_quantity(projected)
+
+    def start(self, template: ValidatedInput, *, objective: ObjectiveConfig) -> EstimatorState:
+        """Incremental version: keeps sufficient statistics per acquired FOV."""
+        template.feature_values(self.feature)
+        self._check_order_col(template.fovs)
+        return _ScalarPrecisionState(self)
+
+
+@dataclass(frozen=True)
+class _FovSummary:
+    """Sufficient statistics of one acquired FOV for the averaging-CV criterion."""
+
+    order: Any
+    count: int
+    total: float
+    mean: float
+    m2: float
+    has_negative: bool
+
+
+def _merged_moments(fovs: list[_FovSummary]) -> tuple[int, float, float]:
+    """Object count, mean and sum of squared deviations over FOVs (Chan et al. merge)."""
+    n, mean, m2 = 0, 0.0, 0.0
+    for fov in fovs:
+        if fov.count == 0:
+            continue
+        combined = n + fov.count
+        delta = fov.mean - mean
+        mean += delta * fov.count / combined
+        m2 += fov.m2 + delta**2 * n * fov.count / combined
+        n = combined
+    return n, mean, m2
+
+
+class _ScalarPrecisionState(EstimatorState):
+    """Per-FOV sufficient statistics; each update costs O(new objects + acquired FOVs).
+
+    The estimate from these statistics equals full recomputation up to
+    floating-point rounding: the cell mean and variance are merged per FOV
+    instead of computed over all values at once.
+    """
+
+    def __init__(self, estimator: ScalarPrecisionEstimator) -> None:
+        self.estimator = estimator
+        self.fovs: list[_FovSummary] = []
+
+    def _precision(self, fovs: list[_FovSummary]):
+        sums = np.array([fov.total for fov in fovs], dtype=float)
+        counts = np.array([fov.count for fov in fovs], dtype=float)
+
+        def cells():
+            n, mean, m2 = _merged_moments(fovs)
+            return _cell_cv_from_moments(n, mean, math.sqrt(m2 / (n - 1)))
+
+        return self.estimator._precision_from(
+            sums, counts, has_negative=any(fov.has_negative for fov in fovs), cells=cells
+        )
+
+    def update(self, new: ValidatedInput) -> Evidence:
+        """Summarize the new FOV(s) and recompute the estimate from the summaries."""
+        estimator = self.estimator
+        values = new.feature_values(estimator.feature)
+        positions = fov_positions(new, new.fovs)
+        for j in range(len(new.fovs)):
+            members = values[positions == j]
+            mean = float(members.mean()) if len(members) else 0.0
+            self.fovs.append(
+                _FovSummary(
+                    order=None if estimator.order_col is None else new.fovs[estimator.order_col].iloc[j],
+                    count=len(members),
+                    total=float(members.sum()),
+                    mean=mean,
+                    m2=float(((members - mean) ** 2).sum()),
+                    has_negative=bool((members < 0).any()),
+                )
+            )
+        current = self._precision(self.fovs)
+        pilot = None
+        if estimator.pilot_fovs is not None and len(self.fovs) >= estimator.pilot_fovs:
+            # Same rule as full recomputation: stable sort by order, ties by arrival.
+            ordered = sorted(range(len(self.fovs)), key=lambda i: self.fovs[i].order)
+            pilot = self._precision([self.fovs[i] for i in ordered[: estimator.pilot_fovs]])
+        n_objects = sum(fov.count for fov in self.fovs)
+        return estimator._evidence(current, pilot, n_objects, len(self.fovs))
 
 
 @dataclass(frozen=True)

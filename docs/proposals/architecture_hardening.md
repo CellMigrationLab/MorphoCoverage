@@ -1,9 +1,8 @@
 # Proposal: architecture hardening before the strategy zoo
 
 **Status:** all items approved by the project owner (2026-09-23), with
-`runtime_seconds` kept as an alias of `compute_seconds`. Items 1–5 are
-implemented, including the `compute_seconds` rename from item 6; the rest of
-items 6–7 is not yet implemented. Every item changes a public contract
+`runtime_seconds` kept as an alias of `compute_seconds`. Items 1–6 are
+implemented; item 7 is not yet implemented. Every item changes a public contract
 (AGENTS.md section 15).
 
 **As implemented (items 1–3).** `Evidence`/`Quantity` in `evidence.py`;
@@ -42,6 +41,13 @@ unchanged when future FOVs are altered" covers every transform on every §9
 scenario, and a transform with cross-call state fails it. A transform that
 cannot be fitted returns a reason rather than guessing a scale. No estimator
 uses a transform yet.
+
+**As implemented (item 6).**
+- **Interface.** `Estimator.start(template, *, objective)` returns an `EstimatorState` or `None`. `EstimatorState.update(new)` receives only the newly revealed FOV, and `evaluate_acquisition_prefixes(..., incremental=True)` drives it.
+- **Contract.** For every strategy under contract, on every §9 scenario, incremental replay must equal full recomputation to relative 1e-9. `ScalarPrecisionEstimator` is the first incremental estimator; it keeps per-FOV sufficient statistics.
+- **Timing.** The `Timing` fields are `recompute_seconds`, `update_seconds`, `initial_fit_seconds`, `framework_overhead_seconds` and `total_decision_seconds`. `compute_seconds` is recompute plus update, and `runtime_seconds` remains its alias.
+- **Difference from the text below.** Warm-up updates before `min_fovs` are charged to `initial_fit_seconds`.
+- **Measured once on idr0028** (JCB FOV-unit estimator with pilot, one run): median estimator time per decision fell from 2.8 ms to 0.5 ms. Framework overhead, about 2.2 ms, then dominated.
 
 **Origin:** the ChatGPT audit of `main` at `da3953c` (2026-09-23), plus Claude's
 earlier review. The small, clear defects from that audit are fixed separately.

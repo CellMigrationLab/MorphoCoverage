@@ -19,8 +19,9 @@ success:
   A run that never stops is recorded with ``stopped=False``, its final
   decision, and outcomes and effort at the full acquisition.
 - **Record.** One ``BenchmarkRecord`` per dataset, analysis group, order and
-  strategy, with effort at the stop (FOVs, objects, area), outcomes, and
-  compute times.
+  strategy, with effort at the stop (FOVs, objects, area), outcomes,
+  estimator compute times, and whole-decision latency (median and maximum
+  per step, and the total up to the stop; see ``results.Timing``).
 """
 
 from __future__ import annotations
@@ -211,6 +212,10 @@ class BenchmarkRecord:
     outcome_ids: Mapping[str, str]
     compute_seconds_to_stop: float
     max_compute_seconds: float
+    incremental: bool
+    decision_seconds_to_stop: float
+    median_decision_seconds: float
+    max_decision_seconds: float
 
     def as_row(self) -> dict[str, Any]:
         """A flat dict: group columns as ``group.<col>``, outcomes as ``outcome.<name>``."""
@@ -237,6 +242,10 @@ class BenchmarkRecord:
             "total_area": self.total_area,
             "compute_seconds_to_stop": self.compute_seconds_to_stop,
             "max_compute_seconds": self.max_compute_seconds,
+            "incremental": self.incremental,
+            "decision_seconds_to_stop": self.decision_seconds_to_stop,
+            "median_decision_seconds": self.median_decision_seconds,
+            "max_decision_seconds": self.max_decision_seconds,
         }
         row.update({f"group.{column}": value for column, value in self.group.items()})
         row.update({f"outcome.{name}": value for name, value in self.outcomes.items()})
@@ -277,6 +286,7 @@ def _record_run(
     stop_fovs = full.fovs.loc[mask]
     stopped = restrict_input(full, objects_in_fovs(full, stop_fovs), stop_fovs)
     times = [item.result.compute_seconds for item in history]
+    decisions = [item.result.timing.total_decision_seconds for item in history]
     configuration = last.result.configuration
     return BenchmarkRecord(
         dataset=dataset.name,
@@ -300,6 +310,9 @@ def _record_run(
         outcome_ids={metric.name: metric.config_id for metric in metrics},
         compute_seconds_to_stop=float(sum(times[: last_index + 1])),
         max_compute_seconds=float(max(times)),
+        decision_seconds_to_stop=float(sum(decisions[: last_index + 1])),
+        median_decision_seconds=float(np.median(decisions)),
+        max_decision_seconds=float(max(decisions)),
         **provenance,
     )
 
@@ -314,12 +327,15 @@ def run_benchmark(
     orders: Iterable[AcquisitionOrder] = (AcquisitionOrder.recorded(),),
     tuned_on: Iterable[str] = (),
     min_fovs: int = 1,
+    incremental: bool = False,
 ) -> list[BenchmarkRecord]:
     """Replay every strategy on one registered dataset and record one run per group and order.
 
     ``tuned_on`` names the datasets the strategies' settings were chosen on;
     they must be development datasets. Metrics see the full group and the stop
-    prefix only, so they are identical for every strategy.
+    prefix only, so they are identical for every strategy. ``incremental`` is
+    passed to the replay; decisions are the same either way, only the recorded
+    latencies differ.
     """
     tuned = registry.check_tuning(tuned_on)
     dataset = registry[dataset_name]
@@ -353,6 +369,7 @@ def run_benchmark(
                 acquisition_order_col=order_col,
                 objective=objective,
                 min_fovs=min_fovs,
+                incremental=incremental,
                 **columns,
             )
             histories: dict[tuple, list[SequentialResult]] = {}
@@ -368,6 +385,7 @@ def run_benchmark(
                         in_sample=dataset.name in tuned,
                         tuned_on=tuned,
                         order=order,
+                        incremental=incremental,
                     )
                 )
     return records
