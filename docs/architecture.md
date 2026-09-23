@@ -280,3 +280,19 @@ This join is performed only when one FOV identifier maps to exactly one metadata
 value. Reused basenames or position IDs across groups are not guessed: the
 observation table must then carry the relevant identity columns or use a
 globally unique FOV identifier.
+
+
+## Observation-unit compatibility
+
+The input layer is generic, but individual methods need not be. Each estimator
+must make its observation-unit assumptions explicit.
+
+- generic distributional/novelty methods may accept cells, nuclei, patches,
+  slices, embeddings or FOV summaries where scientifically meaningful;
+- cell/object-derived current-practice baselines reject incompatible units;
+- `FixedObservationStrategy` is the generic row-count baseline;
+- `FixedObjectStrategy` is retained for backward compatibility and accepts
+  only object-like units.
+
+A generic input contract must never silently change the meaning of a published
+cell-count method.
