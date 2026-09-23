@@ -156,3 +156,41 @@ def test_nullable_numeric_features_preserve_missing_values_as_nan():
     values = result.feature_values("area")
     assert values.dtype == float
     assert np.isnan(values[1])
+
+
+def test_group_metadata_can_live_only_in_fov_table_when_fov_id_is_unique():
+    objects = pd.DataFrame(
+        {
+            "position_id": ["P1", "P1", "P2"],
+            "area": [1.0, 2.0, 3.0],
+        }
+    )
+    fovs = pd.DataFrame(
+        {
+            "condition": ["control", "drug"],
+            "repeat": ["R1", "R1"],
+            "position_id": ["P1", "P2"],
+        }
+    )
+    result = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+    assert result.group_cols == ("condition", "repeat")
+    assert list(result.objects["condition"]) == ["control", "control", "drug"]
+    assert list(result.objects["repeat"]) == ["R1", "R1", "R1"]
+
+
+def test_group_metadata_is_not_guessed_when_fov_id_is_reused():
+    objects = pd.DataFrame(
+        {
+            "image_file": ["same.tif", "same.tif"],
+            "area": [1.0, 2.0],
+        }
+    )
+    fovs = pd.DataFrame(
+        {
+            "condition": ["control", "drug"],
+            "repeat": ["R1", "R1"],
+            "image_file": ["same.tif", "same.tif"],
+        }
+    )
+    with pytest.raises(ValueError, match="cannot attach.*condition"):
+        validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
