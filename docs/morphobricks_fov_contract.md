@@ -28,7 +28,7 @@ If features are computed on individual planes or frames, the object/feature rows
 - `c` for channel;
 - `t` for timepoint.
 
-All rows from the same spatial position must carry the same `position_id`. MorphoCoverage treats `z`, `c`, and `t` as within-FOV acquisition metadata and rejects them as phenotype features.
+All rows from the same spatial position must carry the same `position_id`. MorphoCoverage treats `z`, `c`, and `t` as within-FOV acquisition metadata when they encode acquisition dimensions; because phenotype features are explicit, these columns should simply be omitted from `feature_cols` in that case.
 
 Sequential replay reveals an entire spatial position atomically. It must never reveal one z-plane from a stack as if it were a newly sampled FOV.
 
