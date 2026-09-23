@@ -207,7 +207,8 @@ This keeps prospective replay leakage-free.
 
 **As implemented (item 7).** `plan_cells_to_average`, `CellCountPlan` and
 `PlannedCellCountStrategy` in `strategies/jcb_planning.py`, exported from
-`morphocoverage.strategies` only (the top-level `__all__` is unchanged).
+`morphocoverage.strategies` and, as approved by the project owner, the
+top-level `__all__`.
 Disjointness is enforced at evaluation rather than declared up front: the
 plan records its pilot samples, and a group containing one reports
 `not_applicable`. See `docs/architecture.md`.
