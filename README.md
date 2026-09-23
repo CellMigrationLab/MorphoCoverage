@@ -4,7 +4,7 @@ MorphoCoverage is a feature-agnostic Python project for studying whether microsc
 
 ## Project boundary
 
-MorphoCoverage consumes object-level feature representations together with FOV identity and optional grouping metadata.
+MorphoCoverage consumes numeric phenotype feature tables together with FOV identity and optional grouping metadata. A feature row is a generic **observation**: it may be a cell, nucleus, patch, slice-level measurement, FOV summary, embedding, or another declared unit.
 
 It does **not**:
 
@@ -23,7 +23,7 @@ Microscopes acquire images, not independent cells. Five hundred cells from two F
 MorphoCoverage therefore preserves the hierarchy
 
 ```text
-object / slice-level observation / time point
+observation (cell / nucleus / patch / slice / FOV summary / embedding)
     -> FOV = spatial acquisition position
     -> optional sample/repeat/condition
 ```
@@ -34,7 +34,7 @@ and never treats cell count alone as a complete description of acquisition effor
 
 MorphoCoverage is a strategy-comparison framework. No default coverage estimator has been chosen.
 
-- **Input validation.** Linked FOV and object tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition` × `repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero objects are kept, and when `z`, `c`, and/or `t` describe acquisition dimensions, they are preserved as within-position metadata and omitted from the explicit phenotype feature list.
+- **Input validation.** Linked FOV and phenotype-observation tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition` × `repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero observations are kept, and when `z`, `c`, and/or `t` describe acquisition dimensions, they are preserved as within-position metadata and omitted from the explicit phenotype feature list. `observation_unit` records what one feature row means. NaN feature values may be loaded but are never silently imputed or dropped; each method must state how it handles them.
 - **Swappable strategies.** A strategy is one or more estimators, which report named evidence with its direction, units and objective component, plus decision policies that turn the evidence into continue/stop. Estimators receive one analysis group at a time; the framework fills counts, provenance (`config_id`) and compute time. `redecide` applies other thresholds to stored results without re-running. A strategy with no evidence about a required objective component returns `unsupported`, never `stop`. Current strategies are all current-practice baselines:
   - fixed FOV and fixed cell counts;
   - a JCB/Zweifach-style scalar precision rule;
@@ -43,6 +43,7 @@ MorphoCoverage is a strategy-comparison framework. No default coverage estimator
 - **Benchmark protocol.** Datasets are declared as development or held out, and tuning on held-out data raises. `run_benchmark` replays recorded or seeded-permuted acquisition orders and records one row per run: effort at the stop, strategy-independent outcome metrics, and compute time (`morphocoverage.benchmark`, `morphocoverage.outcomes`).
 - **Leakage-safe preprocessing.** Feature transforms (`Standardize`, `PCA`, `Chain`) are fitted on the visible prefix only, with the fitted state recorded as provenance (`morphocoverage.transforms`).
 - **Incremental updates and latency.** `evaluate_acquisition_prefixes(..., incremental=True)` feeds supporting estimators one new FOV at a time. A contract test requires the result to equal full recomputation. Every result reports a timing breakdown: recomputation, update, initial fit, framework overhead and total decision time.
+- **Live microscope API.** `OnlineSession` receives one newly acquired spatial position at a time and immediately returns the same `StrategyResult` objects used by retrospective replay. It never needs the completed acquisition or any metadata about future FOVs. Estimators without incremental support still work by recomputing on the visible session history.
 - **Contract tests.** Every strategy must pass them on constructed acquisitions (AGENTS.md section 9).
 - **Real test data.** Crick/IDR feature tables in `data/crick_idr/`.
 
@@ -71,20 +72,46 @@ results = evaluate_acquisition_prefixes(
 )
 ```
 
+For live acquisition, the same strategies can be used without a completed dataset:
+
+```python
+from morphocoverage import OnlineSession
+
+session = OnlineSession(
+    strategies=[FixedFOVStrategy(10)],
+    feature_cols=["feature_a", "feature_b"],
+    objective=ObjectiveConfig(SamplingObjective.POPULATION),
+    fov_col="position_id",
+    group_cols=["condition", "repeat"],
+    observation_unit="cell",
+)
+
+results = session.add_fov(
+    observations=current_feature_table,
+    fov_metadata={
+        "condition": "control",
+        "repeat": "R1",
+        "position_id": "P017",
+    },
+)
+```
+
+Only the current position is provided. Future positions do not need to exist yet.
+
 To add a strategy, follow AGENTS.md section 20. Preliminary real-data observations are in [`docs/preliminary_findings.md`](docs/preliminary_findings.md).
 
 ## Planned scientific development
 
 Development should proceed by falsification rather than by prematurely committing to one estimator:
 
-1. strict linked FOV/object data contracts;
-2. synthetic benchmark datasets and a leakage-safe sequential holdout framework;
-3. faithful implementations of simple/current-practice baselines, including fixed cells/FOVs and scalar cell-averaging precision;
-4. substantially different candidate solution families kept separate;
-5. comparison against measurable outcomes in unseen FOVs;
-6. selection of a default method only if evidence supports one;
-7. prospective continue/stop validation;
-8. smart-microscopy targeting only after representative stopping is validated.
+1. maintain strict linked FOV/observation contracts and the common offline/online execution path;
+2. implement substantially different candidate solution families behind the common estimator interface;
+3. benchmark them primarily on deeply sampled real microscopy datasets, with constructed data reserved for contracts/counterexamples;
+4. compare every method with simple/current-practice baselines and strategy-independent outcomes on unseen FOVs;
+5. characterize scientific accuracy, under-sampling risk, acquisition efficiency and online latency as separate dimensions;
+6. select a default method only if evidence supports one;
+7. validate representative continue/stop prospectively on the microscope;
+8. investigate targeted next-FOV selection only after representative stopping is validated.
 
 Read [`docs/project_aim.md`](docs/project_aim.md) for the detailed scientific aims, relationship to current cell-number guidance, smart-microscopy goal, assumptions, adversarial tests, and failure criteria. See [`AGENTS.md`](AGENTS.md) before making changes; it is the authoritative engineering context for AI coding agents and contributors.
 
