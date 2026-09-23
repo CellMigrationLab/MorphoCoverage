@@ -53,7 +53,9 @@ class ValidatedInput:
         how they handle missingness. Positive/negative infinity is rejected at
         validation time.
         """
-        return self.objects.loc[:, list(self.feature_cols)].to_numpy(dtype=float, copy=True)
+        return self.objects.loc[:, list(self.feature_cols)].to_numpy(
+            dtype=float, na_value=np.nan, copy=True
+        )
 
     def feature_values(self, feature: str) -> np.ndarray:
         """Return one explicitly selected feature as a new float array."""
@@ -62,7 +64,7 @@ class ValidatedInput:
                 f"feature {feature!r} is not one of the explicitly selected "
                 f"feature columns {list(self.feature_cols)}"
             )
-        return self.objects[feature].to_numpy(dtype=float, copy=True)
+        return self.objects[feature].to_numpy(dtype=float, na_value=np.nan, copy=True)
 
 
 def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
@@ -171,7 +173,7 @@ def validate_input_tables(
     for column in feature_cols:
         if not pd.api.types.is_numeric_dtype(objects[column]):
             raise TypeError(f"feature column {column!r} must be numeric")
-        values = objects[column].to_numpy(dtype=float, copy=False)
+        values = objects[column].to_numpy(dtype=float, na_value=np.nan, copy=False)
         if np.isinf(values).any():
             raise ValueError(f"feature column {column!r} contains infinite values")
 
