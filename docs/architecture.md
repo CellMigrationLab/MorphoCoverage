@@ -123,13 +123,13 @@ The framework builds every result; strategies never construct one. A `StrategyRe
 - evidence (quantities and diagnostics; `diagnostics` is a shortcut);
 - overall decision: `continue`, `stop`, `unsupported` or `None` (undefined);
 - `component_decisions`, one per component;
-- number of FOVs and number of objects;
+- number of FOVs and number of observations;
 - resolved condition/repeat group identity;
 - strategy parameters, and `configuration` (name, type, `config_id` and parameters of each estimator and policy);
 - feature columns and FOV key;
 - `compute_seconds`, with `runtime_seconds` as an alias, and `timing`, which breaks the whole decision down (see below).
 
-Effort is framework-owned: estimators cannot report `n_fovs` or `n_objects` as quantities, so a count that drops zero-object FOVs cannot enter a decision. `compute_seconds` times the estimators' own calls only.
+Effort is framework-owned: estimators cannot report `n_fovs` or `n_objects` as quantities, so a count that drops zero-observation FOVs cannot enter a decision. `compute_seconds` times the estimators' own calls only.
 
 This common contract is what allows many methods to be compared without changing the data pipeline.
 
@@ -142,7 +142,7 @@ The sequential runner reveals a real acquisition prefix at a time while preservi
 - acquisition order;
 - FOV identity;
 - condition/repeat grouping;
-- zero-object FOVs.
+- zero-observation FOVs.
 
 Each strategy is evaluated using only the prefix available at that step.
 
@@ -183,7 +183,7 @@ Later benchmarking will extend this with:
 - total runtime across a complete acquisition;
 - high-percentile latency across runs;
 - peak memory;
-- empirical scaling with FOV count, object count, and feature dimension;
+- empirical scaling with FOV count, observation count, and feature dimension;
 - compute-to-acquisition ratio for smart microscopy.
 
 ## Current baseline strategies
@@ -202,7 +202,7 @@ All three are population evidence, so under `rare_discovery` they return `unsupp
 
 `ScalarPrecisionStrategy` reproduces the **single-sample/pilot variant** of the cell-averaging criterion of Zweifach (J Cell Biol 2024, doi:10.1083/jcb.202401074) for one explicitly named scalar feature, following AGENTS.md §10. The paper's multi-sample planning procedure is not implemented; see `docs/proposals/architecture_hardening.md`, item 7.
 
-- **Scalar parameter:** the object mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
+- **Scalar parameter:** the observation mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
 - **Criterion:** stop once `n >= ceil((SD / target) ** 2)` (`required_objects`). The target is required, with no default: the paper suggests 5% for independent samples and 2.5% for matched designs.
 - **SD estimate:** `sd_estimate="point"` or `"upper_95"`, the chi-square upper bound of the 95% confidence interval for SD that the paper recommends for small pilots. This reproduces the paper's worked example (51/108 cells at 2.5%, 13/27 at 5%), which is covered by a test.
 - **Planning versus sequential:** `pilot_fovs` plans the required number of cells once from the first acquired FOVs, as in the paper. The estimator reports the CV this plan projects for the visible effort, which reaches the target exactly when the planned number is reached. Without it the criterion is re-checked after every FOV; this is an adaptation, labelled by the strategy name.
