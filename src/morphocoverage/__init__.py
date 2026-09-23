@@ -5,7 +5,12 @@ from .objectives import ObjectiveConfig, SamplingObjective
 from .results import Decision, StrategyResult
 from .schema import ValidatedInput, validate_input_tables
 from .sequential import SequentialResult, evaluate_acquisition_prefixes
-from .strategies import FixedFOVStrategy, FixedObjectStrategy, SamplingStrategy
+from .strategies import (
+    FixedFOVStrategy,
+    FixedObjectStrategy,
+    SamplingStrategy,
+    ScalarPrecisionStrategy,
+)
 
 __all__ = [
     "Decision",
@@ -14,6 +19,7 @@ __all__ = [
     "ObjectiveConfig",
     "SamplingObjective",
     "SamplingStrategy",
+    "ScalarPrecisionStrategy",
     "SequentialResult",
     "StrategyResult",
     "ValidatedInput",

@@ -18,6 +18,9 @@ import numpy as np
 import pandas as pd
 
 FEATURE_COLS = ("feature_a", "feature_b")
+# Positive baseline so scalar CV-based strategies are defined, as for whole-cell
+# measurements such as area or intensity.
+FEATURE_BASELINE = 10.0
 ORDER_COL = "acquisition_order"
 DEFAULT_SEED = 20260923
 
@@ -65,7 +68,7 @@ def _objects_for(
     """Draw objects per FOV; ``means`` optionally gives a per-FOV feature offset."""
     rows = []
     for position, (fov, count) in enumerate(zip(fovs.itertuples(index=False), counts)):
-        offset = 0.0 if means is None else means[position]
+        offset = FEATURE_BASELINE + (0.0 if means is None else means[position])
         values = rng.normal(loc=offset, scale=1.0, size=(int(count), len(FEATURE_COLS)))
         for label_id, value in enumerate(values, start=1):
             rows.append(

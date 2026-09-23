@@ -31,6 +31,7 @@ from morphocoverage import (
     ObjectiveConfig,
     SamplingObjective,
     SamplingStrategy,
+    ScalarPrecisionStrategy,
     StrategyResult,
     evaluate_acquisition_prefixes,
     run_strategies,
@@ -43,6 +44,11 @@ POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     FixedFOVStrategy(5),
     FixedObjectStrategy(100),
+    ScalarPrecisionStrategy("feature_a", 0.05, "object", "point"),
+    ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
+    ScalarPrecisionStrategy(
+        "feature_a", 0.05, "object", "upper_95", pilot_fovs=3, order_col=ORDER_COL
+    ),
 ]
 
 # §9 items that are properties of the framework rather than datasets.
@@ -353,10 +359,15 @@ def test_strategy_results_are_deterministic(name, strategy):
 def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     # With 5-200 objects per FOV, a cell-count rule and an FOV-count rule stop at
     # different points, and the result reports both kinds of effort so the
-    # difference is visible to the benchmark. The scalar-precision (JCB-style)
-    # baseline must be added to this contract when it is implemented.
+    # difference is visible to the benchmark. The JCB-style scalar-precision
+    # baseline runs through the same replay and reports the same effort fields.
     scenario = SCENARIOS["unequal_objects_per_fov"]()
-    results = _replay(scenario, [FixedFOVStrategy(10), FixedObjectStrategy(500)])
+    precision_cells = ScalarPrecisionStrategy("feature_a", 0.005, "object", "point")
+    precision_fovs = ScalarPrecisionStrategy("feature_a", 0.005, "fov", "point")
+    results = _replay(
+        scenario,
+        [FixedFOVStrategy(10), FixedObjectStrategy(500), precision_cells, precision_fovs],
+    )
 
     def first_stop(strategy_name):
         return next(
@@ -369,3 +380,9 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     by_fov, by_cells = first_stop("fixed_fov"), first_stop("fixed_objects")
     assert (by_fov.n_fovs, by_fov.n_objects) == (10, 2 * 200 + 8 * 5)
     assert (by_cells.n_fovs, by_cells.n_objects) == (11, 3 * 200 + 8 * 5)
+
+    for name in (precision_cells.name, precision_fovs.name):
+        stop = first_stop(name)
+        assert stop.n_fovs >= 1 and stop.n_objects >= 1
+        assert stop.parameters["target_cv"] == 0.005
+        assert stop.score <= 0.005

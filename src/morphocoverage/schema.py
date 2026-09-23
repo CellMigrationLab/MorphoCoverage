@@ -42,6 +42,20 @@ class ValidatedInput:
         return self.objects.loc[:, list(self.feature_cols)].to_numpy(dtype=float)
 
 
+def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
+    """Position of each object's FOV within ``fovs`` (-1 if its FOV is not listed).
+
+    Matching uses the full ``fov_key``, so pooled FOVs that share a name stay
+    distinct.
+    """
+    key = list(data.fov_key)
+    lookup = {fov: i for i, fov in enumerate(zip(*(fovs[c].tolist() for c in key)))}
+    object_keys = zip(*(data.objects[c].tolist() for c in key))
+    return np.fromiter(
+        (lookup.get(fov, -1) for fov in object_keys), dtype=np.int64, count=len(data.objects)
+    )
+
+
 def _require_columns(table: pd.DataFrame, columns: Sequence[str], table_name: str) -> None:
     missing = [column for column in columns if column not in table.columns]
     if missing:

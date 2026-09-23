@@ -157,7 +157,16 @@ Later benchmarking will extend this with:
 
 The initial `FixedFOVStrategy` and `FixedObjectStrategy` are architectural baselines only. They exist to prove that strategies can be swapped through one shared runner and to provide simple comparators later.
 
-They are not scientific defaults.
+`ScalarPrecisionStrategy` reproduces the cell-averaging criterion of Zweifach (J Cell Biol 2024, doi:10.1083/jcb.202401074) for one explicitly named scalar feature, following AGENTS.md §10:
+
+- **Scalar parameter:** the object mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
+- **Criterion:** stop once `n >= ceil((SD / target) ** 2)`. The target is required, with no default: the paper suggests 5% for independent samples and 2.5% for matched designs.
+- **SD estimate:** `sd_estimate="point"` or `"upper_95"`, the chi-square upper bound of the 95% confidence interval for SD that the paper recommends for small pilots. This reproduces the paper's worked example (51/108 cells at 2.5%, 13/27 at 5%), which is covered by a test.
+- **Planning versus sequential:** `pilot_fovs` plans the required number of cells once from the first acquired FOVs, as in the paper. Without it the criterion is re-checked after every FOV; this is an adaptation, labelled by the strategy name.
+- **Spatial uniformity:** the paper assumes it. `resampling_unit="object"` is the published criterion. `resampling_unit="fov"` is a MorphoCoverage variant that estimates the same averaging noise with FOVs as the sampling unit, and reports a design effect. It is not part of the paper; the gap between the two variants is what the regime map should quantify.
+- **Not reproduced:** pooling SD across samples after subtracting each sample's mean, and normalizing to the mean of all control samples. Both need other analysis groups, which strategies never see.
+
+None of these are scientific defaults.
 
 ## Extension rule
 

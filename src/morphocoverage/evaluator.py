@@ -11,7 +11,7 @@ import pandas as pd
 
 from .objectives import ObjectiveConfig
 from .results import Decision, StrategyResult
-from .schema import ValidatedInput
+from .schema import ValidatedInput, fov_positions
 from .strategies.base import SamplingStrategy
 
 
@@ -48,10 +48,7 @@ def restrict_input(
 
 def objects_in_fovs(data: ValidatedInput, fovs: pd.DataFrame) -> pd.DataFrame:
     """Return the objects belonging to the given FOV rows, matched on the full FOV key."""
-    key = list(data.fov_key)
-    wanted = pd.MultiIndex.from_frame(fovs.loc[:, key])
-    mask = pd.MultiIndex.from_frame(data.objects.loc[:, key]).isin(wanted)
-    return data.objects.loc[mask]
+    return data.objects.loc[fov_positions(data, fovs) >= 0]
 
 
 def iter_analysis_groups(
