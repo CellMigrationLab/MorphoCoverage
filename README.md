@@ -39,6 +39,7 @@ MorphoCoverage is a strategy-comparison framework. No default coverage estimator
   - Marcotti et al.-style descriptor stabilization.
 - **Leakage-safe replay.** Recorded acquisitions are evaluated prefix by prefix: `evaluate_acquisition_prefixes`.
 - **Benchmark protocol.** Datasets are declared as development or held out, and tuning on held-out data raises. `run_benchmark` replays recorded or seeded-permuted acquisition orders and records one row per run: effort at the stop, strategy-independent outcome metrics, and compute time (`morphocoverage.benchmark`, `morphocoverage.outcomes`).
+- **Leakage-safe preprocessing.** Feature transforms (`Standardize`, `PCA`, `Chain`) are fitted on the visible prefix only, with the fitted state recorded as provenance (`morphocoverage.transforms`).
 - **Contract tests.** Every strategy must pass them on constructed acquisitions (AGENTS.md section 9).
 - **Real test data.** Crick/IDR feature tables in `data/crick_idr/`.
 

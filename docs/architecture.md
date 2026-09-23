@@ -82,6 +82,14 @@ An estimator receives one already validated analysis group at a time.
 
 An estimator instance is configuration only. The framework calls `estimate` on a fresh deep copy, with its own copy of the input, for every analysis group and every acquisition prefix, so no fitted state (scaler, PCA, reference sample) can flow between groups, prefixes or estimators. `estimate` is therefore a full recomputation on the visible data. Efficient incremental updates will need an explicit, separately tested state interface; they must not rely on hidden instance state.
 
+Feature preprocessing goes through `morphocoverage.transforms`:
+- a `FeatureTransform` (`Standardize`, `PCA`, `Chain`) is declared as an estimator parameter;
+- it is fitted inside `estimate` on the visible prefix the estimator receives, so it cannot see future FOVs or other groups;
+- its fitted state is recorded with `fitted.provenance()`;
+- a transform that cannot be fitted (too few objects, zero spread) says why instead of guessing a scale.
+
+A contract test alters every FOV acquired after step k and requires every transform's state and output at steps up to k to be unchanged. Upstream normalization over the whole dataset cannot be detected and must be recorded as provenance.
+
 An estimator must not:
 
 - split conditions or repeats;
