@@ -337,3 +337,16 @@ def test_benchmark_input_tables_are_not_modified():
     )
     pd.testing.assert_frame_equal(objects, scenario.objects)
     pd.testing.assert_frame_equal(fovs, scenario.fovs)
+
+
+def test_incremental_benchmark_records_the_same_stops_and_latencies():
+    strategies = [ScalarPrecisionStrategy("feature_a", 0.01, "fov", "point"), FixedFOVStrategy(4)]
+    metrics = [RelativeMeanError("feature_a")]
+    full = _run(_registry(), strategies=strategies, metrics=metrics)
+    incremental = _run(_registry(), strategies=strategies, metrics=metrics, incremental=True)
+    for before, after in zip(full, incremental, strict=True):
+        assert (before.stop_step, before.n_objects) == (after.stop_step, after.n_objects)
+        assert before.outcomes == after.outcomes
+        assert (before.incremental, after.incremental) == (False, True)
+        assert 0 <= after.median_decision_seconds <= after.max_decision_seconds
+        assert after.decision_seconds_to_stop >= after.compute_seconds_to_stop

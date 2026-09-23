@@ -19,6 +19,22 @@ from ..provenance import class_identity, config_hash
 from ..schema import ValidatedInput
 
 
+class EstimatorState(ABC):
+    """Running state of an incremental estimator within one analysis group.
+
+    Created by ``Estimator.start`` for one group and fed each newly revealed
+    FOV in acquisition order. ``update`` must return the same evidence as
+    ``Estimator.estimate`` on the whole visible prefix (to floating-point
+    rounding); a contract test checks this on every scenario. Full
+    recomputation remains the reference implementation.
+    """
+
+    @abstractmethod
+    def update(self, new: ValidatedInput) -> Evidence:
+        """Add the newly revealed FOV (its FOV row and its objects) and return the evidence."""
+        raise NotImplementedError
+
+
 class Estimator(ABC):
     """Computes evidence from the visible acquisition of one analysis group.
 
@@ -46,6 +62,16 @@ class Estimator(ABC):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """Evidence about the current acquisition state."""
         raise NotImplementedError
+
+    def start(
+        self, template: ValidatedInput, *, objective: ObjectiveConfig
+    ) -> EstimatorState | None:
+        """Optional incremental support; ``None`` (the default) means full recomputation.
+
+        ``template`` describes one analysis group with no FOVs revealed yet:
+        empty tables with the group's columns and the explicit features.
+        """
+        return None
 
 
 class SamplingStrategy:

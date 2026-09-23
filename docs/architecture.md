@@ -126,9 +126,9 @@ The framework builds every result; strategies never construct one. A `StrategyRe
 - resolved condition/repeat group identity;
 - strategy parameters, and `configuration` (name, type, `config_id` and parameters of each estimator and policy);
 - feature columns and FOV key;
-- `compute_seconds`, with `runtime_seconds` as an alias.
+- `compute_seconds`, with `runtime_seconds` as an alias, and `timing`, which breaks the whole decision down (see below).
 
-Effort is framework-owned: estimators cannot report `n_fovs` or `n_objects` as quantities, so a count that drops zero-object FOVs cannot enter a decision. `compute_seconds` times the `estimate` calls only.
+Effort is framework-owned: estimators cannot report `n_fovs` or `n_objects` as quantities, so a count that drops zero-object FOVs cannot enter a decision. `compute_seconds` times the estimators' own calls only.
 
 This common contract is what allows many methods to be compared without changing the data pipeline.
 
@@ -158,13 +158,29 @@ The framework deliberately keeps strategy execution separate from the later benc
 
 ## Computational benchmarking
 
-Runtime is measured for every strategy evaluation from the start.
+Every result carries a `Timing` breakdown:
+
+| Field | What it times |
+|---|---|
+| `recompute_seconds` | full `estimate` calls on the visible prefix |
+| `update_seconds` | incremental `update` calls on the newly revealed FOV |
+| `initial_fit_seconds` | `start` calls, plus warm-up updates before `min_fovs` (first result of a replay only) |
+| `framework_overhead_seconds` | everything else: building the prefix or the new-FOV input, copying, policies, the result |
+| `total_decision_seconds` | the sum: MorphoCoverage's share of the time between an FOV being revealed and a decision |
+
+`evaluate_acquisition_prefixes(..., incremental=True)` replays the acquisition as an online microscope would.
+
+- Estimators whose `start` returns an `EstimatorState` receive only each new FOV.
+- The others are recomputed on the prefix. The prefix is built only if some estimator needs it.
+- Decisions are the same either way; only the timing differs.
+- `ScalarPrecisionEstimator` is incremental. It keeps per-FOV sufficient statistics, so an update costs O(new objects + acquired FOVs).
+
+`run_benchmark` records, per run, the decision latency up to the stop, and its median and maximum per step. These are estimator and framework times only; feature extraction and microscope control are not included.
 
 Later benchmarking will extend this with:
 
-- incremental-update latency;
 - total runtime across a complete acquisition;
-- high-percentile latency;
+- high-percentile latency across runs;
 - peak memory;
 - empirical scaling with FOV count, object count, and feature dimension;
 - compute-to-acquisition ratio for smart microscopy.

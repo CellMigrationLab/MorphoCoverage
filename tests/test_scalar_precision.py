@@ -345,3 +345,33 @@ def test_names_and_parameters_record_the_variant():
         "pilot_fovs": 3,
         "order_col": ORDER_COL,
     }
+
+
+@pytest.mark.parametrize("unit", ["object", "fov"])
+@pytest.mark.parametrize("sd_estimate", ["point", "upper_95"])
+def test_incremental_pilot_follows_the_order_column_not_arrival(unit, sd_estimate):
+    # The pilot is the first FOVs by order_col, which need not be the replay
+    # order; incremental and full recomputation must agree, including warm-up.
+    rng = np.random.default_rng(5)
+    objects, fovs = _tables([rng.uniform(1, 3, 6) + j % 4 for j in range(12)])
+    fovs["pilot_rank"] = fovs["order"].to_numpy()[::-1]
+    strategy = ScalarPrecisionStrategy(
+        "area", 0.05, unit, sd_estimate, pilot_fovs=3, order_col="pilot_rank"
+    )
+
+    def replay(incremental):
+        return evaluate_acquisition_prefixes(
+            objects, fovs, strategies=[strategy], feature_cols=["area"],
+            acquisition_order_col="order", objective=POPULATION, min_fovs=4,
+            incremental=incremental,
+        )
+
+    full, incremental = replay(False), replay(True)
+    assert len(full) == len(incremental) == 9
+    for before, after in zip(full, incremental, strict=True):
+        assert before.result.decision == after.result.decision
+        for name, quantity in before.result.evidence.quantities.items():
+            other = after.result.evidence.quantities[name]
+            assert quantity.availability == other.availability
+            if quantity.value is not None:
+                assert other.value == pytest.approx(quantity.value, rel=1e-9)

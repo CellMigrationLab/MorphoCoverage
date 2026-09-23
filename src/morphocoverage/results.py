@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any
 
@@ -25,6 +25,41 @@ class Decision(str, Enum):
 
 
 @dataclass(frozen=True)
+class Timing:
+    """Where the time for one decision went, in wall-clock seconds.
+
+    - ``recompute_seconds``: full ``estimate`` calls on the visible prefix.
+    - ``update_seconds``: incremental ``update`` calls on the newly revealed FOV.
+    - ``initial_fit_seconds``: ``start`` calls, and warm-up updates for steps
+      before ``min_fovs``; non-zero only on the first result of a replay.
+    - ``framework_overhead_seconds``: everything else for this decision:
+      building the visible prefix, isolating inputs, copying estimators,
+      applying policies and building the result.
+    - ``total_decision_seconds``: the sum, from the reveal of the FOV to the
+      result. It is MorphoCoverage's own contribution to smart-microscopy
+      latency; feature extraction and microscope control are not included.
+
+    ``StrategyResult.compute_seconds`` equals ``recompute_seconds +
+    update_seconds``.
+    """
+
+    recompute_seconds: float
+    update_seconds: float
+    initial_fit_seconds: float
+    framework_overhead_seconds: float
+
+    @property
+    def compute_seconds(self) -> float:
+        """Estimator time for this decision: recomputation plus incremental updates."""
+        return self.recompute_seconds + self.update_seconds
+
+    @property
+    def total_decision_seconds(self) -> float:
+        """Everything MorphoCoverage spent on this decision."""
+        return self.compute_seconds + self.initial_fit_seconds + self.framework_overhead_seconds
+
+
+@dataclass(frozen=True)
 class StrategyResult:
     """One strategy evaluation for one analysis group and acquisition state.
 
@@ -38,11 +73,10 @@ class StrategyResult:
     - ``component_decisions`` maps each objective component
       (``"population"``, ``"rare"``) that has a policy, or that the objective
       requires, to its decision. ``decision`` combines the required ones.
-    - ``compute_seconds`` is the wall-clock time of the estimators' ``estimate``
-      calls only. It excludes input copying, prefix construction and other
-      framework overhead, and it is a full recomputation, not an incremental
-      update, so it is not yet an end-to-end smart-microscopy latency.
-      ``runtime_seconds`` is an alias.
+    - ``compute_seconds`` is the wall-clock time of the estimators' own calls
+      for this decision (``estimate``, or ``update`` when replaying
+      incrementally). ``runtime_seconds`` is an alias. ``timing`` breaks the
+      whole decision down, including framework overhead; see ``Timing``.
     - ``feature_cols`` and ``fov_key`` record the phenotype representation and
       the FOV identity, as AGENTS.md section 3 requires; method settings
       (preprocessing, metric, thresholds) are in ``parameters`` and
@@ -56,6 +90,7 @@ class StrategyResult:
     decision: Decision | None
     component_decisions: Mapping[str, Decision | None] = field(default_factory=dict)
     compute_seconds: float | None = None
+    timing: Timing | None = None
     n_fovs: int | None = None
     n_objects: int | None = None
     group: Mapping[str, Any] = field(default_factory=dict)
@@ -63,6 +98,10 @@ class StrategyResult:
     configuration: Mapping[str, Any] = field(default_factory=dict)
     feature_cols: tuple[str, ...] = ()
     fov_key: tuple[str, ...] = ()
+
+    def without_timing(self) -> StrategyResult:
+        """This result with the time measurements removed, for comparing results."""
+        return replace(self, compute_seconds=None, timing=None)
 
     @property
     def runtime_seconds(self) -> float | None:

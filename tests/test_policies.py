@@ -1,7 +1,6 @@
 """Tests for evidence, decision policies, their combination per objective, and config ids."""
 
 import math
-from dataclasses import replace
 
 import pandas as pd
 import pytest
@@ -234,7 +233,7 @@ def _replay(strategies, objective=POPULATION):
 
 
 def _without_time(result):
-    return replace(result, compute_seconds=None)
+    return result.without_timing()
 
 
 def test_redecide_equals_rerunning_with_the_new_policies():

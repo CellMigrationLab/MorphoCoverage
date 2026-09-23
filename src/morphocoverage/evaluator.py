@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from time import perf_counter
 from typing import Any
@@ -13,9 +13,9 @@ import pandas as pd
 from .evidence import Evidence, Quantity
 from .objectives import ObjectiveConfig
 from .policies import Effort, decide
-from .results import StrategyResult
+from .results import StrategyResult, Timing
 from .schema import ValidatedInput, fov_positions
-from .strategies.base import SamplingStrategy
+from .strategies.base import Estimator, EstimatorState, SamplingStrategy
 
 
 def _visible_table(table: pd.DataFrame) -> pd.DataFrame:
@@ -78,19 +78,11 @@ def iter_analysis_groups(
         yield group, restrict_input(data, objects_in_fovs(data, group_fovs), group_fovs)
 
 
-def _estimate(
-    strategy: SamplingStrategy, data: ValidatedInput, objective: ObjectiveConfig
-) -> tuple[Evidence, float]:
-    """Run every estimator in isolation and merge their evidence."""
+def _merge_evidence(strategy: SamplingStrategy, evidences: Iterable[Evidence]) -> Evidence:
+    """Combine the estimators' evidence; name collisions raise instead of overwriting."""
     quantities: dict[str, Quantity] = {}
     diagnostics: dict[str, Any] = {}
-    compute_seconds = 0.0
-    for estimator in strategy.estimators:
-        fresh = copy.deepcopy(estimator)
-        isolated = _isolated_input(data)
-        start = perf_counter()
-        evidence = fresh.estimate(isolated, objective=objective)
-        compute_seconds += perf_counter() - start
+    for evidence, estimator in zip(evidences, strategy.estimators, strict=True):
         if not isinstance(evidence, Evidence):
             raise TypeError(f"estimator {estimator.name!r} must return Evidence")
         for kind, merged, new in (
@@ -104,27 +96,31 @@ def _estimate(
                     "give them distinct names"
                 )
             merged.update(new)
-    return Evidence(quantities, diagnostics), compute_seconds
+    return Evidence(quantities, diagnostics)
 
 
-def evaluate_strategy(
+def _recompute(
+    estimator: Estimator, data: ValidatedInput, objective: ObjectiveConfig
+) -> tuple[Evidence, float]:
+    """Full ``estimate`` on a fresh copy of the estimator and of the input; returns its time."""
+    fresh = copy.deepcopy(estimator)
+    isolated = _isolated_input(data)
+    start = perf_counter()
+    evidence = fresh.estimate(isolated, objective=objective)
+    return evidence, perf_counter() - start
+
+
+def _build_result(
     strategy: SamplingStrategy,
-    data: ValidatedInput,
     *,
     objective: ObjectiveConfig,
-    group: dict[str, object] | None = None,
+    group: dict[str, object] | None,
+    evidence: Evidence,
+    effort: Effort,
+    data: ValidatedInput,
+    compute_seconds: float,
 ) -> StrategyResult:
-    """Run one strategy and build its result with framework-owned counts and provenance.
-
-    Each estimator runs on a fresh copy of itself and on its own deep copy of
-    the input tables, so neither estimator state nor in-place edits to the
-    data can flow to another estimator, analysis group or acquisition prefix.
-    ``estimate`` is therefore a pure full recomputation on the data it
-    receives. Effort (``n_fovs``, ``n_objects``) is computed from the original
-    input and given to the policies. Copying happens outside the timed region.
-    """
-    evidence, compute_seconds = _estimate(strategy, data, objective)
-    effort = Effort(n_fovs=len(data.fovs), n_objects=len(data.objects))
+    """Apply the policies and fill the framework-owned fields (timing is added by the caller)."""
     decision, component_decisions = decide(
         evidence, effort, copy.deepcopy(strategy.policies), objective
     )
@@ -144,6 +140,144 @@ def evaluate_strategy(
         feature_cols=data.feature_cols,
         fov_key=data.fov_key,
     )
+
+
+def evaluate_strategy(
+    strategy: SamplingStrategy,
+    data: ValidatedInput,
+    *,
+    objective: ObjectiveConfig,
+    group: dict[str, object] | None = None,
+    setup_seconds: float = 0.0,
+) -> StrategyResult:
+    """Run one strategy and build its result with framework-owned counts and provenance.
+
+    Each estimator runs on a fresh copy of itself and on its own deep copy of
+    the input tables, so neither estimator state nor in-place edits to the
+    data can flow to another estimator, analysis group or acquisition prefix.
+    ``estimate`` is therefore a pure full recomputation on the data it
+    receives. Effort (``n_fovs``, ``n_objects``) is computed from the original
+    input and given to the policies. ``setup_seconds`` (for example building
+    the visible prefix) is counted as framework overhead.
+    """
+    wall = perf_counter()
+    runs = [_recompute(estimator, data, objective) for estimator in strategy.estimators]
+    recompute_seconds = sum(seconds for _, seconds in runs)
+    evidence = _merge_evidence(strategy, [evidence for evidence, _ in runs])
+    effort = Effort(n_fovs=len(data.fovs), n_objects=len(data.objects))
+    result = _build_result(
+        strategy,
+        objective=objective,
+        group=group,
+        evidence=evidence,
+        effort=effort,
+        data=data,
+        compute_seconds=recompute_seconds,
+    )
+    overhead = perf_counter() - wall - recompute_seconds + setup_seconds
+    return replace(result, timing=Timing(recompute_seconds, 0.0, 0.0, overhead))
+
+
+class IncrementalReplay:
+    """One strategy replayed FOV by FOV within one analysis group.
+
+    Estimators whose ``start`` returns an ``EstimatorState`` receive only each
+    newly revealed FOV; the others are fully recomputed on the visible prefix,
+    exactly as in ``evaluate_strategy``. Each estimator is deep-copied once per
+    group, and every update receives its own copy of the new rows.
+    """
+
+    def __init__(
+        self,
+        strategy: SamplingStrategy,
+        group_data: ValidatedInput,
+        *,
+        objective: ObjectiveConfig,
+        group: dict[str, object],
+    ) -> None:
+        self.strategy = strategy
+        self.objective = objective
+        self.group = group
+        self.n_fovs = 0
+        self.n_objects = 0
+        wall = perf_counter()
+        template = restrict_input(group_data, group_data.objects.iloc[:0], group_data.fovs.iloc[:0])
+        self._estimators = [copy.deepcopy(estimator) for estimator in strategy.estimators]
+        self._states: list[EstimatorState | None] = []
+        start_seconds = 0.0
+        for estimator in self._estimators:
+            isolated = _isolated_input(template)
+            started = perf_counter()
+            state = estimator.start(isolated, objective=objective)
+            start_seconds += perf_counter() - started
+            if state is not None and not isinstance(state, EstimatorState):
+                raise TypeError(
+                    f"estimator {estimator.name!r} start() must return an EstimatorState or None"
+                )
+            self._states.append(state)
+        self._pending_initial = start_seconds
+        self._pending_overhead = perf_counter() - wall - start_seconds
+
+    @property
+    def incremental(self) -> bool:
+        """Whether any estimator is updated incrementally."""
+        return any(state is not None for state in self._states)
+
+    def step(
+        self,
+        new: ValidatedInput,
+        prefix: Callable[[], tuple[ValidatedInput, float]],
+        *,
+        record: bool,
+        setup_seconds: float,
+    ) -> StrategyResult | None:
+        """Reveal one FOV; return a result when ``record``, else only warm up the states.
+
+        ``prefix`` builds (once per step, shared across strategies) the visible
+        prefix and returns it with the time it took on first use.
+        """
+        wall = perf_counter()
+        self.n_fovs += len(new.fovs)
+        self.n_objects += len(new.objects)
+        evidences: list[Evidence] = []
+        update_seconds = recompute_seconds = 0.0
+        data = None
+        for estimator, state in zip(self._estimators, self._states, strict=True):
+            if state is not None:
+                isolated = _isolated_input(new)
+                started = perf_counter()
+                evidences.append(state.update(isolated))
+                update_seconds += perf_counter() - started
+            elif record:
+                data, prefix_seconds = prefix()
+                setup_seconds += prefix_seconds
+                evidence, seconds = _recompute(estimator, data, self.objective)
+                evidences.append(evidence)
+                recompute_seconds += seconds
+        if not record:
+            # Warm-up before min_fovs: charged to the first recorded result.
+            self._pending_initial += update_seconds
+            self._pending_overhead += perf_counter() - wall - update_seconds + setup_seconds
+            return None
+
+        evidence = _merge_evidence(self.strategy, evidences)
+        effort = Effort(n_fovs=self.n_fovs, n_objects=self.n_objects)
+        result = _build_result(
+            self.strategy,
+            objective=self.objective,
+            group=self.group,
+            evidence=evidence,
+            effort=effort,
+            data=data if data is not None else new,
+            compute_seconds=update_seconds + recompute_seconds,
+        )
+        overhead = (
+            perf_counter() - wall - update_seconds - recompute_seconds
+            + setup_seconds + self._pending_overhead
+        )
+        timing = Timing(recompute_seconds, update_seconds, self._pending_initial, overhead)
+        self._pending_initial = self._pending_overhead = 0.0
+        return replace(result, timing=timing)
 
 
 def evaluate_strategies(

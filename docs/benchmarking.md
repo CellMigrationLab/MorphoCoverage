@@ -33,6 +33,8 @@ Synthetic data remain useful for unit tests, explicit counterexamples, and regre
   - `RandomCellRelativeError(feature)`: the expected relative RMSE had the same number of cells been drawn at random from the full group (simple random sampling with finite-population correction). It is the comparator in `data/crick_idr/fov_vs_cells.py`. Across permuted orders, the RMSE of `RelativeMeanError` divided by this value is the error inflation from acquiring whole FOVs.
   - `RareStateDetected(label_col, min_fov_occurrences)`: whether the stop prefix shows an independently labelled state in enough FOVs. It is `None` when the full acquisition never does.
 
+- **Timing.** Every record carries estimator compute time, whole-decision latency up to the stop, and the median and maximum per-step decision latency. `run_benchmark(..., incremental=True)` replays incremental estimators FOV by FOV, as online acquisition would. The `Timing` breakdown on each result separates estimator time from framework overhead.
+
 Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an agreed adequacy definition), distribution-level outcome metrics, and aggregation into a regime map.
 
 ## Scientific performance dimensions
