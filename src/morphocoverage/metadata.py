@@ -9,6 +9,7 @@ import pandas as pd
 MORPHOBRICKS_SHARED_COLUMNS = (
     "condition",
     "repeat",
+    "position_id",
     "image_file",
     "mask_file",
     "patch_file",
