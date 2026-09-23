@@ -385,3 +385,16 @@ def test_missing_scalar_values_make_the_criterion_not_applicable(unit):
     assert quantity.availability == "not_applicable"
     assert result.decision is None
     assert "missing values" in quantity.reason
+
+
+def test_scalar_precision_rejects_non_object_observation_units():
+    objects, fovs = _tables([[1.0, 2.0], [2.0, 3.0]])
+    data = validate_input_tables(
+        objects,
+        fovs=fovs,
+        feature_cols=["area"],
+        observation_unit="slice",
+    )
+    estimator = ScalarPrecisionEstimator("area", "object", "point")
+    with pytest.raises(ValueError, match="observation_unit"):
+        estimator.estimate(data, objective=POPULATION)
