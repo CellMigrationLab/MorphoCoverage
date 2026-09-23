@@ -18,12 +18,17 @@ def run_strategies(
     *,
     strategies: Iterable[SamplingStrategy],
     feature_cols: Sequence[str],
-    fov_col: str,
     objective: ObjectiveConfig,
+    fov_col: str | None = None,
     fovs: pd.DataFrame | None = None,
     group_cols: Sequence[str] | None = None,
 ) -> list[StrategyResult]:
-    """Validate one feature dataset and run all supplied strategies on it."""
+    """Validate one feature dataset and run strategies within resolved groups.
+
+    By default, canonical MorphoBricks condition and repeat columns are kept
+    separate when available. Pass group_cols=[] only when intentional pooling
+    is scientifically appropriate.
+    """
     data = validate_input_tables(
         objects,
         feature_cols=feature_cols,
