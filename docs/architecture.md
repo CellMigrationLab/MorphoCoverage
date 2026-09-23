@@ -87,7 +87,7 @@ Feature preprocessing goes through `morphocoverage.transforms`:
 - a `FeatureTransform` (`Standardize`, `PCA`, `Chain`) is declared as an estimator parameter;
 - it is fitted inside `estimate` on the visible prefix the estimator receives, so it cannot see future FOVs or other groups;
 - its fitted state is recorded with `fitted.provenance()`;
-- a transform that cannot be fitted (too few objects, zero spread) says why instead of guessing a scale.
+- a transform that cannot be fitted (too few observations, zero spread) says why instead of guessing a scale.
 
 A contract test alters every FOV acquired after step k and requires every transform's state and output at steps up to k to be unchanged. Upstream normalization over the whole dataset cannot be detected and must be recorded as provenance.
 
@@ -148,7 +148,7 @@ Each strategy is evaluated using only the prefix available at that step.
 
 Leakage guards enforced by the runner:
 
-- the complete linked tables are validated once, so objects from FOVs missing from the FOV table raise rather than never being revealed;
+- the complete linked tables are validated once, so observations from FOVs missing from the FOV table raise rather than never being revealed;
 - acquisition order must have no ties within an analysis group; a pooled analysis therefore needs an order defined across the pooled FOVs;
 - the acquisition order column cannot be a phenotype feature;
 - visible tables are re-indexed and categorical columns drop unused categories, so neither row labels nor category levels reveal withheld FOVs or other groups.
@@ -174,7 +174,7 @@ Every result carries a `Timing` breakdown:
 - Estimators whose `start` returns an `EstimatorState` receive only each new FOV.
 - The others are recomputed on the prefix. The prefix is built only if some estimator needs it.
 - Decisions are the same either way; only the timing differs.
-- `ScalarPrecisionEstimator` is incremental. It keeps per-FOV sufficient statistics, so an update costs O(new objects + acquired FOVs).
+- `ScalarPrecisionEstimator` is incremental. It keeps per-FOV sufficient statistics, so an update costs O(new observations + acquired FOVs).
 
 `run_benchmark` records, per run, the decision latency up to the stop, and its median and maximum per step. These are estimator and framework times only; feature extraction and microscope control are not included.
 
@@ -202,7 +202,7 @@ All three are population evidence, so under `rare_discovery` they return `unsupp
 
 `ScalarPrecisionStrategy` reproduces the **single-sample/pilot variant** of the cell-averaging criterion of Zweifach (J Cell Biol 2024, doi:10.1083/jcb.202401074) for one explicitly named scalar feature, following AGENTS.md §10. The paper's multi-sample planning procedure is not implemented; see `docs/proposals/architecture_hardening.md`, item 7.
 
-- **Scalar parameter:** the observation mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
+- **Scalar parameter:** the cell/object mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
 - **Criterion:** stop once `n >= ceil((SD / target) ** 2)` (`required_objects`). The target is required, with no default: the paper suggests 5% for independent samples and 2.5% for matched designs.
 - **SD estimate:** `sd_estimate="point"` or `"upper_95"`, the chi-square upper bound of the 95% confidence interval for SD that the paper recommends for small pilots. This reproduces the paper's worked example (51/108 cells at 2.5%, 13/27 at 5%), which is covered by a test.
 - **Planning versus sequential:** `pilot_fovs` plans the required number of cells once from the first acquired FOVs, as in the paper. The estimator reports the CV this plan projects for the visible effort, which reaches the target exactly when the planned number is reached. Without it the criterion is re-checked after every FOV; this is an adaptation, labelled by the strategy name.
