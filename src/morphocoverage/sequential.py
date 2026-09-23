@@ -47,6 +47,7 @@ def evaluate_acquisition_prefixes(
     group_cols: Sequence[str] | None = None,
     min_fovs: int = 1,
     incremental: bool = False,
+    observation_unit: str = "object",
 ) -> list[SequentialResult]:
     """Evaluate strategies after each prefix of a recorded real acquisition.
 
@@ -83,6 +84,7 @@ def evaluate_acquisition_prefixes(
         fov_col=fov_col,
         fovs=fovs,
         group_cols=group_cols,
+        observation_unit=observation_unit,
     )
     strategy_list = list(strategies)
     key = list(data.fov_key)
