@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
     WITHIN_FOV_METADATA_COLUMNS,
     check_canonical_spellings,
     resolve_fov_col,
@@ -83,6 +84,37 @@ def _require_columns(table: pd.DataFrame, columns: Sequence[str], table_name: st
         raise ValueError(f"{table_name} is missing required columns: {missing}")
 
 
+def _attach_fov_metadata(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    fov_col: str,
+    columns: Sequence[str],
+) -> pd.DataFrame:
+    """Attach FOV-level metadata to observations when the join is unambiguous.
+
+    This permits lean feature tables containing only the FOV identifier plus
+    phenotype features. If an FOV identifier is reused across metadata values,
+    callers must carry the relevant identity/group columns on observation rows
+    instead of asking the framework to guess.
+    """
+    if fovs is None:
+        return objects
+    enriched = objects.copy()
+    for column in columns:
+        if column in enriched.columns or column not in fovs.columns:
+            continue
+        if fov_col not in enriched.columns or fov_col not in fovs.columns:
+            continue
+        mapping = fovs.loc[:, [fov_col, column]].drop_duplicates()
+        if mapping.duplicated(fov_col).any():
+            raise ValueError(
+                f"cannot attach {column!r} from the FOV table because {fov_col!r} "
+                "is reused across different metadata values; include the grouping "
+                "column in the observation table or use a globally unique FOV identifier"
+            )
+        enriched = enriched.merge(mapping, on=fov_col, how="left", validate="many_to_one")
+    return enriched
+
 def validate_input_tables(
     objects: pd.DataFrame,
     *,
@@ -116,6 +148,10 @@ def validate_input_tables(
     explicit_columns = [*(group_cols or ()), *([fov_col] if fov_col is not None else [])]
     check_canonical_spellings(objects, fovs, explicit_columns)
     resolved_fov_col = resolve_fov_col(objects, fovs, fov_col)
+    metadata_to_attach = list(MORPHOBRICKS_GROUP_COLUMNS)
+    if group_cols is not None:
+        metadata_to_attach.extend(column for column in group_cols if column not in metadata_to_attach)
+    objects = _attach_fov_metadata(objects, fovs, resolved_fov_col, metadata_to_attach)
     resolved_group_cols = resolve_group_cols(objects, fovs, group_cols)
     identity_cols = resolve_identity_cols(objects, fovs, resolved_group_cols, resolved_fov_col)
     fov_key = (*identity_cols, resolved_fov_col)
