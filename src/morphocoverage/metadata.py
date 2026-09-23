@@ -14,7 +14,16 @@ MORPHOBRICKS_SHARED_COLUMNS = (
     "patch_file",
 )
 MORPHOBRICKS_GROUP_COLUMNS = ("condition", "repeat")
-MORPHOBRICKS_FOV_CANDIDATES = ("image_file", "fov_id")
+
+# Scientific FOV identity is the independently selected spatial acquisition
+# position. position_id is preferred when storage layout and position do not
+# map 1:1. image_file remains a convenient fallback when one file contains
+# exactly one position; fov_id is the generic fallback.
+MORPHOBRICKS_FOV_CANDIDATES = ("position_id", "image_file", "fov_id")
+
+# Coordinates/dimensions nested inside one spatial position. These are
+# acquisition metadata, never phenotype features in MorphoCoverage.
+WITHIN_FOV_METADATA_COLUMNS = ("z", "z0", "z1", "c", "t")
 
 
 def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str, pd.DataFrame]]:
@@ -29,13 +38,11 @@ def check_canonical_spellings(
     fovs: pd.DataFrame | None,
     explicit_columns: Sequence[str],
 ) -> None:
-    """Reject near-miss spellings such as ``Repeat`` that would bypass defaults.
-
-    A column named ``Repeat`` (as emitted by some MorphoBricks tools) would
-    otherwise be ignored by the canonical ``repeat`` handling, silently pooling
-    biological repeats. Columns the caller named explicitly are accepted.
-    """
-    canonical = {*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES}
+    """Reject near-miss spellings such as Repeat that would bypass defaults."""
+    canonical = {
+        *MORPHOBRICKS_GROUP_COLUMNS,
+        *MORPHOBRICKS_FOV_CANDIDATES,
+    }
     for table_name, table in _tables(objects, fovs):
         for column in table.columns:
             if not isinstance(column, str) or column in explicit_columns:
@@ -53,7 +60,7 @@ def _canonical_presence(
     fovs: pd.DataFrame | None,
     column: str,
 ) -> bool:
-    """Return whether a canonical column is present, requiring both linked tables to agree."""
+    """Return whether a canonical identity/group column is present in linked tables."""
     in_objects = column in objects.columns
     if fovs is None:
         return in_objects
@@ -73,12 +80,18 @@ def resolve_fov_col(
     fovs: pd.DataFrame | None,
     fov_col: str | None,
 ) -> str:
-    """Resolve the FOV identifier, preferring the MorphoBricks image_file contract.
+    """Resolve the spatial acquisition-position identifier.
 
-    ``image_file`` identifies the acquired FOV: one image file, including a
-    z/t/c stack, is one FOV. ``fov_id`` is used only when no ``image_file``
-    column exists. A candidate present in only one linked table is an error,
-    never a reason to fall back to the next candidate.
+    Scientific FOV identity means one independently chosen XY acquisition
+    position, not one z-plane, channel, time point, or physical file.
+
+    Resolution order when fov_col is omitted:
+    1. position_id -- preferred explicit spatial-position identifier;
+    2. image_file -- valid when one file corresponds to exactly one position;
+    3. fov_id -- generic fallback.
+
+    A candidate present in only one linked table is an error, never a reason
+    to fall back to the next candidate.
     """
     if fov_col is not None:
         if not isinstance(fov_col, str):
@@ -90,9 +103,9 @@ def resolve_fov_col(
             return candidate
 
     raise ValueError(
-        "Could not resolve an FOV identifier automatically. "
-        "Provide fov_col explicitly, or supply the MorphoBricks 'image_file' "
-        "column (preferred) or a 'fov_id' column."
+        "Could not resolve a spatial FOV/position identifier automatically. "
+        "Provide fov_col explicitly, or supply 'position_id' (preferred), "
+        "'image_file' when one file equals one position, or 'fov_id'."
     )
 
 
@@ -101,12 +114,7 @@ def resolve_group_cols(
     fovs: pd.DataFrame | None,
     group_cols: Sequence[str] | None,
 ) -> tuple[str, ...]:
-    """Resolve analysis groups using canonical MorphoBricks columns when implicit.
-
-    None means use canonical condition/repeat columns. An explicit empty
-    sequence means pool intentionally. A canonical column present in only one
-    linked table is an error rather than a silent reason to pool.
-    """
+    """Resolve analysis groups using canonical MorphoBricks columns when implicit."""
     if group_cols is not None:
         if isinstance(group_cols, str):
             raise TypeError("group_cols must be a sequence of column names, not a string")
@@ -125,13 +133,7 @@ def resolve_identity_cols(
     group_cols: Sequence[str],
     fov_col: str,
 ) -> tuple[str, ...]:
-    """Resolve the columns that, together with ``fov_col``, identify one FOV.
-
-    Identity always includes the analysis group columns and any canonical
-    condition/repeat columns, even when those are pooled. Pooling changes which
-    FOVs are evaluated together; it never merges distinct FOVs that reuse a
-    name (e.g. ``img_001.tif`` in every repeat folder).
-    """
+    """Resolve columns that, together with fov_col, identify one spatial FOV."""
     identity = list(group_cols)
     for column in MORPHOBRICKS_GROUP_COLUMNS:
         if column in identity or column == fov_col:

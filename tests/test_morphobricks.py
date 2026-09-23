@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from morphocoverage import (
     FixedFOVStrategy,
@@ -90,3 +91,87 @@ def test_explicit_fov_col_overrides_morphobricks_default():
         group_cols=[],
     )
     assert data.fov_col == "fov_id"
+
+
+def test_position_id_is_preferred_over_image_file_for_fov_identity():
+    objects = pd.DataFrame(
+        {
+            "condition": ["control"] * 4,
+            "repeat": ["R1"] * 4,
+            "position_id": ["P1", "P1", "P2", "P2"],
+            "image_file": [
+                "P1_z000.tif",
+                "P1_z001.tif",
+                "P2_z000.tif",
+                "P2_z001.tif",
+            ],
+            "z": [0, 1, 0, 1],
+            "area": [1.0, 2.0, 3.0, 4.0],
+        }
+    )
+    fovs = pd.DataFrame(
+        {
+            "condition": ["control", "control"],
+            "repeat": ["R1", "R1"],
+            "position_id": ["P1", "P2"],
+            "acquisition_order": [1, 2],
+        }
+    )
+
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+    assert data.fov_col == "position_id"
+    assert data.fov_key == ("condition", "repeat", "position_id")
+    assert len(data.fovs) == 2
+
+
+def test_z_c_t_can_be_preserved_as_within_fov_metadata():
+    objects = pd.DataFrame(
+        {
+            "position_id": ["P1", "P1"],
+            "z": [0, 1],
+            "c": [0, 0],
+            "t": [0, 0],
+            "area": [1.0, 2.0],
+        }
+    )
+    fovs = pd.DataFrame({"position_id": ["P1"]})
+
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+    assert data.fov_col == "position_id"
+    assert {"z", "c", "t"} <= set(data.objects.columns)
+    assert data.feature_cols == ("area",)
+
+
+def test_short_name_c_can_still_be_an_explicit_scientific_feature():
+    objects = pd.DataFrame({"fov_id": ["F1", "F2"], "c": [1.0, 2.0]})
+    data = validate_input_tables(objects, feature_cols=["c"])
+    assert data.feature_cols == ("c",)
+
+
+def test_multi_file_position_requires_within_fov_axis_metadata():
+    objects = pd.DataFrame(
+        {
+            "position_id": ["P1", "P1"],
+            "image_file": ["P1_part1.tif", "P1_part2.tif"],
+            "area": [1.0, 2.0],
+        }
+    )
+    fovs = pd.DataFrame({"position_id": ["P1"]})
+
+    with pytest.raises(ValueError, match="multiple image_file.*no z/c/t"):
+        validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+
+
+def test_multi_file_position_rejects_rows_missing_axis_metadata():
+    objects = pd.DataFrame(
+        {
+            "position_id": ["P1", "P1"],
+            "image_file": ["P1_z000.tif", "P1_z001.tif"],
+            "z": [0, None],
+            "area": [1.0, 2.0],
+        }
+    )
+    fovs = pd.DataFrame({"position_id": ["P1"]})
+
+    with pytest.raises(ValueError, match="missing z/c/t"):
+        validate_input_tables(objects, fovs=fovs, feature_cols=["area"])

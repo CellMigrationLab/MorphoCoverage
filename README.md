@@ -1,6 +1,6 @@
 # MorphoCoverage
 
-MorphoCoverage is a feature-agnostic Python project for studying whether microscopy experiments have sampled a declared phenotypic representation adequately. It treats **fields of view (FOVs), rather than individual objects/cells, as the primary operational acquisition units** and asks whether additional representative imaging is likely to provide useful new phenotypic information.
+MorphoCoverage is a feature-agnostic Python project for studying whether microscopy experiments have sampled a declared phenotypic representation adequately. It treats **fields of view (FOVs), defined as independently selected spatial acquisition positions, rather than individual objects/cells or z-planes, as the primary operational acquisition units** and asks whether additional representative imaging is likely to provide useful new phenotypic information.
 
 ## Project boundary
 
@@ -23,7 +23,9 @@ Microscopes acquire images, not independent cells. Five hundred cells from two F
 MorphoCoverage therefore preserves the hierarchy
 
 ```text
-object/cell -> FOV -> optional sample/repeat/condition
+object / slice-level observation / time point
+    -> FOV = spatial acquisition position
+    -> optional sample/repeat/condition
 ```
 
 and never treats cell count alone as a complete description of acquisition effort. FOVs themselves are not assumed independent; stage coordinates, physical area, and sampling design can matter.
@@ -32,7 +34,7 @@ and never treats cell count alone as a complete description of acquisition effor
 
 MorphoCoverage is a strategy-comparison framework. No default coverage estimator has been chosen.
 
-- **Input validation.** Linked FOV and object tables with MorphoBricks defaults. `image_file` identifies the FOV, and `condition` × `repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, and acquired FOVs with zero objects are kept.
+- **Input validation.** Linked FOV and object tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition` × `repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero objects are kept, and when `z`, `c`, and/or `t` describe acquisition dimensions, they are preserved as within-position metadata and omitted from the explicit phenotype feature list.
 - **Swappable strategies.** A strategy is one or more estimators, which report named evidence with its direction, units and objective component, plus decision policies that turn the evidence into continue/stop. Estimators receive one analysis group at a time; the framework fills counts, provenance (`config_id`) and compute time. `redecide` applies other thresholds to stored results without re-running. A strategy with no evidence about a required objective component returns `unsupported`, never `stop`. Current strategies are all current-practice baselines:
   - fixed FOV and fixed cell counts;
   - a JCB/Zweifach-style scalar precision rule;

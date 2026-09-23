@@ -184,3 +184,46 @@ def test_start_must_return_an_estimator_state():
 
     with pytest.raises(TypeError, match="EstimatorState"):
         _run_incremental([SamplingStrategy([_BadStart()])])
+
+
+def test_slice_by_slice_stack_is_revealed_as_one_position():
+    objects = pd.DataFrame(
+        {
+            "condition": ["control"] * 6,
+            "repeat": ["R1"] * 6,
+            "position_id": ["P1", "P1", "P1", "P2", "P2", "P2"],
+            "image_file": [
+                "P1_z000.tif",
+                "P1_z001.tif",
+                "P1_z002.tif",
+                "P2_z000.tif",
+                "P2_z001.tif",
+                "P2_z002.tif",
+            ],
+            "z": [0, 1, 2, 0, 1, 2],
+            "area": [1.0, 1.1, 1.2, 2.0, 2.1, 2.2],
+        }
+    )
+    fovs = pd.DataFrame(
+        {
+            "condition": ["control", "control"],
+            "repeat": ["R1", "R1"],
+            "position_id": ["P1", "P2"],
+            "order": [1, 2],
+        }
+    )
+
+    results = evaluate_acquisition_prefixes(
+        objects,
+        fovs,
+        strategies=[FixedFOVStrategy(2)],
+        feature_cols=["area"],
+        acquisition_order_col="order",
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+    )
+
+    assert [item.result.n_fovs for item in results] == [1, 2]
+    assert [item.result.n_objects for item in results] == [3, 6]
+    assert results[0].acquired_fovs == (("control", "R1", "P1"),)
+    assert results[0].result.decision == "continue"
+    assert results[1].result.decision == "stop"

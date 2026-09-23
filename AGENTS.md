@@ -29,12 +29,12 @@ The central questions are:
 
 The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`.
 
-The microscope acquires FOVs. Objects/cells are clustered observations inside those FOVs. Therefore cell number alone is not assumed to be an adequate measure of sampling effort when phenotype is spatially structured.
+The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Objects/cells, slice-level measurements, channels, and time points are observations nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
 The hierarchy is:
 
 ```text
-object/cell -> FOV -> optional technical/sample unit -> optional biological repeat -> optional condition
+object/cell/slice/timepoint -> FOV = spatial acquisition position -> optional technical/sample unit -> optional biological repeat -> optional condition
 ```
 
 The package may support arbitrary grouping columns, but it must not assign biological meaning to them automatically.
@@ -52,14 +52,14 @@ MorphoBricks ecosystem rules (shared with the other MorphoBricks repositories):
 
 Scientific rules:
 
-- **FOV identity is mandatory for the primary MorphoCoverage analysis.** Do not silently degrade to object-level sampling when FOV information is absent.
+- **FOV identity is mandatory for the primary MorphoCoverage analysis.** FOV means one independently selected spatial acquisition position, not a z-plane, channel, time point, or file. Do not silently degrade to object-, plane-, or frame-level sampling when position identity is absent.
 - **FOV is an operational acquisition unit, not an automatic independence assumption.** Preserve spatial coordinates, area, and design metadata when available; whole-FOV resampling does not by itself eliminate spatial autocorrelation.
 - **Do not assume one mathematical solution.** Ecological coverage, missing mass, clustering, nearest-neighbour novelty, distributional convergence, Bayesian methods, information-theoretic methods, and simple empirical rules remain candidate approaches until comparative validation supports a default.
 - **Current cell-number guidance must be benchmarked fairly.** Reproduce the scoped scalar precision problem before arguing that FOV-aware sampling adds information; identify regimes where the simpler approach is sufficient.
 - **Permit null results.** Do not optimize validation, examples, or documentation to guarantee that MorphoCoverage outperforms fixed cells/FOVs or scalar precision rules.
-- **FOV is the primary acquisition/resampling unit.** Never bootstrap, permute, or sequentially reveal individual objects when an analysis is defined at FOV level.
+- **FOV/spatial position is the primary acquisition/resampling unit.** Never bootstrap, permute, or sequentially reveal individual objects, z-planes, channels, or time points as independent FOVs. All observations from one position must enter together.
 - **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
-- **Metadata is not phenotype.** Grouping columns such as condition, repeat, batch, well, sample, or acquisition identifiers must not enter the feature matrix unless the caller explicitly supplies them as features.
+- **Metadata is not phenotype.** Grouping/acquisition columns such as condition, repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`.
 - **Never pool groups silently.** If the caller requests analysis by condition, repeat, or other groups, analyses operate independently within those groups. Pooling must be explicit.
 - **Do not claim that more cells from one FOV equal more independent imaging coverage.** Object count and FOV count are different quantities and must remain separately visible.
 - **Preserve acquired FOVs with zero detected objects.** An object-only table is not a complete acquisition record; support a first-class FOV table.
@@ -108,7 +108,7 @@ MorphoCoverage consumes two linked logical tables.
 One row per acquired FOV, including FOVs with zero detected objects.
 
 Required:
-- caller-specified FOV identifier column.
+- caller-specified spatial-position/FOV identifier column. Prefer `position_id` when storage layout does not map one file to one position; `image_file` is a fallback only when one file equals one position.
 
 Optional:
 - condition, repeat, sample, well, batch;
@@ -138,7 +138,8 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 | --- | --- | --- |
 | `condition` | string, always | Default analysis group; always part of FOV identity. |
 | `repeat` | string, always (`YYYY_MM_DD`, or `single`) | Default analysis group; always part of FOV identity. Any label is accepted; the format is not enforced. |
-| `image_file` | string, always | Default FOV identifier: one image file (including a z/t/c stack) is one FOV. |
+| `image_file` | string, always | Storage provenance; fallback FOV identifier only when one file = one spatial position. |
+| `position_id` | string, when needed | Preferred explicit spatial-position identifier when files/planes/scenes do not map 1:1 to FOVs. |
 | `mask_file` | string, if used | Preserved as metadata, never a feature. |
 | `patch_file` | string, if used | Preserved as metadata, never a feature. |
 
@@ -417,3 +418,7 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 7. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
 8. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
 
+
+### Multidimensional acquisition rule
+
+When feature extraction is performed slice-by-slice or frame-by-frame, retain lowercase `z`, `c`, and/or `t` on object/feature rows as applicable. All such rows from one spatial acquisition position must share the same `position_id` (or another explicitly supplied `fov_col`). Sequential replay and benchmarking must reveal the whole position atomically. Extra z-planes/channels/time points increase information within a FOV; they do not count as additional sampled positions.
