@@ -148,7 +148,7 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 | `mask_file` | string, if used | Preserved as metadata, never a feature. |
 | `patch_file` | string, if used | Preserved as metadata, never a feature. |
 
-A canonical column present in only one of the linked tables raises; so does a non-canonical spelling unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
+Group metadata such as `condition`/`repeat` may live only in the FOV table when the supplied FOV identifier maps unambiguously to one metadata value; the validator then attaches it to observation rows. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
 
 ### Outputs
 
