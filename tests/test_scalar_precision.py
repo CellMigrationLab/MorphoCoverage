@@ -375,3 +375,13 @@ def test_incremental_pilot_follows_the_order_column_not_arrival(unit, sd_estimat
             assert quantity.availability == other.availability
             if quantity.value is not None:
                 assert other.value == pytest.approx(quantity.value, rel=1e-9)
+
+
+@pytest.mark.parametrize("unit", ["object", "fov"])
+def test_missing_scalar_values_make_the_criterion_not_applicable(unit):
+    objects, fovs = _tables([[1.0, float("nan")], [2.0, 3.0]])
+    result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, unit, "point"))
+    quantity = result.evidence.quantities["averaging_cv"]
+    assert quantity.availability == "not_applicable"
+    assert result.decision is None
+    assert "missing values" in quantity.reason
