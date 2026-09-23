@@ -193,7 +193,7 @@ Rules for these tests:
 - Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
 - Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-object FOVs counted as effort) apply to all strategies automatically.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
-- `baseline_comparison` covers the fixed-cell, fixed-FOV and JCB-style scalar-precision baselines (`ScalarPrecisionStrategy`). Any new current-practice baseline must be added to it.
+- `baseline_comparison` covers the fixed-cell, fixed-FOV, JCB-style scalar-precision (`ScalarPrecisionStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
 
 A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 

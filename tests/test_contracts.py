@@ -26,6 +26,8 @@ import pytest
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
+    DescriptorPlateauStrategy,
+    DescriptorSpreadStrategy,
     FixedFOVStrategy,
     FixedObjectStrategy,
     ObjectiveConfig,
@@ -49,6 +51,9 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     ScalarPrecisionStrategy(
         "feature_a", 0.05, "object", "upper_95", pilot_fovs=3, order_col=ORDER_COL
     ),
+    DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL),
+    DescriptorSpreadStrategy("feature_a", 0.3, "object", 20, 0),
+    DescriptorSpreadStrategy("feature_a", 0.3, "fov", 20, 0),
 ]
 
 # §9 items that are properties of the framework rather than datasets.
@@ -359,14 +364,24 @@ def test_strategy_results_are_deterministic(name, strategy):
 def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     # With 5-200 objects per FOV, a cell-count rule and an FOV-count rule stop at
     # different points, and the result reports both kinds of effort so the
-    # difference is visible to the benchmark. The JCB-style scalar-precision
-    # baseline runs through the same replay and reports the same effort fields.
+    # difference is visible to the benchmark. The JCB-style scalar-precision and
+    # Marcotti-style descriptor-stabilization baselines run through the same
+    # replay and report the same effort fields.
     scenario = SCENARIOS["unequal_objects_per_fov"]()
     precision_cells = ScalarPrecisionStrategy("feature_a", 0.005, "object", "point")
     precision_fovs = ScalarPrecisionStrategy("feature_a", 0.005, "fov", "point")
+    plateau = DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL)
+    spread = DescriptorSpreadStrategy("feature_a", 0.5, "object", 50, 0)
     results = _replay(
         scenario,
-        [FixedFOVStrategy(10), FixedObjectStrategy(500), precision_cells, precision_fovs],
+        [
+            FixedFOVStrategy(10),
+            FixedObjectStrategy(500),
+            precision_cells,
+            precision_fovs,
+            plateau,
+            spread,
+        ],
     )
 
     def first_stop(strategy_name):
@@ -386,3 +401,8 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
         assert stop.n_fovs >= 1 and stop.n_objects >= 1
         assert stop.parameters["target_cv"] == 0.005
         assert stop.score <= 0.005
+
+    for strategy in (plateau, spread):
+        stop = first_stop(strategy.name)
+        assert stop.n_fovs >= 1 and stop.n_objects >= 1
+        assert stop.score <= strategy.tolerance

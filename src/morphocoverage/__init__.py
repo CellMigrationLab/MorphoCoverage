@@ -6,6 +6,8 @@ from .results import Decision, StrategyResult
 from .schema import ValidatedInput, validate_input_tables
 from .sequential import SequentialResult, evaluate_acquisition_prefixes
 from .strategies import (
+    DescriptorPlateauStrategy,
+    DescriptorSpreadStrategy,
     FixedFOVStrategy,
     FixedObjectStrategy,
     SamplingStrategy,
@@ -14,6 +16,8 @@ from .strategies import (
 
 __all__ = [
     "Decision",
+    "DescriptorPlateauStrategy",
+    "DescriptorSpreadStrategy",
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "ObjectiveConfig",
