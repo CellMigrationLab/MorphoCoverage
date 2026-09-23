@@ -22,6 +22,7 @@ def run_strategies(
     fov_col: str | None = None,
     fovs: pd.DataFrame | None = None,
     group_cols: Sequence[str] | None = None,
+    observation_unit: str = "object",
 ) -> list[StrategyResult]:
     """Validate one feature dataset and run strategies within resolved groups.
 
@@ -35,5 +36,6 @@ def run_strategies(
         fov_col=fov_col,
         fovs=fovs,
         group_cols=group_cols,
+        observation_unit=observation_unit,
     )
     return evaluate_strategies(strategies, data, objective=objective)
