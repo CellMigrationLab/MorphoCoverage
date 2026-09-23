@@ -299,3 +299,23 @@ def test_descriptor_rules_do_not_silently_drop_missing_values(strategy):
     assert quantity.availability == "not_applicable"
     assert result.decision is None
     assert "missing values" in quantity.reason
+
+
+@pytest.mark.parametrize(
+    "strategy",
+    [
+        DescriptorPlateauStrategy("area", 0.1, 2, "order"),
+        DescriptorSpreadStrategy("area", 0.1, "object", 20, 0),
+    ],
+)
+def test_cell_stabilization_rules_reject_slice_observations(strategy):
+    objects, fovs = _tables([[1.0, 2.0], [2.0, 3.0], [4.0, 5.0]])
+    with pytest.raises(ValueError, match="observation_unit"):
+        run_strategies(
+            objects,
+            fovs=fovs,
+            strategies=[strategy],
+            feature_cols=["area"],
+            objective=POPULATION,
+            observation_unit="slice",
+        )
