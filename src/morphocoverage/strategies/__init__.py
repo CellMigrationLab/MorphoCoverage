@@ -13,6 +13,7 @@ from .jcb_planning import (
     PlannedCellCountStrategy,
     plan_cells_to_average,
 )
+from .rare_planning import FOVIncidencePlanEstimator, FOVIncidencePlanStrategy
 from .scalar_precision import ScalarPrecisionEstimator, ScalarPrecisionStrategy
 from .stabilization import (
     DescriptorPlateauEstimator,
@@ -31,6 +32,8 @@ __all__ = [
     "EstimatorState",
     "FOVBootstrapEstimator",
     "FOVBootstrapStrategy",
+    "FOVIncidencePlanEstimator",
+    "FOVIncidencePlanStrategy",
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "FixedObservationStrategy",
