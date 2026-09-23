@@ -145,3 +145,32 @@ def test_z_c_t_are_within_fov_metadata_not_phenotype_features():
                 fovs=fovs,
                 feature_cols=["area", metadata_col],
             )
+
+
+def test_multi_file_position_requires_within_fov_axis_metadata():
+    objects = pd.DataFrame(
+        {
+            "position_id": ["P1", "P1"],
+            "image_file": ["P1_part1.tif", "P1_part2.tif"],
+            "area": [1.0, 2.0],
+        }
+    )
+    fovs = pd.DataFrame({"position_id": ["P1"]})
+
+    with pytest.raises(ValueError, match="multiple image_file.*no z/c/t"):
+        validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+
+
+def test_multi_file_position_rejects_rows_missing_axis_metadata():
+    objects = pd.DataFrame(
+        {
+            "position_id": ["P1", "P1"],
+            "image_file": ["P1_z000.tif", "P1_z001.tif"],
+            "z": [0, None],
+            "area": [1.0, 2.0],
+        }
+    )
+    fovs = pd.DataFrame({"position_id": ["P1"]})
+
+    with pytest.raises(ValueError, match="missing z/c/t"):
+        validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
