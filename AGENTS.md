@@ -63,8 +63,8 @@ Scientific rules:
 - **Missing phenotype values are allowed at the input boundary.** NaN is preserved; infinity is rejected. The framework never silently imputes or drops missing values. Every estimator/transform that uses affected features must state its missing-data behavior explicitly.
 - **Metadata is not phenotype.** Grouping/acquisition columns such as condition, repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`.
 - **Never pool groups silently.** If the caller requests analysis by condition, repeat, or other groups, analyses operate independently within those groups. Pooling must be explicit.
-- **Do not claim that more cells from one FOV equal more independent imaging coverage.** Object count and FOV count are different quantities and must remain separately visible.
-- **Preserve acquired FOVs with zero detected objects.** An object-only table is not a complete acquisition record; support a first-class FOV table.
+- **Do not claim that more observations from one FOV equal more independent imaging coverage.** Observation count and FOV count are different quantities and must remain separately visible.
+- **Preserve acquired FOVs with zero phenotype observations.** An observation-only table is not a complete acquisition record; support a first-class FOV table.
 - **Never report a coverage/novelty result without enough provenance to reproduce the phenotype geometry**, including supplied feature columns, preprocessing, distance metric, and morphological resolution/threshold when applicable.
 - **Retrospective and prospective analyses are different.** Retrospective analysis may use future/held-out FOVs to measure realized outcomes. A prospective estimator must use only information available up to the current acquisition step.
 - **No future-data leakage.** Preprocessing, tuning, threshold selection, dimensionality reduction, and hyperparameter optimization for prospective evaluation must not use future FOVs unless explicitly labelled retrospective/transductive.
@@ -364,7 +364,7 @@ For substantive work, report briefly:
 
 The sampling objective is separate from the mathematical strategy. Supported high-level objectives are population representation, rare-phenotype discovery with an explicit user target, and balanced sampling.
 
-MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; image_file is preferred as the FOV identifier (one image file, including a multidimensional stack, is one FOV); and shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
+MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
 
 Strategies must not reimplement condition/repeat splitting. Each strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, FOV count, observation count/unit, and measured runtime.
 
