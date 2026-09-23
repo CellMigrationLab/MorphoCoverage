@@ -63,3 +63,35 @@ def test_sequential_runner_preserves_zero_object_fov():
 
     assert results[-1].result.n_fovs == 2
     assert results[-1].result.n_objects == 1
+
+
+def test_sequential_runner_uses_morphobricks_defaults():
+    objects = pd.DataFrame(
+        {
+            "condition": ["control", "control", "drug"],
+            "repeat": ["R1", "R1", "R1"],
+            "image_file": ["c1.tif", "c2.tif", "d1.tif"],
+            "area": [1.0, 2.0, 3.0],
+        }
+    )
+    fovs = pd.DataFrame(
+        {
+            "condition": ["control", "control", "drug"],
+            "repeat": ["R1", "R1", "R1"],
+            "image_file": ["c1.tif", "c2.tif", "d1.tif"],
+            "order": [1, 2, 1],
+        }
+    )
+
+    results = evaluate_acquisition_prefixes(
+        objects,
+        fovs,
+        strategies=[FixedFOVStrategy(2)],
+        feature_cols=["area"],
+        acquisition_order_col="order",
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+    )
+
+    assert len(results) == 3
+    assert results[0].result.group == {"condition": "control", "repeat": "R1"}
+    assert results[-1].result.group == {"condition": "drug", "repeat": "R1"}
