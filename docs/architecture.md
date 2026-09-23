@@ -236,3 +236,7 @@ Examples of future families include:
 A new method should not require changes to MorphoBricks metadata handling or group separation unless the data contract itself genuinely changes.
 
 See [`morphobricks_fov_contract.md`](morphobricks_fov_contract.md) for what upstream MorphoBricks tools must emit for FOV identity to be correct.
+
+## Multidimensional FOV semantics
+
+The framework's FOV is a spatial acquisition position, not a plane or file. `position_id` is the preferred explicit identifier when file layout does not map one-to-one to positions. Rows produced slice-by-slice or frame-by-frame may vary in `z`, `c`, and `t`, but those columns are within-FOV metadata and all rows from one position are revealed together during sequential replay.
