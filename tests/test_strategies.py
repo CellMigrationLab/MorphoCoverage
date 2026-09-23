@@ -142,3 +142,17 @@ def test_strategy_cannot_read_metadata_as_a_feature():
             fov_col="fov_id",
             objective=ObjectiveConfig(SamplingObjective.POPULATION),
         )
+
+
+def test_fixed_object_strategy_rejects_generic_slice_rows():
+    objects, fovs = _tables()
+    with pytest.raises(ValueError, match="FixedObjectStrategy requires observation_unit"):
+        run_strategies(
+            objects,
+            fovs=fovs,
+            strategies=[FixedObjectStrategy(2)],
+            feature_cols=["area"],
+            fov_col="fov_id",
+            objective=ObjectiveConfig(SamplingObjective.POPULATION),
+            observation_unit="slice",
+        )
