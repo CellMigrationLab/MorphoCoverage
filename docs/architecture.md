@@ -112,7 +112,7 @@ Every strategy returns the same result structure containing:
 - diagnostics;
 - measured wall-clock runtime.
 
-The number of FOVs, number of objects, group identity and runtime are framework-owned. The framework fills them after the strategy returns; a strategy-supplied count that contradicts the acquisition record raises. `decision` must be `Decision.CONTINUE`, `Decision.STOP` or `None`.
+The number of FOVs, number of objects, group identity, feature columns, FOV key and runtime are framework-owned; `feature_cols` and `fov_key` record the representation and FOV identity each result was computed on. The framework fills them after the strategy returns; a strategy-supplied count that contradicts the acquisition record raises. `decision` must be `Decision.CONTINUE`, `Decision.STOP` or `None`.
 
 This common contract is what allows many methods to be compared without changing the data pipeline.
 
@@ -176,6 +176,8 @@ A counterexample test shows that the fixed, JCB-style and Marcotti-style cell-nu
 None of these are scientific defaults.
 
 ## Extension rule
+
+The step-by-step checklist for adding a strategy is in AGENTS.md section 20.
 
 New strategies should be added behind the existing interface rather than adding strategy-specific branches to the runner.
 

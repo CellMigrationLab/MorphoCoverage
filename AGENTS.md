@@ -9,11 +9,13 @@
 | Repo | `CellMigrationLab/MorphoCoverage` |
 | Purpose | Quantify FOV-aware phenotypic sampling completeness from precomputed object-level feature representations. |
 | Ecosystem | MorphoBricks |
-| Position | Downstream statistical analysis/application. It consumes features; it does not extract them. |
+| Position | Step 3 of the MorphoBricks pipeline (analysis & applications). It consumes features; it does not extract them. See section 18. |
 | Language | Python 3.11+ |
-| Tests | `pytest` |
-| Lint | `ruff check src tests` |
-| Install | `python -m pip install -e ".[dev]"` |
+| Tests | `pytest` (all tests, including real-data tests on `data/crick_idr`) |
+| Lint | `ruff check src tests` (ruff pinned in `pyproject.toml`) |
+| Install / environment | `python -m pip install -e ".[dev]"` |
+
+Key dependencies: `numpy`, `pandas` (runtime); `pytest`, `ruff` (development). There are deliberately no scipy, scikit-learn or Torch dependencies.
 
 MorphoCoverage is deliberately independent of CellPatcher, fiberfeatures, Nyxus, CellProfiler, DINO, Torch, microscopy file formats, segmentation tools, and microscope-control software.
 
@@ -37,9 +39,18 @@ object/cell -> FOV -> optional technical/sample unit -> optional biological repe
 
 The package may support arbitrary grouping columns, but it must not assign biological meaning to them automatically.
 
-## 3. Non-negotiable scientific rules
+## 3. Non-negotiable rules
 
 These rules override implementation convenience.
+
+MorphoBricks ecosystem rules (shared with the other MorphoBricks repositories):
+
+- **Never rename shared CSV columns** (`condition`, `repeat`, `image_file`, `mask_file`, `patch_file`). Other repos depend on them. MorphoCoverage rejects near-miss spellings such as `Repeat` rather than renaming them.
+- **Never hard-code machine-specific paths.** Use function arguments, config or environment variables; tests locate repository data relative to the test file.
+- **Never break public interfaces** (anything in `morphocoverage.__all__`) without explicit user approval.
+- **Keep public functionality usable as an imported dependency and from notebooks.** A CLI is deliberately deferred: the project owner asked to avoid premature CLI work until the scientific core stabilizes (see section 18). Add one only when asked.
+
+Scientific rules:
 
 - **FOV identity is mandatory for the primary MorphoCoverage analysis.** Do not silently degrade to object-level sampling when FOV information is absent.
 - **FOV is an operational acquisition unit, not an automatic independence assumption.** Preserve spatial coordinates, area, and design metadata when available; whole-FOV resampling does not by itself eliminate spatial autocorrelation.
@@ -121,6 +132,22 @@ MorphoCoverage must be able to consume output derived from CellPatcher or any fe
 
 Where practical, preserve compatibility with MorphoBricks metadata names such as `condition`, `repeat`, and `image_file`, but the core API accepts caller-specified column names rather than hard-coding them.
 
+### Shared CSV column contract (MorphoBricks)
+
+| Column | MorphoBricks requirement | How MorphoCoverage uses it |
+| --- | --- | --- |
+| `condition` | string, always | Default analysis group; always part of FOV identity. |
+| `repeat` | string, always (`YYYY_MM_DD`, or `single`) | Default analysis group; always part of FOV identity. Any label is accepted; the format is not enforced. |
+| `image_file` | string, always | Default FOV identifier: one image file (including a z/t/c stack) is one FOV. |
+| `mask_file` | string, if used | Preserved as metadata, never a feature. |
+| `patch_file` | string, if used | Preserved as metadata, never a feature. |
+
+A canonical column present in only one of the linked tables raises; so does a non-canonical spelling unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
+
+### Outputs
+
+MorphoCoverage currently produces in-memory result objects (`StrategyResult`, `SequentialResult`), not files. No other repository consumes its output yet. Define a file format here before any downstream repository depends on it.
+
 ## 6. Architecture principles
 
 - Prefer small pure functions with typed inputs/outputs.
@@ -133,22 +160,35 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 - Notebooks consume package APIs; they are never homes for production algorithms.
 - Make the smallest coherent change needed for the task.
 
-## 7. Initial repository structure
+## 7. Repository structure
 
 ```text
 src/morphocoverage/
-    __init__.py
-    schema.py
+    __init__.py            # public API (__all__); changes need approval (section 15)
+    metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings
+    schema.py              # ValidatedInput and linked-table validation
+    objectives.py          # sampling objectives, independent of strategies
+    results.py             # StrategyResult and the Decision vocabulary
+    evaluator.py           # group iteration, isolation, timing, framework-owned fields
+    sequential.py          # leakage-safe acquisition-prefix replay
+    framework.py           # run_strategies convenience entry point
+    strategies/
+        base.py            # SamplingStrategy interface
+        baselines.py       # fixed-FOV and fixed-object baselines
+        scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
+        stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
 
 tests/
-    test_schema.py
+    scenarios.py           # constructed acquisitions for contract tests (section 9)
+    test_contracts.py      # contracts every strategy and the framework must pass
+    test_<module>.py       # unit tests per module or strategy family
+    test_crick_idr.py      # real-data integrity and end-to-end tests
 
-docs/
-    scientific_contract.md
-    project_aim.md
+data/crick_idr/            # real feature tables (CC BY 4.0) for tests; README gives provenance
+docs/                      # scientific aims, contracts, architecture, benchmarking, findings
 ```
 
-Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation.
+A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.
 
 ## 8. Development sequence
 
@@ -274,7 +314,8 @@ Ask the user before:
 
 - changing the meaning of FOV or another sampling unit;
 - changing required input/output contracts;
-- changing a public API after release/use;
+- changing a public API after release/use, or anything in `__init__.py` that changes `__all__`;
+- changing an output format or the shared CSV columns, or making a change that requires updates in other MorphoBricks repos;
 - adding a required heavy dependency;
 - selecting or replacing the default scientific estimator;
 - changing behavior that materially affects scientific interpretation;
@@ -309,3 +350,51 @@ MorphoBricks metadata handling is centralized. When available, condition and rep
 Strategies must not reimplement condition/repeat splitting. Each strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, object/FOV counts, and measured runtime.
 
 Scientific and computational benchmarking are separate dimensions. Runtime is first-class because smart microscopy requires a decision before the next acquisition is needed. See docs/sampling_objectives.md, docs/benchmarking.md, and docs/architecture.md.
+
+## 18. MorphoBricks pipeline position
+
+```text
+[Step 1] raw_data/ + masks/  ->  CellPatcher                  ->  patches/
+[Step 2] patches/            ->  Feature extraction            ->  features.csv
+[Step 3] features.csv        ->  Analysis & applications       ->  results
+                                 **[MorphoCoverage]**
+```
+
+| Step | Repo | Description | Link |
+| --- | --- | --- | --- |
+| 1 | CellPatcher | Image patching | https://github.com/CellMigrationLab/CellPatcher |
+| 2 | fiberfeatures (and other extractors, e.g. DINO, Nyxus, CellProfiler) | Feature extraction | https://github.com/CellMigrationLab/fiberfeatures |
+| 3 | MorphoCoverage | FOV-aware sampling adequacy | https://github.com/CellMigrationLab/MorphoCoverage |
+
+Inputs: an object feature table from any step-2 tool, plus a FOV table that lists every acquired image, including those without objects. Current step-1/step-2 outputs do not yet emit such a table; `docs/morphobricks_fov_contract.md` lists what they need to change.
+
+Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
+
+## 19. Glossary
+
+| Term | Definition |
+| --- | --- |
+| Condition | An experimental group, e.g. `treated`, `control` (MorphoBricks shared column). |
+| Repeat | A biological or technical replicate, identified by date in MorphoBricks (shared column). |
+| Image file / FOV | One acquired field of view: one image file, possibly a z/t/c stack. The primary acquisition and resampling unit. |
+| FOV key | The columns that jointly identify one FOV: group columns, condition/repeat, then the FOV column. |
+| Object | One detected object (cell, nucleus) within an FOV; a row of the object table. |
+| Feature | An explicitly selected numeric descriptor of an object. |
+| Analysis group | FOVs evaluated together; `condition` x `repeat` by default, pooled only on explicit request. |
+| Zero-object FOV | An acquired FOV with no detected objects; it counts as acquisition effort. |
+| Strategy | A swappable method that assesses the acquisition so far (section 20). |
+| Objective | What "enough imaging" means: population representation, rare-phenotype discovery or balanced sampling. |
+| Prefix / replay | The first k acquired FOVs of a real acquisition; replay evaluates strategies on successive prefixes. |
+| Design effect | The variance of a mean with FOVs as the sampling unit, divided by its variance under random-cell sampling. |
+
+## 20. Adding or swapping a strategy
+
+Strategies are interchangeable: the framework never branches on a strategy's identity. To add one:
+
+1. Subclass `SamplingStrategy` in a module under `strategies/`. Give it a `name` (a constant, or a property that names the variant), a `parameters` property holding every setting that defines the method, and `evaluate(data, *, objective) -> StrategyResult`.
+2. Read phenotype values only through `data.feature_values(name)` or `data.feature_matrix()`, and FOV identity through `data.fov_key`. Treat the input as one analysis group; never split conditions or repeats.
+3. Leave framework-owned fields unset (`n_fovs`, `n_objects`, `group`, `feature_cols`, `fov_key`, `runtime_seconds`). Return `decision` as `Decision.CONTINUE`, `Decision.STOP` or `None`.
+4. Keep `evaluate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter.
+5. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults.
+6. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise. If it is a current-practice baseline, also add it to `baseline_comparison`.
+

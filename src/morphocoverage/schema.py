@@ -41,6 +41,20 @@ class ValidatedInput:
         """Return the explicitly selected phenotype features as a float array."""
         return self.objects.loc[:, list(self.feature_cols)].to_numpy(dtype=float)
 
+    def feature_values(self, feature: str) -> np.ndarray:
+        """Return one explicitly selected feature as a float array.
+
+        Raises ``ValueError`` for any column not in ``feature_cols``, so a
+        strategy configured with a metadata column (e.g. a stage coordinate)
+        fails instead of treating it as phenotype.
+        """
+        if feature not in self.feature_cols:
+            raise ValueError(
+                f"feature {feature!r} is not one of the explicitly selected "
+                f"feature columns {list(self.feature_cols)}"
+            )
+        return self.objects[feature].to_numpy(dtype=float)
+
 
 def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
     """Position of each object's FOV within ``fovs`` (-1 if its FOV is not listed).

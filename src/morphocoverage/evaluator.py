@@ -86,7 +86,7 @@ def evaluate_strategy(
     objective: ObjectiveConfig,
     group: dict[str, object] | None = None,
 ) -> StrategyResult:
-    """Run one strategy and attach framework-owned counts, group identity and runtime.
+    """Run one strategy and attach framework-owned counts, provenance and runtime.
 
     Each call runs on a fresh copy of the configured strategy, so no state can
     flow between analysis groups or between acquisition prefixes. ``evaluate``
@@ -119,6 +119,8 @@ def evaluate_strategy(
         decision=decision,
         runtime_seconds=runtime_seconds,
         group=dict(group or {}),
+        feature_cols=data.feature_cols,
+        fov_key=data.fov_key,
         n_fovs=_framework_count(result.n_fovs, len(data.fovs), "n_fovs", strategy.name),
         n_objects=_framework_count(
             result.n_objects, len(data.objects), "n_objects", strategy.name

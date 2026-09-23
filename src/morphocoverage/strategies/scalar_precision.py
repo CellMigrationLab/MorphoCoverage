@@ -198,6 +198,7 @@ class ScalarPrecisionStrategy(SamplingStrategy):
 
     @property
     def name(self) -> str:
+        """Variant-specific name, e.g. ``scalar_precision_object_upper95_pilot``."""
         parts = ["scalar_precision", self.resampling_unit]
         if self.sd_estimate == "upper_95":
             parts.append("upper95")
@@ -207,6 +208,7 @@ class ScalarPrecisionStrategy(SamplingStrategy):
 
     @property
     def parameters(self) -> dict[str, Any]:
+        """All settings that define the criterion, for result provenance."""
         return {
             "feature": self.feature,
             "target_cv": self.target_cv,
@@ -224,7 +226,7 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         # Per-FOV sums and counts in the order of ``fovs``; empty FOVs give zeros.
         positions = fov_positions(data, fovs)
         inside = positions >= 0
-        values = data.objects[self.feature].to_numpy(float)[inside]
+        values = data.feature_values(self.feature)[inside]
         sums = np.bincount(positions[inside], weights=values, minlength=len(fovs))
         counts = np.bincount(positions[inside], minlength=len(fovs)).astype(float)
         n_objects = int(counts.sum())
@@ -259,11 +261,14 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         return estimate
 
     def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
-        if self.feature not in data.feature_cols:
-            raise ValueError(
-                f"feature {self.feature!r} is not one of the explicitly selected "
-                f"feature columns {list(data.feature_cols)}"
-            )
+        """Averaging CV of the visible data as ``score``; stop once it meets the target.
+
+        With a pilot, the decision instead compares visible effort with the
+        requirement planned from the pilot FOVs. ``decision`` is ``None`` when
+        the criterion is undefined (too little data or a non-positive mean),
+        with the reason in ``diagnostics["undefined_reason"]``.
+        """
+        data.feature_values(self.feature)  # fails early on a non-feature column
         diagnostics: dict[str, Any] = {
             "scalar_parameter": f"mean of {self.feature!r} over objects",
             "assumes_spatial_uniformity": self.resampling_unit == "object",

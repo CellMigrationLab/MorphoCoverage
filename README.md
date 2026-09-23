@@ -30,46 +30,43 @@ and never treats cell count alone as a complete description of acquisition effor
 
 ## Current status
 
-This repository is intentionally starting small. The first implemented layer is the strict input contract needed by later coverage estimators.
+MorphoCoverage is a strategy-comparison framework. No default coverage estimator has been chosen.
 
-The current API validates:
-
-- an object table containing explicitly selected numeric feature columns and FOV identity;
-- an optional complete FOV table, so acquired fields with zero detected objects are not silently lost;
-- optional grouping columns such as `condition` and `repeat`.
-
-Feature columns are never inferred automatically from all numeric columns.
+- **Input validation.** Linked FOV and object tables with MorphoBricks defaults. `image_file` identifies the FOV, and `condition` × `repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, and acquired FOVs with zero objects are kept.
+- **Swappable strategies.** Every method implements one `SamplingStrategy` interface and receives one analysis group at a time. The framework fills counts, provenance and runtime. Current strategies are all current-practice baselines:
+  - fixed FOV and fixed cell counts;
+  - a JCB/Zweifach-style scalar precision rule;
+  - Marcotti et al.-style descriptor stabilization.
+- **Leakage-safe replay.** Recorded acquisitions are evaluated prefix by prefix: `evaluate_acquisition_prefixes`.
+- **Contract tests.** Every strategy must pass them on constructed acquisitions (AGENTS.md section 9).
+- **Real test data.** Crick/IDR feature tables in `data/crick_idr/`.
 
 ```python
 import pandas as pd
-from morphocoverage import validate_input_tables
-
-objects = pd.DataFrame(
-    {
-        "condition": ["control", "control", "control"],
-        "repeat": ["R1", "R1", "R1"],
-        "fov_id": ["FOV_1", "FOV_1", "FOV_2"],
-        "area": [120.0, 135.0, 98.0],
-        "eccentricity": [0.45, 0.62, 0.31],
-    }
+from morphocoverage import (
+    ObjectiveConfig, SamplingObjective, ScalarPrecisionStrategy, FixedFOVStrategy,
+    evaluate_acquisition_prefixes,
 )
 
-fovs = pd.DataFrame(
-    {
-        "condition": ["control", "control", "control"],
-        "repeat": ["R1", "R1", "R1"],
-        "fov_id": ["FOV_1", "FOV_2", "FOV_3"],
-    }
-)
+fovs = pd.read_csv("data/crick_idr/idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
+objects = pd.read_csv("data/crick_idr/idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
+feature = "Nuclei_Intensity_MeanIntensity_YAPTAZ"
 
-validated = validate_input_tables(
+results = evaluate_acquisition_prefixes(
     objects,
-    feature_cols=["area", "eccentricity"],
-    fov_col="fov_id",
-    fovs=fovs,
-    group_cols=["condition", "repeat"],
+    fovs,
+    strategies=[
+        FixedFOVStrategy(10),
+        ScalarPrecisionStrategy(feature, 0.05, "object", "upper_95"),
+    ],
+    feature_cols=[feature],
+    acquisition_order_col="acquisition_order",
+    objective=ObjectiveConfig(SamplingObjective.POPULATION),
+    group_cols=["condition", "repeat", "well"],
 )
 ```
+
+To add a strategy, follow AGENTS.md section 20. Preliminary real-data observations are in [`docs/preliminary_findings.md`](docs/preliminary_findings.md).
 
 ## Planned scientific development
 
