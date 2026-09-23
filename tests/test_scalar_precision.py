@@ -18,7 +18,6 @@ from morphocoverage import (
 )
 from morphocoverage.strategies.scalar_precision import (
     cell_averaging_cv,
-    chi2_quantile,
     fov_averaging_cv,
     required_fovs,
     required_objects,
@@ -93,19 +92,12 @@ def test_object_unit_stops_exactly_when_averaging_cv_reaches_target():
 
 
 @pytest.mark.parametrize(
-    ("probability", "df", "expected"),
-    [
-        (0.025, 1, 0.000982069),
-        (0.025, 3, 0.215795),
-        (0.025, 9, 2.700389),
-        (0.025, 19, 8.906516),
-        (0.025, 29, 16.047072),
-        (0.975, 19, 32.852327),
-        (0.5, 100, 99.334129),
-    ],
+    ("df", "lower_quantile"),
+    [(1, 0.000982069), (3, 0.215795), (9, 2.700389), (19, 8.906516), (29, 16.047072)],
 )
-def test_chi2_quantile_matches_tables(probability, df, expected):
-    assert chi2_quantile(probability, df) == pytest.approx(expected, rel=1e-5)
+def test_sd_upper_bound_uses_the_chi_square_table(df, lower_quantile):
+    # Printed chi-square 2.5% quantiles; the bound is sqrt(df / quantile).
+    assert sd_upper_bound_factor(df) == pytest.approx(math.sqrt(df / lower_quantile), rel=1e-5)
 
 
 def _cells_with_cv(n, cv):

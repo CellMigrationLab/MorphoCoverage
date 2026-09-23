@@ -57,6 +57,7 @@ from functools import lru_cache
 from typing import Any
 
 import numpy as np
+from scipy.stats import chi2
 
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -70,62 +71,15 @@ _SD_ESTIMATES = ("point", "upper_95")
 _MAX_TRUSTED_CV = 0.5
 
 
-def _regularized_lower_gamma(a: float, x: float) -> float:
-    """P(a, x), by series for x < a + 1 and continued fraction otherwise."""
-    if x <= 0:
-        return 0.0
-    log_prefactor = a * math.log(x) - x - math.lgamma(a)
-    if x < a + 1:
-        term = total = 1.0 / a
-        denominator = a
-        for _ in range(10_000):
-            denominator += 1
-            term *= x / denominator
-            total += term
-            if abs(term) < abs(total) * 1e-15:
-                break
-        return total * math.exp(log_prefactor)
-    # Lentz's method for the continued fraction of Q(a, x).
-    tiny = 1e-300
-    b = x + 1 - a
-    c = 1 / tiny
-    d = 1 / b
-    h = d
-    for i in range(1, 10_000):
-        an = -i * (i - a)
-        b += 2
-        d = an * d + b
-        d = tiny if abs(d) < tiny else d
-        c = b + an / c
-        c = tiny if abs(c) < tiny else c
-        d = 1 / d
-        delta = d * c
-        h *= delta
-        if abs(delta - 1) < 1e-15:
-            break
-    return 1.0 - h * math.exp(log_prefactor)
-
-
-def chi2_quantile(probability: float, df: int) -> float:
-    """Lower-tail quantile of the chi-square distribution, by bisection on its CDF."""
-    if not 0 < probability < 1:
-        raise ValueError("probability must be between 0 and 1")
-    if df < 1:
-        raise ValueError("df must be at least 1")
-    low, high = 0.0, max(1.0, df + 20 * math.sqrt(2 * df))
-    for _ in range(100):
-        middle = (low + high) / 2
-        if _regularized_lower_gamma(df / 2, middle / 2) < probability:
-            low = middle
-        else:
-            high = middle
-    return (low + high) / 2
-
-
 @lru_cache(maxsize=4096)
 def sd_upper_bound_factor(df: int, confidence: float = 0.95) -> float:
-    """Factor turning a sample SD into the upper bound of its confidence interval."""
-    return math.sqrt(df / chi2_quantile((1 - confidence) / 2, df))
+    """Factor turning a sample SD into the upper bound of its confidence interval.
+
+    The chi-square bound ``sqrt(df / chi2.ppf((1 - confidence) / 2, df))``.
+    """
+    if df < 1:
+        raise ValueError("df must be at least 1")
+    return math.sqrt(df / chi2.ppf((1 - confidence) / 2, df))
 
 
 def cell_averaging_cv(values: np.ndarray) -> dict[str, float]:

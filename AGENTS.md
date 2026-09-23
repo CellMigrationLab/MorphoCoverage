@@ -15,7 +15,7 @@
 | Lint | `ruff check src tests data` (ruff pinned in `pyproject.toml`) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
-Key dependencies: `numpy`, `pandas` (runtime); `pytest`, `ruff` (development). There are deliberately no scipy, scikit-learn or Torch dependencies.
+Key dependencies: `numpy`, `pandas`, `scipy` (runtime); `pytest`, `ruff` (development). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
 
 MorphoCoverage is deliberately independent of CellPatcher, fiberfeatures, Nyxus, CellProfiler, DINO, Torch, microscopy file formats, segmentation tools, and microscope-control software.
 
