@@ -187,6 +187,7 @@ src/morphocoverage/
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
     reservoir.py           # held-out evaluation reservoirs split by spatial block
+    spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
     framework.py           # run_strategies convenience entry point
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
