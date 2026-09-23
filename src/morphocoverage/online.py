@@ -115,6 +115,34 @@ class OnlineSession:
                 group_cols = self._requested_group_cols
             self._resolved_fov_col = fov_col
             self._resolved_group_cols = group_cols
+        else:
+            # The live contract is fixed by the first FOV. Later metadata must
+            # not silently introduce a higher-priority FOV identity or new
+            # default grouping axis that would change the interpretation.
+            if self._requested_fov_col is None:
+                higher_priority = []
+                for candidate in MORPHOBRICKS_FOV_CANDIDATES:
+                    if candidate == self._resolved_fov_col:
+                        break
+                    if candidate in fov.columns:
+                        higher_priority.append(candidate)
+                if higher_priority:
+                    raise ValueError(
+                        "fov_metadata introduces higher-priority FOV identifier(s) "
+                        f"{higher_priority} after the session resolved "
+                        f"{self._resolved_fov_col!r}; start a new session or pass "
+                        "fov_col explicitly"
+                    )
+            if self._requested_group_cols is None:
+                later_groups = tuple(
+                    column for column in MORPHOBRICKS_GROUP_COLUMNS if column in fov.columns
+                )
+                if later_groups != (self._resolved_group_cols or ()):
+                    raise ValueError(
+                        "fov_metadata changes the automatically resolved grouping contract "
+                        f"from {self._resolved_group_cols or ()} to {later_groups}; "
+                        "start a new session or pass group_cols explicitly"
+                    )
         return self._resolved_fov_col, self._resolved_group_cols or ()
 
     @staticmethod
