@@ -73,7 +73,7 @@ Instead, they can be implemented as explicit **planning comparators** that use d
 
 The existing multi-sample JCB implementation already follows this pattern:
 
-\`\`\`text
+```text
 multi-group pilot data
         |
         v
@@ -84,7 +84,7 @@ fixed plan
         |
         v
 group-local stopping strategy
-\`\`\`
+```
 
 pMoSS could eventually be treated similarly if we decide it is worth implementing.
 
@@ -117,25 +117,25 @@ The best sampling method is not necessarily the method with the smallest value o
 
 Candidate strategies should be judged on several independent dimensions:
 
-\[
+$
 \text{population fidelity}
-\]
+$
 
-\[
+$
 \text{rare-state protection}
-\]
+$
 
-\[
+$
 \text{downstream biological fidelity}
-\]
+$
 
-\[
+$
 \text{acquisition effort}
-\]
+$
 
-\[
+$
 \text{computational cost}
-\]
+$
 
 Different experiments may weight these differently.
 
@@ -176,13 +176,11 @@ Dataset roles must be fixed as development or held-out before method tuning.
 
 ### 4.2 Fixed evaluation reservoir
 
-A key problem with comparing the acquisition prefix \(F_{1:k}\) directly with the full acquisition \(F_{1:n}\) is that the reference contains the prefix itself. Error therefore approaches zero mechanically as \(k \to n\).
+A key problem with comparing the acquisition prefix $F_{1:k}$ directly with the full acquisition $F_{1:n}$ is that the reference contains the prefix itself. Error therefore approaches zero mechanically as $k \to n$.
 
-For primary scientific evaluation, prefer a fixed reference reservoir not used by the prospective estimator.
+For primary scientific evaluation, use a reference reservoir that is never visible to the prospective estimator.
 
-A desirable design is:
-
-\`\`\`text
+```text
 deep acquisition
       |
       +---- prospective acquisition stream
@@ -191,29 +189,46 @@ deep acquisition
       |
       +---- fixed evaluation reservoir
               never visible to estimator
-\`\`\`
+```
 
-The reservoir may be:
+The split must respect the acquisition structure.
 
-- a held-out subset of FOVs fixed before replay;
-- a second deep acquisition of the same sampling population;
-- an independent replicate when the scientific question permits it.
+- When stage coordinates are available, split by **spatial blocks**, not individual neighbouring FOVs, so correlated neighbours do not appear on opposite sides of the benchmark.
+- Repeat evaluation over several **predeclared block splits** so conclusions do not depend on one fortunate partition.
+- When coordinates are unavailable, state explicitly that exchangeability of FOVs is an assumption of the split.
+- A second independently prepared acquisition or biological repeat should not be treated automatically as a same-population reservoir: batch and biological shifts introduce error that no within-sample stopping rule can remove. Such data are better used as a separate cross-acquisition robustness outcome unless the sampling population is demonstrably shared.
 
-The exact split depends on the dataset, but the reference should not grow with \(k\).
+The reservoir is finite and therefore has its own sampling error. Benchmark code should estimate a **reference error floor**, for example by repeated split-half or resampling comparisons inside the reservoir. An adequacy tolerance must be meaningfully above that floor; otherwise methods are being asked to predict the empirical reference more accurately than the reference estimates itself.
 
-### 4.3 Immediate future-FOV outcome
+The reference must remain fixed as $k$ increases.
 
-A separate short-horizon outcome should measure what the actual next unseen FOV contributes.
+### 4.3 Immediate next-FOV utility
 
-This tests:
+A separate short-horizon outcome should quantify the realized utility of the next unseen FOV $F_{k+1}$.
 
-> **Does the estimator correctly predict whether continuing acquisition is useful right now?**
+For a predeclared held-out loss $L$ against the fixed evaluation reservoir $R$, one useful outcome is:
 
-This outcome is complementary to the fixed evaluation reservoir.
+$$
+\Delta L_{k+1}
+=
+L(P_{1:k},R)
+-
+L(P_{1:k+1},R).
+$$
+
+Positive $\Delta L_{k+1}$ means that adding the next FOV improved representation of the fixed reservoir; negative values are possible.
+
+Other predeclared next-FOV utilities may include:
+
+- discovery or recurrence of an independently labelled rare state;
+- reduction in error of a scalar or multivariate population functional;
+- reduction in downstream biological-fidelity error.
+
+This is a **retrospective outcome**, not a prospective estimator. It may mechanically become small late in acquisition, so it is interpreted together with matched-effort curves and the fixed-reservoir outcomes rather than used alone as proof of completeness.
 
 ### 4.4 Compare methods at matched effort
 
-Do not judge a method by correlation between its internal evidence and an outcome that also changes automatically with \(k\).
+Do not judge a method by correlation between its internal evidence and an outcome that also changes automatically with $k$.
 
 Instead compare:
 
@@ -230,7 +245,7 @@ Terms such as "premature stopping" and "excess FOVs" require a declared adequacy
 
 Possible benchmark formulations include:
 
-- absolute tolerance on held-out distribution error;
+- absolute tolerance on held-out distribution error, set above the estimated finite-reservoir error floor;
 - relative tolerance compared with a deep reference;
 - tolerance on rare-state detection probability;
 - tolerance on downstream effect-size error;
@@ -260,9 +275,9 @@ Proposed baseline.
 
 When physical FOV area is available, stop after
 
-\[
+$
 A_k = \sum_{j=1}^{k} A_j.
-\]
+$
 
 This is more comparable than raw FOV count when field size differs.
 
@@ -270,16 +285,16 @@ This is more comparable than raw FOV count when field size differs.
 
 MorphoCoverage already implements the single-sample scalar-precision problem described by Zweifach:
 
-\[
+$
 SE(\bar{x}) \approx \frac{s}{\sqrt{n}}.
-\]
+$
 
 The package contains:
 
 - the published object-level criterion;
 - an explicitly labelled FOV-unit MorphoCoverage variant;
 - the multi-sample planning workflow;
-- \`PlannedCellCountStrategy\`.
+- `PlannedCellCountStrategy`.
 
 The FOV-unit implementation already reports a design effect. Future spatial work should extend or interpret this quantity rather than duplicate it as though it were absent.
 
@@ -291,15 +306,19 @@ Zweifach A. Determining how many cells to average for statistical testing of mic
 
 Current code names should remain the primary names until a deliberate API rename is approved:
 
-- \`DescriptorPlateauStrategy\`;
-- \`DescriptorSpreadStrategy\`.
+- `DescriptorPlateauStrategy`;
+- `DescriptorSpreadStrategy`.
 
 Documentation should describe what they compute:
 
-- \`DescriptorPlateauStrategy\`: **cumulative descriptor range** over a recent window;
-- \`DescriptorSpreadStrategy\`: **resampled descriptor spread**.
+- `DescriptorPlateauStrategy`: **cumulative descriptor range** over a recent window;
+- `DescriptorSpreadStrategy`: **resampled descriptor spread**.
 
 They are inspired by sample-size analyses in Marcotti and colleagues' bioimage-statistics work, but they are MorphoCoverage operationalizations rather than published stopping rules.
+
+Reference:
+
+Marcotti S, Gerontogianni L, Kelly G, Barry DJ. Practical statistics for bioimage analysis - a guide to experimental design and data interpretation. *Journal of Cell Science*. 2026;139(10):jcs264367. https://doi.org/10.1242/jcs.264367
 
 A separate API rename should not be bundled into this proposal.
 
@@ -309,15 +328,15 @@ A separate API rename should not be bundled into this proposal.
 
 Several attractive methods can be misused if their estimand is not stated carefully.
 
-Suppose FOVs are independent draws from one stationary phenotype population \(P\).
+Suppose FOVs are independent draws from one stationary phenotype population $P$.
 
 Then an early block and a recent block both satisfy approximately:
 
-\[
+$
 X_{\mathrm{early}} \sim P,
 \qquad
 X_{\mathrm{recent}} \sim P.
-\]
+$
 
 A two-sample method such as:
 
@@ -326,7 +345,7 @@ A two-sample method such as:
 - sliced Wasserstein;
 - classifier two-sample testing;
 
-should therefore approach its null behaviour even if a rare component of \(P\) has not yet been observed.
+should therefore approach its null behaviour even if a rare component of $P$ has not yet been observed.
 
 Thus:
 
@@ -341,7 +360,7 @@ They can serve as:
 - predictive-error components;
 - distributional loss functions in cross-FOV prediction.
 
-A rare state that has never appeared is invisible to any statistic computed only from already observed states.
+Observed data cannot identify the phenotype or location of a **specific** state that has never appeared. Frequency-based methods such as Good-Turing or Chao can nevertheless infer aggregate unseen mass or richness from observed rare-frequency patterns under their sampling assumptions.
 
 ---
 
@@ -349,11 +368,11 @@ A rare state that has never appeared is invisible to any statistic computed only
 
 Do not define coverage from
 
-\[
+$
 d(P_{1:k}, P_{1:k+1})
-\]
+$
 
-without correcting for the fact that one FOV contributes a fraction of order \(1/k\) to the cumulative sample.
+without correcting for the fact that one FOV contributes a fraction of order $1/k$ to the cumulative sample.
 
 That quantity tends to shrink even when FOV heterogeneity remains substantial.
 
@@ -370,21 +389,21 @@ Examples of better targets include:
 
 ---
 
-# 8. Proposed implementation phases
+## 8. Proposed implementation phases
 
-## Phase 0 — benchmark and data infrastructure
+### Phase 0 — benchmark and data infrastructure
 
 Implement before expanding the estimator zoo.
 
-### 0.1 Deep benchmark datasets
+#### 0.1 Deep benchmark datasets
 
 Find and register multiple deeply sampled real microscopy datasets.
 
-### 0.2 Fixed evaluation reservoirs
+#### 0.2 Fixed evaluation reservoirs
 
 Support benchmark partitions in which one subset drives prospective replay and another remains untouched for scoring.
 
-### 0.3 Multivariate outcome metrics
+#### 0.3 Multivariate outcome metrics
 
 Add strategy-independent outcomes that can evaluate:
 
@@ -396,7 +415,7 @@ Add strategy-independent outcomes that can evaluate:
 
 These are outcomes first, not assumed stopping rules.
 
-### 0.4 Biological-fidelity outcomes
+#### 0.4 Biological-fidelity outcomes
 
 Design a benchmark extension that can evaluate several stopped groups jointly.
 
@@ -410,11 +429,11 @@ Examples:
 
 These outcomes are retrospective and must never leak into the prospective estimator.
 
-### 0.5 Fixed imaged area baseline
+#### 0.5 Fixed imaged area baseline
 
 Add when physical area is available.
 
-### 0.6 Benchmark protocol lock
+#### 0.6 Benchmark protocol lock
 
 Before tuning many estimators, predefine:
 
@@ -427,93 +446,116 @@ Before tuning many estimators, predefine:
 
 ---
 
-## Phase 1 — simple population-estimation uncertainty
+### Phase 1 — simple population-estimation uncertainty
 
 The first new estimators should answer:
 
 > **How uncertain is our current estimate of simple multivariate population properties when FOV is treated as the sampling unit?**
 
-### 1.1 FOV-bootstrap centroid uncertainty
+#### 1.1 FOV-bootstrap centroid uncertainty
 
 Resample whole FOVs and estimate uncertainty of the population centroid.
 
-For centroid \(\hat{\mu}\), report for example a bootstrap radius or normed uncertainty.
+For centroid $\hat{\mu}$, report a scale-normalized uncertainty quantity after an explicit feature transform. A Euclidean "radius" in raw feature units is not representation-independent: standardization or another declared transform is part of the estimator provenance.
 
-This is preferable to comparing \(k\) versus \(k+1\) cumulative centroids.
+This extends the scalar FOV-unit JCB baseline from uncertainty of **one mean** to joint uncertainty of a multidimensional phenotype summary. It is useful only if that multivariate information improves held-out or biological-fidelity outcomes beyond the scalar baseline.
 
-### 1.2 FOV-bootstrap covariance uncertainty
+#### 1.2 FOV-bootstrap covariance uncertainty
 
 Estimate uncertainty in
 
-\[
+$$
 \hat{\Sigma}.
-\]
+$$
 
-A possible loss is Frobenius distance between bootstrap covariance estimates.
+A possible loss is Frobenius distance between bootstrap covariance estimates after an explicit feature transform.
 
-### 1.3 FOV-bootstrap quantile uncertainty
+#### 1.3 FOV-bootstrap quantile uncertainty
 
-For each feature, track uncertainty in robust quantiles such as:
+Bootstrap uncertainty in feature quantiles can be useful for tails, but extreme quantiles are poorly supported when only a small number of FOVs or observations are visible. Quantile-based stopping should therefore require an explicit minimum information requirement and should be benchmarked for coverage/calibration before use.
 
-\[
+Candidate quantiles might include:
+
+$$
 Q_{0.05},\;
 Q_{0.25},\;
 Q_{0.50},\;
 Q_{0.75},\;
-Q_{0.95}.
-\]
+Q_{0.95},
+$$
 
-This is important because tails may remain poorly estimated after the mean is precise.
+but $Q_{0.05}$ and $Q_{0.95}$ should not be assumed reliable at small $k$.
 
-### 1.4 Descriptor saturation model
+#### 1.4 Limits of the ordinary FOV bootstrap
 
-For an uncertainty quantity \(D(n)\), test a saturation model such as:
+The ordinary nonparametric FOV bootstrap only resamples states that have already been observed. Therefore:
 
-\[
-D(n) = a e^{-bn} + c.
-\]
+- an entirely unseen rare component contributes **zero** bootstrap variance;
+- with few FOVs the bootstrap distribution is discrete and ordinary variance estimates can be downward biased;
+- tail quantities are especially unstable;
+- spatial correlation invalidates independent-FOV resampling unless blocks or another spatial correction are used.
 
-Possible evidence includes:
+For population coverage, bootstrap uncertainty must therefore be evaluated together with rare-state/support methods rather than interpreted as proof that no unseen phenotype remains.
 
-- estimated asymptote \(c\);
-- distance \(D(n)-c\);
-- marginal reduction after another FOV.
+Small-$k$ behaviour should be tested against analytic, jackknife or other bias-aware uncertainty estimates where available.
 
-This is not pMoSS: the dependent variable is estimation uncertainty, not a p-value.
+#### 1.5 Power-law uncertainty model
 
-### 1.5 PCA eigenspectrum uncertainty
+For an approximately regular estimator whose standard error follows the usual sampling law, the first model to test is:
+
+$$
+D(n) = a n^{-1/2}.
+$$
+
+The expected marginal improvement from one additional independent FOV is:
+
+$$
+D(n)-D(n+1)
+\approx
+\frac{D(n)}{2n}.
+$$
+
+A more general power law $a n^{-\alpha}$ may be considered when development data justify estimating $\alpha$. Add a non-zero floor $c$ only when there is a specified source of irreducible or technical error:
+
+$$
+D(n)=a n^{-\alpha}+c.
+$$
+
+Do not use an exponential plateau model by default for sampling uncertainty. Exponential fits may still be descriptive for quantities whose theory actually supports that form; that is a separate model choice, not a generic definition of saturation.
+
+#### 1.6 PCA eigenspectrum uncertainty
 
 Fit PCA only on visible data and use FOV-aware resampling to measure uncertainty in the explained-variance spectrum.
 
-### 1.6 PCA subspace uncertainty
+#### 1.7 PCA subspace uncertainty
 
-For orthonormal PCA bases \(U\) and \(V\), singular values of
+For orthonormal PCA bases $U$ and $V$, singular values of
 
-\[
+$
 U^\top V
-\]
+$
 
 are the cosines of the principal angles:
 
-\[
+$
 \theta_i = \arccos(\sigma_i).
-\]
+$
 
 Use FOV-aware resampling/cross-validation to ask how uncertain the inferred phenotype subspace remains.
 
 ---
 
-## Phase 2 — simple multivariate population geometry
+### Phase 2 — simple multivariate population geometry
 
 These methods provide inexpensive loss functions and may become estimators only if predictive validation supports that use.
 
-### 2.1 Gaussian / Fréchet geometry
+#### 2.1 Gaussian / Fréchet geometry
 
 Approximate phenotype distributions using mean and covariance.
 
-For \((\mu_1,\Sigma_1)\) and \((\mu_2,\Sigma_2)\),
+For $(\mu_1,\Sigma_1)$ and $(\mu_2,\Sigma_2)$,
 
-\[
+$
 d_F^2 =
 \|\mu_1-\mu_2\|^2
 +
@@ -526,29 +568,42 @@ d_F^2 =
 \Sigma_1^{1/2}\Sigma_2\Sigma_1^{1/2}
 \right)^{1/2}
 \right].
-\]
+$
 
 This deliberately ignores higher-order multimodal structure.
 
 That makes it a useful cheap comparator.
 
-### 2.2 Cross-FOV predictive Fréchet risk
+#### 2.2 Cross-FOV Fréchet learning curve
 
-Rather than early-versus-recent comparison, estimate how well a representation fitted on some visible FOVs predicts held-out visible FOVs under cross-FOV validation.
+Raw held-out FOV loss does not converge to zero because it contains irreducible between-FOV heterogeneity. Therefore do not threshold the raw Fréchet loss as a completeness criterion.
 
-The prospective evidence is the estimated predictive risk and its uncertainty.
+Instead estimate a **learning curve**: fit the population representation with several numbers of visible FOVs while evaluating against the same held-out FOV block. Candidate evidence is the improvement or excess risk attributable to limited training FOVs, for example:
+
+$$
+E_m
+=
+R(m)-R(k-1),
+\qquad m < k-1,
+$$
+
+where $R(m)$ is held-out loss when the representation is fitted from $m$ visible FOVs using a predeclared subsampling scheme.
+
+The comparison should use the same held-out block and, where distribution losses are sensitive to empirical sample size, the same observation budget per held-out FOV or an estimator with an appropriate finite-sample correction. This prevents "more cells in this FOV" from masquerading as better population prediction.
+
+The stopping signal is reduction in **excess risk / learning-curve slope**, not the absolute held-out FOV loss.
 
 ---
 
-## Phase 3 — nonparametric distributional losses
+### Phase 3 — nonparametric distributional losses
 
 Initially treat these as held-out losses and predictive-risk building blocks.
 
-### 3.1 Maximum Mean Discrepancy
+#### 3.1 Maximum Mean Discrepancy
 
-For distributions \(P\) and \(Q\),
+For distributions $P$ and $Q$,
 
-\[
+$
 \operatorname{MMD}^2(P,Q)
 =
 E[k(X,X')]
@@ -556,7 +611,7 @@ E[k(X,X')]
 E[k(Y,Y')]
 -
 2E[k(X,Y)].
-\]
+$
 
 Initial variants:
 
@@ -569,9 +624,9 @@ Reference:
 
 Gretton A, Borgwardt KM, Rasch MJ, Schölkopf B, Smola AJ. A Kernel Two-Sample Test. *Journal of Machine Learning Research*. 2012;13:723-773.
 
-### 3.2 Energy distance
+#### 3.2 Energy distance
 
-\[
+$
 \mathcal{E}(P,Q)
 =
 2E\|X-Y\|
@@ -579,11 +634,11 @@ Gretton A, Borgwardt KM, Rasch MJ, Schölkopf B, Smola AJ. A Kernel Two-Sample T
 E\|X-X'\|
 -
 E\|Y-Y'\|.
-\]
+$
 
 This provides a non-kernel comparator with no bandwidth parameter.
 
-### 3.3 Sliced Wasserstein
+#### 3.3 Sliced Wasserstein
 
 Project high-dimensional observations onto many one-dimensional directions, compute one-dimensional Wasserstein distances, and average across projections.
 
@@ -593,15 +648,15 @@ Explicit parameters include:
 - random seed;
 - preprocessing transform.
 
-### 3.4 Classifier two-sample testing
+#### 3.4 Classifier two-sample testing
 
 Use FOV-grouped cross-validation to test whether two data sources are distinguishable.
 
 For AUC-based evidence, a one-sided excess-over-chance quantity is preferable to absolute deviation:
 
-\[
+$
 \max(\operatorname{AUC}-0.5, 0).
-\]
+$
 
 This method requires a classifier dependency. It should not be added until dependency cost is justified.
 
@@ -609,7 +664,7 @@ Reference:
 
 López-Paz D, Oquab M. Revisiting Classifier Two-Sample Tests. ICLR 2017.
 
-### 3.5 Role of these methods
+#### 3.5 Role of these methods
 
 Do not initially implement MMD, energy, sliced Wasserstein, or C2ST as "low recent-block difference = stop" rules.
 
@@ -623,21 +678,21 @@ Promote any of them to a stopping estimator only if real-data benchmarking suppo
 
 ---
 
-## Phase 4 — support and novelty estimators
+### Phase 4 — support and novelty estimators
 
 These ask a different question:
 
 > **Are poorly represented regions of phenotype space still being encountered?**
 
-### 4.1 kNN novelty
+#### 4.1 kNN novelty
 
-For observation \(x\),
+For observation $x$,
 
-\[
+$
 N_k(x) = d_k(x,S),
-\]
+$
 
-where \(S\) is the visible reference phenotype set.
+where $S$ is the visible reference phenotype set.
 
 Useful FOV summaries include:
 
@@ -646,29 +701,29 @@ Useful FOV summaries include:
 - 99th percentile novelty;
 - fraction exceeding a declared threshold.
 
-### 4.2 Epsilon support coverage
+#### 4.2 Epsilon support coverage
 
-For a declared phenotype resolution \(\epsilon\),
+For a declared phenotype resolution $\epsilon$,
 
-\[
+$
 C_\epsilon = P[d(x,S)\leq \epsilon].
-\]
+$
 
 The complementary quantity
 
-\[
+$
 1-C_\epsilon
-\]
+$
 
 is novelty at that resolution.
 
 Prospective coverage must be estimated by FOV-level resampling or cross-FOV prediction, not future-data inspection.
 
-### 4.3 Adaptive kNN support
+#### 4.3 Adaptive kNN support
 
-Use local kNN radii rather than one global \(\epsilon\) to adapt to phenotype-density variation.
+Use local kNN radii rather than one global $\epsilon$ to adapt to phenotype-density variation.
 
-### 4.4 PRDC-style support metrics
+#### 4.4 PRDC-style support metrics
 
 Adapt neighbourhood-based precision/density/recall/coverage ideas to phenotype space.
 
@@ -680,13 +735,17 @@ These are sensitive to:
 
 They should be tested only after simpler kNN methods.
 
+Reference:
+
+Naeem MF, Oh SJ, Uh Y, Choi Y, Yoo J. Reliable Fidelity and Diversity Metrics for Generative Models. *Proceedings of Machine Learning Research*. 2020;119:7176-7185.
+
 ---
 
-## Phase 5 — ecological sample coverage with fixed phenotype categories
+### Phase 5 — ecological sample coverage with fixed phenotype categories
 
 Ecology provides a powerful analogy:
 
-\`\`\`text
+```text
 ecology                     microscopy
 ------------------------------------------------
 individual                   phenotype observation
@@ -694,13 +753,13 @@ species                      fixed phenotype state
 sampling unit/quadrat        FOV
 community                    phenotype population
 traits                       continuous phenotype features
-\`\`\`
+```
 
 However, classical unseen-species methods require **stable category identities**.
 
-### 5.1 Critical category rule
+#### 5.1 Critical category rule
 
-Do **not** refit k-means, GMM, HDBSCAN, or another clustering model at every acquisition prefix and then feed those labels into Good-Turing/Chao/ICE/Good-Toulmin.
+Do **not** refit k-means, GMM, HDBSCAN, or another clustering model at every acquisition prefix and then feed those changing labels into Good-Turing/Chao/ICE/Good-Toulmin.
 
 That breaks the interpretation of:
 
@@ -709,34 +768,38 @@ That breaks the interpretation of:
 - incidence frequencies;
 - accumulation curves.
 
-Fixed-\(K\) clustering also cannot represent truly new categories after fitting.
+A frozen closed partition has the opposite failure mode: truly novel phenotypes are forced into existing categories and therefore can never become a new state.
 
-Valid category sources may include:
+Initial ecological benchmarks should therefore prioritize:
 
-- external biological labels;
-- a phenotype partition learned on separate development data and then frozen;
-- a fixed-resolution discretization declared before evaluating the acquisition;
-- another representation whose category identities are stable and whose resolution is explicit.
+- external biological labels whose identities are fixed independently of the evaluated acquisition; or
+- an explicitly **open-set, fixed-resolution** phenotype partition defined on development data that can return "unassigned/novel" rather than forcing every observation into an existing state.
 
-The category-generation process must be independent of future FOVs in held-out evaluation.
+Any open-set rule must declare its distance metric and resolution before held-out evaluation.
 
-### 5.2 Morphotype accumulation
+High-dimensional fixed grids are not a generic solution: at overly fine resolution almost every observation becomes a singleton and estimated coverage collapses toward zero; at coarse resolution distinct phenotypes are merged. **Resolution sensitivity is part of the scientific result and must be benchmarked explicitly.**
+
+Classical ecology estimators then measure coverage of the declared state system under their exchangeability assumptions; they do not provide representation-independent coverage of all possible phenotype space.
+
+#### 5.2 Morphotype accumulation
+
+#### 5.2 Morphotype accumulation
 
 For fixed categories,
 
-\[
+$
 S(k)=\text{number of states observed after }k\text{ FOVs}.
-\]
+$
 
 Useful diagnostics include observed richness and new-state discovery rate.
 
-### 5.3 Good-Turing abundance coverage
+#### 5.3 Good-Turing abundance coverage
 
 Use object abundance frequencies to estimate unseen probability mass.
 
 This is sensitive to within-FOV duplication and therefore may overstate evidence when one local state produces many cells.
 
-### 5.4 Good-Turing incidence coverage
+#### 5.4 Good-Turing incidence coverage
 
 Use the number of FOVs containing each fixed phenotype state.
 
@@ -744,33 +807,33 @@ This maps naturally to FOV sampling because repeated cells within one FOV do not
 
 A state found in one FOV is qualitatively different from a state recurring across many FOVs.
 
-### 5.5 Chao1
+#### 5.5 Chao1
 
 Estimate unseen richness from abundance frequencies, especially singletons and doubletons.
 
 A familiar simplified form is:
 
-\[
+$
 \hat{S}
 =
 S_{\mathrm{obs}}
 +
 \frac{f_1^2}{2f_2},
-\]
+$
 
 with bias-corrected variants required for edge cases.
 
-### 5.6 Chao2
+#### 5.6 Chao2
 
 Use rare **sampling-unit incidences** rather than object abundances.
 
 For MorphoCoverage, the sampling unit is the FOV.
 
-### 5.7 ICE
+#### 5.7 ICE
 
 Incidence-based coverage estimation uses the rare incidence-frequency spectrum more broadly than Chao2.
 
-### 5.8 Good-Toulmin / smoothed Good-Toulmin
+#### 5.8 Good-Toulmin / smoothed Good-Toulmin
 
 Predict how many new categories are expected after additional sampling from the observed frequency spectrum.
 
@@ -780,31 +843,31 @@ This is conceptually close to the question:
 
 Smoothed variants are required for stable extrapolation beyond small sampling increments.
 
-### 5.9 Hill diversity
+#### 5.9 Hill diversity
 
-For category probabilities \(p_i\),
+For category probabilities $p_i$,
 
-\[
+$
 {}^qD
 =
 \left(\sum_i p_i^q\right)^{1/(1-q)}.
-\]
+$
 
 Important cases:
 
-- \(q=0\): richness;
-- \(q\to1\): exponential Shannon diversity;
-- \(q=2\): inverse Simpson diversity.
+- $q=0$: richness;
+- $q\to1$: exponential Shannon diversity;
+- $q=2$: inverse Simpson diversity.
 
-A profile across \(q\) shows whether adequacy is driven by rare or common states.
+A profile across $q$ shows whether adequacy is driven by rare or common states.
 
-### 5.10 Functional Hill diversity
+#### 5.10 Functional Hill diversity
 
 Functional diversity incorporates distances among states in a continuous trait/phenotype space.
 
 This may bridge categorical ecology and continuous morphology.
 
-### 5.11 Independence caveat
+#### 5.11 Independence caveat
 
 Incidence estimators treat FOVs as sampling units, but spatially correlated FOVs are not equivalent to independent quadrats.
 
@@ -819,6 +882,10 @@ The FOV unit is operational, not automatically independent.
 
 References:
 
+Chao A. Estimating the population size for capture-recapture data with unequal catchability. *Biometrics*. 1987;43(4):783-791.
+
+Lee SM, Chao A. Estimating population size via sample coverage for closed capture-recapture models. *Biometrics*. 1994;50(1):88-97. https://doi.org/10.2307/2533199
+
 Chao A, Jost L. Coverage-based rarefaction and extrapolation: standardizing samples by completeness rather than size. *Ecology*. 2012;93:2533-2547. https://doi.org/10.1890/11-1952.1
 
 Chao A, Chiu C-H, Jost L. Unifying Species Diversity, Phylogenetic Diversity, Functional Diversity, and Related Similarity and Differentiation Measures Through Hill Numbers. *Annual Review of Ecology, Evolution, and Systematics*. 2014;45:297-324. https://doi.org/10.1146/annurev-ecolsys-120213-091540
@@ -829,7 +896,7 @@ Orlitsky A, Suresh AT, Wu Y. Optimal prediction of the number of unseen species.
 
 ---
 
-## Phase 6 — explicitly FOV-predictive estimators
+### Phase 6 — explicitly FOV-predictive estimators
 
 This family is especially important because it models uncertainty at the actual acquisition unit.
 
@@ -839,32 +906,38 @@ Instead ask:
 
 > **How uncertain is the inferred population description because only these FOVs have been observed?**
 
-### 6.1 Leave-one-FOV-out predictive risk
+#### 6.1 Cross-FOV learning-curve excess risk
 
-For each visible FOV:
+Leave-one-FOV-out loss by itself is not a stopping quantity. Even with a perfectly estimated population, a future FOV remains different from the population model because of irreducible FOV-to-FOV heterogeneity.
 
-1. hold that FOV out;
-2. fit the population representation on the other visible FOVs;
-3. predict or reconstruct the held-out FOV;
-4. measure held-out loss.
+Use cross-FOV prediction to estimate a **learning curve** instead.
 
-Candidate losses include:
+For several training sizes $m < k$, repeatedly:
 
-- Fréchet;
-- MMD;
-- energy distance;
-- support novelty;
-- fixed-category composition error.
+1. select $m$ of the currently visible FOVs using a predeclared scheme;
+2. fit the population representation only on those FOVs;
+3. evaluate on the same held-out visible FOV block;
+4. repeat across admissible FOV splits.
 
-The estimator reports the distribution of cross-FOV predictive error and its uncertainty.
+Candidate evidence is:
 
-### 6.2 FOV bootstrap population uncertainty
+- excess risk between smaller and larger training sets;
+- the slope of risk versus number of training FOVs;
+- uncertainty in that slope.
 
-Bootstrap FOVs and estimate uncertainty in a chosen population representation.
+Do not threshold absolute predictive risk.
 
-This differs from raw next-FOV distance because uncertainty in the **estimated population** should decrease with informative additional sampling even when irreducible FOV-to-FOV variation remains.
+When the loss compares empirical phenotype distributions, control for the held-out FOV's number of observations by using a fixed observation budget, repeated subsampling, or a finite-sample-corrected estimator. The `unequal_objects_per_fov` scenario must explicitly test this failure mode.
 
-### 6.3 FOV distribution representations
+#### 6.2 Population-estimate uncertainty
+
+The FOV bootstrap introduced in Phase 1 is one way to estimate uncertainty in a population representation; it should not be implemented a second time here.
+
+Phase 6 instead asks whether richer whole-FOV representations improve **excess predictive risk or its learning curve** beyond the simple centroid/covariance/quantile bootstrap baselines.
+
+The ordinary bootstrap limitations still apply: unseen states are absent, small-$k$ uncertainty can be underestimated, and spatial dependence requires block-aware resampling.
+
+#### 6.3 FOV distribution representations
 
 Candidate whole-FOV representations include:
 
@@ -874,28 +947,28 @@ Candidate whole-FOV representations include:
 - fixed-category composition;
 - kernel mean embedding.
 
-### 6.4 Kernel mean embedding per FOV
+#### 6.4 Kernel mean embedding per FOV
 
-For FOV distribution \(P_j\),
+For FOV distribution $P_j$,
 
-\[
+$
 \mu_{P_j}
 =
 E_{x\sim P_j}[\phi(x)].
-\]
+$
 
 Empirically,
 
-\[
+$
 \hat{\mu}_{P_j}
 =
 \frac{1}{n_j}
 \sum_i \phi(x_{ij}).
-\]
+$
 
 This turns each FOV into a distribution-valued observation.
 
-### 6.5 FOV-type accumulation
+#### 6.5 FOV-type accumulation
 
 If whole-FOV states can be defined using a stable, externally fixed representation, ask whether new FOV community types continue to appear.
 
@@ -903,34 +976,40 @@ As with cell-level ecology, the state definition must not be refitted in a way t
 
 ---
 
-## Phase 7 — explicit rare-phenotype objectives
+### Phase 7 — explicit rare-phenotype objectives
 
 Population representation and rare-state discovery are not interchangeable.
 
-### 7.1 Exact FOV-incidence detection calculation
+#### 7.1 Exact FOV-incidence planning baseline
 
-If a target phenotype has known per-FOV incidence \(p\), and we require at least \(r\) positive FOVs after \(n\) independent representative FOVs,
+If a target phenotype has known per-FOV incidence $p$, and we require at least $r$ positive FOVs after $n$ independent representative FOVs,
 
-\[
+$$
 P(X\ge r)
 =
 1-
 \sum_{i=0}^{r-1}
 {n\choose i}
 p^i(1-p)^{n-i}.
-\]
+$$
 
-For \(r=1\),
+For first detection ($r=1$) and desired detection probability $\beta$, the required number of independent FOVs is fixed in advance:
 
-\[
-P(\mathrm{detect})=1-(1-p)^n.
-\]
+$$
+n
+=
+\left\lceil
+\frac{\log(1-\beta)}{\log(1-p)}
+\right\rceil.
+$$
 
-This is the cleanest baseline when **FOV incidence is directly supplied**.
+This is therefore a **planning calculation / fixed-FOV comparator**, not an adaptive coverage estimator, when $p$ is supplied.
 
-### 7.2 Object prevalence is not FOV incidence
+The independence assumption is substantive. If rare states cluster across neighbouring FOVs, the binomial calculation is anti-conservative and overstates detection probability. Spatial clustering should be tested explicitly, and a beta-binomial, occupancy, or spatial model is required when exchangeability/independence is not defensible.
 
-\`RareTarget\` may define object prevalence without FOV incidence.
+#### 7.2 Object prevalence is not FOV incidence
+
+`RareTarget` may define object prevalence without FOV incidence.
 
 Do not silently convert object prevalence to per-FOV incidence.
 
@@ -943,17 +1022,17 @@ Such a conversion requires assumptions about:
 
 If prevalence-to-incidence conversion is implemented later, its assumptions must be explicit and benchmarked.
 
-### 7.3 Beta-binomial incidence uncertainty
+#### 7.3 Beta-binomial incidence uncertainty
 
 When per-FOV incidence is estimated rather than known, use a beta-binomial predictive formulation or another explicit uncertainty model.
 
-### 7.4 Rare-state recurrence
+#### 7.4 Rare-state recurrence
 
 Track recurrence across FOVs rather than only object count.
 
 Many rare cells in one FOV do not provide the same evidence as recurrence across many independently sampled positions.
 
-### 7.5 Occupancy/detection models
+#### 7.5 Occupancy/detection models
 
 Later, if the data contain identifiable repeated detection opportunities, consider occupancy models that separate true presence from imperfect detection.
 
@@ -965,34 +1044,34 @@ MacKenzie DI, Nichols JD, Lachman GB, Droege S, Royle JA, Langtimm CA. Estimatin
 
 ---
 
-## Phase 8 — spatial diagnostics and correction
+### Phase 8 — spatial diagnostics and correction
 
 FOV-aware is not synonymous with independent.
 
-### 8.1 Existing design effect
+#### 8.1 Existing design effect
 
 The current FOV-unit scalar-precision implementation already reports a design effect relative to random-cell sampling.
 
 This should remain part of the regime diagnostics.
 
-### 8.2 Semivariogram
+#### 8.2 Semivariogram
 
-For an FOV-level representation \(Z(s)\),
+For an FOV-level representation $Z(s)$,
 
-\[
+$
 \gamma(h)
 =
 \frac{1}{2}
 E[(Z(s)-Z(s+h))^2].
-\]
+$
 
 Estimate spatial correlation length where stage coordinates are available.
 
-### 8.3 Spatial ICC / effective sample size
+#### 8.3 Spatial ICC / effective sample size
 
 Extend existing design-effect thinking beyond one scalar feature where scientifically justified.
 
-### 8.4 Spatial block bootstrap
+#### 8.4 Spatial block bootstrap
 
 When neighbouring FOVs are correlated, resampling individual FOVs can underestimate uncertainty.
 
@@ -1000,27 +1079,27 @@ Use spatial blocks when coordinates and sample geometry support a defensible blo
 
 ---
 
-## Phase 9 — multi-group planning comparators
+### Phase 9 — multi-group planning comparators
 
 These methods are **not core one-group coverage estimators**, but they are important comparators because biological experiments often aim to detect condition differences.
 
-### 9.1 Existing JCB multi-sample planning
+#### 9.1 Existing JCB multi-sample planning
 
 Already implemented through:
 
-- \`plan_cells_to_average\`;
-- \`CellCountPlan\`;
-- \`PlannedCellCountStrategy\`.
+- `plan_cells_to_average`;
+- `CellCountPlan`;
+- `PlannedCellCountStrategy`.
 
 This is the model for separating multi-group planning from one-group prospective estimators.
 
-### 9.2 pMoSS
+#### 9.2 pMoSS
 
-pMoSS repeatedly subsamples comparison groups at different sample sizes, evaluates a hypothesis-test p-value, and models its dependence on \(n\), including an exponential model of the form
+pMoSS repeatedly subsamples comparison groups at different sample sizes, evaluates a hypothesis-test p-value, and models its dependence on $n$, including an exponential model of the form
 
-\[
+$
 p(n)=a e^{-cn}.
-\]
+$
 
 Its question is approximately:
 
@@ -1028,7 +1107,7 @@ Its question is approximately:
 
 That is not phenotype coverage, but it is a legitimate comparator when the experimental objective is a condition difference.
 
-If implemented, pMoSS should be an explicit multi-group planning workflow rather than a normal group-local \`Estimator\`.
+If implemented, pMoSS should be an explicit multi-group planning workflow rather than a normal group-local `Estimator`.
 
 Reference:
 
@@ -1036,45 +1115,55 @@ Gómez-de-Mariscal E, et al. Use of the p-values as a size-dependent function to
 
 ---
 
-## Phase 10 — downstream biological-fidelity outcomes
+### Phase 10 — downstream biological-fidelity outcomes
 
 These are benchmark outcomes, not necessarily sampling estimators.
 
 They matter because an estimator that reconstructs the marginal phenotype distribution well may still stop before the biology needed to distinguish conditions is represented.
 
-### 10.1 Effect-size fidelity
+#### 10.1 Effect-size fidelity at the biological-repeat level
 
-If the full/held-out benchmark supports a treatment effect \(\Delta_{\mathrm{ref}}\), compare the stopped acquisition estimate \(\Delta_k\).
+The unit of biological inference must remain the biological sample/repeat, not the FOV or well merely because more FOVs were acquired.
 
-Possible outcome:
+For each biological repeat, prospective stopping determines the within-sample phenotype summary. Condition effects are then computed across the appropriate biological repeats exactly as the downstream analysis would do; oversampling one well must never create additional inferential replicates.
 
-\[
+If the held-out/deep benchmark defines a reference effect $\Delta_{\mathrm{ref}}$ and stopped acquisition gives $\Delta_k$, report at least:
+
+$$
+\operatorname{bias}_k
+=
+\Delta_k-\Delta_{\mathrm{ref}},
+$$
+
+and
+
+$$
+\operatorname{absolute\ error}_k
+=
 |\Delta_k-\Delta_{\mathrm{ref}}|.
-\]
+$$
 
-The benchmark should preserve:
+Signed bias must be summarized across acquisition orders/replays because a data-dependent stopping rule can systematically bias an effect even when mean absolute error looks acceptable.
 
-- magnitude;
-- direction;
-- uncertainty where appropriate.
+Also report uncertainty and effect direction where appropriate, and compare within-repeat sampling error with between-repeat variability rather than rewarding ever-deeper imaging of a single repeat.
 
-### 10.2 Phenotype-frequency differences
+#### 10.2 Phenotype-frequency differences
 
 For predefined states, compare between-condition differences in state frequency at the stop against the reference benchmark.
 
 This is particularly important when biologically informative states are rare.
 
-### 10.3 Feature-ranking stability
+#### 10.3 Feature-ranking stability
 
 Where the scientific workflow ranks features or perturbations, measure rank fidelity against the reference.
 
-### 10.4 Classification/retrieval fidelity
+#### 10.4 Classification/retrieval fidelity
 
 For profiling workflows, measure whether stopping changes a predefined downstream classification or retrieval task.
 
 These outcomes may require optional dependencies and should only be implemented when they correspond to real use cases.
 
-### 10.5 Statistical significance should not be the sole outcome
+#### 10.5 Statistical significance should not be the sole outcome
 
 A p-value threshold is highly sample-size dependent and should not be the only definition of preserved biological insight.
 
@@ -1082,25 +1171,25 @@ Prefer effect magnitude, ranking, prediction and uncertainty alongside any test-
 
 ---
 
-## Phase 11 — continual-monitoring decision methods
+### Phase 11 — continual-monitoring decision methods
 
 These methods belong to the decision layer once useful estimator quantities have been identified.
 
-### 11.1 Segmented/plateau regression
+#### 11.1 Segmented/plateau regression
 
 Fit explicit saturation models to an evidence trajectory when appropriate.
 
-### 11.2 Confidence sequences
+#### 11.2 Confidence sequences
 
 Repeated checking of fixed-sample confidence intervals can invalidate nominal coverage.
 
 Confidence sequences may support continual monitoring once the scientific estimand is settled.
 
-### 11.3 Anytime-valid / e-value policies
+#### 11.3 Anytime-valid / e-value policies
 
 Investigate optional-stopping-safe evidence only after the target estimator is validated.
 
-### 11.4 Drift diagnostics
+#### 11.4 Drift diagnostics
 
 CUSUM, EWMA, ADWIN or Bayesian change-point methods may detect:
 
@@ -1124,8 +1213,8 @@ Examples:
 
 - centroid/covariance/quantiles: current stack;
 - Fréchet: current stack;
-- MMD: current stack;
-- energy distance: current stack;
+- MMD: current stack for exact calculation, but exact kernel MMD is typically $O(n^2)$ in time/memory; live use may require subsampling, linear-time estimators or random-feature approximations;
+- energy distance: current stack, but the direct pairwise form is typically $O(n^2)$; live use may require subsampling or linear/near-linear approximations;
 - sliced Wasserstein: current stack;
 - kNN support: current stack with SciPy spatial tools;
 - classical Good-Turing/Chao/Hill: current stack;
@@ -1154,10 +1243,10 @@ Every estimator PR must state:
    Observation, FOV, incidence, imaged area, or spatial block?
 
 5. **Objective component**  
-   \`population\` or \`rare\`.
+   `population` or `rare`.
 
 6. **Observation-unit semantics**  
-   Which \`observation_unit\` values are valid?
+   Which `observation_unit` values are valid?
 
 7. **Representation assumptions**  
    Continuous features, fixed categories, scalar feature, labelled rare state, etc.
@@ -1172,7 +1261,7 @@ Every estimator PR must state:
     No hidden bandwidths, distances, neighbourhood sizes, state resolutions or thresholds.
 
 11. **Randomness**  
-    Explicit \`random_state\` or equivalent.
+    Explicit `random_state` or equivalent.
 
 12. **Prospective leakage protection**  
     How is future-FOV information excluded?
@@ -1193,7 +1282,7 @@ Every estimator PR must state:
     What held-out real-data result would show that the method is misleading?
 
 18. **Contracts**  
-    Add strategies to \`STRATEGIES_UNDER_CONTRACT\`; add outcome metrics to \`METRICS_UNDER_CONTRACT\`; add current-practice baselines to \`baseline_comparison\` where applicable.
+    Add strategies to `STRATEGIES_UNDER_CONTRACT`; add outcome metrics to `METRICS_UNDER_CONTRACT`; add current-practice baselines to `baseline_comparison` where applicable.
 
 ---
 
@@ -1210,7 +1299,7 @@ The order below is deliberately front-loaded with benchmark work.
 | 5 | Fixed-area baseline | Complete simple effort baselines |
 | 6 | FOV-bootstrap centroid/covariance/quantile uncertainty | First new population estimators |
 | 7 | PCA spectrum/subspace uncertainty | Test multivariate geometry stability |
-| 8 | Fréchet predictive risk | Cheap distributional predictive baseline |
+| 8 | Fréchet learning-curve excess risk | Cheap distributional predictive baseline |
 | 9 | MMD/energy/sliced-Wasserstein held-out losses | Flexible independent distributional outcomes |
 | — | **Interim benchmark** | Decide which continuous methods merit promotion to estimators |
 | 10 | kNN novelty | Local support novelty |
@@ -1224,17 +1313,16 @@ The order below is deliberately front-loaded with benchmark work.
 | 17 | Good-Toulmin / smoothed Good-Toulmin | Future-state discovery |
 | 18 | Hill / functional Hill diversity | Rare-to-common diversity spectrum |
 | — | **Ecology benchmark** | Compare categorical coverage with continuous methods |
-| 19 | Leave-one-FOV-out predictive risk | Direct whole-FOV prediction |
-| 20 | FOV bootstrap population uncertainty | Direct uncertainty in population estimate |
-| 21 | Kernel/FOV distribution representations | Only if simple FOV summaries are insufficient |
+| 19 | Cross-FOV learning-curve excess risk | Whole-FOV predictive convergence beyond irreducible heterogeneity |
+| 20 | Kernel/FOV distribution representations | Only if simple FOV summaries are insufficient |
 | — | **FOV-predictive benchmark** | Test whether FOV modelling materially improves stopping |
-| 22 | Exact FOV-incidence rare-state baseline | Direct \`RareTarget\` support |
-| 23 | Beta-binomial incidence + recurrence | Rare-state uncertainty |
-| 24 | Variogram/spatial diagnostics | Quantify spatial redundancy |
-| 25 | Spatial block bootstrap | Correct uncertainty when coordinates support it |
-| 26 | pMoSS planning comparator | Only if condition-comparison benchmarking justifies it |
-| 27 | Downstream biological-fidelity outcomes | Expand only for demonstrated real workflows |
-| 28+ | Sequential confidence methods / Bayesian nonparametrics / GP / topology | Research reserve |
+| 21 | Exact FOV-incidence planning baseline | Transparent rare-state planning comparator |
+| 22 | Beta-binomial incidence + recurrence | Rare-state uncertainty |
+| 23 | Variogram/spatial diagnostics | Quantify spatial redundancy |
+| 24 | Spatial block bootstrap | Correct uncertainty when coordinates support it |
+| 25 | pMoSS planning comparator | Only if condition-comparison benchmarking justifies it |
+| 26 | Downstream biological-fidelity outcomes | Expand only for demonstrated real workflows |
+| 27+ | Sequential confidence methods / Bayesian nonparametrics / GP / topology | Research reserve |
 
 The numbering is a scientific priority order, not a commitment to complete every item.
 
@@ -1266,7 +1354,7 @@ The final result should not be prewritten as "method X wins."
 
 A plausible **type** of result is:
 
-\`\`\`text
+```text
 some datasets
     -> cell-number or fixed-FOV guidance is sufficient
 
@@ -1285,7 +1373,7 @@ some datasets
 some downstream workflows
     -> the method with best global distribution fidelity is not the method
        that best preserves the biological effect
-\`\`\`
+```
 
 The benchmark must be capable of producing the opposite result for any proposed family.
 
