@@ -153,7 +153,10 @@ def validate_input_tables(
                     "metadata is present. When one spatial position is split across "
                     "plane/channel/time files, document the relevant within-FOV axis."
                 )
-            ambiguous_keys = set(multi_file_positions.index.tolist())
+            ambiguous_keys = {
+                key if isinstance(key, tuple) else (key,)
+                for key in multi_file_positions.index.tolist()
+            }
             key_values = list(objects.loc[:, list(fov_key)].itertuples(index=False, name=None))
             ambiguous_mask = np.fromiter(
                 (key_value in ambiguous_keys for key_value in key_values),
