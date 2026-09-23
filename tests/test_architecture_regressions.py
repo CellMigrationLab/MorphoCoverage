@@ -10,12 +10,16 @@ import pandas as pd
 import pytest
 
 from morphocoverage import (
+    Component,
+    DecisionPolicy,
+    Estimator,
+    Evidence,
     FixedFOVStrategy,
     FixedObjectStrategy,
     ObjectiveConfig,
+    Quantity,
     SamplingObjective,
     SamplingStrategy,
-    StrategyResult,
     evaluate_acquisition_prefixes,
     run_strategies,
     validate_input_tables,
@@ -222,17 +226,21 @@ def test_acquisition_order_cannot_be_a_feature():
 # --- Strategy isolation and leakage --------------------------------------------
 
 
-class _CallCounter(SamplingStrategy):
-    """Stateful strategy: its score is the number of calls this instance has seen."""
+def _strategy(estimator):
+    return SamplingStrategy([estimator])
+
+
+class _CallCounter(Estimator):
+    """Stateful estimator: it reports the number of calls this instance has seen."""
 
     name = "call_counter"
 
     def __init__(self) -> None:
         self.calls = 0
 
-    def evaluate(self, data, *, objective):
+    def estimate(self, data, *, objective):
         self.calls += 1
-        return StrategyResult(self.name, objective, score=float(self.calls))
+        return Evidence(diagnostics={"calls": self.calls})
 
 
 def test_strategy_state_does_not_flow_between_analysis_groups():
@@ -241,44 +249,39 @@ def test_strategy_state_does_not_flow_between_analysis_groups():
     objects = pd.DataFrame(
         {"condition": ["control", "drug"], "image_file": ["a.tif", "b.tif"], "area": [1.0, 99.0]}
     )
-    strategy = _CallCounter()
+    estimator = _CallCounter()
     results = run_strategies(
-        objects, strategies=[strategy], feature_cols=["area"], objective=POPULATION
+        objects, strategies=[_strategy(estimator)], feature_cols=["area"], objective=POPULATION
     )
-    assert [r.score for r in results] == [1.0, 1.0]
-    assert strategy.calls == 0
+    assert [r.diagnostics["calls"] for r in results] == [1, 1]
+    assert estimator.calls == 0
 
 
 def test_strategy_state_does_not_flow_between_prefixes():
     objects = pd.DataFrame({"fov_id": ["F1", "F2", "F3"], "area": [1.0, 2.0, 3.0]})
     fovs = pd.DataFrame({"fov_id": ["F1", "F2", "F3"], "order": [1, 2, 3]})
-    results = _run_prefixes(objects, fovs, _CallCounter())
-    assert [item.result.score for item in results] == [1.0, 1.0, 1.0]
+    results = _run_prefixes(objects, fovs, _strategy(_CallCounter()))
+    assert [item.result.diagnostics["calls"] for item in results] == [1, 1, 1]
 
 
-class _VisibleFovIds(SamplingStrategy):
+class _VisibleFovIds(Estimator):
     """Reports every FOV identifier and row label reachable from its input."""
 
     name = "visible_fov_ids"
 
-    def evaluate(self, data, *, objective):
+    def estimate(self, data, *, objective):
         visible = set(data.fovs[data.fov_col]) | set(data.objects[data.fov_col])
         for column in (data.fovs[data.fov_col], data.objects[data.fov_col]):
             if isinstance(column.dtype, pd.CategoricalDtype):
                 visible |= set(column.cat.categories)
-        return StrategyResult(
-            self.name,
-            objective,
-            score=None,
-            diagnostics={"ids": visible, "object_index": list(data.objects.index)},
-        )
+        return Evidence(diagnostics={"ids": visible, "object_index": list(data.objects.index)})
 
 
 def test_prefix_does_not_expose_future_fov_ids_via_categorical_levels():
     ids = pd.Categorical(["F1", "F2", "F3"])
     objects = pd.DataFrame({"fov_id": ids, "area": [1.0, 2.0, 3.0]})
     fovs = pd.DataFrame({"fov_id": ids, "order": [1, 2, 3]})
-    results = _run_prefixes(objects, fovs, _VisibleFovIds())
+    results = _run_prefixes(objects, fovs, _strategy(_VisibleFovIds()))
     assert results[0].result.diagnostics["ids"] == {"F1"}
 
 
@@ -291,7 +294,7 @@ def test_group_does_not_expose_other_groups_fov_ids_via_categorical_levels():
         }
     )
     results = run_strategies(
-        objects, strategies=[_VisibleFovIds()], feature_cols=["area"], objective=POPULATION
+        objects, strategies=[_strategy(_VisibleFovIds())], feature_cols=["area"], objective=POPULATION
     )
     assert [r.diagnostics["ids"] for r in results] == [{"C1"}, {"D1"}]
 
@@ -301,26 +304,32 @@ def test_prefix_row_labels_do_not_reveal_withheld_objects():
     # visible ones when the object table is not sorted by acquisition order.
     objects = pd.DataFrame({"fov_id": ["F1", "F3", "F3", "F2"], "area": [1.0, 2.0, 3.0, 4.0]})
     fovs = pd.DataFrame({"fov_id": ["F1", "F2", "F3"], "order": [1, 2, 3]})
-    results = _run_prefixes(objects, fovs, _VisibleFovIds())
+    results = _run_prefixes(objects, fovs, _strategy(_VisibleFovIds()))
     assert results[1].result.diagnostics["object_index"] == [0, 1]
 
 
 # --- Framework-owned result fields ---------------------------------------------
 
 
-class _CountingStrategy(SamplingStrategy):
-    """Optionally reports counts computed from objects only, as a naive strategy might."""
+class _NaiveCounter(Estimator):
+    """Counts FOVs from the object table, as a naive estimator might (drops empty FOVs)."""
 
-    name = "counting"
+    name = "naive_counter"
 
-    def __init__(self, report_counts: bool) -> None:
-        self.report_counts = report_counts
+    def __init__(self, as_quantity: bool) -> None:
+        self.as_quantity = as_quantity
 
-    def evaluate(self, data, *, objective):
-        counts = {}
-        if self.report_counts:
-            counts = {"n_fovs": data.objects[data.fov_col].nunique()}  # drops empty FOVs
-        return StrategyResult(self.name, objective, score=0.0, **counts)
+    def estimate(self, data, *, objective):
+        n_fovs = data.objects[data.fov_col].nunique()
+        if self.as_quantity:
+            return Evidence(
+                {
+                    "n_fovs": Quantity.available(
+                        n_fovs, direction="higher_is_better", units="FOVs", component="population"
+                    )
+                }
+            )
+        return Evidence(diagnostics={"object_fovs": n_fovs})
 
 
 def _zero_object_fov_tables():
@@ -335,39 +344,53 @@ def test_framework_fills_fov_counts_including_zero_object_fovs():
     [result] = run_strategies(
         objects,
         fovs=fovs,
-        strategies=[_CountingStrategy(report_counts=False)],
+        strategies=[_strategy(_NaiveCounter(as_quantity=False))],
         feature_cols=["area"],
         objective=POPULATION,
     )
     assert (result.n_fovs, result.n_objects) == (3, 1)
 
 
-def test_strategy_count_that_contradicts_acquisition_record_is_rejected():
+def test_estimators_cannot_report_framework_owned_effort():
     objects, fovs = _zero_object_fov_tables()
     with pytest.raises(ValueError, match="framework-owned"):
         run_strategies(
             objects,
             fovs=fovs,
-            strategies=[_CountingStrategy(report_counts=True)],
+            strategies=[_strategy(_NaiveCounter(as_quantity=True))],
             feature_cols=["area"],
             objective=POPULATION,
         )
 
 
-class _FreeFormDecision(SamplingStrategy):
+class _FreeFormPolicy(DecisionPolicy):
     name = "free_form"
 
-    def evaluate(self, data, *, objective):
-        return StrategyResult(self.name, objective, score=1.0, decision="probably fine")
+    def decide(self, evidence, effort):
+        return Component.POPULATION, "probably fine"
 
 
-def test_decision_vocabulary_is_validated():
+class _NotEvidence(Estimator):
+    name = "not_evidence"
+
+    def estimate(self, data, *, objective):
+        return 0.5
+
+
+@pytest.mark.parametrize(
+    ("strategy", "error", "match"),
+    [
+        (SamplingStrategy(policies=[_FreeFormPolicy()]), ValueError, "decision"),
+        (SamplingStrategy([_NotEvidence()]), TypeError, "must return Evidence"),
+    ],
+)
+def test_decision_and_evidence_vocabulary_is_validated(strategy, error, match):
     # Benchmarks aggregate stop/continue across strategies; an unknown label
     # would silently count as neither.
-    with pytest.raises(ValueError, match="decision"):
+    with pytest.raises(error, match=match):
         run_strategies(
             pd.DataFrame({"fov_id": ["F1"], "area": [1.0]}),
-            strategies=[_FreeFormDecision()],
+            strategies=[strategy],
             feature_cols=["area"],
             objective=POPULATION,
         )
@@ -384,37 +407,37 @@ def test_feature_matrix_exposes_only_explicit_features():
 # --- Second audit (ChatGPT review of main at da3953c) ------------------------------
 
 
-class _Mutator(SamplingStrategy):
+class _Mutator(Estimator):
     """Edits everything it is given in place, as careless preprocessing might."""
 
     name = "mutator"
 
-    def evaluate(self, data, *, objective):
+    def estimate(self, data, *, objective):
         matrix = data.feature_matrix()
         matrix -= 100.0  # must not reach the tables
         data.objects[list(data.feature_cols)] = -1.0
         data.fovs.drop(data.fovs.index[-1], inplace=True)
-        return StrategyResult(self.name, objective, score=None)
+        return Evidence()
 
 
-class _Reader(SamplingStrategy):
+class _Reader(Estimator):
     name = "reader"
 
-    def evaluate(self, data, *, objective):
-        return StrategyResult(
-            self.name,
-            objective,
-            score=float(data.feature_values("area").sum()),
-            diagnostics={"fov_rows": len(data.fovs)},
+    def estimate(self, data, *, objective):
+        return Evidence(
+            diagnostics={"sum": float(data.feature_values("area").sum()), "fov_rows": len(data.fovs)}
         )
 
 
 def test_in_place_edits_by_one_strategy_do_not_reach_the_next():
     objects = pd.DataFrame({"fov_id": ["F1", "F1", "F2"], "area": [1.0, 2.0, 3.0]})
     mutated, read = run_strategies(
-        objects, strategies=[_Mutator(), _Reader()], feature_cols=["area"], objective=POPULATION
+        objects,
+        strategies=[_strategy(_Mutator()), _strategy(_Reader())],
+        feature_cols=["area"],
+        objective=POPULATION,
     )
-    assert read.score == 6.0 and read.diagnostics["fov_rows"] == 2
+    assert read.diagnostics["sum"] == 6.0 and read.diagnostics["fov_rows"] == 2
     # Framework-owned counts come from the original input, not the mutated copy.
     assert (mutated.n_fovs, read.n_fovs) == (2, 2)
     assert objects["area"].tolist() == [1.0, 2.0, 3.0]
@@ -423,10 +446,11 @@ def test_in_place_edits_by_one_strategy_do_not_reach_the_next():
 def test_in_place_edits_do_not_reach_later_prefixes():
     objects = pd.DataFrame({"fov_id": ["F1", "F2", "F3"], "area": [1.0, 2.0, 3.0]})
     fovs = pd.DataFrame({"fov_id": ["F1", "F2", "F3"], "order": [1, 2, 3]})
-    results = _run_prefixes(objects, fovs, _Mutator())
-    results += _run_prefixes(objects, fovs, _Reader())
-    reads = [r.result.score for r in results if r.result.strategy == "reader"]
-    assert reads == [1.0, 3.0, 6.0]
+    results = _run_prefixes(objects, fovs, SamplingStrategy([_Mutator(), _Reader()]))
+    results += _run_prefixes(objects, fovs, _strategy(_Reader()))
+    # Also within one strategy: the second estimator sees the original tables.
+    reads = [r.result.diagnostics["sum"] for r in results]
+    assert reads == [1.0, 3.0, 6.0] * 2
 
 
 def test_feature_arrays_are_owned_copies():

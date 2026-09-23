@@ -6,11 +6,14 @@ import copy
 from collections.abc import Iterable
 from dataclasses import replace
 from time import perf_counter
+from typing import Any
 
 import pandas as pd
 
+from .evidence import Evidence, Quantity
 from .objectives import ObjectiveConfig
-from .results import Decision, StrategyResult
+from .policies import Effort, decide
+from .results import StrategyResult
 from .schema import ValidatedInput, fov_positions
 from .strategies.base import SamplingStrategy
 
@@ -75,13 +78,33 @@ def iter_analysis_groups(
         yield group, restrict_input(data, objects_in_fovs(data, group_fovs), group_fovs)
 
 
-def _framework_count(reported: int | None, actual: int, name: str, strategy: str) -> int:
-    if reported is not None and reported != actual:
-        raise ValueError(
-            f"strategy {strategy!r} reported {name}={reported}, but the acquisition "
-            f"record has {actual}; {name} is framework-owned and should be left unset"
-        )
-    return actual
+def _estimate(
+    strategy: SamplingStrategy, data: ValidatedInput, objective: ObjectiveConfig
+) -> tuple[Evidence, float]:
+    """Run every estimator in isolation and merge their evidence."""
+    quantities: dict[str, Quantity] = {}
+    diagnostics: dict[str, Any] = {}
+    compute_seconds = 0.0
+    for estimator in strategy.estimators:
+        fresh = copy.deepcopy(estimator)
+        isolated = _isolated_input(data)
+        start = perf_counter()
+        evidence = fresh.estimate(isolated, objective=objective)
+        compute_seconds += perf_counter() - start
+        if not isinstance(evidence, Evidence):
+            raise TypeError(f"estimator {estimator.name!r} must return Evidence")
+        for kind, merged, new in (
+            ("quantity", quantities, evidence.quantities),
+            ("diagnostic", diagnostics, evidence.diagnostics),
+        ):
+            clash = sorted(set(merged) & set(new))
+            if clash:
+                raise ValueError(
+                    f"estimators of strategy {strategy.name!r} both report {kind} {clash}; "
+                    "give them distinct names"
+                )
+            merged.update(new)
+    return Evidence(quantities, diagnostics), compute_seconds
 
 
 def evaluate_strategy(
@@ -91,49 +114,35 @@ def evaluate_strategy(
     objective: ObjectiveConfig,
     group: dict[str, object] | None = None,
 ) -> StrategyResult:
-    """Run one strategy and attach framework-owned counts, provenance and runtime.
+    """Run one strategy and build its result with framework-owned counts and provenance.
 
-    Each call runs on a fresh copy of the configured strategy and on its own
-    deep copy of the input tables, so neither strategy state nor in-place edits
-    to the data can flow to another strategy, analysis group or acquisition
-    prefix. Framework-owned fields are computed from the original input.
-    ``evaluate`` is therefore a pure full recomputation on the data it receives.
-    Copying happens outside the timed region.
+    Each estimator runs on a fresh copy of itself and on its own deep copy of
+    the input tables, so neither estimator state nor in-place edits to the
+    data can flow to another estimator, analysis group or acquisition prefix.
+    ``estimate`` is therefore a pure full recomputation on the data it
+    receives. Effort (``n_fovs``, ``n_objects``) is computed from the original
+    input and given to the policies. Copying happens outside the timed region.
     """
-    fresh = copy.deepcopy(strategy)
-    isolated = _isolated_input(data)
-    start = perf_counter()
-    result = fresh.evaluate(isolated, objective=objective)
-    runtime_seconds = perf_counter() - start
-
-    if not isinstance(result, StrategyResult):
-        raise TypeError(f"strategy {strategy.name!r} must return a StrategyResult")
-    if result.strategy != strategy.name:
-        raise ValueError(
-            f"strategy returned name {result.strategy!r}, expected {strategy.name!r}"
-        )
-    decision = result.decision
-    if decision is not None:
-        try:
-            decision = Decision(decision)
-        except ValueError:
-            allowed = [d.value for d in Decision]
-            raise ValueError(
-                f"strategy {strategy.name!r} returned decision {decision!r}; "
-                f"expected one of {allowed} or None"
-            ) from None
-
-    return replace(
-        result,
+    evidence, compute_seconds = _estimate(strategy, data, objective)
+    effort = Effort(n_fovs=len(data.fovs), n_objects=len(data.objects))
+    decision, component_decisions = decide(
+        evidence, effort, copy.deepcopy(strategy.policies), objective
+    )
+    return StrategyResult(
+        strategy=strategy.name,
+        config_id=strategy.config_id,
+        objective=objective,
+        evidence=evidence,
         decision=decision,
-        runtime_seconds=runtime_seconds,
+        component_decisions=component_decisions,
+        compute_seconds=compute_seconds,
+        n_fovs=effort.n_fovs,
+        n_objects=effort.n_objects,
         group=dict(group or {}),
+        parameters=dict(strategy.parameters),
+        configuration=strategy.configuration,
         feature_cols=data.feature_cols,
         fov_key=data.fov_key,
-        n_fovs=_framework_count(result.n_fovs, len(data.fovs), "n_fovs", strategy.name),
-        n_objects=_framework_count(
-            result.n_objects, len(data.objects), "n_objects", strategy.name
-        ),
     )
 
 

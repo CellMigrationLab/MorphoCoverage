@@ -1,7 +1,22 @@
 # Proposal: architecture hardening before the strategy zoo
 
-**Status:** proposal, awaiting approval by the project owner. Nothing here is
-implemented yet. Every item changes a public contract (AGENTS.md section 15).
+**Status:** all items approved by the project owner (2026-09-23), with
+`runtime_seconds` kept as an alias of `compute_seconds`. Items 1–3 are
+implemented, including the `compute_seconds` rename from item 6; the rest of
+items 4–7 is not yet implemented. Every item changes a public contract
+(AGENTS.md section 15).
+
+**As implemented (items 1–3).** `Evidence`/`Quantity` in `evidence.py`;
+`Estimator` in `strategies/base.py`; `DecisionPolicy`, `ThresholdPolicy`,
+`EffortPolicy`, the per-objective combination and `redecide` in `policies.py`;
+`RareTarget` in `objectives.py`; `config_id` in `provenance.py`. Differences
+from the text below: the quantity field is `component` (`population` or
+`rare`) rather than a free-text `estimates` label, so that policies can be
+checked against the objective; availability (`insufficient_data`,
+`not_applicable`) replaces `None` scores; and the per-component verdicts are
+`StrategyResult.component_decisions` rather than a separate
+`ObjectiveDecision` type. `score` and `predicted_remaining` were removed; the
+JCB requirement is available as `required_objects` / `required_fovs`.
 
 **Origin:** the ChatGPT audit of `main` at `da3953c` (2026-09-23), plus Claude's
 earlier review. The small, clear defects from that audit are fixed separately.

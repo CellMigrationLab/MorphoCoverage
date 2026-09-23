@@ -9,6 +9,7 @@ from morphocoverage import (
     DescriptorPlateauStrategy,
     DescriptorSpreadStrategy,
     ObjectiveConfig,
+    RareTarget,
     SamplingObjective,
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
@@ -48,6 +49,12 @@ def _replay(objects, fovs, strategies, order="order", feature_cols=("area",)):
         objects, fovs, strategies=strategies, feature_cols=list(feature_cols),
         acquisition_order_col=order, objective=POPULATION,
     )
+
+
+def _score(result):
+    """The strategy's single evidence quantity."""
+    [quantity] = result.evidence.quantities.values()
+    return quantity.value
 
 
 def _spread(tolerance, unit, n_resamples=50, seed=0):
@@ -117,7 +124,7 @@ def test_plateau_uses_acquisition_order_not_table_order():
     shuffled = scenario.fovs.sample(frac=1.0, random_state=0)
     first = _evaluate(scenario.objects, scenario.fovs, strategy, FEATURE_COLS)
     second = _evaluate(scenario.objects, shuffled, strategy, FEATURE_COLS)
-    assert first.score == second.score
+    assert _score(first) == _score(second)
 
 
 # --- Resampling spread (Fig. 2A) ---------------------------------------------------
@@ -127,16 +134,16 @@ def test_plateau_uses_acquisition_order_not_table_order():
 def test_identical_values_have_zero_spread(unit):
     objects, fovs = _tables([[2.0, 2.0]] * 5)
     result = _evaluate(objects, fovs, _spread(0.01, unit))
-    assert result.score == 0.0 and result.decision == "stop"
+    assert _score(result) == 0.0 and result.decision == "stop"
 
 
 def test_spread_shrinks_with_more_cells():
     rng = np.random.default_rng(1)
     small = _tables([rng.normal(10, 1, 40)])
     large = _tables([rng.normal(10, 1, 4000)])
-    assert _evaluate(*large, _spread(1.0, "object")).score < _evaluate(
-        *small, _spread(1.0, "object")
-    ).score / 5
+    assert _score(_evaluate(*large, _spread(1.0, "object"))) < _score(
+        _evaluate(*small, _spread(1.0, "object"))
+    ) / 5
 
 
 def test_spatial_clustering_inflates_only_the_fov_variant():
@@ -144,10 +151,10 @@ def test_spatial_clustering_inflates_only_the_fov_variant():
     values = np.random.default_rng(3).normal(10, 1, 400)
     mixed = _tables(values.reshape(20, 20))
     clustered = _tables(np.sort(values).reshape(20, 20))
-    cells_mixed = _evaluate(*mixed, _spread(1.0, "object")).score
-    cells_clustered = _evaluate(*clustered, _spread(1.0, "object")).score
-    fovs_mixed = _evaluate(*mixed, _spread(1.0, "fov")).score
-    fovs_clustered = _evaluate(*clustered, _spread(1.0, "fov")).score
+    cells_mixed = _score(_evaluate(*mixed, _spread(1.0, "object")))
+    cells_clustered = _score(_evaluate(*clustered, _spread(1.0, "object")))
+    fovs_mixed = _score(_evaluate(*mixed, _spread(1.0, "fov")))
+    fovs_clustered = _score(_evaluate(*clustered, _spread(1.0, "fov")))
     # Same cells: the object variant differs only through which cells the draws hit.
     assert cells_clustered == pytest.approx(cells_mixed, rel=0.5)
     assert fovs_mixed < 2 * cells_mixed
@@ -158,8 +165,8 @@ def test_spread_is_reproducible_and_seed_dependent():
     rng = np.random.default_rng(2)
     tables = _tables(rng.normal(10, 1, (10, 20)))
     for unit in ("object", "fov"):
-        same = [_evaluate(*tables, _spread(1.0, unit, seed=7)).score for _ in range(2)]
-        other = _evaluate(*tables, _spread(1.0, unit, seed=8)).score
+        same = [_score(_evaluate(*tables, _spread(1.0, unit, seed=7))) for _ in range(2)]
+        other = _score(_evaluate(*tables, _spread(1.0, unit, seed=8)))
         assert same[0] == same[1] != other
 
 
@@ -169,7 +176,7 @@ def test_fov_spread_counts_empty_fovs_as_sampled_units():
     # FOVs were dropped, only the 2 non-empty FOVs would be resampled.
     objects, fovs = _tables([[1.0, 1.0], [3.0, 3.0]] + [[]] * 8)
     result = _evaluate(objects, fovs, _spread(1.0, "fov"))
-    assert result.score == float("inf") and result.decision == "continue"
+    assert _score(result) == float("inf") and result.decision == "continue"
 
 
 # --- Input rules -------------------------------------------------------------------
@@ -185,6 +192,7 @@ def test_fov_spread_counts_empty_fovs_as_sampled_units():
         lambda: DescriptorSpreadStrategy("area", 0.1, "cell", 10, 0),
         lambda: DescriptorSpreadStrategy("area", 0.1, "object", 1, 0),
         lambda: DescriptorSpreadStrategy("area", -1.0, "object", 10, 0),
+        lambda: DescriptorSpreadStrategy("area", float("inf"), "object", 10, 0),
     ],
 )
 def test_invalid_configuration_is_rejected(factory):
@@ -197,6 +205,22 @@ def test_feature_must_be_explicit():
     objects["stage_x"] = 1.0
     with pytest.raises(ValueError, match="explicitly selected"):
         _evaluate(objects, fovs, DescriptorSpreadStrategy("stage_x", 0.1, "object", 10, 0))
+
+
+def test_evidence_states_its_meaning():
+    objects, fovs = _tables([[1.0, 2.0, 4.0]] * 4)
+    plateau = _evaluate(objects, fovs, DescriptorPlateauStrategy("area", 0.1, 2, "order"))
+    spread = _evaluate(objects, fovs, _spread(0.1, "object"))
+    for result, name in ((plateau, "max_descriptor_range"), (spread, "max_descriptor_spread")):
+        quantity = result.evidence.quantities[name]
+        assert (quantity.direction, quantity.component) == ("lower_is_better", "population")
+        assert quantity.units == "units of 'area'"
+    ranges = plateau.diagnostics["window_ranges"]
+    assert plateau.evidence.value("max_descriptor_range") == max(ranges.values())
+    # Too few FOVs with objects: insufficient data, so the rule continues.
+    early = _evaluate(objects, fovs, DescriptorPlateauStrategy("area", 0.1, 5, "order"))
+    assert early.evidence.quantities["max_descriptor_range"].availability == "insufficient_data"
+    assert early.decision == "continue"
 
 
 def test_names_and_parameters_record_the_variant():
@@ -231,3 +255,31 @@ def test_current_practice_rules_stop_before_a_late_clustered_rare_state():
         seen = {fov[-1] for fov in stop.acquired_fovs}
         rare_fovs = set(scenario.objects.loc[scenario.objects["true_state"].eq(1), "image_file"])
         assert not seen & rare_fovs
+
+
+def test_current_practice_rules_are_unsupported_for_rare_discovery():
+    # The same rules asked about the rare state do not claim to answer it:
+    # they report population evidence only, so the decision is UNSUPPORTED.
+    scenario = SCENARIOS["rare_clustered"]()
+    rare = ObjectiveConfig(
+        SamplingObjective.RARE_DISCOVERY,
+        rare=RareTarget(
+            object_prevalence=0.01,
+            fov_incidence=0.05,
+            detection_probability=0.95,
+            min_fov_occurrences=2,
+            phenotype="true_state column",
+        ),
+    )
+    strategies = [
+        DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL),
+        DescriptorSpreadStrategy("feature_a", 0.3, "object", 100, 0),
+        ScalarPrecisionStrategy("feature_a", 0.01, "object", "upper_95"),
+    ]
+    results = evaluate_acquisition_prefixes(
+        scenario.objects, scenario.fovs, strategies=strategies, feature_cols=list(FEATURE_COLS),
+        acquisition_order_col=ORDER_COL, objective=rare,
+    )
+    assert {r.result.decision for r in results} == {"unsupported"}
+    # The population verdict is still reported, for comparison.
+    assert "stop" in {r.result.component_decisions["population"] for r in results}

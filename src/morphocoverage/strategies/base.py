@@ -1,40 +1,116 @@
-"""Base interfaces for interchangeable MorphoCoverage strategies."""
+"""Base interfaces for interchangeable MorphoCoverage strategies.
+
+A strategy is a combination of estimators, which report evidence about the
+visible acquisition, and decision policies, which turn that evidence into
+continue/stop. Strategy families implement ``Estimator``; the framework runs
+the estimators, applies the policies and builds the result.
+"""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
+from ..evidence import Evidence
 from ..objectives import ObjectiveConfig
-from ..results import StrategyResult
+from ..policies import DecisionPolicy, describe, strategy_config_id
+from ..provenance import class_identity, config_hash
 from ..schema import ValidatedInput
 
 
-class SamplingStrategy(ABC):
-    """Interface implemented by every sampling/completeness strategy.
+class Estimator(ABC):
+    """Computes evidence from the visible acquisition of one analysis group.
 
-    A strategy instance is configuration only. The framework calls ``evaluate``
-    on a fresh deep copy for every analysis group and acquisition prefix, so
-    state stored on the instance never carries between calls. ``evaluate``
-    receives one resolved analysis group; it must use only the rows it is
-    given and should leave framework-owned result fields (counts, group,
-    runtime) unset.
+    An estimator instance is configuration only. The framework calls
+    ``estimate`` on a fresh deep copy, with its own copy of the input, for
+    every analysis group and acquisition prefix, so state stored on the
+    instance never carries between calls. An estimator may read the
+    objective's targets (for example a ``RareTarget``) but never decides:
+    thresholds belong to decision policies.
     """
 
     name: str
 
     @property
     def parameters(self) -> Mapping[str, Any]:
-        """Return serializable strategy parameters for provenance."""
+        """Serializable settings that define the estimator, for provenance."""
         return {}
 
+    @property
+    def config_id(self) -> str:
+        """Stable hash of the estimator class and its parameters."""
+        return config_hash(class_identity(type(self)), self.parameters)
+
     @abstractmethod
-    def evaluate(
-        self,
-        data: ValidatedInput,
-        *,
-        objective: ObjectiveConfig,
-    ) -> StrategyResult:
-        """Evaluate the current acquisition state."""
+    def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
+        """Evidence about the current acquisition state."""
         raise NotImplementedError
+
+
+class SamplingStrategy:
+    """Estimators plus the decision policies applied to their evidence.
+
+    Compose one directly, ``SamplingStrategy([estimator], [policy], name=...)``,
+    or subclass it and override ``estimators``, ``policies``, ``name`` and
+    ``parameters``, as the packaged baselines do to keep their published
+    parameterization. ``config_id`` depends on the estimators' and policies'
+    ids only, not on names, so two strategies with the same id are the same
+    method.
+    """
+
+    def __init__(
+        self,
+        estimators: Iterable[Estimator] = (),
+        policies: Iterable[DecisionPolicy] = (),
+        *,
+        name: str | None = None,
+    ) -> None:
+        self._estimators = tuple(estimators)
+        self._policies = tuple(policies)
+        for estimator in self._estimators:
+            if not isinstance(estimator, Estimator):
+                raise TypeError(f"{estimator!r} is not an Estimator")
+        for policy in self._policies:
+            if not isinstance(policy, DecisionPolicy):
+                raise TypeError(f"{policy!r} is not a DecisionPolicy")
+        self._name = name or "+".join(
+            [e.name for e in self._estimators] + [p.name for p in self._policies]
+        )
+        if not self._name:
+            raise ValueError("a strategy needs at least one estimator or policy")
+
+    @property
+    def name(self) -> str:
+        """Human-readable name; not unique across configurations (see ``config_id``)."""
+        return self._name
+
+    @property
+    def estimators(self) -> tuple[Estimator, ...]:
+        """Estimators run on the visible data."""
+        return self._estimators
+
+    @property
+    def policies(self) -> tuple[DecisionPolicy, ...]:
+        """Policies applied to the combined evidence."""
+        return self._policies
+
+    @property
+    def configuration(self) -> dict[str, Any]:
+        """Name, type, config_id and parameters of every estimator and policy."""
+        return {
+            "estimators": [describe(e) for e in self.estimators],
+            "policies": [describe(p) for p in self.policies],
+        }
+
+    @property
+    def parameters(self) -> Mapping[str, Any]:
+        """Serializable strategy parameters for provenance."""
+        return self.configuration
+
+    @property
+    def config_id(self) -> str:
+        """Stable hash of the estimators' and policies' configurations."""
+        return strategy_config_id(
+            [e.config_id for e in self.estimators], [p.config_id for p in self.policies]
+        )

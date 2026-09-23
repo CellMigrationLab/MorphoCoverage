@@ -2,7 +2,8 @@
 
 These intentionally simple methods exist to exercise the strategy framework and
 provide essential comparators. They are not endorsed as default MorphoCoverage
-estimators.
+estimators. Both are an effort policy with no estimator; they answer the
+population component of an objective only.
 """
 
 from __future__ import annotations
@@ -10,9 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..objectives import ObjectiveConfig
-from ..results import Decision, StrategyResult
-from ..schema import ValidatedInput
+from ..policies import EffortPolicy
 from .base import SamplingStrategy
 
 
@@ -38,17 +37,15 @@ class FixedFOVStrategy(SamplingStrategy):
         """Configured target number of acquired FOVs."""
         return {"target_fovs": self.target_fovs}
 
-    def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
-        """Stop once the acquired FOVs, including zero-object FOVs, reach the target."""
-        n_fovs = len(data.fovs)
-        return StrategyResult(
-            strategy=self.name,
-            objective=objective,
-            score=float(n_fovs),
-            decision=Decision.STOP if n_fovs >= self.target_fovs else Decision.CONTINUE,
-            diagnostics={"target_fovs": self.target_fovs},
-            parameters=self.parameters,
-        )
+    @property
+    def estimators(self) -> tuple:
+        """None: the rule uses framework-owned effort only."""
+        return ()
+
+    @property
+    def policies(self) -> tuple[EffortPolicy]:
+        """Stop once acquired FOVs, including zero-object FOVs, reach the target."""
+        return (EffortPolicy("n_fovs", self.target_fovs),)
 
 
 @dataclass(frozen=True)
@@ -66,16 +63,12 @@ class FixedObjectStrategy(SamplingStrategy):
         """Configured target number of detected objects."""
         return {"target_objects": self.target_objects}
 
-    def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
-        """Stop once the detected objects reach the target, regardless of FOV count."""
-        n_objects = len(data.objects)
-        return StrategyResult(
-            strategy=self.name,
-            objective=objective,
-            score=float(n_objects),
-            decision=(
-                Decision.STOP if n_objects >= self.target_objects else Decision.CONTINUE
-            ),
-            diagnostics={"target_objects": self.target_objects},
-            parameters=self.parameters,
-        )
+    @property
+    def estimators(self) -> tuple:
+        """None: the rule uses framework-owned effort only."""
+        return ()
+
+    @property
+    def policies(self) -> tuple[EffortPolicy]:
+        """Stop once detected objects reach the target, regardless of FOV count."""
+        return (EffortPolicy("n_objects", self.target_objects),)

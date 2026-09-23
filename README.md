@@ -33,7 +33,7 @@ and never treats cell count alone as a complete description of acquisition effor
 MorphoCoverage is a strategy-comparison framework. No default coverage estimator has been chosen.
 
 - **Input validation.** Linked FOV and object tables with MorphoBricks defaults. `image_file` identifies the FOV, and `condition` × `repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, and acquired FOVs with zero objects are kept.
-- **Swappable strategies.** Every method implements one `SamplingStrategy` interface and receives one analysis group at a time. The framework fills counts, provenance and runtime. Current strategies are all current-practice baselines:
+- **Swappable strategies.** A strategy is one or more estimators, which report named evidence with its direction, units and objective component, plus decision policies that turn the evidence into continue/stop. Estimators receive one analysis group at a time; the framework fills counts, provenance (`config_id`) and compute time. `redecide` applies other thresholds to stored results without re-running. A strategy with no evidence about a required objective component returns `unsupported`, never `stop`. Current strategies are all current-practice baselines:
   - fixed FOV and fixed cell counts;
   - a JCB/Zweifach-style scalar precision rule;
   - Marcotti et al.-style descriptor stabilization.
