@@ -186,6 +186,7 @@ src/morphocoverage/
     distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
+    reservoir.py           # held-out evaluation reservoirs split by spatial block
     framework.py           # run_strategies convenience entry point
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
