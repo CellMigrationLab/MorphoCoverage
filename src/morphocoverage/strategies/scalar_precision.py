@@ -21,9 +21,9 @@ few cells are available; the upper bound is the chi-square bound with
 
 This is the paper's **single-sample / pilot variant**: the requirement is
 estimated from the cells of one analysis group. The paper's full multi-sample
-procedure is not implemented here, because it needs data from other analysis
-groups, which a strategy never sees (see below). It belongs in a separate,
-leakage-safe planning step.
+procedure needs data from other analysis groups, which a strategy never sees,
+so it is a separate planning step: ``plan_cells_to_average`` and
+``PlannedCellCountStrategy`` in ``jcb_planning``.
 
 ``resampling_unit="object"`` is the published criterion. ``resampling_unit="fov"``
 is a MorphoCoverage variant, not part of the paper: the same averaging noise
@@ -31,7 +31,8 @@ estimated with FOVs as the sampling unit (ratio-estimator variance for cluster
 sampling), so spatially clustered phenotypes inflate it. The gap between the
 two is the comparison the regime map needs; it does not make either wrong.
 
-Not reproduced here, both parts of the multi-sample procedure:
+Not reproduced here, but in ``jcb_planning``, both parts of the multi-sample
+procedure:
 
 - normalizing values to the average of all control samples;
 - when several samples are used, subtracting each sample's mean before

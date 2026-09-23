@@ -35,6 +35,17 @@ class EstimatorState(ABC):
         raise NotImplementedError
 
 
+class ConstantState(EstimatorState):
+    """Incremental state for evidence that does not depend on the revealed FOVs."""
+
+    def __init__(self, evidence: Evidence) -> None:
+        self.evidence = evidence
+
+    def update(self, new: ValidatedInput) -> Evidence:
+        """The same evidence as at the start."""
+        return self.evidence
+
+
 class Estimator(ABC):
     """Computes evidence from the visible acquisition of one analysis group.
 

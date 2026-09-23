@@ -200,14 +200,20 @@ Each baseline strategy keeps its published parameterization and is built from an
 
 All three are population evidence, so under `rare_discovery` they return `unsupported`.
 
-`ScalarPrecisionStrategy` reproduces the **single-sample/pilot variant** of the cell-averaging criterion of Zweifach (J Cell Biol 2024, doi:10.1083/jcb.202401074) for one explicitly named scalar feature, following AGENTS.md §10. The paper's multi-sample planning procedure is not implemented; see `docs/proposals/architecture_hardening.md`, item 7.
+`ScalarPrecisionStrategy` reproduces the **single-sample/pilot variant** of the cell-averaging criterion of Zweifach (J Cell Biol 2024, doi:10.1083/jcb.202401074) for one explicitly named scalar feature, following AGENTS.md §10. The paper's multi-sample planning procedure is a separate step, `plan_cells_to_average` with `PlannedCellCountStrategy` (below).
 
 - **Scalar parameter:** the cell/object mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
 - **Criterion:** stop once `n >= ceil((SD / target) ** 2)` (`required_objects`). The target is required, with no default: the paper suggests 5% for independent samples and 2.5% for matched designs.
 - **SD estimate:** `sd_estimate="point"` or `"upper_95"`, the chi-square upper bound of the 95% confidence interval for SD that the paper recommends for small pilots. This reproduces the paper's worked example (51/108 cells at 2.5%, 13/27 at 5%), which is covered by a test.
 - **Planning versus sequential:** `pilot_fovs` plans the required number of cells once from the first acquired FOVs, as in the paper. The estimator reports the CV this plan projects for the visible effort, which reaches the target exactly when the planned number is reached. Without it the criterion is re-checked after every FOV; this is an adaptation, labelled by the strategy name.
 - **Spatial uniformity:** the paper assumes it. `resampling_unit="object"` is the published criterion. `resampling_unit="fov"` is a MorphoCoverage variant that estimates the same averaging noise with FOVs as the sampling unit, and reports a design effect. It is not part of the paper; the gap between the two variants is what the regime map should quantify.
-- **Not reproduced:** pooling SD across samples after subtracting each sample's mean, and normalizing to the mean of all control samples. Both need other analysis groups, which strategies never see.
+- **Not reproduced by this strategy:** pooling SD across samples after subtracting each sample's mean, and normalizing to the mean of all control samples. Both need other analysis groups, which strategies never see; they are the planning step below.
+
+`plan_cells_to_average` (in `morphocoverage.strategies`) is the paper's **multi-sample procedure**, run once on pilot data before evaluation. It divides every value by the average of the control samples (selected with `control`, e.g. `{"condition": "DMSO"}`), subtracts each sample's mean (samples identified by `sample_cols`), and computes the SD of the whole centred data set. It returns a frozen `CellCountPlan` with the required number of cells.
+
+- **Choices the paper leaves open:** the control average is the mean of the control samples' means, each sample counting once; the SD uses `ddof=1` over all centred cells and the upper bound uses `n_cells - 1` degrees of freedom, which reproduces the worked example from two dishes of 10 cells. A pooled-variance estimate would use `n_cells - n_samples`.
+- **Leakage safety:** `PlannedCellCountStrategy(plan)` holds the required count fixed and stops each evaluated group once it has acquired that many cells. The plan records every pilot sample; an evaluated group that contains one, or whose samples cannot be identified from `sample_cols`, gets `not_applicable` evidence and an undefined decision rather than being judged on its own planning data.
+- **Observation units:** planning raises on rows that are not object-like; the strategy reports `not_applicable` for them.
 
 `DescriptorPlateauStrategy` and `DescriptorSpreadStrategy` operationalize the sample-size advice of Marcotti et al. (J Cell Sci 2026, doi:10.1242/jcs.264367): increase the number of cells until the mean, median, SD and IQR of one metric "stabilise". The paper gives no numeric rule, so each tolerance is an explicit user choice in the feature's units. Both strategies are labelled operationalizations, not published rules.
 

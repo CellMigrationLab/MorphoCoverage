@@ -16,7 +16,13 @@ from ..objectives import ObjectiveConfig
 from ..policies import DecisionPolicy, Effort, EffortPolicy
 from ..results import Decision
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput
-from .base import Estimator, EstimatorState, SamplingStrategy, unsupported_observation_unit
+from .base import (
+    ConstantState,
+    Estimator,
+    EstimatorState,
+    SamplingStrategy,
+    unsupported_observation_unit,
+)
 
 
 def _require_positive_int(value: object, name: str) -> None:
@@ -70,18 +76,7 @@ class _ObjectRowsCheck(Estimator):
 
     def start(self, template: ValidatedInput, *, objective: ObjectiveConfig) -> EstimatorState:
         """The unit is fixed per group, so the evidence never changes."""
-        return _ConstantState(_object_rows_evidence(template))
-
-
-class _ConstantState(EstimatorState):
-    """Incremental state whose evidence does not depend on the revealed FOVs."""
-
-    def __init__(self, evidence: Evidence) -> None:
-        self.evidence = evidence
-
-    def update(self, new: ValidatedInput) -> Evidence:
-        """The same evidence as at the start."""
-        return self.evidence
+        return ConstantState(_object_rows_evidence(template))
 
 
 @dataclass(frozen=True)

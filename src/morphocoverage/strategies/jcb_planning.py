@@ -1,0 +1,309 @@
+"""JCB/Zweifach multi-sample planning: how many cells to average, from pilot samples.
+
+The full procedure of Zweifach, "Determining how many cells to average for
+statistical testing of microscopy experiments", J Cell Biol 2024;223(8):
+e202401074, doi:10.1083/jcb.202401074, as the paper states it:
+
+1. Normalize: divide every value by the average of all the control samples,
+   so errors are fractions of the control mean (the paper's % CV).
+2. With several samples, subtract each sample's mean from that sample's
+   values, "then calculate the SD for the entire data set", which removes
+   differences between samples from the SD.
+3. Cells to average: ``ceil((SD / target) ** 2)``, from the point SD or from
+   the upper bound of its 95% confidence interval.
+
+``ScalarPrecisionStrategy`` is the single-sample variant, re-estimated inside
+each analysis group. This multi-sample procedure needs several samples, and
+usually control samples from other conditions, so it cannot run inside one
+group. It is therefore a separate planning step. ``plan_cells_to_average``
+runs once on pilot data and returns a fixed ``CellCountPlan``;
+``PlannedCellCountStrategy`` then stops each evaluated group once it has
+acquired the planned number of cells. An evaluated group that contains a
+pilot sample would be tested on its own planning data, so its evidence is
+reported as not applicable.
+
+Choices the paper leaves open, stated explicitly:
+
+- "The average of all the control samples" is taken as the mean of the
+  control samples' means, each sample counting once, as the paper treats a
+  sample's average as n = 1. With equal cells per control sample this is also
+  the mean of all control cells.
+- The SD of the centred data set uses ``ddof=1`` over all cells, and the
+  upper bound uses a chi-square interval on ``n_cells - 1`` degrees of
+  freedom: the SD "for the entire data set", as the paper's spreadsheet
+  computes it. Its worked example (17.8% point, 26.0% upper, from 20 cells) is
+  reproduced with these choices. A pooled-variance estimate would use
+  ``n_cells - n_samples``; the difference matters only for small pilots.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from ..evidence import Availability, Component, Direction, Evidence, Quantity
+from ..objectives import ObjectiveConfig
+from ..policies import DecisionPolicy, Effort
+from ..results import Decision
+from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, validate_input_tables
+from .base import Estimator, SamplingStrategy, unsupported_observation_unit
+from .scalar_precision import required_objects, sd_upper_bound_factor
+
+_SD_ESTIMATES = ("point", "upper_95")
+_REQUIRED = "planned_required_objects"
+
+
+@dataclass(frozen=True)
+class CellCountPlan:
+    """The number of cells to average, planned once from pilot samples.
+
+    ``pilot_samples`` lists the ``sample_cols`` values of every pilot sample,
+    so evaluation can refuse groups that were used for planning.
+    """
+
+    feature: str
+    target_cv: float
+    sd_estimate: str
+    sample_cols: tuple[str, ...]
+    control: tuple[tuple[str, Any], ...]
+    pilot_samples: tuple[tuple[Any, ...], ...]
+    n_samples: int
+    n_control_samples: int
+    n_objects: int
+    control_mean: float
+    cv: float
+    cv_upper_95: float
+    required_objects: int
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """Everything that defines the plan, JSON-serializable, for provenance."""
+        return {
+            "feature": self.feature,
+            "target_cv": self.target_cv,
+            "sd_estimate": self.sd_estimate,
+            "sample_cols": list(self.sample_cols),
+            "control": {column: value for column, value in self.control},
+            "pilot_samples": [list(sample) for sample in self.pilot_samples],
+            "n_samples": self.n_samples,
+            "n_control_samples": self.n_control_samples,
+            "n_objects": self.n_objects,
+            "control_mean": self.control_mean,
+            "cv": self.cv,
+            "cv_upper_95": self.cv_upper_95,
+            "required_objects": self.required_objects,
+        }
+
+
+def _plain(value: Any) -> Any:
+    """A JSON-serializable scalar (numpy scalars become Python ones)."""
+    return value.item() if isinstance(value, np.generic) else value
+
+
+def _pilot_values(
+    objects: pd.DataFrame,
+    feature: str,
+    sample_cols: tuple[str, ...],
+    observation_unit: str | None,
+    validation: Mapping[str, Any],
+) -> tuple[ValidatedInput, np.ndarray]:
+    """Validated pilot data and its feature values, or a clear error."""
+    data = validate_input_tables(
+        objects, feature_cols=[feature], observation_unit=observation_unit, **validation
+    )
+    reason = unsupported_observation_unit(data, OBJECT_LIKE_UNITS, method="JCB planning")
+    if reason is not None:
+        raise ValueError(reason)
+    missing = [column for column in sample_cols if column not in data.objects.columns]
+    if missing:
+        raise ValueError(f"sample_cols {missing} are not columns of the pilot observations")
+    values = data.feature_values(feature)
+    if np.isnan(values).any():
+        raise ValueError(f"pilot values of {feature!r} contain missing values")
+    if (values < 0).any():
+        raise ValueError(
+            f"pilot values of {feature!r} are negative; the CV criterion applies to "
+            "non-negative whole-cell measurements"
+        )
+    return data, values
+
+
+def plan_cells_to_average(
+    objects: pd.DataFrame,
+    *,
+    feature: str,
+    target_cv: float,
+    sd_estimate: str,
+    sample_cols: Sequence[str],
+    control: Mapping[str, Any],
+    observation_unit: str | None = None,
+    **validation: Any,
+) -> CellCountPlan:
+    """Plan the number of cells to average from pilot samples (see the module docstring).
+
+    ``sample_cols`` identify one sample (for example condition, repeat and
+    well); ``control`` selects the control samples by column value, e.g.
+    ``{"condition": "DMSO"}``. ``target_cv`` and ``sd_estimate`` have no
+    defaults: the paper suggests 0.05 for independent and 0.025 for paired
+    designs, and ``"upper_95"`` for small pilots. Other keyword arguments
+    (``fovs``, ``fov_col``, ``group_cols``) go to input validation.
+    """
+    if isinstance(sample_cols, str) or not sample_cols:
+        raise TypeError("sample_cols must be a non-empty sequence of column names")
+    if not 0 < target_cv < 1:
+        raise ValueError("target_cv must be between 0 and 1")
+    if sd_estimate not in _SD_ESTIMATES:
+        raise ValueError(f"sd_estimate must be one of {_SD_ESTIMATES}")
+    if not isinstance(control, Mapping) or not control:
+        raise ValueError("control must map at least one column to the control value")
+    sample_cols = tuple(sample_cols)
+    data, values = _pilot_values(objects, feature, sample_cols, observation_unit, validation)
+    if len(values) < 2:
+        raise ValueError("planning needs at least 2 pilot cells")
+
+    table = data.objects.loc[:, list(sample_cols)].assign(_value=values)
+    for column in control:
+        if column not in table.columns:
+            table[column] = data.objects[column]
+    is_control = np.logical_and.reduce([table[c].eq(v).to_numpy() for c, v in control.items()])
+    sample_means = table.groupby(list(sample_cols), sort=True)["_value"].mean()
+    control_means = table.loc[is_control].groupby(list(sample_cols))["_value"].mean()
+    if control_means.empty:
+        raise ValueError(f"no pilot sample matches the control {dict(control)}")
+    control_mean = float(control_means.mean())
+    if not control_mean > 0:
+        raise ValueError("the control mean must be positive to express SD as a CV")
+
+    centred = values - table.groupby(list(sample_cols))["_value"].transform("mean").to_numpy()
+    cv = float(np.std(centred, ddof=1)) / control_mean
+    cv_upper = cv * sd_upper_bound_factor(len(values) - 1)
+    return CellCountPlan(
+        feature=feature,
+        target_cv=float(target_cv),
+        sd_estimate=sd_estimate,
+        sample_cols=sample_cols,
+        control=tuple((column, _plain(value)) for column, value in control.items()),
+        pilot_samples=tuple(
+            tuple(_plain(v) for v in (key if isinstance(key, tuple) else (key,)))
+            for key in sample_means.index
+        ),
+        n_samples=len(sample_means),
+        n_control_samples=len(control_means),
+        n_objects=len(values),
+        control_mean=control_mean,
+        cv=cv,
+        cv_upper_95=cv_upper,
+        required_objects=required_objects(cv if sd_estimate == "point" else cv_upper, target_cv),
+    )
+
+
+def _samples_seen(data: ValidatedInput, sample_cols: tuple[str, ...]) -> set[tuple] | None:
+    """The samples present in the evaluated data, or ``None`` if they cannot be identified."""
+    for table in (data.fovs, data.objects):
+        if all(column in table.columns for column in sample_cols):
+            rows = table.loc[:, list(sample_cols)].itertuples(index=False, name=None)
+            return {tuple(_plain(v) for v in row) for row in rows}
+    return None
+
+
+@dataclass(frozen=True)
+class PlannedCellCountEstimator(Estimator):
+    """Reports a plan's required cell count as evidence, if the plan applies to the group.
+
+    The plan does not apply (``not_applicable``, with the reason) when the rows
+    are not objects, when the group's samples cannot be identified, or when the
+    group contains a pilot sample, since that group would be judged on its own
+    planning data.
+    """
+
+    plan: CellCountPlan
+    name: str = "planned_cells"
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """The plan, which fully defines the evidence."""
+        return {"plan": self.plan.parameters}
+
+    def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
+        """The required count, or why the plan does not apply to this group.
+
+        No incremental state: whether the group holds a pilot sample is read
+        from its visible rows, so each prefix is a cheap full recomputation.
+        """
+        reason = unsupported_observation_unit(data, OBJECT_LIKE_UNITS, method="a JCB cell plan")
+        if reason is None:
+            seen = _samples_seen(data, self.plan.sample_cols)
+            if seen is None:
+                reason = (
+                    f"sample columns {list(self.plan.sample_cols)} are not in the evaluated "
+                    "tables, so pilot samples cannot be excluded"
+                )
+            elif seen & set(self.plan.pilot_samples):
+                reason = "the evaluated group contains pilot samples used to make the plan"
+        meta = {"direction": Direction.LOWER_IS_BETTER, "units": "objects"}
+        if reason is not None:
+            quantity = Quantity.not_applicable(reason, component=Component.POPULATION, **meta)
+            return Evidence({_REQUIRED: quantity}, {"undefined_reason": reason})
+        value = Quantity.available(
+            self.plan.required_objects, component=Component.POPULATION, **meta
+        )
+        return Evidence({_REQUIRED: value}, {"plan": self.plan.parameters})
+
+
+@dataclass(frozen=True)
+class _PlannedCountPolicy(DecisionPolicy):
+    """Stop once the acquired objects reach the planned requirement."""
+
+    name: str = "planned_count"
+
+    def decide(self, evidence: Evidence, effort: Effort) -> tuple[Component, Decision | None]:
+        """Undefined if the plan does not apply; else stop at the planned count."""
+        quantity = evidence.quantities[_REQUIRED]
+        if quantity.availability is not Availability.AVAILABLE:
+            return Component.POPULATION, None
+        reached = effort.n_observations >= quantity.value
+        return Component.POPULATION, Decision.STOP if reached else Decision.CONTINUE
+
+
+@dataclass(frozen=True)
+class PlannedCellCountStrategy(SamplingStrategy):
+    """Stop each group once it has the number of cells a JCB pilot plan requires.
+
+    The multi-sample counterpart of ``ScalarPrecisionStrategy``: the
+    requirement is fixed before evaluation, from pilot samples, instead of
+    being re-estimated from each group's visible cells.
+    """
+
+    plan: CellCountPlan
+    name: str = "scalar_precision_planned"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.plan, CellCountPlan):
+            raise TypeError("plan must be a CellCountPlan from plan_cells_to_average")
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """The plan."""
+        return {"plan": self.plan.parameters}
+
+    @property
+    def estimators(self) -> tuple[PlannedCellCountEstimator]:
+        """The plan as evidence for each group."""
+        return (PlannedCellCountEstimator(self.plan),)
+
+    @property
+    def policies(self) -> tuple[_PlannedCountPolicy]:
+        """Stop at the planned count."""
+        return (_PlannedCountPolicy(),)
+
+
+__all__ = [
+    "CellCountPlan",
+    "PlannedCellCountEstimator",
+    "PlannedCellCountStrategy",
+    "plan_cells_to_average",
+]
