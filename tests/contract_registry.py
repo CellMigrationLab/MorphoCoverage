@@ -1,0 +1,95 @@
+"""What the contract tests run on: every packaged strategy, metric and transform.
+
+Adding a strategy, outcome metric or feature transform to the package means
+adding it here (AGENTS.md section 9); coverage tests fail otherwise. The
+contract tests themselves are in ``test_contracts*.py``.
+"""
+
+
+from dataclasses import replace
+
+from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
+
+from morphocoverage import (
+    DescriptorPlateauStrategy,
+    DescriptorSpreadStrategy,
+    FixedFOVStrategy,
+    FixedObjectStrategy,
+    FixedObservationStrategy,
+    ObjectiveConfig,
+    RareTarget,
+    SamplingObjective,
+    SamplingStrategy,
+    ScalarPrecisionStrategy,
+    evaluate_acquisition_prefixes,
+    outcomes,
+    transforms,
+)
+
+POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
+_RARE = RareTarget(
+    object_prevalence=0.01,
+    detection_probability=0.95,
+    min_fov_occurrences=2,
+    phenotype="true_state column",
+)
+OBJECTIVES = [
+    POPULATION,
+    ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=_RARE),
+    ObjectiveConfig(SamplingObjective.BALANCED, rare=_RARE),
+]
+
+# Every strategy added to the package must be added here, configured with
+# parameters that make it run on small data.
+STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
+    FixedFOVStrategy(5),
+    FixedObjectStrategy(100),
+    FixedObservationStrategy(100),
+    ScalarPrecisionStrategy("feature_a", 0.05, "object", "point"),
+    ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
+    ScalarPrecisionStrategy(
+        "feature_a", 0.05, "object", "upper_95", pilot_fovs=3, order_col=ORDER_COL
+    ),
+    DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL),
+    DescriptorSpreadStrategy("feature_a", 0.3, "object", 20, 0),
+    DescriptorSpreadStrategy("feature_a", 0.3, "fov", 20, 0),
+]
+
+# Every outcome metric added to the package must be added here.
+METRICS_UNDER_CONTRACT: list[outcomes.OutcomeMetric] = [
+    outcomes.RelativeMeanError("feature_a"),
+    outcomes.RandomCellRelativeError("feature_a"),
+    outcomes.RareStateDetected("true_state", 1),
+]
+METRIC_IDS = [metric.name for metric in METRICS_UNDER_CONTRACT]
+
+# Every feature transform added to the package must be added here.
+TRANSFORMS_UNDER_CONTRACT: list[transforms.FeatureTransform] = [
+    transforms.Standardize(),
+    transforms.PCA(1),
+    transforms.Chain([transforms.Standardize(), transforms.PCA(2)]),
+]
+TRANSFORM_IDS = [transform.name for transform in TRANSFORMS_UNDER_CONTRACT]
+
+SCENARIO_IDS = sorted(SCENARIOS)
+STRATEGY_IDS = [strategy.name for strategy in STRATEGIES_UNDER_CONTRACT]
+
+
+def replay(scenario, strategies, objective=POPULATION, **kwargs):
+    """Replay a scenario in its recorded acquisition order."""
+    return evaluate_acquisition_prefixes(
+        scenario.objects,
+        scenario.fovs,
+        strategies=strategies,
+        feature_cols=list(FEATURE_COLS),
+        acquisition_order_col=ORDER_COL,
+        objective=objective,
+        **kwargs,
+    )
+
+
+def without_timing(results):
+    """Replay results with time measurements removed, for exact comparison."""
+    return [replace(item, result=item.result.without_timing()) for item in results]
+
+

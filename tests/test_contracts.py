@@ -11,11 +11,13 @@ Three layers:
 
 These tests check correct handling, not scientific performance. Whether a
 strategy stops at the right time on these data is a benchmarking question.
+
+The registries of what is under contract are in ``contract_registry.py``;
+outcome-metric, transform and incremental contracts are in the other
+``test_contracts_*.py`` modules.
 """
 
-from __future__ import annotations
 
-import math
 import re
 from collections import Counter
 from dataclasses import replace
@@ -24,6 +26,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from contract_registry import (
+    OBJECTIVES,
+    POPULATION,
+    SCENARIO_IDS,
+    STRATEGIES_UNDER_CONTRACT,
+    STRATEGY_IDS,
+    replay,
+    without_timing,
+)
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
@@ -34,65 +45,10 @@ from morphocoverage import (
     Evidence,
     FixedFOVStrategy,
     FixedObjectStrategy,
-    FixedObservationStrategy,
-    ObjectiveConfig,
-    RareTarget,
-    SamplingObjective,
     SamplingStrategy,
     ScalarPrecisionStrategy,
-    evaluate_acquisition_prefixes,
-    outcomes,
     run_strategies,
-    transforms,
-    validate_input_tables,
 )
-from morphocoverage.benchmark import BenchmarkDataset, BenchmarkRegistry, run_benchmark
-from morphocoverage.evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
-
-POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
-_RARE = RareTarget(
-    object_prevalence=0.01,
-    detection_probability=0.95,
-    min_fov_occurrences=2,
-    phenotype="true_state column",
-)
-OBJECTIVES = [
-    POPULATION,
-    ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=_RARE),
-    ObjectiveConfig(SamplingObjective.BALANCED, rare=_RARE),
-]
-
-# Every strategy added to the package must be added here, configured with
-# parameters that make it run on small data.
-STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
-    FixedFOVStrategy(5),
-    FixedObjectStrategy(100),
-    FixedObservationStrategy(100),
-    ScalarPrecisionStrategy("feature_a", 0.05, "object", "point"),
-    ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
-    ScalarPrecisionStrategy(
-        "feature_a", 0.05, "object", "upper_95", pilot_fovs=3, order_col=ORDER_COL
-    ),
-    DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL),
-    DescriptorSpreadStrategy("feature_a", 0.3, "object", 20, 0),
-    DescriptorSpreadStrategy("feature_a", 0.3, "fov", 20, 0),
-]
-
-# Every outcome metric added to the package must be added here.
-METRICS_UNDER_CONTRACT: list[outcomes.OutcomeMetric] = [
-    outcomes.RelativeMeanError("feature_a"),
-    outcomes.RandomCellRelativeError("feature_a"),
-    outcomes.RareStateDetected("true_state", 1),
-]
-METRIC_IDS = [metric.name for metric in METRICS_UNDER_CONTRACT]
-
-# Every feature transform added to the package must be added here.
-TRANSFORMS_UNDER_CONTRACT: list[transforms.FeatureTransform] = [
-    transforms.Standardize(),
-    transforms.PCA(1),
-    transforms.Chain([transforms.Standardize(), transforms.PCA(2)]),
-]
-TRANSFORM_IDS = [transform.name for transform in TRANSFORMS_UNDER_CONTRACT]
 
 # §9 items that are properties of the framework rather than datasets.
 FRAMEWORK_CONTRACTS = {
@@ -100,25 +56,6 @@ FRAMEWORK_CONTRACTS = {
     "deterministic_under_seed": "test_strategy_results_are_deterministic",
     "no_future_fov_leakage": "test_replay_exposes_no_future_fovs",
 }
-
-SCENARIO_IDS = sorted(SCENARIOS)
-STRATEGY_IDS = [strategy.name for strategy in STRATEGIES_UNDER_CONTRACT]
-
-
-def _replay(scenario, strategies, objective=POPULATION, **kwargs):
-    return evaluate_acquisition_prefixes(
-        scenario.objects,
-        scenario.fovs,
-        strategies=strategies,
-        feature_cols=list(FEATURE_COLS),
-        acquisition_order_col=ORDER_COL,
-        objective=objective,
-        **kwargs,
-    )
-
-
-def _without_runtime(results):
-    return [replace(item, result=item.result.without_timing()) for item in results]
 
 
 class _ProbeEstimator(Estimator):
@@ -296,7 +233,7 @@ def test_replay_reveals_whole_fovs_in_acquisition_order(name):
     all_objects_per_fov = Counter(
         scenario.objects.loc[:, key].itertuples(index=False, name=None)
     )
-    for item in _replay(scenario, [_probe()]):
+    for item in replay(scenario, [_probe()]):
         group = item.result.group
         ordered = (
             scenario.fovs[
@@ -325,7 +262,7 @@ def test_replay_exposes_no_future_fovs(name):
     levels = sorted(fovs["image_file"].unique())
     objects["image_file"] = pd.Categorical(objects["image_file"], categories=levels)
     fovs["image_file"] = pd.Categorical(fovs["image_file"], categories=levels)
-    for item in _replay(replace(scenario, objects=objects, fovs=fovs), [_probe()]):
+    for item in replay(replace(scenario, objects=objects, fovs=fovs), [_probe()]):
         visible_names = {fov[-1] for fov in item.acquired_fovs}
         diagnostics = item.result.diagnostics
         assert {fov[-1] for fov in diagnostics["visible_fovs"]} == visible_names
@@ -355,7 +292,7 @@ def test_only_explicit_features_reach_the_strategy(name):
 
 def test_zero_object_fovs_count_as_acquisition_effort():
     scenario = SCENARIOS["zero_object_fovs"]()
-    results = _replay(scenario, [_probe()])
+    results = replay(scenario, [_probe()])
     assert [item.result.n_fovs for item in results] == list(range(1, 21))
     assert results[0].result.n_objects == 0  # the first acquired FOV is empty
     assert results[-1].result.n_objects == len(scenario.objects)
@@ -365,14 +302,14 @@ def test_zero_object_fovs_count_as_acquisition_effort():
 
 def test_fov_design_metadata_is_available_to_strategies():
     scenario = SCENARIOS["unequal_fov_area"]()
-    for item in _replay(scenario, [_probe()]):
+    for item in replay(scenario, [_probe()]):
         assert {"area_um2", "stage_x", "stage_y"} <= set(item.result.diagnostics["fov_columns"])
 
 
 def test_duplicated_objects_add_objects_but_not_fovs():
     # Re-measuring the same FOV is not new acquisition: counts keep the two apart.
     scenario = SCENARIOS["duplicated_objects"]()
-    first = _replay(scenario, [_probe()])[0].result
+    first = replay(scenario, [_probe()])[0].result
     assert (first.n_fovs, first.n_objects) == (1, 60)
 
 
@@ -388,7 +325,7 @@ def test_groups_are_independent(name, strategy):
     def control_r1(objects):
         return [
             item
-            for item in _without_runtime(_replay(replace(scenario, objects=objects), [strategy]))
+            for item in without_timing(replay(replace(scenario, objects=objects), [strategy]))
             if item.result.group == {"condition": "control", "repeat": "R1"}
         ]
 
@@ -421,8 +358,8 @@ def test_reused_image_names_stay_separate_groups_and_fovs():
 @pytest.mark.parametrize("name", SCENARIO_IDS)
 def test_strategy_results_are_deterministic(name, strategy):
     scenario = SCENARIOS[name]()
-    assert _without_runtime(_replay(scenario, [strategy])) == _without_runtime(
-        _replay(SCENARIOS[name](), [strategy])
+    assert without_timing(replay(scenario, [strategy])) == without_timing(
+        replay(SCENARIOS[name](), [strategy])
     )
 
 
@@ -434,7 +371,7 @@ def test_decisions_answer_only_the_components_the_objective_requires(name, strat
     # missing required component is UNSUPPORTED, and STOP needs every required
     # component to stop (balanced needs both population and rare).
     scenario = SCENARIOS[name]()
-    for item in _replay(scenario, [strategy], objective=objective):
+    for item in replay(scenario, [strategy], objective=objective):
         result = item.result
         required = [c.value for c in objective.required_components]
         assert set(required) <= set(result.component_decisions)
@@ -459,7 +396,7 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     precision_fovs = ScalarPrecisionStrategy("feature_a", 0.005, "fov", "point")
     plateau = DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL)
     spread = DescriptorSpreadStrategy("feature_a", 0.5, "object", 50, 0)
-    results = _replay(
+    results = replay(
         scenario,
         [
             FixedFOVStrategy(10),
@@ -498,226 +435,3 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
         assert stop.evidence.value(quantity) <= strategy.tolerance
 
 
-# --- 4. Outcome metric contracts -----------------------------------------------
-
-
-def test_every_package_outcome_metric_is_under_contract():
-    exported = {
-        obj
-        for obj in vars(outcomes).values()
-        if isinstance(obj, type)
-        and issubclass(obj, outcomes.OutcomeMetric)
-        and obj is not outcomes.OutcomeMetric
-    }
-    covered = {type(metric) for metric in METRICS_UNDER_CONTRACT}
-    missing = sorted(cls.__name__ for cls in exported - covered)
-    assert not missing, f"outcome metrics missing from METRICS_UNDER_CONTRACT: {missing}"
-
-
-def _group_prefixes(scenario):
-    data = validate_input_tables(
-        scenario.objects, fovs=scenario.fovs, feature_cols=list(FEATURE_COLS)
-    )
-    for _, full in iter_analysis_groups(data):
-        ordered = full.fovs.sort_values(ORDER_COL)
-        for k in sorted({1, 2, len(ordered) // 2, len(ordered)}):
-            fovs = ordered.iloc[:k]
-            yield full, restrict_input(full, objects_in_fovs(full, fovs), fovs)
-
-
-@pytest.mark.parametrize("metric", METRICS_UNDER_CONTRACT, ids=METRIC_IDS)
-@pytest.mark.parametrize("name", SCENARIO_IDS)
-def test_outcome_metrics_are_finite_deterministic_and_leave_inputs_alone(name, metric):
-    # Outcomes are compared across strategies, so a NaN or an input edited in
-    # place would corrupt every later comparison.
-    for full, stopped in _group_prefixes(SCENARIOS[name]()):
-        before = (full.objects.copy(), stopped.objects.copy())
-        value = metric.evaluate(full, stopped)
-        assert value is None or (isinstance(value, float) and math.isfinite(value))
-        assert metric.evaluate(full, stopped) == value
-        pd.testing.assert_frame_equal(full.objects, before[0])
-        pd.testing.assert_frame_equal(stopped.objects, before[1])
-
-
-def test_outcomes_depend_on_the_stop_not_on_the_strategy():
-    # Two different rules that stop at the same prefix get identical outcomes.
-    scenario = SCENARIOS["homogeneous"]()
-    dataset = BenchmarkDataset(
-        "homogeneous",
-        "development",
-        lambda: (scenario.objects, scenario.fovs),
-        FEATURE_COLS,
-        ORDER_COL,
-    )
-    per_fov = scenario.objects.groupby("image_file").size().iloc[0]
-    by_fovs, by_objects = run_benchmark(
-        BenchmarkRegistry([dataset]),
-        "homogeneous",
-        strategies=[FixedFOVStrategy(4), FixedObjectStrategy(int(4 * per_fov))],
-        metrics=METRICS_UNDER_CONTRACT[:2],
-        objective=POPULATION,
-    )
-    assert by_fovs.stop_step == by_objects.stop_step == 4
-    assert by_fovs.config_id != by_objects.config_id
-    assert by_fovs.outcomes == by_objects.outcomes
-
-
-# --- 5. Feature transform contracts --------------------------------------------
-
-
-def test_every_package_transform_is_under_contract():
-    exported = {
-        obj
-        for obj in vars(transforms).values()
-        if isinstance(obj, type)
-        and issubclass(obj, transforms.FeatureTransform)
-        and obj is not transforms.FeatureTransform
-    }
-    covered = {type(transform) for transform in TRANSFORMS_UNDER_CONTRACT}
-    for transform in TRANSFORMS_UNDER_CONTRACT:
-        if isinstance(transform, transforms.Chain):
-            covered |= {type(step) for step in transform.transforms}
-    missing = sorted(cls.__name__ for cls in exported - covered)
-    assert not missing, f"transforms missing from TRANSFORMS_UNDER_CONTRACT: {missing}"
-
-
-class _TransformProbe(Estimator):
-    """Fits a transform on what it is given and reports the fit and the output."""
-
-    name = "transform_probe"
-
-    def __init__(self, transform):
-        self.transform = transform
-
-    def estimate(self, data, *, objective):
-        fitted = self.transform.fit(data)
-        output = fitted.apply(data).tolist() if fitted.fitted else None
-        return Evidence(diagnostics={"transform": fitted.provenance(), "output": output})
-
-
-@pytest.mark.parametrize("transform", TRANSFORMS_UNDER_CONTRACT, ids=TRANSFORM_IDS)
-@pytest.mark.parametrize("name", SCENARIO_IDS)
-def test_transforms_are_unaffected_by_future_fovs(name, transform):
-    # AGENTS.md section 3: preprocessing for prospective evaluation must not
-    # use future FOVs. Altering every FOV after step k must leave the fitted
-    # state and the transformed features at steps <= k unchanged.
-    scenario = SCENARIOS[name]()
-    probe = [SamplingStrategy([_TransformProbe(transform)])]
-    original = _replay(scenario, probe)
-    order = scenario.fovs.set_index(["condition", "repeat", "image_file"])[ORDER_COL]
-    cutoff = int(order.median())
-    objects = scenario.objects.copy()
-    key = pd.MultiIndex.from_frame(objects[["condition", "repeat", "image_file"]])
-    future = order.reindex(key).to_numpy() > cutoff
-    objects.loc[future, list(FEATURE_COLS)] = objects.loc[future, list(FEATURE_COLS)] * 7.0 + 50.0
-    altered = _replay(replace(scenario, objects=objects), probe)
-    assert len(original) == len(altered)
-    compared = 0
-    for before, after in zip(original, altered, strict=True):
-        assert before.acquired_fovs == after.acquired_fovs
-        latest = order[before.acquired_fovs[-1]]
-        if latest <= cutoff:
-            assert before.result.diagnostics == after.result.diagnostics
-            compared += 1
-    assert compared > 0
-    if future.any():
-        # The alteration is real: the full-acquisition fits differ.
-        assert original[-1].result.diagnostics != altered[-1].result.diagnostics
-
-
-@pytest.mark.parametrize("transform", TRANSFORMS_UNDER_CONTRACT, ids=TRANSFORM_IDS)
-def test_fitted_transforms_are_json_provenance(transform):
-    import json
-
-    scenario = SCENARIOS["multimodal"]()
-    for item in _replay(scenario, [SamplingStrategy([_TransformProbe(transform)])]):
-        record = item.result.diagnostics["transform"]
-        assert json.loads(json.dumps(record)) == record
-        assert record["config_id"] == transform.config_id
-        assert record["n_fit_fovs"] == item.step
-
-
-# --- 6. Incremental updates -----------------------------------------------------
-
-
-def _assert_close(left, right, path="result"):
-    """Equal, except floats compared to a relative 1e-9 (merge order changes rounding)."""
-    if isinstance(left, float) or isinstance(right, float):
-        assert left == pytest.approx(right, rel=1e-9, abs=1e-12), path
-    elif hasattr(left, "__dataclass_fields__") and not isinstance(left, type):
-        assert type(left) is type(right), path
-        for name in left.__dataclass_fields__:
-            _assert_close(getattr(left, name), getattr(right, name), f"{path}.{name}")
-    elif isinstance(left, dict):
-        assert left.keys() == right.keys(), path
-        for key in left:
-            _assert_close(left[key], right[key], f"{path}[{key!r}]")
-    elif isinstance(left, list | tuple):
-        assert len(left) == len(right), path
-        for i, (a, b) in enumerate(zip(left, right, strict=True)):
-            _assert_close(a, b, f"{path}[{i}]")
-    else:
-        assert left == right, path
-
-
-@pytest.mark.parametrize("strategy", STRATEGIES_UNDER_CONTRACT, ids=STRATEGY_IDS)
-@pytest.mark.parametrize("name", SCENARIO_IDS)
-def test_incremental_replay_equals_full_recomputation(name, strategy):
-    # Proposal item 6: incremental evidence at step k must equal full
-    # recomputation on prefix k. Strategies without incremental support are
-    # recomputed in both runs, so they must match exactly as well.
-    scenario = SCENARIOS[name]()
-    full = _replay(scenario, [strategy])
-    incremental = _replay(scenario, [strategy], incremental=True)
-    assert [i.step for i in full] == [i.step for i in incremental]
-    for before, after in zip(full, incremental, strict=True):
-        assert before.acquired_fovs == after.acquired_fovs
-        _assert_close(before.result.without_timing(), after.result.without_timing())
-
-
-def test_packaged_incremental_estimators_are_exercised():
-    # Guards the test above against silently comparing recomputation with itself.
-    from morphocoverage.evaluator import IncrementalReplay
-
-    scenario = SCENARIOS["homogeneous"]()
-    data = validate_input_tables(
-        scenario.objects, fovs=scenario.fovs, feature_cols=list(FEATURE_COLS)
-    )
-    incremental = {
-        type(estimator).__name__
-        for strategy in STRATEGIES_UNDER_CONTRACT
-        for estimator in strategy.estimators
-        if IncrementalReplay(
-            SamplingStrategy([estimator]), data, objective=POPULATION, group={}
-        ).incremental
-    }
-    assert incremental == {"ScalarPrecisionEstimator", "_ObjectRowsCheck"}
-
-
-@pytest.mark.parametrize("incremental", [False, True])
-def test_timing_accounts_for_the_whole_decision(incremental):
-    scenario = SCENARIOS["unequal_objects_per_fov"]()
-    strategies = [
-        ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
-        DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL),
-        FixedFOVStrategy(5),
-    ]
-    results = _replay(scenario, strategies, incremental=incremental, min_fovs=3)
-    for item in results:
-        timing = item.result.timing
-        assert item.result.compute_seconds == timing.compute_seconds
-        parts = (
-            timing.recompute_seconds,
-            timing.update_seconds,
-            timing.initial_fit_seconds,
-            timing.framework_overhead_seconds,
-        )
-        assert all(part >= 0 for part in parts)
-        assert timing.total_decision_seconds == pytest.approx(sum(parts))
-        if item.step > 3:
-            assert timing.initial_fit_seconds == 0.0
-        precision = item.result.strategy.startswith("scalar_precision")
-        if incremental and precision:
-            assert timing.recompute_seconds == 0.0 and timing.update_seconds > 0
-        else:
-            assert timing.update_seconds == 0.0
