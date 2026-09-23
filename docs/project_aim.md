@@ -135,7 +135,7 @@ Preserve and report at least:
 - number of FOVs;
 - total imaged area when known;
 - number of detected objects;
-- distribution of objects per FOV.
+- distribution of observations per FOV.
 
 Ten FOVs acquired with different magnification, field size, or tissue coverage are not automatically equivalent.
 
@@ -436,7 +436,7 @@ Required scenarios include:
 6. **Same total cells, different FOV count** — explicitly separate cell count from image count.
 7. **Controlled within-FOV correlation** — quantify effects on scalar precision and multidimensional sampling.
 8. **Correlated neighbouring FOVs** — show when FOV-block resampling remains optimistic.
-9. **Empty FOVs** — preserve acquisition history when zero objects are detected.
+9. **Empty FOVs** — preserve acquisition history when zero observations are detected.
 10. **Unequal physical FOV area** — show when simple FOV count becomes misleading.
 11. **Batch/acquisition drift** — reveal technical novelty.
 12. **Segmentation censoring** — remove or distort rare states upstream.
