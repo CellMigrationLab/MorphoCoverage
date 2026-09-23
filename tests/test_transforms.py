@@ -104,3 +104,11 @@ def test_a_fitted_transform_rejects_other_features():
     fitted = Standardize().fit(_data([[1.0, 2.0], [2.0, 5.0]]))
     with pytest.raises(ValueError, match="cannot be applied"):
         fitted.apply(_data([[1.0, 2.0], [2.0, 5.0]], ("a", "c")))
+
+
+@pytest.mark.parametrize("transform", [Standardize(), PCA(1), Chain([Standardize(), PCA(1)])])
+def test_transforms_refuse_missing_values_explicitly(transform):
+    data = _data([[1.0, 2.0], [float("nan"), 3.0], [4.0, 5.0]])
+    fitted = transform.fit(data)
+    assert not fitted.fitted
+    assert "missing feature values" in fitted.reason
