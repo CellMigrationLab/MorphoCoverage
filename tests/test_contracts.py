@@ -131,6 +131,21 @@ def test_agents_section_9_matches_contract_tests():
     )
 
 
+def test_every_package_strategy_is_under_contract():
+    # AGENTS.md section 9: a strategy added to the package must be added to
+    # STRATEGIES_UNDER_CONTRACT. Enforced here rather than by convention.
+    from morphocoverage import strategies
+
+    exported = {
+        obj
+        for obj in vars(strategies).values()
+        if isinstance(obj, type) and issubclass(obj, SamplingStrategy) and obj is not SamplingStrategy
+    }
+    covered = {type(strategy) for strategy in STRATEGIES_UNDER_CONTRACT}
+    missing = sorted(cls.__name__ for cls in exported - covered)
+    assert not missing, f"strategies missing from STRATEGIES_UNDER_CONTRACT: {missing}"
+
+
 def test_framework_contracts_name_existing_tests():
     for test_name in FRAMEWORK_CONTRACTS.values():
         assert callable(globals().get(test_name)), test_name

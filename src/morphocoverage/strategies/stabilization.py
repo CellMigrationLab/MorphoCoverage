@@ -47,7 +47,9 @@ PAPER_DESCRIPTORS = ("mean", "median", "sd", "iqr")
 _UNITS = ("object", "fov")
 
 
-def describe(values: np.ndarray, descriptors=PAPER_DESCRIPTORS) -> dict[str, float]:
+def describe(
+    values: np.ndarray, descriptors: tuple[str, ...] = PAPER_DESCRIPTORS
+) -> dict[str, float]:
     """Descriptors of one sample, as in the paper's Table 1; NaN with fewer than 2 values.
 
     Quantiles use linear interpolation, matching the companion code's
@@ -93,14 +95,6 @@ def _check_common(feature, tolerance, descriptors) -> None:
         raise ValueError("descriptors contains duplicates")
 
 
-def _check_feature(data: ValidatedInput, feature: str) -> None:
-    if feature not in data.feature_cols:
-        raise ValueError(
-            f"feature {feature!r} is not one of the explicitly selected "
-            f"feature columns {list(data.feature_cols)}"
-        )
-
-
 def _result(strategy, objective, score, stop, diagnostics) -> StrategyResult:
     return StrategyResult(
         strategy=strategy.name,
@@ -143,6 +137,7 @@ class DescriptorPlateauStrategy(SamplingStrategy):
 
     @property
     def parameters(self) -> dict[str, Any]:
+        """All settings that define the criterion, for result provenance."""
         return {
             "feature": self.feature,
             "tolerance": self.tolerance,
@@ -152,13 +147,13 @@ class DescriptorPlateauStrategy(SamplingStrategy):
         }
 
     def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
-        _check_feature(data, self.feature)
+        """Largest descriptor range over the trailing window as ``score``; stop within tolerance."""
+        values = data.feature_values(self.feature)
         if self.order_col not in data.fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
         ordered = data.fovs.sort_values(self.order_col, kind="stable")
         positions = fov_positions(data, ordered)
-        values = data.objects[self.feature].to_numpy(float)
         # Prefix sizes (in FOVs) after which the cumulative sample gained objects.
         per_fov = np.bincount(positions[positions >= 0], minlength=len(ordered))
         growth_points = np.flatnonzero(per_fov) + 1
@@ -220,10 +215,12 @@ class DescriptorSpreadStrategy(SamplingStrategy):
 
     @property
     def name(self) -> str:
+        """``descriptor_spread_object`` or ``descriptor_spread_fov``."""
         return f"descriptor_spread_{self.resampling_unit}"
 
     @property
     def parameters(self) -> dict[str, Any]:
+        """All settings that define the criterion, including the seed, for provenance."""
         return {
             "feature": self.feature,
             "tolerance": self.tolerance,
@@ -235,7 +232,7 @@ class DescriptorSpreadStrategy(SamplingStrategy):
 
     def _resampled_descriptors(self, data: ValidatedInput) -> dict[str, np.ndarray] | str:
         rng = np.random.default_rng(self.random_state)
-        values = data.objects[self.feature].to_numpy(float)
+        values = data.feature_values(self.feature)
         if self.resampling_unit == "object":
             if len(values) < 2:
                 return "fewer than 2 objects"
@@ -255,8 +252,8 @@ class DescriptorSpreadStrategy(SamplingStrategy):
         return {name: np.asarray(series) for name, series in results.items()}
 
     def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
-        _check_feature(data, self.feature)
-        values = data.objects[self.feature].to_numpy(float)
+        """Largest descriptor spread across resamples as ``score``; stop within tolerance."""
+        values = data.feature_values(self.feature)
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
             "assumes_random_cell_sampling": self.resampling_unit == "object",

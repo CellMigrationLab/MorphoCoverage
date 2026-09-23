@@ -21,10 +21,15 @@ class Decision(str, Enum):
 class StrategyResult:
     """One strategy evaluation for one analysis group and acquisition state.
 
-    ``n_fovs``, ``n_objects``, ``group`` and ``runtime_seconds`` are owned by the
-    framework and filled after the strategy returns. Strategies may leave them
-    unset; a strategy-supplied count that disagrees with the acquisition record
-    is rejected.
+    ``n_fovs``, ``n_objects``, ``group``, ``feature_cols``, ``fov_key`` and
+    ``runtime_seconds`` are owned by the framework and filled after the
+    strategy returns. Strategies leave them unset; a strategy-supplied count
+    that disagrees with the acquisition record is rejected.
+
+    ``feature_cols`` and ``fov_key`` record the phenotype representation and
+    the FOV identity the result was computed on, as AGENTS.md section 3
+    requires; strategy-specific settings (preprocessing, metric, thresholds)
+    belong in ``parameters``.
     """
 
     strategy: str
@@ -38,3 +43,5 @@ class StrategyResult:
     group: Mapping[str, Any] = field(default_factory=dict)
     diagnostics: Mapping[str, Any] = field(default_factory=dict)
     parameters: Mapping[str, Any] = field(default_factory=dict)
+    feature_cols: tuple[str, ...] = ()
+    fov_key: tuple[str, ...] = ()

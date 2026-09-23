@@ -8,6 +8,7 @@ estimators.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ..objectives import ObjectiveConfig
 from ..results import Decision, StrategyResult
@@ -27,10 +28,12 @@ class FixedFOVStrategy(SamplingStrategy):
             raise ValueError("target_fovs must be at least 1")
 
     @property
-    def parameters(self):
+    def parameters(self) -> dict[str, Any]:
+        """Configured target number of acquired FOVs."""
         return {"target_fovs": self.target_fovs}
 
     def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
+        """Stop once the acquired FOVs, including zero-object FOVs, reach the target."""
         n_fovs = len(data.fovs)
         return StrategyResult(
             strategy=self.name,
@@ -54,10 +57,12 @@ class FixedObjectStrategy(SamplingStrategy):
             raise ValueError("target_objects must be at least 1")
 
     @property
-    def parameters(self):
+    def parameters(self) -> dict[str, Any]:
+        """Configured target number of detected objects."""
         return {"target_objects": self.target_objects}
 
     def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
+        """Stop once the detected objects reach the target, regardless of FOV count."""
         n_objects = len(data.objects)
         return StrategyResult(
             strategy=self.name,
