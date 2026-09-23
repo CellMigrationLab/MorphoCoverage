@@ -171,6 +171,15 @@ class DescriptorPlateauEstimator(Estimator):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_range`` over the trailing window of growth steps."""
         values = data.feature_values(self.feature)
+        if np.isnan(values).any():
+            reason = "missing values in the selected feature"
+            return Evidence(
+                {"max_descriptor_range": Quantity.not_applicable(
+                    reason, direction=Direction.LOWER_IS_BETTER,
+                    units=f"units of {self.feature!r}", component=Component.POPULATION
+                )},
+                {"undefined_reason": reason},
+            )
         if self.order_col not in data.fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
@@ -271,6 +280,15 @@ class DescriptorSpreadEstimator(Estimator):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_spread`` across resamples of the visible data."""
         values = data.feature_values(self.feature)
+        if np.isnan(values).any():
+            reason = "missing values in the selected feature"
+            return Evidence(
+                {"max_descriptor_spread": Quantity.not_applicable(
+                    reason, direction=Direction.LOWER_IS_BETTER,
+                    units=f"units of {self.feature!r}", component=Component.POPULATION
+                )},
+                {"undefined_reason": reason},
+            )
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
             "assumes_random_cell_sampling": self.resampling_unit == "object",
