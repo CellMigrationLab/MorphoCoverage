@@ -114,7 +114,7 @@ Which target is most useful should be determined by validation.
 
 ### FOV is the operational acquisition unit, not automatically an independent unit
 
-MorphoCoverage treats an FOV as the primary operational sampling unit because that is what the microscope acquires.
+MorphoCoverage treats an FOV as the primary operational sampling unit because that is what the microscope samples spatially. Here, **one FOV means one independently selected XY acquisition position**. A z-stack, multichannel acquisition, or time series at that position remains one FOV.
 
 This does **not** mean FOVs are assumed statistically independent. Adjacent, overlapping, or nearby FOVs can be strongly correlated.
 
@@ -568,3 +568,8 @@ MorphoCoverage is a strategy-comparison framework. Candidate methods implement o
 By default, canonical MorphoBricks `condition` and `repeat` columns define independent analysis groups, and `image_file` is preferred as the FOV identity. Pooling must be explicit.
 
 Scientific performance and computational performance are benchmarked separately. Runtime is a first-class outcome because one intended application is online smart microscopy. See `benchmarking.md` and `architecture.md`.
+
+
+### Multidimensional acquisitions
+
+Feature extraction may be 2D, 3D, slice-by-slice, channel-specific, or time-resolved. MorphoCoverage does not prescribe how phenotype features are computed. If 2D features are generated over a stack or time series, preserve the relevant lowercase `z`, `c`, and/or `t` metadata and keep a shared spatial `position_id` for all rows from the same acquisition position. Sequential acquisition must reveal the whole position together.
