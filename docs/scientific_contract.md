@@ -95,3 +95,12 @@ new spatial FOV
 ```
 
 The session must not require or expose future FOV identifiers, metadata, or phenotype values. Estimators that implement `EstimatorState` update only from the newly acquired FOV. Estimators without incremental support remain valid and are recomputed from the accumulated visible session history. Incremental evidence must match full recomputation to floating-point tolerance.
+
+
+## FOV-level metadata may be normalized
+
+Observation tables may remain lean: condition/repeat or other grouping metadata
+can be stored only in the FOV table when the FOV identifier is globally
+unambiguous. MorphoCoverage may attach that metadata to observation rows for
+analysis. If the identifier is reused across groups, the mapping is ambiguous
+and the framework must raise rather than guess.
