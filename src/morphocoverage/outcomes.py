@@ -74,10 +74,11 @@ def _feature(feature: object) -> str:
 
 @dataclass(frozen=True)
 class RelativeMeanError(OutcomeMetric):
-    """``|mean(stop) - mean(full)| / |mean(full)|`` of one feature's object mean.
+    """``|mean(stop) - mean(full)| / |mean(full)|`` of one feature's observation mean.
 
     The realized error of the population summary at the stop. ``None`` when
-    the stop prefix has no objects or the full mean is zero. With FOVs as the
+    the stop prefix has no observations, either acquisition contains missing
+    values for the selected feature, or the full mean is zero. With FOVs as the
     acquisition unit this is the quantity whose spread across acquisition
     orders gives the whole-FOV error of ``fov_vs_cells.py``.
     """
@@ -102,6 +103,8 @@ class RelativeMeanError(OutcomeMetric):
         reference = full.feature_values(self.feature)
         values = stopped.feature_values(self.feature)
         if not len(values) or not len(reference):
+            return None
+        if np.isnan(values).any() or np.isnan(reference).any():
             return None
         target = float(reference.mean())
         if target == 0:
@@ -142,6 +145,8 @@ class RandomCellRelativeError(OutcomeMetric):
         reference = full.feature_values(self.feature)
         n = len(stopped.objects)
         if len(reference) < 2 or n == 0:
+            return None
+        if np.isnan(reference).any():
             return None
         mean = float(reference.mean())
         if mean == 0:
