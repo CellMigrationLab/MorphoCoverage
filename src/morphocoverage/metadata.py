@@ -23,7 +23,7 @@ MORPHOBRICKS_FOV_CANDIDATES = ("position_id", "image_file", "fov_id")
 
 # Coordinates/dimensions nested inside one spatial position. These are
 # acquisition metadata, never phenotype features in MorphoCoverage.
-WITHIN_FOV_METADATA_COLUMNS = ("z", "c", "t")
+WITHIN_FOV_METADATA_COLUMNS = ("z", "z0", "z1", "c", "t")
 
 
 def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str, pd.DataFrame]]:
@@ -42,7 +42,6 @@ def check_canonical_spellings(
     canonical = {
         *MORPHOBRICKS_GROUP_COLUMNS,
         *MORPHOBRICKS_FOV_CANDIDATES,
-        *WITHIN_FOV_METADATA_COLUMNS,
     }
     for table_name, table in _tables(objects, fovs):
         for column in table.columns:
