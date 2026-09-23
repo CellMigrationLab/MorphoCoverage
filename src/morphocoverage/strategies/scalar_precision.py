@@ -284,6 +284,8 @@ class ScalarPrecisionEstimator(Estimator):
         self, sums: np.ndarray, counts: np.ndarray, *, has_negative: bool, cells
     ) -> dict[str, Any] | tuple[str, str]:
         """The estimate from per-FOV sums and counts; ``cells()`` gives the cell-level CVs."""
+        if np.isnan(sums).any():
+            return "not_applicable", "missing values in the selected scalar feature"
         n_objects = int(counts.sum())
         if self.resampling_unit == "object":
             if n_objects < 2:
