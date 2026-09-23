@@ -153,8 +153,10 @@ class Standardize(FeatureTransform):
 
     def fit_matrix(self, matrix, names):
         """Visible mean and SD per feature."""
+        if np.isnan(matrix).any():
+            return "missing feature values; choose or implement an explicit missing-data policy"
         if len(matrix) < 2:
-            return "fewer than 2 objects"
+            return "fewer than 2 observations"
         mean = matrix.mean(axis=0)
         sd = matrix.std(axis=0, ddof=1)
         constant = [name for name, value in zip(names, sd, strict=True) if not value > 0]
@@ -198,6 +200,8 @@ class PCA(FeatureTransform):
 
     def fit_matrix(self, matrix, names):
         """Visible mean, leading components and their explained-variance ratios."""
+        if np.isnan(matrix).any():
+            return "missing feature values; choose or implement an explicit missing-data policy"
         n_objects, n_features = matrix.shape
         if n_features < self.n_components:
             return f"{n_features} features cannot give {self.n_components} components"
