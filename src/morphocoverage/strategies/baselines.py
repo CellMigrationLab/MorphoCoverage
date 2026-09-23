@@ -50,7 +50,11 @@ class FixedFOVStrategy(SamplingStrategy):
 
 @dataclass(frozen=True)
 class FixedObjectStrategy(SamplingStrategy):
-    """Stop after a user-defined number of detected objects."""
+    """Legacy row-count baseline for object-style feature tables.
+
+    For generic feature rows prefer FixedObservationStrategy, which makes the
+    row semantics explicit through the framework observation_unit.
+    """
 
     target_objects: int
     name: str = "fixed_objects"
@@ -70,7 +74,7 @@ class FixedObjectStrategy(SamplingStrategy):
 
     @property
     def policies(self) -> tuple[EffortPolicy]:
-        """Stop once detected objects reach the target, regardless of FOV count."""
+        """Stop once feature-table rows reach the legacy object target."""
         return (EffortPolicy("n_objects", self.target_objects),)
 
 
