@@ -186,6 +186,7 @@ tests/
 
 data/crick_idr/            # real feature tables (CC BY 4.0) for tests; README gives provenance
 docs/                      # scientific aims, contracts, architecture, benchmarking, findings
+docs/proposals/            # design proposals awaiting approval; not implemented
 ```
 
 A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.

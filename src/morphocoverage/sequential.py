@@ -72,8 +72,17 @@ def evaluate_acquisition_prefixes(
     strategy_list = list(strategies)
     key = list(data.fov_key)
 
+    groups = list(iter_analysis_groups(data))
+    too_small = [group for group, group_data in groups if len(group_data.fovs) < min_fovs]
+    if too_small:
+        raise ValueError(
+            f"min_fovs={min_fovs} exceeds the number of acquired FOVs in "
+            f"{len(too_small)} analysis group(s), e.g. {too_small[:3]}; they would "
+            "produce no results. Lower min_fovs or exclude those groups explicitly."
+        )
+
     all_results: list[SequentialResult] = []
-    for group, group_data in iter_analysis_groups(data):
+    for group, group_data in groups:
         order = group_data.fovs[acquisition_order_col]
         if order.duplicated().any():
             tied = sorted(order[order.duplicated(keep=False)].unique().tolist())

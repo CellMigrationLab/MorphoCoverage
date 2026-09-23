@@ -30,6 +30,11 @@ def _visible_table(table: pd.DataFrame) -> pd.DataFrame:
     return visible
 
 
+def _isolated_input(data: ValidatedInput) -> ValidatedInput:
+    """A deep copy of the input tables for one strategy call."""
+    return replace(data, objects=data.objects.copy(deep=True), fovs=data.fovs.copy(deep=True))
+
+
 def restrict_input(
     data: ValidatedInput,
     objects: pd.DataFrame,
@@ -88,13 +93,17 @@ def evaluate_strategy(
 ) -> StrategyResult:
     """Run one strategy and attach framework-owned counts, provenance and runtime.
 
-    Each call runs on a fresh copy of the configured strategy, so no state can
-    flow between analysis groups or between acquisition prefixes. ``evaluate``
-    is therefore a pure full recomputation on the data it receives.
+    Each call runs on a fresh copy of the configured strategy and on its own
+    deep copy of the input tables, so neither strategy state nor in-place edits
+    to the data can flow to another strategy, analysis group or acquisition
+    prefix. Framework-owned fields are computed from the original input.
+    ``evaluate`` is therefore a pure full recomputation on the data it receives.
+    Copying happens outside the timed region.
     """
     fresh = copy.deepcopy(strategy)
+    isolated = _isolated_input(data)
     start = perf_counter()
-    result = fresh.evaluate(data, objective=objective)
+    result = fresh.evaluate(isolated, objective=objective)
     runtime_seconds = perf_counter() - start
 
     if not isinstance(result, StrategyResult):

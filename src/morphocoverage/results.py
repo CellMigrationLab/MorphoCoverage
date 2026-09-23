@@ -26,6 +26,12 @@ class StrategyResult:
     strategy returns. Strategies leave them unset; a strategy-supplied count
     that disagrees with the acquisition record is rejected.
 
+    ``runtime_seconds`` is the wall-clock time of the strategy's own
+    ``evaluate`` call only. It excludes input copying, prefix construction and
+    other framework overhead, and it is a full recomputation, not an
+    incremental update, so it is not yet an end-to-end smart-microscopy
+    latency.
+
     ``feature_cols`` and ``fov_key`` record the phenotype representation and
     the FOV identity the result was computed on, as AGENTS.md section 3
     requires; strategy-specific settings (preprocessing, metric, thresholds)

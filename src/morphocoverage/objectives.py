@@ -29,6 +29,13 @@ class ObjectiveConfig:
     min_fov_occurrences: int | None = None
 
     def __post_init__(self) -> None:
+        try:
+            object.__setattr__(self, "objective", SamplingObjective(self.objective))
+        except ValueError:
+            allowed = [o.value for o in SamplingObjective]
+            raise ValueError(
+                f"unknown sampling objective {self.objective!r}; expected one of {allowed}"
+            ) from None
         needs_rare_target = self.objective in {
             SamplingObjective.RARE_DISCOVERY,
             SamplingObjective.BALANCED,

@@ -38,8 +38,8 @@ class ValidatedInput:
     fov_key: tuple[str, ...]
 
     def feature_matrix(self) -> np.ndarray:
-        """Return the explicitly selected phenotype features as a float array."""
-        return self.objects.loc[:, list(self.feature_cols)].to_numpy(dtype=float)
+        """Return the explicitly selected phenotype features as a new float array."""
+        return self.objects.loc[:, list(self.feature_cols)].to_numpy(dtype=float, copy=True)
 
     def feature_values(self, feature: str) -> np.ndarray:
         """Return one explicitly selected feature as a float array.
@@ -53,7 +53,7 @@ class ValidatedInput:
                 f"feature {feature!r} is not one of the explicitly selected "
                 f"feature columns {list(self.feature_cols)}"
             )
-        return self.objects[feature].to_numpy(dtype=float)
+        return self.objects[feature].to_numpy(dtype=float, copy=True)
 
 
 def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:

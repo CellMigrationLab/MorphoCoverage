@@ -19,16 +19,26 @@ the upper bound of the 95% confidence interval for SD, recommended when only a
 few cells are available; the upper bound is the chi-square bound with
 ``n - 1`` degrees of freedom, which reproduces the paper's worked example.
 
+This is the paper's **single-sample / pilot variant**: the requirement is
+estimated from the cells of one analysis group. The paper's full multi-sample
+procedure is not implemented here, because it needs data from other analysis
+groups, which a strategy never sees (see below). It belongs in a separate,
+leakage-safe planning step.
+
 ``resampling_unit="object"`` is the published criterion. ``resampling_unit="fov"``
 is a MorphoCoverage variant, not part of the paper: the same averaging noise
 estimated with FOVs as the sampling unit (ratio-estimator variance for cluster
 sampling), so spatially clustered phenotypes inflate it. The gap between the
 two is the comparison the regime map needs; it does not make either wrong.
 
-Not reproduced here: pooling SD across several samples after subtracting each
-sample's mean, and normalizing to the mean of all control samples. Both need
-data from other analysis groups, which a strategy never sees; within one group
-the sample's own mean is used, as in the paper's single-sample case.
+Not reproduced here, both parts of the multi-sample procedure:
+
+- normalizing values to the average of all control samples;
+- when several samples are used, subtracting each sample's mean before
+  estimating the pooled within-sample SD.
+
+Within one group the sample's own mean is used, as in the paper's
+single-sample case.
 """
 
 from __future__ import annotations
@@ -132,10 +142,17 @@ def fov_averaging_cv(sums: np.ndarray, counts: np.ndarray) -> dict[str, float]:
 
         Var(m) = k / (k - 1) * sum((T_j - m * N_j) ** 2) / sum(N) ** 2.
 
-    Acquired FOVs with zero objects are sampled units: they contribute
-    ``T_j = N_j = 0`` and count towards ``k``. The upper bound applies the same
-    chi-square bound as the object criterion with ``k - 1`` degrees of freedom,
-    an approximation for this estimator.
+    Estimand: the per-object mean over the sampled area, with FOVs as the
+    sampling units (cluster sampling). Acquired FOVs with zero objects are
+    sampled units: they contribute ``T_j = N_j = 0`` and count towards ``k``,
+    as in the standard ratio-estimator variance. Their only effect on the
+    estimated variance is through the ``k / (k - 1)`` degrees-of-freedom
+    factor, which shrinks slightly as empty FOVs are added. They do matter for
+    ``required_fovs``, since future FOVs may be empty too. Excluding them would
+    give a slightly more conservative bound. The upper bound applies the same
+    chi-square bound as the object criterion with ``k - 1`` degrees of freedom;
+    it is an approximation that has not been validated empirically for this
+    estimator.
     """
     k = len(sums)
     total = float(np.sum(counts))
@@ -157,8 +174,10 @@ class ScalarPrecisionStrategy(SamplingStrategy):
     ----------
     feature:
         The single scalar measurement whose mean is estimated. It must be one of
-        the explicitly selected feature columns and positive-valued, as for the
-        whole-cell properties the criterion was designed for.
+        the explicitly selected feature columns, with non-negative values and a
+        positive mean, as for the whole-cell properties (sizes, counts,
+        intensities) the criterion was designed for. Negative values make the
+        criterion undefined (``decision=None``).
     target_cv:
         Target averaging CV as a fraction: the paper suggests 0.05 for
         independent samples and 0.025 for matched/paired designs. No default.
@@ -235,6 +254,11 @@ class ScalarPrecisionStrategy(SamplingStrategy):
                 return "fewer than 2 objects"
         elif len(fovs) < 2 or n_objects == 0:
             return "fewer than 2 acquired FOVs or no objects"
+        if (values < 0).any():
+            return (
+                "negative values; the CV criterion applies to non-negative "
+                "whole-cell measurements"
+            )
         if sums.sum() <= 0:
             return "non-positive mean; CV is only defined for positive-valued measurements"
 
