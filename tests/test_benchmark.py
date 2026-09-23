@@ -22,20 +22,20 @@ from morphocoverage.benchmark import (
     BenchmarkDataset,
     BenchmarkRegistry,
     DatasetRole,
+    _record_run,
     leave_one_dataset_out,
     records_to_frame,
     run_benchmark,
-    _record_run,
 )
 from morphocoverage.evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
-from morphocoverage.results import Timing
-from morphocoverage.sequential import evaluate_acquisition_prefixes
 from morphocoverage.outcomes import (
     RandomCellRelativeError,
     RareStateDetected,
     RelativeMeanError,
     srs_relative_rmse,
 )
+from morphocoverage.results import Timing
+from morphocoverage.sequential import evaluate_acquisition_prefixes
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
