@@ -234,7 +234,16 @@ def test_non_positive_mean_gives_no_decision(unit):
     objects, fovs = _tables([[-1.0, -2.0], [-3.0, -1.0]])
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, unit, "point"))
     assert result.decision is None
-    assert "positive" in result.diagnostics["undefined_reason"]
+    assert "negative" in result.diagnostics["undefined_reason"]
+
+
+@pytest.mark.parametrize("unit", ["object", "fov"])
+def test_negative_values_with_positive_mean_give_no_decision(unit):
+    # A positive mean does not make a CV meaningful when values can be negative.
+    objects, fovs = _tables([[-5.0, 10.0], [10.0, 10.0]])
+    result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, unit, "point"))
+    assert result.decision is None and result.score is None
+    assert "negative values" in result.diagnostics["undefined_reason"]
 
 
 def test_too_little_data_gives_no_decision():

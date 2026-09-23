@@ -21,16 +21,40 @@ This is a data-preparation script, not part of the package.
 
 from __future__ import annotations
 
+import hashlib
 import sys
 import urllib.request
 from pathlib import Path
 
 import pandas as pd
 
+# Pinned source commit of FrancisCrickInstitute/Enhancing-Reproducibility, so the
+# download cannot drift with their main branch.
+SOURCE_COMMIT = "a81d20c9393485e57395cd4a1be9e7ff83c7f11d"
 MEDIA = (
     "https://media.githubusercontent.com/media/FrancisCrickInstitute/"
-    "Enhancing-Reproducibility/main/inputs"
+    f"Enhancing-Reproducibility/{SOURCE_COMMIT}/inputs"
 )
+# SHA-256 of each source file (equal to its Git LFS object id at SOURCE_COMMIT).
+SOURCE_SHA256 = {
+    "idr0028-screenB-annotation.csv": "898914f2c72808fbe97f162d90ade0c7ea1013cdbcece47470aa93449708a802",
+    "idr0028_1A_Cytoplasm.csv": "a212e43ef4196caee91fd27cd004abeff416b51b7746e2fca0c154f6ad2d2b6e",
+    "idr0028_1A_Image.csv": "56762eee76dfbdfcf5cadb8c5e4aac2e18063ccff000a4490a0a3bdf9a99b4b5",
+    "idr0028_1A_Nuclei.csv": "a8608f7bff4d480fd2313cee51d4ffb5f087b36dd7c88481738f152648cf2092",
+    "idr0028_1A_index.tsv": "768affc7c6df557907715719c1000f60700443ccc17b746566546df93d221520",
+    "idr0028_2A_Cytoplasm.csv": "627f64cbb07167dc0cb7f9f7b4de3760509ddf1c204999f70c2147fb1815cd5e",
+    "idr0028_2A_Image.csv": "980ee507f3555d46e941dd27165e36a1e981f74f74532de0dbd27e79ea1e6cd3",
+    "idr0028_2A_Nuclei.csv": "c4842b3c9f247f71f62b8003b3cba1d19cba9b93b58fc4d8645e348edc1d6bb6",
+    "idr0028_2A_index.tsv": "08cbf3a38bc3f02f88ad870a6432daed098ae3574cbddae9d713e8fe9b8fab65",
+    "idr0028_2B_Cytoplasm.csv": "dcee471db7ec57137d5ddf027426e303b867c580e0249395f6138c98fedfa39d",
+    "idr0028_2B_Image.csv": "da8543f3e3b2b8a60716c77b6dda27d7df5f46701ffefbe8d1092f707694dac7",
+    "idr0028_2B_Nuclei.csv": "9c72a10f11e1ee7649fd5d0283b9c7208c2911d0279dbfa68f0f0be193670265",
+    "idr0028_2B_index.tsv": "0122f109773888e4abc1d9ee989b4f32d388bc667e781e5d45097b2ed1804c09",
+    "idr0139-screenA-annotation.csv": "4ce347396467cb2948e5ec2857ebe42b2506ca76d00a3b5be3b3f9c69886d20a",
+    "idr0139_Cytoplasm.csv": "83b1cf0d59ce4baa6645e1a5f8263f5e90badfbb453c583c2708a3aa08d7c2fa",
+    "idr0139_Image.csv": "b7b33467e79c585e50c65e0957411115ba2b4d1ca211a78d6e011e01e3ea8480",
+    "idr0139_Nuclei.csv": "2cba4c0d66385deea4062e8d56561795eb52b031a978c84ad75e0d919551c690",
+}
 IDR0028_PLATES = ("1A", "2A", "2B")
 IDR0139_PLATE = 1093711385
 FLOAT_FORMAT = "%.6g"
@@ -78,6 +102,20 @@ def fetch(raw_dir: Path) -> None:
         target = raw_dir / name
         if not target.exists():
             urllib.request.urlretrieve(f"{MEDIA}/{path}", target)
+        verify(target)
+
+
+def verify(path: Path) -> None:
+    """Raise if a source file does not match the pinned checksum."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != SOURCE_SHA256[path.name]:
+        raise ValueError(
+            f"{path} does not match the pinned source (SHA-256 {digest.hexdigest()}); "
+            "delete it and download again"
+        )
 
 
 def _objects(raw_dir: Path, prefix: str, image_numbers) -> pd.DataFrame:

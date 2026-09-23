@@ -157,7 +157,7 @@ Later benchmarking will extend this with:
 
 The initial `FixedFOVStrategy` and `FixedObjectStrategy` are architectural baselines only. They exist to prove that strategies can be swapped through one shared runner and to provide simple comparators later.
 
-`ScalarPrecisionStrategy` reproduces the cell-averaging criterion of Zweifach (J Cell Biol 2024, doi:10.1083/jcb.202401074) for one explicitly named scalar feature, following AGENTS.md §10:
+`ScalarPrecisionStrategy` reproduces the **single-sample/pilot variant** of the cell-averaging criterion of Zweifach (J Cell Biol 2024, doi:10.1083/jcb.202401074) for one explicitly named scalar feature, following AGENTS.md §10. The paper's multi-sample planning procedure is not implemented; see `docs/proposals/architecture_hardening.md`, item 7.
 
 - **Scalar parameter:** the object mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
 - **Criterion:** stop once `n >= ceil((SD / target) ** 2)`. The target is required, with no default: the paper suggests 5% for independent samples and 2.5% for matched designs.

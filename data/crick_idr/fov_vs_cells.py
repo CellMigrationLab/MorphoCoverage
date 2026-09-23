@@ -16,6 +16,10 @@ This uses the complete plates, not the committed subset, so it downloads about
 
     python data/crick_idr/fov_vs_cells.py RAW_DIR
 
+The summary tables are written to ``data/crick_idr/results/`` together with the
+source commit, so the numbers in ``docs/preliminary_findings.md`` come from
+tracked files.
+
 Exploratory and retrospective: the full-well mean is the reference, and only
 the imaged fields of each well are known.
 """
@@ -27,10 +31,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from convert import IDR0028_PLATES, IDR0139_PLATE, fetch
+from convert import IDR0028_PLATES, IDR0139_PLATE, SOURCE_COMMIT, fetch
 
 N_DRAWS = 400
 SEED = 0
+RESULTS = Path(__file__).resolve().parent / "results"
 
 
 def _cells(raw_dir: Path, prefix: str, image_col: str, well_of, protein: str) -> tuple:
@@ -94,6 +99,10 @@ def summarize(result: pd.DataFrame) -> pd.DataFrame:
         ratio_q25=("ratio", lambda s: s.quantile(0.25)),
         ratio_q75=("ratio", lambda s: s.quantile(0.75)),
         wells_ratio_above_1_5=("ratio", lambda s: (s > 1.5).mean()),
+        wells_fovs_above_5pct=("rel_rmse_fovs", lambda s: (s > 0.05).mean()),
+        wells_fovs_above_2_5pct=("rel_rmse_fovs", lambda s: (s > 0.025).mean()),
+        wells_cells_above_5pct=("rel_rmse_random_cells", lambda s: (s > 0.05).mean()),
+        wells_cells_above_2_5pct=("rel_rmse_random_cells", lambda s: (s > 0.025).mean()),
     )
 
 
@@ -102,8 +111,9 @@ def main(raw_dir: Path) -> None:
     rng = np.random.default_rng(SEED)
     cells, images = _cells(raw_dir, "idr0139", "FileName_DNA",
                            lambda s: s.str.split("_").str[1], "Fascin")
+    idr0139 = summarize(compare(cells, images, [1, 2, 3], rng))
     print(f"idr0139 plate {IDR0139_PLATE}, Fascin_Ratio")
-    print(summarize(compare(cells, images, [1, 2, 3], rng)).to_string(float_format="{:.3g}".format))
+    print(idr0139.to_string(float_format="{:.3g}".format))
 
     results = []
     for plate in IDR0028_PLATES:
@@ -112,8 +122,15 @@ def main(raw_dir: Path) -> None:
             lambda s: s.str.rsplit("/", n=1).str[-1].str.split("-").str[0], "YAPTAZ",
         )
         results.append(compare(cells, images, [1, 2, 4, 8, 14], rng).assign(plate=plate))
+    idr0028 = summarize(pd.concat(results))
     print("idr0028 screen B plates 1A, 2A, 2B, YAPTAZ_Ratio")
-    print(summarize(pd.concat(results)).to_string(float_format="{:.3g}".format))
+    print(idr0028.to_string(float_format="{:.3g}".format))
+
+    RESULTS.mkdir(exist_ok=True)
+    for name, table in (("idr0139_fascin", idr0139), ("idr0028_screenB_yaptaz", idr0028)):
+        table.assign(source_commit=SOURCE_COMMIT, n_draws=N_DRAWS, seed=SEED).to_csv(
+            RESULTS / f"fov_vs_cells_{name}.csv", float_format="%.6g"
+        )
 
 
 if __name__ == "__main__":

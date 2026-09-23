@@ -23,9 +23,15 @@ The underlying images come from the Image Data Resource:
 - **idr0139**: Lawson et al., "Nuclear fascin regulates cancer cell survival",
   IDR study idr0139, licence CC BY 4.0, copyright Lawson et al.
 - **idr0028** (screen B): Pascual-Vargas et al., RNAi screen for regulators of
-  cell shape and YAP/TAZ localisation, IDR study idr0028. We did not reach
-  the study's own licence record; the derived tables are redistributed here
-  under the CC BY 4.0 licence of the Crick repository.
+  cell shape and YAP/TAZ localisation, IDR study idr0028. The IDR study page
+  (https://idr.openmicroscopy.org/study/idr0028/) is reported to list CC BY 4.0;
+  that page was not reachable from the environment that prepared these files,
+  so this was not confirmed directly. The Crick repository redistributes the
+  derived tables under CC BY 4.0 as well.
+
+Source pinned at Crick commit `a81d20c9393485e57395cd4a1be9e7ff83c7f11d`.
+`convert.py` downloads from that commit and verifies every file against its
+SHA-256 checksum, which equals its Git LFS object id.
 
 No images are included.
 

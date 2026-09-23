@@ -5,11 +5,13 @@ modular framework violated without raising. They constrain behaviour, not a part
 implementation.
 """
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from morphocoverage import (
     FixedFOVStrategy,
+    FixedObjectStrategy,
     ObjectiveConfig,
     SamplingObjective,
     SamplingStrategy,
@@ -377,3 +379,80 @@ def test_feature_matrix_exposes_only_explicit_features():
         feature_cols=["area"],
     )
     assert data.feature_matrix().tolist() == [[1.0]]
+
+
+# --- Second audit (ChatGPT review of main at da3953c) ------------------------------
+
+
+class _Mutator(SamplingStrategy):
+    """Edits everything it is given in place, as careless preprocessing might."""
+
+    name = "mutator"
+
+    def evaluate(self, data, *, objective):
+        matrix = data.feature_matrix()
+        matrix -= 100.0  # must not reach the tables
+        data.objects[list(data.feature_cols)] = -1.0
+        data.fovs.drop(data.fovs.index[-1], inplace=True)
+        return StrategyResult(self.name, objective, score=None)
+
+
+class _Reader(SamplingStrategy):
+    name = "reader"
+
+    def evaluate(self, data, *, objective):
+        return StrategyResult(
+            self.name,
+            objective,
+            score=float(data.feature_values("area").sum()),
+            diagnostics={"fov_rows": len(data.fovs)},
+        )
+
+
+def test_in_place_edits_by_one_strategy_do_not_reach_the_next():
+    objects = pd.DataFrame({"fov_id": ["F1", "F1", "F2"], "area": [1.0, 2.0, 3.0]})
+    mutated, read = run_strategies(
+        objects, strategies=[_Mutator(), _Reader()], feature_cols=["area"], objective=POPULATION
+    )
+    assert read.score == 6.0 and read.diagnostics["fov_rows"] == 2
+    # Framework-owned counts come from the original input, not the mutated copy.
+    assert (mutated.n_fovs, read.n_fovs) == (2, 2)
+    assert objects["area"].tolist() == [1.0, 2.0, 3.0]
+
+
+def test_in_place_edits_do_not_reach_later_prefixes():
+    objects = pd.DataFrame({"fov_id": ["F1", "F2", "F3"], "area": [1.0, 2.0, 3.0]})
+    fovs = pd.DataFrame({"fov_id": ["F1", "F2", "F3"], "order": [1, 2, 3]})
+    results = _run_prefixes(objects, fovs, _Mutator())
+    results += _run_prefixes(objects, fovs, _Reader())
+    reads = [r.result.score for r in results if r.result.strategy == "reader"]
+    assert reads == [1.0, 3.0, 6.0]
+
+
+def test_feature_arrays_are_owned_copies():
+    data = validate_input_tables(
+        pd.DataFrame({"fov_id": ["F1", "F2"], "area": [1.0, 2.0]}), feature_cols=["area"]
+    )
+    for array in (data.feature_matrix(), data.feature_values("area")):
+        assert array.flags.writeable
+        assert not np.shares_memory(array, data.objects["area"].to_numpy())
+
+
+def test_unknown_objective_is_rejected():
+    with pytest.raises(ValueError, match="unknown sampling objective"):
+        ObjectiveConfig("something_else")
+    assert ObjectiveConfig("population").objective is SamplingObjective.POPULATION
+
+
+@pytest.mark.parametrize("value", [2.5, True, 0])
+@pytest.mark.parametrize("strategy", [FixedFOVStrategy, FixedObjectStrategy])
+def test_fixed_targets_must_be_positive_integers(strategy, value):
+    with pytest.raises((TypeError, ValueError)):
+        strategy(value)
+
+
+def test_min_fovs_larger_than_a_group_raises_instead_of_dropping_it():
+    objects = pd.DataFrame({"fov_id": ["F1", "F2"], "area": [1.0, 2.0]})
+    fovs = pd.DataFrame({"fov_id": ["F1", "F2"], "order": [1, 2]})
+    with pytest.raises(ValueError, match="min_fovs=5"):
+        _run_prefixes(objects, fovs, FixedFOVStrategy(1), min_fovs=5)

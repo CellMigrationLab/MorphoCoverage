@@ -39,20 +39,22 @@ whole FOVs have the error that random-cell reasoning predicts?
 | | 8 | 264 | 0.52% | 0.34% | 1.5 [1.4–1.7] | 53% |
 | | 14 | 462 | 0.33% | 0.22% | 1.5 [1.3–1.7] | 53% |
 
-Errors are relative RMSE of the well mean, as medians across wells.
+Errors are relative RMSE of the well mean, as medians across wells. Every number in this entry is taken from the tracked outputs `data/crick_idr/results/fov_vs_cells_idr0139_fascin.csv` and `fov_vs_cells_idr0028_screenB_yaptaz.csv`, generated from Crick commit `a81d20c` with checksum-verified inputs.
 
 **What this shows**
 
 - **The random-cell assumption understates sampling error in both datasets.**
   The factor is about 3 (roughly 10× in variance) in the JCS paper's own data,
   and about 1.5 (roughly 2.3× in variance) in idr0028.
-- **The factor does not shrink as more FOVs are acquired.** That is the
-  signature of between-FOV clustering, not of small samples.
+- **The factor does not shrink as more FOVs are acquired.** That is
+  consistent with substantial FOV-level structure rather than a small-sample
+  effect.
 - **It is metric- and dataset-dependent.** An earlier exploratory run on
   idr0028 plate 1A (negative-control wells, mean nuclear YAP/TAZ intensity)
   gave a variance inflation of about 4.7, against about 2.3 for the ratio. So
   "keep FOVs" is not a constant correction factor; it has to be measured.
-- **Consequences for the JCB criterion on idr0139.**
+- **Consequences for the JCB criterion on idr0139** (single-sample form of
+  the criterion, from the Table 1 statistics).
   - The formula asks for 32 cells at a 5% target and 127 at 2.5%, using
     between-cell CV = 0.131 / 0.465 from Table 1. A single FOV (~330 cells)
     satisfies both.
@@ -63,9 +65,12 @@ Errors are relative RMSE of the well mean, as medians across wells.
   - In the JCB paper's own terms, the 5% target (independent samples) is
     roughly reached at 1–2 FOVs. The 2.5% target recommended for paired
     designs is not reached until about 3 FOVs.
-- **Consequences for the JCS "~200–300 cells" guidance.** On idr0139 that is
-  less than one FOV. Their random-cell subsampling reproduces the random-cell
-  column above by construction, so it cannot reveal the FOV-level error.
+- **Consequences for the ~250–300-cell threshold observed in the JCS case
+  study.** The paper presents this as an observation for its example, not a
+  universal recommendation, and itself calls the stopping point "somewhat
+  arbitrary". On idr0139 it is less than one FOV. Their random-cell
+  subsampling reproduces the random-cell column above by construction, so it
+  cannot reveal the FOV-level error.
 - **Their biological conclusions still hold.** The leptomycin B effect (about
   0.10 in `Fascin_Ratio`) is several times larger than FOV-level sampling
   error. This is consistent with the JCS paper's own point that large effects

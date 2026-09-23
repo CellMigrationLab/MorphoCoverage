@@ -16,6 +16,13 @@ from ..schema import ValidatedInput
 from .base import SamplingStrategy
 
 
+def _require_positive_int(value: object, name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an integer count")
+    if value < 1:
+        raise ValueError(f"{name} must be at least 1")
+
+
 @dataclass(frozen=True)
 class FixedFOVStrategy(SamplingStrategy):
     """Stop after a user-defined number of acquired FOVs."""
@@ -24,8 +31,7 @@ class FixedFOVStrategy(SamplingStrategy):
     name: str = "fixed_fov"
 
     def __post_init__(self) -> None:
-        if self.target_fovs < 1:
-            raise ValueError("target_fovs must be at least 1")
+        _require_positive_int(self.target_fovs, "target_fovs")
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -53,8 +59,7 @@ class FixedObjectStrategy(SamplingStrategy):
     name: str = "fixed_objects"
 
     def __post_init__(self) -> None:
-        if self.target_objects < 1:
-            raise ValueError("target_objects must be at least 1")
+        _require_positive_int(self.target_objects, "target_objects")
 
     @property
     def parameters(self) -> dict[str, Any]:
