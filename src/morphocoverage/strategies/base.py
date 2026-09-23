@@ -140,3 +140,23 @@ class SamplingStrategy:
         return strategy_config_id(
             [e.config_id for e in self.estimators], [p.config_id for p in self.policies]
         )
+
+
+def require_observation_unit(
+    data: ValidatedInput,
+    allowed: Iterable[str],
+    *,
+    method: str,
+) -> None:
+    """Require an estimator's scientifically valid observation semantics.
+
+    Generic MorphoCoverage inputs may contain cells, nuclei, patches, slices,
+    embeddings or FOV summaries. A method derived for cell/object sampling must
+    refuse incompatible row semantics rather than silently reinterpret them.
+    """
+    allowed_units = tuple(allowed)
+    if data.observation_unit not in allowed_units:
+        raise ValueError(
+            f"{method} requires observation_unit in {allowed_units}, "
+            f"got {data.observation_unit!r}"
+        )
