@@ -24,6 +24,7 @@ from morphocoverage import (
     outcomes,
     transforms,
 )
+from morphocoverage.strategies import PlannedCellCountStrategy, plan_cells_to_average
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 _RARE = RareTarget(
@@ -37,6 +38,21 @@ OBJECTIVES = [
     ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=_RARE),
     ObjectiveConfig(SamplingObjective.BALANCED, rare=_RARE),
 ]
+
+
+def _pilot_plan():
+    """A JCB cell plan from a pilot repeat that no scenario evaluates."""
+    pilot = SCENARIOS["homogeneous"]()
+    return plan_cells_to_average(
+        pilot.objects.assign(repeat="PILOT"),
+        fovs=pilot.fovs.assign(repeat="PILOT"),
+        feature="feature_a",
+        target_cv=0.01,
+        sd_estimate="upper_95",
+        sample_cols=("condition", "repeat"),
+        control={"condition": "control"},
+    )
+
 
 # Every strategy added to the package must be added here, configured with
 # parameters that make it run on small data.
@@ -52,6 +68,7 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL),
     DescriptorSpreadStrategy("feature_a", 0.3, "object", 20, 0),
     DescriptorSpreadStrategy("feature_a", 0.3, "fov", 20, 0),
+    PlannedCellCountStrategy(_pilot_plan()),
 ]
 
 # Every outcome metric added to the package must be added here.

@@ -1,8 +1,8 @@
 # Proposal: architecture hardening before the strategy zoo
 
 **Status:** all items approved by the project owner (2026-09-23), with
-`runtime_seconds` kept as an alias of `compute_seconds`. Items 1–6 are
-implemented; item 7 is not yet implemented. Every item changes a public contract
+`runtime_seconds` kept as an alias of `compute_seconds`. All seven items are
+implemented. Every item changes a public contract
 (AGENTS.md section 15).
 
 **As implemented (items 1–3).** `Evidence`/`Quantity` in `evidence.py`;
@@ -204,6 +204,13 @@ in a separate planning function:
   fixed parameter.
 
 This keeps prospective replay leakage-free.
+
+**As implemented (item 7).** `plan_cells_to_average`, `CellCountPlan` and
+`PlannedCellCountStrategy` in `strategies/jcb_planning.py`, exported from
+`morphocoverage.strategies` only (the top-level `__all__` is unchanged).
+Disjointness is enforced at evaluation rather than declared up front: the
+plan records its pilot samples, and a group containing one reports
+`not_applicable`. See `docs/architecture.md`.
 
 ## Items from the audit not adopted as proposed
 

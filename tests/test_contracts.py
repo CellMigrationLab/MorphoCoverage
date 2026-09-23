@@ -48,6 +48,7 @@ from morphocoverage import (
     ScalarPrecisionStrategy,
     run_strategies,
 )
+from morphocoverage.strategies import PlannedCellCountStrategy, plan_cells_to_average
 
 # §9 items that are properties of the framework rather than datasets.
 FRAMEWORK_CONTRACTS = {
@@ -393,6 +394,19 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     precision_fovs = ScalarPrecisionStrategy("feature_a", 0.005, "fov", "point")
     plateau = DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL)
     spread = DescriptorSpreadStrategy("feature_a", 0.5, "object", 50, 0)
+    # The multi-sample JCB plan, made on a pilot repeat that is not evaluated.
+    pilot = scenario.objects.assign(repeat="PILOT")
+    planned = PlannedCellCountStrategy(
+        plan_cells_to_average(
+            pilot,
+            fovs=scenario.fovs.assign(repeat="PILOT"),
+            feature="feature_a",
+            target_cv=0.005,
+            sd_estimate="point",
+            sample_cols=("condition", "repeat"),
+            control={"condition": "control"},
+        )
+    )
     results = replay(
         scenario,
         [
@@ -402,6 +416,7 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
             precision_fovs,
             plateau,
             spread,
+            planned,
         ],
     )
 
@@ -430,3 +445,14 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
         stop = first_stop(strategy.name)
         assert stop.n_fovs >= 1 and stop.n_objects >= 1
         assert stop.evidence.value(quantity) <= strategy.tolerance
+
+    # The planned rule stops at the first FOV that brings the fixed count.
+    required = planned.plan.required_objects
+    stop = first_stop(planned.name)
+    assert stop.evidence.value("planned_required_objects") == required
+    assert stop.n_objects >= required
+    assert all(
+        item.result.n_objects < required
+        for item in results
+        if item.result.strategy == planned.name and item.result.decision == "continue"
+    )

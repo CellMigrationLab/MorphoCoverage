@@ -6,6 +6,12 @@ from .baselines import (
     FixedObjectStrategy,
     FixedObservationStrategy,
 )
+from .jcb_planning import (
+    CellCountPlan,
+    PlannedCellCountEstimator,
+    PlannedCellCountStrategy,
+    plan_cells_to_average,
+)
 from .scalar_precision import ScalarPrecisionEstimator, ScalarPrecisionStrategy
 from .stabilization import (
     DescriptorPlateauEstimator,
@@ -15,6 +21,7 @@ from .stabilization import (
 )
 
 __all__ = [
+    "CellCountPlan",
     "DescriptorPlateauEstimator",
     "DescriptorPlateauStrategy",
     "DescriptorSpreadEstimator",
@@ -24,7 +31,10 @@ __all__ = [
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "FixedObservationStrategy",
+    "PlannedCellCountEstimator",
+    "PlannedCellCountStrategy",
     "SamplingStrategy",
     "ScalarPrecisionEstimator",
     "ScalarPrecisionStrategy",
+    "plan_cells_to_average",
 ]
