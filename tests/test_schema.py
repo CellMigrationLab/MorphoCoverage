@@ -147,3 +147,12 @@ def test_rejects_duplicate_fov_rows_within_group():
             fovs=fovs,
             group_cols=["repeat"],
         )
+
+
+def test_nullable_numeric_features_preserve_missing_values_as_nan():
+    objects = _objects()
+    objects["area"] = pd.Series([10.0, pd.NA, 20.0], dtype="Float64")
+    result = validate_input_tables(objects, feature_cols=["area"], fov_col="fov_id")
+    values = result.feature_values("area")
+    assert values.dtype == float
+    assert np.isnan(values[1])
