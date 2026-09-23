@@ -155,36 +155,21 @@ Future modules should be added only when the corresponding behavior is implement
 Do not skip directly to a polished `analyze()` API.
 
 1. Strict linked FOV/object input contracts and validation.
-2. Build synthetic benchmark generators and a leakage-safe sequential holdout harness without assuming a coverage estimator.
-3. Define measurable held-out outcomes for future FOVs.
-4. Reproduce simple/current-practice baselines, including fixed cells/FOVs and the scoped scalar cell-averaging problem.
-5. Build falsification datasets with known structure, including spatially correlated and zero-object FOVs.
-6. Implement substantially different candidate solution families separately.
-7. Benchmark candidates against held-out FOV outcomes and simple baselines.
-8. Select a default estimator or decision rule only if evidence supports one.
-9. Add uncertainty, grouping, plotting, and user-facing convenience APIs only after the scientific core stabilizes.
+2. Define explicit sampling objectives: population representation, rare-phenotype discovery, and balanced sampling.
+3. Build one modular strategy interface and one canonical result/provenance contract.
+4. Build leakage-safe sequential evaluation for deeply sampled real acquisitions.
+5. Reproduce simple/current-practice baselines, including fixed cells/FOVs and the scoped scalar cell-averaging problem.
+6. Implement substantially different strategy families behind the same interface.
+7. Benchmark candidates on deeply sampled real datasets using strategy-independent scientific and computational criteria.
+8. Add targeted counterexamples and regression fixtures when real-data failures reveal them.
+9. Select a default estimator or decision rule only if evidence supports one.
 10. Validate continue/stop decisions prospectively before considering targeted smart-microscopy acquisition.
 
-## 9. Required synthetic scientific tests
+## 9. Validation philosophy
 
-As relevant modules are introduced, tests must include:
+Deeply sampled real microscopy datasets are the primary scientific benchmark. Constructed or synthetic data are supporting tools for unit tests, explicit counterexamples, and regression tests after a failure mode is identified; they are not the main evidence that a strategy works.
 
-- homogeneous phenotype distribution;
-- clearly separated multimodal phenotypes;
-- rare states at controlled prevalence, e.g. 10%, 1%, 0.1%;
-- identical rare-state prevalence distributed uniformly versus clustered into few FOVs;
-- unequal numbers of objects per FOV;
-- acquired FOVs with zero detected objects;
-- unequal physical FOV area when area metadata are available;
-- correlation between neighbouring FOVs;
-- direct comparison against fixed-cell, fixed-FOV, and scalar-precision baselines;
-- duplicated objects within an existing FOV versus acquisition of new FOVs;
-- optional condition/repeat groups kept independent;
-- technical/batch shifts;
-- deterministic results under a fixed seed;
-- no future-FOV leakage in prospective estimators.
-
-A high line-coverage percentage is not a substitute for these behavior tests.
+Required behavior tests must still protect contracts such as zero-object FOV preservation, MorphoBricks condition/repeat separation, deterministic randomness, and no future-FOV leakage. A high line-coverage percentage is not a substitute for scientific validation on real acquisitions.
 
 ## 10. JCB comparison rules
 
@@ -288,3 +273,13 @@ For substantive work, report briefly:
 - which tests/validation actually ran;
 - assumptions and known limitations;
 - unresolved scientific questions that should block broader claims.
+
+## 17. Sampling objectives, MorphoBricks defaults, and benchmarking
+
+The sampling objective is separate from the mathematical strategy. Supported high-level objectives are population representation, rare-phenotype discovery with an explicit user target, and balanced sampling.
+
+MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default, image_file is preferred as the FOV identifier, and shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
+
+Strategies must not reimplement condition/repeat splitting. Each strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, object/FOV counts, and measured runtime.
+
+Scientific and computational benchmarking are separate dimensions. Runtime is first-class because smart microscopy requires a decision before the next acquisition is needed. See docs/sampling_objectives.md, docs/benchmarking.md, and docs/architecture.md.
