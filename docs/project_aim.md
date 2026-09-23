@@ -241,15 +241,15 @@ A sample may be well sampled for gross morphology while remaining incompletely s
 
 MorphoCoverage must never present a result as a representation-independent percentage of "all biological phenotype."
 
-## 7. Input model: preserve both FOVs and objects
+## 7. Input model: preserve both FOVs and observations
 
-An object-level table alone is insufficient because an acquired FOV containing zero detected objects would disappear.
+An observation-level table alone is insufficient because an acquired FOV containing zero phenotype observations would disappear.
 
 MorphoCoverage should therefore support two linked logical tables.
 
 ### FOV table
 
-One row per acquired FOV, including FOVs with zero objects.
+One row per acquired FOV, including FOVs with zero observations.
 
 Minimum information:
 
