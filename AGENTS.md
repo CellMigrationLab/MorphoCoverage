@@ -196,6 +196,7 @@ src/morphocoverage/
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
         fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
         rare_planning.py   # binomial FOV-incidence planning for a RareTarget
+        support_novelty.py # leave-one-FOV-out epsilon-support novelty
 
 tests/
     scenarios.py           # constructed acquisitions for contract tests (section 9)

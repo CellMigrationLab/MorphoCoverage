@@ -21,6 +21,7 @@ from .stabilization import (
     DescriptorSpreadEstimator,
     DescriptorSpreadStrategy,
 )
+from .support_novelty import SupportNoveltyEstimator, SupportNoveltyStrategy
 
 __all__ = [
     "CellCountPlan",
@@ -42,5 +43,7 @@ __all__ = [
     "SamplingStrategy",
     "ScalarPrecisionEstimator",
     "ScalarPrecisionStrategy",
+    "SupportNoveltyEstimator",
+    "SupportNoveltyStrategy",
     "plan_cells_to_average",
 ]
