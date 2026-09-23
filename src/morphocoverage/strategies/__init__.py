@@ -14,6 +14,7 @@ from .jcb_planning import (
     PlannedCellCountStrategy,
     plan_cells_to_average,
 )
+from .rare_incidence import RareIncidenceEstimator, RareIncidenceStrategy
 from .rare_planning import FOVIncidencePlanEstimator, FOVIncidencePlanStrategy
 from .scalar_precision import ScalarPrecisionEstimator, ScalarPrecisionStrategy
 from .stabilization import (
@@ -43,6 +44,8 @@ __all__ = [
     "IncidenceCoverageStrategy",
     "PlannedCellCountEstimator",
     "PlannedCellCountStrategy",
+    "RareIncidenceEstimator",
+    "RareIncidenceStrategy",
     "SamplingStrategy",
     "ScalarPrecisionEstimator",
     "ScalarPrecisionStrategy",

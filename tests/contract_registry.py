@@ -31,6 +31,7 @@ from morphocoverage.strategies import (
     FOVBootstrapStrategy,
     FOVIncidencePlanStrategy,
     IncidenceCoverageStrategy,
+    RareIncidenceStrategy,
     SupportNoveltyStrategy,
 )
 
@@ -84,6 +85,7 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     FOVBootstrapStrategy("subspace", 0.2, transforms.Standardize(), 20, 0, 3, None, 1),
     SupportNoveltyStrategy(0.5, 0.05, 1, transforms.Standardize(), 3),
     IncidenceCoverageStrategy("true_state", "incidence_coverage", 0.95, 3),
+    RareIncidenceStrategy("true_state", 1.0, 1.0, 0.05),
 ]
 
 # Every outcome metric added to the package must be added here.

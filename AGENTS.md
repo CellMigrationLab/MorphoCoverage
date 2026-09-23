@@ -196,6 +196,7 @@ src/morphocoverage/
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
         fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
         rare_planning.py   # binomial FOV-incidence planning for a RareTarget
+        rare_incidence.py  # beta-binomial rare-state incidence risk with recurrence
         support_novelty.py # leave-one-FOV-out epsilon-support novelty
         incidence_coverage.py  # Chao-Jost incidence coverage and Chao2 on fixed labels
 
