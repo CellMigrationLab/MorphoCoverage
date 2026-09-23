@@ -19,16 +19,12 @@ from .metadata import (
 
 @dataclass(frozen=True)
 class ValidatedInput:
-    """Validated FOV metadata and object-level phenotype features.
+    """Validated FOV metadata and phenotype observations.
 
-    ``fov_key`` lists the columns that jointly identify one acquired FOV
-    (identity columns such as condition/repeat, then ``fov_col``). Within a
-    pooled analysis ``fov_col`` alone need not be unique, so strategies that
-    need FOV identity must use ``fov_key``.
-
-    Strategies should read phenotype values only through ``feature_matrix()``.
-    Other object columns are carried for traceability and must not be used as
-    phenotype.
+    Rows in ``objects`` are generic phenotype observations: cells, nuclei,
+    patches, slices, embeddings, FOV summaries, or another declared unit.
+    ``observation_unit`` records that meaning. The attribute remains named
+    ``objects`` for backwards compatibility with the early public API.
     """
 
     objects: pd.DataFrame
@@ -37,18 +33,30 @@ class ValidatedInput:
     fov_col: str
     group_cols: tuple[str, ...]
     fov_key: tuple[str, ...]
+    observation_unit: str = "object"
+
+    @property
+    def observations(self) -> pd.DataFrame:
+        """Generic alias for the backwards-compatible objects table."""
+        return self.objects
+
+    @property
+    def n_observations(self) -> int:
+        """Number of phenotype-observation rows."""
+        return len(self.objects)
 
     def feature_matrix(self) -> np.ndarray:
-        """Return the explicitly selected phenotype features as a new float array."""
+        """Return the explicitly selected phenotype features as a new float array.
+
+        NaN is preserved. The framework never silently imputes or drops missing
+        phenotype measurements; individual estimators/transforms must state
+        how they handle missingness. Positive/negative infinity is rejected at
+        validation time.
+        """
         return self.objects.loc[:, list(self.feature_cols)].to_numpy(dtype=float, copy=True)
 
     def feature_values(self, feature: str) -> np.ndarray:
-        """Return one explicitly selected feature as a float array.
-
-        Raises ``ValueError`` for any column not in ``feature_cols``, so a
-        strategy configured with a metadata column (e.g. a stage coordinate)
-        fails instead of treating it as phenotype.
-        """
+        """Return one explicitly selected feature as a new float array."""
         if feature not in self.feature_cols:
             raise ValueError(
                 f"feature {feature!r} is not one of the explicitly selected "
@@ -58,16 +66,12 @@ class ValidatedInput:
 
 
 def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
-    """Position of each object's FOV within ``fovs`` (-1 if its FOV is not listed).
-
-    Matching uses the full ``fov_key``, so pooled FOVs that share a name stay
-    distinct.
-    """
+    """Position of each observation's FOV within fovs (-1 if absent)."""
     key = list(data.fov_key)
     lookup = {fov: i for i, fov in enumerate(zip(*(fovs[c].tolist() for c in key)))}
-    object_keys = zip(*(data.objects[c].tolist() for c in key))
+    observation_keys = zip(*(data.objects[c].tolist() for c in key))
     return np.fromiter(
-        (lookup.get(fov, -1) for fov in object_keys), dtype=np.int64, count=len(data.objects)
+        (lookup.get(fov, -1) for fov in observation_keys), dtype=np.int64, count=len(data.objects)
     )
 
 
@@ -84,25 +88,18 @@ def validate_input_tables(
     fov_col: str | None = None,
     fovs: pd.DataFrame | None = None,
     group_cols: Sequence[str] | None = None,
+    observation_unit: str = "object",
 ) -> ValidatedInput:
-    """Validate linked object/FOV tables using MorphoBricks metadata conventions.
+    """Validate linked observation/FOV tables using MorphoBricks conventions.
 
-    Feature columns are always explicit; numeric metadata is never inferred as
-    phenotype. When group_cols is None, canonical MorphoBricks condition/repeat
-    columns are used automatically when available. Pass group_cols=[] to pool
-    intentionally; condition/repeat still remain part of FOV identity.
+    ``objects`` is retained as the argument name for backwards compatibility,
+    but rows may represent any declared phenotype observation unit. Feature
+    columns are always explicit; numeric metadata is never inferred.
 
-    When fov_col is omitted, position_id is preferred, followed by image_file
-    and then fov_id. FOV means one independently selected spatial acquisition
-    position. Z planes, channels and time points are nested observations within
-    that position, not additional FOVs. Lowercase z/c/t columns are reserved
-    acquisition metadata and cannot be selected as phenotype features.
-
-    Supplying a complete FOV table preserves acquired positions containing zero
-    detected objects. If columns such as z/z0/z1/c/t describe the acquisition,
-    keep them as metadata by simply not including them in feature_cols. Their
-    names are not globally reserved because scientific feature tables may
-    legitimately use short names such as "c".
+    NaN feature values are accepted and preserved so heterogeneous real-world
+    feature tables can be loaded. MorphoCoverage never silently imputes or
+    removes them; estimators/transforms must define their own missing-data
+    behavior. Positive/negative infinity remains invalid.
     """
     if not isinstance(objects, pd.DataFrame):
         raise TypeError("objects must be a pandas DataFrame")
@@ -110,6 +107,9 @@ def validate_input_tables(
         raise TypeError("fovs must be a pandas DataFrame when provided")
     if isinstance(feature_cols, str):
         raise TypeError("feature_cols must be a sequence of column names, not a string")
+    if not isinstance(observation_unit, str) or not observation_unit.strip():
+        raise ValueError("observation_unit must be a non-empty description such as 'cell' or 'slice'")
+    observation_unit = observation_unit.strip()
 
     explicit_columns = [*(group_cols or ()), *([fov_col] if fov_col is not None else [])]
     check_canonical_spellings(objects, fovs, explicit_columns)
@@ -133,9 +133,6 @@ def validate_input_tables(
 
     _require_columns(objects, [*fov_key, *feature_cols], "objects")
 
-    # When an explicit spatial position spans several source files (for example
-    # one TIFF per z-plane/channel/timepoint), require within-position metadata
-    # so those files are not an undocumented pseudo-FOV axis.
     if resolved_fov_col == "position_id" and "image_file" in objects.columns:
         file_counts = objects.groupby(list(fov_key), dropna=False)["image_file"].nunique()
         multi_file_positions = file_counts[file_counts > 1]
@@ -166,9 +163,7 @@ def validate_input_tables(
                 )
 
     if objects[resolved_fov_col].isna().any():
-        raise ValueError(
-            f"objects[{resolved_fov_col!r}] contains missing FOV identifiers"
-        )
+        raise ValueError(f"objects[{resolved_fov_col!r}] contains missing FOV identifiers")
     for column in identity_cols:
         if objects[column].isna().any():
             raise ValueError(f"objects[{column!r}] contains missing group values")
@@ -177,8 +172,8 @@ def validate_input_tables(
         if not pd.api.types.is_numeric_dtype(objects[column]):
             raise TypeError(f"feature column {column!r} must be numeric")
         values = objects[column].to_numpy(dtype=float, copy=False)
-        if not np.isfinite(values).all():
-            raise ValueError(f"feature column {column!r} contains non-finite values")
+        if np.isinf(values).any():
+            raise ValueError(f"feature column {column!r} contains infinite values")
 
     key = list(fov_key)
     if fovs is None:
@@ -190,13 +185,11 @@ def validate_input_tables(
             if validated_fovs[column].isna().any():
                 raise ValueError(f"fovs[{column!r}] contains missing values")
         if validated_fovs.duplicated(key).any():
-            raise ValueError(
-                f"fovs must contain exactly one row per acquired FOV (key: {key})"
-            )
+            raise ValueError(f"fovs must contain exactly one row per acquired FOV (key: {key})")
 
         fov_index = pd.MultiIndex.from_frame(validated_fovs.loc[:, key])
-        object_fov_index = pd.MultiIndex.from_frame(objects.loc[:, key].drop_duplicates())
-        missing_fovs = object_fov_index.difference(fov_index)
+        observation_fov_index = pd.MultiIndex.from_frame(objects.loc[:, key].drop_duplicates())
+        missing_fovs = observation_fov_index.difference(fov_index)
         if len(missing_fovs):
             raise ValueError(
                 "objects contains FOV/group combinations that are absent from the "
@@ -210,4 +203,5 @@ def validate_input_tables(
         fov_col=resolved_fov_col,
         group_cols=resolved_group_cols,
         fov_key=fov_key,
+        observation_unit=observation_unit,
     )
