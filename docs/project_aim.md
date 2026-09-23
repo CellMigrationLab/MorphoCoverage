@@ -422,9 +422,9 @@ Would adding the FOV materially change an intended downstream biological analysi
 
 No single target is guaranteed to dominate for all applications.
 
-## 13. Synthetic adversarial test suite
+## 13. Real-data-first evaluation
 
-Synthetic experiments should be designed to falsify methods.
+Deeply sampled real microscopy datasets are the primary scientific benchmark. Constructed or synthetic examples remain useful for unit tests, explicit counterexamples, and regression tests after a real-data failure reveals a concrete weakness; they are not the main evidence that a strategy works.
 
 Required scenarios include:
 
@@ -524,7 +524,7 @@ MorphoCoverage should be considered successful only if at least one approach can
 1. useful prediction of information in unseen FOVs;
 2. sensitivity to spatial/FOV structure when that structure matters;
 3. improvement over simple baselines in identifiable regimes;
-4. controlled premature stopping in rare-state simulations;
+4. controlled premature stopping for user-defined rare-state discovery targets;
 5. robustness across multiple representations or clear characterization of representation dependence;
 6. computational feasibility for prospective use.
 
@@ -555,3 +555,16 @@ and ultimately:
 The first question defines the statistical core of MorphoCoverage.
 
 The second connects it to smart microscopy.
+
+
+## 21. Sampling objective is part of the scientific question
+
+MorphoCoverage must ask **enough for what?** before judging sampling adequacy. The core objectives are population representation, rare-phenotype discovery, and balanced sampling. Rare discovery should use explicit user-defined targets such as minimum phenotype prevalence, desired detection probability, and minimum independent FOV occurrences. See `sampling_objectives.md`.
+
+## 22. Modular strategy comparison
+
+MorphoCoverage is a strategy-comparison framework. Candidate methods implement one common interface and are executed through the same MorphoBricks-compatible validation, grouping, timing, and provenance layer. The same feature tables should therefore be evaluable by many strategies without changing data plumbing.
+
+By default, canonical MorphoBricks `condition` and `repeat` columns define independent analysis groups, and `image_file` is preferred as the FOV identity. Pooling must be explicit.
+
+Scientific performance and computational performance are benchmarked separately. Runtime is a first-class outcome because one intended application is online smart microscopy. See `benchmarking.md` and `architecture.md`.
