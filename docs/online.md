@@ -120,3 +120,13 @@ The first online question is only:
 Choosing where to image next is a later targeted-acquisition problem. It
 changes the sampling distribution and must not be silently mixed into the
 representative stopping stream.
+
+
+## Stable live metadata contract
+
+The first FOV fixes the session's automatically resolved spatial identifier
+and grouping columns. Later FOVs may not silently introduce a higher-priority
+identifier (for example `position_id` after the session began with
+`image_file`) or change the automatically resolved condition/repeat grouping.
+Start a new session, or specify `fov_col` and `group_cols` explicitly, when
+the acquisition contract differs.
