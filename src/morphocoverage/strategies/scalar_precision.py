@@ -88,6 +88,7 @@ def cell_averaging_cv(values: np.ndarray) -> dict[str, float]:
 
 
 def _cell_cv_from_moments(n: int, mean: float, sd: float) -> dict[str, float]:
+    """Cell-level and averaging CVs, point and upper-95, from count, mean and SD."""
     cv_cells = sd / mean
     cv_cells_upper = cv_cells * sd_upper_bound_factor(n - 1)
     return {
@@ -145,12 +146,14 @@ _CV_UNITS = "fraction of the mean (CV)"
 
 
 def _cv_quantity(value: float | None, availability: str = "available", reason=None) -> Quantity:
+    """An averaging-CV quantity: population evidence, lower is better, fraction of the mean."""
     return Quantity(
         value, Direction.LOWER_IS_BETTER, _CV_UNITS, Component.POPULATION, availability, reason
     )
 
 
 def _check_configuration(resampling_unit, sd_estimate, pilot_fovs, order_col) -> None:
+    """Validate the settings the estimator and the strategy share."""
     if resampling_unit not in _UNITS:
         raise ValueError(f"resampling_unit must be one of {_UNITS}")
     if sd_estimate not in _SD_ESTIMATES:
@@ -217,6 +220,7 @@ class ScalarPrecisionEstimator(Estimator):
         }
 
     def _suffix(self) -> str:
+        """Diagnostic-key suffix selecting the point or upper-95 SD estimate."""
         return "_upper_95" if self.sd_estimate == "upper_95" else ""
 
     def _precision(self, data: ValidatedInput, fovs) -> dict[str, Any] | tuple[str, str]:
@@ -274,6 +278,7 @@ class ScalarPrecisionEstimator(Estimator):
         return estimate
 
     def _check_order_col(self, fovs) -> None:
+        """With a pilot, the order column must be in the FOV table."""
         if self.pilot_fovs is not None and self.order_col not in fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
@@ -322,6 +327,7 @@ class ScalarPrecisionEstimator(Estimator):
         return Evidence(quantities, diagnostics)
 
     def _projection(self, current, pilot, n_objects, n_fovs, diagnostics) -> Quantity:
+        """Averaging CV the fixed pilot estimate projects for the visible effort."""
         if isinstance(current, tuple) and current[0] == "not_applicable":
             return _cv_quantity(None, *current)
         if n_fovs < self.pilot_fovs:
@@ -393,10 +399,12 @@ class _ScalarPrecisionState(EstimatorState):
         self.fovs: list[_FovSummary] = []
 
     def _precision(self, fovs: list[_FovSummary]):
+        """The estimate from per-FOV summaries, as the full path computes it from values."""
         sums = np.array([fov.total for fov in fovs], dtype=float)
         counts = np.array([fov.count for fov in fovs], dtype=float)
 
         def cells():
+            """Cell-level CVs from the merged moments."""
             n, mean, m2 = _merged_moments(fovs)
             return _cell_cv_from_moments(n, mean, math.sqrt(m2 / (n - 1)))
 

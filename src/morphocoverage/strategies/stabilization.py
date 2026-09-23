@@ -131,6 +131,7 @@ def _describe_fov_resamples(
     first = np.cumsum(sizes) - sizes
 
     def quantile(q: float) -> np.ndarray:
+        """Linearly interpolated quantile of every resample (``np.percentile``'s default)."""
         position = q * (safe - 1)
         low = np.floor(position).astype(np.int64)
         high = np.minimum(low + 1, safe - 1)
@@ -147,11 +148,13 @@ def _describe_fov_resamples(
 
 
 def _check_tolerance(tolerance) -> None:
+    """The tolerance is a positive, finite amount in the feature's units."""
     if not (tolerance > 0 and np.isfinite(tolerance)):
         raise ValueError("tolerance must be positive and finite (in the feature's units)")
 
 
 def _check_common(feature, descriptors) -> None:
+    """One feature, and a non-empty duplicate-free subset of the paper's descriptors."""
     if not isinstance(feature, str):
         raise TypeError("feature must be one column name")
     if not descriptors or any(name not in PAPER_DESCRIPTORS for name in descriptors):
@@ -161,6 +164,7 @@ def _check_common(feature, descriptors) -> None:
 
 
 def _check_plateau(window, order_col) -> None:
+    """A positive integer window and an order column name."""
     if isinstance(window, bool) or not isinstance(window, int) or window < 1:
         raise ValueError("window must be a positive integer number of FOVs")
     if not isinstance(order_col, str):
@@ -168,6 +172,7 @@ def _check_plateau(window, order_col) -> None:
 
 
 def _check_spread(resampling_unit, n_resamples, random_state) -> None:
+    """A known resampling unit, at least 2 resamples and an integer seed."""
     if resampling_unit not in _UNITS:
         raise ValueError(f"resampling_unit must be one of {_UNITS}")
     if isinstance(n_resamples, bool) or not isinstance(n_resamples, int):
@@ -179,6 +184,7 @@ def _check_spread(resampling_unit, n_resamples, random_state) -> None:
 
 
 def _feature_quantity(feature: str, value: float | None, reason: str | None = None) -> Quantity:
+    """A population quantity in the feature's units: a value, or insufficient data with a reason."""
     units = f"units of {feature!r}"
     if reason is not None:
         # More FOVs with objects make the window or resamples computable.
@@ -324,6 +330,7 @@ class DescriptorSpreadEstimator(Estimator):
         }
 
     def _resampled_descriptors(self, data: ValidatedInput) -> dict[str, np.ndarray] | str:
+        """Descriptors of each resample, or the reason resampling is not yet possible."""
         rng = np.random.default_rng(self.random_state)
         values = data.feature_values(self.feature)
         if self.resampling_unit == "object":

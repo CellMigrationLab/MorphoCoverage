@@ -20,6 +20,7 @@ from .base import Estimator, EstimatorState, SamplingStrategy, unsupported_obser
 
 
 def _require_positive_int(value: object, name: str) -> None:
+    """Require an integer count of at least 1 (``bool`` is rejected)."""
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError(f"{name} must be an integer count")
     if value < 1:

@@ -354,3 +354,8 @@ def test_redecide_refuses_a_result_without_recorded_configuration():
     broken = replace(item.result, configuration={})
     with pytest.raises(ValueError, match="no recorded estimator configuration"):
         redecide(broken, [ThresholdPolicy("averaging_cv", 0.1)], name="x")
+
+
+def test_legacy_object_effort_is_the_same_rule_as_observation_effort():
+    legacy, canonical = EffortPolicy("n_objects", 5), EffortPolicy("n_observations", 5)
+    assert legacy == canonical and legacy.config_id == canonical.config_id

@@ -25,6 +25,7 @@ REQUIRED_COMPONENTS: dict[SamplingObjective, frozenset[Component]] = {
 
 
 def _probability(value: float | None, name: str) -> None:
+    """Allow ``None``; otherwise require a number strictly between 0 and 1."""
     if value is None:
         return
     if isinstance(value, bool) or not isinstance(value, int | float):

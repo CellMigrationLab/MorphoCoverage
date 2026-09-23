@@ -154,6 +154,9 @@ class EffortPolicy(DecisionPolicy):
     def __post_init__(self) -> None:
         if self.effort not in _EFFORTS:
             raise ValueError(f"effort must be one of {_EFFORTS}")
+        if self.effort == "n_objects":
+            # Legacy spelling of the same count: one rule, one config_id.
+            object.__setattr__(self, "effort", "n_observations")
         if isinstance(self.target, bool) or not isinstance(self.target, int):
             raise TypeError("target must be an integer count")
         if self.target < 1:
@@ -177,6 +180,7 @@ class EffortPolicy(DecisionPolicy):
 
 
 def _combine(decisions: Sequence[Decision | None]) -> Decision | None:
+    """Undefined if any decision is, stop if all stop, otherwise continue."""
     if any(decision is None for decision in decisions):
         return None
     if all(decision is Decision.STOP for decision in decisions):

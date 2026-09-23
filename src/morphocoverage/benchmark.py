@@ -279,10 +279,12 @@ def records_to_frame(records: Iterable[BenchmarkRecord]) -> pd.DataFrame:
 
 
 def _group_key(group: Mapping[str, Any]) -> tuple:
+    """Hashable identity of an analysis group, for matching replay results."""
     return tuple(group.items())
 
 
 def _area(data: ValidatedInput, area_col: str | None) -> float | None:
+    """Total imaged area of the FOVs, or ``None`` when the dataset declares no area column."""
     if area_col is None:
         return None
     return float(data.fovs[area_col].sum())

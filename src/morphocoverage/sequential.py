@@ -67,17 +67,7 @@ def evaluate_acquisition_prefixes(
     the timing differs. Each result's ``timing`` separates estimator time from
     framework overhead, including building the prefix.
     """
-    if min_fovs < 1:
-        raise ValueError("min_fovs must be at least 1")
-    if not isinstance(fovs, pd.DataFrame):
-        raise TypeError("fovs must be a pandas DataFrame")
-    if acquisition_order_col not in fovs.columns:
-        raise ValueError(f"fovs is missing required columns: {[acquisition_order_col]}")
-    if acquisition_order_col in feature_cols:
-        raise ValueError("acquisition order cannot also be a phenotype feature")
-    if fovs[acquisition_order_col].isna().any():
-        raise ValueError("acquisition order contains missing values")
-
+    _check_order_column(fovs, acquisition_order_col, feature_cols, min_fovs)
     data = validate_input_tables(
         objects,
         feature_cols=feature_cols,
@@ -87,9 +77,45 @@ def evaluate_acquisition_prefixes(
         observation_unit=observation_unit,
     )
     strategy_list = list(strategies)
-    key = list(data.fov_key)
-
     groups = list(iter_analysis_groups(data))
+    _check_min_fovs(groups, min_fovs)
+    replay = _replay_incremental if incremental else _replay_full
+
+    all_results: list[SequentialResult] = []
+    for group, group_data in groups:
+        acquisition = _Acquisition(group_data, _in_acquisition_order(group, group_data, acquisition_order_col))
+        for step, result in replay(
+            strategy_list, group, acquisition, objective=objective, min_fovs=min_fovs
+        ):
+            all_results.append(
+                SequentialResult(
+                    step=step,
+                    fov_key=data.fov_key,
+                    acquired_fovs=acquisition.keys[:step],
+                    result=result,
+                )
+            )
+    return all_results
+
+
+def _check_order_column(
+    fovs: pd.DataFrame, order_col: str, feature_cols: Sequence[str], min_fovs: int
+) -> None:
+    """The acquisition-order column exists, is complete and is not a phenotype feature."""
+    if min_fovs < 1:
+        raise ValueError("min_fovs must be at least 1")
+    if not isinstance(fovs, pd.DataFrame):
+        raise TypeError("fovs must be a pandas DataFrame")
+    if order_col not in fovs.columns:
+        raise ValueError(f"fovs is missing required columns: {[order_col]}")
+    if order_col in feature_cols:
+        raise ValueError("acquisition order cannot also be a phenotype feature")
+    if fovs[order_col].isna().any():
+        raise ValueError("acquisition order contains missing values")
+
+
+def _check_min_fovs(groups: list[tuple[dict, ValidatedInput]], min_fovs: int) -> None:
+    """Raise rather than silently dropping groups too small to reach ``min_fovs``."""
     too_small = [group for group, group_data in groups if len(group_data.fovs) < min_fovs]
     if too_small:
         raise ValueError(
@@ -98,32 +124,17 @@ def evaluate_acquisition_prefixes(
             "produce no results. Lower min_fovs or exclude those groups explicitly."
         )
 
-    all_results: list[SequentialResult] = []
-    for group, group_data in groups:
-        order = group_data.fovs[acquisition_order_col]
-        if order.duplicated().any():
-            tied = sorted(order[order.duplicated(keep=False)].unique().tolist())
-            raise ValueError(
-                f"acquisition order has ties within analysis group {group}: {tied[:5]}. "
-                "When pooling, acquisition order must be defined across the pooled FOVs."
-            )
-        ordered = group_data.fovs.sort_values(acquisition_order_col, kind="stable")
-        ordered_keys = list(ordered.loc[:, key].itertuples(index=False, name=None))
-        replay = _replay_incremental if incremental else _replay_full
-        for step, result in replay(
-            strategy_list, group, _Acquisition(group_data, ordered), objective=objective,
-            min_fovs=min_fovs,
-        ):
-            all_results.append(
-                SequentialResult(
-                    step=step,
-                    fov_key=data.fov_key,
-                    acquired_fovs=tuple(ordered_keys[:step]),
-                    result=result,
-                )
-            )
 
-    return all_results
+def _in_acquisition_order(group: dict, group_data: ValidatedInput, order_col: str) -> pd.DataFrame:
+    """The group's FOV rows in acquisition order; ties raise, since row order would decide."""
+    order = group_data.fovs[order_col]
+    if order.duplicated().any():
+        tied = sorted(order[order.duplicated(keep=False)].unique().tolist())
+        raise ValueError(
+            f"acquisition order has ties within analysis group {group}: {tied[:5]}. "
+            "When pooling, acquisition order must be defined across the pooled FOVs."
+        )
+    return group_data.fovs.sort_values(order_col, kind="stable")
 
 
 class _Acquisition:
@@ -139,8 +150,12 @@ class _Acquisition:
         self.ordered = ordered
         self.rank = fov_positions(group_data, ordered)
         self.n_fovs = len(ordered)
+        self.keys = tuple(
+            ordered.loc[:, list(group_data.fov_key)].itertuples(index=False, name=None)
+        )
 
     def _select(self, first: int, last: int) -> ValidatedInput:
+        """FOVs ranked ``first`` to ``last - 1`` in acquisition order, with their observations."""
         mask = (self.rank >= first) & (self.rank < last)
         return restrict_input(self.data, self.data.objects.loc[mask], self.ordered.iloc[first:last])
 
