@@ -49,11 +49,35 @@ def test_requires_features_to_be_numeric():
         validate_input_tables(objects, feature_cols=["phenotype"], fov_col="fov_id")
 
 
-def test_rejects_non_finite_feature_values():
+def test_allows_missing_feature_values_but_rejects_infinity():
     objects = _objects()
     objects.loc[1, "area"] = np.nan
-    with pytest.raises(ValueError, match="non-finite"):
+    result = validate_input_tables(objects, feature_cols=["area"], fov_col="fov_id")
+    assert np.isnan(result.feature_values("area")[1])
+
+    objects.loc[1, "area"] = np.inf
+    with pytest.raises(ValueError, match="infinite"):
         validate_input_tables(objects, feature_cols=["area"], fov_col="fov_id")
+
+
+def test_records_generic_observation_semantics():
+    result = validate_input_tables(
+        _objects(),
+        feature_cols=["area"],
+        fov_col="fov_id",
+        observation_unit="nucleus",
+    )
+    assert result.observation_unit == "nucleus"
+    assert result.n_observations == len(_objects())
+    pd.testing.assert_frame_equal(result.observations, result.objects)
+
+    with pytest.raises(ValueError, match="observation_unit"):
+        validate_input_tables(
+            _objects(),
+            feature_cols=["area"],
+            fov_col="fov_id",
+            observation_unit=" ",
+        )
 
 
 def test_rejects_metadata_used_as_feature():
