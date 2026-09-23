@@ -122,7 +122,7 @@ Python 3.11+ is required.
 ```bash
 python -m pip install -e ".[dev]"
 pytest
-ruff check src tests
+ruff check src tests data
 ```
 
 ## License
