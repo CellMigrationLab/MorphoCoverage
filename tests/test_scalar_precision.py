@@ -18,10 +18,16 @@ from morphocoverage.strategies.scalar_precision import (
     cell_averaging_cv,
     chi2_quantile,
     fov_averaging_cv,
+    required_fovs,
+    required_objects,
     sd_upper_bound_factor,
 )
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
+
+
+def _cv(result, quantity="averaging_cv"):
+    return result.evidence.value(quantity)
 
 
 def _evaluate(objects, fovs, strategy, feature_cols=("area",)):
@@ -63,9 +69,9 @@ def test_object_unit_required_cells_follows_cv_squared_over_target_squared():
     objects, fovs = _tables([[1.0, 2.0], [3.0, 4.0]])
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "object", "point"))
     cv_cells = np.std([1, 2, 3, 4], ddof=1) / 2.5
-    assert result.diagnostics["required_objects"] == pytest.approx((cv_cells / 0.05) ** 2)
-    assert result.predicted_remaining == math.ceil((cv_cells / 0.05) ** 2) - 4
-    assert result.score == pytest.approx(cv_cells / 2)
+    assert result.diagnostics["cv_cells"] == pytest.approx(cv_cells)
+    assert required_objects(cv_cells, 0.05) == math.ceil((cv_cells / 0.05) ** 2)
+    assert _cv(result) == pytest.approx(cv_cells / 2)
     assert result.decision == "continue"
     assert result.diagnostics["assumes_spatial_uniformity"] is True
 
@@ -76,9 +82,12 @@ def test_object_unit_stops_exactly_when_averaging_cv_reaches_target():
     objects, fovs = _tables([values])
     stop = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.0202, "object", "point"))
     go_on = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.0200, "object", "point"))
-    assert stop.score == pytest.approx(0.2 * math.sqrt(100 / 99) / 10)
+    assert _cv(stop) == pytest.approx(0.2 * math.sqrt(100 / 99) / 10)
     assert (stop.decision, go_on.decision) == ("stop", "continue")
-    assert stop.predicted_remaining == 0
+    # The estimate does not depend on the target; only the policy does.
+    assert stop.evidence == go_on.evidence
+    assert stop.config_id != go_on.config_id
+    assert required_objects(stop.diagnostics["cv_cells"], 0.0202) <= 100
 
 
 @pytest.mark.parametrize(
@@ -119,7 +128,9 @@ def test_reproduces_the_papers_worked_example():
         for sd_estimate in ("point", "upper_95"):
             strategy = ScalarPrecisionStrategy("area", target, "object", sd_estimate)
             result = _evaluate(objects, fovs, strategy)
-            required[target, sd_estimate] = math.ceil(result.diagnostics["required_objects"])
+            suffix = "_upper_95" if sd_estimate == "upper_95" else ""
+            cv_cells = result.diagnostics["cv_cells" + suffix]
+            required[target, sd_estimate] = required_objects(cv_cells, target)
     assert required == {
         (0.025, "point"): 51,
         (0.025, "upper_95"): 108,
@@ -157,7 +168,7 @@ def test_zero_object_fovs_are_sampled_units_in_the_fov_variant():
 
     objects, fovs = _tables([[1.0, 1.0], [3.0, 3.0], []])
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
-    assert result.score == pytest.approx(with_empty["cv_mean"])
+    assert _cv(result) == pytest.approx(with_empty["cv_mean"])
     assert result.n_fovs == 3
 
 
@@ -165,7 +176,7 @@ def test_fov_variant_equals_cell_criterion_when_fov_means_do_not_differ():
     # Identical FOVs carry no between-FOV variance.
     objects, fovs = _tables([[1.0, 3.0]] * 4)
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
-    assert result.score == pytest.approx(0.0)
+    assert _cv(result) == pytest.approx(0.0)
 
 
 def test_spatial_clustering_inflates_only_the_fov_variant():
@@ -173,14 +184,16 @@ def test_spatial_clustering_inflates_only_the_fov_variant():
     values = np.tile([1.0, 3.0], 40)
     mixed = _tables(values.reshape(8, 10))
     clustered = _tables(np.sort(values).reshape(8, 10))
-    cell_mixed = _evaluate(*mixed, ScalarPrecisionStrategy("area", 0.05, "object", "point")).score
-    cell_clustered = _evaluate(*clustered, ScalarPrecisionStrategy("area", 0.05, "object", "point")).score
+    cell_mixed = _cv(_evaluate(*mixed, ScalarPrecisionStrategy("area", 0.05, "object", "point")))
+    cell_clustered = _cv(
+        _evaluate(*clustered, ScalarPrecisionStrategy("area", 0.05, "object", "point"))
+    )
     fov_mixed = _evaluate(*mixed, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
     fov_clustered = _evaluate(*clustered, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
     assert cell_mixed == pytest.approx(cell_clustered)
-    assert fov_clustered.score > 2 * cell_clustered
+    assert _cv(fov_clustered) > 2 * cell_clustered
     assert fov_clustered.diagnostics["design_effect"] > 5
-    assert fov_mixed.score == pytest.approx(0.0)
+    assert _cv(fov_mixed) == pytest.approx(0.0)
 
 
 def test_neighbour_correlation_scenario_shows_design_effect():
@@ -210,12 +223,34 @@ def test_pilot_plan_is_fixed_by_the_first_fovs_in_acquisition_order():
     cv_pilot = np.std([1, 3, 1, 3], ddof=1) / 2
     required = math.ceil((cv_pilot / 0.1) ** 2)
     assert results[0].result.decision == "continue"  # pilot incomplete
+    projected = results[0].result.evidence.quantities["pilot_projected_averaging_cv"]
+    assert projected.availability == "insufficient_data"
     for item in results[1:]:
-        assert item.result.diagnostics["pilot"]["required_objects"] == pytest.approx(
-            (cv_pilot / 0.1) ** 2
+        assert item.result.diagnostics["pilot"]["cv_cells"] == pytest.approx(cv_pilot)
+        assert _cv(item.result, "pilot_projected_averaging_cv") == pytest.approx(
+            cv_pilot / math.sqrt(item.result.n_objects)
         )
     first_stop = next(r for r in results if r.result.decision == "stop")
     assert first_stop.result.n_objects == required + (required % 2)  # 2 cells per FOV
+    # Stopping at the projected CV is the paper's rule: stop once the planned
+    # number of cells has been acquired.
+    for item in results[1:]:
+        planned = item.result.n_objects >= required
+        assert (item.result.decision == "stop") == planned
+
+
+def test_fov_pilot_stops_when_the_planned_number_of_fovs_is_reached():
+    rng = np.random.default_rng(4)
+    objects, fovs = _tables([rng.uniform(1, 3, 10) + j % 3 for j in range(40)])
+    strategy = ScalarPrecisionStrategy("area", 0.08, "fov", "point", pilot_fovs=4, order_col="order")
+    results = evaluate_acquisition_prefixes(
+        objects, fovs, strategies=[strategy], feature_cols=["area"],
+        acquisition_order_col="order", objective=POPULATION,
+    )
+    pilot = results[3].result.diagnostics["pilot"]
+    planned = required_fovs(pilot["cv_mean"], 4, 0.08)
+    assert 4 < planned < 40
+    assert [r.step for r in results if r.result.decision == "stop"] == list(range(planned, 41))
 
 
 def test_pilot_uses_order_column_not_row_order():
@@ -242,15 +277,28 @@ def test_negative_values_with_positive_mean_give_no_decision(unit):
     # A positive mean does not make a CV meaningful when values can be negative.
     objects, fovs = _tables([[-5.0, 10.0], [10.0, 10.0]])
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, unit, "point"))
-    assert result.decision is None and result.score is None
+    assert result.decision is None and _cv(result) is None
+    assert result.evidence.quantities["averaging_cv"].availability == "not_applicable"
     assert "negative values" in result.diagnostics["undefined_reason"]
 
 
-def test_too_little_data_gives_no_decision():
+def test_too_little_data_continues():
+    # Insufficient data is not an undefined criterion: more acquisition can fix it.
     objects, fovs = _tables([[1.0]])
     for unit in ("object", "fov"):
         result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, unit, "point"))
-        assert result.decision is None and result.score is None
+        assert result.decision == "continue" and _cv(result) is None
+        assert result.evidence.quantities["averaging_cv"].availability == "insufficient_data"
+
+
+def test_pilot_that_cannot_define_the_requirement_gives_no_decision():
+    # The pilot is fixed once complete, so a pilot with one object never recovers.
+    objects, fovs = _tables([[1.0], [], [2.0, 3.0]])
+    strategy = ScalarPrecisionStrategy("area", 0.05, "object", "point", pilot_fovs=2, order_col="order")
+    result = _evaluate(objects, fovs, strategy)
+    assert result.decision is None
+    projected = result.evidence.quantities["pilot_projected_averaging_cv"]
+    assert projected.availability == "not_applicable" and "pilot" in projected.reason
 
 
 def test_feature_must_be_an_explicit_feature_column():

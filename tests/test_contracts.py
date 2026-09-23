@@ -26,20 +26,34 @@ import pytest
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import (
+    Decision,
     DescriptorPlateauStrategy,
     DescriptorSpreadStrategy,
+    Estimator,
+    Evidence,
     FixedFOVStrategy,
     FixedObjectStrategy,
     ObjectiveConfig,
+    RareTarget,
     SamplingObjective,
     SamplingStrategy,
     ScalarPrecisionStrategy,
-    StrategyResult,
     evaluate_acquisition_prefixes,
     run_strategies,
 )
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
+_RARE = RareTarget(
+    object_prevalence=0.01,
+    detection_probability=0.95,
+    min_fov_occurrences=2,
+    phenotype="true_state column",
+)
+OBJECTIVES = [
+    POPULATION,
+    ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=_RARE),
+    ObjectiveConfig(SamplingObjective.BALANCED, rare=_RARE),
+]
 
 # Every strategy added to the package must be added here, configured with
 # parameters that make it run on small data.
@@ -67,38 +81,35 @@ SCENARIO_IDS = sorted(SCENARIOS)
 STRATEGY_IDS = [strategy.name for strategy in STRATEGIES_UNDER_CONTRACT]
 
 
-def _replay(scenario, strategies, **kwargs):
+def _replay(scenario, strategies, objective=POPULATION, **kwargs):
     return evaluate_acquisition_prefixes(
         scenario.objects,
         scenario.fovs,
         strategies=strategies,
         feature_cols=list(FEATURE_COLS),
         acquisition_order_col=ORDER_COL,
-        objective=POPULATION,
+        objective=objective,
         **kwargs,
     )
 
 
 def _without_runtime(results):
-    return [replace(item, result=replace(item.result, runtime_seconds=None)) for item in results]
+    return [replace(item, result=replace(item.result, compute_seconds=None)) for item in results]
 
 
-class _Probe(SamplingStrategy):
-    """Records everything a strategy could observe about its input."""
+class _ProbeEstimator(Estimator):
+    """Records everything an estimator could observe about its input."""
 
     name = "probe"
 
-    def evaluate(self, data, *, objective):
+    def estimate(self, data, *, objective):
         key = list(data.fov_key)
         levels: set[object] = set()
         for table in (data.objects, data.fovs):
             for column in table.columns:
                 if isinstance(table[column].dtype, pd.CategoricalDtype):
                     levels |= set(table[column].cat.categories)
-        return StrategyResult(
-            self.name,
-            objective,
-            score=None,
+        return Evidence(
             diagnostics={
                 "visible_fovs": list(data.fovs.loc[:, key].itertuples(index=False, name=None)),
                 "objects_per_fov": Counter(
@@ -109,6 +120,10 @@ class _Probe(SamplingStrategy):
                 "fov_columns": list(data.fovs.columns),
             },
         )
+
+
+def _probe():
+    return SamplingStrategy([_ProbeEstimator()])
 
 
 # --- 1. The §9 list and the tests stay in sync ---------------------------------
@@ -133,17 +148,28 @@ def test_agents_section_9_matches_contract_tests():
 
 def test_every_package_strategy_is_under_contract():
     # AGENTS.md section 9: a strategy added to the package must be added to
-    # STRATEGIES_UNDER_CONTRACT. Enforced here rather than by convention.
+    # STRATEGIES_UNDER_CONTRACT, and so must every exported estimator and
+    # policy, through some strategy. Enforced here rather than by convention.
+    import morphocoverage
     from morphocoverage import strategies
 
-    exported = {
-        obj
-        for obj in vars(strategies).values()
-        if isinstance(obj, type) and issubclass(obj, SamplingStrategy) and obj is not SamplingStrategy
-    }
+    def exported(module, base):
+        return {
+            obj
+            for obj in vars(module).values()
+            if isinstance(obj, type) and issubclass(obj, base) and obj is not base
+        }
+
     covered = {type(strategy) for strategy in STRATEGIES_UNDER_CONTRACT}
-    missing = sorted(cls.__name__ for cls in exported - covered)
-    assert not missing, f"strategies missing from STRATEGIES_UNDER_CONTRACT: {missing}"
+    for strategy in STRATEGIES_UNDER_CONTRACT:
+        covered |= {type(part) for part in (*strategy.estimators, *strategy.policies)}
+    required = (
+        exported(strategies, SamplingStrategy)
+        | exported(strategies, Estimator)
+        | exported(morphocoverage, morphocoverage.DecisionPolicy)
+    )
+    missing = sorted(cls.__name__ for cls in required - covered)
+    assert not missing, f"missing from STRATEGIES_UNDER_CONTRACT: {missing}"
 
 
 def test_framework_contracts_name_existing_tests():
@@ -246,7 +272,7 @@ def test_replay_reveals_whole_fovs_in_acquisition_order(name):
     all_objects_per_fov = Counter(
         scenario.objects.loc[:, key].itertuples(index=False, name=None)
     )
-    for item in _replay(scenario, [_Probe()]):
+    for item in _replay(scenario, [_probe()]):
         group = item.result.group
         ordered = (
             scenario.fovs[
@@ -275,7 +301,7 @@ def test_replay_exposes_no_future_fovs(name):
     levels = sorted(fovs["image_file"].unique())
     objects["image_file"] = pd.Categorical(objects["image_file"], categories=levels)
     fovs["image_file"] = pd.Categorical(fovs["image_file"], categories=levels)
-    for item in _replay(replace(scenario, objects=objects, fovs=fovs), [_Probe()]):
+    for item in _replay(replace(scenario, objects=objects, fovs=fovs), [_probe()]):
         visible_names = {fov[-1] for fov in item.acquired_fovs}
         diagnostics = item.result.diagnostics
         assert {fov[-1] for fov in diagnostics["visible_fovs"]} == visible_names
@@ -292,7 +318,7 @@ def test_only_explicit_features_reach_the_strategy(name):
     [result] = run_strategies(
         scenario.objects,
         fovs=scenario.fovs,
-        strategies=[_Probe()],
+        strategies=[_probe()],
         feature_cols=list(FEATURE_COLS),
         objective=POPULATION,
         group_cols=[],
@@ -305,7 +331,7 @@ def test_only_explicit_features_reach_the_strategy(name):
 
 def test_zero_object_fovs_count_as_acquisition_effort():
     scenario = SCENARIOS["zero_object_fovs"]()
-    results = _replay(scenario, [_Probe()])
+    results = _replay(scenario, [_probe()])
     assert [item.result.n_fovs for item in results] == list(range(1, 21))
     assert results[0].result.n_objects == 0  # the first acquired FOV is empty
     assert results[-1].result.n_objects == len(scenario.objects)
@@ -315,14 +341,14 @@ def test_zero_object_fovs_count_as_acquisition_effort():
 
 def test_fov_design_metadata_is_available_to_strategies():
     scenario = SCENARIOS["unequal_fov_area"]()
-    for item in _replay(scenario, [_Probe()]):
+    for item in _replay(scenario, [_probe()]):
         assert {"area_um2", "stage_x", "stage_y"} <= set(item.result.diagnostics["fov_columns"])
 
 
 def test_duplicated_objects_add_objects_but_not_fovs():
     # Re-measuring the same FOV is not new acquisition: counts keep the two apart.
     scenario = SCENARIOS["duplicated_objects"]()
-    first = _replay(scenario, [_Probe()])[0].result
+    first = _replay(scenario, [_probe()])[0].result
     assert (first.n_fovs, first.n_objects) == (1, 60)
 
 
@@ -376,6 +402,28 @@ def test_strategy_results_are_deterministic(name, strategy):
     )
 
 
+@pytest.mark.parametrize("objective", OBJECTIVES, ids=lambda o: o.objective.value)
+@pytest.mark.parametrize("strategy", STRATEGIES_UNDER_CONTRACT, ids=STRATEGY_IDS)
+@pytest.mark.parametrize("name", ["rare_clustered", "zero_object_fovs"])
+def test_decisions_answer_only_the_components_the_objective_requires(name, strategy, objective):
+    # A strategy never stops for a component it has no evidence about: a
+    # missing required component is UNSUPPORTED, and STOP needs every required
+    # component to stop (balanced needs both population and rare).
+    scenario = SCENARIOS[name]()
+    for item in _replay(scenario, [strategy], objective=objective):
+        result = item.result
+        required = [c.value for c in objective.required_components]
+        assert set(required) <= set(result.component_decisions)
+        decisions = [result.component_decisions[c] for c in required]
+        if Decision.UNSUPPORTED in decisions:
+            assert result.decision is Decision.UNSUPPORTED
+        elif None in decisions:
+            assert result.decision is None
+        else:
+            stop = all(d is Decision.STOP for d in decisions)
+            assert result.decision is (Decision.STOP if stop else Decision.CONTINUE)
+
+
 def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     # With 5-200 objects per FOV, a cell-count rule and an FOV-count rule stop at
     # different points, and the result reports both kinds of effort so the
@@ -415,9 +463,12 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
         stop = first_stop(name)
         assert stop.n_fovs >= 1 and stop.n_objects >= 1
         assert stop.parameters["target_cv"] == 0.005
-        assert stop.score <= 0.005
+        assert stop.evidence.value("averaging_cv") <= 0.005
 
-    for strategy in (plateau, spread):
+    for strategy, quantity in (
+        (plateau, "max_descriptor_range"),
+        (spread, "max_descriptor_spread"),
+    ):
         stop = first_stop(strategy.name)
         assert stop.n_fovs >= 1 and stop.n_objects >= 1
-        assert stop.score <= strategy.tolerance
+        assert stop.evidence.value(quantity) <= strategy.tolerance

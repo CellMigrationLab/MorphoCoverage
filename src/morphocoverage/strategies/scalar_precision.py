@@ -39,6 +39,14 @@ Not reproduced here, both parts of the multi-sample procedure:
 
 Within one group the sample's own mean is used, as in the paper's
 single-sample case.
+
+Estimation and decision are separate. ``ScalarPrecisionEstimator`` reports the
+averaging CV (and, with a pilot, the averaging CV the pilot projects for the
+visible effort); ``ScalarPrecisionStrategy`` applies the paper's target to it
+with a ``ThresholdPolicy``. The projected CV reaches the target exactly when
+the visible effort reaches the pilot's required number of cells
+(``required_objects``) or FOVs (``required_fovs``), so the stopping rule is the
+paper's.
 """
 
 from __future__ import annotations
@@ -50,10 +58,11 @@ from typing import Any
 
 import numpy as np
 
+from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
-from ..results import Decision, StrategyResult
+from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from .base import SamplingStrategy
+from .base import Estimator, SamplingStrategy
 
 _UNITS = ("object", "fov")
 _SD_ESTIMATES = ("point", "upper_95")
@@ -166,9 +175,192 @@ def fov_averaging_cv(sums: np.ndarray, counts: np.ndarray) -> dict[str, float]:
     }
 
 
+def required_objects(cv_cells: float, target_cv: float) -> int:
+    """The paper's number of cells to average: ``ceil((cv_cells / target_cv) ** 2)``."""
+    return math.ceil((cv_cells / target_cv) ** 2)
+
+
+def required_fovs(cv_mean: float, n_fovs: int, target_cv: float) -> int:
+    """FOVs needed for ``target_cv``, since Var(mean) scales as 1/k under FOV resampling."""
+    return math.ceil(n_fovs * (cv_mean / target_cv) ** 2)
+
+
+_CV_UNITS = "fraction of the mean (CV)"
+
+
+def _cv_quantity(value: float | None, availability: str = "available", reason=None) -> Quantity:
+    return Quantity(
+        value, Direction.LOWER_IS_BETTER, _CV_UNITS, Component.POPULATION, availability, reason
+    )
+
+
+def _check_configuration(resampling_unit, sd_estimate, pilot_fovs, order_col) -> None:
+    if resampling_unit not in _UNITS:
+        raise ValueError(f"resampling_unit must be one of {_UNITS}")
+    if sd_estimate not in _SD_ESTIMATES:
+        raise ValueError(f"sd_estimate must be one of {_SD_ESTIMATES}")
+    if (pilot_fovs is None) != (order_col is None):
+        raise ValueError("pilot_fovs and order_col must be given together")
+    if pilot_fovs is not None and pilot_fovs < 2:
+        raise ValueError("pilot_fovs must be at least 2")
+
+
+@dataclass(frozen=True)
+class ScalarPrecisionEstimator(Estimator):
+    """Averaging CV of one scalar feature's mean, as evidence for population precision.
+
+    Quantities (lower is better, as a fraction of the mean, component
+    ``population``):
+
+    - ``averaging_cv``: the averaging CV of the visible data (``SD / sqrt(n)``
+      relative to the mean for the object unit; the cluster ratio-estimator CV
+      for the FOV unit), from the point or upper-95 SD estimate.
+    - ``pilot_projected_averaging_cv`` (only with ``pilot_fovs``): the averaging
+      CV that the pilot's estimate projects for the visible effort,
+      ``cv_cells_pilot / sqrt(n_objects)`` (object unit) or
+      ``cv_mean_pilot * sqrt(k_pilot / k)`` (FOV unit). The requirement is
+      planned once from the first ``pilot_fovs`` FOVs by ``order_col`` and then
+      held fixed, as in the paper's pilot procedure.
+
+    Too few objects or FOVs give ``insufficient_data``. Negative values or a
+    non-positive mean make the CV undefined (``not_applicable``), as does a
+    completed pilot that cannot define the requirement. See
+    ``ScalarPrecisionStrategy`` for the parameters.
+    """
+
+    feature: str
+    resampling_unit: str
+    sd_estimate: str
+    pilot_fovs: int | None = None
+    order_col: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.feature, str):
+            raise TypeError("feature must be one column name")
+        _check_configuration(self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col)
+
+    @property
+    def name(self) -> str:
+        """Variant-specific name, e.g. ``averaging_cv_object_upper95_pilot``."""
+        parts = ["averaging_cv", self.resampling_unit]
+        if self.sd_estimate == "upper_95":
+            parts.append("upper95")
+        if self.pilot_fovs is not None:
+            parts.append("pilot")
+        return "_".join(parts)
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """All settings that define the estimate, for result provenance."""
+        return {
+            "feature": self.feature,
+            "resampling_unit": self.resampling_unit,
+            "sd_estimate": self.sd_estimate,
+            "pilot_fovs": self.pilot_fovs,
+            "order_col": self.order_col,
+        }
+
+    def _suffix(self) -> str:
+        return "_upper_95" if self.sd_estimate == "upper_95" else ""
+
+    def _precision(self, data: ValidatedInput, fovs) -> dict[str, Any] | tuple[str, str]:
+        """Averaging-precision estimate on the given FOVs, or (availability, reason)."""
+        # Per-FOV sums and counts in the order of ``fovs``; empty FOVs give zeros.
+        positions = fov_positions(data, fovs)
+        inside = positions >= 0
+        values = data.feature_values(self.feature)[inside]
+        sums = np.bincount(positions[inside], weights=values, minlength=len(fovs))
+        counts = np.bincount(positions[inside], minlength=len(fovs)).astype(float)
+        n_objects = int(counts.sum())
+        if self.resampling_unit == "object":
+            if n_objects < 2:
+                return "insufficient_data", "fewer than 2 objects"
+        elif len(fovs) < 2 or n_objects == 0:
+            return "insufficient_data", "fewer than 2 acquired FOVs or no objects"
+        if (values < 0).any():
+            return "not_applicable", (
+                "negative values; the CV criterion applies to non-negative "
+                "whole-cell measurements"
+            )
+        if sums.sum() <= 0:
+            return "not_applicable", (
+                "non-positive mean; CV is only defined for positive-valued measurements"
+            )
+
+        cells = cell_averaging_cv(values) if n_objects >= 2 else None
+        if self.resampling_unit == "object":
+            estimate: dict[str, Any] = dict(cells)
+        else:
+            estimate = fov_averaging_cv(sums, counts)
+            if cells is not None and cells["cv_mean"] > 0:
+                # Variance inflation from treating FOVs, not cells, as the sampling unit.
+                estimate["design_effect"] = (estimate["cv_mean"] / cells["cv_mean"]) ** 2
+        if cells is not None and cells["cv_cells"] > _MAX_TRUSTED_CV:
+            estimate["warning"] = (
+                "between-cell SD exceeds 50% CV; the paper advises acquiring more data "
+                "and repeating the estimate"
+            )
+        estimate["n_objects"] = n_objects
+        estimate["n_fovs"] = len(fovs)
+        return estimate
+
+    def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
+        """Averaging CV of the visible data, and the pilot's projection when configured."""
+        data.feature_values(self.feature)  # fails early on a non-feature column
+        diagnostics: dict[str, Any] = {
+            "scalar_parameter": f"mean of {self.feature!r} over objects",
+            "assumes_spatial_uniformity": self.resampling_unit == "object",
+        }
+        quantities: dict[str, Quantity] = {}
+
+        current = self._precision(data, data.fovs)
+        if isinstance(current, tuple):
+            availability, reason = current
+            diagnostics["undefined_reason"] = reason
+            quantities["averaging_cv"] = _cv_quantity(None, availability, reason)
+        else:
+            diagnostics.update(current)
+            quantities["averaging_cv"] = _cv_quantity(current["cv_mean" + self._suffix()])
+        if self.pilot_fovs is None:
+            return Evidence(quantities, diagnostics)
+
+        quantities["pilot_projected_averaging_cv"] = self._projection(
+            data, current, diagnostics
+        )
+        return Evidence(quantities, diagnostics)
+
+    def _projection(self, data: ValidatedInput, current, diagnostics) -> Quantity:
+        if self.order_col not in data.fovs.columns:
+            raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
+        if isinstance(current, tuple) and current[0] == "not_applicable":
+            return _cv_quantity(None, *current)
+        if len(data.fovs) < self.pilot_fovs:
+            diagnostics["pilot_status"] = "pilot not yet complete"
+            return _cv_quantity(None, "insufficient_data", "pilot not yet complete")
+        pilot_fovs = data.fovs.sort_values(self.order_col, kind="stable").iloc[: self.pilot_fovs]
+        pilot = self._precision(data, pilot_fovs)
+        if isinstance(pilot, tuple):
+            # The pilot is fixed once complete, so more acquisition cannot fix it.
+            reason = f"pilot: {pilot[1]}"
+            diagnostics["pilot_status"] = reason
+            return _cv_quantity(None, "not_applicable", reason)
+        diagnostics["pilot"] = pilot
+        if self.resampling_unit == "object":
+            projected = pilot["cv_cells" + self._suffix()] / math.sqrt(len(data.objects))
+        else:
+            projected = pilot["cv_mean" + self._suffix()] * math.sqrt(
+                self.pilot_fovs / len(data.fovs)
+            )
+        return _cv_quantity(projected)
+
+
 @dataclass(frozen=True)
 class ScalarPrecisionStrategy(SamplingStrategy):
     """Stop when the averaging CV of one scalar feature's mean reaches ``target_cv``.
+
+    ``ScalarPrecisionEstimator`` plus ``ThresholdPolicy(target_cv)`` on
+    ``averaging_cv``, or on ``pilot_projected_averaging_cv`` with a pilot. It
+    answers the population component only.
 
     Parameters
     ----------
@@ -206,14 +398,7 @@ class ScalarPrecisionStrategy(SamplingStrategy):
             raise TypeError("feature must be one column name")
         if not 0 < self.target_cv < 1:
             raise ValueError("target_cv must be between 0 and 1")
-        if self.resampling_unit not in _UNITS:
-            raise ValueError(f"resampling_unit must be one of {_UNITS}")
-        if self.sd_estimate not in _SD_ESTIMATES:
-            raise ValueError(f"sd_estimate must be one of {_SD_ESTIMATES}")
-        if (self.pilot_fovs is None) != (self.order_col is None):
-            raise ValueError("pilot_fovs and order_col must be given together")
-        if self.pilot_fovs is not None and self.pilot_fovs < 2:
-            raise ValueError("pilot_fovs must be at least 2")
+        _check_configuration(self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col)
 
     @property
     def name(self) -> str:
@@ -237,106 +422,17 @@ class ScalarPrecisionStrategy(SamplingStrategy):
             "order_col": self.order_col,
         }
 
-    def _suffix(self) -> str:
-        return "_upper_95" if self.sd_estimate == "upper_95" else ""
-
-    def _precision(self, data: ValidatedInput, fovs) -> dict[str, Any] | str:
-        """Averaging-precision estimate on the given FOVs, or why it is undefined."""
-        # Per-FOV sums and counts in the order of ``fovs``; empty FOVs give zeros.
-        positions = fov_positions(data, fovs)
-        inside = positions >= 0
-        values = data.feature_values(self.feature)[inside]
-        sums = np.bincount(positions[inside], weights=values, minlength=len(fovs))
-        counts = np.bincount(positions[inside], minlength=len(fovs)).astype(float)
-        n_objects = int(counts.sum())
-        if self.resampling_unit == "object":
-            if n_objects < 2:
-                return "fewer than 2 objects"
-        elif len(fovs) < 2 or n_objects == 0:
-            return "fewer than 2 acquired FOVs or no objects"
-        if (values < 0).any():
-            return (
-                "negative values; the CV criterion applies to non-negative "
-                "whole-cell measurements"
-            )
-        if sums.sum() <= 0:
-            return "non-positive mean; CV is only defined for positive-valued measurements"
-
-        cells = cell_averaging_cv(values) if n_objects >= 2 else None
-        if self.resampling_unit == "object":
-            estimate: dict[str, Any] = dict(cells)
-            cv_cells = estimate["cv_cells" + self._suffix()]
-            estimate["required_objects"] = (cv_cells / self.target_cv) ** 2
-        else:
-            estimate = fov_averaging_cv(sums, counts)
-            # Var(mean) scales as 1/k under FOV resampling.
-            cv_mean = estimate["cv_mean" + self._suffix()]
-            estimate["required_fovs"] = len(fovs) * (cv_mean / self.target_cv) ** 2
-            if cells is not None and cells["cv_mean"] > 0:
-                # Variance inflation from treating FOVs, not cells, as the sampling unit.
-                estimate["design_effect"] = (estimate["cv_mean"] / cells["cv_mean"]) ** 2
-        if cells is not None and cells["cv_cells"] > _MAX_TRUSTED_CV:
-            estimate["warning"] = (
-                "between-cell SD exceeds 50% CV; the paper advises acquiring more data "
-                "and repeating the estimate"
-            )
-        estimate["n_objects"] = n_objects
-        estimate["n_fovs"] = len(fovs)
-        return estimate
-
-    def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
-        """Averaging CV of the visible data as ``score``; stop once it meets the target.
-
-        With a pilot, the decision instead compares visible effort with the
-        requirement planned from the pilot FOVs. ``decision`` is ``None`` when
-        the criterion is undefined (too little data or a non-positive mean),
-        with the reason in ``diagnostics["undefined_reason"]``.
-        """
-        data.feature_values(self.feature)  # fails early on a non-feature column
-        diagnostics: dict[str, Any] = {
-            "scalar_parameter": f"mean of {self.feature!r} over objects",
-            "assumes_spatial_uniformity": self.resampling_unit == "object",
-        }
-
-        current = self._precision(data, data.fovs)
-        if isinstance(current, str):
-            diagnostics["undefined_reason"] = current
-            return self._result(objective, None, None, None, diagnostics)
-        diagnostics.update(current)
-        score = current["cv_mean" + self._suffix()]
-
-        if self.pilot_fovs is None:
-            stop = score <= self.target_cv
-            return self._result(objective, score, stop, self._remaining(current, data), diagnostics)
-
-        if self.order_col not in data.fovs.columns:
-            raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
-        if len(data.fovs) < self.pilot_fovs:
-            diagnostics["undefined_reason"] = "pilot not yet complete"
-            return self._result(objective, score, False, None, diagnostics)
-        pilot_fovs = data.fovs.sort_values(self.order_col, kind="stable").iloc[: self.pilot_fovs]
-        pilot = self._precision(data, pilot_fovs)
-        if isinstance(pilot, str):
-            diagnostics["undefined_reason"] = f"pilot: {pilot}"
-            return self._result(objective, score, None, None, diagnostics)
-        diagnostics["pilot"] = pilot
-        remaining = self._remaining(pilot, data)
-        return self._result(objective, score, remaining == 0, remaining, diagnostics)
-
-    def _remaining(self, estimate: dict[str, Any], data: ValidatedInput) -> float:
-        """Further objects (object unit) or FOVs (fov unit) the estimate says are needed."""
-        if self.resampling_unit == "object":
-            return float(max(0, math.ceil(estimate["required_objects"]) - len(data.objects)))
-        return float(max(0, math.ceil(estimate["required_fovs"]) - len(data.fovs)))
-
-    def _result(self, objective, score, stop, remaining, diagnostics) -> StrategyResult:
-        decision = None if stop is None else (Decision.STOP if stop else Decision.CONTINUE)
-        return StrategyResult(
-            strategy=self.name,
-            objective=objective,
-            score=score,
-            decision=decision,
-            predicted_remaining=remaining,
-            diagnostics=diagnostics,
-            parameters=self.parameters,
+    @property
+    def estimators(self) -> tuple[ScalarPrecisionEstimator]:
+        """The averaging-CV estimator with this strategy's settings."""
+        return (
+            ScalarPrecisionEstimator(
+                self.feature, self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
+            ),
         )
+
+    @property
+    def policies(self) -> tuple[ThresholdPolicy]:
+        """The paper's target applied to the running or pilot-projected averaging CV."""
+        quantity = "averaging_cv" if self.pilot_fovs is None else "pilot_projected_averaging_cv"
+        return (ThresholdPolicy(quantity, self.target_cv),)

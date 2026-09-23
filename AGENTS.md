@@ -146,7 +146,7 @@ A canonical column present in only one of the linked tables raises; so does a no
 
 ### Outputs
 
-MorphoCoverage currently produces in-memory result objects (`StrategyResult`, `SequentialResult`), not files. No other repository consumes its output yet. Define a file format here before any downstream repository depends on it.
+MorphoCoverage currently produces in-memory result objects (`StrategyResult`, `SequentialResult`, each result carrying its `Evidence`), not files. No other repository consumes its output yet. Define a file format here before any downstream repository depends on it.
 
 ## 6. Architecture principles
 
@@ -167,13 +167,16 @@ src/morphocoverage/
     __init__.py            # public API (__all__); changes need approval (section 15)
     metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings
     schema.py              # ValidatedInput and linked-table validation
-    objectives.py          # sampling objectives, independent of strategies
+    objectives.py          # sampling objectives and RareTarget, independent of strategies
+    evidence.py            # Evidence and Quantity: estimates with direction, units, component
+    policies.py            # decision policies, per-objective combination, redecide
+    provenance.py          # config_id hashing
     results.py             # StrategyResult and the Decision vocabulary
-    evaluator.py           # group iteration, isolation, timing, framework-owned fields
+    evaluator.py           # group iteration, isolation, timing, framework-built results
     sequential.py          # leakage-safe acquisition-prefix replay
     framework.py           # run_strategies convenience entry point
     strategies/
-        base.py            # SamplingStrategy interface
+        base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV and fixed-object baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
@@ -383,19 +386,24 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | Feature | An explicitly selected numeric descriptor of an object. |
 | Analysis group | FOVs evaluated together; `condition` x `repeat` by default, pooled only on explicit request. |
 | Zero-object FOV | An acquired FOV with no detected objects; it counts as acquisition effort. |
-| Strategy | A swappable method that assesses the acquisition so far (section 20). |
+| Strategy | A swappable method that assesses the acquisition so far: estimators plus decision policies (section 20). |
+| Estimator | Computes named evidence quantities from the visible acquisition; never decides. |
+| Decision policy | Turns evidence and effort into continue/stop for one objective component. |
+| Component | The part of an objective a quantity or policy addresses: `population` or `rare`. |
+| config_id | A stable hash of an estimator's, policy's or strategy's class and parameters. |
 | Objective | What "enough imaging" means: population representation, rare-phenotype discovery or balanced sampling. |
 | Prefix / replay | The first k acquired FOVs of a real acquisition; replay evaluates strategies on successive prefixes. |
 | Design effect | The variance of a mean with FOVs as the sampling unit, divided by its variance under random-cell sampling. |
 
 ## 20. Adding or swapping a strategy
 
-Strategies are interchangeable: the framework never branches on a strategy's identity. To add one:
+Strategies are interchangeable: the framework never branches on a strategy's identity. A strategy is estimators plus decision policies; a new family implements an estimator. To add one:
 
-1. Subclass `SamplingStrategy` in a module under `strategies/`. Give it a `name` (a constant, or a property that names the variant), a `parameters` property holding every setting that defines the method, and `evaluate(data, *, objective) -> StrategyResult`.
+1. Subclass `Estimator` in a module under `strategies/`. Give it a `name` (a constant, or a property that names the variant), a `parameters` property holding every setting that defines the estimate (JSON-serializable, since it defines `config_id`), and `estimate(data, *, objective) -> Evidence`.
 2. Read phenotype values only through `data.feature_values(name)` or `data.feature_matrix()`, and FOV identity through `data.fov_key`. Treat the input as one analysis group; never split conditions or repeats.
-3. Leave framework-owned fields unset (`n_fovs`, `n_objects`, `group`, `feature_cols`, `fov_key`, `runtime_seconds`). Return `decision` as `Decision.CONTINUE`, `Decision.STOP` or `None`.
-4. Keep `evaluate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter.
-5. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults.
-6. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise. If it is a current-practice baseline, also add it to `baseline_comparison`.
+3. Report each estimate as a named `Quantity` with its `direction`, `units` and `component` (`population` or `rare`). Report a quantity that cannot be computed yet as `insufficient_data`, and one that is undefined for these data as `not_applicable`, each with a reason; never NaN. Only claim the `rare` component for evidence about the objective's `RareTarget`. Never report effort (`n_fovs`, `n_objects`): the framework owns it.
+4. Do not decide inside the estimator. Thresholds belong to a `DecisionPolicy` (usually `ThresholdPolicy`), so they are explicit, sweepable with `redecide`, and part of `config_id`.
+5. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter.
+6. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
+7. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
 

@@ -29,6 +29,10 @@ describes this as reasonable for cells on coverslips and less so for tissue.
   ``resampling_unit="fov"`` resamples whole FOVs (a MorphoCoverage variant).
 
 The paper's exponential fit to the spread curve is a visual aid and is not used.
+
+Each strategy is an estimator (``DescriptorPlateauEstimator``,
+``DescriptorSpreadEstimator``) reporting the largest descriptor range or
+spread, in the feature's units, plus a ``ThresholdPolicy`` at ``tolerance``.
 """
 
 from __future__ import annotations
@@ -38,10 +42,11 @@ from typing import Any
 
 import numpy as np
 
+from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
-from ..results import Decision, StrategyResult
+from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from .base import SamplingStrategy
+from .base import Estimator, SamplingStrategy
 
 PAPER_DESCRIPTORS = ("mean", "median", "sd", "iqr")
 _UNITS = ("object", "fov")
@@ -84,70 +89,87 @@ def _describe_many(samples: np.ndarray, descriptors) -> dict[str, np.ndarray]:
     return {name: available[name] for name in descriptors}
 
 
-def _check_common(feature, tolerance, descriptors) -> None:
+def _check_tolerance(tolerance) -> None:
+    if not (tolerance > 0 and np.isfinite(tolerance)):
+        raise ValueError("tolerance must be positive and finite (in the feature's units)")
+
+
+def _check_common(feature, descriptors) -> None:
     if not isinstance(feature, str):
         raise TypeError("feature must be one column name")
-    if not tolerance > 0:
-        raise ValueError("tolerance must be positive (in the feature's units)")
     if not descriptors or any(name not in PAPER_DESCRIPTORS for name in descriptors):
         raise ValueError(f"descriptors must be a non-empty subset of {PAPER_DESCRIPTORS}")
     if len(set(descriptors)) != len(descriptors):
         raise ValueError("descriptors contains duplicates")
 
 
-def _result(strategy, objective, score, stop, diagnostics) -> StrategyResult:
-    return StrategyResult(
-        strategy=strategy.name,
-        objective=objective,
-        score=score,
-        decision=Decision.STOP if stop else Decision.CONTINUE,
-        diagnostics=diagnostics,
-        parameters=strategy.parameters,
+def _check_plateau(window, order_col) -> None:
+    if isinstance(window, bool) or not isinstance(window, int) or window < 1:
+        raise ValueError("window must be a positive integer number of FOVs")
+    if not isinstance(order_col, str):
+        raise TypeError("order_col must be the FOV table's acquisition-order column")
+
+
+def _check_spread(resampling_unit, n_resamples, random_state) -> None:
+    if resampling_unit not in _UNITS:
+        raise ValueError(f"resampling_unit must be one of {_UNITS}")
+    if isinstance(n_resamples, bool) or not isinstance(n_resamples, int):
+        raise TypeError("n_resamples must be an integer")
+    if n_resamples < 2:
+        raise ValueError("n_resamples must be at least 2")
+    if isinstance(random_state, bool) or not isinstance(random_state, int):
+        raise TypeError("random_state must be an integer seed")
+
+
+def _feature_quantity(feature: str, value: float | None, reason: str | None = None) -> Quantity:
+    units = f"units of {feature!r}"
+    if reason is not None:
+        # More FOVs with objects make the window or resamples computable.
+        return Quantity.insufficient(
+            reason, direction=Direction.LOWER_IS_BETTER, units=units, component=Component.POPULATION
+        )
+    return Quantity.available(
+        value, direction=Direction.LOWER_IS_BETTER, units=units, component=Component.POPULATION
     )
 
 
 @dataclass(frozen=True)
-class DescriptorPlateauStrategy(SamplingStrategy):
-    """Stop when cumulative descriptors have stayed within ``tolerance`` for ``window`` FOVs.
+class DescriptorPlateauEstimator(Estimator):
+    """Largest range of cumulative descriptors over the last ``window`` growth steps.
 
     The descriptors of all visible objects are recomputed after each acquired
-    FOV that added objects. The strategy stops once, over the last
-    ``window + 1`` such cumulative states (the current one and the ``window``
-    before it), every descriptor's range (max - min) is at most ``tolerance``,
-    in the feature's units. Until ``window + 1`` states with at least 2
-    objects exist, it continues.
+    FOV that added objects. Over the last ``window + 1`` such cumulative
+    states (the current one and the ``window`` before it), it reports the
+    largest descriptor range (max - min) as ``max_descriptor_range``, in the
+    feature's units. Until ``window + 1`` states with at least 2 objects exist,
+    the quantity is ``insufficient_data``.
 
     FOVs without objects add no state: the paper's curve is indexed by number
     of cells, so empty FOVs must not make descriptors look stable.
     """
 
     feature: str
-    tolerance: float
     window: int
     order_col: str
     descriptors: tuple[str, ...] = PAPER_DESCRIPTORS
-    name: str = "descriptor_plateau"
+    name: str = "descriptor_range"
 
     def __post_init__(self) -> None:
-        _check_common(self.feature, self.tolerance, self.descriptors)
-        if isinstance(self.window, bool) or not isinstance(self.window, int) or self.window < 1:
-            raise ValueError("window must be a positive integer number of FOVs")
-        if not isinstance(self.order_col, str):
-            raise TypeError("order_col must be the FOV table's acquisition-order column")
+        _check_common(self.feature, self.descriptors)
+        _check_plateau(self.window, self.order_col)
 
     @property
     def parameters(self) -> dict[str, Any]:
-        """All settings that define the criterion, for result provenance."""
+        """All settings that define the estimate, for result provenance."""
         return {
             "feature": self.feature,
-            "tolerance": self.tolerance,
             "window": self.window,
             "order_col": self.order_col,
             "descriptors": list(self.descriptors),
         }
 
-    def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
-        """Largest descriptor range over the trailing window as ``score``; stop within tolerance."""
+    def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
+        """``max_descriptor_range`` over the trailing window of growth steps."""
         values = data.feature_values(self.feature)
         if self.order_col not in data.fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
@@ -166,52 +188,48 @@ class DescriptorPlateauStrategy(SamplingStrategy):
             "descriptors": _reported(describe(values, self.descriptors)),
             "fovs_in_window": [int(n) for n in growth_points[-(self.window + 1):]],
         }
+        reason = None
         if len(states) < self.window + 1:
-            diagnostics["undefined_reason"] = (
-                f"fewer than {self.window + 1} acquired FOVs with objects"
-            )
-            return _result(self, objective, None, False, diagnostics)
-        ranges = {
-            name: float(np.ptp([state[name] for state in states])) for name in self.descriptors
-        }
-        diagnostics["window_ranges"] = _reported(ranges)
-        if any(np.isnan(value) for value in ranges.values()):
-            diagnostics["undefined_reason"] = "fewer than 2 objects in the window"
-            return _result(self, objective, None, False, diagnostics)
-        score = max(ranges.values())
-        return _result(self, objective, score, score <= self.tolerance, diagnostics)
+            reason = f"fewer than {self.window + 1} acquired FOVs with objects"
+        else:
+            ranges = {
+                name: float(np.ptp([state[name] for state in states]))
+                for name in self.descriptors
+            }
+            diagnostics["window_ranges"] = _reported(ranges)
+            if any(np.isnan(value) for value in ranges.values()):
+                reason = "fewer than 2 objects in the window"
+        if reason is not None:
+            diagnostics["undefined_reason"] = reason
+            quantity = _feature_quantity(self.feature, None, reason)
+        else:
+            quantity = _feature_quantity(self.feature, max(ranges.values()))
+        return Evidence({"max_descriptor_range": quantity}, diagnostics)
 
 
 @dataclass(frozen=True)
-class DescriptorSpreadStrategy(SamplingStrategy):
-    """Stop when descriptor spread across resamples of the visible data is within ``tolerance``.
+class DescriptorSpreadEstimator(Estimator):
+    """Largest descriptor spread across resamples of the visible data.
 
     Draws ``n_resamples`` resamples, with replacement, of the currently visible
     data at its current size: cells for ``resampling_unit="object"``, whole
     FOVs (including zero-object FOVs) for ``"fov"``. For each descriptor, the
     spread is max - min across resamples, as in the paper's Fig. 2A, which used
-    100 random samples. Because a range grows with the number of resamples,
-    ``n_resamples`` is part of the criterion and has no default. The strategy
-    stops when every spread is at most ``tolerance``, in the feature's units.
+    100 random samples. It reports the largest as ``max_descriptor_spread``, in
+    the feature's units (``inf`` when a resample has fewer than 2 objects).
+    Because a range grows with the number of resamples, ``n_resamples`` is part
+    of the estimate and has no default.
     """
 
     feature: str
-    tolerance: float
     resampling_unit: str
     n_resamples: int
     random_state: int
     descriptors: tuple[str, ...] = PAPER_DESCRIPTORS
 
     def __post_init__(self) -> None:
-        _check_common(self.feature, self.tolerance, self.descriptors)
-        if self.resampling_unit not in _UNITS:
-            raise ValueError(f"resampling_unit must be one of {_UNITS}")
-        if isinstance(self.n_resamples, bool) or not isinstance(self.n_resamples, int):
-            raise TypeError("n_resamples must be an integer")
-        if self.n_resamples < 2:
-            raise ValueError("n_resamples must be at least 2")
-        if isinstance(self.random_state, bool) or not isinstance(self.random_state, int):
-            raise TypeError("random_state must be an integer seed")
+        _check_common(self.feature, self.descriptors)
+        _check_spread(self.resampling_unit, self.n_resamples, self.random_state)
 
     @property
     def name(self) -> str:
@@ -220,10 +238,9 @@ class DescriptorSpreadStrategy(SamplingStrategy):
 
     @property
     def parameters(self) -> dict[str, Any]:
-        """All settings that define the criterion, including the seed, for provenance."""
+        """All settings that define the estimate, including the seed, for provenance."""
         return {
             "feature": self.feature,
-            "tolerance": self.tolerance,
             "resampling_unit": self.resampling_unit,
             "n_resamples": self.n_resamples,
             "random_state": self.random_state,
@@ -251,8 +268,8 @@ class DescriptorSpreadStrategy(SamplingStrategy):
                 results[name].append(value)
         return {name: np.asarray(series) for name, series in results.items()}
 
-    def evaluate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> StrategyResult:
-        """Largest descriptor spread across resamples as ``score``; stop within tolerance."""
+    def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
+        """``max_descriptor_spread`` across resamples of the visible data."""
         values = data.feature_values(self.feature)
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
@@ -261,12 +278,116 @@ class DescriptorSpreadStrategy(SamplingStrategy):
         resampled = self._resampled_descriptors(data)
         if isinstance(resampled, str):
             diagnostics["undefined_reason"] = resampled
-            return _result(self, objective, None, False, diagnostics)
+            quantity = _feature_quantity(self.feature, None, resampled)
+            return Evidence({"max_descriptor_spread": quantity}, diagnostics)
         # A resample with fewer than 2 objects has undefined descriptors: not stable.
         spreads = {
             name: float(np.ptp(series)) if np.isfinite(series).all() else float("inf")
             for name, series in resampled.items()
         }
         diagnostics["resample_spreads"] = spreads
-        score = max(spreads.values())
-        return _result(self, objective, score, score <= self.tolerance, diagnostics)
+        quantity = _feature_quantity(self.feature, max(spreads.values()))
+        return Evidence({"max_descriptor_spread": quantity}, diagnostics)
+
+
+@dataclass(frozen=True)
+class DescriptorPlateauStrategy(SamplingStrategy):
+    """Stop when cumulative descriptors have stayed within ``tolerance`` for ``window`` FOVs.
+
+    ``DescriptorPlateauEstimator`` plus ``ThresholdPolicy(tolerance)`` on
+    ``max_descriptor_range``: it stops once, over the last ``window + 1``
+    cumulative states, every descriptor's range is at most ``tolerance``, in
+    the feature's units, and continues until enough states exist.
+    """
+
+    feature: str
+    tolerance: float
+    window: int
+    order_col: str
+    descriptors: tuple[str, ...] = PAPER_DESCRIPTORS
+    name: str = "descriptor_plateau"
+
+    def __post_init__(self) -> None:
+        _check_common(self.feature, self.descriptors)
+        _check_tolerance(self.tolerance)
+        _check_plateau(self.window, self.order_col)
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """All settings that define the criterion, for result provenance."""
+        return {
+            "feature": self.feature,
+            "tolerance": self.tolerance,
+            "window": self.window,
+            "order_col": self.order_col,
+            "descriptors": list(self.descriptors),
+        }
+
+    @property
+    def estimators(self) -> tuple[DescriptorPlateauEstimator]:
+        """The descriptor-range estimator with this strategy's settings."""
+        return (
+            DescriptorPlateauEstimator(self.feature, self.window, self.order_col, self.descriptors),
+        )
+
+    @property
+    def policies(self) -> tuple[ThresholdPolicy]:
+        """``max_descriptor_range <= tolerance``."""
+        return (ThresholdPolicy("max_descriptor_range", self.tolerance),)
+
+
+@dataclass(frozen=True)
+class DescriptorSpreadStrategy(SamplingStrategy):
+    """Stop when descriptor spread across resamples of the visible data is within ``tolerance``.
+
+    ``DescriptorSpreadEstimator`` plus ``ThresholdPolicy(tolerance)`` on
+    ``max_descriptor_spread``: it stops when every descriptor's spread across
+    resamples is at most ``tolerance``, in the feature's units.
+    """
+
+    feature: str
+    tolerance: float
+    resampling_unit: str
+    n_resamples: int
+    random_state: int
+    descriptors: tuple[str, ...] = PAPER_DESCRIPTORS
+
+    def __post_init__(self) -> None:
+        _check_common(self.feature, self.descriptors)
+        _check_tolerance(self.tolerance)
+        _check_spread(self.resampling_unit, self.n_resamples, self.random_state)
+
+    @property
+    def name(self) -> str:
+        """``descriptor_spread_object`` or ``descriptor_spread_fov``."""
+        return f"descriptor_spread_{self.resampling_unit}"
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """All settings that define the criterion, including the seed, for provenance."""
+        return {
+            "feature": self.feature,
+            "tolerance": self.tolerance,
+            "resampling_unit": self.resampling_unit,
+            "n_resamples": self.n_resamples,
+            "random_state": self.random_state,
+            "descriptors": list(self.descriptors),
+        }
+
+    @property
+    def estimators(self) -> tuple[DescriptorSpreadEstimator]:
+        """The resampled-spread estimator with this strategy's settings."""
+        return (
+            DescriptorSpreadEstimator(
+                self.feature,
+                self.resampling_unit,
+                self.n_resamples,
+                self.random_state,
+                self.descriptors,
+            ),
+        )
+
+    @property
+    def policies(self) -> tuple[ThresholdPolicy]:
+        """``max_descriptor_spread <= tolerance``."""
+        return (ThresholdPolicy("max_descriptor_spread", self.tolerance),)
