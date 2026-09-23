@@ -124,7 +124,7 @@ def test_position_id_is_preferred_over_image_file_for_fov_identity():
     assert len(data.fovs) == 2
 
 
-def test_z_c_t_are_within_fov_metadata_not_phenotype_features():
+def test_z_c_t_can_be_preserved_as_within_fov_metadata():
     objects = pd.DataFrame(
         {
             "position_id": ["P1", "P1"],
@@ -138,13 +138,14 @@ def test_z_c_t_are_within_fov_metadata_not_phenotype_features():
 
     data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
     assert data.fov_col == "position_id"
-    for metadata_col in ("z", "c", "t"):
-        with pytest.raises(ValueError, match="within-FOV acquisition metadata"):
-            validate_input_tables(
-                objects,
-                fovs=fovs,
-                feature_cols=["area", metadata_col],
-            )
+    assert {"z", "c", "t"} <= set(data.objects.columns)
+    assert data.feature_cols == ("area",)
+
+
+def test_short_name_c_can_still_be_an_explicit_scientific_feature():
+    objects = pd.DataFrame({"fov_id": ["F1", "F2"], "c": [1.0, 2.0]})
+    data = validate_input_tables(objects, feature_cols=["c"])
+    assert data.feature_cols == ("c",)
 
 
 def test_multi_file_position_requires_within_fov_axis_metadata():
