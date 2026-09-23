@@ -22,7 +22,7 @@ def run_strategies(
     fov_col: str | None = None,
     fovs: pd.DataFrame | None = None,
     group_cols: Sequence[str] | None = None,
-    observation_unit: str = "object",
+    observation_unit: str | None = None,
 ) -> list[StrategyResult]:
     """Validate one phenotype-observation table and run strategies within resolved groups.
 

@@ -16,7 +16,7 @@ from morphocoverage import (
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
 
-def _feed_session(scenario, strategies, *, observation_unit="object"):
+def _feed_session(scenario, strategies, *, observation_unit=None):
     session = OnlineSession(
         strategies=strategies,
         feature_cols=list(FEATURE_COLS),

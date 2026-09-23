@@ -18,7 +18,7 @@ from .evaluator import IncrementalReplay
 from .metadata import MORPHOBRICKS_FOV_CANDIDATES, MORPHOBRICKS_GROUP_COLUMNS
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
-from .schema import ValidatedInput, normalize_observation_unit, validate_input_tables
+from .schema import ValidatedInput, resolve_observation_unit, validate_input_tables
 from .strategies.base import SamplingStrategy
 
 
@@ -46,7 +46,7 @@ class OnlineSession:
         objective: ObjectiveConfig,
         fov_col: str | None = None,
         group_cols: Sequence[str] | None = None,
-        observation_unit: str = "object",
+        observation_unit: str | None = None,
     ) -> None:
         self.strategies = tuple(strategies)
         if not self.strategies:
@@ -67,7 +67,7 @@ class OnlineSession:
             raise TypeError("group_cols must be a sequence of column names, not a string")
         self._requested_fov_col = fov_col
         self._requested_group_cols = None if group_cols is None else tuple(group_cols)
-        self.observation_unit = normalize_observation_unit(observation_unit)
+        self.observation_unit, self._unit_declared = resolve_observation_unit(observation_unit)
         self._resolved_fov_col: str | None = None
         self._resolved_group_cols: tuple[str, ...] | None = None
         self._groups: dict[tuple[object, ...], _GroupSession] = {}
@@ -184,7 +184,7 @@ class OnlineSession:
             feature_cols=self.feature_cols,
             fov_col=fov_col,
             group_cols=group_cols,
-            observation_unit=self.observation_unit,
+            observation_unit=None if not self._unit_declared else self.observation_unit,
         )
         if len(new.fovs) != 1:
             raise ValueError("add_fov must resolve to exactly one spatial acquisition position")
@@ -220,6 +220,7 @@ class OnlineSession:
                 group_cols=state.data.group_cols,
                 fov_key=state.data.fov_key,
                 observation_unit=state.data.observation_unit,
+                observation_unit_declared=state.data.observation_unit_declared,
             )
 
         setup_seconds = perf_counter() - started

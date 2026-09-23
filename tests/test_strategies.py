@@ -43,8 +43,9 @@ def test_strategies_are_swappable_on_same_validated_tables():
     )
     assert [result.strategy for result in results] == ["fixed_fov", "fixed_objects"]
     assert [result.decision for result in results] == ["stop", "continue"]
-    # Effort rules need no estimator, so there is no estimation time.
-    assert all(result.compute_seconds == 0 for result in results)
+    # The fixed-FOV rule needs no estimator, so there is no estimation time.
+    assert results[0].compute_seconds == 0
+    assert all(result.compute_seconds >= 0 for result in results)
     assert all(result.runtime_seconds == result.compute_seconds for result in results)
 
 
@@ -175,3 +176,36 @@ def test_fixed_object_strategy_accepts_spelling_variants_of_object_units(unit):
         observation_unit=unit,
     )
     assert result.decision == "stop"
+
+
+def test_undefined_object_count_says_why():
+    objects, fovs = _tables()
+    [result] = run_strategies(
+        objects,
+        fovs=fovs,
+        strategies=[FixedObjectStrategy(2)],
+        feature_cols=["area"],
+        fov_col="fov_id",
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        observation_unit="patch",
+    )
+    assert result.decision is None
+    assert "'patch'" in result.diagnostics["undefined_reason"]
+
+
+@pytest.mark.parametrize(("unit", "declared"), [(None, False), ("object", True), ("cells", True)])
+def test_results_record_whether_the_observation_unit_was_declared(unit, declared):
+    # Option (b): rows default to objects, but an assumed unit is never silent.
+    objects, fovs = _tables()
+    kwargs = {} if unit is None else {"observation_unit": unit}
+    [result] = run_strategies(
+        objects,
+        fovs=fovs,
+        strategies=[FixedFOVStrategy(2)],
+        feature_cols=["area"],
+        fov_col="fov_id",
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        **kwargs,
+    )
+    assert result.observation_unit_declared is declared
+    assert result.observation_unit == ("object" if unit in (None, "object") else "cell")

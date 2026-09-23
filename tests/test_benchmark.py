@@ -442,3 +442,11 @@ def test_benchmark_completes_when_a_rule_does_not_fit_the_rows():
     for name in ("scalar_precision_object", "fixed_objects"):
         assert (by_name[name].stopped, by_name[name].final_decision) == (False, None)
     assert by_name["fixed_fov"].stop_step == 2
+
+
+def test_benchmark_records_whether_the_observation_unit_was_declared():
+    assumed = _run(_registry(_dataset("d")), "d")[0]
+    declared = _run(_registry(_dataset("d", observation_unit="cell")), "d")[0]
+    assert (assumed.observation_unit, assumed.observation_unit_declared) == ("object", False)
+    assert (declared.observation_unit, declared.observation_unit_declared) == ("cell", True)
+    assert records_to_frame([assumed])["observation_unit_declared"].tolist() == [False]

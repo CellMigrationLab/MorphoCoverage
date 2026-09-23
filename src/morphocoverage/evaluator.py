@@ -51,6 +51,7 @@ def restrict_input(
         group_cols=data.group_cols,
         fov_key=data.fov_key,
         observation_unit=data.observation_unit,
+        observation_unit_declared=data.observation_unit_declared,
     )
 
 
@@ -135,6 +136,7 @@ def _build_result(
         n_fovs=effort.n_fovs,
         n_observations=effort.n_observations,
         observation_unit=effort.observation_unit,
+        observation_unit_declared=data.observation_unit_declared,
         group=dict(group or {}),
         parameters=dict(strategy.parameters),
         configuration=strategy.configuration,

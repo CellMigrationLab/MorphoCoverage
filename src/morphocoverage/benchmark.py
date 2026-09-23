@@ -70,7 +70,7 @@ class BenchmarkDataset:
     fov_col: str | None = None
     group_cols: tuple[str, ...] | None = None
     area_col: str | None = None
-    observation_unit: str = "object"
+    observation_unit: str | None = None
     description: str = ""
 
     def __post_init__(self) -> None:
@@ -86,9 +86,10 @@ class BenchmarkDataset:
             object.__setattr__(self, "group_cols", tuple(self.group_cols))
         if not callable(self.load):
             raise TypeError("load must be a callable returning (objects, fovs)")
-        object.__setattr__(
-            self, "observation_unit", normalize_observation_unit(self.observation_unit)
-        )
+        if self.observation_unit is not None:
+            object.__setattr__(
+                self, "observation_unit", normalize_observation_unit(self.observation_unit)
+            )
 
 
 class BenchmarkRegistry:
@@ -209,6 +210,7 @@ class BenchmarkRecord:
     n_fovs: int
     n_observations: int
     observation_unit: str
+    observation_unit_declared: bool
     area: float | None
     total_fovs: int
     total_observations: int
@@ -252,6 +254,7 @@ class BenchmarkRecord:
             "n_fovs": self.n_fovs,
             "n_observations": self.n_observations,
             "observation_unit": self.observation_unit,
+            "observation_unit_declared": self.observation_unit_declared,
             "n_objects": self.n_objects,
             "area": self.area,
             "total_fovs": self.total_fovs,
@@ -323,6 +326,7 @@ def _record_run(
         n_fovs=len(stopped.fovs),
         n_observations=len(stopped.objects),
         observation_unit=stopped.observation_unit,
+        observation_unit_declared=stopped.observation_unit_declared,
         area=_area(stopped, dataset.area_col),
         total_fovs=len(full.fovs),
         total_observations=len(full.objects),

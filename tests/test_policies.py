@@ -1,6 +1,7 @@
 """Tests for evidence, decision policies, their combination per objective, and config ids."""
 
 import math
+from dataclasses import replace
 
 import pandas as pd
 import pytest
@@ -346,3 +347,10 @@ def test_non_serializable_parameters_are_rejected_for_provenance():
 
     with pytest.raises(TypeError, match="JSON-serializable"):
         _ = _Opaque().config_id
+
+
+def test_redecide_refuses_a_result_without_recorded_configuration():
+    [item, *_] = _replay([ScalarPrecisionStrategy("area", 0.05, "fov", "point")])
+    broken = replace(item.result, configuration={})
+    with pytest.raises(ValueError, match="no recorded estimator configuration"):
+        redecide(broken, [ThresholdPolicy("averaging_cv", 0.1)], name="x")

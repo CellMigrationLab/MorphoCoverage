@@ -262,7 +262,9 @@ def redecide(
     policies = tuple(policies)
     effort = Effort(n_fovs=result.n_fovs, n_observations=result.n_observations, observation_unit=result.observation_unit)
     decision, component_decisions = decide(result.evidence, effort, policies, result.objective)
-    estimators = result.configuration.get("estimators", [])
+    if "estimators" not in result.configuration:
+        raise ValueError("result has no recorded estimator configuration to re-decide from")
+    estimators = result.configuration["estimators"]
     configuration = {
         "estimators": estimators,
         "policies": [describe(policy) for policy in policies],
