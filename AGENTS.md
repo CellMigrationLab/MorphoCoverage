@@ -165,11 +165,37 @@ Do not skip directly to a polished `analyze()` API.
 9. Select a default estimator or decision rule only if evidence supports one.
 10. Validate continue/stop decisions prospectively before considering targeted smart-microscopy acquisition.
 
-## 9. Validation philosophy
+## 9. Validation philosophy and required contract tests
 
 Deeply sampled real microscopy datasets are the primary scientific benchmark. Constructed or synthetic data are supporting tools for unit tests, explicit counterexamples, and regression tests after a failure mode is identified; they are not the main evidence that a strategy works.
 
-Required behavior tests must still protect contracts such as zero-object FOV preservation, MorphoBricks condition/repeat separation, deterministic randomness, and no future-FOV leakage. A high line-coverage percentage is not a substitute for scientific validation on real acquisitions.
+Constructed data are still required for **contract tests**: acquisitions whose structure is known by construction, used to prove that the framework and every strategy handle that structure correctly. The scenarios below are implemented in `tests/scenarios.py` and exercised by `tests/test_contracts.py`. Each backticked id must have either a fixture or a named framework contract; `test_agents_section_9_matches_contract_tests` fails if this list and the tests drift apart.
+
+Required scenarios:
+
+- homogeneous phenotype distribution: `homogeneous`;
+- clearly separated multimodal phenotypes: `multimodal`;
+- rare states at controlled prevalence, e.g. 10%, 1%, 0.1%: `rare_prevalence_10pct`, `rare_prevalence_1pct`, `rare_prevalence_0p1pct`;
+- identical rare-state prevalence distributed uniformly versus clustered into few FOVs: `rare_uniform`, `rare_clustered`;
+- unequal numbers of objects per FOV: `unequal_objects_per_fov`;
+- acquired FOVs with zero detected objects: `zero_object_fovs`;
+- unequal physical FOV area when area metadata are available: `unequal_fov_area`;
+- correlation between neighbouring FOVs: `neighbour_correlation`;
+- direct comparison against fixed-cell, fixed-FOV, and scalar-precision baselines: `baseline_comparison`;
+- duplicated objects within an existing FOV versus acquisition of new FOVs: `duplicated_objects`;
+- optional condition/repeat groups kept independent: `condition_repeat_groups`;
+- technical/batch shifts: `batch_shift`;
+- deterministic results under a fixed seed: `deterministic_under_seed`;
+- no future-FOV leakage in prospective estimators: `no_future_fov_leakage`.
+
+Rules for these tests:
+
+- Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
+- Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-object FOVs counted as effort) apply to all strategies automatically.
+- Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
+- The scalar-precision (JCB-style) baseline is not yet implemented. When it is, it must be added to `baseline_comparison`.
+
+A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 
 ## 10. JCB comparison rules
 
