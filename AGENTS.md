@@ -12,7 +12,7 @@
 | Position | Step 3 of the MorphoBricks pipeline (analysis & applications). It consumes features; it does not extract them. See section 18. |
 | Language | Python 3.11+ |
 | Tests | `pytest` (all tests, including real-data tests on `data/crick_idr`) |
-| Lint | `ruff check src tests` (ruff pinned in `pyproject.toml`) |
+| Lint | `ruff check src tests data` (ruff pinned in `pyproject.toml`) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
 Key dependencies: `numpy`, `pandas` (runtime); `pytest`, `ruff` (development). There are deliberately no scipy, scikit-learn or Torch dependencies.
@@ -29,7 +29,7 @@ The central questions are:
 
 The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`.
 
-The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Objects/cells, slice-level measurements, channels, and time points are observations nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
+The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Feature observations such as cells, nuclei, patches, slice-level measurements, embeddings, channels and time points are nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
 The hierarchy is:
 
@@ -80,7 +80,7 @@ Scientific rules:
 - validation of phenotype-observation feature tables and complete FOV metadata;
 - feature-space preprocessing required to define phenotype geometry;
 - distance/similarity calculations used by candidate methods;
-- object- and FOV-level novelty/statistics where scientifically justified;
+- observation- and FOV-level novelty/statistics where scientifically justified;
 - accumulation and sequential holdout;
 - candidate sampling-completeness estimators;
 - whole-FOV resampling and uncertainty;
@@ -187,7 +187,7 @@ src/morphocoverage/
     framework.py           # run_strategies convenience entry point
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
-        baselines.py       # fixed-FOV and fixed-object baselines
+        baselines.py       # fixed-FOV, generic-observation and legacy object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
 
@@ -208,7 +208,7 @@ A new strategy family goes in its own module under `strategies/` (section 20). F
 
 Do not skip directly to a polished `analyze()` API.
 
-1. Strict linked FOV/object input contracts and validation.
+1. Strict linked FOV/observation input contracts and validation.
 2. Define explicit sampling objectives: population representation, rare-phenotype discovery, and balanced sampling.
 3. Build one modular strategy interface and one canonical result/provenance contract.
 4. Build leakage-safe sequential evaluation for deeply sampled real acquisitions.
