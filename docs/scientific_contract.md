@@ -14,11 +14,11 @@ No candidate estimator should be described as "the MorphoCoverage method" merely
 
 The primary operational acquisition unit is the **field of view (FOV), defined as one independently selected spatial acquisition position (XY position)**. It is not an individual z-plane, channel, time point, or physical file.
 
-Individual objects/cells, 2D slice measurements, channels, and time points are observations nested inside that spatial position.
+Individual observations/cells, 2D slice measurements, channels, and time points are observations nested inside that spatial position.
 
 Consequences:
 
-- object count and FOV count are reported separately;
+- observation count and FOV count are reported separately;
 - whole FOVs, not individual objects, are the default unit for sequential acquisition and FOV-level resampling;
 - FOV identity is required for the primary analysis;
 - all z-planes/channels/time points from one spatial position must be revealed together during sequential acquisition;
@@ -44,7 +44,7 @@ At minimum: the same spatial position/FOV identifier plus explicitly selected nu
 
 If features are generated slice-by-slice or otherwise within a multidimensional acquisition, preserve the relevant lowercase `z`, `c`, and/or `t` metadata on those rows. These dimensions remain nested within the spatial position and are not phenotype features or independent FOVs.
 
-An optional object/label/patch identifier may be retained for traceability. The API records `observation_unit`; object/cell-specific rules must not silently reinterpret other observation types as cells.
+An optional object/label/patch identifier may be retained for traceability. The API records `observation_unit`; observation/cell-specific rules must not silently reinterpret other observation types as cells.
 
 ## Representation-agnostic input
 
