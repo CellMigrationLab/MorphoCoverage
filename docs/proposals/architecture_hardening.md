@@ -1,9 +1,9 @@
 # Proposal: architecture hardening before the strategy zoo
 
 **Status:** all items approved by the project owner (2026-09-23), with
-`runtime_seconds` kept as an alias of `compute_seconds`. Items 1–3 are
+`runtime_seconds` kept as an alias of `compute_seconds`. Items 1–4 are
 implemented, including the `compute_seconds` rename from item 6; the rest of
-items 4–7 is not yet implemented. Every item changes a public contract
+items 5–7 is not yet implemented. Every item changes a public contract
 (AGENTS.md section 15).
 
 **As implemented (items 1–3).** `Evidence`/`Quantity` in `evidence.py`;
@@ -17,6 +17,22 @@ checked against the objective; availability (`insufficient_data`,
 `StrategyResult.component_decisions` rather than a separate
 `ObjectiveDecision` type. `score` and `predicted_remaining` were removed; the
 JCB requirement is available as `required_objects` / `required_fovs`.
+
+**As implemented (item 4).** `morphocoverage.benchmark` provides
+`BenchmarkRegistry`, `AcquisitionOrder`, `run_benchmark` and `BenchmarkRecord`;
+`morphocoverage.outcomes` provides the metrics. They are importable
+submodules and are not added to the top-level `__all__`. Differences from the
+text below:
+
+- The first two metrics are `RelativeMeanError` (the realized whole-FOV error)
+  and `RandomCellRelativeError` (the random-cell comparator from
+  `fov_vs_cells.py`). The design effect follows from their ratio across
+  permuted orders.
+- `RareStateDetected` is added. "Excess FOVs beyond an empirical adequacy
+  point" is not implemented yet, because no adequacy definition has been
+  agreed.
+- `fov_vs_cells.py` is unchanged, so its tracked results stay reproducible
+  without the 2 GB download.
 
 **Origin:** the ChatGPT audit of `main` at `da3953c` (2026-09-23), plus Claude's
 earlier review. The small, clear defects from that audit are fixed separately.

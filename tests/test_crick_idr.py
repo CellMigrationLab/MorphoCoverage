@@ -20,6 +20,13 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
     validate_input_tables,
 )
+from morphocoverage.benchmark import (
+    AcquisitionOrder,
+    BenchmarkDataset,
+    BenchmarkRegistry,
+    run_benchmark,
+)
+from morphocoverage.outcomes import RandomCellRelativeError, RelativeMeanError
 
 DATA = Path(__file__).resolve().parents[1] / "data" / "crick_idr"
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -135,3 +142,44 @@ def test_all_baselines_replay_on_real_acquisitions(idr0028):
         if item.step == 28:
             group = item.result.group
             assert item.result.n_objects == counts[group["repeat"], group["well"]]
+
+
+def test_benchmark_protocol_runs_on_a_real_acquisition(idr0028):
+    # The Crick subset is test data, registered as development only to
+    # exercise the protocol; it is not a MorphoCoverage benchmark dataset.
+    objects, fovs = idr0028
+    feature = "YAPTAZ_Ratio"
+    registry = BenchmarkRegistry(
+        [
+            BenchmarkDataset(
+                "idr0028_screenB",
+                "development",
+                lambda: (objects, fovs),
+                feature_cols=[feature],
+                acquisition_order_col="acquisition_order",
+                group_cols=["condition", "repeat", "well"],
+                area_col="area_um2",
+            )
+        ]
+    )
+    strategies = [
+        FixedFOVStrategy(4),
+        ScalarPrecisionStrategy(feature, 0.05, "fov", "upper_95"),
+    ]
+    records = run_benchmark(
+        registry,
+        "idr0028_screenB",
+        strategies=strategies,
+        metrics=[RelativeMeanError(feature), RandomCellRelativeError(feature)],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.recorded(), AcquisitionOrder.permuted(0)],
+    )
+    assert len(records) == 12 * 2 * len(strategies)
+    area = fovs["area_um2"].iloc[0]
+    assert fovs["area_um2"].eq(area).all()
+    for record in records:
+        assert record.total_fovs == 28
+        assert record.area == pytest.approx(record.n_fovs * area)
+        assert all(value is not None and value >= 0 for value in record.outcomes.values())
+        if record.strategy == "fixed_fov":
+            assert (record.stop_step, record.n_fovs) == (4, 4)

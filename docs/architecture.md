@@ -146,7 +146,7 @@ Leakage guards enforced by the runner:
 
 The runner cannot detect leakage introduced upstream, such as features normalized or projected over the whole dataset before they reach MorphoCoverage. That must be recorded as provenance.
 
-The framework deliberately keeps strategy execution separate from the later benchmark outcome calculation so a method is not rewarded by being judged only with its own internal metric.
+The framework deliberately keeps strategy execution separate from the later benchmark outcome calculation so a method is not rewarded by being judged only with its own internal metric. `morphocoverage.benchmark` records one run per dataset, group, acquisition order and strategy, and `morphocoverage.outcomes` scores each stop against the full acquisition; see `docs/benchmarking.md`.
 
 ## Computational benchmarking
 

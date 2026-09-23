@@ -1,0 +1,373 @@
+"""Benchmark protocol: declared dataset roles, acquisition orders and one record per run.
+
+Nothing here selects a winner. It fixes how runs are recorded so that
+strategies can be compared on strategy-independent outcome metrics
+(``outcomes.py``), with tuning kept apart from the data used to claim
+success:
+
+- **Dataset roles.** Every dataset is registered as ``development`` or
+  ``held_out``. Configurations may be tuned only on development data; a run
+  declares what it was tuned on (``tuned_on``), which must be development
+  datasets. A run on a dataset it was tuned on is recorded as in-sample.
+  Claims of performance belong to held-out or out-of-sample runs.
+  ``leave_one_dataset_out`` gives folds when data are scarce.
+- **Acquisition order.** The recorded order, or a random permutation of whole
+  FOVs with its seed. A permutation treats the FOVs of a group as
+  exchangeable, which the recorded order need not be (stage drift,
+  neighbouring fields); both are recorded so the difference stays visible.
+- **Stop.** A strategy stops at the first prefix whose decision is ``stop``.
+  A run that never stops is recorded with ``stopped=False``, its final
+  decision, and outcomes and effort at the full acquisition.
+- **Record.** One ``BenchmarkRecord`` per dataset, analysis group, order and
+  strategy, with effort at the stop (FOVs, objects, area), outcomes, and
+  compute times.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
+from .objectives import ObjectiveConfig
+from .outcomes import OutcomeMetric
+from .results import Decision
+from .schema import ValidatedInput, validate_input_tables
+from .sequential import SequentialResult, evaluate_acquisition_prefixes
+from .strategies.base import SamplingStrategy
+
+_PERMUTED_ORDER_COL = "_benchmark_order"
+
+
+class DatasetRole(str, Enum):
+    """Whether a dataset may be used for tuning."""
+
+    DEVELOPMENT = "development"
+    HELD_OUT = "held_out"
+
+
+@dataclass(frozen=True)
+class BenchmarkDataset:
+    """A deeply sampled acquisition declared for benchmarking.
+
+    ``load`` returns ``(objects, fovs)``; it is called for each run so that
+    datasets are only read when used. The column arguments are passed to the
+    framework's validation unchanged. ``area_col``, if given, is an FOV-table
+    column of imaged area, summed into the effort at the stop.
+    """
+
+    name: str
+    role: DatasetRole
+    load: Callable[[], tuple[pd.DataFrame, pd.DataFrame]] = field(compare=False)
+    feature_cols: tuple[str, ...]
+    acquisition_order_col: str
+    fov_col: str | None = None
+    group_cols: tuple[str, ...] | None = None
+    area_col: str | None = None
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not self.name:
+            raise ValueError("a dataset needs a non-empty name")
+        object.__setattr__(self, "role", DatasetRole(self.role))
+        if isinstance(self.feature_cols, str):
+            raise TypeError("feature_cols must be a sequence of column names, not a string")
+        object.__setattr__(self, "feature_cols", tuple(self.feature_cols))
+        if self.group_cols is not None:
+            if isinstance(self.group_cols, str):
+                raise TypeError("group_cols must be a sequence of column names, not a string")
+            object.__setattr__(self, "group_cols", tuple(self.group_cols))
+        if not callable(self.load):
+            raise TypeError("load must be a callable returning (objects, fovs)")
+
+
+class BenchmarkRegistry:
+    """The datasets of one benchmark, each with a declared role."""
+
+    def __init__(self, datasets: Iterable[BenchmarkDataset] = ()) -> None:
+        self._datasets: dict[str, BenchmarkDataset] = {}
+        for dataset in datasets:
+            self.register(dataset)
+
+    def register(self, dataset: BenchmarkDataset) -> None:
+        """Add a dataset; names are unique and a role cannot be changed later."""
+        if not isinstance(dataset, BenchmarkDataset):
+            raise TypeError("only BenchmarkDataset instances can be registered")
+        if dataset.name in self._datasets:
+            raise ValueError(f"dataset {dataset.name!r} is already registered")
+        self._datasets[dataset.name] = dataset
+
+    def __getitem__(self, name: str) -> BenchmarkDataset:
+        try:
+            return self._datasets[name]
+        except KeyError:
+            raise KeyError(
+                f"dataset {name!r} is not registered; known: {sorted(self._datasets)}"
+            ) from None
+
+    def __contains__(self, name: object) -> bool:
+        return name in self._datasets
+
+    def names(self, role: DatasetRole | str | None = None) -> list[str]:
+        """Registered names, optionally only those with ``role``, in registration order."""
+        if role is None:
+            return list(self._datasets)
+        role = DatasetRole(role)
+        return [name for name, d in self._datasets.items() if d.role is role]
+
+    def check_tuning(self, tuned_on: Iterable[str]) -> tuple[str, ...]:
+        """Validate that every tuning dataset is registered for development."""
+        if isinstance(tuned_on, str):
+            raise TypeError("tuned_on must be a sequence of dataset names, not a string")
+        tuned = tuple(tuned_on)
+        for name in tuned:
+            if self[name].role is not DatasetRole.DEVELOPMENT:
+                raise ValueError(
+                    f"dataset {name!r} is held out; configurations must not be tuned on it"
+                )
+        return tuned
+
+
+def leave_one_dataset_out(
+    registry: BenchmarkRegistry,
+) -> Iterator[tuple[str, tuple[str, ...]]]:
+    """Folds over development datasets: (evaluated dataset, datasets to tune on)."""
+    names = registry.names(DatasetRole.DEVELOPMENT)
+    for name in names:
+        yield name, tuple(other for other in names if other != name)
+
+
+@dataclass(frozen=True)
+class AcquisitionOrder:
+    """The recorded acquisition order, or a seeded random permutation of whole FOVs."""
+
+    kind: str
+    seed: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind == "recorded":
+            if self.seed is not None:
+                raise ValueError("the recorded order takes no seed")
+        elif self.kind == "permuted":
+            if isinstance(self.seed, bool) or not isinstance(self.seed, int):
+                raise TypeError("a permuted order needs an integer seed")
+        else:
+            raise ValueError("kind must be 'recorded' or 'permuted'")
+
+    @classmethod
+    def recorded(cls) -> AcquisitionOrder:
+        """The order in the dataset's acquisition-order column."""
+        return cls("recorded")
+
+    @classmethod
+    def permuted(cls, seed: int) -> AcquisitionOrder:
+        """A uniformly random order of whole FOVs, reproducible from ``seed``."""
+        return cls("permuted", seed)
+
+    def apply(self, fovs: pd.DataFrame, order_col: str) -> tuple[pd.DataFrame, str]:
+        """The FOV table with the order to replay, and the name of its order column.
+
+        A permutation of all FOVs restricted to one analysis group is a uniform
+        permutation of that group, so groups need not be resolved here.
+        """
+        if self.kind == "recorded":
+            return fovs, order_col
+        if _PERMUTED_ORDER_COL in fovs.columns:
+            raise ValueError(f"the FOV table already has a column {_PERMUTED_ORDER_COL!r}")
+        rank = np.random.default_rng(self.seed).permutation(len(fovs))
+        return fovs.assign(**{_PERMUTED_ORDER_COL: rank}), _PERMUTED_ORDER_COL
+
+
+@dataclass(frozen=True)
+class BenchmarkRecord:
+    """One strategy run on one analysis group of one dataset under one acquisition order."""
+
+    dataset: str
+    role: DatasetRole
+    in_sample: bool
+    tuned_on: tuple[str, ...]
+    group: Mapping[str, Any]
+    order: AcquisitionOrder
+    objective: ObjectiveConfig
+    strategy: str
+    config_id: str
+    estimator_ids: tuple[str, ...]
+    policy_ids: tuple[str, ...]
+    stopped: bool
+    stop_step: int | None
+    final_decision: Decision | None
+    n_fovs: int
+    n_objects: int
+    area: float | None
+    total_fovs: int
+    total_objects: int
+    total_area: float | None
+    outcomes: Mapping[str, float | None]
+    outcome_ids: Mapping[str, str]
+    compute_seconds_to_stop: float
+    max_compute_seconds: float
+
+    def as_row(self) -> dict[str, Any]:
+        """A flat dict: group columns as ``group.<col>``, outcomes as ``outcome.<name>``."""
+        row: dict[str, Any] = {
+            "dataset": self.dataset,
+            "role": self.role.value,
+            "in_sample": self.in_sample,
+            "tuned_on": ",".join(self.tuned_on),
+            "order": self.order.kind,
+            "order_seed": self.order.seed,
+            "objective": self.objective.objective.value,
+            "strategy": self.strategy,
+            "config_id": self.config_id,
+            "estimator_ids": ",".join(self.estimator_ids),
+            "policy_ids": ",".join(self.policy_ids),
+            "stopped": self.stopped,
+            "stop_step": self.stop_step,
+            "final_decision": None if self.final_decision is None else self.final_decision.value,
+            "n_fovs": self.n_fovs,
+            "n_objects": self.n_objects,
+            "area": self.area,
+            "total_fovs": self.total_fovs,
+            "total_objects": self.total_objects,
+            "total_area": self.total_area,
+            "compute_seconds_to_stop": self.compute_seconds_to_stop,
+            "max_compute_seconds": self.max_compute_seconds,
+        }
+        row.update({f"group.{column}": value for column, value in self.group.items()})
+        row.update({f"outcome.{name}": value for name, value in self.outcomes.items()})
+        return row
+
+
+def records_to_frame(records: Iterable[BenchmarkRecord]) -> pd.DataFrame:
+    """One row per record (see ``BenchmarkRecord.as_row``)."""
+    return pd.DataFrame([record.as_row() for record in records])
+
+
+def _group_key(group: Mapping[str, Any]) -> tuple:
+    return tuple(group.items())
+
+
+def _area(data: ValidatedInput, area_col: str | None) -> float | None:
+    if area_col is None:
+        return None
+    return float(data.fovs[area_col].sum())
+
+
+def _record_run(
+    history: Sequence[SequentialResult],
+    full: ValidatedInput,
+    metrics: Sequence[OutcomeMetric],
+    dataset: BenchmarkDataset,
+    **provenance: Any,
+) -> BenchmarkRecord:
+    """Find the stop in one strategy's history on one group and score it."""
+    stop_index = next(
+        (i for i, item in enumerate(history) if item.result.decision is Decision.STOP), None
+    )
+    last_index = len(history) - 1 if stop_index is None else stop_index
+    last = history[last_index]
+    key = list(full.fov_key)
+    acquired = set(last.acquired_fovs)
+    mask = [row in acquired for row in full.fovs.loc[:, key].itertuples(index=False, name=None)]
+    stop_fovs = full.fovs.loc[mask]
+    stopped = restrict_input(full, objects_in_fovs(full, stop_fovs), stop_fovs)
+    times = [item.result.compute_seconds for item in history]
+    configuration = last.result.configuration
+    return BenchmarkRecord(
+        dataset=dataset.name,
+        role=dataset.role,
+        group=dict(last.result.group),
+        objective=last.result.objective,
+        strategy=last.result.strategy,
+        config_id=last.result.config_id,
+        estimator_ids=tuple(e["config_id"] for e in configuration["estimators"]),
+        policy_ids=tuple(p["config_id"] for p in configuration["policies"]),
+        stopped=stop_index is not None,
+        stop_step=None if stop_index is None else last.step,
+        final_decision=last.result.decision,
+        n_fovs=len(stopped.fovs),
+        n_objects=len(stopped.objects),
+        area=_area(stopped, dataset.area_col),
+        total_fovs=len(full.fovs),
+        total_objects=len(full.objects),
+        total_area=_area(full, dataset.area_col),
+        outcomes={metric.name: metric.evaluate(full, stopped) for metric in metrics},
+        outcome_ids={metric.name: metric.config_id for metric in metrics},
+        compute_seconds_to_stop=float(sum(times[: last_index + 1])),
+        max_compute_seconds=float(max(times)),
+        **provenance,
+    )
+
+
+def run_benchmark(
+    registry: BenchmarkRegistry,
+    dataset_name: str,
+    *,
+    strategies: Iterable[SamplingStrategy],
+    metrics: Iterable[OutcomeMetric],
+    objective: ObjectiveConfig,
+    orders: Iterable[AcquisitionOrder] = (AcquisitionOrder.recorded(),),
+    tuned_on: Iterable[str] = (),
+    min_fovs: int = 1,
+) -> list[BenchmarkRecord]:
+    """Replay every strategy on one registered dataset and record one run per group and order.
+
+    ``tuned_on`` names the datasets the strategies' settings were chosen on;
+    they must be development datasets. Metrics see the full group and the stop
+    prefix only, so they are identical for every strategy.
+    """
+    tuned = registry.check_tuning(tuned_on)
+    dataset = registry[dataset_name]
+    strategy_list = list(strategies)
+    metric_list = list(metrics)
+    names = [metric.name for metric in metric_list]
+    if len(set(names)) != len(names):
+        raise ValueError(f"outcome metric names must be distinct: {names}")
+    if dataset.area_col is not None and dataset.area_col in dataset.feature_cols:
+        raise ValueError("the area column is acquisition metadata, not a phenotype feature")
+
+    objects, fovs = dataset.load()
+    columns = {
+        "feature_cols": list(dataset.feature_cols),
+        "fov_col": dataset.fov_col,
+        "group_cols": None if dataset.group_cols is None else list(dataset.group_cols),
+    }
+    data = validate_input_tables(objects, fovs=fovs, **columns)
+    if dataset.area_col is not None and dataset.area_col not in data.fovs.columns:
+        raise ValueError(f"area_col {dataset.area_col!r} is not a column of the FOV table")
+    full_groups = {_group_key(group): group_data for group, group_data in iter_analysis_groups(data)}
+
+    records: list[BenchmarkRecord] = []
+    for order in orders:
+        ordered_fovs, order_col = order.apply(fovs, dataset.acquisition_order_col)
+        for strategy in strategy_list:
+            replay = evaluate_acquisition_prefixes(
+                objects,
+                ordered_fovs,
+                strategies=[strategy],
+                acquisition_order_col=order_col,
+                objective=objective,
+                min_fovs=min_fovs,
+                **columns,
+            )
+            histories: dict[tuple, list[SequentialResult]] = {}
+            for item in replay:
+                histories.setdefault(_group_key(item.result.group), []).append(item)
+            for key, history in histories.items():
+                records.append(
+                    _record_run(
+                        history,
+                        full_groups[key],
+                        metric_list,
+                        dataset,
+                        in_sample=dataset.name in tuned,
+                        tuned_on=tuned,
+                        order=order,
+                    )
+                )
+    return records

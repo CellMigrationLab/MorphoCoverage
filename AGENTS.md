@@ -174,6 +174,8 @@ src/morphocoverage/
     results.py             # StrategyResult and the Decision vocabulary
     evaluator.py           # group iteration, isolation, timing, framework-built results
     sequential.py          # leakage-safe acquisition-prefix replay
+    outcomes.py            # retrospective outcome metrics, strategy-independent
+    benchmark.py           # dataset roles, acquisition orders, one record per run
     framework.py           # run_strategies convenience entry point
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
@@ -236,6 +238,7 @@ Rules for these tests:
 
 - Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
 - Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-object FOVs counted as effort) apply to all strategies automatically.
+- Every outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
 - `baseline_comparison` covers the fixed-cell, fixed-FOV, JCB-style scalar-precision (`ScalarPrecisionStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
 
@@ -392,6 +395,8 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | Component | The part of an objective a quantity or policy addresses: `population` or `rare`. |
 | config_id | A stable hash of an estimator's, policy's or strategy's class and parameters. |
 | Objective | What "enough imaging" means: population representation, rare-phenotype discovery or balanced sampling. |
+| Outcome metric | A retrospective, strategy-independent score of a stop against the full acquisition of the same group. |
+| Dataset role | `development` (may be used for tuning) or `held_out` (never tuned on); declared in a `BenchmarkRegistry`. |
 | Prefix / replay | The first k acquired FOVs of a real acquisition; replay evaluates strategies on successive prefixes. |
 | Design effect | The variance of a mean with FOVs as the sampling unit, divided by its variance under random-cell sampling. |
 

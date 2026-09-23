@@ -12,6 +12,29 @@ The complete acquisition is an empirical reference reservoir, not assumed biolog
 
 Synthetic data remain useful for unit tests, explicit counterexamples, and regression tests after a failure mode is discovered. They are not the primary scientific benchmark.
 
+## Protocol as implemented
+
+`morphocoverage.benchmark` and `morphocoverage.outcomes` fix how runs are recorded. They do not select a winner.
+
+- **Dataset roles.** Every dataset is registered in a `BenchmarkRegistry` as `development` or `held_out`. A run declares the datasets its settings were tuned on (`tuned_on`). Those must be development datasets, and a run on one of them is recorded as in-sample. Performance claims belong to held-out or out-of-sample runs. `leave_one_dataset_out` yields folds when data are scarce. The Crick/IDR subset in `data/crick_idr/` is test data, not a benchmark dataset.
+- **Acquisition order.** `AcquisitionOrder.recorded()` replays the recorded order. `AcquisitionOrder.permuted(seed)` replays a uniformly random order of whole FOVs. A permutation assumes the FOVs of a group are exchangeable, which the recorded order need not be (stage drift, neighbouring fields), so both kinds are recorded.
+- **Stop.** A strategy stops at the first prefix whose decision is `stop`. A run that never stops, including one whose decision is `unsupported`, is recorded with `stopped=False`, its final decision, and effort and outcomes at the full acquisition.
+- **Record.** `run_benchmark` returns one `BenchmarkRecord` per dataset, analysis group, order and strategy. Each record holds:
+  - the dataset, its role, `in_sample` and `tuned_on`;
+  - the group, the order (and its seed) and the objective;
+  - the strategy name, its `config_id`, and the estimator and policy ids;
+  - the stop step, the final decision, and effort at the stop (FOVs, objects and area) against the totals;
+  - the outcomes, each with its metric's `config_id`;
+  - the compute time up to the stop, and the maximum compute time of any one step.
+  
+  `records_to_frame` flattens the records to one row each.
+- **Outcome metrics** are functions of (full group, stop prefix) → value. They never see a strategy's evidence or decision, so two strategies that stop at the same prefix get identical outcomes; a contract test checks this. They are retrospective and must never be used inside an estimator. The first metrics are:
+  - `RelativeMeanError(feature)`: the realized relative error of the object mean at the stop.
+  - `RandomCellRelativeError(feature)`: the expected relative RMSE had the same number of cells been drawn at random from the full group (simple random sampling with finite-population correction). It is the comparator in `data/crick_idr/fov_vs_cells.py`. Across permuted orders, the RMSE of `RelativeMeanError` divided by this value is the error inflation from acquiring whole FOVs.
+  - `RareStateDetected(label_col, min_fov_occurrences)`: whether the stop prefix shows an independently labelled state in enough FOVs. It is `None` when the full acquisition never does.
+
+Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an agreed adequacy definition), distribution-level outcome metrics, and aggregation into a regime map.
+
 ## Scientific performance dimensions
 
 Strategies should be compared on several independent outcomes, not only a metric related to their own score.

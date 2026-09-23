@@ -38,6 +38,7 @@ MorphoCoverage is a strategy-comparison framework. No default coverage estimator
   - a JCB/Zweifach-style scalar precision rule;
   - Marcotti et al.-style descriptor stabilization.
 - **Leakage-safe replay.** Recorded acquisitions are evaluated prefix by prefix: `evaluate_acquisition_prefixes`.
+- **Benchmark protocol.** Datasets are declared as development or held out, and tuning on held-out data raises. `run_benchmark` replays recorded or seeded-permuted acquisition orders and records one row per run: effort at the stop, strategy-independent outcome metrics, and compute time (`morphocoverage.benchmark`, `morphocoverage.outcomes`).
 - **Contract tests.** Every strategy must pass them on constructed acquisitions (AGENTS.md section 9).
 - **Real test data.** Crick/IDR feature tables in `data/crick_idr/`.
 
