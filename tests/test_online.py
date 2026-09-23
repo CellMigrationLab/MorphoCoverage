@@ -1,7 +1,5 @@
 """Prospective OnlineSession contracts."""
 
-from dataclasses import replace
-
 import pandas as pd
 import pytest
 from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
