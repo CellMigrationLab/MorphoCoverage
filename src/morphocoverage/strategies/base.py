@@ -140,3 +140,26 @@ class SamplingStrategy:
         return strategy_config_id(
             [e.config_id for e in self.estimators], [p.config_id for p in self.policies]
         )
+
+
+def unsupported_observation_unit(
+    data: ValidatedInput,
+    allowed: Iterable[str],
+    *,
+    method: str,
+) -> str | None:
+    """Why ``method`` does not apply to these rows, or ``None`` if it does.
+
+    Generic MorphoCoverage inputs may contain cells, nuclei, patches, slices,
+    embeddings or FOV summaries. A method derived for cell/object sampling must
+    not reinterpret other rows as cells. It reports its quantities as
+    ``not_applicable`` with this reason, so a benchmark or live session keeps
+    running and the decision is undefined rather than an error.
+    """
+    allowed_units = tuple(sorted(allowed))
+    if data.observation_unit in allowed_units:
+        return None
+    return (
+        f"{method} assumes observation rows are individual objects "
+        f"(observation_unit in {allowed_units}), got {data.observation_unit!r}"
+    )

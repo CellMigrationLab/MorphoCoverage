@@ -7,12 +7,12 @@
 | Field | Value |
 | --- | --- |
 | Repo | `CellMigrationLab/MorphoCoverage` |
-| Purpose | Quantify FOV-aware phenotypic sampling completeness from precomputed object-level feature representations. |
+| Purpose | Quantify FOV-aware phenotypic sampling completeness from precomputed phenotype feature tables. |
 | Ecosystem | MorphoBricks |
 | Position | Step 3 of the MorphoBricks pipeline (analysis & applications). It consumes features; it does not extract them. See section 18. |
 | Language | Python 3.11+ |
 | Tests | `pytest` (all tests, including real-data tests on `data/crick_idr`) |
-| Lint | `ruff check src tests` (ruff pinned in `pyproject.toml`) |
+| Lint | `ruff check src tests data` (ruff pinned in `pyproject.toml`) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
 Key dependencies: `numpy`, `pandas` (runtime); `pytest`, `ruff` (development). There are deliberately no scipy, scikit-learn or Torch dependencies.
@@ -29,12 +29,12 @@ The central questions are:
 
 The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`.
 
-The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Objects/cells, slice-level measurements, channels, and time points are observations nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
+The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Feature observations such as cells, nuclei, patches, slice-level measurements, embeddings, channels and time points are nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
 The hierarchy is:
 
 ```text
-object/cell/slice/timepoint -> FOV = spatial acquisition position -> optional technical/sample unit -> optional biological repeat -> optional condition
+observation (cell/nucleus/patch/slice/FOV summary/embedding) -> FOV = spatial acquisition position -> optional technical/sample unit -> optional biological repeat -> optional condition
 ```
 
 The package may support arbitrary grouping columns, but it must not assign biological meaning to them automatically.
@@ -45,7 +45,7 @@ These rules override implementation convenience.
 
 MorphoBricks ecosystem rules (shared with the other MorphoBricks repositories):
 
-- **Never rename shared CSV columns** (`condition`, `repeat`, `image_file`, `mask_file`, `patch_file`). Other repos depend on them. MorphoCoverage rejects near-miss spellings such as `Repeat` rather than renaming them.
+- **Never rename shared CSV columns** (`condition`, `repeat`, `position_id`, `image_file`, `mask_file`, `patch_file`). Other repos depend on them. MorphoCoverage rejects near-miss spellings such as `Repeat` rather than renaming them.
 - **Never hard-code machine-specific paths.** Use function arguments, config or environment variables; tests locate repository data relative to the test file.
 - **Never break public interfaces** (anything in `morphocoverage.__all__`) without explicit user approval.
 - **Keep public functionality usable as an imported dependency and from notebooks.** A CLI is deliberately deferred: the project owner asked to avoid premature CLI work until the scientific core stabilizes (see section 18). Add one only when asked.
@@ -59,14 +59,16 @@ Scientific rules:
 - **Permit null results.** Do not optimize validation, examples, or documentation to guarantee that MorphoCoverage outperforms fixed cells/FOVs or scalar precision rules.
 - **FOV/spatial position is the primary acquisition/resampling unit.** Never bootstrap, permute, or sequentially reveal individual objects, z-planes, channels, or time points as independent FOVs. All observations from one position must enter together.
 - **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
+- **Feature rows are generic observations, not necessarily cells.** Record `observation_unit` (for example `cell`, `nucleus`, `patch`, `slice`, `fov_summary`); labels are normalized to lowercase singular form, so `Cells` and `nuclei` mean `cell` and `nucleus`. FOV count and observation count are different quantities. Object/cell-specific scientific rules must not silently reinterpret arbitrary observations as cells.
+- **Missing phenotype values are allowed at the input boundary.** NaN is preserved; infinity is rejected. The framework never silently imputes or drops missing values. Every estimator/transform that uses affected features must state its missing-data behavior explicitly.
 - **Metadata is not phenotype.** Grouping/acquisition columns such as condition, repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`.
 - **Never pool groups silently.** If the caller requests analysis by condition, repeat, or other groups, analyses operate independently within those groups. Pooling must be explicit.
-- **Do not claim that more cells from one FOV equal more independent imaging coverage.** Object count and FOV count are different quantities and must remain separately visible.
-- **Preserve acquired FOVs with zero detected objects.** An object-only table is not a complete acquisition record; support a first-class FOV table.
+- **Do not claim that more observations from one FOV equal more independent imaging coverage.** Observation count and FOV count are different quantities and must remain separately visible.
+- **Preserve acquired FOVs with zero phenotype observations.** An observation-only table is not a complete acquisition record; support a first-class FOV table.
 - **Never report a coverage/novelty result without enough provenance to reproduce the phenotype geometry**, including supplied feature columns, preprocessing, distance metric, and morphological resolution/threshold when applicable.
 - **Retrospective and prospective analyses are different.** Retrospective analysis may use future/held-out FOVs to measure realized outcomes. A prospective estimator must use only information available up to the current acquisition step.
 - **No future-data leakage.** Preprocessing, tuning, threshold selection, dimensionality reduction, and hyperparameter optimization for prospective evaluation must not use future FOVs unless explicitly labelled retrospective/transductive.
-- **Scientific estimator changes require scientific tests.** Every estimator must be challenged on synthetic populations with known behavior, including rare phenotypes, spatial clustering, variable cells/FOV, zero-object FOVs, and technical shifts.
+- **Scientific estimator changes require scientific tests.** Every estimator must pass constructed contract/counterexample scenarios with known behavior (rare phenotypes, spatial clustering, variable observations/FOV, zero-observation FOVs, technical shifts) and must ultimately be evaluated on deeply sampled real datasets. Constructed tests protect contracts; they are not the primary scientific benchmark.
 - **Random procedures must be reproducible.** Expose `random_state` or equivalent; tests use fixed seeds.
 - **Do not equate low expected novelty with proof that no rare biology exists.** The package estimates sampling adequacy under an explicit representation and sampling scheme; it cannot guarantee absence of arbitrarily rare unseen states.
 - **Smart microscopy starts with continue/stop representative acquisition.** Do not conflate this with targeted next-FOV selection. Targeted acquisition changes the sampling distribution and requires separate treatment.
@@ -75,10 +77,10 @@ Scientific rules:
 
 ### This repo owns
 
-- validation of object-feature tables and complete FOV metadata;
+- validation of phenotype-observation feature tables and complete FOV metadata;
 - feature-space preprocessing required to define phenotype geometry;
 - distance/similarity calculations used by candidate methods;
-- object- and FOV-level novelty/statistics where scientifically justified;
+- observation- and FOV-level novelty/statistics where scientifically justified;
 - accumulation and sequential holdout;
 - candidate sampling-completeness estimators;
 - whole-FOV resampling and uncertainty;
@@ -105,7 +107,7 @@ MorphoCoverage consumes two linked logical tables.
 
 ### FOV table
 
-One row per acquired FOV, including FOVs with zero detected objects.
+One row per acquired FOV, including FOVs with zero phenotype observations.
 
 Required:
 - caller-specified spatial-position/FOV identifier column. Prefer `position_id` when storage layout does not map one file to one position; `image_file` is a fallback only when one file equals one position.
@@ -117,16 +119,19 @@ Optional:
 - FOV dimensions or physical imaged area;
 - sampling-design metadata.
 
-### Object table
+### Observation table
 
-One row per detected object.
+One row per phenotype observation. Rows may represent cells, nuclei, patches, slice-level measurements, FOV summaries, embeddings, or another declared unit.
 
 Required:
 - the same FOV identifier;
-- explicitly supplied numeric phenotype feature columns.
+- explicitly supplied numeric phenotype feature columns;
+- an `observation_unit` declaration in the API when the rows are not ordinary objects.
 
 Optional:
-- object/label/patch identifiers for traceability.
+- object/label/patch identifiers and z/c/t coordinates for traceability.
+
+The backwards-compatible API argument is still named `objects`, but `ValidatedInput.observations` and `n_observations` are the canonical generic semantics.
 
 MorphoCoverage must be able to consume output derived from CellPatcher or any feature-extraction repo without importing those packages.
 
@@ -143,7 +148,7 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 | `mask_file` | string, if used | Preserved as metadata, never a feature. |
 | `patch_file` | string, if used | Preserved as metadata, never a feature. |
 
-A canonical column present in only one of the linked tables raises; so does a non-canonical spelling unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
+Group metadata such as `condition`/`repeat` may live only in the FOV table when the supplied FOV identifier maps unambiguously to one metadata value; the validator then attaches it to observation rows. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
 
 ### Outputs
 
@@ -175,13 +180,14 @@ src/morphocoverage/
     results.py             # StrategyResult and the Decision vocabulary
     evaluator.py           # group iteration, isolation, timing, framework-built results
     sequential.py          # leakage-safe acquisition-prefix replay
+    online.py              # live OnlineSession: add one newly acquired spatial FOV at a time
     outcomes.py            # retrospective outcome metrics, strategy-independent
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
     framework.py           # run_strategies convenience entry point
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
-        baselines.py       # fixed-FOV and fixed-object baselines
+        baselines.py       # fixed-FOV, generic-observation and legacy object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
 
@@ -202,7 +208,7 @@ A new strategy family goes in its own module under `strategies/` (section 20). F
 
 Do not skip directly to a polished `analyze()` API.
 
-1. Strict linked FOV/object input contracts and validation.
+1. Strict linked FOV/observation input contracts and validation.
 2. Define explicit sampling objectives: population representation, rare-phenotype discovery, and balanced sampling.
 3. Build one modular strategy interface and one canonical result/provenance contract.
 4. Build leakage-safe sequential evaluation for deeply sampled real acquisitions.
@@ -225,7 +231,7 @@ Required scenarios:
 - clearly separated multimodal phenotypes: `multimodal`;
 - rare states at controlled prevalence, e.g. 10%, 1%, 0.1%: `rare_prevalence_10pct`, `rare_prevalence_1pct`, `rare_prevalence_0p1pct`;
 - identical rare-state prevalence distributed uniformly versus clustered into few FOVs: `rare_uniform`, `rare_clustered`;
-- unequal numbers of objects per FOV: `unequal_objects_per_fov`;
+- unequal numbers of observations per FOV: `unequal_objects_per_fov`;
 - acquired FOVs with zero detected objects: `zero_object_fovs`;
 - unequal physical FOV area when area metadata are available: `unequal_fov_area`;
 - correlation between neighbouring FOVs: `neighbour_correlation`;
@@ -239,7 +245,7 @@ Required scenarios:
 Rules for these tests:
 
 - Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
-- Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-object FOVs counted as effort) apply to all strategies automatically.
+- Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-observation FOVs counted as effort) apply to all strategies automatically.
 - An estimator that supports incremental updates (`Estimator.start`) must give, at every step and on every scenario, the same evidence and decisions under `incremental=True` replay as under full recomputation, to floating-point rounding. The incremental-equivalence contract in `tests/test_contracts.py` runs this for every strategy in `STRATEGIES_UNDER_CONTRACT`.
 - Every outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
@@ -272,7 +278,9 @@ The first prospective question is:
 
 > Should another representative FOV be acquired?
 
-Only after that is validated should the package support:
+Prospective deployment uses `OnlineSession.add_fov(observations, fov_metadata)`. The session receives exactly one newly acquired spatial position at a time and must never require identifiers, metadata, or phenotype values for future FOVs. The first FOV fixes the automatically resolved FOV identifier and grouping contract for that session; later FOVs may not silently change it. Online and retrospective replay must use the same estimators and policies; incremental estimators must remain equivalent to full recomputation.
+
+Only after representative continue/stop is validated should the package support:
 
 > Where should the microscope image next?
 
@@ -356,9 +364,9 @@ For substantive work, report briefly:
 
 The sampling objective is separate from the mathematical strategy. Supported high-level objectives are population representation, rare-phenotype discovery with an explicit user target, and balanced sampling.
 
-MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; image_file is preferred as the FOV identifier (one image file, including a multidimensional stack, is one FOV); and shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
+MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
 
-Strategies must not reimplement condition/repeat splitting. Each strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, object/FOV counts, and measured runtime.
+Strategies must not reimplement condition/repeat splitting. Each strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, FOV count, observation count/unit, and measured runtime.
 
 Scientific and computational benchmarking are separate dimensions. Runtime is first-class because smart microscopy requires a decision before the next acquisition is needed. See docs/sampling_objectives.md, docs/benchmarking.md, and docs/architecture.md.
 
@@ -377,7 +385,7 @@ Scientific and computational benchmarking are separate dimensions. Runtime is fi
 | 2 | fiberfeatures (and other extractors, e.g. DINO, Nyxus, CellProfiler) | Feature extraction | https://github.com/CellMigrationLab/fiberfeatures |
 | 3 | MorphoCoverage | FOV-aware sampling adequacy | https://github.com/CellMigrationLab/MorphoCoverage |
 
-Inputs: an object feature table from any step-2 tool, plus a FOV table that lists every acquired image, including those without objects. Current step-1/step-2 outputs do not yet emit such a table; `docs/morphobricks_fov_contract.md` lists what they need to change.
+Inputs: a phenotype-observation feature table from any step-2 tool, plus a FOV table that lists every acquired spatial position, including positions without observations. Current step-1/step-2 outputs do not yet emit such a table; `docs/morphobricks_fov_contract.md` lists what they need to change.
 
 Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 
@@ -387,12 +395,12 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | --- | --- |
 | Condition | An experimental group, e.g. `treated`, `control` (MorphoBricks shared column). |
 | Repeat | A biological or technical replicate, identified by date in MorphoBricks (shared column). |
-| Image file / FOV | One acquired field of view: one image file, possibly a z/t/c stack. The primary acquisition and resampling unit. |
+| FOV / spatial position | One independently selected XY acquisition position. A file, z-plane, channel or timepoint is not automatically a separate FOV. |
 | FOV key | The columns that jointly identify one FOV: group columns, condition/repeat, then the FOV column. |
-| Object | One detected object (cell, nucleus) within an FOV; a row of the object table. |
+| Observation | One row of phenotype information nested in an FOV; may be a cell, nucleus, patch, slice, FOV summary, embedding, or another declared unit. |
 | Feature | An explicitly selected numeric descriptor of an object. |
 | Analysis group | FOVs evaluated together; `condition` x `repeat` by default, pooled only on explicit request. |
-| Zero-object FOV | An acquired FOV with no detected objects; it counts as acquisition effort. |
+| Zero-observation FOV | An acquired spatial position with no phenotype observations; it still counts as acquisition effort. |
 | Strategy | A swappable method that assesses the acquisition so far: estimators plus decision policies (section 20). |
 | Estimator | Computes named evidence quantities from the visible acquisition; never decides. |
 | Decision policy | Turns evidence and effort into continue/stop for one objective component. |
@@ -411,14 +419,15 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 
 1. Subclass `Estimator` in a module under `strategies/`. Give it a `name` (a constant, or a property that names the variant), a `parameters` property holding every setting that defines the estimate (JSON-serializable, since it defines `config_id`), and `estimate(data, *, objective) -> Evidence`.
 2. Read phenotype values only through `data.feature_values(name)` or `data.feature_matrix()`, and FOV identity through `data.fov_key`. Treat the input as one analysis group; never split conditions or repeats.
-3. Report each estimate as a named `Quantity` with its `direction`, `units` and `component` (`population` or `rare`). Report a quantity that cannot be computed yet as `insufficient_data`, and one that is undefined for these data as `not_applicable`, each with a reason; never NaN. Only claim the `rare` component for evidence about the objective's `RareTarget`. Never report effort (`n_fovs`, `n_objects`): the framework owns it.
-4. Preprocess features only with a `FeatureTransform` from `morphocoverage.transforms`, declared as a parameter (use `transform.describe()` in `parameters`) and fitted inside `estimate` on the data received. Record `fitted.provenance()` in the diagnostics, and report quantities as `insufficient_data` when the transform cannot be fitted. Never fit on data from outside the call.
-5. Do not decide inside the estimator. Thresholds belong to a `DecisionPolicy` (usually `ThresholdPolicy`), so they are explicit, sweepable with `redecide`, and part of `config_id`.
-6. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter. Incremental support is optional: `start(template, *, objective)` returns an `EstimatorState` whose `update(new)` receives only each newly revealed FOV and must return the same evidence as `estimate` on the whole prefix. Full recomputation stays the reference implementation.
-7. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
-8. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
+3. Declare the estimator's valid `observation_unit` semantics. Observation-unit-agnostic methods, including FOV-resampling variants, accept any unit. Cell/object-derived methods must never reinterpret slices, patches, embeddings or FOV summaries as cells: they report their quantities as `not_applicable`, with the reason from `unsupported_observation_unit`, so the decision is undefined and a benchmark or live session keeps running.
+4. Report each estimate as a named `Quantity` with its `direction`, `units` and `component` (`population` or `rare`). Report a quantity that cannot be computed yet as `insufficient_data`, and one that is undefined for these data as `not_applicable`, each with a reason; never NaN. Only claim the `rare` component for evidence about the objective's `RareTarget`. Never report effort (`n_fovs`, `n_observations`; `n_objects` is only a compatibility alias): the framework owns it.
+5. Preprocess features only with a `FeatureTransform` from `morphocoverage.transforms`, declared as a parameter (use `transform.describe()` in `parameters`) and fitted inside `estimate` on the data received. Record `fitted.provenance()` in the diagnostics, and report quantities as `insufficient_data` when the transform cannot be fitted. Never fit on data from outside the call.
+6. Do not decide inside the estimator. Thresholds belong to a `DecisionPolicy` (usually `ThresholdPolicy`), so they are explicit, sweepable with `redecide`, and part of `config_id`.
+7. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter. Incremental support is optional: `start(template, *, objective)` returns an `EstimatorState` whose `update(new)` receives only each newly revealed FOV and must return the same evidence as `estimate` on the whole prefix. Full recomputation stays the reference implementation.
+8. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
+9. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
 
 
 ### Multidimensional acquisition rule
 
-When feature extraction is performed slice-by-slice or frame-by-frame, retain lowercase `z`, `c`, and/or `t` on object/feature rows as applicable. All such rows from one spatial acquisition position must share the same `position_id` (or another explicitly supplied `fov_col`). Sequential replay and benchmarking must reveal the whole position atomically. Extra z-planes/channels/time points increase information within a FOV; they do not count as additional sampled positions.
+When feature extraction is performed slice-by-slice or frame-by-frame, retain lowercase `z`, `c`, and/or `t` on observation rows as applicable. All such rows from one spatial acquisition position must share the same `position_id` (or another explicitly supplied `fov_col`). Sequential replay and benchmarking must reveal the whole position atomically. Extra z-planes/channels/time points increase information within a FOV; they do not count as additional sampled positions.

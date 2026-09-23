@@ -51,18 +51,19 @@ def restrict_input(
         fov_col=data.fov_col,
         group_cols=data.group_cols,
         fov_key=data.fov_key,
+        observation_unit=data.observation_unit,
     )
 
 
 def objects_in_fovs(data: ValidatedInput, fovs: pd.DataFrame) -> pd.DataFrame:
-    """Return the objects belonging to the given FOV rows, matched on the full FOV key."""
+    """Return the observations belonging to the given FOV rows, matched on the full FOV key."""
     return data.objects.loc[fov_positions(data, fovs) >= 0]
 
 
 def iter_analysis_groups(
     data: ValidatedInput,
 ) -> Iterable[tuple[dict[str, object], ValidatedInput]]:
-    """Yield independent analysis groups, preserving zero-object FOV groups."""
+    """Yield independent analysis groups, preserving zero-observation FOV groups."""
     if not data.group_cols:
         yield {}, restrict_input(data, data.objects, data.fovs)
         return
@@ -133,7 +134,8 @@ def _build_result(
         component_decisions=component_decisions,
         compute_seconds=compute_seconds,
         n_fovs=effort.n_fovs,
-        n_objects=effort.n_objects,
+        n_observations=effort.n_observations,
+        observation_unit=effort.observation_unit,
         group=dict(group or {}),
         parameters=dict(strategy.parameters),
         configuration=strategy.configuration,
@@ -156,7 +158,7 @@ def evaluate_strategy(
     the input tables, so neither estimator state nor in-place edits to the
     data can flow to another estimator, analysis group or acquisition prefix.
     ``estimate`` is therefore a pure full recomputation on the data it
-    receives. Effort (``n_fovs``, ``n_objects``) is computed from the original
+    receives. Effort (``n_fovs``, ``n_observations``) is computed from the original
     input and given to the policies. ``setup_seconds`` (for example building
     the visible prefix) is counted as framework overhead.
     """
@@ -164,7 +166,7 @@ def evaluate_strategy(
     runs = [_recompute(estimator, data, objective) for estimator in strategy.estimators]
     recompute_seconds = sum(seconds for _, seconds in runs)
     evidence = _merge_evidence(strategy, [evidence for evidence, _ in runs])
-    effort = Effort(n_fovs=len(data.fovs), n_objects=len(data.objects))
+    effort = Effort(n_fovs=len(data.fovs), n_observations=len(data.objects), observation_unit=data.observation_unit)
     result = _build_result(
         strategy,
         objective=objective,
@@ -199,7 +201,7 @@ class IncrementalReplay:
         self.objective = objective
         self.group = group
         self.n_fovs = 0
-        self.n_objects = 0
+        self.n_observations = 0
         wall = perf_counter()
         template = restrict_input(group_data, group_data.objects.iloc[:0], group_data.fovs.iloc[:0])
         self._estimators = [copy.deepcopy(estimator) for estimator in strategy.estimators]
@@ -238,7 +240,7 @@ class IncrementalReplay:
         """
         wall = perf_counter()
         self.n_fovs += len(new.fovs)
-        self.n_objects += len(new.objects)
+        self.n_observations += len(new.objects)
         evidences: list[Evidence] = []
         update_seconds = recompute_seconds = 0.0
         data = None
@@ -261,7 +263,7 @@ class IncrementalReplay:
             return None
 
         evidence = _merge_evidence(self.strategy, evidences)
-        effort = Effort(n_fovs=self.n_fovs, n_objects=self.n_objects)
+        effort = Effort(n_fovs=self.n_fovs, n_observations=self.n_observations, observation_unit=new.observation_unit)
         result = _build_result(
             self.strategy,
             objective=self.objective,

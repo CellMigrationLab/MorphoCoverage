@@ -34,6 +34,7 @@ from morphocoverage import (
     Evidence,
     FixedFOVStrategy,
     FixedObjectStrategy,
+    FixedObservationStrategy,
     ObjectiveConfig,
     RareTarget,
     SamplingObjective,
@@ -66,6 +67,7 @@ OBJECTIVES = [
 STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     FixedFOVStrategy(5),
     FixedObjectStrategy(100),
+    FixedObservationStrategy(100),
     ScalarPrecisionStrategy("feature_a", 0.05, "object", "point"),
     ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
     ScalarPrecisionStrategy(

@@ -40,7 +40,7 @@ Sequential replay reveals an entire spatial position atomically. It must never r
 
 ### A per-image table (the FOV table)
 
-An object table cannot represent an image in which nothing was detected: that image simply has no rows. Every tool that iterates over images should therefore also write one row per image it was given:
+An observation table cannot represent a spatial position in which nothing was measured or retained: that position simply has no rows. Every tool that iterates over images should therefore also write one row per image it was given:
 
 | Column | Required | Notes |
 | --- | --- | --- |
@@ -88,16 +88,16 @@ Needed:
 5. **Clarify `sample_id`.** It defaults to the filename stem (`batch.py:246-250`) and is described as "one image". Either rename it to reflect that it is an image/FOV identifier, or reserve `sample_id` for a biological sample. As it stands, "sample" means an FOV.
 6. **Export the explicit feature list.** Features are chosen as numeric columns minus an exclusion set (`get_numeric_feature_columns`, `features.py:78-90`). Writing the resulting list into run provenance lets MorphoCoverage use it explicitly, without re-implementing that inference.
 
-Already consistent: FOV-level randomization defaults to `fov_col="image_file"` (`optimize.py:303`), which matches MorphoCoverage.
+fiberfeatures should prefer `position_id` for FOV-level blocking when it is present and fall back to `image_file` only when one file equals one spatial position. Plane/channel/time metadata remain nested within that position.
 
 ### NucleiSky
 
-NucleiSky does not produce object feature tables, so it needs no change for MorphoCoverage's FOV handling. Its registration outputs (per-FOV transforms) are a natural source of `stage_x`/`stage_y` for the FOV table if they are exported keyed by `image_file`.
+NucleiSky does not produce per-object phenotype feature tables, so it needs no change for MorphoCoverage's FOV handling. Its registration outputs (per-FOV transforms) are a natural source of `stage_x`/`stage_y` for the FOV table if they are exported keyed by `image_file`.
 
 ### Ecosystem-level
 
 - **Keep the shared column contract in one place.** CellPatcher's and fiberfeatures' AGENTS.md copies already disagree: `repeat` is "Always" in one and "If used" in the other. A single spec (e.g. in the organization `.github` or `docs-hub` repository), copied by reference into each AGENTS.md, would stop further drift.
-- **Add a contract test to each producer:** a fixture with a zero-object image and duplicate basenames across two repeats, asserting the per-image table has every image and that `(condition, repeat, image_file)` is unique.
+- **Add a contract test to each producer:** a fixture with a zero-object image and duplicate basenames across two repeats, asserting the per-position table has every acquired spatial position and that `(condition, repeat, position_id)` is unique when `position_id` is used (otherwise use the documented one-file/one-position `image_file` fallback).
 
 ## 3. What MorphoCoverage does today with non-conforming input
 

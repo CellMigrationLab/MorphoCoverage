@@ -14,11 +14,11 @@ No candidate estimator should be described as "the MorphoCoverage method" merely
 
 The primary operational acquisition unit is the **field of view (FOV), defined as one independently selected spatial acquisition position (XY position)**. It is not an individual z-plane, channel, time point, or physical file.
 
-Individual objects/cells, 2D slice measurements, channels, and time points are observations nested inside that spatial position.
+Individual observations/cells, 2D slice measurements, channels, and time points are observations nested inside that spatial position.
 
 Consequences:
 
-- object count and FOV count are reported separately;
+- observation count and FOV count are reported separately;
 - whole FOVs, not individual objects, are the default unit for sequential acquisition and FOV-level resampling;
 - FOV identity is required for the primary analysis;
 - all z-planes/channels/time points from one spatial position must be revealed together during sequential acquisition;
@@ -28,7 +28,7 @@ FOVs are **not assumed statistically independent**. Adjacent or overlapping fiel
 
 ## Two linked input levels
 
-An object table alone is not a complete record of acquisition because an acquired FOV with zero detected objects would disappear.
+An observation table alone is not a complete record of acquisition because an acquired FOV with zero phenotype observations would disappear.
 
 MorphoCoverage therefore supports:
 
@@ -38,19 +38,19 @@ One row per spatial acquisition position. At minimum: an explicit position/FOV i
 
 Optional metadata may include condition, repeat, sample/well/batch identifiers, acquisition order, stage coordinates, FOV dimensions, physical imaged area, and sampling design.
 
-### Object table
+### Observation table
 
-At minimum: the same spatial position/FOV identifier plus explicitly selected numeric feature columns.
+At minimum: the same spatial position/FOV identifier plus explicitly selected numeric feature columns. One row may represent a cell, nucleus, patch, slice-level measurement, FOV summary, embedding, or another declared observation unit.
 
 If features are generated slice-by-slice or otherwise within a multidimensional acquisition, preserve the relevant lowercase `z`, `c`, and/or `t` metadata on those rows. These dimensions remain nested within the spatial position and are not phenotype features or independent FOVs.
 
-An optional object identifier may be retained for traceability.
+An optional object/label/patch identifier may be retained for traceability. The API records `observation_unit`; observation/cell-specific rules must not silently reinterpret other observation types as cells.
 
 ## Representation-agnostic input
 
 MorphoCoverage receives precomputed numeric representations. It does not care whether they came from morphometrics, Nyxus, CellProfiler, DINO, another foundation model, or a custom method.
 
-The caller explicitly supplies feature columns. Metadata columns are never inferred as phenotype features.
+The caller explicitly supplies feature columns. Metadata columns are never inferred as phenotype features. NaN feature values may be loaded but are preserved rather than silently dropped or imputed; every estimator or transform that uses affected features must declare its missing-data behavior.
 
 ## Optional grouping
 
@@ -79,3 +79,39 @@ The project should not claim that the JCB framework is incorrect for the problem
 ## Limit of interpretation
 
 Low expected information yield from additional representative FOVs does not prove that no biologically important rare state exists. MorphoCoverage quantifies sampling adequacy under explicit assumptions; it cannot establish absence of arbitrarily rare unseen events.
+
+
+## Online deployment contract
+
+Prospective microscope use must exercise the same estimators and decision policies as retrospective replay. `OnlineSession` accepts one newly acquired spatial position at a time:
+
+```text
+new spatial FOV
+    -> feature observations
+    -> OnlineSession.add_fov(...)
+    -> estimator evidence
+    -> decision policy
+    -> continue / stop
+```
+
+The session must not require or expose future FOV identifiers, metadata, or phenotype values. Estimators that implement `EstimatorState` update only from the newly acquired FOV. Estimators without incremental support remain valid and are recomputed from the accumulated visible session history. Incremental evidence must match full recomputation to floating-point tolerance.
+
+
+## FOV-level metadata may be normalized
+
+Observation tables may remain lean: condition/repeat or other grouping metadata
+can be stored only in the FOV table when the FOV identifier is globally
+unambiguous. MorphoCoverage may attach that metadata to observation rows for
+analysis. If the identifier is reused across groups, the mapping is ambiguous
+and the framework must raise rather than guess.
+
+
+## Observation-unit semantics
+
+Loading a table and applying a method are separate contracts. MorphoCoverage
+may load feature rows representing cells, nuclei, patches, slices, embeddings,
+or FOV summaries, but an estimator may be scientifically valid for only some
+of those units. Such methods must report their evidence as not applicable,
+with the reason, for incompatible `observation_unit` values; the decision is
+then undefined rather than an error, and never a reinterpretation. Generic table support must not turn a cell-count criterion
+into a slice-count criterion by accident.

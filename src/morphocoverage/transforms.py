@@ -16,7 +16,7 @@ phenotype geometry of every result can be reproduced (AGENTS.md section 3).
 What this cannot detect: features normalized or projected over the whole
 dataset upstream, before they reach MorphoCoverage. Record that as provenance.
 
-A transform that cannot be fitted on the visible data (too few objects, a
+A transform that cannot be fitted on the visible data (too few observations, a
 feature with zero spread) returns a fitted transform with a ``reason``.
 Estimators should then report their quantities as insufficient data rather
 than guess a scale.
@@ -39,7 +39,7 @@ class FeatureTransform(ABC):
     """A feature-space transform fitted on visible data only.
 
     Subclasses implement ``fit_matrix`` and ``apply_matrix`` on a float
-    matrix with one row per object and one column per named input.
+    matrix with one row per phenotype observation and one column per named input.
     A transform instance is configuration only.
     """
 
@@ -83,7 +83,7 @@ class FeatureTransform(ABC):
         common = {
             "transform": self,
             "input_features": names,
-            "n_fit_objects": len(data.objects),
+            "n_fit_observations": len(data.objects),
             "n_fit_fovs": len(data.fovs),
         }
         if isinstance(fitted, str):
@@ -98,11 +98,16 @@ class FittedTransform:
 
     transform: FeatureTransform
     input_features: tuple[str, ...]
-    n_fit_objects: int
+    n_fit_observations: int
     n_fit_fovs: int
     state: Mapping[str, Any] = field(default_factory=dict)
     output_names: tuple[str, ...] = ()
     reason: str | None = None
+
+    @property
+    def n_fit_objects(self) -> int:
+        """Backward-compatible alias for n_fit_observations."""
+        return self.n_fit_observations
 
     @property
     def fitted(self) -> bool:
@@ -125,6 +130,7 @@ class FittedTransform:
         record = {
             **self.transform.describe(),
             "input_features": list(self.input_features),
+            "n_fit_observations": self.n_fit_observations,
             "n_fit_objects": self.n_fit_objects,
             "n_fit_fovs": self.n_fit_fovs,
         }
@@ -144,7 +150,7 @@ def _floats(values: np.ndarray) -> list:
 class Standardize(FeatureTransform):
     """Centre each feature on its visible mean and divide by its visible SD (``ddof=1``).
 
-    Not fitted with fewer than 2 objects, or if a feature has zero SD on the
+    Not fitted with fewer than 2 observations, or if a feature has zero SD on the
     visible data: dividing by zero or by an arbitrary constant would silently
     define the geometry.
     """
@@ -153,8 +159,10 @@ class Standardize(FeatureTransform):
 
     def fit_matrix(self, matrix, names):
         """Visible mean and SD per feature."""
+        if np.isnan(matrix).any():
+            return "missing feature values; choose or implement an explicit missing-data policy"
         if len(matrix) < 2:
-            return "fewer than 2 objects"
+            return "fewer than 2 observations"
         mean = matrix.mean(axis=0)
         sd = matrix.std(axis=0, ddof=1)
         constant = [name for name, value in zip(names, sd, strict=True) if not value > 0]
@@ -174,7 +182,7 @@ class PCA(FeatureTransform):
     Components come from the SVD of the centred visible matrix. Each
     component's sign is fixed so that its largest-magnitude loading is
     positive, so the projection is deterministic. Not fitted unless there are
-    more objects than components and at least as many features as components.
+    more observations than components and at least as many features as components.
     The explained-variance ratios are recorded in the fitted state.
     """
 
@@ -198,11 +206,13 @@ class PCA(FeatureTransform):
 
     def fit_matrix(self, matrix, names):
         """Visible mean, leading components and their explained-variance ratios."""
-        n_objects, n_features = matrix.shape
+        if np.isnan(matrix).any():
+            return "missing feature values; choose or implement an explicit missing-data policy"
+        n_observations, n_features = matrix.shape
         if n_features < self.n_components:
             return f"{n_features} features cannot give {self.n_components} components"
-        if n_objects <= self.n_components:
-            return f"{n_objects} objects cannot define {self.n_components} components"
+        if n_observations <= self.n_components:
+            return f"{n_observations} observations cannot define {self.n_components} components"
         mean = matrix.mean(axis=0)
         _, singular, vt = np.linalg.svd(matrix - mean, full_matrices=False)
         total = float((singular**2).sum())

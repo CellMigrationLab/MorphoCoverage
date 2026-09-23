@@ -45,8 +45,8 @@ import numpy as np
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
-from ..schema import ValidatedInput, fov_positions
-from .base import Estimator, SamplingStrategy
+from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
+from .base import Estimator, SamplingStrategy, unsupported_observation_unit
 
 PAPER_DESCRIPTORS = ("mean", "median", "sd", "iqr")
 _UNITS = ("object", "fov")
@@ -133,6 +133,17 @@ def _feature_quantity(feature: str, value: float | None, reason: str | None = No
     )
 
 
+def _not_applicable(quantity: str, feature: str, reason: str) -> Evidence:
+    """Evidence for data the rule does not apply to; more acquisition will not fix it."""
+    value = Quantity.not_applicable(
+        reason,
+        direction=Direction.LOWER_IS_BETTER,
+        units=f"units of {feature!r}",
+        component=Component.POPULATION,
+    )
+    return Evidence({quantity: value}, {"undefined_reason": reason})
+
+
 @dataclass(frozen=True)
 class DescriptorPlateauEstimator(Estimator):
     """Largest range of cumulative descriptors over the last ``window`` growth steps.
@@ -171,6 +182,14 @@ class DescriptorPlateauEstimator(Estimator):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_range`` over the trailing window of growth steps."""
         values = data.feature_values(self.feature)
+        # The paper's curve is indexed by number of cells, so other rows do not fit.
+        reason = unsupported_observation_unit(
+            data, OBJECT_LIKE_UNITS, method="the descriptor-plateau rule"
+        )
+        if reason is None and np.isnan(values).any():
+            reason = "missing values in the selected feature"
+        if reason is not None:
+            return _not_applicable("max_descriptor_range", self.feature, reason)
         if self.order_col not in data.fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
@@ -271,6 +290,17 @@ class DescriptorSpreadEstimator(Estimator):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_spread`` across resamples of the visible data."""
         values = data.feature_values(self.feature)
+        # Resampling cells assumes cell rows; the FOV variant resamples whole
+        # FOVs and applies to any observation unit.
+        reason = None
+        if self.resampling_unit == "object":
+            reason = unsupported_observation_unit(
+                data, OBJECT_LIKE_UNITS, method="the object-unit descriptor-spread rule"
+            )
+        if reason is None and np.isnan(values).any():
+            reason = "missing values in the selected feature"
+        if reason is not None:
+            return _not_applicable("max_descriptor_spread", self.feature, reason)
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
             "assumes_random_cell_sampling": self.resampling_unit == "object",

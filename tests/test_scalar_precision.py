@@ -10,9 +10,11 @@ from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 from morphocoverage import (
     ObjectiveConfig,
     SamplingObjective,
+    ScalarPrecisionEstimator,
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
     run_strategies,
+    validate_input_tables,
 )
 from morphocoverage.strategies.scalar_precision import (
     cell_averaging_cv,
@@ -375,3 +377,64 @@ def test_incremental_pilot_follows_the_order_column_not_arrival(unit, sd_estimat
             assert quantity.availability == other.availability
             if quantity.value is not None:
                 assert other.value == pytest.approx(quantity.value, rel=1e-9)
+
+
+@pytest.mark.parametrize("unit", ["object", "fov"])
+def test_missing_scalar_values_make_the_criterion_not_applicable(unit):
+    objects, fovs = _tables([[1.0, float("nan")], [2.0, 3.0]])
+    result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, unit, "point"))
+    quantity = result.evidence.quantities["averaging_cv"]
+    assert quantity.availability == "not_applicable"
+    assert result.decision is None
+    assert "missing values" in quantity.reason
+
+
+def test_object_unit_criterion_is_not_applicable_to_non_object_rows():
+    objects, fovs = _tables([[1.0, 2.0], [2.0, 3.0]])
+    data = validate_input_tables(
+        objects,
+        fovs=fovs,
+        feature_cols=["area"],
+        observation_unit="slice",
+    )
+    estimator = ScalarPrecisionEstimator(
+        "area", "object", "point", pilot_fovs=2, order_col="order"
+    )
+    evidence = estimator.estimate(data, objective=POPULATION)
+    for quantity in evidence.quantities.values():
+        assert quantity.availability == "not_applicable"
+        assert "'slice'" in quantity.reason
+    # Incremental replay falls back to full recomputation, with the same evidence.
+    assert estimator.start(data, objective=POPULATION) is None
+
+
+def test_fov_unit_variant_applies_to_any_observation_unit():
+    objects, fovs = _tables([[1.0, 2.0], [2.0, 3.0], [3.0, 5.0]])
+    strategy = ScalarPrecisionStrategy("area", 0.05, "fov", "point")
+    by_unit = {
+        unit: run_strategies(
+            objects, fovs=fovs, strategies=[strategy], feature_cols=["area"],
+            objective=POPULATION, observation_unit=unit,
+        )[0]
+        for unit in ("slice", "cell")
+    }
+    assert by_unit["slice"].evidence == by_unit["cell"].evidence
+    assert by_unit["slice"].evidence.quantities["averaging_cv"].availability == "available"
+
+
+@pytest.mark.parametrize("incremental", [False, True])
+def test_non_object_rows_do_not_crash_a_replay(incremental):
+    objects, fovs = _tables([[1.0, 2.0], [2.0, 3.0], [3.0, 5.0]])
+    results = evaluate_acquisition_prefixes(
+        objects, fovs,
+        strategies=[
+            ScalarPrecisionStrategy("area", 0.05, "object", "point"),
+            ScalarPrecisionStrategy("area", 0.05, "fov", "point"),
+        ],
+        feature_cols=["area"], acquisition_order_col="order", objective=POPULATION,
+        observation_unit="slices", incremental=incremental,
+    )
+    decisions = {r.result.strategy: r.result.decision for r in results if r.step == 3}
+    assert decisions["scalar_precision_object"] is None
+    assert decisions["scalar_precision_fov"] is not None
+    assert {r.result.observation_unit for r in results} == {"slice"}

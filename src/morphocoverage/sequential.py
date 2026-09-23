@@ -47,6 +47,7 @@ def evaluate_acquisition_prefixes(
     group_cols: Sequence[str] | None = None,
     min_fovs: int = 1,
     incremental: bool = False,
+    observation_unit: str = "object",
 ) -> list[SequentialResult]:
     """Evaluate strategies after each prefix of a recorded real acquisition.
 
@@ -56,8 +57,9 @@ def evaluate_acquisition_prefixes(
     the simulated history would otherwise depend on table row order.
 
     MorphoBricks metadata defaults are resolved under the hood. By default,
-    condition and repeat remain separate when available and image_file is
-    preferred as the FOV identifier.
+    condition and repeat remain separate when available; position_id is
+    preferred as the spatial FOV identifier, with image_file only a fallback
+    when one file equals one position.
 
     With ``incremental=True``, estimators that support it (``Estimator.start``)
     receive only each newly revealed FOV, which is how an online microscope
@@ -83,6 +85,7 @@ def evaluate_acquisition_prefixes(
         fov_col=fov_col,
         fovs=fovs,
         group_cols=group_cols,
+        observation_unit=observation_unit,
     )
     strategy_list = list(strategies)
     key = list(data.fov_key)
@@ -124,7 +127,7 @@ def evaluate_acquisition_prefixes(
 
 
 def _prefix(group_data: ValidatedInput, ordered: pd.DataFrame, step: int) -> ValidatedInput:
-    """The first ``step`` FOVs of ``ordered`` and their objects, as a visible input."""
+    """The first ``step`` FOVs of ``ordered`` and their phenotype observations, as a visible input."""
     fovs = ordered.iloc[:step]
     return restrict_input(group_data, objects_in_fovs(group_data, fovs), fovs)
 

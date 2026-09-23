@@ -49,11 +49,57 @@ def test_requires_features_to_be_numeric():
         validate_input_tables(objects, feature_cols=["phenotype"], fov_col="fov_id")
 
 
-def test_rejects_non_finite_feature_values():
+def test_allows_missing_feature_values_but_rejects_infinity():
     objects = _objects()
     objects.loc[1, "area"] = np.nan
-    with pytest.raises(ValueError, match="non-finite"):
+    result = validate_input_tables(objects, feature_cols=["area"], fov_col="fov_id")
+    assert np.isnan(result.feature_values("area")[1])
+
+    objects.loc[1, "area"] = np.inf
+    with pytest.raises(ValueError, match="infinite"):
         validate_input_tables(objects, feature_cols=["area"], fov_col="fov_id")
+
+
+def test_records_generic_observation_semantics():
+    result = validate_input_tables(
+        _objects(),
+        feature_cols=["area"],
+        fov_col="fov_id",
+        observation_unit="nucleus",
+    )
+    assert result.observation_unit == "nucleus"
+    assert result.n_observations == len(_objects())
+    pd.testing.assert_frame_equal(result.observations, result.objects)
+
+    with pytest.raises(ValueError, match="observation_unit"):
+        validate_input_tables(
+            _objects(),
+            feature_cols=["area"],
+            fov_col="fov_id",
+            observation_unit=" ",
+        )
+
+
+@pytest.mark.parametrize(
+    ("given", "canonical"),
+    [
+        ("cell", "cell"),
+        ("Cells", "cell"),
+        (" nuclei ", "nucleus"),
+        ("Objects", "object"),
+        ("slices", "slice"),
+        ("FOV summary", "fov_summary"),
+        ("fov-summaries", "fov_summary"),
+        ("embedding", "embedding"),
+        ("tile", "tile"),
+    ],
+)
+def test_observation_unit_is_normalized_to_one_label(given, canonical):
+    # "cells" and "Cell" must not count as a different unit from "cell".
+    result = validate_input_tables(
+        _objects(), feature_cols=["area"], fov_col="fov_id", observation_unit=given
+    )
+    assert result.observation_unit == canonical
 
 
 def test_rejects_metadata_used_as_feature():
@@ -123,3 +169,50 @@ def test_rejects_duplicate_fov_rows_within_group():
             fovs=fovs,
             group_cols=["repeat"],
         )
+
+
+def test_nullable_numeric_features_preserve_missing_values_as_nan():
+    objects = _objects()
+    objects["area"] = pd.Series([10.0, pd.NA, 20.0], dtype="Float64")
+    result = validate_input_tables(objects, feature_cols=["area"], fov_col="fov_id")
+    values = result.feature_values("area")
+    assert values.dtype == float
+    assert np.isnan(values[1])
+
+
+def test_group_metadata_can_live_only_in_fov_table_when_fov_id_is_unique():
+    objects = pd.DataFrame(
+        {
+            "position_id": ["P1", "P1", "P2"],
+            "area": [1.0, 2.0, 3.0],
+        }
+    )
+    fovs = pd.DataFrame(
+        {
+            "condition": ["control", "drug"],
+            "repeat": ["R1", "R1"],
+            "position_id": ["P1", "P2"],
+        }
+    )
+    result = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+    assert result.group_cols == ("condition", "repeat")
+    assert list(result.objects["condition"]) == ["control", "control", "drug"]
+    assert list(result.objects["repeat"]) == ["R1", "R1", "R1"]
+
+
+def test_group_metadata_is_not_guessed_when_fov_id_is_reused():
+    objects = pd.DataFrame(
+        {
+            "image_file": ["same.tif", "same.tif"],
+            "area": [1.0, 2.0],
+        }
+    )
+    fovs = pd.DataFrame(
+        {
+            "condition": ["control", "drug"],
+            "repeat": ["R1", "R1"],
+            "image_file": ["same.tif", "same.tif"],
+        }
+    )
+    with pytest.raises(ValueError, match="cannot attach.*condition"):
+        validate_input_tables(objects, fovs=fovs, feature_cols=["area"])

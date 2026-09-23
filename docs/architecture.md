@@ -34,11 +34,12 @@ The framework follows the shared MorphoBricks metadata conventions:
 
 - `condition`
 - `repeat`
+- `position_id` (when file layout is not one-file-per-position)
 - `image_file`
 - `mask_file`
 - `patch_file`
 
-When the caller does not provide an FOV identifier, `image_file` is preferred and `fov_id` is accepted as a fallback. One image file is one FOV, including a z/t/c stack; objects measured on different planes of the same file belong to the same FOV. A candidate column present in only one of the linked tables is an error, never a reason to fall back to the next candidate.
+When the caller does not provide an FOV identifier, `position_id` is preferred, followed by `image_file` when one file equals one position, then `fov_id`. One FOV is one independently selected spatial position; z/c/t observations from that position remain nested within it. A candidate column present in only one of the linked tables is an error, never a reason to fall back to the next candidate.
 
 When the caller does not provide grouping columns, `condition` and `repeat` are used automatically. This keeps biological/sample groups independent without requiring every strategy to understand those columns. A canonical column present in only one linked table raises instead of silently pooling, and non-canonical spellings such as `Repeat` raise unless named explicitly.
 
@@ -73,7 +74,7 @@ SamplingStrategy(estimators, policies, name=...)
 ```
 
 - **Evidence** is a set of named `Quantity` values. Each has a value, a `direction` (`lower_is_better` or `higher_is_better`), `units`, the objective `component` it is evidence about (`population` or `rare`), and an `availability`. `insufficient_data` means more acquisition may make it computable; `not_applicable` means it is undefined for these data. Either needs a reason, and NaN is never a value. Free-form diagnostics accompany the quantities.
-- **Policies** are `ThresholdPolicy(quantity, threshold)`, whose component is the quantity's own, and `EffortPolicy("n_fovs" | "n_objects", target)` on framework-owned effort. Custom policies subclass `DecisionPolicy`.
+- **Policies** are `ThresholdPolicy(quantity, threshold)`, whose component is the quantity's own, and `EffortPolicy("n_fovs" | "n_observations", target)` (`n_objects` remains a compatibility alias) on framework-owned effort. Custom policies subclass `DecisionPolicy`.
 - **Combination** per objective is described in `docs/sampling_objectives.md`. A required component without a policy is `unsupported`, never `stop`.
 - **`redecide(result, policies, name=...)`** applies other policies to stored results. It equals re-running the same estimators with those policies, which makes threshold sweeps and Pareto curves cheap.
 - **`config_id`** is a 16-hex-digit hash of the class and canonical-JSON parameters of each estimator and policy. A strategy's id combines its parts' ids and ignores names, so `scalar_precision_object` at 2.5% and at 5% share a name but not an id.
@@ -86,7 +87,7 @@ Feature preprocessing goes through `morphocoverage.transforms`:
 - a `FeatureTransform` (`Standardize`, `PCA`, `Chain`) is declared as an estimator parameter;
 - it is fitted inside `estimate` on the visible prefix the estimator receives, so it cannot see future FOVs or other groups;
 - its fitted state is recorded with `fitted.provenance()`;
-- a transform that cannot be fitted (too few objects, zero spread) says why instead of guessing a scale.
+- a transform that cannot be fitted (too few observations, zero spread) says why instead of guessing a scale.
 
 A contract test alters every FOV acquired after step k and requires every transform's state and output at steps up to k to be unchanged. Upstream normalization over the whole dataset cannot be detected and must be recorded as provenance.
 
@@ -122,13 +123,13 @@ The framework builds every result; strategies never construct one. A `StrategyRe
 - evidence (quantities and diagnostics; `diagnostics` is a shortcut);
 - overall decision: `continue`, `stop`, `unsupported` or `None` (undefined);
 - `component_decisions`, one per component;
-- number of FOVs and number of objects;
+- number of FOVs and number of observations;
 - resolved condition/repeat group identity;
 - strategy parameters, and `configuration` (name, type, `config_id` and parameters of each estimator and policy);
 - feature columns and FOV key;
 - `compute_seconds`, with `runtime_seconds` as an alias, and `timing`, which breaks the whole decision down (see below).
 
-Effort is framework-owned: estimators cannot report `n_fovs` or `n_objects` as quantities, so a count that drops zero-object FOVs cannot enter a decision. `compute_seconds` times the estimators' own calls only.
+Effort is framework-owned: estimators cannot report `n_fovs` or `n_objects` as quantities, so a count that drops zero-observation FOVs cannot enter a decision. `compute_seconds` times the estimators' own calls only.
 
 This common contract is what allows many methods to be compared without changing the data pipeline.
 
@@ -141,13 +142,13 @@ The sequential runner reveals a real acquisition prefix at a time while preservi
 - acquisition order;
 - FOV identity;
 - condition/repeat grouping;
-- zero-object FOVs.
+- zero-observation FOVs.
 
 Each strategy is evaluated using only the prefix available at that step.
 
 Leakage guards enforced by the runner:
 
-- the complete linked tables are validated once, so objects from FOVs missing from the FOV table raise rather than never being revealed;
+- the complete linked tables are validated once, so observations from FOVs missing from the FOV table raise rather than never being revealed;
 - acquisition order must have no ties within an analysis group; a pooled analysis therefore needs an order defined across the pooled FOVs;
 - the acquisition order column cannot be a phenotype feature;
 - visible tables are re-indexed and categorical columns drop unused categories, so neither row labels nor category levels reveal withheld FOVs or other groups.
@@ -173,7 +174,7 @@ Every result carries a `Timing` breakdown:
 - Estimators whose `start` returns an `EstimatorState` receive only each new FOV.
 - The others are recomputed on the prefix. The prefix is built only if some estimator needs it.
 - Decisions are the same either way; only the timing differs.
-- `ScalarPrecisionEstimator` is incremental. It keeps per-FOV sufficient statistics, so an update costs O(new objects + acquired FOVs).
+- `ScalarPrecisionEstimator` is incremental. It keeps per-FOV sufficient statistics, so an update costs O(new observations + acquired FOVs).
 
 `run_benchmark` records, per run, the decision latency up to the stop, and its median and maximum per step. These are estimator and framework times only; feature extraction and microscope control are not included.
 
@@ -182,7 +183,7 @@ Later benchmarking will extend this with:
 - total runtime across a complete acquisition;
 - high-percentile latency across runs;
 - peak memory;
-- empirical scaling with FOV count, object count, and feature dimension;
+- empirical scaling with FOV count, observation count, and feature dimension;
 - compute-to-acquisition ratio for smart microscopy.
 
 ## Current baseline strategies
@@ -201,7 +202,7 @@ All three are population evidence, so under `rare_discovery` they return `unsupp
 
 `ScalarPrecisionStrategy` reproduces the **single-sample/pilot variant** of the cell-averaging criterion of Zweifach (J Cell Biol 2024, doi:10.1083/jcb.202401074) for one explicitly named scalar feature, following AGENTS.md §10. The paper's multi-sample planning procedure is not implemented; see `docs/proposals/architecture_hardening.md`, item 7.
 
-- **Scalar parameter:** the object mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
+- **Scalar parameter:** the cell/object mean of the named feature, which must be positive-valued; its averaging CV is `SD / (mean * sqrt(n))`.
 - **Criterion:** stop once `n >= ceil((SD / target) ** 2)` (`required_objects`). The target is required, with no default: the paper suggests 5% for independent samples and 2.5% for matched designs.
 - **SD estimate:** `sd_estimate="point"` or `"upper_95"`, the chi-square upper bound of the 95% confidence interval for SD that the paper recommends for small pilots. This reproduces the paper's worked example (51/108 cells at 2.5%, 13/27 at 5%), which is covered by a test.
 - **Planning versus sequential:** `pilot_fovs` plans the required number of cells once from the first acquired FOVs, as in the paper. The estimator reports the CV this plan projects for the visible effort, which reaches the target exactly when the planned number is reached. Without it the criterion is re-checked after every FOV; this is an adaptation, labelled by the strategy name.
@@ -240,3 +241,67 @@ See [`morphobricks_fov_contract.md`](morphobricks_fov_contract.md) for what upst
 ## Multidimensional FOV semantics
 
 The framework's FOV is a spatial acquisition position, not a plane or file. `position_id` is the preferred explicit identifier when file layout does not map one-to-one to positions. Rows produced slice-by-slice or frame-by-frame may vary in `z`, `c`, and `t`, but those columns are within-FOV metadata and all rows from one position are revealed together during sequential replay.
+
+
+## Offline and online execution share one core
+
+MorphoCoverage has two orchestration surfaces over the same estimator/policy machinery:
+
+```text
+completed acquisition                  live microscope
+        |                                   |
+evaluate_acquisition_prefixes()        OnlineSession.add_fov()
+        |                                   |
+        +-------------+---------------------+
+                      |
+                SamplingStrategy
+              Estimator(s) + Policy
+                      |
+                StrategyResult
+```
+
+`OnlineSession` owns only prospective orchestration. It does not know future FOVs and does not implement strategy-specific logic. The first FOV fixes the session's identity/grouping contract; later updates cannot silently change it. Incremental estimators use `EstimatorState`; non-incremental estimators are recomputed on accumulated visible observations.
+
+## Observation semantics
+
+The historical API name `objects` is retained for compatibility, but rows are generic phenotype observations. `ValidatedInput.observations`, `n_observations`, and `observation_unit` are the canonical semantics. This permits cell-, nucleus-, patch-, slice-, embedding- and FOV-summary tables without changing strategy plumbing.
+
+NaN phenotype values may enter the framework. They are never automatically imputed or discarded. Methods must either support missingness explicitly or report that their evidence is not applicable/available.
+
+
+### Lean feature tables
+
+A feature table does not have to duplicate all FOV-level metadata. If observation
+rows contain a globally unique FOV/position identifier and the FOV table carries
+`condition`, `repeat`, or explicitly requested grouping columns, validation
+attaches those columns to the observations before grouping.
+
+This join is performed only when one FOV identifier maps to exactly one metadata
+value. Reused basenames or position IDs across groups are not guessed: the
+observation table must then carry the relevant identity columns or use a
+globally unique FOV identifier.
+
+
+## Observation-unit compatibility
+
+The input layer is generic, but individual methods need not be. Each estimator
+must make its observation-unit assumptions explicit.
+
+- generic distributional/novelty methods may accept cells, nuclei, patches,
+  slices, embeddings or FOV summaries where scientifically meaningful;
+- cell/object-derived current-practice baselines report their evidence as
+  not applicable for other units (decision `None`), rather than raising, so a
+  benchmark or live session with several strategies keeps running;
+- the scope follows the method's sampling assumption, not its name: the
+  object-unit JCB criterion, the descriptor plateau and the object-unit
+  descriptor spread need object-like rows (`object`, `cell`, `nucleus`); the
+  FOV-unit JCB variant and the FOV-unit descriptor spread resample whole FOVs
+  and accept any unit;
+- `FixedObservationStrategy` is the generic row-count baseline;
+- `FixedObjectStrategy` is retained for backward compatibility; for
+  non-object units it gives no decision;
+- `observation_unit` labels are normalized (lowercase, singular, `_` for
+  spaces), so `Cells`, `cell` and `cells` are one unit.
+
+A generic input contract must never silently change the meaning of a published
+cell-count method.

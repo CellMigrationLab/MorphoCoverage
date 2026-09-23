@@ -23,17 +23,17 @@ Synthetic data remain useful for unit tests, explicit counterexamples, and regre
   - the dataset, its role, `in_sample` and `tuned_on`;
   - the group, the order (and its seed) and the objective;
   - the strategy name, its `config_id`, and the estimator and policy ids;
-  - the stop step, the final decision, and effort at the stop (FOVs, objects and area) against the totals;
+  - the stop step, the final decision, and effort at the stop (FOVs, observations with their declared unit, and area) against the totals;
   - the outcomes, each with its metric's `config_id`;
   - the compute time up to the stop, and the maximum compute time of any one step.
   
   `records_to_frame` flattens the records to one row each.
 - **Outcome metrics** are functions of (full group, stop prefix) → value. They never see a strategy's evidence or decision, so two strategies that stop at the same prefix get identical outcomes; a contract test checks this. They are retrospective and must never be used inside an estimator. The first metrics are:
-  - `RelativeMeanError(feature)`: the realized relative error of the object mean at the stop.
+  - `RelativeMeanError(feature)`: the realized relative error of the observation mean at the stop.
   - `RandomCellRelativeError(feature)`: the expected relative RMSE had the same number of cells been drawn at random from the full group (simple random sampling with finite-population correction). It is the comparator in `data/crick_idr/fov_vs_cells.py`. Across permuted orders, the RMSE of `RelativeMeanError` divided by this value is the error inflation from acquiring whole FOVs.
   - `RareStateDetected(label_col, min_fov_occurrences)`: whether the stop prefix shows an independently labelled state in enough FOVs. It is `None` when the full acquisition never does.
 
-- **Timing.** Every record carries estimator compute time, whole-decision latency up to the stop, and the median and maximum per-step decision latency. `run_benchmark(..., incremental=True)` replays incremental estimators FOV by FOV, as online acquisition would. The `Timing` breakdown on each result separates estimator time from framework overhead.
+- **Timing.** Every record carries estimator compute time, whole-decision latency up to the stop, and the median and maximum per-step decision latency. Only decisions up to the actual stop contribute to these summaries; later replay steps are retrospective and must not inflate the latency of a microscope that would already have stopped. `run_benchmark(..., incremental=True)` replays incremental estimators FOV by FOV, as online acquisition would. The `Timing` breakdown on each result separates estimator time from framework overhead.
 
 Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an agreed adequacy definition), distribution-level outcome metrics, and aggregation into a regime map.
 
@@ -58,7 +58,7 @@ Possible independent outcomes include changes in:
 For each strategy and stopping rule record:
 
 - stopping FOV;
-- cells/objects acquired at stopping;
+- observations acquired at stopping, with their declared `observation_unit`;
 - imaged area at stopping when known;
 - premature-stopping rate;
 - information remaining after stopping;
@@ -90,7 +90,7 @@ Evaluate sensitivity to:
 
 At minimum benchmark:
 
-- fixed object/cell count;
+- fixed observation/cell count;
 - fixed FOV count;
 - fixed imaged area when available;
 - JCB/Zweifach-style scalar averaging precision;
@@ -114,7 +114,7 @@ For every strategy record at least:
 Benchmark scaling against:
 
 - number of FOVs;
-- number of objects;
+- number of observations;
 - feature dimensionality.
 
 ## Compute-to-acquisition ratio
@@ -144,3 +144,10 @@ Different winners may be appropriate for:
 - later targeted acquisition.
 
 A method that is slightly less accurate but orders of magnitude faster may be the better smart-microscopy strategy, while a slower method may remain preferable for offline experimental design.
+
+
+## Online equivalence
+
+`OnlineSession` is the deployment counterpart of incremental replay. It receives one FOV at a time and knows nothing about future acquisition. Contract tests compare live session outputs with `evaluate_acquisition_prefixes(..., incremental=True)` on the same revealed sequence. Scientific evidence and decisions must match; only timing context may differ.
+
+Methods without an incremental `EstimatorState` remain deployable because the session can recompute them from accumulated visible observations. Benchmarking determines whether that latency is acceptable.

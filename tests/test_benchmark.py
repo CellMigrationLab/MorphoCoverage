@@ -1,6 +1,7 @@
 """Tests for the benchmark protocol (roles, orders, records) and the outcome metrics."""
 
 import math
+from dataclasses import replace
 
 import numpy as np
 import pandas as pd
@@ -21,17 +22,20 @@ from morphocoverage.benchmark import (
     BenchmarkDataset,
     BenchmarkRegistry,
     DatasetRole,
+    _record_run,
     leave_one_dataset_out,
     records_to_frame,
     run_benchmark,
 )
-from morphocoverage.evaluator import objects_in_fovs, restrict_input
+from morphocoverage.evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from morphocoverage.outcomes import (
     RandomCellRelativeError,
     RareStateDetected,
     RelativeMeanError,
     srs_relative_rmse,
 )
+from morphocoverage.results import Timing
+from morphocoverage.sequential import evaluate_acquisition_prefixes
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
@@ -350,3 +354,91 @@ def test_incremental_benchmark_records_the_same_stops_and_latencies():
         assert (before.incremental, after.incremental) == (False, True)
         assert 0 <= after.median_decision_seconds <= after.max_decision_seconds
         assert after.decision_seconds_to_stop >= after.compute_seconds_to_stop
+
+
+def test_latency_summaries_stop_at_the_first_stop():
+    scenario = SCENARIOS["homogeneous"]()
+    dataset = _dataset("timing", scenario="homogeneous")
+    history = evaluate_acquisition_prefixes(
+        scenario.objects,
+        scenario.fovs,
+        strategies=[FixedFOVStrategy(2)],
+        feature_cols=list(FEATURE_COLS),
+        acquisition_order_col=ORDER_COL,
+        objective=POPULATION,
+    )
+    timed = []
+    for index, item in enumerate(history, start=1):
+        seconds = float(index)
+        result = replace(
+            item.result,
+            compute_seconds=seconds,
+            timing=Timing(seconds, 0.0, 0.0, 0.0),
+        )
+        timed.append(replace(item, result=result))
+
+    data = validate_input_tables(
+        scenario.objects,
+        fovs=scenario.fovs,
+        feature_cols=list(FEATURE_COLS),
+    )
+    _, full = next(iter(iter_analysis_groups(data)))
+    record = _record_run(
+        timed,
+        full,
+        [],
+        dataset,
+        in_sample=False,
+        tuned_on=(),
+        order=AcquisitionOrder.recorded(),
+        incremental=False,
+    )
+
+    assert record.stop_step == 2
+    assert record.compute_seconds_to_stop == 3.0
+    assert record.max_compute_seconds == 2.0
+    assert record.decision_seconds_to_stop == 3.0
+    assert record.median_decision_seconds == 1.5
+    assert record.max_decision_seconds == 2.0
+
+
+def test_benchmark_records_generic_observation_effort():
+    dataset = _dataset("slices", observation_unit="slice")
+    [record] = _run(BenchmarkRegistry([dataset]), "slices", strategies=[FixedFOVStrategy(2)])
+    assert record.observation_unit == "slice"
+    assert record.n_observations == record.n_objects
+    assert record.total_observations == record.total_objects
+
+
+def test_outcome_metrics_do_not_silently_drop_missing_feature_values():
+    scenario = SCENARIOS["homogeneous"]()
+    objects = scenario.objects.copy()
+    objects.loc[objects.index[0], "feature_a"] = float("nan")
+    data = validate_input_tables(
+        objects,
+        fovs=scenario.fovs,
+        feature_cols=list(FEATURE_COLS),
+    )
+    fovs = data.fovs.nsmallest(3, ORDER_COL)
+    stopped = restrict_input(data, objects_in_fovs(data, fovs), fovs)
+
+    assert RelativeMeanError("feature_a").evaluate(data, stopped) is None
+    assert RandomCellRelativeError("feature_a").evaluate(data, stopped) is None
+
+
+def test_benchmark_completes_when_a_rule_does_not_fit_the_rows():
+    dataset = _dataset("slices", observation_unit="Slices")
+    assert dataset.observation_unit == "slice"
+    records = _run(
+        BenchmarkRegistry([dataset]),
+        "slices",
+        strategies=[
+            ScalarPrecisionStrategy("feature_a", 0.05, "object", "point"),
+            FixedObjectStrategy(10),
+            FixedFOVStrategy(2),
+        ],
+    )
+    by_name = {record.strategy: record for record in records}
+    for name in ("scalar_precision_object", "fixed_objects"):
+        assert (by_name[name].stopped, by_name[name].final_decision) == (False, None)
+    assert by_name["fixed_fov"].stop_step == 2

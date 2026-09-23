@@ -11,7 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..policies import EffortPolicy
+from ..evidence import Component
+from ..policies import DecisionPolicy, Effort, EffortPolicy
+from ..results import Decision
+from ..schema import OBJECT_LIKE_UNITS
 from .base import SamplingStrategy
 
 
@@ -49,8 +52,36 @@ class FixedFOVStrategy(SamplingStrategy):
 
 
 @dataclass(frozen=True)
+class _ObjectCountPolicy(DecisionPolicy):
+    """Legacy object-count policy with explicit row-semantics guard."""
+
+    target: int
+    name: str = "effort:n_objects"
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {"effort": "n_objects", "target": self.target}
+
+    def decide(self, evidence, effort: Effort):
+        """Undefined (``None``) unless rows are objects; else stop at the target count.
+
+        A count of slices or patches is not a count of objects, so the rule
+        gives no decision rather than an error; use FixedObservationStrategy
+        for generic rows.
+        """
+        if effort.observation_unit not in OBJECT_LIKE_UNITS:
+            return Component.POPULATION, None
+        reached = effort.n_observations >= self.target
+        return Component.POPULATION, Decision.STOP if reached else Decision.CONTINUE
+
+
+@dataclass(frozen=True)
 class FixedObjectStrategy(SamplingStrategy):
-    """Stop after a user-defined number of detected objects."""
+    """Legacy row-count baseline for object-style feature tables.
+
+    For generic feature rows prefer FixedObservationStrategy, which makes the
+    row semantics explicit through the framework observation_unit.
+    """
 
     target_objects: int
     name: str = "fixed_objects"
@@ -69,6 +100,33 @@ class FixedObjectStrategy(SamplingStrategy):
         return ()
 
     @property
+    def policies(self) -> tuple[_ObjectCountPolicy]:
+        """Stop once object-like observations reach the legacy object target."""
+        return (_ObjectCountPolicy(self.target_objects),)
+
+
+@dataclass(frozen=True)
+class FixedObservationStrategy(SamplingStrategy):
+    """Stop after a user-defined number of phenotype observations.
+
+    Unlike FixedObjectStrategy, this baseline is agnostic to whether rows are
+    cells, nuclei, patches, slices, embeddings, or another declared unit.
+    """
+
+    target_observations: int
+    name: str = "fixed_observations"
+
+    def __post_init__(self) -> None:
+        _require_positive_int(self.target_observations, "target_observations")
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {"target_observations": self.target_observations}
+
+    @property
+    def estimators(self) -> tuple:
+        return ()
+
+    @property
     def policies(self) -> tuple[EffortPolicy]:
-        """Stop once detected objects reach the target, regardless of FOV count."""
-        return (EffortPolicy("n_objects", self.target_objects),)
+        return (EffortPolicy("n_observations", self.target_observations),)

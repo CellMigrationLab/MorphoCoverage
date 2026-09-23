@@ -135,7 +135,7 @@ Preserve and report at least:
 - number of FOVs;
 - total imaged area when known;
 - number of detected objects;
-- distribution of objects per FOV.
+- distribution of observations per FOV.
 
 Ten FOVs acquired with different magnification, field size, or tissue coverage are not automatically equivalent.
 
@@ -241,15 +241,15 @@ A sample may be well sampled for gross morphology while remaining incompletely s
 
 MorphoCoverage must never present a result as a representation-independent percentage of "all biological phenotype."
 
-## 7. Input model: preserve both FOVs and objects
+## 7. Input model: preserve both FOVs and observations
 
-An object-level table alone is insufficient because an acquired FOV containing zero detected objects would disappear.
+An observation-level table alone is insufficient because an acquired FOV containing zero phenotype observations would disappear.
 
 MorphoCoverage should therefore support two linked logical tables.
 
 ### FOV table
 
-One row per acquired FOV, including FOVs with zero objects.
+One row per acquired FOV, including FOVs with zero observations.
 
 Minimum information:
 
@@ -274,19 +274,19 @@ imaged_area_um2
 sampling_design
 ```
 
-### Object table
+### Observation table
 
-One row per detected object:
+One row per phenotype observation. A row may represent a cell, nucleus, patch, slice-level measurement, FOV summary, embedding, or another declared unit:
 
 ```text
-object_id
+observation_id
 fov_id
 feature_001
 ...
 feature_N
 ```
 
-Feature columns must always be explicitly supplied. Numeric metadata must never silently enter phenotype space.
+Feature columns must always be explicitly supplied. Numeric metadata must never silently enter phenotype space. The API records an `observation_unit` so row count is not automatically interpreted as cell count. Missing feature values may be loaded, but methods must handle them explicitly rather than silently imputing or dropping them.
 
 ## 8. Biological replicates and conditions
 
@@ -436,7 +436,7 @@ Required scenarios include:
 6. **Same total cells, different FOV count** — explicitly separate cell count from image count.
 7. **Controlled within-FOV correlation** — quantify effects on scalar precision and multidimensional sampling.
 8. **Correlated neighbouring FOVs** — show when FOV-block resampling remains optimistic.
-9. **Empty FOVs** — preserve acquisition history when zero objects are detected.
+9. **Empty FOVs** — preserve acquisition history when zero observations are detected.
 10. **Unequal physical FOV area** — show when simple FOV count becomes misleading.
 11. **Batch/acquisition drift** — reveal technical novelty.
 12. **Segmentation censoring** — remove or distort rare states upstream.
@@ -565,7 +565,7 @@ MorphoCoverage must ask **enough for what?** before judging sampling adequacy. T
 
 MorphoCoverage is a strategy-comparison framework. Candidate methods implement one common interface and are executed through the same MorphoBricks-compatible validation, grouping, timing, and provenance layer. The same feature tables should therefore be evaluable by many strategies without changing data plumbing.
 
-By default, canonical MorphoBricks `condition` and `repeat` columns define independent analysis groups, and `image_file` is preferred as the FOV identity. Pooling must be explicit.
+By default, canonical MorphoBricks `condition` and `repeat` columns define independent analysis groups. `position_id` is preferred as the spatial FOV identity; `image_file` is only a fallback when one file equals one position. Pooling must be explicit.
 
 Scientific performance and computational performance are benchmarked separately. Runtime is a first-class outcome because one intended application is online smart microscopy. See `benchmarking.md` and `architecture.md`.
 
@@ -573,3 +573,13 @@ Scientific performance and computational performance are benchmarked separately.
 ### Multidimensional acquisitions
 
 Feature extraction may be 2D, 3D, slice-by-slice, channel-specific, or time-resolved. MorphoCoverage does not prescribe how phenotype features are computed. If 2D features are generated over a stack or time series, preserve the relevant lowercase `z`, `c`, and/or `t` metadata and keep a shared spatial `position_id` for all rows from the same acquisition position. Sequential acquisition must reveal the whole position together.
+
+
+### Live online execution
+
+Prospective deployment is a first-class use case, not an afterthought. The live API must accept one newly acquired spatial position at a time, without a completed acquisition table or knowledge of future FOVs. `OnlineSession` and retrospective replay use the same estimators and decision policies. Incremental implementations are performance optimizations only and must remain equivalent to full recomputation.
+
+This lets benchmarking answer both:
+
+- does a method make scientifically safe decisions?
+- can it make those decisions fast enough to run between microscope acquisitions?

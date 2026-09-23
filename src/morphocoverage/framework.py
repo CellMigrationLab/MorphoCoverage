@@ -1,4 +1,4 @@
-"""High-level entry points for strategy comparison on feature tables."""
+"""High-level entry points for strategy comparison on phenotype feature tables."""
 
 from __future__ import annotations
 
@@ -22,8 +22,9 @@ def run_strategies(
     fov_col: str | None = None,
     fovs: pd.DataFrame | None = None,
     group_cols: Sequence[str] | None = None,
+    observation_unit: str = "object",
 ) -> list[StrategyResult]:
-    """Validate one feature dataset and run strategies within resolved groups.
+    """Validate one phenotype-observation table and run strategies within resolved groups.
 
     By default, canonical MorphoBricks condition and repeat columns are kept
     separate when available. Pass group_cols=[] only when intentional pooling
@@ -35,5 +36,6 @@ def run_strategies(
         fov_col=fov_col,
         fovs=fovs,
         group_cols=group_cols,
+        observation_unit=observation_unit,
     )
     return evaluate_strategies(strategies, data, objective=objective)

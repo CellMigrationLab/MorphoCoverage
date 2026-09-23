@@ -3,6 +3,7 @@
 from .evidence import Availability, Component, Direction, Evidence, Quantity
 from .framework import run_strategies
 from .objectives import ObjectiveConfig, RareTarget, SamplingObjective
+from .online import OnlineSession
 from .policies import DecisionPolicy, Effort, EffortPolicy, ThresholdPolicy, redecide
 from .results import Decision, StrategyResult
 from .schema import ValidatedInput, validate_input_tables
@@ -15,6 +16,7 @@ from .strategies import (
     Estimator,
     FixedFOVStrategy,
     FixedObjectStrategy,
+    FixedObservationStrategy,
     SamplingStrategy,
     ScalarPrecisionEstimator,
     ScalarPrecisionStrategy,
@@ -36,7 +38,9 @@ __all__ = [
     "Evidence",
     "FixedFOVStrategy",
     "FixedObjectStrategy",
+    "FixedObservationStrategy",
     "ObjectiveConfig",
+    "OnlineSession",
     "Quantity",
     "RareTarget",
     "SamplingObjective",
