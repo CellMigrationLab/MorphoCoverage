@@ -70,6 +70,7 @@ class BenchmarkDataset:
     fov_col: str | None = None
     group_cols: tuple[str, ...] | None = None
     area_col: str | None = None
+    observation_unit: str = "object"
     description: str = ""
 
     def __post_init__(self) -> None:
@@ -203,6 +204,8 @@ class BenchmarkRecord:
     stop_step: int | None
     final_decision: Decision | None
     n_fovs: int
+    n_observations: int
+    observation_unit: str
     n_objects: int
     area: float | None
     total_fovs: int
@@ -235,6 +238,8 @@ class BenchmarkRecord:
             "stop_step": self.stop_step,
             "final_decision": None if self.final_decision is None else self.final_decision.value,
             "n_fovs": self.n_fovs,
+            "n_observations": self.n_observations,
+            "observation_unit": self.observation_unit,
             "n_objects": self.n_objects,
             "area": self.area,
             "total_fovs": self.total_fovs,
@@ -287,6 +292,8 @@ def _record_run(
     stopped = restrict_input(full, objects_in_fovs(full, stop_fovs), stop_fovs)
     times = [item.result.compute_seconds for item in history]
     decisions = [item.result.timing.total_decision_seconds for item in history]
+    used_times = times[: last_index + 1]
+    used_decisions = decisions[: last_index + 1]
     configuration = last.result.configuration
     return BenchmarkRecord(
         dataset=dataset.name,
@@ -301,6 +308,8 @@ def _record_run(
         stop_step=None if stop_index is None else last.step,
         final_decision=last.result.decision,
         n_fovs=len(stopped.fovs),
+        n_observations=len(stopped.objects),
+        observation_unit=stopped.observation_unit,
         n_objects=len(stopped.objects),
         area=_area(stopped, dataset.area_col),
         total_fovs=len(full.fovs),
@@ -308,11 +317,11 @@ def _record_run(
         total_area=_area(full, dataset.area_col),
         outcomes={metric.name: metric.evaluate(full, stopped) for metric in metrics},
         outcome_ids={metric.name: metric.config_id for metric in metrics},
-        compute_seconds_to_stop=float(sum(times[: last_index + 1])),
-        max_compute_seconds=float(max(times)),
-        decision_seconds_to_stop=float(sum(decisions[: last_index + 1])),
-        median_decision_seconds=float(np.median(decisions)),
-        max_decision_seconds=float(max(decisions)),
+        compute_seconds_to_stop=float(sum(used_times)),
+        max_compute_seconds=float(max(used_times)),
+        decision_seconds_to_stop=float(sum(used_decisions)),
+        median_decision_seconds=float(np.median(used_decisions)),
+        max_decision_seconds=float(max(used_decisions)),
         **provenance,
     )
 
@@ -352,6 +361,7 @@ def run_benchmark(
         "feature_cols": list(dataset.feature_cols),
         "fov_col": dataset.fov_col,
         "group_cols": None if dataset.group_cols is None else list(dataset.group_cols),
+        "observation_unit": dataset.observation_unit,
     }
     data = validate_input_tables(objects, fovs=fovs, **columns)
     if dataset.area_col is not None and dataset.area_col not in data.fovs.columns:
