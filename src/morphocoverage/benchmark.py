@@ -206,10 +206,9 @@ class BenchmarkRecord:
     n_fovs: int
     n_observations: int
     observation_unit: str
-    n_objects: int
     area: float | None
     total_fovs: int
-    total_objects: int
+    total_observations: int
     total_area: float | None
     outcomes: Mapping[str, float | None]
     outcome_ids: Mapping[str, str]
@@ -219,6 +218,16 @@ class BenchmarkRecord:
     decision_seconds_to_stop: float
     median_decision_seconds: float
     max_decision_seconds: float
+
+    @property
+    def n_objects(self) -> int:
+        """Backward-compatible alias for n_observations."""
+        return self.n_observations
+
+    @property
+    def total_objects(self) -> int:
+        """Backward-compatible alias for total_observations."""
+        return self.total_observations
 
     def as_row(self) -> dict[str, Any]:
         """A flat dict: group columns as ``group.<col>``, outcomes as ``outcome.<name>``."""
@@ -243,6 +252,7 @@ class BenchmarkRecord:
             "n_objects": self.n_objects,
             "area": self.area,
             "total_fovs": self.total_fovs,
+            "total_observations": self.total_observations,
             "total_objects": self.total_objects,
             "total_area": self.total_area,
             "compute_seconds_to_stop": self.compute_seconds_to_stop,
@@ -310,10 +320,9 @@ def _record_run(
         n_fovs=len(stopped.fovs),
         n_observations=len(stopped.objects),
         observation_unit=stopped.observation_unit,
-        n_objects=len(stopped.objects),
         area=_area(stopped, dataset.area_col),
         total_fovs=len(full.fovs),
-        total_objects=len(full.objects),
+        total_observations=len(full.objects),
         total_area=_area(full, dataset.area_col),
         outcomes={metric.name: metric.evaluate(full, stopped) for metric in metrics},
         outcome_ids={metric.name: metric.config_id for metric in metrics},
