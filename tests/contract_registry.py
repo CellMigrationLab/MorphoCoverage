@@ -75,6 +75,8 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     FOVBootstrapStrategy("centroid", 0.05, transforms.Standardize(), 30, 0, 3),
     FOVBootstrapStrategy("quantiles", 0.1, None, 20, 0, 3, (0.1, 0.5, 0.9)),
     FOVIncidencePlanStrategy(),
+    FOVBootstrapStrategy("eigenspectrum", 0.05, transforms.Standardize(), 20, 0, 3),
+    FOVBootstrapStrategy("subspace", 0.2, transforms.Standardize(), 20, 0, 3, None, 1),
 ]
 
 # Every outcome metric added to the package must be added here.

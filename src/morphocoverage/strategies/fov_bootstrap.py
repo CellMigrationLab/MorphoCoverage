@@ -17,6 +17,15 @@ Summaries:
   ratio-estimator SE times ``sqrt((k - 1) / k)``.
 - ``"covariance"``: every entry of the feature covariance matrix.
 - ``"quantiles"``: the given per-feature quantiles.
+- ``"eigenspectrum"``: the explained-variance fractions of the covariance
+  eigenvalues, largest first (roadmap 1.6).
+- ``"subspace"``: the leading ``n_components`` principal directions (roadmap
+  1.7). Directions have no sign or order within the subspace, so instead of a
+  standard error the estimator reports the root-mean-square, over resamples,
+  of the largest principal angle (``scipy.linalg.subspace_angles``, radians)
+  between each resample's subspace and the subspace of all visible data.
+  Near-equal eigenvalues at the cut make this large, as they should: the
+  subspace is then genuinely undetermined.
 
 This is a MorphoCoverage method, not a published stopping rule. Its limits,
 stated in the roadmap and not removed by any setting here:
@@ -47,6 +56,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from scipy import linalg
 
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -55,10 +65,10 @@ from ..schema import ValidatedInput, fov_positions
 from ..transforms import FeatureTransform
 from .base import Estimator, SamplingStrategy
 
-SUMMARIES = ("centroid", "covariance", "quantiles")
+SUMMARIES = ("centroid", "covariance", "quantiles", "eigenspectrum", "subspace")
 
 
-def _check(summary, n_resamples, random_state, min_fovs, quantiles, transform) -> None:
+def _check(summary, n_resamples, random_state, min_fovs, quantiles, transform, n_components):
     """Validate the settings shared by the estimator and the strategy."""
     if summary not in SUMMARIES:
         raise ValueError(f"summary must be one of {SUMMARIES}")
@@ -73,6 +83,12 @@ def _check(summary, n_resamples, random_state, min_fovs, quantiles, transform) -
         raise ValueError("quantiles are required for, and only for, summary='quantiles'")
     if quantiles is not None and (not quantiles or not all(0 <= q <= 1 for q in quantiles)):
         raise ValueError("quantiles must be a non-empty sequence of values in [0, 1]")
+    if (summary == "subspace") != (n_components is not None):
+        raise ValueError("n_components is required for, and only for, summary='subspace'")
+    if n_components is not None and (
+        isinstance(n_components, bool) or not isinstance(n_components, int) or n_components < 1
+    ):
+        raise ValueError("n_components must be a positive integer")
     if transform is not None and not isinstance(transform, FeatureTransform):
         raise TypeError("transform must be a FeatureTransform or None (raw feature units)")
 
@@ -119,6 +135,24 @@ def quantile_resamples(values, positions, k, draws, quantiles) -> np.ndarray:
     return out
 
 
+def eigenspectrum_resamples(covariances: np.ndarray, d: int) -> np.ndarray:
+    """Explained-variance fractions, largest first, of each flattened ``d x d`` covariance."""
+    eigenvalues = np.clip(np.linalg.eigvalsh(covariances.reshape(-1, d, d))[:, ::-1], 0, None)
+    return eigenvalues / eigenvalues.sum(axis=1, keepdims=True)
+
+
+def subspace_angles_to(covariances: np.ndarray, reference: np.ndarray, r: int) -> np.ndarray:
+    """Largest principal angle (radians) between leading ``r``-dimensional subspaces.
+
+    One angle per flattened ``d x d`` matrix in ``covariances``, measured
+    against the leading subspace of ``reference``.
+    """
+    d = len(reference)
+    target = np.linalg.eigh(reference)[1][:, ::-1][:, :r]
+    vectors = np.linalg.eigh(covariances.reshape(-1, d, d))[1][:, :, ::-1][:, :, :r]
+    return np.array([linalg.subspace_angles(v, target).max() for v in vectors])
+
+
 def _meta(units: str) -> dict[str, Any]:
     """Direction, units and component of the reported standard error."""
     return {
@@ -126,6 +160,16 @@ def _meta(units: str) -> dict[str, Any]:
         "units": units,
         "component": Component.POPULATION,
     }
+
+
+def _pca_reason(estimator: FOVBootstrapEstimator, values: np.ndarray) -> str | None:
+    """Why a PCA summary is undefined for these features, if it is."""
+    d = values.shape[1]
+    if d < 2:
+        return "PCA summaries need at least 2 features"
+    if estimator.summary == "subspace" and estimator.n_components >= d:
+        return f"n_components={estimator.n_components} must be below the {d} features"
+    return None
 
 
 @dataclass(frozen=True)
@@ -143,6 +187,7 @@ class FOVBootstrapEstimator(Estimator):
     random_state: int
     min_fovs: int
     quantiles: tuple[float, ...] | None = None
+    n_components: int | None = None
 
     def __post_init__(self) -> None:
         if self.quantiles is not None:
@@ -154,6 +199,7 @@ class FOVBootstrapEstimator(Estimator):
             self.min_fovs,
             self.quantiles,
             self.transform,
+            self.n_components,
         )
 
     @property
@@ -163,7 +209,9 @@ class FOVBootstrapEstimator(Estimator):
 
     @property
     def quantity(self) -> str:
-        """Name of the reported quantity."""
+        """``fov_bootstrap_<summary>_se``, or ``fov_bootstrap_subspace_angle``."""
+        if self.summary == "subspace":
+            return "fov_bootstrap_subspace_angle"
         return f"fov_bootstrap_{self.summary}_se"
 
     @property
@@ -176,6 +224,7 @@ class FOVBootstrapEstimator(Estimator):
             "random_state": self.random_state,
             "min_fovs": self.min_fovs,
             "quantiles": None if self.quantiles is None else list(self.quantiles),
+            "n_components": self.n_components,
         }
 
     def _values(self, data: ValidatedInput) -> tuple[np.ndarray | None, dict[str, Any], str]:
@@ -199,10 +248,21 @@ class FOVBootstrapEstimator(Estimator):
         sums = _per_fov_sums(values, positions, k)
         if self.summary == "centroid":
             return centroid_resamples(counts, sums, weights)
-        # Outer products only for the covariance: memory grows with features squared.
+        # Outer products only for covariance summaries: memory grows with features squared.
         products = np.einsum("ni,nj->nij", values, values).reshape(len(values), -1)
         outer = _per_fov_sums(products, positions, k)
-        return covariance_resamples(counts, sums, outer, weights)
+        covariances = covariance_resamples(counts, sums, outer, weights)
+        if self.summary == "covariance":
+            return covariances
+        d = values.shape[1]
+        defined = ~np.isnan(covariances).any(axis=1)
+        out = np.full((len(covariances), d if self.summary == "eigenspectrum" else 1), np.nan)
+        if self.summary == "eigenspectrum":
+            out[defined] = eigenspectrum_resamples(covariances[defined], d)
+        else:
+            reference = np.cov(values, rowvar=False)
+            out[defined, 0] = subspace_angles_to(covariances[defined], reference, self.n_components)
+        return out
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """Bootstrap standard error of the summary under whole-FOV resampling."""
@@ -220,6 +280,10 @@ class FOVBootstrapEstimator(Estimator):
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
         elif values is None:
             reason = f"the transform could not be fitted: {diagnostics['transform']['reason']}"
+        elif self.summary in ("eigenspectrum", "subspace") and _pca_reason(self, values):
+            reason = _pca_reason(self, values)
+            quantity = Quantity.not_applicable(reason, **_meta(units))
+            return Evidence({name: quantity}, {**diagnostics, "undefined_reason": reason})
         else:
             reason = None
         if reason is not None:
@@ -233,6 +297,13 @@ class FOVBootstrapEstimator(Estimator):
             reason = "fewer than 2 resamples with a defined summary"
             diagnostics["undefined_reason"] = reason
             return Evidence({name: Quantity.insufficient(reason, **_meta(units))}, diagnostics)
+        if self.summary == "subspace":
+            angles = components[defined, 0]
+            diagnostics["max_angle"] = float(angles.max())
+            value = float(np.sqrt(np.mean(angles**2)))
+            return Evidence({name: Quantity.available(value, **_meta("radians"))}, diagnostics)
+        if self.summary == "eigenspectrum":
+            units = "fraction of total variance"
         se = np.std(components[defined], axis=0, ddof=1)
         value = float(np.sqrt(np.mean(se**2)))
         diagnostics["max_component_se"] = float(se.max())
@@ -256,6 +327,7 @@ class FOVBootstrapStrategy(SamplingStrategy):
     random_state: int
     min_fovs: int
     quantiles: tuple[float, ...] | None = None
+    n_components: int | None = None
 
     def __post_init__(self) -> None:
         if not (self.tolerance > 0 and np.isfinite(self.tolerance)):
@@ -269,6 +341,7 @@ class FOVBootstrapStrategy(SamplingStrategy):
             self.min_fovs,
             self.quantiles,
             self.transform,
+            self.n_components,
         )
 
     @property
@@ -292,10 +365,11 @@ class FOVBootstrapStrategy(SamplingStrategy):
                 self.random_state,
                 self.min_fovs,
                 self.quantiles,
+                self.n_components,
             ),
         )
 
     @property
     def policies(self) -> tuple[ThresholdPolicy]:
-        """``fov_bootstrap_<summary>_se <= tolerance``."""
+        """The estimator's quantity ``<= tolerance``."""
         return (ThresholdPolicy(self.estimators[0].quantity, self.tolerance),)

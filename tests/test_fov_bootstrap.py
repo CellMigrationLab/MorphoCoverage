@@ -20,7 +20,9 @@ from morphocoverage.strategies import FOVBootstrapEstimator, FOVBootstrapStrateg
 from morphocoverage.strategies.fov_bootstrap import (
     centroid_resamples,
     covariance_resamples,
+    eigenspectrum_resamples,
     quantile_resamples,
+    subspace_angles_to,
 )
 from morphocoverage.strategies.scalar_precision import fov_averaging_cv
 from morphocoverage.transforms import Standardize
@@ -35,8 +37,10 @@ def _data(scenario="multimodal", features=FEATURE_COLS, **kwargs):
     )
 
 
-def _estimate(data, summary="centroid", transform=None, n=200, seed=0, min_fovs=2, q=None):
-    estimator = FOVBootstrapEstimator(summary, transform, n, seed, min_fovs, q)
+def _estimate(
+    data, summary="centroid", transform=None, n=200, seed=0, min_fovs=2, q=None, n_components=None
+):
+    estimator = FOVBootstrapEstimator(summary, transform, n, seed, min_fovs, q, n_components)
     return estimator.estimate(data, objective=POPULATION).quantities[estimator.quantity]
 
 
@@ -193,3 +197,68 @@ def test_parameters_are_serializable_provenance():
     assert record["transform"]["name"] == "standardize"
     other = FOVBootstrapStrategy("quantiles", 0.1, Standardize(), 100, 8, 4, [0.25, 0.75])
     assert strategy.config_id != other.config_id
+
+
+# --- PCA summaries --------------------------------------------------------------
+
+
+def _rotation(theta):
+    return np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+
+
+def test_eigenspectrum_fractions_are_sorted_and_match_numpy():
+    rng = np.random.default_rng(0)
+    covariances = [np.cov(rng.normal(size=(50, 3)) * [3, 2, 1], rowvar=False) for _ in range(4)]
+    fractions = eigenspectrum_resamples(np.array([c.ravel() for c in covariances]), 3)
+    for row, cov in zip(fractions, covariances, strict=True):
+        eigenvalues = np.sort(np.linalg.eigvalsh(cov))[::-1]
+        assert np.allclose(row, eigenvalues / eigenvalues.sum())
+        assert np.all(np.diff(row) <= 0)
+
+
+def test_subspace_angle_recovers_a_known_rotation():
+    reference = np.diag([4.0, 1.0])
+    rotated = [_rotation(t) @ reference @ _rotation(t).T for t in (0.0, 0.2, 0.5)]
+    angles = subspace_angles_to(np.array([c.ravel() for c in rotated]), reference, 1)
+    assert np.allclose(angles, [0.0, 0.2, 0.5], atol=1e-8)
+
+
+def _fov_table(values, per_fov=20):
+    objects = pd.DataFrame(values, columns=["a", "b"])
+    objects["image_file"] = [f"f{i // per_fov}.tif" for i in range(len(values))]
+    return validate_input_tables(objects, feature_cols=["a", "b"])
+
+
+def test_near_equal_eigenvalues_leave_the_subspace_undetermined():
+    # With equal variance on both axes the leading direction is arbitrary, so
+    # resampled subspaces swing widely; a clear dominant axis is stable.
+    rng = np.random.default_rng(2)
+    isotropic = _fov_table(rng.normal(size=(400, 2)))
+    elongated = _fov_table(rng.normal(size=(400, 2)) * [5.0, 1.0])
+    unstable = _estimate(isotropic, "subspace", None, n=200, q=None, n_components=1)
+    stable = _estimate(elongated, "subspace", None, n=200, q=None, n_components=1)
+    assert unstable.units == "radians"
+    assert unstable.value > 0.2
+    assert stable.value < 0.1
+
+
+def test_pca_summaries_need_several_features_and_fewer_components():
+    data = _data(features=("feature_a",))
+    assert _estimate(data, "eigenspectrum").availability.value == "not_applicable"
+    two = _data()
+    too_many = _estimate(two, "subspace", n_components=2)
+    assert too_many.availability.value == "not_applicable" and "n_components" in too_many.reason
+    assert _estimate(two, "eigenspectrum").units == "fraction of total variance"
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda: FOVBootstrapEstimator("subspace", None, 10, 0, 2),
+        lambda: FOVBootstrapEstimator("centroid", None, 10, 0, 2, None, 1),
+        lambda: FOVBootstrapEstimator("subspace", None, 10, 0, 2, None, 0),
+    ],
+)
+def test_n_components_belongs_to_the_subspace_summary(build):
+    with pytest.raises(ValueError):
+        build()
