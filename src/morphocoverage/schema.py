@@ -37,6 +37,18 @@ _UNIT_ALIASES = {
 }
 
 
+# Assumed when the caller does not say what a row is. Results record that the
+# unit was assumed (``observation_unit_declared=False``), never silently.
+DEFAULT_OBSERVATION_UNIT = "object"
+
+
+def resolve_observation_unit(unit: str | None) -> tuple[str, bool]:
+    """The canonical unit and whether the caller declared it (``None`` means assumed)."""
+    if unit is None:
+        return DEFAULT_OBSERVATION_UNIT, False
+    return normalize_observation_unit(unit), True
+
+
 def normalize_observation_unit(unit: object) -> str:
     """Canonical observation-unit label: lowercase, ``_`` for spaces/hyphens, singular.
 
@@ -44,7 +56,9 @@ def normalize_observation_unit(unit: object) -> str:
     does not know; known plurals are mapped to their singular.
     """
     if not isinstance(unit, str) or not unit.strip():
-        raise ValueError("observation_unit must be a non-empty description such as 'cell' or 'slice'")
+        raise ValueError(
+            "observation_unit must be a non-empty description such as 'cell' or 'slice'"
+        )
     label = re.sub(r"[\s-]+", "_", unit.strip().lower())
     return _UNIT_ALIASES.get(label, label)
 
@@ -65,7 +79,8 @@ class ValidatedInput:
     fov_col: str
     group_cols: tuple[str, ...]
     fov_key: tuple[str, ...]
-    observation_unit: str = "object"
+    observation_unit: str = DEFAULT_OBSERVATION_UNIT
+    observation_unit_declared: bool = False
 
     @property
     def observations(self) -> pd.DataFrame:
@@ -110,6 +125,7 @@ def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
 
 
 def _require_columns(table: pd.DataFrame, columns: Sequence[str], table_name: str) -> None:
+    """Raise naming every required column that ``table`` lacks."""
     missing = [column for column in columns if column not in table.columns]
     if missing:
         raise ValueError(f"{table_name} is missing required columns: {missing}")
@@ -146,6 +162,132 @@ def _attach_fov_metadata(
         enriched = enriched.merge(mapping, on=fov_col, how="left", validate="many_to_one")
     return enriched
 
+
+def _within_fov_axes(objects: pd.DataFrame, feature_cols: Sequence[str]) -> list[str]:
+    """The z/c/t-style columns that describe acquisition within a position."""
+    return [
+        column
+        for column in WITHIN_FOV_METADATA_COLUMNS
+        if column in objects.columns and column not in feature_cols
+    ]
+
+
+def _check_within_fov_axes(
+    objects: pd.DataFrame,
+    fov_key: tuple[str, ...],
+    feature_cols: Sequence[str],
+    *,
+    fov_col_was_chosen: bool,
+) -> None:
+    """Refuse FOV identities that would silently count planes, channels or frames as FOVs.
+
+    - A position spread over several ``image_file`` values must say, on every
+      row, which plane/channel/frame each file is (``z``/``c``/``t``), and
+      those values must tell the files apart.
+    - When the FOV column was resolved automatically to a file-level
+      identifier and each FOV holds a single value of a ``z``/``c``/``t``
+      column that varies across FOVs, each "FOV" looks like one plane of a
+      position. The caller must supply ``position_id`` or name ``fov_col``.
+    """
+    key = list(fov_key)
+    fov_col = key[-1]
+    axes = _within_fov_axes(objects, feature_cols)
+    if "image_file" in objects.columns and fov_col != "image_file":
+        files = objects.groupby(key, dropna=False)["image_file"].transform("nunique")
+        split = objects.loc[files > 1]
+        if len(split):
+            if not axes:
+                raise ValueError(
+                    f"a {fov_col!r} maps to multiple image_file values, but no z/c/t "
+                    "metadata says which plane, channel or time point each file is"
+                )
+            if split[axes].isna().all(axis=1).any():
+                raise ValueError(
+                    "rows from a position spread over several files are missing z/c/t "
+                    "metadata; document the within-position coordinate on every row"
+                )
+            per_plane = split.groupby([*key, *axes], dropna=False)["image_file"].nunique()
+            if (per_plane > 1).any():
+                example = per_plane[per_plane > 1].index[0]
+                raise ValueError(
+                    f"z/c/t values {axes} do not tell the files of one position apart "
+                    f"(e.g. {example}); each file must be a distinct plane/channel/frame"
+                )
+    if fov_col_was_chosen and fov_col in ("image_file", "fov_id") and axes:
+        rows_per_fov = objects.groupby(key, dropna=False)[fov_col].transform("size")
+        if (rows_per_fov > 1).any():
+            for axis in axes:
+                per_fov = objects.groupby(key, dropna=False)[axis].nunique(dropna=False)
+                if (per_fov == 1).all() and objects[axis].nunique(dropna=False) > 1:
+                    raise ValueError(
+                        f"every {fov_col!r} holds a single {axis!r} value that varies across "
+                        f"{fov_col!r} values, so each may be one plane/channel/frame of a "
+                        "position rather than a spatial FOV. Supply 'position_id', or pass "
+                        f"fov_col={fov_col!r} explicitly if each really is one position."
+                    )
+
+
+def _check_column_roles(
+    feature_cols: tuple[str, ...], identity_cols: tuple[str, ...], fov_col: str
+) -> None:
+    """Each column plays one role: phenotype feature, group/identity, or FOV identifier."""
+    if not feature_cols:
+        raise ValueError("feature_cols must contain at least one explicitly selected feature")
+    if len(set(feature_cols)) != len(feature_cols):
+        raise ValueError("feature_cols contains duplicate column names")
+    if fov_col in feature_cols:
+        raise ValueError("fov_col cannot also be a phenotype feature")
+    if fov_col in identity_cols:
+        raise ValueError("fov_col cannot also be a group column")
+    overlap = set(feature_cols).intersection(identity_cols)
+    if overlap:
+        raise ValueError(f"group columns cannot also be phenotype features: {sorted(overlap)}")
+
+
+def _check_observation_values(
+    objects: pd.DataFrame, fov_key: tuple[str, ...], feature_cols: tuple[str, ...]
+) -> None:
+    """Identity columns are complete; features are numeric and never infinite (NaN is allowed)."""
+    for column in fov_key:
+        if objects[column].isna().any():
+            kind = "FOV identifiers" if column == fov_key[-1] else "group values"
+            raise ValueError(f"objects[{column!r}] contains missing {kind}")
+    for column in feature_cols:
+        if not pd.api.types.is_numeric_dtype(objects[column]):
+            raise TypeError(f"feature column {column!r} must be numeric")
+        values = objects[column].to_numpy(dtype=float, na_value=np.nan, copy=False)
+        if np.isinf(values).any():
+            raise ValueError(f"feature column {column!r} contains infinite values")
+
+
+def _validated_fov_table(
+    objects: pd.DataFrame, fovs: pd.DataFrame | None, fov_key: tuple[str, ...]
+) -> pd.DataFrame:
+    """The acquisition record: the supplied FOV table, checked, or the FOVs seen in objects.
+
+    Without an FOV table, acquired FOVs with no observations are unknown; with
+    one, every FOV of an observation must be listed exactly once.
+    """
+    key = list(fov_key)
+    if fovs is None:
+        return objects.loc[:, key].drop_duplicates().reset_index(drop=True)
+    _require_columns(fovs, key, "fovs")
+    for column in key:
+        if fovs[column].isna().any():
+            raise ValueError(f"fovs[{column!r}] contains missing values")
+    if fovs.duplicated(key).any():
+        raise ValueError(f"fovs must contain exactly one row per acquired FOV (key: {key})")
+    listed = pd.MultiIndex.from_frame(fovs.loc[:, key])
+    observed = pd.MultiIndex.from_frame(objects.loc[:, key].drop_duplicates())
+    missing = observed.difference(listed)
+    if len(missing):
+        raise ValueError(
+            "objects contains FOV/group combinations that are absent from the "
+            f"supplied fovs table, e.g. {list(missing[:3])}"
+        )
+    return fovs.copy()
+
+
 def validate_input_tables(
     objects: pd.DataFrame,
     *,
@@ -153,7 +295,7 @@ def validate_input_tables(
     fov_col: str | None = None,
     fovs: pd.DataFrame | None = None,
     group_cols: Sequence[str] | None = None,
-    observation_unit: str = "object",
+    observation_unit: str | None = None,
 ) -> ValidatedInput:
     """Validate linked observation/FOV tables using MorphoBricks conventions.
 
@@ -165,6 +307,10 @@ def validate_input_tables(
     feature tables can be loaded. MorphoCoverage never silently imputes or
     removes them; estimators/transforms must define their own missing-data
     behavior. Positive/negative infinity remains invalid.
+
+    ``observation_unit`` says what one row is (``"cell"``, ``"patch"``, ...).
+    When omitted, rows are assumed to be objects and the result records
+    ``observation_unit_declared=False``.
     """
     if not isinstance(objects, pd.DataFrame):
         raise TypeError("objects must be a pandas DataFrame")
@@ -172,96 +318,27 @@ def validate_input_tables(
         raise TypeError("fovs must be a pandas DataFrame when provided")
     if isinstance(feature_cols, str):
         raise TypeError("feature_cols must be a sequence of column names, not a string")
-    observation_unit = normalize_observation_unit(observation_unit)
+    observation_unit, unit_declared = resolve_observation_unit(observation_unit)
 
     explicit_columns = [*(group_cols or ()), *([fov_col] if fov_col is not None else [])]
     check_canonical_spellings(objects, fovs, explicit_columns)
     resolved_fov_col = resolve_fov_col(objects, fovs, fov_col)
     metadata_to_attach = list(MORPHOBRICKS_GROUP_COLUMNS)
     if group_cols is not None:
-        metadata_to_attach.extend(column for column in group_cols if column not in metadata_to_attach)
+        metadata_to_attach.extend(
+            column for column in group_cols if column not in metadata_to_attach
+        )
     objects = _attach_fov_metadata(objects, fovs, resolved_fov_col, metadata_to_attach)
     resolved_group_cols = resolve_group_cols(objects, fovs, group_cols)
     identity_cols = resolve_identity_cols(objects, fovs, resolved_group_cols, resolved_fov_col)
     fov_key = (*identity_cols, resolved_fov_col)
     feature_cols = tuple(feature_cols)
 
-    if not feature_cols:
-        raise ValueError("feature_cols must contain at least one explicitly selected feature")
-    if len(set(feature_cols)) != len(feature_cols):
-        raise ValueError("feature_cols contains duplicate column names")
-    if resolved_fov_col in feature_cols:
-        raise ValueError("fov_col cannot also be a phenotype feature")
-    if resolved_fov_col in identity_cols:
-        raise ValueError("fov_col cannot also be a group column")
-    overlap = set(feature_cols).intersection(identity_cols)
-    if overlap:
-        raise ValueError(f"group columns cannot also be phenotype features: {sorted(overlap)}")
-
+    _check_column_roles(feature_cols, identity_cols, resolved_fov_col)
     _require_columns(objects, [*fov_key, *feature_cols], "objects")
-
-    if resolved_fov_col == "position_id" and "image_file" in objects.columns:
-        file_counts = objects.groupby(list(fov_key), dropna=False)["image_file"].nunique()
-        multi_file_positions = file_counts[file_counts > 1]
-        if len(multi_file_positions):
-            present_axes = [
-                column for column in WITHIN_FOV_METADATA_COLUMNS if column in objects.columns
-            ]
-            if not present_axes:
-                raise ValueError(
-                    "a position_id maps to multiple image_file values, but no z/c/t "
-                    "metadata is present. When one spatial position is split across "
-                    "plane/channel/time files, document the relevant within-FOV axis."
-                )
-            ambiguous_keys = {
-                key if isinstance(key, tuple) else (key,)
-                for key in multi_file_positions.index.tolist()
-            }
-            key_values = list(objects.loc[:, list(fov_key)].itertuples(index=False, name=None))
-            ambiguous_mask = np.fromiter(
-                (key_value in ambiguous_keys for key_value in key_values),
-                dtype=bool,
-                count=len(objects),
-            )
-            if objects.loc[ambiguous_mask, present_axes].isna().all(axis=1).any():
-                raise ValueError(
-                    "rows from a multi-file spatial position are missing z/c/t metadata; "
-                    "document the relevant within-FOV coordinate on every such row."
-                )
-
-    if objects[resolved_fov_col].isna().any():
-        raise ValueError(f"objects[{resolved_fov_col!r}] contains missing FOV identifiers")
-    for column in identity_cols:
-        if objects[column].isna().any():
-            raise ValueError(f"objects[{column!r}] contains missing group values")
-
-    for column in feature_cols:
-        if not pd.api.types.is_numeric_dtype(objects[column]):
-            raise TypeError(f"feature column {column!r} must be numeric")
-        values = objects[column].to_numpy(dtype=float, na_value=np.nan, copy=False)
-        if np.isinf(values).any():
-            raise ValueError(f"feature column {column!r} contains infinite values")
-
-    key = list(fov_key)
-    if fovs is None:
-        validated_fovs = objects.loc[:, key].drop_duplicates().reset_index(drop=True)
-    else:
-        _require_columns(fovs, key, "fovs")
-        validated_fovs = fovs.copy()
-        for column in key:
-            if validated_fovs[column].isna().any():
-                raise ValueError(f"fovs[{column!r}] contains missing values")
-        if validated_fovs.duplicated(key).any():
-            raise ValueError(f"fovs must contain exactly one row per acquired FOV (key: {key})")
-
-        fov_index = pd.MultiIndex.from_frame(validated_fovs.loc[:, key])
-        observation_fov_index = pd.MultiIndex.from_frame(objects.loc[:, key].drop_duplicates())
-        missing_fovs = observation_fov_index.difference(fov_index)
-        if len(missing_fovs):
-            raise ValueError(
-                "objects contains FOV/group combinations that are absent from the "
-                f"supplied fovs table, e.g. {list(missing_fovs[:3])}"
-            )
+    _check_within_fov_axes(objects, fov_key, feature_cols, fov_col_was_chosen=fov_col is None)
+    _check_observation_values(objects, fov_key, feature_cols)
+    validated_fovs = _validated_fov_table(objects, fovs, fov_key)
 
     return ValidatedInput(
         objects=objects.copy(),
@@ -271,4 +348,5 @@ def validate_input_tables(
         group_cols=resolved_group_cols,
         fov_key=fov_key,
         observation_unit=observation_unit,
+        observation_unit_declared=unit_declared,
     )

@@ -50,6 +50,7 @@ class Availability(str, Enum):
 
 
 def _coerce(enum: type[Enum], value: object, name: str) -> Enum:
+    """Convert to ``enum``, naming the allowed values when ``value`` is not one."""
     try:
         return enum(value)
     except ValueError:

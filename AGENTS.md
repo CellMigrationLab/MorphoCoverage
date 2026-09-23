@@ -12,10 +12,10 @@
 | Position | Step 3 of the MorphoBricks pipeline (analysis & applications). It consumes features; it does not extract them. See section 18. |
 | Language | Python 3.11+ |
 | Tests | `pytest` (all tests, including real-data tests on `data/crick_idr`) |
-| Lint | `ruff check src tests data` (ruff pinned in `pyproject.toml`) |
+| Lint | `ruff check src tests data` and `ruff format --check src tests data` (ruff pinned in `pyproject.toml`; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
-Key dependencies: `numpy`, `pandas` (runtime); `pytest`, `ruff` (development). There are deliberately no scipy, scikit-learn or Torch dependencies.
+Key dependencies: `numpy`, `pandas`, `scipy` (runtime); `pytest`, `ruff` (development). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
 
 MorphoCoverage is deliberately independent of CellPatcher, fiberfeatures, Nyxus, CellProfiler, DINO, Torch, microscopy file formats, segmentation tools, and microscope-control software.
 
@@ -59,7 +59,7 @@ Scientific rules:
 - **Permit null results.** Do not optimize validation, examples, or documentation to guarantee that MorphoCoverage outperforms fixed cells/FOVs or scalar precision rules.
 - **FOV/spatial position is the primary acquisition/resampling unit.** Never bootstrap, permute, or sequentially reveal individual objects, z-planes, channels, or time points as independent FOVs. All observations from one position must enter together.
 - **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
-- **Feature rows are generic observations, not necessarily cells.** Record `observation_unit` (for example `cell`, `nucleus`, `patch`, `slice`, `fov_summary`); labels are normalized to lowercase singular form, so `Cells` and `nuclei` mean `cell` and `nucleus`. FOV count and observation count are different quantities. Object/cell-specific scientific rules must not silently reinterpret arbitrary observations as cells.
+- **Feature rows are generic observations, not necessarily cells.** Record `observation_unit` (for example `cell`, `nucleus`, `patch`, `slice`, `fov_summary`); labels are normalized to lowercase singular form, so `Cells` and `nuclei` mean `cell` and `nucleus`. When no unit is given, rows are assumed to be objects and every result records `observation_unit_declared=False`. FOV count and observation count are different quantities. Object/cell-specific scientific rules must not silently reinterpret arbitrary observations as cells.
 - **Missing phenotype values are allowed at the input boundary.** NaN is preserved; infinity is rejected. The framework never silently imputes or drops missing values. Every estimator/transform that uses affected features must state its missing-data behavior explicitly.
 - **Metadata is not phenotype.** Grouping/acquisition columns such as condition, repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`.
 - **Never pool groups silently.** If the caller requests analysis by condition, repeat, or other groups, analyses operate independently within those groups. Pooling must be explicit.
@@ -193,7 +193,9 @@ src/morphocoverage/
 
 tests/
     scenarios.py           # constructed acquisitions for contract tests (section 9)
-    test_contracts.py      # contracts every strategy and the framework must pass
+    contract_registry.py   # every packaged strategy, metric and transform under contract
+    test_contracts.py      # section 9 scenarios: contracts every strategy and the framework pass
+    test_contracts_*.py    # outcome-metric, transform and incremental contracts
     test_<module>.py       # unit tests per module or strategy family
     test_crick_idr.py      # real-data integrity and end-to-end tests
 
@@ -223,7 +225,7 @@ Do not skip directly to a polished `analyze()` API.
 
 Deeply sampled real microscopy datasets are the primary scientific benchmark. Constructed or synthetic data are supporting tools for unit tests, explicit counterexamples, and regression tests after a failure mode is identified; they are not the main evidence that a strategy works.
 
-Constructed data are still required for **contract tests**: acquisitions whose structure is known by construction, used to prove that the framework and every strategy handle that structure correctly. The scenarios below are implemented in `tests/scenarios.py` and exercised by `tests/test_contracts.py`. Each backticked id must have either a fixture or a named framework contract; `test_agents_section_9_matches_contract_tests` fails if this list and the tests drift apart.
+Constructed data are still required for **contract tests**: acquisitions whose structure is known by construction, used to prove that the framework and every strategy handle that structure correctly. The scenarios below are implemented in `tests/scenarios.py` and exercised by `tests/test_contracts.py` (with `test_contracts_*.py` for metrics, transforms and incremental updates; what is under contract is listed in `tests/contract_registry.py`). Each backticked id must have either a fixture or a named framework contract; `test_agents_section_9_matches_contract_tests` fails if this list and the tests drift apart.
 
 Required scenarios:
 
@@ -245,8 +247,8 @@ Required scenarios:
 Rules for these tests:
 
 - Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
-- Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/test_contracts.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-observation FOVs counted as effort) apply to all strategies automatically.
-- An estimator that supports incremental updates (`Estimator.start`) must give, at every step and on every scenario, the same evidence and decisions under `incremental=True` replay as under full recomputation, to floating-point rounding. The incremental-equivalence contract in `tests/test_contracts.py` runs this for every strategy in `STRATEGIES_UNDER_CONTRACT`.
+- Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/contract_registry.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-observation FOVs counted as effort) apply to all strategies automatically.
+- An estimator that supports incremental updates (`Estimator.start`) must give, at every step and on every scenario, the same evidence and decisions under `incremental=True` replay as under full recomputation, to floating-point rounding. The incremental-equivalence contract in `tests/test_contracts_incremental.py` runs this for every strategy in `STRATEGIES_UNDER_CONTRACT`.
 - Every outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
@@ -303,7 +305,8 @@ For substantive code changes, when the environment permits:
 
 ```bash
 pytest
-ruff check src tests
+ruff check src tests data
+ruff format --check src tests data
 ```
 
 Never claim a command passed unless it actually ran successfully.
@@ -431,3 +434,7 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 ### Multidimensional acquisition rule
 
 When feature extraction is performed slice-by-slice or frame-by-frame, retain lowercase `z`, `c`, and/or `t` on observation rows as applicable. All such rows from one spatial acquisition position must share the same `position_id` (or another explicitly supplied `fov_col`). Sequential replay and benchmarking must reveal the whole position atomically. Extra z-planes/channels/time points increase information within a FOV; they do not count as additional sampled positions.
+
+Validation enforces this rather than trusting it:
+- a position spread over several `image_file` values must carry `z`/`c`/`t` values that tell those files apart;
+- when the FOV column was chosen automatically as `image_file` or `fov_id`, and each FOV holds a single value of a `z`/`c`/`t` column that varies across FOVs, validation raises instead of counting planes as FOVs; supply `position_id` or name `fov_col` explicitly.

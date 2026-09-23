@@ -48,7 +48,9 @@ def _cells(raw_dir: Path, prefix: str, image_col: str, well_of, protein: str) ->
     cytoplasm = pd.read_csv(
         raw_dir / f"{prefix}_Cytoplasm.csv",
         usecols=["ImageNumber", "Parent_Nuclei", f"Intensity_MeanIntensity_{protein}"],
-    ).rename(columns={"Parent_Nuclei": "ObjectNumber", f"Intensity_MeanIntensity_{protein}": "cyto"})
+    ).rename(
+        columns={"Parent_Nuclei": "ObjectNumber", f"Intensity_MeanIntensity_{protein}": "cyto"}
+    )
     cells = nuclei.merge(cytoplasm, on=["ImageNumber", "ObjectNumber"], validate="one_to_one")
     cells["metric"] = cells["nuc"] / (cells["nuc"] + cells["cyto"])
     cells = cells.merge(images[["ImageNumber", "well"]], on="ImageNumber", validate="many_to_one")
@@ -109,8 +111,9 @@ def summarize(result: pd.DataFrame) -> pd.DataFrame:
 def main(raw_dir: Path) -> None:
     fetch(raw_dir)
     rng = np.random.default_rng(SEED)
-    cells, images = _cells(raw_dir, "idr0139", "FileName_DNA",
-                           lambda s: s.str.split("_").str[1], "Fascin")
+    cells, images = _cells(
+        raw_dir, "idr0139", "FileName_DNA", lambda s: s.str.split("_").str[1], "Fascin"
+    )
     idr0139 = summarize(compare(cells, images, [1, 2, 3], rng))
     print(f"idr0139 plate {IDR0139_PLATE}, Fascin_Ratio")
     print(idr0139.to_string(float_format="{:.3g}".format))
@@ -118,8 +121,11 @@ def main(raw_dir: Path) -> None:
     results = []
     for plate in IDR0028_PLATES:
         cells, images = _cells(
-            raw_dir, f"idr0028_{plate}", "Metadata_FileLocation",
-            lambda s: s.str.rsplit("/", n=1).str[-1].str.split("-").str[0], "YAPTAZ",
+            raw_dir,
+            f"idr0028_{plate}",
+            "Metadata_FileLocation",
+            lambda s: s.str.rsplit("/", n=1).str[-1].str.split("-").str[0],
+            "YAPTAZ",
         )
         results.append(compare(cells, images, [1, 2, 4, 8, 14], rng).assign(plate=plate))
     idr0028 = summarize(pd.concat(results))

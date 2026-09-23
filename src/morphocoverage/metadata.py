@@ -28,6 +28,7 @@ WITHIN_FOV_METADATA_COLUMNS = ("z", "z0", "z1", "c", "t")
 
 
 def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str, pd.DataFrame]]:
+    """The linked tables present, with the names used in error messages."""
     tables = [("objects", objects)]
     if fovs is not None:
         tables.append(("fovs", fovs))

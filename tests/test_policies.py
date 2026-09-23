@@ -1,6 +1,7 @@
 """Tests for evidence, decision policies, their combination per objective, and config ids."""
 
 import math
+from dataclasses import replace
 
 import pandas as pd
 import pytest
@@ -153,10 +154,7 @@ def test_effort_policy_uses_framework_effort():
 
 def _combined(objective, **values):
     evidence = _evidence(
-        **{
-            name: _quantity(value, component=name.split("_")[0])
-            for name, value in values.items()
-        }
+        **{name: _quantity(value, component=name.split("_")[0]) for name, value in values.items()}
     )
     policies = [ThresholdPolicy(name, 1.0) for name in values]
     return decide(evidence, EFFORT, policies, objective)
@@ -346,3 +344,15 @@ def test_non_serializable_parameters_are_rejected_for_provenance():
 
     with pytest.raises(TypeError, match="JSON-serializable"):
         _ = _Opaque().config_id
+
+
+def test_redecide_refuses_a_result_without_recorded_configuration():
+    [item, *_] = _replay([ScalarPrecisionStrategy("area", 0.05, "fov", "point")])
+    broken = replace(item.result, configuration={})
+    with pytest.raises(ValueError, match="no recorded estimator configuration"):
+        redecide(broken, [ThresholdPolicy("averaging_cv", 0.1)], name="x")
+
+
+def test_legacy_object_effort_is_the_same_rule_as_observation_effort():
+    legacy, canonical = EffortPolicy("n_objects", 5), EffortPolicy("n_observations", 5)
+    assert legacy == canonical and legacy.config_id == canonical.config_id

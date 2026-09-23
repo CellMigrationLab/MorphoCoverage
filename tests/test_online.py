@@ -16,7 +16,7 @@ from morphocoverage import (
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
 
-def _feed_session(scenario, strategies, *, observation_unit="object"):
+def _feed_session(scenario, strategies, *, observation_unit=None):
     session = OnlineSession(
         strategies=strategies,
         feature_cols=list(FEATURE_COLS),
@@ -24,9 +24,7 @@ def _feed_session(scenario, strategies, *, observation_unit="object"):
         observation_unit=observation_unit,
     )
     outputs = []
-    ordered = scenario.fovs.sort_values(
-        ["condition", "repeat", ORDER_COL], kind="stable"
-    )
+    ordered = scenario.fovs.sort_values(["condition", "repeat", ORDER_COL], kind="stable")
     for _, fov in ordered.iterrows():
         mask = pd.Series(True, index=scenario.objects.index)
         for column in ("condition", "repeat", "image_file"):
@@ -237,3 +235,30 @@ def test_online_session_keeps_running_when_a_rule_does_not_fit_the_rows():
     assert object_rule.evidence.quantities["averaging_cv"].availability == "not_applicable"
     assert fov_rule.evidence.quantities["averaging_cv"].availability == "available"
     assert fixed.decision == "stop"
+
+
+@pytest.mark.parametrize(
+    "empty",
+    [pd.DataFrame(), pd.DataFrame(columns=list(FEATURE_COLS))],
+    ids=["no-columns", "untyped-columns"],
+)
+def test_zero_observation_fov_accepts_an_untyped_empty_table(empty):
+    session = OnlineSession(
+        strategies=[FixedFOVStrategy(2)], feature_cols=list(FEATURE_COLS), objective=POPULATION
+    )
+    [first] = session.add_fov(empty, {"fov_id": "F1"})
+    [second] = session.add_fov(
+        pd.DataFrame({"feature_a": [1.0], "feature_b": [2.0]}), {"fov_id": "F2"}
+    )
+    assert (first.n_fovs, first.n_observations) == (1, 0)
+    assert (second.n_fovs, second.n_observations, second.decision) == (2, 1, "stop")
+
+
+def test_incremental_sessions_never_join_the_accumulated_data():
+    # Joining every FOV on every add would make a long session quadratic.
+    scenario = SCENARIOS["homogeneous"]()
+    session, _ = _feed_session(
+        scenario, [ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point")]
+    )
+    [group] = session._groups.values()
+    assert group._visible is None and len(group._parts) == len(scenario.fovs)

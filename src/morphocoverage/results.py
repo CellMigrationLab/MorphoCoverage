@@ -78,7 +78,9 @@ class StrategyResult:
       incrementally). ``runtime_seconds`` is an alias. ``timing`` breaks the
       whole decision down, including framework overhead; see ``Timing``.
     - ``feature_cols``, ``fov_key`` and ``observation_unit`` record the phenotype
-      representation, spatial identity and row semantics; method settings
+      representation, spatial identity and row semantics;
+      ``observation_unit_declared`` is ``False`` when the unit was assumed
+      because the caller did not state it. Method settings
       (preprocessing, metric, thresholds) are in ``parameters`` and
       ``configuration``.
     """
@@ -94,6 +96,7 @@ class StrategyResult:
     n_fovs: int | None = None
     n_observations: int | None = None
     observation_unit: str = "object"
+    observation_unit_declared: bool = False
     group: Mapping[str, Any] = field(default_factory=dict)
     parameters: Mapping[str, Any] = field(default_factory=dict)
     configuration: Mapping[str, Any] = field(default_factory=dict)

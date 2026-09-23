@@ -57,6 +57,7 @@ from functools import lru_cache
 from typing import Any
 
 import numpy as np
+from scipy.stats import chi2
 
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -70,62 +71,15 @@ _SD_ESTIMATES = ("point", "upper_95")
 _MAX_TRUSTED_CV = 0.5
 
 
-def _regularized_lower_gamma(a: float, x: float) -> float:
-    """P(a, x), by series for x < a + 1 and continued fraction otherwise."""
-    if x <= 0:
-        return 0.0
-    log_prefactor = a * math.log(x) - x - math.lgamma(a)
-    if x < a + 1:
-        term = total = 1.0 / a
-        denominator = a
-        for _ in range(10_000):
-            denominator += 1
-            term *= x / denominator
-            total += term
-            if abs(term) < abs(total) * 1e-15:
-                break
-        return total * math.exp(log_prefactor)
-    # Lentz's method for the continued fraction of Q(a, x).
-    tiny = 1e-300
-    b = x + 1 - a
-    c = 1 / tiny
-    d = 1 / b
-    h = d
-    for i in range(1, 10_000):
-        an = -i * (i - a)
-        b += 2
-        d = an * d + b
-        d = tiny if abs(d) < tiny else d
-        c = b + an / c
-        c = tiny if abs(c) < tiny else c
-        d = 1 / d
-        delta = d * c
-        h *= delta
-        if abs(delta - 1) < 1e-15:
-            break
-    return 1.0 - h * math.exp(log_prefactor)
-
-
-def chi2_quantile(probability: float, df: int) -> float:
-    """Lower-tail quantile of the chi-square distribution, by bisection on its CDF."""
-    if not 0 < probability < 1:
-        raise ValueError("probability must be between 0 and 1")
-    if df < 1:
-        raise ValueError("df must be at least 1")
-    low, high = 0.0, max(1.0, df + 20 * math.sqrt(2 * df))
-    for _ in range(100):
-        middle = (low + high) / 2
-        if _regularized_lower_gamma(df / 2, middle / 2) < probability:
-            low = middle
-        else:
-            high = middle
-    return (low + high) / 2
-
-
 @lru_cache(maxsize=4096)
 def sd_upper_bound_factor(df: int, confidence: float = 0.95) -> float:
-    """Factor turning a sample SD into the upper bound of its confidence interval."""
-    return math.sqrt(df / chi2_quantile((1 - confidence) / 2, df))
+    """Factor turning a sample SD into the upper bound of its confidence interval.
+
+    The chi-square bound ``sqrt(df / chi2.ppf((1 - confidence) / 2, df))``.
+    """
+    if df < 1:
+        raise ValueError("df must be at least 1")
+    return math.sqrt(df / chi2.ppf((1 - confidence) / 2, df))
 
 
 def cell_averaging_cv(values: np.ndarray) -> dict[str, float]:
@@ -134,6 +88,7 @@ def cell_averaging_cv(values: np.ndarray) -> dict[str, float]:
 
 
 def _cell_cv_from_moments(n: int, mean: float, sd: float) -> dict[str, float]:
+    """Cell-level and averaging CVs, point and upper-95, from count, mean and SD."""
     cv_cells = sd / mean
     cv_cells_upper = cv_cells * sd_upper_bound_factor(n - 1)
     return {
@@ -191,12 +146,14 @@ _CV_UNITS = "fraction of the mean (CV)"
 
 
 def _cv_quantity(value: float | None, availability: str = "available", reason=None) -> Quantity:
+    """An averaging-CV quantity: population evidence, lower is better, fraction of the mean."""
     return Quantity(
         value, Direction.LOWER_IS_BETTER, _CV_UNITS, Component.POPULATION, availability, reason
     )
 
 
 def _check_configuration(resampling_unit, sd_estimate, pilot_fovs, order_col) -> None:
+    """Validate the settings the estimator and the strategy share."""
     if resampling_unit not in _UNITS:
         raise ValueError(f"resampling_unit must be one of {_UNITS}")
     if sd_estimate not in _SD_ESTIMATES:
@@ -239,7 +196,9 @@ class ScalarPrecisionEstimator(Estimator):
     def __post_init__(self) -> None:
         if not isinstance(self.feature, str):
             raise TypeError("feature must be one column name")
-        _check_configuration(self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col)
+        _check_configuration(
+            self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
+        )
 
     @property
     def name(self) -> str:
@@ -263,6 +222,7 @@ class ScalarPrecisionEstimator(Estimator):
         }
 
     def _suffix(self) -> str:
+        """Diagnostic-key suffix selecting the point or upper-95 SD estimate."""
         return "_upper_95" if self.sd_estimate == "upper_95" else ""
 
     def _precision(self, data: ValidatedInput, fovs) -> dict[str, Any] | tuple[str, str]:
@@ -294,8 +254,7 @@ class ScalarPrecisionEstimator(Estimator):
             return "insufficient_data", "fewer than 2 acquired FOVs or no objects"
         if has_negative:
             return "not_applicable", (
-                "negative values; the CV criterion applies to non-negative "
-                "whole-cell measurements"
+                "negative values; the CV criterion applies to non-negative whole-cell measurements"
             )
         if sums.sum() <= 0:
             return "not_applicable", (
@@ -320,6 +279,7 @@ class ScalarPrecisionEstimator(Estimator):
         return estimate
 
     def _check_order_col(self, fovs) -> None:
+        """With a pilot, the order column must be in the FOV table."""
         if self.pilot_fovs is not None and self.order_col not in fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
@@ -368,6 +328,7 @@ class ScalarPrecisionEstimator(Estimator):
         return Evidence(quantities, diagnostics)
 
     def _projection(self, current, pilot, n_objects, n_fovs, diagnostics) -> Quantity:
+        """Averaging CV the fixed pilot estimate projects for the visible effort."""
         if isinstance(current, tuple) and current[0] == "not_applicable":
             return _cv_quantity(None, *current)
         if n_fovs < self.pilot_fovs:
@@ -439,10 +400,12 @@ class _ScalarPrecisionState(EstimatorState):
         self.fovs: list[_FovSummary] = []
 
     def _precision(self, fovs: list[_FovSummary]):
+        """The estimate from per-FOV summaries, as the full path computes it from values."""
         sums = np.array([fov.total for fov in fovs], dtype=float)
         counts = np.array([fov.count for fov in fovs], dtype=float)
 
         def cells():
+            """Cell-level CVs from the merged moments."""
             n, mean, m2 = _merged_moments(fovs)
             return _cell_cv_from_moments(n, mean, math.sqrt(m2 / (n - 1)))
 
@@ -460,7 +423,9 @@ class _ScalarPrecisionState(EstimatorState):
             mean = float(members.mean()) if len(members) else 0.0
             self.fovs.append(
                 _FovSummary(
-                    order=None if estimator.order_col is None else new.fovs[estimator.order_col].iloc[j],
+                    order=None
+                    if estimator.order_col is None
+                    else new.fovs[estimator.order_col].iloc[j],
                     count=len(members),
                     total=float(members.sum()),
                     mean=mean,
@@ -522,7 +487,9 @@ class ScalarPrecisionStrategy(SamplingStrategy):
             raise TypeError("feature must be one column name")
         if not 0 < self.target_cv < 1:
             raise ValueError("target_cv must be between 0 and 1")
-        _check_configuration(self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col)
+        _check_configuration(
+            self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
+        )
 
     @property
     def name(self) -> str:
@@ -551,7 +518,11 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         """The averaging-CV estimator with this strategy's settings."""
         return (
             ScalarPrecisionEstimator(
-                self.feature, self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
+                self.feature,
+                self.resampling_unit,
+                self.sd_estimate,
+                self.pilot_fovs,
+                self.order_col,
             ),
         )
 

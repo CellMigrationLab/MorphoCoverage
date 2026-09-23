@@ -143,6 +143,7 @@ class FittedTransform:
 
 
 def _floats(values: np.ndarray) -> list:
+    """Plain Python floats (lists), so fitted state is JSON-serializable."""
     return np.asarray(values, dtype=float).tolist()
 
 

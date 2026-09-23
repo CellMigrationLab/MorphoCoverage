@@ -132,9 +132,11 @@ def test_stop_effort_matches_the_first_stop_of_each_group():
         ]
         first = set(group_fovs.nsmallest(3, ORDER_COL)["image_file"])
         objects = scenario.objects
-        expected = objects["condition"].eq(record.group["condition"]) & objects["repeat"].eq(
-            record.group["repeat"]
-        ) & objects["image_file"].isin(first)
+        expected = (
+            objects["condition"].eq(record.group["condition"])
+            & objects["repeat"].eq(record.group["repeat"])
+            & objects["image_file"].isin(first)
+        )
         assert record.n_objects == expected.sum()
 
 
@@ -322,17 +324,13 @@ def test_outcome_features_must_be_explicit():
 def test_metric_config_ids_distinguish_parameters():
     assert RelativeMeanError("a").config_id != RelativeMeanError("b").config_id
     assert RelativeMeanError("a").config_id != RandomCellRelativeError("a").config_id
-    assert (
-        RareStateDetected("x", 1).config_id != RareStateDetected("x", 2).config_id
-    )
+    assert RareStateDetected("x", 1).config_id != RareStateDetected("x", 2).config_id
 
 
 def test_benchmark_input_tables_are_not_modified():
     scenario = SCENARIOS["homogeneous"]()
     objects, fovs = scenario.objects.copy(), scenario.fovs.copy()
-    dataset = BenchmarkDataset(
-        "d", "development", lambda: (objects, fovs), FEATURE_COLS, ORDER_COL
-    )
+    dataset = BenchmarkDataset("d", "development", lambda: (objects, fovs), FEATURE_COLS, ORDER_COL)
     _run(
         BenchmarkRegistry([dataset]),
         "d",
@@ -442,3 +440,11 @@ def test_benchmark_completes_when_a_rule_does_not_fit_the_rows():
     for name in ("scalar_precision_object", "fixed_objects"):
         assert (by_name[name].stopped, by_name[name].final_decision) == (False, None)
     assert by_name["fixed_fov"].stop_step == 2
+
+
+def test_benchmark_records_whether_the_observation_unit_was_declared():
+    assumed = _run(_registry(_dataset("d")), "d")[0]
+    declared = _run(_registry(_dataset("d", observation_unit="cell")), "d")[0]
+    assert (assumed.observation_unit, assumed.observation_unit_declared) == ("object", False)
+    assert (declared.observation_unit, declared.observation_unit_declared) == ("cell", True)
+    assert records_to_frame([assumed])["observation_unit_declared"].tolist() == [False]

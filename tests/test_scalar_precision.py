@@ -18,7 +18,6 @@ from morphocoverage import (
 )
 from morphocoverage.strategies.scalar_precision import (
     cell_averaging_cv,
-    chi2_quantile,
     fov_averaging_cv,
     required_fovs,
     required_objects,
@@ -51,8 +50,10 @@ def _tables(values_per_fov):
     ]
     objects = pd.DataFrame(rows, columns=["image_file", "area"])
     fovs = pd.DataFrame(
-        {"image_file": [f"f{j}.tif" for j in range(len(values_per_fov))],
-         "order": range(1, len(values_per_fov) + 1)}
+        {
+            "image_file": [f"f{j}.tif" for j in range(len(values_per_fov))],
+            "order": range(1, len(values_per_fov) + 1),
+        }
     )
     return objects, fovs
 
@@ -93,19 +94,12 @@ def test_object_unit_stops_exactly_when_averaging_cv_reaches_target():
 
 
 @pytest.mark.parametrize(
-    ("probability", "df", "expected"),
-    [
-        (0.025, 1, 0.000982069),
-        (0.025, 3, 0.215795),
-        (0.025, 9, 2.700389),
-        (0.025, 19, 8.906516),
-        (0.025, 29, 16.047072),
-        (0.975, 19, 32.852327),
-        (0.5, 100, 99.334129),
-    ],
+    ("df", "lower_quantile"),
+    [(1, 0.000982069), (3, 0.215795), (9, 2.700389), (19, 8.906516), (29, 16.047072)],
 )
-def test_chi2_quantile_matches_tables(probability, df, expected):
-    assert chi2_quantile(probability, df) == pytest.approx(expected, rel=1e-5)
+def test_sd_upper_bound_uses_the_chi_square_table(df, lower_quantile):
+    # Printed chi-square 2.5% quantiles; the bound is sqrt(df / quantile).
+    assert sd_upper_bound_factor(df) == pytest.approx(math.sqrt(df / lower_quantile), rel=1e-5)
 
 
 def _cells_with_cv(n, cv):
@@ -201,12 +195,20 @@ def test_spatial_clustering_inflates_only_the_fov_variant():
 def test_neighbour_correlation_scenario_shows_design_effect():
     scenario = SCENARIOS["neighbour_correlation"]()
     objects = scenario.objects.assign(feature_a=scenario.objects["feature_a"] + 20)
-    fov = _evaluate(objects, scenario.fovs, ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
-                    feature_cols=FEATURE_COLS)
+    fov = _evaluate(
+        objects,
+        scenario.fovs,
+        ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
+        feature_cols=FEATURE_COLS,
+    )
     homogeneous = SCENARIOS["homogeneous"]()
     objects_h = homogeneous.objects.assign(feature_a=homogeneous.objects["feature_a"] + 20)
-    fov_h = _evaluate(objects_h, homogeneous.fovs,
-                      ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"), feature_cols=FEATURE_COLS)
+    fov_h = _evaluate(
+        objects_h,
+        homogeneous.fovs,
+        ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
+        feature_cols=FEATURE_COLS,
+    )
     assert fov.diagnostics["design_effect"] > 10
     assert 0.2 < fov_h.diagnostics["design_effect"] < 3
 
@@ -216,10 +218,16 @@ def test_neighbour_correlation_scenario_shows_design_effect():
 
 def test_pilot_plan_is_fixed_by_the_first_fovs_in_acquisition_order():
     objects, fovs = _tables([[1.0, 3.0]] * 2 + [[2.0, 2.0]] * 30)
-    strategy = ScalarPrecisionStrategy("area", 0.1, "object", "point", pilot_fovs=2, order_col="order")
+    strategy = ScalarPrecisionStrategy(
+        "area", 0.1, "object", "point", pilot_fovs=2, order_col="order"
+    )
     results = evaluate_acquisition_prefixes(
-        objects, fovs, strategies=[strategy], feature_cols=["area"],
-        acquisition_order_col="order", objective=POPULATION,
+        objects,
+        fovs,
+        strategies=[strategy],
+        feature_cols=["area"],
+        acquisition_order_col="order",
+        objective=POPULATION,
     )
     # Pilot CV_cells = sd([1,3,1,3]) / 2; required cells fixed from that alone.
     cv_pilot = np.std([1, 3, 1, 3], ddof=1) / 2
@@ -244,10 +252,16 @@ def test_pilot_plan_is_fixed_by_the_first_fovs_in_acquisition_order():
 def test_fov_pilot_stops_when_the_planned_number_of_fovs_is_reached():
     rng = np.random.default_rng(4)
     objects, fovs = _tables([rng.uniform(1, 3, 10) + j % 3 for j in range(40)])
-    strategy = ScalarPrecisionStrategy("area", 0.08, "fov", "point", pilot_fovs=4, order_col="order")
+    strategy = ScalarPrecisionStrategy(
+        "area", 0.08, "fov", "point", pilot_fovs=4, order_col="order"
+    )
     results = evaluate_acquisition_prefixes(
-        objects, fovs, strategies=[strategy], feature_cols=["area"],
-        acquisition_order_col="order", objective=POPULATION,
+        objects,
+        fovs,
+        strategies=[strategy],
+        feature_cols=["area"],
+        acquisition_order_col="order",
+        objective=POPULATION,
     )
     pilot = results[3].result.diagnostics["pilot"]
     planned = required_fovs(pilot["cv_mean"], 4, 0.08)
@@ -258,9 +272,13 @@ def test_fov_pilot_stops_when_the_planned_number_of_fovs_is_reached():
 def test_pilot_uses_order_column_not_row_order():
     objects, fovs = _tables([[2.0, 2.0], [1.0, 3.0], [1.0, 3.0]])
     fovs["order"] = [3, 1, 2]  # the two variable FOVs were acquired first
-    strategy = ScalarPrecisionStrategy("area", 0.05, "object", "point", pilot_fovs=2, order_col="order")
+    strategy = ScalarPrecisionStrategy(
+        "area", 0.05, "object", "point", pilot_fovs=2, order_col="order"
+    )
     result = _evaluate(objects, fovs, strategy)
-    assert result.diagnostics["pilot"]["cv_cells"] == pytest.approx(np.std([1, 3, 1, 3], ddof=1) / 2)
+    assert result.diagnostics["pilot"]["cv_cells"] == pytest.approx(
+        np.std([1, 3, 1, 3], ddof=1) / 2
+    )
 
 
 # --- Undefined cases and input rules --------------------------------------------
@@ -296,7 +314,9 @@ def test_too_little_data_continues():
 def test_pilot_that_cannot_define_the_requirement_gives_no_decision():
     # The pilot is fixed once complete, so a pilot with one object never recovers.
     objects, fovs = _tables([[1.0], [], [2.0, 3.0]])
-    strategy = ScalarPrecisionStrategy("area", 0.05, "object", "point", pilot_fovs=2, order_col="order")
+    strategy = ScalarPrecisionStrategy(
+        "area", 0.05, "object", "point", pilot_fovs=2, order_col="order"
+    )
     result = _evaluate(objects, fovs, strategy)
     assert result.decision is None
     projected = result.evidence.quantities["pilot_projected_averaging_cv"]
@@ -335,7 +355,9 @@ def test_invalid_configuration_is_rejected(kwargs):
 
 
 def test_names_and_parameters_record_the_variant():
-    strategy = ScalarPrecisionStrategy("area", 0.025, "fov", "point", pilot_fovs=3, order_col=ORDER_COL)
+    strategy = ScalarPrecisionStrategy(
+        "area", 0.025, "fov", "point", pilot_fovs=3, order_col=ORDER_COL
+    )
     assert strategy.name == "scalar_precision_fov_pilot"
     upper = ScalarPrecisionStrategy("area", 0.025, "object", "upper_95")
     assert upper.name == "scalar_precision_object_upper95"
@@ -363,8 +385,13 @@ def test_incremental_pilot_follows_the_order_column_not_arrival(unit, sd_estimat
 
     def replay(incremental):
         return evaluate_acquisition_prefixes(
-            objects, fovs, strategies=[strategy], feature_cols=["area"],
-            acquisition_order_col="order", objective=POPULATION, min_fovs=4,
+            objects,
+            fovs,
+            strategies=[strategy],
+            feature_cols=["area"],
+            acquisition_order_col="order",
+            objective=POPULATION,
+            min_fovs=4,
             incremental=incremental,
         )
 
@@ -397,9 +424,7 @@ def test_object_unit_criterion_is_not_applicable_to_non_object_rows():
         feature_cols=["area"],
         observation_unit="slice",
     )
-    estimator = ScalarPrecisionEstimator(
-        "area", "object", "point", pilot_fovs=2, order_col="order"
-    )
+    estimator = ScalarPrecisionEstimator("area", "object", "point", pilot_fovs=2, order_col="order")
     evidence = estimator.estimate(data, objective=POPULATION)
     for quantity in evidence.quantities.values():
         assert quantity.availability == "not_applicable"
@@ -413,8 +438,12 @@ def test_fov_unit_variant_applies_to_any_observation_unit():
     strategy = ScalarPrecisionStrategy("area", 0.05, "fov", "point")
     by_unit = {
         unit: run_strategies(
-            objects, fovs=fovs, strategies=[strategy], feature_cols=["area"],
-            objective=POPULATION, observation_unit=unit,
+            objects,
+            fovs=fovs,
+            strategies=[strategy],
+            feature_cols=["area"],
+            objective=POPULATION,
+            observation_unit=unit,
         )[0]
         for unit in ("slice", "cell")
     }
@@ -426,13 +455,17 @@ def test_fov_unit_variant_applies_to_any_observation_unit():
 def test_non_object_rows_do_not_crash_a_replay(incremental):
     objects, fovs = _tables([[1.0, 2.0], [2.0, 3.0], [3.0, 5.0]])
     results = evaluate_acquisition_prefixes(
-        objects, fovs,
+        objects,
+        fovs,
         strategies=[
             ScalarPrecisionStrategy("area", 0.05, "object", "point"),
             ScalarPrecisionStrategy("area", 0.05, "fov", "point"),
         ],
-        feature_cols=["area"], acquisition_order_col="order", objective=POPULATION,
-        observation_unit="slices", incremental=incremental,
+        feature_cols=["area"],
+        acquisition_order_col="order",
+        objective=POPULATION,
+        observation_unit="slices",
+        incremental=incremental,
     )
     decisions = {r.result.strategy: r.result.decision for r in results if r.step == 3}
     assert decisions["scalar_precision_object"] is None

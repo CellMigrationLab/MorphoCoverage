@@ -67,6 +67,7 @@ def srs_relative_rmse(variance: float, mean: float, n: float, total: float) -> f
 
 
 def _feature(feature: object) -> str:
+    """Require a single column name."""
     if not isinstance(feature, str):
         raise TypeError("feature must be one column name")
     return feature
@@ -189,6 +190,7 @@ class RareStateDetected(OutcomeMetric):
         return {"label_col": self.label_col, "min_fov_occurrences": self.min_fov_occurrences}
 
     def _fovs_with_state(self, data: ValidatedInput) -> int:
+        """Number of FOVs containing at least one observation labelled with the state."""
         if self.label_col not in data.objects.columns:
             raise ValueError(f"label_col {self.label_col!r} is not a column of the object table")
         labels = data.objects[self.label_col]

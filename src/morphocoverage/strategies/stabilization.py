@@ -89,12 +89,74 @@ def _describe_many(samples: np.ndarray, descriptors) -> dict[str, np.ndarray]:
     return {name: available[name] for name in descriptors}
 
 
+# Upper bound on values held at once when resampling whole FOVs.
+_MAX_RESAMPLED_VALUES = 5_000_000
+
+
+def _describe_fov_resamples(
+    grouped: np.ndarray, counts: np.ndarray, draws: np.ndarray, descriptors
+) -> dict[str, np.ndarray]:
+    """Descriptors of each resample of whole FOVs, without a Python loop over resamples.
+
+    ``grouped`` holds the values ordered by FOV, ``counts`` the values per FOV
+    and ``draws`` one row of FOV indices per resample. Each resample is the
+    concatenation of its FOVs' values, as in ``describe``; quantiles use the
+    same linear interpolation as ``np.percentile``. Resamples with fewer than
+    2 values give NaN.
+    """
+    n_resamples = len(draws)
+    starts = np.cumsum(counts) - counts
+    chosen = draws.ravel()
+    lengths = counts[chosen]
+    # Index of every value of every chosen FOV, and the resample it belongs to.
+    offsets = np.repeat(starts[chosen] - (np.cumsum(lengths) - lengths), lengths)
+    members = offsets + np.arange(lengths.sum())
+    values = grouped[members]
+    resample = np.repeat(np.repeat(np.arange(n_resamples), draws.shape[1]), lengths)
+    sizes = np.bincount(resample, minlength=n_resamples)
+    defined = sizes >= 2
+    safe = np.maximum(sizes, 1)
+
+    mean = np.bincount(resample, weights=values, minlength=n_resamples) / safe
+    deviations = np.bincount(
+        resample, weights=(values - mean[resample]) ** 2, minlength=n_resamples
+    )
+    sd = np.sqrt(deviations / np.maximum(sizes - 1, 1))
+
+    # Values sorted within each resample: one integer sort on (resample, value rank).
+    by_value = np.argsort(grouped, kind="stable")
+    rank = np.empty_like(by_value)
+    rank[by_value] = np.arange(len(grouped))
+    keys = np.sort(resample * len(grouped) + rank[members])
+    # A trailing NaN keeps indexing valid for resamples made only of empty FOVs.
+    ordered = np.append(grouped[by_value][keys % max(1, len(grouped))], np.nan)
+    first = np.cumsum(sizes) - sizes
+
+    def quantile(q: float) -> np.ndarray:
+        """Linearly interpolated quantile of every resample (``np.percentile``'s default)."""
+        position = q * (safe - 1)
+        low = np.floor(position).astype(np.int64)
+        high = np.minimum(low + 1, safe - 1)
+        a, b = ordered[first + low], ordered[first + high]
+        return a + (b - a) * (position - low)
+
+    available = {
+        "mean": lambda: mean,
+        "sd": lambda: sd,
+        "median": lambda: quantile(0.5),
+        "iqr": lambda: quantile(0.75) - quantile(0.25),
+    }
+    return {name: np.where(defined, available[name](), np.nan) for name in descriptors}
+
+
 def _check_tolerance(tolerance) -> None:
+    """The tolerance is a positive, finite amount in the feature's units."""
     if not (tolerance > 0 and np.isfinite(tolerance)):
         raise ValueError("tolerance must be positive and finite (in the feature's units)")
 
 
 def _check_common(feature, descriptors) -> None:
+    """One feature, and a non-empty duplicate-free subset of the paper's descriptors."""
     if not isinstance(feature, str):
         raise TypeError("feature must be one column name")
     if not descriptors or any(name not in PAPER_DESCRIPTORS for name in descriptors):
@@ -104,6 +166,7 @@ def _check_common(feature, descriptors) -> None:
 
 
 def _check_plateau(window, order_col) -> None:
+    """A positive integer window and an order column name."""
     if isinstance(window, bool) or not isinstance(window, int) or window < 1:
         raise ValueError("window must be a positive integer number of FOVs")
     if not isinstance(order_col, str):
@@ -111,6 +174,7 @@ def _check_plateau(window, order_col) -> None:
 
 
 def _check_spread(resampling_unit, n_resamples, random_state) -> None:
+    """A known resampling unit, at least 2 resamples and an integer seed."""
     if resampling_unit not in _UNITS:
         raise ValueError(f"resampling_unit must be one of {_UNITS}")
     if isinstance(n_resamples, bool) or not isinstance(n_resamples, int):
@@ -122,6 +186,7 @@ def _check_spread(resampling_unit, n_resamples, random_state) -> None:
 
 
 def _feature_quantity(feature: str, value: float | None, reason: str | None = None) -> Quantity:
+    """A population quantity in the feature's units: a value, or insufficient data with a reason."""
     units = f"units of {feature!r}"
     if reason is not None:
         # More FOVs with objects make the window or resamples computable.
@@ -200,20 +265,19 @@ class DescriptorPlateauEstimator(Estimator):
         growth_points = np.flatnonzero(per_fov) + 1
         states = [
             describe(values[(positions >= 0) & (positions < n_fovs)], self.descriptors)
-            for n_fovs in growth_points[-(self.window + 1):]
+            for n_fovs in growth_points[-(self.window + 1) :]
         ]
 
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
-            "fovs_in_window": [int(n) for n in growth_points[-(self.window + 1):]],
+            "fovs_in_window": [int(n) for n in growth_points[-(self.window + 1) :]],
         }
         reason = None
         if len(states) < self.window + 1:
             reason = f"fewer than {self.window + 1} acquired FOVs with objects"
         else:
             ranges = {
-                name: float(np.ptp([state[name] for state in states]))
-                for name in self.descriptors
+                name: float(np.ptp([state[name] for state in states])) for name in self.descriptors
             }
             diagnostics["window_ranges"] = _reported(ranges)
             if any(np.isnan(value) for value in ranges.values()):
@@ -267,6 +331,7 @@ class DescriptorSpreadEstimator(Estimator):
         }
 
     def _resampled_descriptors(self, data: ValidatedInput) -> dict[str, np.ndarray] | str:
+        """Descriptors of each resample, or the reason resampling is not yet possible."""
         rng = np.random.default_rng(self.random_state)
         values = data.feature_values(self.feature)
         if self.resampling_unit == "object":
@@ -279,13 +344,16 @@ class DescriptorSpreadEstimator(Estimator):
         if k < 2 or len(values) == 0:
             return "fewer than 2 acquired FOVs or no objects"
         positions = fov_positions(data, data.fovs)
-        members = [values[positions == j] for j in range(k)]
-        results: dict[str, list[float]] = {name: [] for name in self.descriptors}
-        for chosen in rng.integers(0, k, size=(self.n_resamples, k)):
-            sample = np.concatenate([members[j] for j in chosen])
-            for name, value in describe(sample, self.descriptors).items():
-                results[name].append(value)
-        return {name: np.asarray(series) for name, series in results.items()}
+        by_fov = np.argsort(positions, kind="stable")  # values grouped by FOV
+        counts = np.bincount(positions, minlength=k)
+        draws = rng.integers(0, k, size=(self.n_resamples, k))
+        # Bound memory: each chunk materializes its resamples' values at once.
+        chunk = max(1, int(_MAX_RESAMPLED_VALUES // max(1, len(values))))
+        parts = [
+            _describe_fov_resamples(values[by_fov], counts, draws[i : i + chunk], self.descriptors)
+            for i in range(0, len(draws), chunk)
+        ]
+        return {name: np.concatenate([part[name] for part in parts]) for name in self.descriptors}
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_spread`` across resamples of the visible data."""

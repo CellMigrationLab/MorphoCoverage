@@ -56,10 +56,7 @@ def test_run_strategies_keeps_morphobricks_groups_separate_by_default():
     groups = {(r.group["condition"], r.group["repeat"]) for r in results}
     assert groups == {("control", "R1"), ("control", "R2"), ("drug", "R1")}
 
-    by_group = {
-        (r.group["condition"], r.group["repeat"]): (r.n_fovs, r.decision)
-        for r in results
-    }
+    by_group = {(r.group["condition"], r.group["repeat"]): (r.n_fovs, r.decision) for r in results}
     assert by_group[("control", "R1")] == (1, "continue")
     assert by_group[("control", "R2")] == (1, "continue")
     assert by_group[("drug", "R1")] == (2, "stop")
@@ -175,3 +172,63 @@ def test_multi_file_position_rejects_rows_missing_axis_metadata():
 
     with pytest.raises(ValueError, match="missing z/c/t"):
         validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+
+
+# --- Planes, channels and frames must never silently become FOVs -------------
+
+
+def _per_plane_files():
+    """Two positions, each saved as one file per z-plane, with no position_id."""
+    return pd.DataFrame(
+        {
+            "image_file": ["p1_z0.tif", "p1_z0.tif", "p1_z1.tif", "p2_z0.tif", "p2_z1.tif"],
+            "z": [0, 0, 1, 0, 1],
+            "area": [1.0, 2.0, 3.0, 4.0, 5.0],
+        }
+    )
+
+
+def test_per_plane_files_are_not_silently_counted_as_fovs():
+    with pytest.raises(ValueError, match="one plane/channel/frame of a position"):
+        validate_input_tables(_per_plane_files(), feature_cols=["area"])
+
+
+def test_per_plane_files_are_accepted_with_position_id_or_an_explicit_fov_col():
+    with_position = _per_plane_files().assign(position_id=["p1", "p1", "p1", "p2", "p2"])
+    assert len(validate_input_tables(with_position, feature_cols=["area"]).fovs) == 2
+    # Naming the column explicitly is the caller's statement that files are positions.
+    explicit = validate_input_tables(
+        _per_plane_files(), feature_cols=["area"], fov_col="image_file"
+    )
+    assert len(explicit.fovs) == 4
+
+
+def test_a_z_stack_per_file_is_one_fov():
+    stacks = pd.DataFrame(
+        {"image_file": ["a.tif", "a.tif", "b.tif", "b.tif"], "z": [0, 1, 0, 1], "area": [1.0] * 4}
+    )
+    assert len(validate_input_tables(stacks, feature_cols=["area"]).fovs) == 2
+
+
+def test_within_position_axes_must_tell_the_files_apart():
+    # Two files of one position both claim z = 0: the axis does not identify them.
+    objects = pd.DataFrame(
+        {
+            "position_id": ["P1"] * 4,
+            "image_file": ["a.tif", "a.tif", "b.tif", "b.tif"],
+            "z": [0, 0, 0, 0],
+            "area": [1.0, 2.0, 3.0, 4.0],
+        }
+    )
+    with pytest.raises(ValueError, match="do not tell the files of one position apart"):
+        validate_input_tables(objects, feature_cols=["area"])
+    objects["z"] = [0, 0, 1, 1]
+    assert len(validate_input_tables(objects, feature_cols=["area"]).fovs) == 1
+
+
+def test_multi_file_check_applies_to_any_fov_column_name():
+    objects = pd.DataFrame(
+        {"pos": ["P1", "P1"], "image_file": ["a.tif", "b.tif"], "area": [1.0, 2.0]}
+    )
+    with pytest.raises(ValueError, match="multiple image_file values"):
+        validate_input_tables(objects, feature_cols=["area"], fov_col="pos")

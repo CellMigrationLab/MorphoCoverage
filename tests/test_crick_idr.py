@@ -110,9 +110,13 @@ def test_well_names_reused_across_plates_stay_distinct(idr0028):
 def test_idr0028_acquisition_order_is_defined_within_each_well(idr0028):
     _, fovs = idr0028
     assert not fovs.duplicated(["repeat", "well", "acquisition_order"]).any()
-    assert fovs.groupby(["repeat", "well"])["acquisition_order"].agg(["min", "max"]).eq(
-        [1, 28]
-    ).all().all()
+    assert (
+        fovs.groupby(["repeat", "well"])["acquisition_order"]
+        .agg(["min", "max"])
+        .eq([1, 28])
+        .all()
+        .all()
+    )
 
 
 def test_all_baselines_replay_on_real_acquisitions(idr0028):
