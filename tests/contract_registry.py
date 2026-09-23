@@ -27,6 +27,7 @@ from morphocoverage import (
     plan_cells_to_average,
     transforms,
 )
+from morphocoverage.strategies import FOVBootstrapStrategy
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 _RARE = RareTarget(
@@ -71,6 +72,8 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     DescriptorSpreadStrategy("feature_a", 0.3, "object", 20, 0),
     DescriptorSpreadStrategy("feature_a", 0.3, "fov", 20, 0),
     PlannedCellCountStrategy(_pilot_plan()),
+    FOVBootstrapStrategy("centroid", 0.05, transforms.Standardize(), 30, 0, 3),
+    FOVBootstrapStrategy("quantiles", 0.1, None, 20, 0, 3, (0.1, 0.5, 0.9)),
 ]
 
 # Every outcome metric added to the package must be added here.

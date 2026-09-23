@@ -6,6 +6,7 @@ from .baselines import (
     FixedObjectStrategy,
     FixedObservationStrategy,
 )
+from .fov_bootstrap import FOVBootstrapEstimator, FOVBootstrapStrategy
 from .jcb_planning import (
     CellCountPlan,
     PlannedCellCountEstimator,
@@ -28,6 +29,8 @@ __all__ = [
     "DescriptorSpreadStrategy",
     "Estimator",
     "EstimatorState",
+    "FOVBootstrapEstimator",
+    "FOVBootstrapStrategy",
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "FixedObservationStrategy",

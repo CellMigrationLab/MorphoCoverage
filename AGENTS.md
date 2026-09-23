@@ -193,6 +193,8 @@ src/morphocoverage/
         baselines.py       # fixed-FOV, generic-observation and legacy object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
+        jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
+        fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
 
 tests/
     scenarios.py           # constructed acquisitions for contract tests (section 9)
