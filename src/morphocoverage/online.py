@@ -51,13 +51,25 @@ class OnlineSession:
         self.strategies = tuple(strategies)
         if not self.strategies:
             raise ValueError("OnlineSession needs at least one strategy")
+        if any(not isinstance(strategy, SamplingStrategy) for strategy in self.strategies):
+            raise TypeError("strategies must contain SamplingStrategy instances")
+        if isinstance(feature_cols, str):
+            raise TypeError("feature_cols must be a sequence of column names, not a string")
         self.feature_cols = tuple(feature_cols)
         if not self.feature_cols:
             raise ValueError("feature_cols must contain at least one feature")
+        if not isinstance(objective, ObjectiveConfig):
+            raise TypeError("objective must be an ObjectiveConfig")
         self.objective = objective
+        if fov_col is not None and not isinstance(fov_col, str):
+            raise TypeError("fov_col must be a column name")
+        if isinstance(group_cols, str):
+            raise TypeError("group_cols must be a sequence of column names, not a string")
         self._requested_fov_col = fov_col
         self._requested_group_cols = None if group_cols is None else tuple(group_cols)
-        self.observation_unit = observation_unit
+        if not isinstance(observation_unit, str) or not observation_unit.strip():
+            raise ValueError("observation_unit must be a non-empty description")
+        self.observation_unit = observation_unit.strip()
         self._resolved_fov_col: str | None = None
         self._resolved_group_cols: tuple[str, ...] | None = None
         self._groups: dict[tuple[object, ...], _GroupSession] = {}
