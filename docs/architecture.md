@@ -39,13 +39,20 @@ The framework follows the shared MorphoBricks metadata conventions:
 - `mask_file`
 - `patch_file`
 
-When the caller does not provide an FOV identifier, `image_file` is preferred and `fov_id` is accepted as a fallback.
+When the caller does not provide an FOV identifier, `image_file` is preferred and `fov_id` is accepted as a fallback. One image file is one FOV, including a z/t/c stack; objects measured on different planes of the same file belong to the same FOV. A candidate column present in only one of the linked tables is an error, never a reason to fall back to the next candidate.
 
-When the caller does not provide grouping columns, `condition` and `repeat` are used automatically when present in both linked tables. This keeps biological/sample groups independent without requiring every strategy to understand those columns.
+When the caller does not provide grouping columns, `condition` and `repeat` are used automatically. This keeps biological/sample groups independent without requiring every strategy to understand those columns. A canonical column present in only one linked table raises instead of silently pooling, and non-canonical spellings such as `Repeat` raise unless named explicitly.
 
-Passing `group_cols=[]` is an explicit request to pool all rows.
+### FOV identity versus analysis grouping
 
-Metadata columns are never inferred as phenotype features.
+Two concepts are kept separate:
+
+- **FOV identity** (`ValidatedInput.fov_key`): the columns that jointly identify one acquired FOV. It always contains the analysis group columns plus any canonical `condition`/`repeat` columns, then the FOV column.
+- **Analysis groups** (`ValidatedInput.group_cols`): which FOVs are evaluated together.
+
+Passing `group_cols=[]` is an explicit request to pool FOVs into one analysis. It does not remove `condition`/`repeat` from FOV identity, so `R1/img_001.tif` and `R2/img_001.tif` remain two FOVs. Strategies that need FOV identity must use `fov_key`, not `fov_col` alone.
+
+Metadata columns are never inferred as phenotype features. Strategies read phenotype values through `ValidatedInput.feature_matrix()`.
 
 ## Strategy contract
 
@@ -60,6 +67,8 @@ class SamplingStrategy:
 ```
 
 A strategy receives one already validated analysis group at a time.
+
+A strategy instance is configuration only. The framework calls `evaluate` on a fresh deep copy for every analysis group and every acquisition prefix, so no fitted state (scaler, PCA, reference sample) can flow between groups or prefixes. `evaluate` is therefore a full recomputation on the visible data. Efficient incremental updates will need an explicit, separately tested state interface; they must not rely on hidden instance state.
 
 A strategy must not:
 
@@ -103,6 +112,8 @@ Every strategy returns the same result structure containing:
 - diagnostics;
 - measured wall-clock runtime.
 
+The number of FOVs, number of objects, group identity and runtime are framework-owned. The framework fills them after the strategy returns; a strategy-supplied count that contradicts the acquisition record raises. `decision` must be `Decision.CONTINUE`, `Decision.STOP` or `None`.
+
 This common contract is what allows many methods to be compared without changing the data pipeline.
 
 ## Sequential real-data evaluation
@@ -117,6 +128,15 @@ The sequential runner reveals a real acquisition prefix at a time while preservi
 - zero-object FOVs.
 
 Each strategy is evaluated using only the prefix available at that step.
+
+Leakage guards enforced by the runner:
+
+- the complete linked tables are validated once, so objects from FOVs missing from the FOV table raise rather than never being revealed;
+- acquisition order must have no ties within an analysis group; a pooled analysis therefore needs an order defined across the pooled FOVs;
+- the acquisition order column cannot be a phenotype feature;
+- visible tables are re-indexed and categorical columns drop unused categories, so neither row labels nor category levels reveal withheld FOVs or other groups.
+
+The runner cannot detect leakage introduced upstream, such as features normalized or projected over the whole dataset before they reach MorphoCoverage. That must be recorded as provenance.
 
 The framework deliberately keeps strategy execution separate from the later benchmark outcome calculation so a method is not rewarded by being judged only with its own internal metric.
 
@@ -154,3 +174,5 @@ Examples of future families include:
 - predictive or conformal approaches.
 
 A new method should not require changes to MorphoBricks metadata handling or group separation unless the data contract itself genuinely changes.
+
+See [`morphobricks_fov_contract.md`](morphobricks_fov_contract.md) for what upstream MorphoBricks tools must emit for FOV identity to be correct.

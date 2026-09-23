@@ -11,7 +11,15 @@ from ..schema import ValidatedInput
 
 
 class SamplingStrategy(ABC):
-    """Interface implemented by every sampling/completeness strategy."""
+    """Interface implemented by every sampling/completeness strategy.
+
+    A strategy instance is configuration only. The framework calls ``evaluate``
+    on a fresh deep copy for every analysis group and acquisition prefix, so
+    state stored on the instance never carries between calls. ``evaluate``
+    receives one resolved analysis group; it must use only the rows it is
+    given and should leave framework-owned result fields (counts, group,
+    runtime) unset.
+    """
 
     name: str
 

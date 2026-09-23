@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..objectives import ObjectiveConfig
-from ..results import StrategyResult
+from ..results import Decision, StrategyResult
 from ..schema import ValidatedInput
 from .base import SamplingStrategy
 
@@ -36,9 +36,7 @@ class FixedFOVStrategy(SamplingStrategy):
             strategy=self.name,
             objective=objective,
             score=float(n_fovs),
-            decision="stop" if n_fovs >= self.target_fovs else "continue",
-            n_fovs=n_fovs,
-            n_objects=len(data.objects),
+            decision=Decision.STOP if n_fovs >= self.target_fovs else Decision.CONTINUE,
             diagnostics={"target_fovs": self.target_fovs},
             parameters=self.parameters,
         )
@@ -65,9 +63,9 @@ class FixedObjectStrategy(SamplingStrategy):
             strategy=self.name,
             objective=objective,
             score=float(n_objects),
-            decision="stop" if n_objects >= self.target_objects else "continue",
-            n_fovs=len(data.fovs),
-            n_objects=n_objects,
+            decision=(
+                Decision.STOP if n_objects >= self.target_objects else Decision.CONTINUE
+            ),
             diagnostics={"target_objects": self.target_objects},
             parameters=self.parameters,
         )

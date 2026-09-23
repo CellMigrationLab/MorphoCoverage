@@ -32,8 +32,9 @@ def test_sequential_runner_exposes_only_acquired_fovs():
     )
 
     assert [item.step for item in results] == [1, 2, 3]
-    assert results[0].acquired_fov_ids == ("F1",)
-    assert results[1].acquired_fov_ids == ("F1", "F2")
+    assert results[0].fov_key == ("fov_id",)
+    assert results[0].acquired_fovs == (("F1",),)
+    assert results[1].acquired_fovs == (("F1",), ("F2",))
     assert results[0].result.n_objects == 1
     assert results[1].result.n_objects == 3
     assert [item.result.decision for item in results] == [

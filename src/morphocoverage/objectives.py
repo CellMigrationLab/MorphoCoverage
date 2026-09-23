@@ -33,6 +33,16 @@ class ObjectiveConfig:
             SamplingObjective.RARE_DISCOVERY,
             SamplingObjective.BALANCED,
         }
+        rare_fields = (
+            self.rare_prevalence,
+            self.target_detection_probability,
+            self.min_fov_occurrences,
+        )
+        if not needs_rare_target and any(value is not None for value in rare_fields):
+            raise ValueError(
+                "rare-state targets were given for a population objective; use "
+                "rare_discovery or balanced so the rare target is not silently ignored"
+            )
         if needs_rare_target and self.rare_prevalence is None:
             raise ValueError(
                 "rare_prevalence is required for rare_discovery and balanced objectives"
@@ -44,5 +54,10 @@ class ObjectiveConfig:
             and not 0 < self.target_detection_probability < 1
         ):
             raise ValueError("target_detection_probability must be between 0 and 1")
+        if self.min_fov_occurrences is not None and (
+            isinstance(self.min_fov_occurrences, bool)
+            or not isinstance(self.min_fov_occurrences, int)
+        ):
+            raise TypeError("min_fov_occurrences must be an integer count of FOVs")
         if self.min_fov_occurrences is not None and self.min_fov_occurrences < 1:
             raise ValueError("min_fov_occurrences must be at least 1")

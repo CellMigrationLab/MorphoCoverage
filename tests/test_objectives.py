@@ -31,3 +31,18 @@ def test_rare_prevalence_must_be_probability(value):
             objective=SamplingObjective.RARE_DISCOVERY,
             rare_prevalence=value,
         )
+
+
+def test_population_objective_rejects_rare_targets():
+    with pytest.raises(ValueError, match="population objective"):
+        ObjectiveConfig(SamplingObjective.POPULATION, rare_prevalence=0.01)
+
+
+@pytest.mark.parametrize("value", [2.5, True])
+def test_min_fov_occurrences_must_be_integer(value):
+    with pytest.raises(TypeError, match="integer"):
+        ObjectiveConfig(
+            SamplingObjective.RARE_DISCOVERY,
+            rare_prevalence=0.01,
+            min_fov_occurrences=value,
+        )
