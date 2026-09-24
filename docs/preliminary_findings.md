@@ -103,3 +103,66 @@ Errors are relative RMSE of the well mean, as medians across wells. Every number
 
 The data used are described in `data/crick_idr/README.md`. The complete plates
 are downloaded by the script; only the paper's wells are committed.
+
+## 2. Positive control: does "something new in the next FOV" find a phenotype that is there? (2026-09-24)
+
+**Question.** The sufficiency report estimates the chance that one more FOV
+shows something new. Calibration checks that estimate against the data it came
+from, but a homogeneous well cannot show whether a real, different phenotype
+would be caught. Here the truth is known by construction.
+
+**Method** (`data/crick_idr/positive_control.py`, committed idr0028 subset,
+fixed seed). For each plate, the MOCK well is the host. `k` host FOVs are drawn
+at random (20 draws for each `k`), and candidate next FOVs are judged against
+them with the report's definition of new: 30 standardized intensity features,
+fitted on the `k` FOVs only; a cluster of at least `m` unsupported cells, where
+another FOV supports a cell only with at least `m` of its own cells within
+`epsilon`. Candidates:
+
+- the host's remaining FOVs (nothing new by construction: the false-alarm rate);
+- every FOV of a knockdown well on the same plate (siYAP, siLATS1 or siARAP2);
+- a remaining host FOV with 3, 5 or 10 cells of a knockdown FOV added.
+
+Rates at `epsilon = sqrt(30)` and `m = 3`, pooled over the three plates and
+both knockdown wells of each (tracked in
+`data/crick_idr/results/positive_control_idr0028.csv`):
+
+| FOVs seen | host (false alarm) | whole siYAP FOV | whole siLATS1 FOV | whole siARAP2 FOV | host + 3 siYAP cells | host + 10 siLATS1 cells | host + 10 siARAP2 cells |
+|---|---|---|---|---|---|---|---|
+| 5 | 5.0% | 100% | 65% | 19% | 94% | 16% | 8% |
+| 10 | 2.4% | 100% | 53% | 9% | 94% | 10% | 5% |
+| 20 | 0.8% | 100% | 39% | 8% | 95% | 4% | 3% |
+
+**What this shows**
+
+- **A strongly different phenotype is found, even as 3 cells.** Three siYAP
+  cells added to a host FOV make it count as new in about 95% of cases, at a
+  false-alarm rate of 1–5%.
+- **Detection depends on the representation, not on the readout the biologist
+  reports.** siLATS1 shifts the YAP/TAZ nuclear ratio further than siYAP
+  (+1.4 versus −1.1 SD of the MOCK cells), yet whole siLATS1 fields count as new only 39–65% of
+  the time and 10 siLATS1 cells barely beat the false-alarm rate. The 30
+  intensity features separate siYAP far more than a
+  change in localization, presumably because siYAP lowers YAP/TAZ intensity
+  in every compartment. A method is only as sensitive as its features.
+- **Weak phenotypes are not distinguished.** siARAP2 fields sit close to the
+  false-alarm rate, as expected for a 0.3–0.5 SD shift.
+- **The definition matters more than the statistics.** At `epsilon = 0.5 sqrt(30)`
+  or with `m = 1`, 22–100% of host FOVs count as new: everything looks new, so
+  nothing is informative. `m = 3` at `epsilon = sqrt(30)` was the only setting
+  tried with both a low false-alarm rate and full detection of siYAP.
+- **Seeing more FOVs lowers false alarms and also lowers detection of moderate
+  phenotypes** (siLATS1 65% to 39%): with more FOVs, some host cells resemble
+  the knockdown cells and support them.
+
+**What this does not show**
+
+- **Semi-synthetic.** Knockdown cells added to a host FOV were imaged in other
+  fields, so the rare-cell case approximates a rare state rather than measuring
+  one. The labels are conditions, not verified phenotypes.
+- **One dataset and one representation.** Only idr0028 intensity features were
+  used; the tuned setting (`epsilon`, `m`) was chosen here and is not validated
+  on held-out data.
+- **Single candidates, not stopping.** This measures whether one next FOV is
+  judged new. It does not yet test whether the probability and bound of the
+  report are right when a rare phenotype occurs in a given fraction of FOVs.
