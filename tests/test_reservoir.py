@@ -46,7 +46,7 @@ def test_split_is_a_seeded_partition_of_the_group():
     stream, held = ReservoirSplit(0.3, 1, None).split(group, data)
     assert _keys(stream) | _keys(held) == _keys(data)
     assert not _keys(stream) & _keys(held)
-    assert len(held.fovs) == 6  # ceil(0.3 * 20), single-FOV blocks fit exactly
+    assert len(held.fovs) == 6  # ceil(0.3 * 20) single-FOV blocks
     assert len(stream.objects) + len(held.objects) == len(data.objects)
     again = ReservoirSplit(0.3, 1, None).split(group, data)[1]
     assert _keys(again) == _keys(held)
@@ -74,24 +74,40 @@ def test_groups_get_their_own_split_from_the_same_seed():
     assert len(set(positions)) > 1
 
 
-def test_one_large_block_cannot_swallow_the_stream():
-    # Regression: blocks of 90, 5 and 5 FOVs with fraction 0.1 used to put the
-    # 90-FOV block in the reservoir for most seeds. The reservoir now never
-    # exceeds ceil(fraction * n) and here always takes the two small blocks.
-    built = SCENARIOS["homogeneous"]()
-    objects = pd.concat(
-        [built.objects.assign(image_file=f"r{i}_" + built.objects.image_file) for i in range(5)]
+def test_blocks_are_held_out_with_equal_probability_whatever_their_size():
+    # Regression (external audit): skipping blocks that would overshoot a
+    # FOV-count cap never held out an 8-FOV block next to a 2-FOV block, so the
+    # "reference" was always the small block, here also the one with a
+    # different phenotype. Every block must have the same inclusion chance.
+    fovs = pd.DataFrame(
+        {"image_file": [f"f{i}" for i in range(10)], "block": ["big"] * 8 + ["small"] * 2}
     )
-    fovs = pd.concat(
-        [built.fovs.assign(image_file=f"r{i}_" + built.fovs.image_file) for i in range(5)]
+    objects = pd.DataFrame({"image_file": fovs["image_file"], "x": [0.0] * 8 + [10.0] * 2})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+    held_big = [
+        set(ReservoirSplit(0.5, seed, "block").split({}, data)[1].fovs["block"]) == {"big"}
+        for seed in range(200)
+    ]
+    assert 0.4 < np.mean(held_big) < 0.6
+
+
+def test_every_fov_has_the_same_inclusion_probability_with_unequal_blocks():
+    # Blocks of 1 to 6 FOVs whose phenotype grows with block size: a
+    # size-dependent rule would bias the reservoir's mean.
+    sizes = [1, 1, 2, 2, 3, 4, 5, 6]
+    block = np.repeat(np.arange(len(sizes)), sizes)
+    fovs = pd.DataFrame({"image_file": [f"f{i}" for i in range(len(block))], "block": block})
+    objects = pd.DataFrame(
+        {"image_file": fovs["image_file"], "x": np.repeat(np.array(sizes, float), sizes)}
     )
-    blocks = np.array(["big"] * 90 + ["a"] * 5 + ["b"] * 5)
-    data = validate_input_tables(
-        objects, fovs=fovs.assign(block=blocks), feature_cols=list(FEATURE_COLS)
-    )
-    for seed in range(6):
-        held = ReservoirSplit(0.1, seed, "block").split({}, data)[1]
-        assert len(held.fovs) == 10 and set(held.fovs["block"]) == {"a", "b"}
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+    counts = pd.Series(0, index=fovs["image_file"])
+    runs = 2000
+    for seed in range(runs):
+        held = ReservoirSplit(0.25, seed, "block").split({}, data)[1]
+        assert held.fovs["block"].nunique() == 2  # ceil(0.25 * 8) blocks
+        counts[held.fovs["image_file"]] += 1
+    assert np.allclose(counts / runs, 2 / 8, atol=0.04)
 
 
 def test_groups_too_small_to_split_are_refused():

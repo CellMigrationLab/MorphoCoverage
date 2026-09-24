@@ -11,6 +11,13 @@ accumulate even when no information is gained. The energy distance and MMD
 here are therefore the unbiased U-statistic estimates, which can be slightly
 negative when the two distributions are equal. The Fréchet distance uses
 plug-in means and covariances and remains biased upward for small samples.
+
+"Unbiased" assumes independent observations within each sample (Gretton et
+al. 2012, eq. 3). Cells of one FOV are usually correlated, and duplicated
+observations are not independent, so on microscopy data the within-sample
+terms, and hence the estimates, can still depend on how many observations
+come from each FOV. Treating whole FOVs as the unit is the caller's job, for
+example by comparing at matched FOV and observation counts.
 """
 
 from __future__ import annotations
@@ -99,12 +106,17 @@ def sliced_wasserstein(x: np.ndarray, y: np.ndarray, directions: np.ndarray) -> 
     """Mean 1-Wasserstein distance between the samples projected onto each direction.
 
     Uses ``scipy.stats.wasserstein_distance`` for each one-dimensional
-    projection; ``directions`` is ``(n_projections, n_features)``.
+    projection; ``directions`` is ``(n_projections, n_features)`` of unit
+    vectors (Rabin et al. 2011), as ``random_directions`` returns. Other
+    lengths would rescale the distance, and a zero vector would hide any
+    difference, so they are refused.
     """
     x, y = _pair(x, y, 1)
     directions = np.asarray(directions, dtype=float)
-    if directions.ndim != 2 or directions.shape[1] != x.shape[1]:
-        raise ValueError("directions must be (n_projections, n_features)")
+    if directions.ndim != 2 or directions.shape[1] != x.shape[1] or not len(directions):
+        raise ValueError("directions must be a non-empty (n_projections, n_features) array")
+    if not np.allclose(np.linalg.norm(directions, axis=1), 1.0):
+        raise ValueError("directions must be unit vectors")
     px, py = x @ directions.T, y @ directions.T
     return float(
         np.mean([stats.wasserstein_distance(px[:, j], py[:, j]) for j in range(len(directions))])

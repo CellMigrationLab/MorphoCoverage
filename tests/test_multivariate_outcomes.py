@@ -221,3 +221,45 @@ def test_infinite_bandwidth_is_refused():
         distances.mmd_squared(_normal(5), _normal(5), float("inf"))
     with pytest.raises(ValueError):
         MMDError(FEATURES, True, None, 0, float("inf"))
+
+
+@pytest.mark.parametrize("directions", [[[2.0, 0.0]], [[0.0, 0.0]], np.empty((0, 2))])
+def test_sliced_wasserstein_requires_unit_directions(directions):
+    # Regression (external audit): a doubled direction doubled the distance
+    # and a zero direction made separated samples look identical.
+    x = np.array([[0.0, 0.0], [1.0, 0.0]])
+    with pytest.raises(ValueError):
+        distances.sliced_wasserstein(x, x + 10, np.asarray(directions))
+
+
+def test_outcomes_weight_fovs_by_their_observations():
+    # Accepted, documented behaviour: a stop missing a sparse FOV with a
+    # different phenotype barely registers, because FOVs count by their cells.
+    # 1,000 cells at 0 in one FOV and one cell at 10 in another.
+    values = np.zeros((1001, 2))
+    values[-1] = 10.0
+    objects = pd.DataFrame(values, columns=list(FEATURES))
+    objects["image_file"] = ["dense.tif"] * 1000 + ["sparse.tif"]
+    full = validate_input_tables(objects, feature_cols=list(FEATURES))
+    stop = validate_input_tables(objects.iloc[:1000], feature_cols=list(FEATURES))
+    assert CentroidError(FEATURES, False).evaluate(full, stop) == pytest.approx(10 / 1001)
+    # Equal FOV weights would put the reference centroid at 5, not near 0.
+    fov_means = objects.groupby("image_file")[list(FEATURES)].mean()
+    assert fov_means.mean().to_numpy() == pytest.approx([5.0, 5.0])
+
+
+@pytest.mark.parametrize(
+    "metric", [EnergyError(FEATURES, False, None, 0), MMDError(FEATURES, False, None, 0, 1.0)]
+)
+def test_u_statistics_are_biased_down_when_the_reference_contains_the_stop(metric):
+    # The default reference, the full acquisition, contains the stop: identical
+    # observations in the cross term pull the statistic below zero on average,
+    # whereas against disjoint samples of the same distribution it averages zero.
+    nested, disjoint = [], []
+    for seed in range(40):
+        values = _normal(300, seed=seed)
+        full, stop = _data(values), _data(values[:60])
+        nested.append(metric.evaluate(full, stop))
+        disjoint.append(metric.evaluate(_data(values[60:]), stop))
+    assert np.mean(nested) < 0
+    assert np.mean(nested) < np.mean(disjoint)
