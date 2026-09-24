@@ -13,7 +13,15 @@ observation table and the FOV table of every acquired position:
    ``novelty`` definition is given) The estimated chance that one more
    representative FOV shows a phenotype not seen in the other FOVs, with an
    upper confidence bound, and how many more FOVs would be needed before the
-   bound could fall below ``novelty_target``. ``new_observations`` lists the
+   bound could fall below ``novelty_target``. It also says what the FOVs rule
+   out: a state not yet seen in any of ``k`` representative FOVs is present in
+   at most ``1 - (1 - confidence) ** (1 / k)`` of FOVs, about ``3 / k`` at 95%
+   (``unseen_state_max_frequency``), with the extra FOVs needed to rule out
+   states above ``novelty_target``. A small chance for the next FOV is not
+   evidence that no rare state remains: in the idr0028 frequency control
+   (``docs/preliminary_findings.md``, entry 3) stopping at a 25% bound after 11
+   FOVs missed a state in 5% of FOVs in almost half the acquisitions that had
+   it. ``new_observations`` lists the
    observations counted as new so they can be inspected in the images, and
    ``calibration`` (optional) checks the prediction against this dataset by
    shuffling (``morphocoverage.calibration``).
@@ -60,7 +68,7 @@ from .benchmark import (
     records_to_frame,
     run_benchmark,
 )
-from .bounds import extra_trials_for_bound
+from .bounds import extra_trials_for_bound, upper_bound
 from .calibration import calibrate_next_fov_novelty
 from .evaluator import iter_analysis_groups
 from .evidence import Availability, Direction
@@ -296,9 +304,25 @@ def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | N
         f"with {confidence} confidence); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
         "showed something the others did not."
     )
-    lines = [chance]
+    unseen = (
+        f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
+        f"{_percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
+        f"3 / {row['fovs_imaged']}), if FOVs are representative. Rarer states can remain."
+    )
+    lines = [chance, unseen]
     if target is not None:
-        goal = f"To claim below {_percent(target)} with {confidence} confidence"
+        extra = row["extra_fovs_to_rule_out_target"]
+        rule_out = f"To rule out unseen states in more than {_percent(target)} of FOVs"
+        lines.append(
+            f"{rule_out}: already reached."
+            if extra == 0
+            else f"{rule_out}: at least {_more_fovs(extra)} with nothing new."
+        )
+    if target is not None:
+        goal = (
+            f"To claim the chance for the next FOV is below {_percent(target)} "
+            f"with {confidence} confidence"
+        )
         if row["chance_new_at_most"] <= target:
             lines.append(f"{goal}: already reached.")
         else:
@@ -337,6 +361,8 @@ def _next_fov_tables(data, novelty, target):
                 dict.fromkeys(("fovs_with_new", "chance_new", "chance_new_at_most"), None),
                 extra_fovs_if_nothing_new=None,
                 extra_fovs_at_current_rate=None,
+                unseen_state_max_frequency=None,
+                extra_fovs_to_rule_out_target=None,
                 reason=chance.reason,
             )
             rows.append(row)
@@ -361,6 +387,15 @@ def _next_fov_tables(data, novelty, target):
                     new_fovs, k, target, novelty.confidence, keep_rate=keep_rate
                 )
             )
+        # A state absent from all k FOVs has a per-FOV frequency below the
+        # zero-success bound 1 - (1 - confidence) ** (1 / k), about 3 / k at
+        # 95%, whatever else was new (rule of three).
+        row["unseen_state_max_frequency"] = upper_bound(0, k, novelty.confidence)
+        row["extra_fovs_to_rule_out_target"] = (
+            None
+            if target is None
+            else extra_trials_for_bound(0, k, target, novelty.confidence, keep_rate=False)
+        )
         rows.append(row)
         # Only the cells of new states, so scattered outliers stay out when
         # several similar new cells are required.
@@ -370,7 +405,13 @@ def _next_fov_tables(data, novelty, target):
             flagged.append(group_data.objects.loc[counted, keep])
     new_observations = pd.concat(flagged, ignore_index=True) if flagged else pd.DataFrame()
     table = pd.DataFrame(rows)
-    for column in ("fovs_with_new", "extra_fovs_if_nothing_new", "extra_fovs_at_current_rate"):
+    counts = (
+        "fovs_with_new",
+        "extra_fovs_if_nothing_new",
+        "extra_fovs_at_current_rate",
+        "extra_fovs_to_rule_out_target",
+    )
+    for column in counts:
         table[column] = table[column].astype("Int64")  # counts, missing as <NA>
     return table, new_observations
 

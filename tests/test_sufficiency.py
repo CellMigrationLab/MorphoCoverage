@@ -209,3 +209,23 @@ def test_inconsistent_questions_are_refused(kwargs):
             orders=PERMUTED,
             **settings,
         )
+
+
+def test_the_report_states_what_the_fovs_rule_out():
+    # Rule of three: a state absent from all k FOVs is in at most
+    # 1 - 0.05 ** (1 / k) of FOVs at 95%, whatever else was new (entry 3 of
+    # docs/preliminary_findings.md shows why this must be said explicitly).
+    report = _novelty_report(novelty_target=0.2)
+    row = report.next_fov.iloc[0]
+    assert row["unseen_state_max_frequency"] == pytest.approx(1 - 0.05 ** (1 / 13))
+    needed = int(row["extra_fovs_to_rule_out_target"])
+    assert upper_bound(0, 13 + needed, 0.95) <= 0.2 < upper_bound(0, 12 + needed, 0.95)
+    text = report.summary()
+    assert "is in at most 21% of FOVs (95% confidence, about 3 / 13)" in text
+    assert "Rarer states can remain." in text
+    assert "To rule out unseen states in more than 20% of FOVs: at least 1 more FOV" in text
+    assert "To claim the chance for the next FOV is below 20%" in text
+    # Without a target the statement is still made, without the extra FOVs.
+    plain = _novelty_report()
+    assert pd.isna(plain.next_fov["extra_fovs_to_rule_out_target"].iloc[0])
+    assert "Not yet seen:" in plain.summary() and "To rule out" not in plain.summary()
