@@ -70,16 +70,23 @@ questions:
 
 - **First apparent adequacy:** the first evaluated prefix at which the
   criterion says stop, what a live acquisition would have done.
-- **Sustained apparent adequacy:** the earliest prefix after which every
-  subsequent evaluated prefix satisfies the criterion (one past the last
-  continue). A criterion can say stop at FOV 16, stay satisfied to FOV 23, and
-  continue again when a new phenotype arrives at FOV 24; its sustained
-  adequacy is then at 25 or later, not 16. Both apparent notions use only the
-  estimator's decisions.
-- **Realized adequacy:** the earliest prefix whose outcomes on hidden FOVs
-  are within the declared tolerances. It uses only strategy-independent
-  outcome metrics, never the estimator's decision, so the two are never
-  mixed.
+- **Sustained apparent adequacy:** the earliest prefix from which every
+  subsequent evaluated decision is stop (an undefined decision breaks it, as a
+  continue does). A criterion can say stop at FOV 16, stay satisfied to FOV 23,
+  and continue again when a new phenotype arrives at FOV 24; its sustained
+  adequacy is then at 25 or later, not 16.
+- **First and sustained realized adequacy:** the first prefix whose outcomes
+  on hidden FOVs are within the declared tolerances, and the earliest prefix
+  from which every later prefix stays within them. Hidden-FOV outcomes can
+  also cross and uncross, so the sustained version answers "how many FOVs did
+  this experiment really require?".
+
+The apparent points use only the estimator's decisions; the realized points
+use only strategy-independent outcome metrics. They are never mixed.
+"How many FOVs?" (the share of random `k`-FOV sets that preserve the hidden
+FOVs, no stopping rule involved) and "does this stopping rule work?" (how often
+its stops are premature along acquisition orders) are separate analyses; see
+the roadmap, `docs/proposals/microscopist_report_roadmap.md`.
 
 Spatial heterogeneity is **not** an adequacy heading yet. The semivariogram,
 block bootstrap and order comparisons describe spatial correlation, not
