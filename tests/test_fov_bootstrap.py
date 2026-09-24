@@ -324,3 +324,55 @@ def test_covariance_summaries_do_not_depend_on_a_location_shift(summary, r):
     base = _estimate(_fov_table(values, per_fov=50), summary, n_components=r)
     shifted = _estimate(_fov_table(values + 1e8, per_fov=50), summary, n_components=r)
     assert shifted.value == pytest.approx(base.value, rel=1e-6)
+
+
+@pytest.mark.parametrize("summary, r", [("eigenspectrum", None), ("subspace", 1)])
+def test_resamples_without_spread_make_pca_summaries_undefined(summary, r):
+    # Regression (external audit): two one-cell FOVs. About half the resamples
+    # repeat one FOV and have no spread. Leaving them out reported an
+    # eigenspectrum SE of exactly 0, and the subspace took an arbitrary basis.
+    objects = pd.DataFrame({"image_file": ["f0", "f1"], "a": [0.0, 1.0], "b": [0.0, 0.0]})
+    data = validate_input_tables(objects, feature_cols=["a", "b"])
+    estimator = FOVBootstrapEstimator(summary, None, 500, 0, 2, None, r)
+    evidence = estimator.estimate(data, objective=POPULATION)
+    [quantity] = evidence.quantities.values()
+    assert quantity.availability.value == "insufficient_data"
+    assert "too little spread" in quantity.reason
+    assert 150 < evidence.diagnostics["degenerate_resamples"] < 350
+
+
+def test_a_subspace_needs_spread_in_every_leading_direction():
+    # Cells spread along one axis only: a 2-dimensional leading subspace has a
+    # zero eigenvalue, so its second direction would be arbitrary.
+    rng = np.random.default_rng(3)
+    rows = [(f"f{j}", x, 0.0, 0.0) for j in range(6) for x in rng.normal(size=10)]
+    objects = pd.DataFrame(rows, columns=["image_file", "a", "b", "c"])
+    data = validate_input_tables(objects, feature_cols=["a", "b", "c"])
+    one = FOVBootstrapEstimator("subspace", None, 50, 0, 2, None, 1).estimate(
+        data, objective=POPULATION
+    )
+    two = FOVBootstrapEstimator("subspace", None, 50, 0, 2, None, 2).estimate(
+        data, objective=POPULATION
+    )
+    assert one.quantities["fov_bootstrap_subspace_angle"].availability.value == "available"
+    assert two.quantities["fov_bootstrap_subspace_angle"].availability.value == (
+        "insufficient_data"
+    )
+
+
+def test_unequal_blocks_resample_as_clusters_and_report_their_sizes():
+    # Documented behaviour (external audit): blocks are drawn with equal
+    # probability, as clusters, so unequal occupancy enters the SE. 9 FOVs at 0
+    # in one block and 1 FOV at 10 in another: resamples AA, AB, BA, BB give
+    # means 0, 1, 1, 10, an SE of sqrt(16.5) ~ 4.06, against about 0.95 for FOVs.
+    fovs = pd.DataFrame({"image_file": [f"f{i}" for i in range(10)], "block": ["A"] * 9 + ["B"]})
+    objects = pd.DataFrame({"image_file": fovs["image_file"], "x": [0.0] * 9 + [10.0]})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+    blocks = FOVBootstrapEstimator("centroid", None, 20000, 0, 2, None, None, "block")
+    evidence = blocks.estimate(data, objective=POPULATION)
+    assert evidence.value("fov_bootstrap_centroid_se") == pytest.approx(np.sqrt(16.5), rel=0.03)
+    assert evidence.diagnostics["block_sizes"] == {"min": 1, "max": 9}
+    fovs_only = FOVBootstrapEstimator("centroid", None, 20000, 0, 2)
+    assert fovs_only.estimate(data, objective=POPULATION).value(
+        "fov_bootstrap_centroid_se"
+    ) == pytest.approx(0.95, abs=0.03)

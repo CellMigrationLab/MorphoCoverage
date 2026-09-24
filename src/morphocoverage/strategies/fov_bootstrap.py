@@ -52,7 +52,23 @@ does not remove them). Fewer than ``min_fovs`` visible FOVs with observations,
 or a transform that cannot be fitted, give ``insufficient_data``. Resamples
 that draw only FOVs without observations (or, for the covariance, fewer than 2
 observations) have no summary; they are left out and counted in the
-diagnostics.
+diagnostics. PCA resamples whose covariance has observations but too little
+spread to define the summary (no spread for the eigenspectrum; a zero
+eigenvalue among the leading ``n_components`` for the subspace, whose basis
+would be arbitrary) are not left out: any such resample makes the quantity
+``insufficient_data``, since dropping them would report certainty that the
+data do not support.
+
+Blocks: with ``block_col`` the bootstrap resamples blocks, each with equal
+probability, and takes every FOV of a drawn block. This is the cluster
+bootstrap for blocks as the sampling units, so the random total size of a
+resample is part of its uncertainty. With blocks of very different
+occupancy (for example grid cells cut by the sample edge) that size
+variation can dominate the standard error even when the design sampled
+FOVs, not blocks: 9 FOVs at 0 in one block and 1 FOV at 10 in another give a
+centroid SE of about 4.1, against 0.95 for the FOV bootstrap. Use many
+blocks of similar occupancy; ``block_sizes`` in the diagnostics reports the
+smallest and largest visible block.
 """
 
 from __future__ import annotations
@@ -276,15 +292,21 @@ class FOVBootstrapEstimator(Estimator):
 
     def _resampled(
         self, values: np.ndarray, positions: np.ndarray, weights: np.ndarray
-    ) -> np.ndarray:
-        """The summary's components for each resample described by ``weights``."""
+    ) -> tuple[np.ndarray, int]:
+        """The summary's components for each resample, and how many PCA resamples degenerate.
+
+        A PCA resample is degenerate when its covariance has observations but
+        does not determine the summary: no spread at all (eigenspectrum), or a
+        leading subspace with a zero eigenvalue inside it, whose basis
+        ``eigh`` would pick arbitrarily (subspace).
+        """
         k = weights.shape[1]
         if self.summary == "quantiles":
-            return quantile_resamples(values, positions, weights, self.quantiles)
+            return quantile_resamples(values, positions, weights, self.quantiles), 0
         counts = np.bincount(positions, minlength=k).astype(float)
         sums = _per_fov_sums(values, positions, k)
         if self.summary == "centroid":
-            return centroid_resamples(counts, sums, weights)
+            return centroid_resamples(counts, sums, weights), 0
         # Covariance is shift-invariant; centring first keeps the one-pass formula
         # accurate when a feature's mean is large relative to its spread.
         centred = values - values.mean(axis=0)
@@ -294,16 +316,23 @@ class FOVBootstrapEstimator(Estimator):
         outer = _per_fov_sums(products, positions, k)
         covariances = covariance_resamples(counts, centred_sums, outer, weights)
         if self.summary == "covariance":
-            return covariances
+            return covariances, 0
         d = values.shape[1]
         defined = ~np.isnan(covariances).any(axis=1)
+        eigenvalues = np.zeros((len(covariances), d))
+        eigenvalues[defined] = np.linalg.eigvalsh(covariances[defined].reshape(-1, d, d))[:, ::-1]
+        # The summary needs spread in the first r directions (r = 1 for the spectrum).
+        r = 1 if self.summary == "eigenspectrum" else self.n_components
+        scale = np.maximum(np.abs(eigenvalues).max(axis=1), np.finfo(float).tiny)
+        degenerate = defined & (eigenvalues[:, r - 1] <= 1e-12 * scale)
+        usable = defined & ~degenerate
         out = np.full((len(covariances), d if self.summary == "eigenspectrum" else 1), np.nan)
         if self.summary == "eigenspectrum":
-            out[defined] = eigenspectrum_resamples(covariances[defined], d)
+            out[usable] = eigenspectrum_resamples(covariances[usable], d)
         else:
             reference = np.cov(values, rowvar=False)
-            out[defined, 0] = subspace_angles_to(covariances[defined], reference, self.n_components)
-        return out
+            out[usable, 0] = subspace_angles_to(covariances[usable], reference, self.n_components)
+        return out, int(degenerate.sum())
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """Bootstrap standard error of the summary under whole-FOV resampling."""
@@ -319,6 +348,8 @@ class FOVBootstrapEstimator(Estimator):
         blocks = _visible_blocks(data, self.block_col)
         if blocks is not None:
             diagnostics["visible_blocks"] = blocks
+            sizes = data.fovs[self.block_col].value_counts()
+            diagnostics["block_sizes"] = {"min": int(sizes.min()), "max": int(sizes.max())}
         if with_observations < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
         elif blocks is not None and blocks < self.min_fovs:
@@ -335,9 +366,20 @@ class FOVBootstrapEstimator(Estimator):
             diagnostics["undefined_reason"] = reason
             return Evidence({name: Quantity.insufficient(reason, **_meta(units))}, diagnostics)
 
-        components = self._resampled(values, positions, self._weights(data))
+        components, degenerate = self._resampled(values, positions, self._weights(data))
         defined = ~np.isnan(components).any(axis=1)
         diagnostics["undefined_resamples"] = int((~defined).sum())
+        if degenerate:
+            # Leaving these out would condition the bootstrap on the resamples that
+            # happen to show spread, and can report zero uncertainty; their summary
+            # is genuinely undetermined, so the estimate is not yet available.
+            diagnostics["degenerate_resamples"] = degenerate
+            reason = (
+                f"{degenerate} of {self.n_resamples} resamples have too little spread to "
+                "define the PCA summary"
+            )
+            diagnostics["undefined_reason"] = reason
+            return Evidence({name: Quantity.insufficient(reason, **_meta(units))}, diagnostics)
         if defined.sum() < 2:
             reason = "fewer than 2 resamples with a defined summary"
             diagnostics["undefined_reason"] = reason
