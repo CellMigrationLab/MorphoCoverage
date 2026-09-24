@@ -25,8 +25,11 @@ Every metric returns ``None`` (undefined, never NaN) when either sample has
 too few observations or any selected value is missing: missing values are
 neither imputed nor dropped.
 
-Bias: the energy distance and MMD are unbiased U-statistics, so they do not
-shrink merely because the stop has more observations. The centroid,
+Bias: the energy distance and MMD are unbiased U-statistics when
+observations are independent, so they then do not shrink merely because the
+stop has more observations. Cells within one FOV are usually correlated, so
+on real acquisitions this holds only approximately; compare strategies at
+matched FOV and observation counts. The centroid,
 covariance, quantile and Fréchet errors use plug-in estimates and are biased
 upward for small stops; compare them at matched observation counts or read
 them alongside ``RandomCellRelativeError``-style references. The quadratic

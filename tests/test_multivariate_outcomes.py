@@ -221,3 +221,12 @@ def test_infinite_bandwidth_is_refused():
         distances.mmd_squared(_normal(5), _normal(5), float("inf"))
     with pytest.raises(ValueError):
         MMDError(FEATURES, True, None, 0, float("inf"))
+
+
+@pytest.mark.parametrize("directions", [[[2.0, 0.0]], [[0.0, 0.0]], np.empty((0, 2))])
+def test_sliced_wasserstein_requires_unit_directions(directions):
+    # Regression (external audit): a doubled direction doubled the distance
+    # and a zero direction made separated samples look identical.
+    x = np.array([[0.0, 0.0], [1.0, 0.0]])
+    with pytest.raises(ValueError):
+        distances.sliced_wasserstein(x, x + 10, np.asarray(directions))
