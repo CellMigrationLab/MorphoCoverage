@@ -1,0 +1,8 @@
+condition,repeat,well,image_file,stage_x_um,stage_y_um,reason,detail,observations,median_observations,value
+LATS1,1A,I23,009023-2.tif,-889.0000,-1008.0000,count,6 observations; the median is 27,6,27.0000,6.0000
+YAP,1A,M23,013023-14.tif,444.0000,0.0000,count,6 observations; the median is 21.5,6,21.5000,6.0000
+YAP,1A,N23,014023-4.tif,0.0000,-1008.0000,neighbours,its mean YAPTAZ_Ratio is 4.2 SD below its 4 nearest fields (within 557 µm),8,22.0000,-4.2337
+YAP,1A,N23,014023-15.tif,,,new state,3 observations of a state no other field shows,28,22.0000,3.0000
+LATS1,2A,J23,010023-3.tif,,,new state,3 observations of a state no other field shows,20,26.5000,3.0000
+LATS1,2A,J23,010023-5.tif,,,new state,3 observations of a state no other field shows,28,26.5000,3.0000
+ARAP2,2B,C13,003013-26.tif,,,new state,3 observations of a state no other field shows,37,35.5000,3.0000

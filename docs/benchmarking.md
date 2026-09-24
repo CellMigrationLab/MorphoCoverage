@@ -73,6 +73,17 @@ A stopping rule can depend on the order in which FOVs arrive, so it is checked s
 
 Both have a `summary()` in plain sentences. Replayed acquisitions are hold-outs and orders of the same FOVs, not independent experiments.
 
+## Across samples, fields to inspect, controls, effort and order
+
+The remaining retrospective analyses (roadmap Steps 4–8 and 10) each answer one question and have a plain-language `summary()`:
+
+- `protocol_reliability(per_sample, hierarchy, threshold=..., strata=...)` counts, from per-sample reliability curves, the samples adequately represented at each number of FOVs (reliability at least `threshold`, provisional preset 0.9), with explicit denominators, per independent unit, each sample's difficulty, and a leave-one-unit-out check of a number chosen on the other units. Intervals resample the declared independent units, so more draws or splits never narrow them; with fewer than five units the summary says the uncertainty is large. Pooling across conditions is an explicit `strata=[]`.
+- `inspect_fovs` lists fields to reopen, one reason per line with its numbers: a new state (support novelty), influence on a declared FOV-weighted summary (mean or an interpolated quantile), an observation count far from the median, or a difference from the nearest stage neighbours. There is no combined score and no FOV is called an artifact.
+- `representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control.
+- `effort_projection` estimates nested variance components of a scalar mean (Henderson's method I for unbalanced designs) with a hierarchical bootstrap, and projects the standard error at equal total FOVs; a difference between allocations is stated only when its interval excludes 1 and there are at least five independent units. Levels that cannot be separated (one sample per repeat) raise. The bootstrap intervals are approximate: in a simulation with 8 samples their coverage was 80–88% for the sample and field components, not 95%.
+- `order_efficiency` compares recorded, random and dispersed (`AcquisitionOrder.dispersed(seed)`, greedy farthest point on stage coordinates) orders of the same positions by sustained realized adequacy and stage travel; `redundancy_distance` gives the distance below which neighbouring fields are more alike than random pairs.
+- `microscopist_report` assembles the answers in the order of the proposal's questions, with a sampling profile of measured quantities; a question without its analysis says "not assessed" and what it needs.
+
 **Registered datasets.** idr0028 (committed subset: 12 wells × 28 FOVs on 3 plates) is a **development** dataset: used to build and check these analyses, not to set a protocol. No held-out dataset is registered yet; deeper datasets will be added.
 
 ## Scientific performance dimensions

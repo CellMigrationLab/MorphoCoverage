@@ -1,9 +1,12 @@
 # Roadmap: implementing the microscopist's report
 
-**Status:** approved (2026-09-24). Steps 0–3 implemented (`morphocoverage.retrospective`); the project owner accepted the proposed answers to decisions 1–6, with idr0028 as the only (development) dataset for now.
+**Status:** approved (2026-09-24). Steps 0–8 and 10 implemented (`morphocoverage.retrospective`); Step 9 deferred; the project owner accepted the proposed answers to decisions 1–6, with idr0028 as the only (development) dataset for now.
 Implements `docs/proposals/microscopist_report.md`, which gives the reasons.
 This roadmap gives the order, the deliverables, the definitions and the
-acceptance criteria. Nothing here is implemented yet.
+acceptance criteria. Not yet done: the owner's reading test (rule 4) for every
+step, the external audits after Steps 2 and 4, and a held-out dataset; the
+Step 7 interval coverage is below the 95% the validation asked for (findings,
+entry 6).
 
 **How to review.** Each milestone lists what it builds, how it is validated,
 and what must be decided first. The decisions that need the project owner

@@ -40,6 +40,7 @@ from ..schema import ValidatedInput, validate_input_tables
 from ..sequential import _Acquisition, _in_acquisition_order, _replay_full, _replay_incremental
 from ..strategies.base import SamplingStrategy
 from .criteria import OutcomeCriterion
+from .stage import dispersed_order, stage_travel
 
 DEFAULT_PERMUTATIONS = 10
 
@@ -62,6 +63,9 @@ class ReplayResult:
     - ``streams``: one row per group, split and order with the stream and
       reservoir sizes.
 
+    - ``paths`` (with ``stage_cols``): one row per group, split, order and
+      prefix length, with the cumulative stage ``travel`` from the first FOV.
+
     One replayed acquisition is identified by the group, ``split`` and
     ``order_id``; ``order`` and ``order_seed`` give the order's kind and seed.
     """
@@ -71,6 +75,7 @@ class ReplayResult:
     streams: pd.DataFrame
     group_cols: tuple[str, ...]
     settings: Mapping[str, Any] = field(default_factory=dict)
+    paths: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
 def default_orders(acquisition_order_col: str | None) -> list[AcquisitionOrder]:
@@ -98,15 +103,29 @@ def _identity(group: Mapping[str, Any]) -> int:
     return zlib.crc32(json.dumps(sorted(group.items()), default=str).encode())
 
 
-def _ordered_stream(group, stream: ValidatedInput, order, order_col, split) -> pd.DataFrame:
+def _ordered_stream(
+    group, stream: ValidatedInput, order, order_col, split, stage_cols
+) -> pd.DataFrame:
     """The stream's FOV rows in the order to replay."""
     if order.kind == "recorded":
         return _in_acquisition_order(group, stream, order_col)
     rng = np.random.default_rng([order.seed, _identity(group), split])
+    if order.kind == "dispersed":
+        xy = stream.fovs[list(stage_cols)].to_numpy(dtype=float)
+        return stream.fovs.iloc[dispersed_order(xy, int(rng.integers(len(xy))))]
     return stream.fovs.iloc[rng.permutation(len(stream.fovs))]
 
 
-def _check(strategies, criteria, orders, acquisition_order_col, n_splits, random_state, min_fovs):
+def _check(
+    strategies,
+    criteria,
+    orders,
+    acquisition_order_col,
+    n_splits,
+    random_state,
+    min_fovs,
+    stage_cols,
+):
     strategies = list(strategies)
     if not strategies or not all(isinstance(s, SamplingStrategy) for s in strategies):
         raise TypeError("strategies must be a non-empty sequence of SamplingStrategy")
@@ -124,6 +143,8 @@ def _check(strategies, criteria, orders, acquisition_order_col, n_splits, random
         raise ValueError("orders must be distinct")
     if acquisition_order_col is None and any(o.kind == "recorded" for o in orders):
         raise ValueError("the recorded order needs acquisition_order_col")
+    if stage_cols is None and any(o.kind == "dispersed" for o in orders):
+        raise ValueError("a dispersed order needs stage_cols")
     for value, label in ((n_splits, "n_splits"), (min_fovs, "min_fovs")):
         if isinstance(value, bool) or not isinstance(value, int) or value < 1:
             raise ValueError(f"{label} must be a positive integer")
@@ -148,6 +169,8 @@ def replay_acquisitions(
     min_fovs: int = 1,
     incremental: bool = False,
     block_col: str | None = None,
+    stage_cols: tuple[str, str] | None = None,
+    stage_unit: str = "µm",
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
@@ -161,10 +184,19 @@ def replay_acquisitions(
     and ``incremental`` are computational settings; decisions are the same
     with or without ``incremental``. Strategies are evaluated from
     ``min_fovs`` FOVs on; outcomes from the first FOV. ``fovs`` lists every
-    acquired FOV, including FOVs without observations.
+    acquired FOV, including FOVs without observations. ``stage_cols`` (x, y
+    columns of the FOV table, in ``stage_unit``) enables dispersed orders and
+    records the stage path of every replayed order.
     """
     strategies, criteria, orders = _check(
-        strategies, criteria, orders, acquisition_order_col, n_splits, random_state, min_fovs
+        strategies,
+        criteria,
+        orders,
+        acquisition_order_col,
+        n_splits,
+        random_state,
+        min_fovs,
+        stage_cols,
     )
     if acquisition_order_col is not None and acquisition_order_col in feature_cols:
         raise ValueError("acquisition order cannot also be a phenotype feature")
@@ -181,14 +213,26 @@ def replay_acquisitions(
             raise ValueError(f"fovs is missing required columns: {[acquisition_order_col]}")
         if data.fovs[acquisition_order_col].isna().any():
             raise ValueError("acquisition order contains missing values")
+    if stage_cols is not None:
+        if len(stage_cols) != 2:
+            raise TypeError("stage_cols must be two column names (x, y)")
+        absent = [c for c in stage_cols if c not in data.fovs.columns]
+        if absent:
+            raise ValueError(f"stage columns missing from the FOV table: {absent}")
+        if data.fovs[list(stage_cols)].isna().any().any():
+            raise ValueError("stage coordinates contain missing values")
+        if any(c in feature_cols for c in stage_cols):
+            raise ValueError("stage coordinates cannot also be phenotype features")
     replay = _replay_incremental if incremental else _replay_full
-    decisions, outcomes, streams = [], [], []
+    decisions, outcomes, streams, paths = [], [], [], []
     for group, group_data in iter_analysis_groups(data):
         for split in range(n_splits):
             splitter = ReservoirSplit(float(reservoir_fraction), random_state + split, block_col)
             stream, reservoir = splitter.split(group, group_data)
             for order in orders:
-                ordered = _ordered_stream(group, stream, order, acquisition_order_col, split)
+                ordered = _ordered_stream(
+                    group, stream, order, acquisition_order_col, split, stage_cols
+                )
                 acquisition = _Acquisition(stream, ordered)
                 where = {
                     **group,
@@ -204,6 +248,11 @@ def replay_acquisitions(
                         "reservoir_fovs": len(reservoir.fovs),
                     }
                 )
+                if stage_cols is not None:
+                    travel = stage_travel(ordered[list(stage_cols)].to_numpy(dtype=float))
+                    paths += [
+                        {**where, "fovs": i + 1, "travel": float(t)} for i, t in enumerate(travel)
+                    ]
                 for step, result in replay(
                     strategies, group, acquisition, objective=objective, min_fovs=min_fovs
                 ):
@@ -244,6 +293,8 @@ def replay_acquisitions(
         "random_state": random_state,
         "min_fovs": min_fovs,
         "acquisition_order_col": acquisition_order_col,
+        "stage_cols": None if stage_cols is None else list(stage_cols),
+        "stage_unit": stage_unit,
     }
     return ReplayResult(
         decisions=pd.DataFrame(decisions, columns=[*keys, *DECISION_COLUMNS]),
@@ -251,6 +302,7 @@ def replay_acquisitions(
         streams=pd.DataFrame(streams, columns=[*keys, *STREAM_COLUMNS]),
         group_cols=tuple(keys),
         settings=settings,
+        paths=pd.DataFrame(paths, columns=[*keys, *_RUN, "fovs", "travel"]),
     )
 
 
