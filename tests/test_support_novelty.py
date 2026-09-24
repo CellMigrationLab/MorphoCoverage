@@ -183,6 +183,51 @@ def test_parameters_are_serializable_provenance():
         "min_other_fovs": 2,
         "transform": Standardize().describe(),
         "min_fovs": 3,
+        "min_novel_observations": 1,
+        "confidence": 0.95,
+        "quantity": "lofo_novel_fraction",
         "tolerance": 0.05,
     }
     assert strategy.config_id != SupportNoveltyStrategy(0.3, 0.05, 2, Standardize(), 3).config_id
+
+
+def test_fov_level_novelty_counts_fovs_and_requires_enough_novel_cells():
+    # Five common FOVs, one with a single outlier cell, one with 3 cells of a
+    # state no other FOV shows, and two empty FOVs (7 visible FOVs in all).
+    rng = np.random.default_rng(6)
+    common = [rng.normal(0, 0.1, size=(20, 2)) for _ in range(3)]
+    outlier = np.vstack([rng.normal(0, 0.1, size=(20, 2)), [[9.0, 9.0]]])
+    state = np.vstack([rng.normal(0, 0.1, size=(20, 2)), rng.normal(5, 0.05, size=(3, 2))])
+    data = _table([*common, outlier, state], empty_fovs=2)
+    any_novel = _novelty(data).quantities["lofo_novel_fov_fraction"].value
+    three = SupportNoveltyEstimator(0.5, 1, None, 2, 3).estimate(data, objective=POPULATION)
+    assert any_novel == pytest.approx(2 / 7)
+    assert three.value("lofo_novel_fov_fraction") == pytest.approx(1 / 7)
+
+
+@pytest.mark.parametrize("k, expected", [(2, 1 - 0.05 ** (1 / 2)), (5, 1 - 0.05 ** (1 / 5))])
+def test_few_homogeneous_fovs_leave_a_high_upper_bound(k, expected):
+    # Identical FOVs: nothing looks novel, yet with only k fields the chance
+    # that another is novel cannot be ruled out; the bound says so.
+    fov = np.random.default_rng(7).normal(size=(30, 2))
+    evidence = _novelty(_table([fov] * k))
+    assert evidence.value("lofo_novel_fov_fraction") == 0
+    assert evidence.value("lofo_novel_fov_upper") == pytest.approx(expected)
+
+
+def test_upper_bound_covers_the_true_novelty_probability():
+    # Simulated acquisitions where each FOV independently holds a unique
+    # state with probability 0.2: the 95% upper bound from k FOVs should lie
+    # above 0.2 in at least about 95% of acquisitions.
+    rng = np.random.default_rng(8)
+    covered = []
+    for _ in range(300):
+        k = 6
+        fovs = []
+        for j in range(k):
+            cells = rng.normal(0, 0.1, size=(15, 2))
+            if rng.random() < 0.2:
+                cells = np.vstack([cells, rng.normal(10 + 5 * j, 0.05, size=(2, 2))])
+            fovs.append(cells)
+        covered.append(_novelty(_table(fovs)).value("lofo_novel_fov_upper") >= 0.2)
+    assert np.mean(covered) >= 0.93

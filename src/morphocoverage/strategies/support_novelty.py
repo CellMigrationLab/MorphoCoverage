@@ -12,7 +12,23 @@ novel:
     the visible FOVs, each judged against all the others.
 
 This is the leave-one-FOV-out estimate of ``1 - C_epsilon``, the chance that
-an observation from another FOV falls outside the current support. It counts
+an observation from another FOV falls outside the current support. At the FOV
+level,
+
+    lofo_novel_fov_fraction = (FOVs with at least ``min_novel_observations``
+    novel observations) / (visible FOVs),
+
+estimates the probability that one more representative FOV shows something
+outside the current support at this resolution. Acquired FOVs without
+observations count in the denominator, since the next FOV may be empty too.
+Requiring several novel observations keeps a single outlier (for example a
+segmentation error) from counting as a new phenotype.
+
+With few FOVs that fraction is uninformative: two homogeneous FOVs give 0,
+yet say little about a third. ``lofo_novel_fov_upper`` is the one-sided
+Clopper-Pearson upper bound at ``confidence`` on the same probability
+(``morphocoverage.bounds``), 0.78 for 0 novel FOVs of 2 at 95%, and is the
+quantity to stop on when few FOVs have been seen. It counts
 FOVs, not cells, on both sides: a state seen only in one FOV stays novel
 however many cells it has there, and support from another FOV counts once
 however many of its cells are nearby, so a dense FOV cannot cover what a
@@ -50,6 +66,7 @@ from typing import Any
 import numpy as np
 from scipy.spatial import cKDTree
 
+from ..bounds import check_confidence, upper_bound
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
@@ -58,6 +75,14 @@ from ..transforms import FeatureTransform
 from .base import Estimator, SamplingStrategy
 
 QUANTITY = "lofo_novel_fraction"
+FOV_QUANTITY = "lofo_novel_fov_fraction"
+UPPER_QUANTITY = "lofo_novel_fov_upper"
+QUANTITIES = (QUANTITY, FOV_QUANTITY, UPPER_QUANTITY)
+_UNITS = {
+    QUANTITY: "fraction of observations",
+    FOV_QUANTITY: "fraction of FOVs (probability)",
+    UPPER_QUANTITY: "probability (upper confidence bound)",
+}
 
 
 def _check(epsilon, min_other_fovs, min_fovs, transform) -> None:
@@ -88,6 +113,13 @@ def _other_fov_observations(values: np.ndarray, positions: np.ndarray, epsilon: 
     return total - same
 
 
+def _check_novel(min_novel_observations) -> None:
+    """A positive integer number of novel observations per FOV."""
+    value = min_novel_observations
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("min_novel_observations must be a positive integer")
+
+
 def novel_observations(
     values: np.ndarray, positions: np.ndarray, epsilon: float, min_other_fovs: int
 ) -> np.ndarray:
@@ -112,32 +144,44 @@ def novel_observations(
     return supporting < min_other_fovs
 
 
-def _meta() -> dict[str, Any]:
-    """Direction, units and component of the novelty fraction."""
+def _meta(name: str) -> dict[str, Any]:
+    """Direction, units and component of a novelty quantity."""
     return {
         "direction": Direction.LOWER_IS_BETTER,
-        "units": "fraction of observations",
+        "units": _UNITS[name],
         "component": Component.POPULATION,
     }
+
+
+def _unavailable(kind: str, reason: str, diagnostics: dict[str, Any]) -> Evidence:
+    """Both quantities insufficient or not applicable, with the reason."""
+    make = Quantity.insufficient if kind == "insufficient" else Quantity.not_applicable
+    quantities = {name: make(reason, **_meta(name)) for name in QUANTITIES}
+    return Evidence(quantities, {**diagnostics, "undefined_reason": reason})
 
 
 @dataclass(frozen=True)
 class SupportNoveltyEstimator(Estimator):
     """Leave-one-FOV-out fraction of observations outside the other FOVs' ``epsilon``-support.
 
-    Reports ``lofo_novel_fraction`` (population, lower is better). See the
-    module docstring for the estimand and its limits.
+    Reports ``lofo_novel_fraction`` and ``lofo_novel_fov_fraction``
+    (population, lower is better). See the module docstring for the estimands
+    and their limits.
     """
 
     epsilon: float
     min_other_fovs: int
     transform: FeatureTransform | None
     min_fovs: int
+    min_novel_observations: int = 1
+    confidence: float = 0.95
     name: str = "support_novelty"
 
     def __post_init__(self) -> None:
         _check(self.epsilon, self.min_other_fovs, self.min_fovs, self.transform)
+        _check_novel(self.min_novel_observations)
         object.__setattr__(self, "epsilon", float(self.epsilon))
+        object.__setattr__(self, "confidence", check_confidence(self.confidence))
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -147,15 +191,15 @@ class SupportNoveltyEstimator(Estimator):
             "min_other_fovs": self.min_other_fovs,
             "transform": None if self.transform is None else self.transform.describe(),
             "min_fovs": self.min_fovs,
+            "min_novel_observations": self.min_novel_observations,
+            "confidence": self.confidence,
         }
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
-        """The pooled leave-one-FOV-out novel fraction."""
+        """The leave-one-FOV-out novel fractions of observations and of FOVs."""
         matrix = data.feature_matrix()
         if np.isnan(matrix).any():
-            reason = "missing values in the selected features"
-            quantity = Quantity.not_applicable(reason, **_meta())
-            return Evidence({QUANTITY: quantity}, {"undefined_reason": reason})
+            return _unavailable("not_applicable", "missing values in the selected features", {})
         positions = fov_positions(data, data.fovs)
         diagnostics: dict[str, Any] = {"fovs_with_observations": len(np.unique(positions))}
         values, reason = matrix, None
@@ -169,28 +213,39 @@ class SupportNoveltyEstimator(Estimator):
         if diagnostics["fovs_with_observations"] < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
         if reason is not None:
-            diagnostics["undefined_reason"] = reason
-            return Evidence({QUANTITY: Quantity.insufficient(reason, **_meta())}, diagnostics)
+            return _unavailable("insufficient", reason, diagnostics)
 
         novel = novel_observations(values, positions, self.epsilon, self.min_other_fovs)
-        per_fov = np.bincount(positions, weights=novel) / np.maximum(np.bincount(positions), 1)
-        observed = np.bincount(positions) > 0
+        k = len(data.fovs)
+        novel_per_fov = np.bincount(positions, weights=novel, minlength=k)
+        counts = np.bincount(positions, minlength=k)
+        per_fov = novel_per_fov / np.maximum(counts, 1)
+        observed = counts > 0
+        novel_fov_count = int(np.sum(novel_per_fov >= self.min_novel_observations))
+        upper = upper_bound(novel_fov_count, k, self.confidence)
         diagnostics.update(
             {
                 "novel_observations": int(novel.sum()),
+                "novel_fovs": novel_fov_count,
                 "fovs_with_novel_observations": int(np.unique(positions[novel]).size),
                 "mean_fov_novel_fraction": float(per_fov[observed].mean()),
             }
         )
-        return Evidence({QUANTITY: Quantity.available(float(novel.mean()), **_meta())}, diagnostics)
+        quantities = {
+            QUANTITY: Quantity.available(float(novel.mean()), **_meta(QUANTITY)),
+            FOV_QUANTITY: Quantity.available(novel_fov_count / k, **_meta(FOV_QUANTITY)),
+            UPPER_QUANTITY: Quantity.available(upper, **_meta(UPPER_QUANTITY)),
+        }
+        return Evidence(quantities, diagnostics)
 
 
 @dataclass(frozen=True)
 class SupportNoveltyStrategy(SamplingStrategy):
-    """Stop when the leave-one-FOV-out novel fraction is at most ``tolerance``.
+    """Stop when a leave-one-FOV-out novel fraction is at most ``tolerance``.
 
-    ``SupportNoveltyEstimator`` plus ``ThresholdPolicy`` on
-    ``lofo_novel_fraction``. Every setting defines the rule and has no default.
+    ``SupportNoveltyEstimator`` plus ``ThresholdPolicy`` on ``quantity``: the
+    fraction of observations (default) or of FOVs that are novel. The
+    resolution, support and minimum FOVs have no defaults.
     """
 
     epsilon: float
@@ -198,28 +253,44 @@ class SupportNoveltyStrategy(SamplingStrategy):
     min_other_fovs: int
     transform: FeatureTransform | None
     min_fovs: int
+    min_novel_observations: int = 1
+    quantity: str = QUANTITY
+    confidence: float = 0.95
     name: str = "support_novelty"
 
     def __post_init__(self) -> None:
         _check(self.epsilon, self.min_other_fovs, self.min_fovs, self.transform)
+        _check_novel(self.min_novel_observations)
+        if self.quantity not in QUANTITIES:
+            raise ValueError(f"quantity must be one of {QUANTITIES}")
+        check_confidence(self.confidence)
         if not 0 <= self.tolerance < 1:
             raise ValueError("tolerance must be a fraction in [0, 1)")
 
     @property
     def parameters(self) -> dict[str, Any]:
         """The estimator's settings and the tolerance."""
-        return {**self.estimators[0].parameters, "tolerance": self.tolerance}
+        return {
+            **self.estimators[0].parameters,
+            "quantity": self.quantity,
+            "tolerance": self.tolerance,
+        }
 
     @property
     def estimators(self) -> tuple[SupportNoveltyEstimator]:
         """The support-novelty estimator with this strategy's settings."""
         return (
             SupportNoveltyEstimator(
-                self.epsilon, self.min_other_fovs, self.transform, self.min_fovs
+                self.epsilon,
+                self.min_other_fovs,
+                self.transform,
+                self.min_fovs,
+                self.min_novel_observations,
+                self.confidence,
             ),
         )
 
     @property
     def policies(self) -> tuple[ThresholdPolicy]:
-        """``lofo_novel_fraction <= tolerance``."""
-        return (ThresholdPolicy(QUANTITY, self.tolerance),)
+        """``quantity <= tolerance``."""
+        return (ThresholdPolicy(self.quantity, self.tolerance),)
