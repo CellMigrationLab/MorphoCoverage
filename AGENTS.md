@@ -199,6 +199,9 @@ src/morphocoverage/
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
         hierarchy.py       # SamplingHierarchy: declared FOV / sample / repeat levels
         reliability.py     # sampling reliability: how often k random FOVs are enough
+        replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
+        calibration.py     # stopping-rule calibration: how often a rule's stop was premature
+        adequacy.py        # first and sustained apparent and realized adequacy points
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines

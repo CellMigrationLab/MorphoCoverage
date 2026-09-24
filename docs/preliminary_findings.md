@@ -298,3 +298,66 @@ Each cell gives the range across the 12 wells, with the median in brackets.
 - **Fields are treated as random draws** from the well. Spatial order and
   neighbour correlation between fields are not modelled (roadmap Step 8).
 - **One feature**, one representation, and provisional tolerances.
+
+## 5. Would a stopping rule have stopped at the right time? Replayed idr0028 acquisitions (2026-09-24)
+
+**Question.** Entry 4 shows how often random sets of fields preserve the well
+mean. A stopping rule decides from the fields seen so far, in the order they
+arrive. When would the rule have stopped, and was it enough at that point,
+judged on fields the rule never saw? This is roadmap Steps 2 and 3
+(`replay_acquisitions`, `stopping_calibration`, `adequacy_points`).
+
+**Method** (`data/crick_idr/stopping_idr0028.py`, fixed seed; 45 s). The data
+are the same 12 wells and the same YAP/TAZ nuclear ratio as entry 4. Each of 5
+splits holds back 10 FOVs, the same reservoirs as the first five splits of
+entry 4. The other 18 FOVs are replayed in the recorded order and in 10 random
+orders. Every rule decides from 2 FOVs on. The rules are:
+
+- the JCB averaging-CV rule at 5%, on cells as published;
+- the same rule on whole FOVs;
+- fixed rules of 4 and 8 FOVs.
+
+"Enough" is judged against the held-back FOVs: the well mean within 5%, and
+within 2.5%. The tables are `data/crick_idr/results/stopping_calibration_idr0028.csv`
+and `adequacy_idr0028.csv`.
+
+| rule | stop (FOVs) | premature, mean within 5% (random orders; median, max over wells) | premature, mean within 2.5% (random orders; median, max over wells) | premature, 2.5%, recorded order (max over wells, of 5) |
+|---|---|---|---|---|
+| JCB CV ≤ 5%, cells | 2 | 0%, 2% | 10%, 20% | 40% |
+| JCB CV ≤ 5%, FOVs | 2 | 0%, 2% | 10%, 20% | 40% |
+| fixed 4 FOVs | 4 | 0%, 0% | 0%, 10% | 20% |
+| fixed 8 FOVs | 8 | 0%, 0% | 0%, 2% | 0% |
+
+Judged on held-back fields, the mean was first within both tolerances at a
+median of 1 FOV (all 660 replayed acquisitions: 1–5), and lastingly from a
+median of 1 (1–13; 75% by 2 FOVs).
+
+**What this shows**
+
+- **Both JCB-style rules stopped as early as they were allowed (2 FOVs) in
+  every well.** With about a hundred nuclei per field, the averaging CV of the
+  mean ratio is below 5% after two fields, whether cells or FOVs are the
+  resampling unit. For the mean within 5%, which is the target the rule was
+  designed for, that stop was almost always right (at most 2% premature). For
+  the stricter 2.5%, it was premature in a median 10% of random acquisitions,
+  up to 20% in the worst well. A rule at 5% CV answers the 5% question; it is
+  not a promise for 2.5%.
+- **The mean was never the hard part here.** Held-back fields confirmed it
+  after one or two fields in most runs, and never later than 13. This is the
+  regime AGENTS.md section 10 asks us to name: for the mean nuclear YAP/TAZ
+  ratio of a well in this screen, the cell-number guidance is sufficient, and
+  FOV-aware sampling adds nothing for this readout.
+- **Fixed rules.** Four fields were enough for 5% in every run, and for 2.5% in
+  all but up to 10% of random acquisitions of the worst well. Eight fields
+  were almost never premature.
+
+**What this does not show**
+
+- **One easy readout.** The stop rules were not tested on a question they find
+  hard (the variance, a quantile, a rare state), since entry 4 shows the
+  variance cannot be judged with this reservoir.
+- **Development data, 12 wells**, recorded-order results over only 5 hold-outs
+  per well. Replayed acquisitions are hold-outs and orders of the same fields,
+  not independent experiments.
+- **The minimum of 2 FOVs is a setting of this run**, and it caps how early the
+  rules could stop.
