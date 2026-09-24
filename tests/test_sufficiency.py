@@ -175,7 +175,8 @@ def test_summary_answers_both_questions_in_words():
     assert "fixed_fov" in text and "yes, met by the 13 acquired FOVs" in text
     assert "Chance: 15% (at most" in text and "2 of 13 FOVs" in text
     assert "Check on this dataset: predicting from 6 random FOVs" in text
-    assert "'New' means at least 3 observations with fewer than 1 other FOV" in text
+    assert "'New' means a cluster of at least 3 similar observations" in text
+    assert "with fewer than 1 other FOV within distance 0.5" in text
     assert list(report.calibration["fovs_imaged"]) == [6]
 
 

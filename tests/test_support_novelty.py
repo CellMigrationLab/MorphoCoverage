@@ -13,6 +13,7 @@ from morphocoverage import (
     ObjectiveConfig,
     SamplingObjective,
     evaluate_acquisition_prefixes,
+    run_strategies,
     validate_input_tables,
 )
 from morphocoverage.evaluator import objects_in_fovs, restrict_input
@@ -281,3 +282,71 @@ def test_observation_flags_match_the_estimate():
     assert flags.sum() == evidence.diagnostics["novel_observations"]
     assert flags.mean() == pytest.approx(evidence.value("lofo_novel_fraction"))
     assert estimator.novel_observation_flags(_table([rng.normal(size=(5, 2))])) is None
+
+
+def test_new_state_clusters_match_brute_force_single_linkage():
+    from scipy.sparse.csgraph import connected_components
+
+    from morphocoverage.strategies.support_novelty import new_state_members
+
+    rng = np.random.default_rng(13)
+    for _ in range(30):
+        n = int(rng.integers(1, 25))
+        values = rng.uniform(0, 3, size=(n, 2))
+        positions = rng.integers(0, 3, size=n)
+        novel = rng.random(n) < 0.6
+        epsilon, size = rng.uniform(0.2, 1.0), int(rng.integers(1, 5))
+        expected = np.zeros(n, dtype=bool)
+        for fov in np.unique(positions):
+            rows = np.flatnonzero(novel & (positions == fov))
+            if not len(rows):
+                continue
+            linked = distance.cdist(values[rows], values[rows]) <= epsilon
+            _, labels = connected_components(linked, directed=False)
+            expected[rows] = np.bincount(labels)[labels] >= size
+        members = new_state_members(values, positions, novel, epsilon, size)
+        assert np.array_equal(members, expected)
+
+
+def test_scattered_outliers_do_not_add_up_to_a_new_state():
+    # Regression (audit of this module): three isolated outliers in one FOV
+    # counted like a tight 3-cell state in another. Only the cluster counts now.
+    rng = np.random.default_rng(14)
+    fovs = [rng.normal(0, 0.1, size=(20, 2)) for _ in range(8)]
+    fovs[0] = np.vstack([fovs[0], [[5.0, 0.0], [0.0, 5.0], [-5.0, -5.0]]])
+    fovs[1] = np.vstack([fovs[1], rng.normal((5.0, -5.0), 0.05, size=(3, 2))])
+    data = _table(fovs)
+    evidence = SupportNoveltyEstimator(0.5, 1, None, 2, 3).estimate(data, objective=POPULATION)
+    assert evidence.diagnostics["novel_fovs"] == 1
+    assert evidence.value("lofo_novel_fov_fraction") == pytest.approx(1 / 8)
+    # Every novel cell still counts for the cell-level fraction.
+    assert evidence.diagnostics["novel_observations"] == 6
+    counted = SupportNoveltyEstimator(0.5, 1, None, 2, 3).novel_observation_flags(
+        data, new_states_only=True
+    )
+    assert counted.sum() == 3 and set(data.objects.loc[counted, "image_file"]) == {"f1.tif"}
+    # A new FOV with scattered outliers is not new either.
+    scattered = _table([np.vstack([fovs[2], [[9.0, 0.0], [0.0, 9.0], [-9.0, 0.0]]])])
+    estimator = SupportNoveltyEstimator(0.5, 1, None, 2, 3)
+    assert list(estimator.novel_fovs_against(_table(fovs[2:]), scattered)) == [False]
+
+
+def test_cell_weighted_and_fov_weighted_fractions_differ_with_unequal_fovs():
+    # External audit: two dense, mutually supporting FOVs of 1,000 cells and
+    # eight one-cell FOVs, each in its own unsupported state.
+    rows = [(f"d{j}", 0.0, 0.0) for j in range(2) for _ in range(1000)]
+    rows += [(f"s{i}", 10.0 * (i + 1), 0.0) for i in range(8)]
+    data = validate_input_tables(
+        pd.DataFrame(rows, columns=["image_file", "a", "b"]), feature_cols=["a", "b"]
+    )
+    evidence = SupportNoveltyEstimator(0.5, 1, None, 2).estimate(data, objective=POPULATION)
+    assert evidence.value("lofo_novel_fraction") == pytest.approx(8 / 2008)
+    assert evidence.value("lofo_mean_fov_novel_fraction") == pytest.approx(0.8)
+    assert evidence.value("lofo_novel_fov_fraction") == pytest.approx(0.8)
+    # A strategy on the FOV-weighted quantity does not stop; the cell-weighted one does.
+    for quantity, stops in (("lofo_novel_fraction", True), ("lofo_mean_fov_novel_fraction", False)):
+        strategy = SupportNoveltyStrategy(0.5, 0.01, 1, None, 2, quantity=quantity)
+        [result] = run_strategies(
+            data.objects, strategies=[strategy], feature_cols=["a", "b"], objective=POPULATION
+        )
+        assert (result.decision is Decision.STOP) is stops

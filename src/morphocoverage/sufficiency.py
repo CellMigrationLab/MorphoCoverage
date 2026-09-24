@@ -26,11 +26,13 @@ Reading it:
   definition of new. Thresholds without a published meaning are the user's
   choice, so compare several (pass the same strategy with different
   thresholds) rather than read one verdict as a fact.
-- "New" is new at the chosen resolution in the chosen features: at least
-  ``min_novel_observations`` observations with fewer than ``min_other_fovs``
-  other FOVs within ``epsilon``. Look at ``new_observations`` to see whether
-  that is biology (a rare cell state) or technique (debris, segmentation
-  errors, a focus problem). Too fine a resolution calls almost every FOV new.
+- "New" is new at the chosen resolution in the chosen features: a cluster of
+  at least ``min_novel_observations`` similar observations (linked within
+  ``epsilon``) with fewer than ``min_other_fovs`` other FOVs within
+  ``epsilon``, so scattered outliers do not count. Look at
+  ``new_observations`` to see whether that is biology (a rare cell state) or
+  technique (clumped debris, a focus problem). Too fine a resolution calls
+  almost every FOV new.
 - With few FOVs the bound stays high whatever the data look like: with no
   new FOV among ``k``, the 95% bound is ``1 - 0.05 ** (1 / k)``, so claiming
   "below 10%" needs at least 29 FOVs.
@@ -65,7 +67,7 @@ from .evidence import Availability, Direction
 from .framework import run_strategies
 from .objectives import ObjectiveConfig, SamplingObjective
 from .results import StrategyResult
-from .schema import fov_positions, validate_input_tables
+from .schema import validate_input_tables
 from .strategies.base import SamplingStrategy
 from .strategies.support_novelty import (
     FOV_QUANTITY,
@@ -263,9 +265,14 @@ def novelty_definition(novelty: SupportNoveltyEstimator) -> str:
     """What counts as a FOV showing something new, in words."""
     m, others = novelty.min_novel_observations, novelty.min_other_fovs
     space = "raw feature units" if novelty.transform is None else novelty.transform.name
+    cells = (
+        "at least 1 observation"
+        if m == 1
+        else f"a cluster of at least {m} similar observations (linked within the distance)"
+    )
     return (
-        f"at least {m} observation{'s' if m > 1 else ''} with fewer than {others} other "
-        f"FOV{'s' if others > 1 else ''} within distance {novelty.epsilon:g} ({space})"
+        f"{cells} with fewer than {others} other FOV{'s' if others > 1 else ''} "
+        f"within distance {novelty.epsilon:g} ({space})"
     )
 
 
@@ -355,13 +362,10 @@ def _next_fov_tables(data, novelty, target):
                 )
             )
         rows.append(row)
-        flags = novelty.novel_observation_flags(group_data)
-        if flags is not None and flags.any():
-            positions = fov_positions(group_data, group_data.fovs)
-            counts = np.bincount(positions, weights=flags, minlength=k)
-            # Only observations of FOVs that count as new, so one outlier stays out
-            # when several new observations are required.
-            counted = flags & (counts[positions] >= novelty.min_novel_observations)
+        # Only the cells of new states, so scattered outliers stay out when
+        # several similar new cells are required.
+        counted = novelty.novel_observation_flags(group_data, new_states_only=True)
+        if counted is not None and counted.any():
             keep = [c for c in group_data.objects.columns if c not in features]
             flagged.append(group_data.objects.loc[counted, keep])
     new_observations = pd.concat(flagged, ignore_index=True) if flagged else pd.DataFrame()

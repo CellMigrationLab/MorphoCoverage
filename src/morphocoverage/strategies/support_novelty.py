@@ -15,24 +15,49 @@ This is the leave-one-FOV-out estimate of ``1 - C_epsilon``, the chance that
 an observation from another FOV falls outside the current support. At the FOV
 level,
 
-    lofo_novel_fov_fraction = (FOVs with at least ``min_novel_observations``
-    novel observations) / (visible FOVs),
+    lofo_novel_fov_fraction = (FOVs showing a new state) / (visible FOVs),
 
 estimates the probability that one more representative FOV shows something
-outside the current support at this resolution. Acquired FOVs without
-observations count in the denominator, since the next FOV may be empty too.
-Requiring several novel observations keeps a single outlier (for example a
-segmentation error) from counting as a new phenotype.
+outside the current support at this resolution. A FOV shows a **new state**
+when at least ``min_novel_observations`` of its novel observations form one
+cluster: they are linked by chains of steps of at most ``epsilon`` between
+novel observations of that FOV (single linkage at the same resolution). So
+``m`` new cells must resemble each other, and scattered outliers (debris,
+segmentation errors) do not add up to a phenotype however many there are.
+With ``min_novel_observations=1`` any novel observation counts. Acquired FOVs
+without observations count in the denominator, since the next FOV may be
+empty too.
 
 With few FOVs that fraction is uninformative: two homogeneous FOVs give 0,
 yet say little about a third. ``lofo_novel_fov_upper`` is the one-sided
 Clopper-Pearson upper bound at ``confidence`` on the same probability
 (``morphocoverage.bounds``), 0.78 for 0 novel FOVs of 2 at 95%, and is the
-quantity to stop on when few FOVs have been seen. It counts
-FOVs, not cells, on both sides: a state seen only in one FOV stays novel
-however many cells it has there, and support from another FOV counts once
-however many of its cells are nearby, so a dense FOV cannot cover what a
-sparse FOV showing the same state would not.
+quantity to stop on when few FOVs have been seen. Support is counted in
+FOVs, not cells: a state seen only in one FOV stays novel however many cells
+it has there, and support from another FOV counts once however many of its
+cells are nearby, so a dense FOV cannot cover what a sparse FOV showing the
+same state would not.
+
+Weighting of the held-out side differs between the quantities:
+
+- ``lofo_novel_fraction`` pools observations, so each FOV counts in
+  proportion to its cells: two dense, mutually supporting FOVs of 1,000
+  cells and eight one-cell FOVs each in its own unsupported state give
+  8 / 2,008 = 0.004, although 8 of 10 FOVs are wholly novel. It estimates
+  the chance that a random *cell* of a new FOV is novel, not a
+  representative-FOV quantity, and a dense homogeneous FOV can make it
+  look settled.
+- ``lofo_mean_fov_novel_fraction`` averages the novel fraction per FOV over
+  the FOVs with observations (0.8 above): each FOV counts once.
+- ``lofo_novel_fov_fraction`` and its bound count FOVs showing a new state
+  (each FOV once, empty FOVs in the denominator), the quantity for "would
+  one more FOV show something new?".
+
+Recurrence across FOVs is evidence that a state is common only when the FOVs
+are representative, exchangeable draws. Adjacent, spatially correlated FOVs
+showing the same local patch support each other with ``min_other_fovs=1``
+although they may be one occurrence; raise ``min_other_fovs`` or use FOVs far
+enough apart when neighbours are correlated.
 
 Choices and limits:
 
@@ -64,6 +89,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from scipy import sparse
+from scipy.sparse import csgraph
 from scipy.spatial import cKDTree
 
 from ..bounds import check_confidence, upper_bound
@@ -77,9 +104,11 @@ from .base import Estimator, SamplingStrategy
 QUANTITY = "lofo_novel_fraction"
 FOV_QUANTITY = "lofo_novel_fov_fraction"
 UPPER_QUANTITY = "lofo_novel_fov_upper"
-QUANTITIES = (QUANTITY, FOV_QUANTITY, UPPER_QUANTITY)
+MEAN_FOV_QUANTITY = "lofo_mean_fov_novel_fraction"
+QUANTITIES = (QUANTITY, MEAN_FOV_QUANTITY, FOV_QUANTITY, UPPER_QUANTITY)
 _UNITS = {
     QUANTITY: "fraction of observations",
+    MEAN_FOV_QUANTITY: "mean fraction of observations per FOV",
     FOV_QUANTITY: "fraction of FOVs (probability)",
     UPPER_QUANTITY: "probability (upper confidence bound)",
 }
@@ -168,6 +197,38 @@ def novel_against(
     return supporting < min_other_fovs
 
 
+def new_state_members(
+    values: np.ndarray,
+    positions: np.ndarray,
+    novel: np.ndarray,
+    epsilon: float,
+    min_size: int,
+) -> np.ndarray:
+    """Novel observations that belong to a cluster of at least ``min_size`` in their FOV.
+
+    Clusters are the connected components of novel observations of one FOV,
+    linked when within ``epsilon`` of each other (single linkage).
+    """
+    members = np.zeros(len(values), dtype=bool)
+    if min_size == 1:
+        return novel.copy()
+    for fov in np.unique(positions[novel]):
+        rows = np.flatnonzero(novel & (positions == fov))
+        if len(rows) < min_size:
+            continue
+        pairs = cKDTree(values[rows]).query_pairs(epsilon * (1 + 1e-12), output_type="ndarray")
+        # query_pairs uses <=, with the bound widened for rounding; recheck exactly.
+        close = np.linalg.norm(values[rows[pairs[:, 0]]] - values[rows[pairs[:, 1]]], axis=1)
+        pairs = pairs[close <= epsilon]
+        graph = sparse.coo_matrix(
+            (np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])), shape=(len(rows), len(rows))
+        )
+        _, labels = csgraph.connected_components(graph, directed=False)
+        sizes = np.bincount(labels)
+        members[rows] = sizes[labels] >= min_size
+    return members
+
+
 def _meta(name: str) -> dict[str, Any]:
     """Direction, units and component of a novelty quantity."""
     return {
@@ -188,9 +249,10 @@ def _unavailable(kind: str, reason: str, diagnostics: dict[str, Any]) -> Evidenc
 class SupportNoveltyEstimator(Estimator):
     """Leave-one-FOV-out fraction of observations outside the other FOVs' ``epsilon``-support.
 
-    Reports ``lofo_novel_fraction`` and ``lofo_novel_fov_fraction``
-    (population, lower is better). See the module docstring for the estimands
-    and their limits.
+    Reports ``lofo_novel_fraction`` (cell-weighted),
+    ``lofo_mean_fov_novel_fraction`` (FOV-weighted), ``lofo_novel_fov_fraction``
+    and its upper bound (population, lower is better). See the module
+    docstring for the estimands, their weighting and their limits.
     """
 
     epsilon: float
@@ -245,7 +307,10 @@ class SupportNoveltyEstimator(Estimator):
         counts = np.bincount(positions, minlength=k)
         per_fov = novel_per_fov / np.maximum(counts, 1)
         observed = counts > 0
-        novel_fov_count = int(np.sum(novel_per_fov >= self.min_novel_observations))
+        members = new_state_members(
+            values, positions, novel, self.epsilon, self.min_novel_observations
+        )
+        novel_fov_count = int(np.unique(positions[members]).size)
         upper = upper_bound(novel_fov_count, k, self.confidence)
         diagnostics.update(
             {
@@ -257,6 +322,9 @@ class SupportNoveltyEstimator(Estimator):
         )
         quantities = {
             QUANTITY: Quantity.available(float(novel.mean()), **_meta(QUANTITY)),
+            MEAN_FOV_QUANTITY: Quantity.available(
+                float(per_fov[observed].mean()), **_meta(MEAN_FOV_QUANTITY)
+            ),
             FOV_QUANTITY: Quantity.available(novel_fov_count / k, **_meta(FOV_QUANTITY)),
             UPPER_QUANTITY: Quantity.available(upper, **_meta(UPPER_QUANTITY)),
         }
@@ -268,7 +336,8 @@ class SupportNoveltyEstimator(Estimator):
         The same definition the estimate uses, applied to FOVs not yet seen: a
         FOV of ``new`` is novel when at least ``min_novel_observations`` of its
         observations have fewer than ``min_other_fovs`` FOVs of ``visible``
-        within ``epsilon``. The transform is fitted on ``visible`` only. FOVs
+        within ``epsilon`` and form one cluster at ``epsilon`` (a new state).
+        The transform is fitted on ``visible`` only. FOVs
         without observations are not novel. Returns ``None`` when the estimate
         on ``visible`` would be unavailable (missing values, too few FOVs, a
         transform that cannot be fitted) or ``new`` has missing values.
@@ -286,14 +355,21 @@ class SupportNoveltyEstimator(Estimator):
                 return None
             reference, queries = fitted.apply(visible), fitted.apply(new)
         flags = novel_against(reference, positions, queries, self.epsilon, self.min_other_fovs)
-        per_fov = np.bincount(fov_positions(new, new.fovs), weights=flags, minlength=len(new.fovs))
-        return per_fov >= self.min_novel_observations
+        new_positions = fov_positions(new, new.fovs)
+        members = new_state_members(
+            queries, new_positions, flags, self.epsilon, self.min_novel_observations
+        )
+        return np.isin(np.arange(len(new.fovs)), new_positions[members])
 
-    def novel_observation_flags(self, data: ValidatedInput) -> np.ndarray | None:
+    def novel_observation_flags(
+        self, data: ValidatedInput, *, new_states_only: bool = False
+    ) -> np.ndarray | None:
         """Leave-one-FOV-out novelty of each observation of ``data``, or ``None``.
 
         The per-observation flags behind the estimate, for inspecting which
         cells were counted as new; ``None`` when the estimate is unavailable.
+        With ``new_states_only``, only the novel observations that form a new
+        state (a cluster of at least ``min_novel_observations``) are flagged.
         """
         matrix = data.feature_matrix()
         positions = fov_positions(data, data.fovs)
@@ -304,7 +380,12 @@ class SupportNoveltyEstimator(Estimator):
             if not fitted.fitted:
                 return None
             matrix = fitted.apply(data)
-        return novel_observations(matrix, positions, self.epsilon, self.min_other_fovs)
+        novel = novel_observations(matrix, positions, self.epsilon, self.min_other_fovs)
+        if not new_states_only:
+            return novel
+        return new_state_members(
+            matrix, positions, novel, self.epsilon, self.min_novel_observations
+        )
 
 
 @dataclass(frozen=True)
@@ -312,7 +393,9 @@ class SupportNoveltyStrategy(SamplingStrategy):
     """Stop when a leave-one-FOV-out novel fraction is at most ``tolerance``.
 
     ``SupportNoveltyEstimator`` plus ``ThresholdPolicy`` on ``quantity``: the
-    fraction of observations (default) or of FOVs that are novel. The
+    cell-weighted fraction of novel observations (default), the FOV-weighted
+    mean fraction, the fraction of FOVs showing a new state or its upper
+    bound. The
     resolution, support and minimum FOVs have no defaults.
     """
 
