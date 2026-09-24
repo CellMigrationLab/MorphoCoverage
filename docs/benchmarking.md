@@ -39,6 +39,10 @@ Synthetic data remain useful for unit tests, explicit counterexamples, and regre
 
 Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an agreed adequacy definition) and aggregation into a regime map.
 
+## Retrospective sufficiency of one dataset
+
+`sufficiency_report(objects, fovs, feature_cols=..., strategies=..., objective=..., orders=...)` answers, for an analysed dataset, whether each strategy's criterion is met by the acquired FOVs (`final`) and after how many FOVs it would have stopped across acquisition orders (`stops`, with the spare FOVs beyond the stop). Verdicts hold only for each criterion and threshold, so sweep thresholds and compare strategies rather than read one verdict as a fact. It is self-assessment of one dataset; whether a criterion is right is a benchmark question.
+
 ## Scientific performance dimensions
 
 Strategies should be compared on several independent outcomes, not only a metric related to their own score.

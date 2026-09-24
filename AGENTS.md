@@ -190,6 +190,7 @@ src/morphocoverage/
     spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
     bounds.py              # Clopper-Pearson bounds for probabilities from few FOVs
     framework.py           # run_strategies convenience entry point
+    sufficiency.py         # retrospective sufficiency report of an analysed dataset
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
