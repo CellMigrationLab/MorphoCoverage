@@ -103,3 +103,136 @@ Errors are relative RMSE of the well mean, as medians across wells. Every number
 
 The data used are described in `data/crick_idr/README.md`. The complete plates
 are downloaded by the script; only the paper's wells are committed.
+
+## 2. Positive control: does "something new in the next FOV" find a phenotype that is there? (2026-09-24)
+
+**Question.** The sufficiency report estimates the chance that one more FOV
+shows something new. Calibration checks that estimate against the data it came
+from, but a homogeneous well cannot show whether a real, different phenotype
+would be caught. Here the truth is known by construction.
+
+**Method** (`data/crick_idr/positive_control.py`, committed idr0028 subset,
+fixed seed). For each plate, the MOCK well is the host. `k` host FOVs are drawn
+at random (20 draws for each `k`), and candidate next FOVs are judged against
+them with the report's definition of new: 30 standardized intensity features,
+fitted on the `k` FOVs only; a cluster of at least `m` unsupported cells, where
+another FOV supports a cell only with at least `m` of its own cells within
+`epsilon`. Candidates:
+
+- the host's remaining FOVs (nothing new by construction: the false-alarm rate);
+- every FOV of a knockdown well on the same plate (siYAP, siLATS1 or siARAP2);
+- a remaining host FOV with 3, 5 or 10 cells of a knockdown FOV added.
+
+Rates at `epsilon = sqrt(30)` and `m = 3`, pooled over the three plates and
+both knockdown wells of each (tracked in
+`data/crick_idr/results/positive_control_idr0028.csv`):
+
+| FOVs seen | host (false alarm) | whole siYAP FOV | whole siLATS1 FOV | whole siARAP2 FOV | host + 3 siYAP cells | host + 10 siLATS1 cells | host + 10 siARAP2 cells |
+|---|---|---|---|---|---|---|---|
+| 5 | 5.0% | 100% | 65% | 19% | 94% | 16% | 8% |
+| 10 | 2.4% | 100% | 53% | 9% | 94% | 10% | 5% |
+| 20 | 0.8% | 100% | 39% | 8% | 95% | 4% | 3% |
+
+**What this shows**
+
+- **A strongly different phenotype is found, even as 3 cells.** Three siYAP
+  cells added to a host FOV make it count as new in about 95% of cases, at a
+  false-alarm rate of 1–5%.
+- **Detection depends on the representation, not on the readout the biologist
+  reports.** siLATS1 shifts the YAP/TAZ nuclear ratio further than siYAP
+  (+1.4 versus −1.1 SD of the MOCK cells), yet whole siLATS1 fields count as new only 39–65% of
+  the time and 10 siLATS1 cells barely beat the false-alarm rate. The 30
+  intensity features separate siYAP far more than a
+  change in localization, presumably because siYAP lowers YAP/TAZ intensity
+  in every compartment. A method is only as sensitive as its features.
+- **Weak phenotypes are not distinguished.** siARAP2 fields sit close to the
+  false-alarm rate, as expected for a 0.3–0.5 SD shift.
+- **The definition matters more than the statistics.** At `epsilon = 0.5 sqrt(30)`
+  or with `m = 1`, 22–100% of host FOVs count as new: everything looks new, so
+  nothing is informative. `m = 3` at `epsilon = sqrt(30)` was the only setting
+  tried with both a low false-alarm rate and full detection of siYAP.
+- **Seeing more FOVs lowers false alarms and also lowers detection of moderate
+  phenotypes** (siLATS1 65% to 39%): with more FOVs, some host cells resemble
+  the knockdown cells and support them.
+
+**What this does not show**
+
+- **Semi-synthetic.** Knockdown cells added to a host FOV were imaged in other
+  fields, so the rare-cell case approximates a rare state rather than measuring
+  one. The labels are conditions, not verified phenotypes.
+- **One dataset and one representation.** Only idr0028 intensity features were
+  used; the tuned setting (`epsilon`, `m`) was chosen here and is not validated
+  on held-out data.
+- **Single candidates, not stopping.** This measures whether one next FOV is
+  judged new. It does not yet test whether the probability and bound of the
+  report are right when a rare phenotype occurs in a given fraction of FOVs.
+
+## 3. Frequency control: is the next-FOV chance right when a rare state is there? (2026-09-24)
+
+**Question.** Entry 2 shows that the definition of new catches a strong
+phenotype in a single candidate FOV. Are the report's probability and 95% bound
+right when a rare state occurs in a known fraction of FOVs, and what does
+stopping on the bound miss?
+
+**Method** (`data/crick_idr/frequency_control.py`, fixed seed). In the MOCK
+wells of plates 1A and 2A (28 FOVs each), 5 siYAP cells from the same plate
+are added to a fraction `p` of the FOVs: each FOV independently (spread), or
+the same expected number nearest a random FOV by stage position (clustered).
+Each planted acquisition (50 per plate, `p` and layout) is replayed in a random
+order. After `k` FOVs the estimator (`epsilon = sqrt(30)`, clusters of 3,
+symmetric support) predicts the chance that the next FOV shows something new,
+with its 95% bound. The biological truth is the chance that the next FOV shows
+the planted state while none of the first `k` does. A stopping replay stops at
+the first `k` whose bound is at most 25%. Results are tracked in
+`data/crick_idr/results/frequency_control_idr0028.csv` and
+`frequency_control_stops_idr0028.csv`.
+
+| `p` | FOVs seen | predicted | true chance (planted state) | bound | bound held | state already seen |
+|---|---|---|---|---|---|---|
+| 5% | 5 | 0.08–0.10 | 0.03–0.04 | 0.53–0.56 | 100% | 21–28% |
+| 5% | 20 | 0.03 | 0.02 | 0.18–0.19 | 97–99% | 64–68% |
+| 10% | 5 | 0.11–0.12 | 0.05–0.06 | 0.56–0.57 | 100% | 38–46% |
+| 10% | 20 | 0.02–0.03 | 0.01–0.02 | 0.17–0.18 | 96–99% | 85–86% |
+| 20% | 5 | 0.12 | 0.07 | 0.57 | 99–100% | 65–68% |
+| 20% | 20 | 0.01–0.02 | 0.00 | 0.16 | 99–100% | 98–99% |
+
+Ranges span the spread and clustered layouts. Stopping when the bound first
+reaches 25%:
+
+| `p` | stop (median FOVs) | planted state never seen at the stop, among acquisitions that had it | true chance of it in the next FOV at the stop |
+|---|---|---|---|
+| 5% | 11 | 46–48% | 3.2–3.3% |
+| 10% | 11 | 27–32% | 3.0–3.3% |
+| 20% | 11 | 7–8% | 1.4–1.5% |
+
+**What this shows**
+
+- **The bound keeps its promise.** It was at least the true chance of meeting
+  the planted state in the next FOV in 96–100% of cases at every frequency and
+  prefix length. The point prediction overstates the true chance, by about the
+  host false-alarm rate of entry 2.
+- **The promise is about the next FOV, not about whether a rare state exists.**
+  Stopping when the bound reaches 25% happens at 11 FOVs in every condition,
+  because with no new FOV the bound depends only on the number of FOVs. At
+  that stop the planted state had not been seen yet in almost half the
+  acquisitions that contained it at a 5% frequency, and in about 30% at 10%,
+  while the chance of it appearing in the very next FOV was only about 3%, as
+  the bound said. A small next-FOV risk is not evidence that no rare state
+  remains (AGENTS.md §3).
+- **The actionable rule is a count of FOVs.** Seeing no new FOV among `k`
+  bounds the per-FOV frequency of an unseen state below about `3 / k` (rule
+  of three). Ruling out a state present in 5% of FOVs at 95% needs about 60
+  FOVs with nothing new, more than these wells have (28).
+- **Clustering made no difference here** because FOVs were replayed in random
+  order; a clustered state then behaves like a spread one. In a raster or
+  otherwise spatially ordered acquisition it would be found later.
+
+**What this does not show**
+
+- **Semi-synthetic**, as entry 2: planted cells come from other fields, and
+  siYAP is the easiest state to detect. A state detected less reliably (entry
+  2: siLATS1) would be missed more often.
+- **Random orders only.** Recorded, spatially ordered acquisition was not
+  replayed.
+- **Two wells of 28 FOVs**, one representation and one setting of the
+  definition, chosen on the same dataset.
