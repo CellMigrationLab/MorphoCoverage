@@ -41,7 +41,24 @@ Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an
 
 ## Retrospective sufficiency of one dataset
 
-`sufficiency_report(objects, fovs, feature_cols=..., strategies=..., objective=..., orders=...)` answers, for an analysed dataset, whether each strategy's criterion is met by the acquired FOVs (`final`) and after how many FOVs it would have stopped across acquisition orders (`stops`, with the spare FOVs beyond the stop). Verdicts hold only for each criterion and threshold, so sweep thresholds and compare strategies rather than read one verdict as a fact. It is self-assessment of one dataset; whether a criterion is right is a benchmark question.
+`sufficiency_report(objects, fovs, feature_cols=..., strategies=..., objective=..., orders=..., novelty=..., novelty_target=..., calibration=...)` answers two questions per analysis group of an analysed dataset:
+
+1. **Did we sample enough?** (`enough`) For each criterion: `sampled_enough` (yes, no or undefined on the acquired FOVs), after how many FOVs it was first met across the declared acquisition orders (median and 10-90% range), and the FOVs imaged beyond that point. Verdicts hold only for each criterion and threshold, so compare several.
+2. **Would one more FOV show something new?** (`next_fov`, given a `SupportNoveltyEstimator` that defines "new") The chance, its upper confidence bound, and, for a `novelty_target`, the extra FOVs needed before the bound can fall below it: at least this many if none of them shows anything new, and this many if new FOVs keep appearing at the current rate. The target is also added as a criterion to question 1. `new_observations` lists the observations counted as new so they can be inspected in the images: debris or segmentation errors count as new too.
+
+`summary()` states both answers in sentences. `final` and `stops` keep the full evidence and stop distributions.
+
+The chance can be checked on the dataset itself (`calibration=CalibrationSettings(...)`, or `morphocoverage.calibration.calibrate_next_fov_novelty`). Random subsets of `k` FOVs predict the chance, and the remaining FOVs, judged against the same subset with the same definition, give the actual rate. On idr0028 (12 wells of 28 FOVs; 30 standardized intensity features; new meaning at least 3 nuclei with no other FOV within `sqrt(30)`), pooled over wells with 20 draws each:
+
+| FOVs imaged | predicted | actual | mean 95% bound | bound held |
+| --- | --- | --- | --- | --- |
+| 5 | 0.20 | 0.20 | 0.64 | 99% |
+| 10 | 0.11 | 0.12 | 0.39 | 96% |
+| 20 | 0.07 | 0.08 | 0.24 | 94% |
+
+With half that distance, 83% of FOVs were still new after 20 FOVs (94% when one nucleus is enough): calibrated, but not a useful definition. At this distance with one nucleus enough, 40% were. Random subsets treat FOVs as exchangeable, so this does not test drift along the recorded order, and the actual rate is measured on few remaining FOVs when `k` is close to the group size.
+
+It is self-assessment of one dataset; whether a criterion is right in general is a benchmark question.
 
 ## Scientific performance dimensions
 

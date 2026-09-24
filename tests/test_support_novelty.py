@@ -18,7 +18,7 @@ from morphocoverage import (
 from morphocoverage.evaluator import objects_in_fovs, restrict_input
 from morphocoverage.schema import fov_positions
 from morphocoverage.strategies import SupportNoveltyEstimator, SupportNoveltyStrategy
-from morphocoverage.strategies.support_novelty import novel_observations
+from morphocoverage.strategies.support_novelty import novel_against, novel_observations
 from morphocoverage.transforms import Standardize
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -231,3 +231,53 @@ def test_upper_bound_covers_the_true_novelty_probability():
             fovs.append(cells)
         covered.append(_novelty(_table(fovs)).value("lofo_novel_fov_upper") >= 0.2)
     assert np.mean(covered) >= 0.93
+
+
+def test_new_observations_are_judged_against_the_reference_fovs_only():
+    rng = np.random.default_rng(9)
+    for _ in range(20):
+        counts = rng.integers(1, 8, size=rng.integers(1, 5))
+        positions = np.repeat(np.arange(len(counts)), counts)
+        reference = rng.normal(size=(len(positions), 2))
+        queries = rng.normal(size=(int(rng.integers(0, 10)), 2))
+        epsilon, required = rng.uniform(0.2, 1.2), int(rng.integers(1, 3))
+        near = distance.cdist(queries, reference) <= epsilon
+        expected = [len(set(positions[row])) < required for row in near]
+        flags = novel_against(reference, positions, queries, epsilon, required)
+        assert list(flags) == expected
+
+
+def test_a_new_fov_is_novel_only_with_enough_unseen_cells():
+    rng = np.random.default_rng(10)
+    seen = _table([rng.normal(0, 0.1, size=(20, 2)) for _ in range(4)])
+    common = rng.normal(0, 0.1, size=(20, 2))
+    one_outlier = np.vstack([rng.normal(0, 0.1, size=(20, 2)), [[9.0, 9.0]]])
+    new_state = np.vstack([rng.normal(0, 0.1, size=(20, 2)), rng.normal(5, 0.05, (3, 2))])
+    new = _table([common, one_outlier, new_state], empty_fovs=1)
+    estimator = SupportNoveltyEstimator(0.5, 1, None, 2, 3)
+    assert list(estimator.novel_fovs_against(seen, new)) == [False, False, True, False]
+    any_cell = SupportNoveltyEstimator(0.5, 1, None, 2, 1)
+    assert list(any_cell.novel_fovs_against(seen, new)) == [False, True, True, False]
+
+
+def test_new_fovs_use_the_transform_fitted_on_the_seen_fovs():
+    # In raw units the new FOV lies far away; standardizing with the seen FOVs'
+    # scale must keep it far, whereas refitting on the new FOV would not.
+    rng = np.random.default_rng(11)
+    seen = _table([rng.normal(0, 1, size=(30, 2)) for _ in range(3)])
+    new = _table([rng.normal(20, 1, size=(30, 2))])
+    estimator = SupportNoveltyEstimator(1.0, 1, Standardize(), 2, 1)
+    assert list(estimator.novel_fovs_against(seen, new)) == [True]
+    too_few = _table([rng.normal(size=(5, 2))], empty_fovs=2)
+    assert estimator.novel_fovs_against(too_few, new) is None
+
+
+def test_observation_flags_match_the_estimate():
+    rng = np.random.default_rng(12)
+    data = _table([rng.normal(size=(15, 2)) for _ in range(5)])
+    estimator = SupportNoveltyEstimator(0.4, 1, Standardize(), 2)
+    flags = estimator.novel_observation_flags(data)
+    evidence = estimator.estimate(data, objective=POPULATION)
+    assert flags.sum() == evidence.diagnostics["novel_observations"]
+    assert flags.mean() == pytest.approx(evidence.value("lofo_novel_fraction"))
+    assert estimator.novel_observation_flags(_table([rng.normal(size=(5, 2))])) is None

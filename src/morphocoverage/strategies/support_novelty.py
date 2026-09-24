@@ -144,6 +144,30 @@ def novel_observations(
     return supporting < min_other_fovs
 
 
+def novel_against(
+    reference: np.ndarray,
+    reference_positions: np.ndarray,
+    queries: np.ndarray,
+    epsilon: float,
+    min_other_fovs: int,
+) -> np.ndarray:
+    """Whether each query row has fewer than ``min_other_fovs`` reference FOVs within ``epsilon``.
+
+    The rule of ``novel_observations`` applied to observations from FOVs that
+    are not in the reference set, such as a newly acquired FOV judged against
+    all the FOVs acquired before it.
+    """
+    supporting = np.zeros(len(queries), dtype=np.int64)
+    if len(queries) == 0:
+        return supporting.astype(bool)
+    for fov in np.unique(reference_positions):
+        nearest, _ = cKDTree(reference[reference_positions == fov]).query(
+            queries, k=1, distance_upper_bound=epsilon * (1 + 1e-12)
+        )
+        supporting += nearest <= epsilon
+    return supporting < min_other_fovs
+
+
 def _meta(name: str) -> dict[str, Any]:
     """Direction, units and component of a novelty quantity."""
     return {
@@ -237,6 +261,50 @@ class SupportNoveltyEstimator(Estimator):
             UPPER_QUANTITY: Quantity.available(upper, **_meta(UPPER_QUANTITY)),
         }
         return Evidence(quantities, diagnostics)
+
+    def novel_fovs_against(self, visible: ValidatedInput, new: ValidatedInput) -> np.ndarray | None:
+        """Whether each FOV of ``new`` would count as novel after the FOVs of ``visible``.
+
+        The same definition the estimate uses, applied to FOVs not yet seen: a
+        FOV of ``new`` is novel when at least ``min_novel_observations`` of its
+        observations have fewer than ``min_other_fovs`` FOVs of ``visible``
+        within ``epsilon``. The transform is fitted on ``visible`` only. FOVs
+        without observations are not novel. Returns ``None`` when the estimate
+        on ``visible`` would be unavailable (missing values, too few FOVs, a
+        transform that cannot be fitted) or ``new`` has missing values.
+        """
+        reference = visible.feature_matrix()
+        queries = new.feature_matrix()
+        if np.isnan(reference).any() or np.isnan(queries).any():
+            return None
+        positions = fov_positions(visible, visible.fovs)
+        if len(np.unique(positions)) < self.min_fovs:
+            return None
+        if self.transform is not None:
+            fitted = self.transform.fit(visible)
+            if not fitted.fitted:
+                return None
+            reference, queries = fitted.apply(visible), fitted.apply(new)
+        flags = novel_against(reference, positions, queries, self.epsilon, self.min_other_fovs)
+        per_fov = np.bincount(fov_positions(new, new.fovs), weights=flags, minlength=len(new.fovs))
+        return per_fov >= self.min_novel_observations
+
+    def novel_observation_flags(self, data: ValidatedInput) -> np.ndarray | None:
+        """Leave-one-FOV-out novelty of each observation of ``data``, or ``None``.
+
+        The per-observation flags behind the estimate, for inspecting which
+        cells were counted as new; ``None`` when the estimate is unavailable.
+        """
+        matrix = data.feature_matrix()
+        positions = fov_positions(data, data.fovs)
+        if np.isnan(matrix).any() or len(np.unique(positions)) < self.min_fovs:
+            return None
+        if self.transform is not None:
+            fitted = self.transform.fit(data)
+            if not fitted.fitted:
+                return None
+            matrix = fitted.apply(data)
+        return novel_observations(matrix, positions, self.epsilon, self.min_other_fovs)
 
 
 @dataclass(frozen=True)

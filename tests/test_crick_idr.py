@@ -187,3 +187,36 @@ def test_benchmark_protocol_runs_on_a_real_acquisition(idr0028):
         assert all(value is not None and value >= 0 for value in record.outcomes.values())
         if record.strategy == "fixed_fov":
             assert (record.stop_step, record.n_fovs) == (4, 4)
+
+
+def test_sufficiency_report_answers_both_questions_on_idr0028():
+    import numpy as np
+
+    from morphocoverage.strategies import SupportNoveltyEstimator
+    from morphocoverage.sufficiency import CalibrationSettings, sufficiency_report
+    from morphocoverage.transforms import Standardize
+
+    objects, fovs = _load("idr0028_screenB")
+    wells = fovs[["repeat", "well"]].drop_duplicates().iloc[:2]
+    fovs = fovs.merge(wells)
+    objects = objects.merge(wells)
+    features = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
+    novelty = SupportNoveltyEstimator(float(np.sqrt(len(features))), 1, Standardize(), 2, 3)
+    report = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=features,
+        group_cols=["condition", "repeat", "well"],
+        strategies=[FixedFOVStrategy(10)],
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        orders=[AcquisitionOrder.recorded()],
+        acquisition_order_col="acquisition_order",
+        novelty=novelty,
+        novelty_target=0.25,
+        calibration=CalibrationSettings((10,), 3, 0),
+    )
+    assert len(report.next_fov) == 2 and set(report.next_fov["fovs_imaged"]) == {28}
+    assert report.next_fov["chance_new"].between(0, 1).all()
+    assert (report.next_fov["chance_new_at_most"] >= report.next_fov["chance_new"]).all()
+    assert len(report.enough) == 4 and set(report.calibration["remaining_fovs"]) == {18}
+    assert report.summary().count("Would one more FOV show something new?") == 2
