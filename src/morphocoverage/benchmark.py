@@ -22,7 +22,10 @@ success:
   That reference contains the prefix, so errors shrink to zero as the prefix
   grows. With ``reservoir=ReservoirSplit(...)`` each group is split first:
   strategies replay the stream only and outcomes are scored against the
-  held-out reservoir (``reservoir.py``).
+  held-out reservoir (``reservoir.py``). The stream is a thinned acquisition:
+  its recorded order skips the held-out FOVs, so neighbouring stream FOVs are
+  further apart than at the microscope, and a recorded-order replay is not an
+  exact replay of the acquisition.
 - **Record.** One ``BenchmarkRecord`` per dataset, analysis group, order and
   strategy, with effort at the stop (FOVs, objects, area), outcomes,
   estimator compute times, and whole-decision latency (median and maximum
