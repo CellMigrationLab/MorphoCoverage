@@ -8,11 +8,11 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 
 | Question | Today |
 | --- | --- |
-| Can my features detect the phenotype I care about? | positive and frequency controls on idr0028 (preliminary findings, entries 2–3); a representation-sensitivity report is proposed |
+| Can my features detect the phenotype I care about? | positive and frequency controls on idr0028 (preliminary findings, entries 2–3); a positive-control report for declared controls is proposed |
 | Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, first stop points across acquisition orders, rare-state statements |
 | Would one more FOV show something new, and is that chance right? | `sufficiency_report` next-FOV chance and nominal bound, flagged cells, `calibrate_next_fov_novelty` |
 | What is limiting my sampling? | design effect (preliminary findings, entry 1), semivariogram; a sampling profile is proposed |
-| How many FOVs should I image next time? | proposed: realized reliability curves, per sample and across samples, judged on hidden FOVs |
+| How many FOVs should I image next time? | proposed: realized reliability curves against fixed held-out FOVs, per sample and across held-out samples |
 | What did the extra FOVs buy? | stop points and spare FOVs; sustained and realized adequacy are proposed |
 | Which FOVs and cells should I inspect? | the cells counted as new; a traceable inspect-these-fields report is proposed |
 | More FOVs, or more biological samples? | proposed: a hierarchical variance decomposition with projected uncertainty under alternative allocations |
