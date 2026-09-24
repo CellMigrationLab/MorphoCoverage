@@ -350,3 +350,49 @@ def validate_input_tables(
         observation_unit=observation_unit,
         observation_unit_declared=unit_declared,
     )
+
+
+def fov_table_from_observations(
+    objects: pd.DataFrame,
+    fov_key: Sequence[str],
+    *,
+    carry: Sequence[str] = (),
+) -> pd.DataFrame:
+    """A FOV table reconstructed from an observation table, when no acquisition record exists.
+
+    Published feature tables (for example CellProfiler exports) often come
+    without a table of acquired FOVs. This builds one row per distinct
+    ``fov_key`` (for example ``["condition", "repeat", "image_file"]``) and
+    copies ``carry`` columns that are constant within each FOV (stage
+    coordinates, area, acquisition order). It warns every time, because FOVs
+    that were acquired but hold no observations are missing from such a table:
+    acquisition effort is undercounted and FOVs with nothing in them never
+    count, which makes every sampling answer optimistic. Provide the real FOV
+    table whenever it exists.
+    """
+    import warnings
+
+    key = list(fov_key)
+    columns = key + [c for c in carry if c not in key]
+    missing = [c for c in columns if c not in objects.columns]
+    if missing:
+        raise ValueError(f"columns missing from the observation table: {missing}")
+    if not key:
+        raise ValueError("fov_key must name at least one column")
+    grouped = objects.groupby(key, sort=False, dropna=False)
+    for column in carry:
+        varying = grouped[column].nunique(dropna=False) > 1
+        if varying.any():
+            raise ValueError(
+                f"carry column {column!r} varies within FOV {varying.index[varying][0]!r}; "
+                "only FOV-level columns can be carried"
+            )
+    table = objects.loc[:, columns].drop_duplicates(subset=key).reset_index(drop=True)
+    warnings.warn(
+        f"FOV table reconstructed from observations ({len(table)} FOVs): acquired FOVs "
+        "without observations are missing, so effort is undercounted and sampling "
+        "answers are optimistic. Provide the acquisition's FOV table if it exists.",
+        UserWarning,
+        stacklevel=2,
+    )
+    return table

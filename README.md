@@ -12,7 +12,7 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 | Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, first stop points across acquisition orders, rare-state statements |
 | Would one more FOV show something new, and is that chance right? | `sufficiency_report` next-FOV chance and nominal bound, flagged cells, `calibrate_next_fov_novelty` |
 | What is limiting my sampling? | design effect (preliminary findings, entry 1), semivariogram; a sampling profile is proposed |
-| How many FOVs should I image next time? | proposed: realized reliability curves against fixed held-out FOVs, per sample and across held-out samples |
+| How many FOVs should I image next time? | `morphocoverage.retrospective.sampling_reliability`: how often k random fields preserve what you declared (for example the well mean within 5%) in fixed held-back fields, per sample; across held-out samples is proposed |
 | What did the extra FOVs buy? | stop points and spare FOVs; sustained and realized adequacy are proposed |
 | Which FOVs and cells should I inspect? | the cells counted as new; a traceable inspect-these-fields report is proposed |
 | More FOVs, or more biological samples? | proposed: a hierarchical variance decomposition with projected uncertainty under alternative allocations |

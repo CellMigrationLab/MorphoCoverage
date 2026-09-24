@@ -236,3 +236,65 @@ reaches 25%:
   replayed.
 - **Two wells of 28 FOVs**, one representation and one setting of the
   definition, chosen on the same dataset.
+
+## 4. How many fields do you need? Sampling reliability on idr0028 (2026-09-24)
+
+**Question.** For a stated tolerance, how often does a random set of `k`
+fields give the same answer as fields that were not used? This is roadmap
+Step 1 (`morphocoverage.retrospective.sampling_reliability`). It is a property
+of the acquisition, not of any stopping rule.
+
+**Method** (`data/crick_idr/reliability_idr0028.py`, fixed seed). The data are
+the 12 wells of the committed subset, 28 FOVs each, analysed one well at a
+time. The phenotype is the YAP/TAZ nuclear ratio of Marcotti et al. (nuclear
+mean / (nuclear + cytoplasmic mean intensity)). Each of 10 splits holds back a
+random 10 FOVs as the reference. For each `k`, 50 random sets of `k` whole
+FOVs are drawn from the other 18 and judged against that same reference. The
+three criteria are the roadmap's provisional presets:
+
+- the well mean within 5%;
+- the well mean within 2.5%;
+- the variance within 10%.
+
+Results are in `data/crick_idr/results/reliability_idr0028.csv` and
+`reliability_ceiling_idr0028.csv`. The ceiling is how often all 18 fields
+together met the criterion.
+
+| criterion | 2 fields | 4 fields | 8 fields | 18 fields | all 18 fields (ceiling) |
+|---|---|---|---|---|---|
+| mean within 5% | 99–100% | 100% | 100% | 100% | 100% |
+| mean within 2.5% | 81–100% (median 93%) | 93–100% (99%) | 99–100% | 100% | 100% |
+| variance within 10% | 14–30% (20%) | 15–41% (26%) | 14–57% (29%) | 10–80% (30%) | 10–80% (30%) |
+
+Each cell gives the range across the 12 wells, with the median in brackets.
+
+**What this shows**
+
+- **For the well mean, two fields are almost always enough.** At a 5%
+  tolerance, 2 fields matched the held-back fields in at least 99% of draws in
+  every well. At 2.5%, 2 fields were enough in 81–100% of draws (worst:
+  ARAP2 2B C17 and YAP 2A N23), 4 fields in at least 93%, and 8 in at least
+  99%. The median error of a 2-field mean was 1%. With 28 FOVs per well, this
+  mean was heavily oversampled.
+- **The variance within 10% cannot be judged with this design.** Even all 18
+  fields matched the 10 held-back fields in only 30% of splits (median; 10–80%
+  across wells). The held-back fields are too few to pin the variance down to
+  10%. The curve is flat because it is capped by that ceiling, not because
+  more fields do not help: the median error falls from 0.26 at 2 fields to
+  0.17 at 18. The report states the ceiling for this reason. Here it says that
+  the question needs more fields than the well holds, not that 18 fields fail.
+- **The criterion decides the answer.** The same wells need 2 fields or cannot
+  be answered, depending on whether the question is the mean or the spread.
+  A protocol must therefore state its criterion; there is no single number of
+  fields.
+
+**What this does not show**
+
+- **Development data only.** idr0028 is the only registered dataset and was
+  used to build this analysis. No field count here is a protocol.
+- **Nothing beyond 18 fields**, and nothing about wells, plates or repeats:
+  every statement is within one well. Draws and splits are not independent
+  replicates. The ranges across wells describe these 12 wells only.
+- **Fields are treated as random draws** from the well. Spatial order and
+  neighbour correlation between fields are not modelled (roadmap Step 8).
+- **One feature**, one representation, and provisional tolerances.

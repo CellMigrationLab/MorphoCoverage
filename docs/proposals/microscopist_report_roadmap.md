@@ -1,6 +1,6 @@
 # Roadmap: implementing the microscopist's report
 
-**Status:** for review (2026-09-24), revised after review the same day.
+**Status:** approved (2026-09-24). Steps 0 and 1 implemented (`morphocoverage.retrospective`); the project owner accepted the proposed answers to decisions 1–6, with idr0028 as the only (development) dataset for now.
 Implements `docs/proposals/microscopist_report.md`, which gives the reasons.
 This roadmap gives the order, the deliverables, the definitions and the
 acceptance criteria. Nothing here is implemented yet.
