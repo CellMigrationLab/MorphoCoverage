@@ -12,6 +12,7 @@ from morphocoverage import (
     ObjectiveConfig,
     SamplingObjective,
     evaluate_acquisition_prefixes,
+    run_strategies,
     validate_input_tables,
 )
 from morphocoverage.evaluator import objects_in_fovs, restrict_input
@@ -151,9 +152,13 @@ def test_zero_observation_fovs_are_resampled_as_acquired_units():
     assert evidence.quantities[estimator.quantity].value > 0
 
 
-def test_strategy_stops_once_the_standard_error_is_within_tolerance():
+@pytest.mark.parametrize(
+    "aggregate, name",
+    [("max", "fov_bootstrap_centroid_max_se"), ("rms", "fov_bootstrap_centroid_se")],
+)
+def test_strategy_stops_once_the_standard_error_is_within_tolerance(aggregate, name):
     built = SCENARIOS["homogeneous"]()
-    strategy = FOVBootstrapStrategy("centroid", 0.08, Standardize(), 200, 0, 3)
+    strategy = FOVBootstrapStrategy("centroid", 0.08, Standardize(), 200, 0, 3, aggregate=aggregate)
     results = evaluate_acquisition_prefixes(
         built.objects,
         built.fovs,
@@ -163,7 +168,7 @@ def test_strategy_stops_once_the_standard_error_is_within_tolerance():
         objective=POPULATION,
     )
     for item in results:
-        quantity = item.result.evidence.quantities["fov_bootstrap_centroid_se"]
+        quantity = item.result.evidence.quantities[name]
         if quantity.availability.value != "available":
             assert item.result.decision is Decision.CONTINUE
         else:
@@ -335,7 +340,8 @@ def test_resamples_without_spread_make_pca_summaries_undefined(summary, r):
     data = validate_input_tables(objects, feature_cols=["a", "b"])
     estimator = FOVBootstrapEstimator(summary, None, 500, 0, 2, None, r)
     evidence = estimator.estimate(data, objective=POPULATION)
-    [quantity] = evidence.quantities.values()
+    quantity = evidence.quantities[estimator.quantity]
+    assert all(q == quantity for q in evidence.quantities.values())
     assert quantity.availability.value == "insufficient_data"
     assert "too little spread" in quantity.reason
     assert 150 < evidence.diagnostics["degenerate_resamples"] < 350
@@ -376,3 +382,47 @@ def test_unequal_blocks_resample_as_clusters_and_report_their_sizes():
     assert fovs_only.estimate(data, objective=POPULATION).value(
         "fov_bootstrap_centroid_se"
     ) == pytest.approx(0.95, abs=0.03)
+
+
+@pytest.mark.parametrize("n_stable", [1, 10, 100])
+def test_stable_features_do_not_make_the_strategy_stop_earlier(n_stable):
+    # External re-audit: the RMS over components falls as perfectly stable
+    # features are added, although one feature keeps the same uncertainty.
+    # The largest component SE, the default stopping quantity, does not.
+    objects = pd.DataFrame(
+        {"image_file": [f"f{i}" for i in range(8)], "x": [-4, -3, -2, -1, 1, 2, 3, 4]}
+    )
+    one = validate_input_tables(objects, feature_cols=["x"])
+    stable = [f"stable{j}" for j in range(n_stable)]
+    many = validate_input_tables(
+        pd.concat([objects, pd.DataFrame(0.0, index=objects.index, columns=stable)], axis=1),
+        feature_cols=["x", *stable],
+    )
+    estimator = FOVBootstrapEstimator("centroid", None, 2000, 0, 2)
+    alone = estimator.estimate(one, objective=POPULATION)
+    diluted = estimator.estimate(many, objective=POPULATION)
+    se = alone.value("fov_bootstrap_centroid_se")
+    assert diluted.value("fov_bootstrap_centroid_max_se") == pytest.approx(se)
+    assert diluted.value("fov_bootstrap_centroid_se") == pytest.approx(se / np.sqrt(n_stable + 1))
+    assert diluted.diagnostics["max_component"] == 0
+    tolerance = se * 0.9  # the unstable feature is not yet within tolerance
+    for aggregate, stops_with_stable in (("max", False), ("rms", n_stable >= 1)):
+        strategy = FOVBootstrapStrategy(
+            "centroid", tolerance, None, 2000, 0, 2, aggregate=aggregate
+        )
+        decisions = [
+            run_strategies(
+                data.objects,
+                strategies=[strategy],
+                feature_cols=list(data.feature_cols),
+                objective=POPULATION,
+            )[0].decision
+            for data in (one, many)
+        ]
+        assert decisions[0] is Decision.CONTINUE
+        assert (decisions[1] is Decision.STOP) is stops_with_stable
+
+
+def test_aggregate_must_be_max_or_rms():
+    with pytest.raises(ValueError, match="aggregate"):
+        FOVBootstrapStrategy("centroid", 0.1, None, 10, 0, 2, aggregate="mean")

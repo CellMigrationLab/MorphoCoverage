@@ -5,8 +5,16 @@ uncertain is the current estimate of simple population properties when the
 FOV, not the cell, is the sampling unit? The visible FOVs are resampled with
 replacement (whole FOVs, including acquired FOVs with no observations), the
 chosen summary is recomputed on the pooled observations of each resample,
-and the estimator reports the root-mean-square bootstrap standard error of
-the summary's components.
+and the estimator reports the bootstrap standard error of the summary's
+components two ways: ``fov_bootstrap_<summary>_se``, their root-mean-square,
+and ``fov_bootstrap_<summary>_max_se``, the largest. The RMS is an average:
+adding perfectly stable features lowers it although the uncertainty of an
+unstable feature is unchanged (one unresolved feature among 100 constant ones
+has a tenth of its own SE). The maximum is not diluted, so it is the quantity
+for "is every selected feature characterized well enough?", and the strategy
+stops on it by default. Components share one scale only after a transform
+such as ``Standardize``; in raw units the largest SE is that of the feature
+with the largest units.
 
 Summaries:
 
@@ -87,6 +95,7 @@ from ..transforms import FeatureTransform
 from .base import Estimator, SamplingStrategy
 
 SUMMARIES = ("centroid", "covariance", "quantiles", "eigenspectrum", "subspace")
+AGGREGATES = ("max", "rms")
 
 
 def _check(summary, n_resamples, random_state, min_fovs, quantiles, transform, n_components):
@@ -248,10 +257,20 @@ class FOVBootstrapEstimator(Estimator):
 
     @property
     def quantity(self) -> str:
-        """``fov_bootstrap_<summary>_se``, or ``fov_bootstrap_subspace_angle``."""
+        """``fov_bootstrap_<summary>_se`` (RMS over components), or the subspace angle."""
         if self.summary == "subspace":
             return "fov_bootstrap_subspace_angle"
         return f"fov_bootstrap_{self.summary}_se"
+
+    @property
+    def max_quantity(self) -> str | None:
+        """``fov_bootstrap_<summary>_max_se``, the largest component SE; ``None`` for subspace."""
+        return None if self.summary == "subspace" else f"fov_bootstrap_{self.summary}_max_se"
+
+    def _every(self, quantity: Quantity) -> dict[str, Quantity]:
+        """The same quantity under every name this estimator reports."""
+        names = [self.quantity] + ([self.max_quantity] if self.max_quantity else [])
+        return dict.fromkeys(names, quantity)
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -340,7 +359,7 @@ class FOVBootstrapEstimator(Estimator):
         if np.isnan(data.feature_matrix()).any():
             reason = "missing values in the selected features"
             quantity = Quantity.not_applicable(reason, **_meta("units of the selected features"))
-            return Evidence({name: quantity}, {"undefined_reason": reason})
+            return Evidence(self._every(quantity), {"undefined_reason": reason})
         positions = fov_positions(data, data.fovs)
         with_observations = len(np.unique(positions))
         values, diagnostics, units = self._values(data)
@@ -359,12 +378,12 @@ class FOVBootstrapEstimator(Estimator):
         elif self.summary in ("eigenspectrum", "subspace") and _pca_reason(self, values):
             reason = _pca_reason(self, values)
             quantity = Quantity.not_applicable(reason, **_meta(units))
-            return Evidence({name: quantity}, {**diagnostics, "undefined_reason": reason})
+            return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": reason})
         else:
             reason = None
         if reason is not None:
             diagnostics["undefined_reason"] = reason
-            return Evidence({name: Quantity.insufficient(reason, **_meta(units))}, diagnostics)
+            return Evidence(self._every(Quantity.insufficient(reason, **_meta(units))), diagnostics)
 
         components, degenerate = self._resampled(values, positions, self._weights(data))
         defined = ~np.isnan(components).any(axis=1)
@@ -379,11 +398,11 @@ class FOVBootstrapEstimator(Estimator):
                 "define the PCA summary"
             )
             diagnostics["undefined_reason"] = reason
-            return Evidence({name: Quantity.insufficient(reason, **_meta(units))}, diagnostics)
+            return Evidence(self._every(Quantity.insufficient(reason, **_meta(units))), diagnostics)
         if defined.sum() < 2:
             reason = "fewer than 2 resamples with a defined summary"
             diagnostics["undefined_reason"] = reason
-            return Evidence({name: Quantity.insufficient(reason, **_meta(units))}, diagnostics)
+            return Evidence(self._every(Quantity.insufficient(reason, **_meta(units))), diagnostics)
         if self.summary == "subspace":
             angles = components[defined, 0]
             diagnostics["max_angle"] = float(angles.max())
@@ -394,14 +413,24 @@ class FOVBootstrapEstimator(Estimator):
         se = np.std(components[defined], axis=0, ddof=1)
         value = float(np.sqrt(np.mean(se**2)))
         diagnostics["max_component_se"] = float(se.max())
-        return Evidence({name: Quantity.available(value, **_meta(units))}, diagnostics)
+        diagnostics["max_component"] = int(se.argmax())
+        quantities = {
+            name: Quantity.available(value, **_meta(units)),
+            self.max_quantity: Quantity.available(float(se.max()), **_meta(units)),
+        }
+        return Evidence(quantities, diagnostics)
 
 
 @dataclass(frozen=True)
 class FOVBootstrapStrategy(SamplingStrategy):
     """Stop when the FOV-bootstrap standard error of a summary is at most ``tolerance``.
 
-    ``FOVBootstrapEstimator`` plus ``ThresholdPolicy`` on its quantity. The
+    ``FOVBootstrapEstimator`` plus ``ThresholdPolicy`` on its quantity:
+    with ``aggregate="max"`` (the default) the largest component SE, so every
+    selected feature (or covariance entry, quantile, eigenvalue fraction) must
+    be within tolerance; with ``"rms"`` the root-mean-square over components,
+    an average that adding stable features dilutes. The subspace summary has a
+    single angle and ignores ``aggregate``. The
     tolerance is in the estimator's units (for ``Standardize``, standard
     deviations of the visible data). No setting has a default: the summary,
     scale, resampling and minimum information all define the rule.
@@ -416,10 +445,13 @@ class FOVBootstrapStrategy(SamplingStrategy):
     quantiles: tuple[float, ...] | None = None
     n_components: int | None = None
     block_col: str | None = None
+    aggregate: str = "max"
 
     def __post_init__(self) -> None:
         if not (self.tolerance > 0 and np.isfinite(self.tolerance)):
             raise ValueError("tolerance must be positive and finite")
+        if self.aggregate not in AGGREGATES:
+            raise ValueError(f"aggregate must be one of {AGGREGATES}")
         if self.quantiles is not None:
             object.__setattr__(self, "quantiles", tuple(float(q) for q in self.quantiles))
         _check(
@@ -440,7 +472,11 @@ class FOVBootstrapStrategy(SamplingStrategy):
     @property
     def parameters(self) -> dict[str, Any]:
         """The estimator's settings and the tolerance."""
-        return {**self.estimators[0].parameters, "tolerance": self.tolerance}
+        return {
+            **self.estimators[0].parameters,
+            "tolerance": self.tolerance,
+            "aggregate": self.aggregate,
+        }
 
     @property
     def estimators(self) -> tuple[FOVBootstrapEstimator]:
@@ -460,5 +496,8 @@ class FOVBootstrapStrategy(SamplingStrategy):
 
     @property
     def policies(self) -> tuple[ThresholdPolicy]:
-        """The estimator's quantity ``<= tolerance``."""
-        return (ThresholdPolicy(self.estimators[0].quantity, self.tolerance),)
+        """The largest (or RMS) component SE, or the subspace angle, ``<= tolerance``."""
+        estimator = self.estimators[0]
+        use_max = self.aggregate == "max" and estimator.max_quantity is not None
+        quantity = estimator.max_quantity if use_max else estimator.quantity
+        return (ThresholdPolicy(quantity, self.tolerance),)
