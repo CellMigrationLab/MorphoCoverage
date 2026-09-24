@@ -17,7 +17,8 @@ Shares are over replayed acquisitions (splits x orders). Those are not
 independent replicates of the sample; they describe this sample's behaviour
 under this rule. For a fixed-FOV rule and random orders, the share of correct
 stops at ``k`` estimates the same quantity as ``sampling_reliability`` at ``k``,
-the one case where the two analyses coincide.
+the one case where the two analyses coincide (when no outcome is undefined:
+here undefined stops stay in the denominator, as "could not be judged").
 
 The next-FOV novelty shuffle check (``calibrate_next_fov_novelty``) is a
 different calibration, of a probability rather than of a stop, and is
@@ -33,6 +34,7 @@ import numpy as np
 import pandas as pd
 
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
+from ._text import percent, where
 from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy
 from .criteria import Preservation
 from .replay import ReplayResult
@@ -165,14 +167,10 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
                     if len(never)
                     else None
                 ),
-                "stream_fovs": int(block["stream_fovs"].min()),
+                "stream_fovs": int(block["stream_fovs"].max()),
             }
         )
     return pd.DataFrame(rows, columns=[*groups, *SUMMARY_COLUMNS])
-
-
-def _percent(value: float) -> str:
-    return f"{100 * value:.0f}%"
 
 
 _ORDER_WORDS = {"recorded": "in the recorded order", "permuted": "in random orders"}
@@ -187,9 +185,8 @@ def calibration_summary(result: StoppingCalibration) -> str:
     for key, rows in result.table.groupby([*keys, "config_id"], sort=False, dropna=False):
         key = key if isinstance(key, tuple) else (key,)
         group = dict(zip(keys, key[: len(keys)], strict=True))
-        where = ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
         name = names.get(key[-1], rows["strategy"].iloc[0])
-        lines = [f"{where}: if you had let {name} stop the acquisition"]
+        lines = [f"{where(group)}: if you had let {name} stop the acquisition"]
         for order, own in rows.groupby("order", sort=False):
             first = own.iloc[0]
             if first["stopped"] == 0:
@@ -200,7 +197,7 @@ def calibration_summary(result: StoppingCalibration) -> str:
             else:
                 lines.append(
                     f"  {_ORDER_WORDS.get(order, order)}: it stopped in "
-                    f"{_percent(first['stopped'])} of {first['runs']} acquisitions, after a "
+                    f"{percent(first['stopped'])} of {first['runs']} acquisitions, after a "
                     f"median of {first['median_stop_fovs']:.0f} fields."
                 )
             several = own["criterion"].nunique() > 2
@@ -210,19 +207,19 @@ def calibration_summary(result: StoppingCalibration) -> str:
                 late = ""
                 if row.never_stopped > 0 and row.never_stopped_preserved_at_end is not None:
                     late = (
-                        f"; never stopped in {_percent(row.never_stopped)}, and "
-                        f"{_percent(row.never_stopped_preserved_at_end)} of those had it by "
+                        f"; never stopped in {percent(row.never_stopped)}, and "
+                        f"{percent(row.never_stopped_preserved_at_end)} of those had it by "
                         "the last field"
                     )
                 undefined = (
-                    f"; {_percent(row.undefined_at_stop)} could not be judged"
+                    f"; {percent(row.undefined_at_stop)} could not be judged"
                     if row.undefined_at_stop > 0
                     else ""
                 )
                 lines.append(
                     f"    for {labels.get(row.criterion, row.criterion)}: "
-                    f"{_percent(row.premature)} of acquisitions stopped too early, "
-                    f"{_percent(row.correct)} stopped with it preserved{undefined}{late}."
+                    f"{percent(row.premature)} of acquisitions stopped too early, "
+                    f"{percent(row.correct)} stopped with it preserved{undefined}{late}."
                 )
         lines.append(
             "  Judged on held-back fields the rule never saw; each acquisition is one hold-out "

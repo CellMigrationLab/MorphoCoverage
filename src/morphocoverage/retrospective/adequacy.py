@@ -29,8 +29,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
+from ._text import rows_of, where
 from .criteria import Preservation
 from .replay import ReplayResult
 
@@ -191,12 +193,14 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
     return AdequacyResult(apparent_table, realized_table, tuple(groups), dict(replay.settings))
 
 
-def _median_point(values: pd.Series, stream: int) -> str:
-    """The median over runs as "field 12", counting 'not reached' as beyond the stream."""
-    filled = values.astype("Float64").fillna(stream + 1)
-    median = float(filled.median())
-    if median > stream:
-        return f"not within the {stream} fields available"
+def _median_point(values: pd.Series, streams: pd.Series) -> str:
+    """The median over runs as "field 12"; a run that never reached it counts as beyond its own
+    stream, so the median is "not reached" when more than half of the runs never reached it.
+    """
+    filled = values.astype("Float64").to_numpy(dtype=float, na_value=np.inf)
+    median = float(np.median(filled))
+    if not np.isfinite(median):
+        return f"not within the fields available (up to {int(streams.max())}) in most runs"
     return f"field {median:.0f}" if median.is_integer() else f"field {median:.1f}"
 
 
@@ -206,10 +210,6 @@ def _at(point: str) -> str:
 
 def _from(point: str) -> str:
     return point if point.startswith("not") else f"from {point}"
-
-
-def _where(group: dict) -> str:
-    return ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
 
 
 def adequacy_summary(result: AdequacyResult) -> str:
@@ -222,13 +222,10 @@ def adequacy_summary(result: AdequacyResult) -> str:
     all_groups = pd.concat(frames).drop_duplicates() if keys else pd.DataFrame([{}])
     for _, group_row in all_groups.iterrows():
         group = {k: group_row[k] for k in keys}
-        apparent, realized = result.apparent, result.realized
-        for column, value in group.items():
-            apparent = apparent[apparent[column] == value]
-            realized = realized[realized[column] == value]
-        lines = [f"{_where(group)}: when was it enough? (medians over hold-outs and orders)"]
+        apparent, realized = rows_of(result.apparent, group), rows_of(result.realized, group)
+        lines = [f"{where(group)}: when was it enough? (medians over hold-outs and orders)"]
         for order, rows in realized[realized["criterion"] == ALL_CRITERIA].groupby("order"):
-            stream = int(rows["stream_fovs"].min())
+            stream = rows["stream_fovs"]
             first = _at(_median_point(rows["first_realized"], stream))
             lasting = _from(_median_point(rows["sustained_realized"], stream))
             lines.append(
@@ -241,18 +238,19 @@ def adequacy_summary(result: AdequacyResult) -> str:
                 ].groupby("criterion", sort=False):
                     lines.append(
                         f"    {labels.get(criterion, criterion)}: reliably "
-                        f"{_from(_median_point(own['sustained_realized'], stream))}."
+                        f"{_from(_median_point(own['sustained_realized'], own['stream_fovs']))}."
                     )
             for config_id, own in apparent[apparent["order"] == order].groupby("config_id"):
                 name = names.get(config_id, own["strategy"].iloc[0])
+                first = _at(_median_point(own["first_apparent"], own["stream_fovs"]))
+                lasting = _from(_median_point(own["sustained_apparent"], own["stream_fovs"]))
                 lines.append(
-                    f"    {name} would have first said stop "
-                    f"{_at(_median_point(own['first_apparent'], stream))}, and kept saying stop "
-                    f"{_from(_median_point(own['sustained_apparent'], stream))}."
+                    f"    {name} would have first said stop {first}, and kept saying stop "
+                    f"{lasting}."
                 )
         lines.append(
-            "  'Reliably' means every later field count also preserved it; each hold-out is a "
-            "different set of held-back fields."
+            "  'Reliably' means every later field count, up to the last available field, also "
+            "preserved it; each hold-out is a different set of held-back fields."
         )
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)

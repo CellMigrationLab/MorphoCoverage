@@ -221,8 +221,9 @@ def redundancy_distance(
 
     From the semivariogram of FOV means (``fov_semivariogram``): the smallest
     mean lag at which the semivariance reaches ``share`` of the variance of
-    the FOV means (``None`` when no bin reaches it). Also reports the
-    smallest lag measured, since nothing is said below it. With several
+    the FOV means (``None`` when no bin reaches it: fields are then alike at
+    every distance measured, up to ``largest_lag``, the strongest redundancy).
+    Also reports the smallest lag measured, since nothing is said below it. With several
     features, standardize them beforehand if their scales differ.
     """
     if not 0 < float(share) <= 1:
@@ -250,6 +251,7 @@ def redundancy_distance(
                     float(reached["mean_lag"].iloc[0]) if len(reached) else None
                 ),
                 "smallest_lag": float(gamma["mean_lag"].iloc[0]) if len(gamma) else None,
+                "largest_lag": float(gamma["mean_lag"].iloc[-1]) if len(gamma) else None,
                 "fov_mean_variance": variance,
                 "share": float(share),
                 "unit": stage_unit,

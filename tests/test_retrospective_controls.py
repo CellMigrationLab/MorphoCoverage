@@ -99,3 +99,36 @@ def test_deterministic_under_a_seed():
     first = _control(*_plate(), BOTH, random_state=3)
     again = _control(*_plate(), BOTH, random_state=3)
     pd.testing.assert_frame_equal(first.table, again.table)
+
+
+def test_controls_on_different_plates_are_declared_but_not_judged():
+    objects, fovs = _plate()
+    unpaired = fovs[~((fovs["repeat"] == "P1") & (fovs["condition"] == "MOCK"))]
+    unpaired = unpaired[~((unpaired["repeat"] == "P2") & (unpaired["condition"] == "KD"))]
+    objects = objects[objects["image_file"].isin(unpaired["image_file"])]
+    result = _control(objects, unpaired, BOTH)
+    assert result.status == "not assessed"
+    text = result.summary()
+    assert "a control was declared, but no stratum could be judged" in text
+    assert "repeat=P1: no positive-control FOV" not in text  # P1 has positives, no reference
+    assert "repeat=P2: no positive-control FOV" in text
+
+
+def test_missing_values_leave_checks_unjudged_instead_of_crashing():
+    objects, fovs = _plate()
+    positive = objects["condition"] == "KD"
+    objects.loc[positive, "feature_b"] = np.nan
+    result = _control(objects, fovs, BOTH)
+    assert result.status == "not assessed"
+    assert "no check could be made" in result.summary()
+    assert result.table["not_judged"].sum() > 0
+
+
+def test_adding_a_plate_does_not_change_another_plates_rates():
+    objects, fovs = _plate()
+    one = fovs[fovs["repeat"] == "P1"]
+    alone = _control(objects[objects["repeat"] == "P1"], one, BOTH).table
+    both = _control(objects, fovs, BOTH).table
+    pd.testing.assert_frame_equal(
+        both[both["repeat"] == "P1"].reset_index(drop=True), alone.reset_index(drop=True)
+    )

@@ -37,7 +37,7 @@ Synthetic data remain useful for unit tests, explicit counterexamples, and regre
 
 - **Timing.** Every record carries estimator compute time, whole-decision latency up to the stop, and the median and maximum per-step decision latency. Only decisions up to the actual stop contribute to these summaries; later replay steps are retrospective and must not inflate the latency of a microscope that would already have stopped. `run_benchmark(..., incremental=True)` replays incremental estimators FOV by FOV, as online acquisition would. The `Timing` breakdown on each result separates estimator time from framework overhead.
 
-Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an agreed adequacy definition) and aggregation into a regime map.
+Adequacy points are now defined (`morphocoverage.retrospective.adequacy_points`, below). Not yet implemented: excess FOVs beyond them in benchmark records, and aggregation into a regime map.
 
 ## Retrospective sufficiency of one dataset
 

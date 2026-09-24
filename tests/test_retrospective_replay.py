@@ -302,3 +302,39 @@ def test_adequacy_points_are_counts_within_the_stream():
     assert (realized["first_realized"] <= realized["sustained_realized"]).all()
     assert (realized["sustained_realized"] <= realized["stream_fovs"]).all()
     assert set(result.realized["criterion"]) == {ALL_CRITERIA, MEAN_A.name}
+
+
+def test_combined_status_lets_a_failure_beat_an_undefined_outcome():
+    from morphocoverage.retrospective.adequacy import combined_status
+
+    assert combined_status(["preserved", "preserved"]) == "preserved"
+    assert combined_status(["preserved", "undefined"]) == "undefined"
+    assert combined_status(["undefined", "not_preserved"]) == "not_preserved"
+    with pytest.raises(ValueError):
+        combined_status([])
+
+
+def test_strategy_labels_name_the_scalar_settings():
+    from morphocoverage.retrospective.replay import strategy_label
+
+    assert strategy_label(FixedFOVStrategy(5)) == "fixed_fov (target_fovs=5)"
+    label = strategy_label(ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"))
+    assert "target_cv=0.05" in label and "resampling_unit=fov" in label
+
+
+def test_distinct_dispersed_seeds_give_distinct_orders():
+    orders = [AcquisitionOrder.dispersed(seed) for seed in range(5)]
+    result = _replay(
+        "homogeneous",
+        [FixedFOVStrategy(3)],
+        orders=orders,
+        stage_cols=("stage_x", "stage_y"),
+        n_splits=1,
+    )
+    firsts = result.paths[result.paths["fovs"] == 2].groupby("order_id")["travel"].first()
+    sequences = {
+        order: tuple(rows.sort_values("fovs")["travel"])
+        for order, rows in result.paths.groupby("order_id")
+    }
+    assert len(set(sequences.values())) == len(orders)
+    assert len(firsts) == len(orders)

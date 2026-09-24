@@ -1,8 +1,11 @@
 # Proposal: a microscopist's report — adequacy, limitation, efficiency, action
 
-**Status:** proposed (2026-09-24), revised twice after review the same day. Nothing
-below is implemented yet unless stated. Items that change an input or output
-contract need the project owner's approval first (AGENTS.md section 15).
+**Status:** approved and implemented (2026-09-24) in `morphocoverage.retrospective`,
+except question 8b (sampling-frame bias, roadmap Step 9, deferred). The "Exists" and
+"Missing" notes below record the state when the proposal was written; the roadmap
+(`docs/proposals/microscopist_report_roadmap.md`) says what is still open. Items
+that change an input or output contract need the project owner's approval first
+(AGENTS.md section 15).
 
 ## Why
 

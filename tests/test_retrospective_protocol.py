@@ -87,8 +87,46 @@ def test_interval_counts_units_not_draws():
     same = {(p, w): {5: 0.95} for p in ("P1", "P2", "P3") for w in ("A1", "A2")}
     row = _protocol(same).table.iloc[0]
     assert row["share_low"] == row["share_high"] == 1.0
-    one_unit = _protocol({k: v for k, v in PLATES.items() if k[0] == "P1"}).table
-    assert (one_unit["share_low"] == one_unit["share"]).all()
+    # One unit gives no interval at all, rather than a zero-width one that looks exact.
+    one_unit = _protocol({k: v for k, v in PLATES.items() if k[0] == "P1"})
+    assert one_unit.table["share_low"].isna().all()
+    assert "plausible range" not in one_unit.summary()
+
+
+def test_short_and_never_judged_samples_are_counted_not_dropped():
+    wells = dict(PLATES)
+    wells[("P2", "C9")] = {5: None, 10: None}  # its stream was shorter than every count
+    result = _protocol(wells)
+    table = result.table.set_index("fovs")
+    assert table.loc[5, "not_evaluated"] == 1 and table.loc[10, "not_evaluated"] == 2
+    text = result.summary()
+    assert "5 samples in 2 plates" in text
+    assert "Could not be judged at any depth: C9, P2." in text
+    assert "more than nan" not in text
+
+
+def test_adding_a_stratum_does_not_change_another_strata_interval():
+    alone = _protocol(PLATES).table
+    curve = _curve(PLATES).curve
+    extra = curve.assign(condition="drug", preserved=curve["preserved"].fillna(0.5) * 0.9)
+    both = protocol_reliability(
+        ReliabilityResult(pd.concat([curve, extra]), pd.DataFrame(), _curve(PLATES).group_cols),
+        HIERARCHY,
+        threshold=0.9,
+        strata=["condition"],
+    ).table
+    ctrl = both[both["condition"] == "ctrl"].reset_index(drop=True)
+    pd.testing.assert_frame_equal(ctrl, alone.reset_index(drop=True))
+
+
+def test_the_protocol_number_must_hold_from_there_on():
+    dip = {
+        ("P1", "A1"): {5: 0.95, 10: 0.5, 20: 0.95},
+        ("P1", "A2"): {5: 0.95, 10: 0.5, 20: 0.95},
+        ("P2", "A1"): {5: 0.95, 10: 0.95, 20: 0.95},
+    }
+    check = _protocol(dip).validation.set_index("left_out")
+    assert check.loc["P2", "chosen_fovs"] == 20
 
 
 def test_the_interval_does_not_narrow_with_more_draws_or_splits():

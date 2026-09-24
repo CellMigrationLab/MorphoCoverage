@@ -43,6 +43,7 @@ from scipy.spatial import cKDTree
 from ..evaluator import iter_analysis_groups
 from ..schema import ValidatedInput, fov_positions, validate_input_tables
 from ..strategies.support_novelty import SupportNoveltyEstimator
+from ._text import unit_plural
 
 REASONS = ("new state", "influence", "count", "neighbours")
 _TRACE = ("image_file", "position_id", "mask_file")
@@ -102,13 +103,21 @@ def _weighted(values: np.ndarray, weights: np.ndarray, statistic) -> float | Non
     return float(np.interp(float(statistic), positions, values))
 
 
-def _influence(data: ValidatedInput, summaries, threshold) -> list[dict]:
-    """Relative change of each FOV-weighted summary when one FOV is left out."""
+def _influence(data: ValidatedInput, summaries, threshold, skipped: dict) -> list[dict]:
+    """Relative change of each FOV-weighted summary when one FOV is left out.
+
+    A relative change needs a positive scale: for a feature with negative
+    values (standardized, PCA or embedding coordinates, centred near zero) it
+    explodes, so such summaries are skipped and reported in ``skipped``.
+    """
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions, minlength=len(data.fovs)).astype(float)
     rows = []
     for summary in summaries:
         values = data.feature_values(summary.feature)
+        if np.nanmin(values, initial=0.0) < 0:
+            skipped[summary.label] = "has negative values, so a relative change is undefined"
+            continue
         weights = 1.0 / counts[positions]
         full = _weighted(values, weights, summary.statistic)
         if full is None or full == 0:
@@ -139,12 +148,13 @@ def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions, minlength=len(data.fovs))
     median = float(np.median(counts))
+    words = unit_plural(data.observation_unit)
     rows = []
     for fov, count in enumerate(counts):
         if count == 0 and median > 0:
-            detail = f"no observations; the median is {median:g}"
+            detail = f"no {words}; the median is {median:g}"
         elif median > 0 and (count >= ratio * median or count <= median / ratio):
-            detail = f"{count} observations; the median is {median:g}"
+            detail = f"{count} {words}; the median is {median:g}"
         else:
             continue
         rows.append({"position": fov, "reason": "count", "value": float(count), "detail": detail})
@@ -164,12 +174,16 @@ def _neighbours(data: ValidatedInput, x_col, y_col, k, threshold, unit) -> list[
     rows = []
     for feature in data.feature_cols:
         column = means[feature].to_numpy(dtype=float)
-        spread = np.nanstd(column, ddof=1)
-        if not np.isfinite(spread) or spread == 0:
-            continue
         for fov in range(len(fovs)):
-            others = column[near[fov, 1:]]
+            # Neighbours by index, never the FOV itself (stage positions can tie).
+            mask = near[fov] != fov
+            others = column[near[fov][mask][:k]]
             if np.isnan(column[fov]) or np.isnan(others).all():
+                continue
+            # Spread of the other FOVs' means: including the FOV itself would cap
+            # its own z at sqrt(n) and hide a lone deviant field in a small group.
+            spread = np.nanstd(np.delete(column, fov), ddof=1)
+            if not np.isfinite(spread) or spread == 0:
                 continue
             z = (column[fov] - np.nanmean(others)) / spread
             if abs(z) >= threshold:
@@ -181,7 +195,7 @@ def _neighbours(data: ValidatedInput, x_col, y_col, k, threshold, unit) -> list[
                         "detail": (
                             f"its mean {feature} is {abs(z):.1f} SD "
                             f"{'above' if z > 0 else 'below'} its {k} nearest fields "
-                            f"(within {distances[fov, -1]:.0f} {unit})"
+                            f"(within {distances[fov][mask][:k].max():.0f} {unit})"
                         ),
                     }
                 )
@@ -194,12 +208,13 @@ def _novel(data: ValidatedInput, novelty: SupportNoveltyEstimator) -> list[dict]
         return []
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions[flags], minlength=len(data.fovs))
+    words = unit_plural(data.observation_unit)
     return [
         {
             "position": fov,
             "reason": "new state",
             "value": float(count),
-            "detail": f"{count} observations of a state no other field shows",
+            "detail": f"{count} {words} of a state no other field shows",
         }
         for fov, count in enumerate(counts)
         if count
@@ -275,13 +290,13 @@ def inspect_fovs(
         if absent:
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
-    rows = []
+    rows, skipped = [], {}
     for group, group_data in iter_analysis_groups(data):
         found = []
         if novelty is not None:
             found += _novel(group_data, novelty)
         if summaries:
-            found += _influence(group_data, summaries, float(influence_threshold))
+            found += _influence(group_data, summaries, float(influence_threshold), skipped)
         if count_ratio is not None:
             found += _counts(group_data, float(count_ratio))
         if stage_cols is not None:
@@ -322,6 +337,7 @@ def inspect_fovs(
         "neighbour_threshold": float(neighbour_threshold),
         "fov_key": list(data.fov_key),
         "trace": trace,
+        "skipped_summaries": skipped,
     }
     return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
 
@@ -329,8 +345,13 @@ def inspect_fovs(
 def inspection_summary(result: InspectionResult) -> str:
     """ "Fields to reopen" in sentences, per group."""
     keys = list(result.group_cols)
+    skipped = result.settings.get("skipped_summaries", {})
+    note = "".join(
+        f"\nThe influence on the {label} was not checked: it {why}."
+        for label, why in skipped.items()
+    )
     if result.fovs.empty:
-        return "No field stands out under the declared thresholds."
+        return "No field stands out under the declared thresholds." + note
     fov_key = [c for c in result.settings.get("fov_key", []) if c not in keys]
     trace = [c for c in result.settings.get("trace", []) if c not in fov_key]
     blocks = []
@@ -349,7 +370,7 @@ def inspection_summary(result: InspectionResult) -> str:
             "biology, technique or simply a large field."
         )
         blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
+    return "\n\n".join(blocks) + note
 
 
 __all__ = ["REASONS", "InspectionResult", "Summary", "inspect_fovs", "inspection_summary"]
