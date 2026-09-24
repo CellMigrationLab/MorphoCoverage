@@ -2,6 +2,22 @@
 
 MorphoCoverage is a feature-agnostic Python project for studying whether microscopy experiments have sampled a declared phenotypic representation adequately. It treats **fields of view (FOVs), defined as independently selected spatial acquisition positions, rather than individual observations/cells or z-planes, as the primary operational acquisition units** and asks whether additional representative imaging is likely to provide useful new phenotypic information.
 
+## Questions MorphoCoverage is built to answer
+
+For a completed experiment, the aim is to tell a microscopist whether the imaging effort was sufficient, what the additional FOVs actually bought, and how to spend the imaging budget in the next experiment. Every answer depends on the declared phenotype representation (the features and the definition of "new") and is stated with the criterion behind it.
+
+| Question | Today |
+| --- | --- |
+| Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, stop points across acquisition orders, rare-state statements |
+| Would one more FOV show something new, and is that chance right? | `sufficiency_report` next-FOV chance and nominal bound, flagged cells, `calibrate_next_fov_novelty` |
+| Which FOVs and cells should I inspect? | the cells counted as new; a per-FOV influence report is proposed |
+| How many FOVs should I image next time? | proposed: a reliability curve over resampled acquisitions |
+| What did the extra FOVs buy; was acquisition redundant? | stop points and spare FOVs; saturation per criterion and spatial redundancy are proposed |
+| More FOVs, or more biological samples? | whole-FOV versus random-cell error (preliminary findings, entry 1); a variance decomposition is proposed |
+| Was my way of choosing FOVs sensible? | recorded versus random orders; a spatially dispersed order is proposed |
+
+A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** The proposed report is `docs/proposals/microscopist_report.md`. Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
+
 ## Project boundary
 
 MorphoCoverage consumes numeric phenotype feature tables together with FOV identity and optional grouping metadata. A feature row is a generic **observation**: it may be a cell, nucleus, patch, slice-level measurement, FOV summary, embedding, or another declared unit.
