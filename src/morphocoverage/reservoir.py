@@ -12,17 +12,24 @@ Splitting rules:
 - The split is made per analysis group, so every group keeps its own
   reservoir and groups are never pooled.
 - Whole **blocks** go to one side. With ``block_col`` (an FOV-table column,
-  for example from ``spatial_blocks``), neighbouring FOVs in one block cannot
-  sit on opposite sides, which would leak spatially correlated information
-  into the reference. Without it every FOV is its own block, which assumes
-  FOVs are exchangeable; the record states which was used.
-- Blocks are taken in a random order drawn from ``seed`` and the group
-  identity; a block joins the reservoir only if the reservoir then holds at
-  most ``ceil(fraction * n_fovs)`` FOVs, so one large block can never swallow
-  the stream. With very unequal blocks the reservoir can hold less than
-  ``fraction``; the achieved size is recorded (``reservoir_fovs``). Repeat a
-  benchmark over several seeds so that conclusions do not rest on one
-  partition.
+  for example from ``spatial_blocks``), FOVs of one block never sit on
+  opposite sides. That limits spatial leakage into the reference only as
+  far as the blocks encode the correlation: FOVs on either side of a block
+  edge can be close neighbours, and a square grid does not prevent this, so
+  blocks should be larger than the correlation length (and ideally follow
+  the sample's own structure, such as wells or tiles). Without ``block_col``
+  every FOV is its own block, which assumes FOVs are exchangeable; the record
+  states which was used.
+- The reservoir is a simple random sample of ``ceil(fraction * n_blocks)``
+  blocks (at most all but one), drawn from ``seed`` and the group identity.
+  Every block, and so every FOV, has the same chance ``m / n_blocks`` of
+  being held out, whatever the block's size, so the reservoir represents the
+  same FOV population as the stream on average. ``fraction`` is therefore a
+  share of blocks: with unequal blocks the share of FOVs held out varies
+  between seeds, and one large block can take most of a group. The achieved
+  size is recorded (``reservoir_fovs``). Use many blocks of similar size,
+  and repeat a benchmark over several seeds so that conclusions do not rest
+  on one partition.
 
 A finite reservoir has its own sampling error. ``reference_error_floor``
 estimates its scale from split halves; adequacy tolerances should sit well
@@ -79,9 +86,11 @@ def _subset(data: ValidatedInput, fovs: pd.DataFrame) -> ValidatedInput:
 class ReservoirSplit:
     """Split each analysis group into a replay stream and a fixed evaluation reservoir.
 
-    ``fraction`` is the largest share of each group's FOVs held out, ``seed``
-    makes the split reproducible, and ``block_col`` names an FOV-table column
-    of spatial blocks (``None``: each FOV is its own block).
+    ``fraction`` is the share of each group's blocks held out (rounded up,
+    and at most all but one block), ``seed`` makes the split reproducible, and
+    ``block_col`` names an FOV-table column of spatial blocks (``None``: each
+    FOV is its own block). Blocks are sampled with equal probability; see the
+    module docstring.
     """
 
     fraction: float
@@ -118,22 +127,17 @@ class ReservoirSplit:
         """(stream, reservoir) for one analysis group; both keep whole blocks."""
         blocks = self._blocks(data.fovs)
         labels, block_of_fov = np.unique(blocks, return_inverse=True)
-        order = np.random.default_rng(_group_seed(self.seed, group)).permutation(len(labels))
-        sizes = np.bincount(block_of_fov, minlength=len(labels))
-        target = math.ceil(self.fraction * len(data.fovs))
-        chosen, held = [], 0
-        # Blocks join in random order, skipping any that would overshoot the target.
-        for block in order:
-            if held + sizes[block] <= target:
-                chosen.append(block)
-                held += sizes[block]
-            if held == target:
-                break
-        if not chosen or held >= len(data.fovs):
+        if len(labels) < 2:
             raise ValueError(
                 f"analysis group {dict(group)} has too few FOVs or blocks ({len(labels)}) to "
-                f"hold out at most {self.fraction:.0%} and keep a stream"
+                "hold out a reservoir and keep a stream"
             )
+        # A simple random sample of blocks: equal inclusion probability for every
+        # block, so large blocks are not under-represented in the reservoir.
+        # A size cap would skip large blocks and bias the reference.
+        n_held = min(math.ceil(self.fraction * len(labels)), len(labels) - 1)
+        rng = np.random.default_rng(_group_seed(self.seed, group))
+        chosen = rng.choice(len(labels), size=n_held, replace=False)
         held_out = np.isin(block_of_fov, chosen)
         return _subset(data, data.fovs.loc[~held_out]), _subset(data, data.fovs.loc[held_out])
 
@@ -148,13 +152,15 @@ def reference_error_floor(
 ) -> list[float | None]:
     """The metric between random halves of a reservoir, once per split.
 
-    Each split puts whole blocks (or FOVs) into two halves and scores one
-    half against the other. This is the error of a sample half the
-    reservoir's size against an independent reference of the same size, so
-    for mean-type errors it is about twice the reservoir's own standard
-    error: a conservative scale for the floor below which a stop's error
-    cannot be distinguished from reference noise. Values are ``None`` where
-    the metric is undefined.
+    Each split puts half the blocks (or FOVs), chosen at random, on each side
+    and scores one side against the other. With equal, independent halves
+    this is the error of a sample half the reservoir's size against an
+    independent reference of the same size, so for mean-type errors it is
+    about twice the reservoir's own standard error: a conservative scale for
+    the floor below which a stop's error cannot be distinguished from
+    reference noise. With unequal blocks the halves differ in size, and with
+    correlated blocks they are not independent, so the scale is then only
+    approximate. Values are ``None`` where the metric is undefined.
     """
     if isinstance(n_splits, bool) or not isinstance(n_splits, int) or n_splits < 1:
         raise ValueError("n_splits must be a positive integer")
