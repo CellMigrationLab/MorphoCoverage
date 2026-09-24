@@ -15,6 +15,7 @@ from morphocoverage import (
 from morphocoverage.strategies import IncidenceCoverageEstimator, IncidenceCoverageStrategy
 from morphocoverage.strategies.incidence_coverage import (
     chao2,
+    expected_new_states,
     incidence_coverage,
     incidence_frequencies,
 )
@@ -147,3 +148,38 @@ def test_strategy_stops_once_coverage_reaches_the_target():
 def test_invalid_settings_are_refused(build):
     with pytest.raises((TypeError, ValueError)):
         build()
+
+
+def test_expected_new_states_formula_and_edge_cases():
+    # 5 FOVs; incidences 5, 2, 1, 1: Q1 = 2, Chao2 adds Q0 = 1.6 unseen states.
+    incidences = np.array([5, 2, 1, 1])
+    q0 = 1.6
+    assert expected_new_states(incidences, 5) == pytest.approx(q0 * 2 / (5 * q0 + 2))
+    assert expected_new_states(np.array([3, 2]), 5) == 0.0
+
+
+def test_expected_new_states_track_what_the_next_fov_reveals():
+    # Monte Carlo on independent FOVs: the estimate from 20 FOVs against the
+    # states the 21st FOV actually adds. Chao2 is a lower bound, so the
+    # estimate may undershoot slightly but not overshoot.
+    rng = np.random.default_rng(1)
+    pi = np.concatenate([np.full(10, 0.6), np.full(20, 0.1), np.full(30, 0.02)])
+    estimated, realized = [], []
+    for _ in range(2000):
+        present = rng.random((21, len(pi))) < pi
+        incidences = present[:20].sum(axis=0)
+        seen = incidences > 0
+        estimated.append(expected_new_states(incidences[seen], 20))
+        realized.append((present[20] & ~seen).sum())
+    assert np.mean(estimated) == pytest.approx(np.mean(realized), rel=0.1)
+    assert np.mean(estimated) <= np.mean(realized) * 1.02
+
+
+def test_strategy_can_stop_on_expected_new_states():
+    strategy = IncidenceCoverageStrategy("true_state", "expected_new_states_next_fov", 0.1, 3)
+    assert strategy.policies[0].quantity == "expected_new_states_next_fov"
+    evidence = _estimate(_labelled([["a", "b"], ["a"], ["a", "c"]]))
+    quantity = evidence.quantities["expected_new_states_next_fov"]
+    assert quantity.direction.value == "lower_is_better" and quantity.value > 0
+    with pytest.raises(ValueError):
+        IncidenceCoverageStrategy("state", "expected_new_states_next_fov", 0.0, 2)

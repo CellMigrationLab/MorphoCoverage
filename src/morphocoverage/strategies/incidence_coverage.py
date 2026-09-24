@@ -17,7 +17,18 @@ without observations included), ``Q_k`` states seen in exactly ``k`` FOVs and
       S = S_obs + ((T - 1) / T) Q_1^2 / (2 Q_2)          if Q_2 > 0
       S = S_obs + ((T - 1) / T) Q_1 (Q_1 - 1) / 2        otherwise,
 
-  reported as completeness ``S_obs / S``.
+  reported as completeness ``S_obs / S``;
+
+- expected new states in the next FOV (Chao et al. 2014, incidence
+  extrapolation, Good-Toulmin type), with ``Q_0 = S - S_obs``:
+
+      Q_0 * (1 - (1 - Q_1 / (T Q_0 + Q_1)) ** 1),
+
+  zero when there are no singletons. This asks directly whether one more
+  representative FOV is likely to reveal a new labelled state. Averaged over
+  simulations with independent FOVs it tracks, and slightly undershoots, the
+  number of new states the next FOV actually reveals, as Chao2 is a lower
+  bound.
 
 The two can disagree: with one singleton and no doubletons, Chao2 adds
 ``(T - 1) / T * 1 * 0 / 2 = 0`` unseen states (completeness exactly 1) while
@@ -54,11 +65,13 @@ from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
 from .base import Estimator, SamplingStrategy
 
-QUANTITIES = ("incidence_coverage", "chao2_completeness")
+QUANTITIES = ("incidence_coverage", "chao2_completeness", "expected_new_states_next_fov")
 _UNITS = {
     "incidence_coverage": "fraction of incidence in observed states",
     "chao2_completeness": "observed states / Chao2 estimated states",
+    "expected_new_states_next_fov": "states",
 }
+_LOWER_IS_BETTER = {"expected_new_states_next_fov"}
 
 
 def incidence_frequencies(labels: np.ndarray, positions: np.ndarray) -> np.ndarray:
@@ -87,12 +100,25 @@ def chao2(incidences: np.ndarray, n_units: int) -> float:
     return observed + factor * q1 * (q1 - 1) / 2
 
 
+def expected_new_states(incidences: np.ndarray, n_units: int, additional: int = 1) -> float:
+    """Chao et al. (2014) expected number of new states in ``additional`` more sampling units."""
+    q1 = int(np.sum(incidences == 1))
+    unseen = chao2(incidences, n_units) - len(incidences)
+    if q1 == 0 or unseen <= 0:
+        return 0.0
+    return unseen * (1 - (1 - q1 / (n_units * unseen + q1)) ** additional)
+
+
 def _quantities(**values: Any) -> dict[str, Quantity]:
     """Both quantities: available values, or the same unavailable state with its reason."""
     out = {}
     for name in QUANTITIES:
         meta = {
-            "direction": Direction.HIGHER_IS_BETTER,
+            "direction": (
+                Direction.LOWER_IS_BETTER
+                if name in _LOWER_IS_BETTER
+                else Direction.HIGHER_IS_BETTER
+            ),
             "units": _UNITS[name],
             "component": Component.POPULATION,
         }
@@ -115,10 +141,11 @@ def _check(label_col, min_fovs) -> None:
 
 @dataclass(frozen=True)
 class IncidenceCoverageEstimator(Estimator):
-    """Incidence sample coverage and Chao2 completeness of an external label system.
+    """Incidence coverage, Chao2 completeness and next-FOV discovery for fixed labels.
 
-    Reports ``incidence_coverage`` and ``chao2_completeness`` (population,
-    higher is better). ``label_col`` is an observation column of labels fixed
+    Reports ``incidence_coverage`` and ``chao2_completeness`` (higher is
+    better) and ``expected_new_states_next_fov`` (lower is better), all
+    population evidence. ``label_col`` is an observation column of labels fixed
     independently of the acquisition; it is metadata and must not be a
     phenotype feature.
     """
@@ -162,16 +189,18 @@ class IncidenceCoverageEstimator(Estimator):
         values = {
             "incidence_coverage": incidence_coverage(incidences, n_units),
             "chao2_completeness": len(incidences) / estimated,
+            "expected_new_states_next_fov": expected_new_states(incidences, n_units),
         }
         return Evidence(_quantities(**values), diagnostics)
 
 
 @dataclass(frozen=True)
 class IncidenceCoverageStrategy(SamplingStrategy):
-    """Stop when ``quantity`` (coverage or Chao2 completeness) reaches ``target``.
+    """Stop when ``quantity`` reaches ``target``.
 
     ``IncidenceCoverageEstimator`` plus ``ThresholdPolicy(target)`` on the
-    chosen quantity, which is higher-is-better.
+    chosen quantity: coverage or Chao2 completeness at least ``target``, or
+    expected new states in the next FOV at most ``target``.
     """
 
     label_col: str
@@ -183,12 +212,15 @@ class IncidenceCoverageStrategy(SamplingStrategy):
         _check(self.label_col, self.min_fovs)
         if self.quantity not in QUANTITIES:
             raise ValueError(f"quantity must be one of {QUANTITIES}")
-        if not 0 < self.target <= 1:
+        if self.quantity in _LOWER_IS_BETTER:
+            if not (self.target > 0 and np.isfinite(self.target)):
+                raise ValueError("target must be a positive, finite number of states")
+        elif not 0 < self.target <= 1:
             raise ValueError("target must be a fraction in (0, 1]")
 
     @property
     def name(self) -> str:
-        """``incidence_coverage`` or ``chao2_completeness``."""
+        """The chosen quantity's name."""
         return self.quantity
 
     @property
