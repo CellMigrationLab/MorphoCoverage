@@ -8,13 +8,15 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 
 | Question | Today |
 | --- | --- |
-| Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, stop points across acquisition orders, rare-state statements |
+| Can my features detect the phenotype I care about? | positive and frequency controls on idr0028 (preliminary findings, entries 2–3); a positive-control report for declared controls is proposed |
+| Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, first stop points across acquisition orders, rare-state statements |
 | Would one more FOV show something new, and is that chance right? | `sufficiency_report` next-FOV chance and nominal bound, flagged cells, `calibrate_next_fov_novelty` |
-| Which FOVs and cells should I inspect? | the cells counted as new; a per-FOV influence report is proposed |
-| How many FOVs should I image next time? | proposed: a reliability curve over resampled acquisitions |
-| What did the extra FOVs buy; was acquisition redundant? | stop points and spare FOVs; saturation per criterion and spatial redundancy are proposed |
-| More FOVs, or more biological samples? | whole-FOV versus random-cell error (preliminary findings, entry 1); a variance decomposition is proposed |
-| Was my way of choosing FOVs sensible? | recorded versus random orders; a spatially dispersed order is proposed |
+| What is limiting my sampling? | design effect (preliminary findings, entry 1), semivariogram; a sampling profile is proposed |
+| How many FOVs should I image next time? | proposed: realized reliability curves against fixed held-out FOVs, per sample and across held-out samples |
+| What did the extra FOVs buy? | stop points and spare FOVs; sustained and realized adequacy are proposed |
+| Which FOVs and cells should I inspect? | the cells counted as new; a traceable inspect-these-fields report is proposed |
+| More FOVs, or more biological samples? | proposed: a hierarchical variance decomposition with projected uncertainty under alternative allocations |
+| Could I have sampled more efficiently? | recorded versus random orders; a spatially dispersed order, and later a comparison with all candidate positions, are proposed |
 
 A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** The proposed report is `docs/proposals/microscopist_report.md`. Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
 
