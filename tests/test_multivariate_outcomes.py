@@ -263,3 +263,47 @@ def test_u_statistics_are_biased_down_when_the_reference_contains_the_stop(metri
         disjoint.append(metric.evaluate(_data(values[60:]), stop))
     assert np.mean(nested) < 0
     assert np.mean(nested) < np.mean(disjoint)
+
+
+def _clustered(rng, n_fovs, per_fov, between):
+    """Cells of ``n_fovs`` FOVs with a share ``between`` of the variance between FOVs."""
+    offsets = rng.normal(0, np.sqrt(between), size=(n_fovs, 1, 2))
+    cells = offsets + rng.normal(0, np.sqrt(1 - between), size=(n_fovs, per_fov, 2))
+    return _data(cells.reshape(-1, 2), cells_per_fov=per_fov)
+
+
+@pytest.mark.parametrize(
+    "metric", [EnergyError(FEATURES, False, None, 0), MMDError(FEATURES, False, None, 0, 1.0)]
+)
+def test_u_statistics_against_an_independent_reservoir_are_zero_centred_only_for_iid_cells(
+    metric,
+):
+    # External audit: the null expectation against a disjoint reservoir of the
+    # same population. With independent cells it is about zero; when cells of a
+    # FOV share an offset it is positive and shrinks as FOVs are added, so runs
+    # must be compared at matched FOV counts, not against zero.
+    rng = np.random.default_rng(21)
+
+    def null_mean(between, n_fovs, runs=150):
+        return np.mean(
+            [
+                metric.evaluate(
+                    _clustered(rng, 20, 10, between), _clustered(rng, n_fovs, 10, between)
+                )
+                for _ in range(runs)
+            ]
+        )
+
+    iid, few, many = null_mean(0.0, 3), null_mean(0.3, 3), null_mean(0.3, 10)
+    assert abs(iid) < 0.01
+    assert few > many > 0.005
+    assert few > 5 * abs(iid)
+
+
+def test_energy_error_can_be_negative():
+    # A stop at 0 and 1 against a reference at 0.4 and 0.6: -0.2, sampling noise
+    # around a small discrepancy rather than an error below zero.
+    stop = _data([[0.0, 0.0], [1.0, 0.0]], cells_per_fov=1)
+    reference = _data([[0.4, 0.0], [0.6, 0.0]], cells_per_fov=1)
+    value = EnergyError(FEATURES, False, None, 0).evaluate(reference, stop)
+    assert value == pytest.approx(-0.2)
