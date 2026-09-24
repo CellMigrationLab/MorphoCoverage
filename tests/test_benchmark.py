@@ -384,6 +384,7 @@ def test_latency_summaries_stop_at_the_first_stop():
     record = _record_run(
         timed,
         full,
+        full,
         [],
         dataset,
         in_sample=False,

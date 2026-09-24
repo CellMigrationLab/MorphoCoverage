@@ -182,14 +182,24 @@ src/morphocoverage/
     sequential.py          # leakage-safe acquisition-prefix replay
     online.py              # live OnlineSession: add one newly acquired spatial FOV at a time
     outcomes.py            # retrospective outcome metrics, strategy-independent
+    multivariate_outcomes.py  # distribution-level outcome metrics (centroid ... MMD)
+    distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
+    reservoir.py           # held-out evaluation reservoirs split by spatial block
+    spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
     framework.py           # run_strategies convenience entry point
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
-        baselines.py       # fixed-FOV, generic-observation and legacy object-count baselines
+        baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
+        jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
+        fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
+        rare_planning.py   # binomial FOV-incidence planning for a RareTarget
+        rare_incidence.py  # beta-binomial rare-state incidence risk with recurrence
+        support_novelty.py # leave-one-FOV-out epsilon-support novelty
+        incidence_coverage.py  # Chao-Jost incidence coverage and Chao2 on fixed labels
 
 tests/
     scenarios.py           # constructed acquisitions for contract tests (section 9)
@@ -252,7 +262,7 @@ Rules for these tests:
 - Every outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
-- `baseline_comparison` covers the fixed-cell, fixed-FOV, JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedCellCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
+- `baseline_comparison` covers the fixed-cell, fixed-FOV, fixed-area (`FixedAreaStrategy`), JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedCellCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
 
 A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 

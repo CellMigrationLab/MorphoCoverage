@@ -22,9 +22,18 @@ from morphocoverage import (
     SamplingStrategy,
     ScalarPrecisionStrategy,
     evaluate_acquisition_prefixes,
+    multivariate_outcomes,
     outcomes,
     plan_cells_to_average,
     transforms,
+)
+from morphocoverage.strategies import (
+    FixedAreaStrategy,
+    FOVBootstrapStrategy,
+    FOVIncidencePlanStrategy,
+    IncidenceCoverageStrategy,
+    RareIncidenceStrategy,
+    SupportNoveltyStrategy,
 )
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -70,6 +79,15 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     DescriptorSpreadStrategy("feature_a", 0.3, "object", 20, 0),
     DescriptorSpreadStrategy("feature_a", 0.3, "fov", 20, 0),
     PlannedCellCountStrategy(_pilot_plan()),
+    FOVBootstrapStrategy("centroid", 0.05, transforms.Standardize(), 30, 0, 3),
+    FOVBootstrapStrategy("quantiles", 0.1, None, 20, 0, 3, (0.1, 0.5, 0.9)),
+    FOVIncidencePlanStrategy(),
+    FOVBootstrapStrategy("eigenspectrum", 0.05, transforms.Standardize(), 20, 0, 3),
+    FOVBootstrapStrategy("subspace", 0.2, transforms.Standardize(), 20, 0, 3, None, 1),
+    SupportNoveltyStrategy(0.5, 0.05, 1, transforms.Standardize(), 3),
+    IncidenceCoverageStrategy("true_state", "incidence_coverage", 0.95, 3),
+    RareIncidenceStrategy("true_state", 1.0, 1.0, 0.05),
+    FixedAreaStrategy(50_000.0, "area_um2"),
 ]
 
 # Every outcome metric added to the package must be added here.
@@ -77,6 +95,13 @@ METRICS_UNDER_CONTRACT: list[outcomes.OutcomeMetric] = [
     outcomes.RelativeMeanError("feature_a"),
     outcomes.RandomCellRelativeError("feature_a"),
     outcomes.RareStateDetected("true_state", 1),
+    multivariate_outcomes.CentroidError(FEATURE_COLS, True),
+    multivariate_outcomes.CovarianceError(FEATURE_COLS, True),
+    multivariate_outcomes.QuantileError(FEATURE_COLS, True, (0.05, 0.5, 0.95)),
+    multivariate_outcomes.FrechetError(FEATURE_COLS, False),
+    multivariate_outcomes.EnergyError(FEATURE_COLS, True, 200, 0),
+    multivariate_outcomes.MMDError(FEATURE_COLS, True, 200, 0, 1.0),
+    multivariate_outcomes.SlicedWassersteinError(FEATURE_COLS, True, 20, 0),
 ]
 METRIC_IDS = [metric.name for metric in METRICS_UNDER_CONTRACT]
 

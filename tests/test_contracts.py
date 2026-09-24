@@ -50,6 +50,7 @@ from morphocoverage import (
     plan_cells_to_average,
     run_strategies,
 )
+from morphocoverage.strategies import FixedAreaStrategy
 
 # §9 items that are properties of the framework rather than datasets.
 FRAMEWORK_CONTRACTS = {
@@ -418,6 +419,7 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
             plateau,
             spread,
             planned,
+            FixedAreaStrategy(100_000.0, "area_um2"),
         ],
     )
 
@@ -446,6 +448,11 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
         stop = first_stop(strategy.name)
         assert stop.n_fovs >= 1 and stop.n_objects >= 1
         assert stop.evidence.value(quantity) <= strategy.tolerance
+
+    # Every scenario FOV images 10,000 um^2, so 100,000 um^2 means 10 FOVs,
+    # like the FOV-count rule, whatever the object counts.
+    by_area = first_stop("fixed_area")
+    assert (by_area.n_fovs, by_area.evidence.value("imaged_area")) == (10, 100_000.0)
 
     # The planned rule stops at the first FOV that brings the fixed count.
     required = planned.plan.required_objects

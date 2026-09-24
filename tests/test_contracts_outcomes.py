@@ -15,6 +15,7 @@ from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 from morphocoverage import (
     FixedFOVStrategy,
     FixedObjectStrategy,
+    multivariate_outcomes,
     outcomes,
     validate_input_tables,
 )
@@ -27,10 +28,12 @@ from morphocoverage.evaluator import iter_analysis_groups, objects_in_fovs, rest
 def test_every_package_outcome_metric_is_under_contract():
     exported = {
         obj
-        for obj in vars(outcomes).values()
+        for module in (outcomes, multivariate_outcomes)
+        for obj in vars(module).values()
         if isinstance(obj, type)
         and issubclass(obj, outcomes.OutcomeMetric)
         and obj is not outcomes.OutcomeMetric
+        and not obj.__name__.startswith("_")
     }
     covered = {type(metric) for metric in METRICS_UNDER_CONTRACT}
     missing = sorted(cls.__name__ for cls in exported - covered)
