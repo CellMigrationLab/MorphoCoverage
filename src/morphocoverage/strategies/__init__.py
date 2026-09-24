@@ -2,9 +2,11 @@
 
 from .base import Estimator, EstimatorState, SamplingStrategy
 from .baselines import (
+    FixedAreaStrategy,
     FixedFOVStrategy,
     FixedObjectStrategy,
     FixedObservationStrategy,
+    ImagedAreaEstimator,
 )
 from .fov_bootstrap import FOVBootstrapEstimator, FOVBootstrapStrategy
 from .incidence_coverage import IncidenceCoverageEstimator, IncidenceCoverageStrategy
@@ -37,9 +39,11 @@ __all__ = [
     "FOVBootstrapStrategy",
     "FOVIncidencePlanEstimator",
     "FOVIncidencePlanStrategy",
+    "FixedAreaStrategy",
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "FixedObservationStrategy",
+    "ImagedAreaEstimator",
     "IncidenceCoverageEstimator",
     "IncidenceCoverageStrategy",
     "PlannedCellCountEstimator",

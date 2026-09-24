@@ -28,6 +28,7 @@ from morphocoverage import (
     transforms,
 )
 from morphocoverage.strategies import (
+    FixedAreaStrategy,
     FOVBootstrapStrategy,
     FOVIncidencePlanStrategy,
     IncidenceCoverageStrategy,
@@ -86,6 +87,7 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     SupportNoveltyStrategy(0.5, 0.05, 1, transforms.Standardize(), 3),
     IncidenceCoverageStrategy("true_state", "incidence_coverage", 0.95, 3),
     RareIncidenceStrategy("true_state", 1.0, 1.0, 0.05),
+    FixedAreaStrategy(50_000.0, "area_um2"),
 ]
 
 # Every outcome metric added to the package must be added here.

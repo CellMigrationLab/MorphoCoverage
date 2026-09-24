@@ -2,18 +2,26 @@
 
 These intentionally simple methods exist to exercise the strategy framework and
 provide essential comparators. They are not endorsed as default MorphoCoverage
-estimators. Each is an effort policy; they answer the population component
-of an objective only.
+estimators. Each stops at a fixed amount of acquisition effort; they answer
+the population component of an objective only.
+
+``FixedAreaStrategy`` stops at a fixed physical imaged area, read from an
+FOV-table area column. Area is acquisition metadata rather than framework
+effort, so an estimator reports the visible total; it is more comparable than
+an FOV count when field size differs between acquisitions (roadmap 0.5).
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
-from ..evidence import Component, Evidence
+import numpy as np
+
+from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
-from ..policies import DecisionPolicy, Effort, EffortPolicy
+from ..policies import DecisionPolicy, Effort, EffortPolicy, ThresholdPolicy
 from ..results import Decision
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput
 from .base import (
@@ -162,3 +170,76 @@ class FixedObservationStrategy(SamplingStrategy):
     def policies(self) -> tuple[EffortPolicy]:
         """Stop once observations, of any unit, reach the target."""
         return (EffortPolicy("n_observations", self.target_observations),)
+
+
+_AREA = "imaged_area"
+
+
+@dataclass(frozen=True)
+class ImagedAreaEstimator(Estimator):
+    """Total physical area of the visible FOVs, from the FOV-table column ``area_col``.
+
+    Acquired FOVs without observations count, as they were imaged. Missing or
+    negative areas make the quantity ``not_applicable``: an unknown field size
+    cannot be summed. A missing column is a configuration error and raises.
+    """
+
+    area_col: str
+    name: str = "imaged_area"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.area_col, str) or not self.area_col:
+            raise TypeError("area_col must be the FOV table's area column")
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """The area column."""
+        return {"area_col": self.area_col}
+
+    def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
+        """The summed area of every visible FOV."""
+        if self.area_col not in data.fovs.columns:
+            raise ValueError(f"area_col {self.area_col!r} is not a column of the FOV table")
+        if self.area_col in data.feature_cols:
+            raise ValueError(f"area_col {self.area_col!r} is metadata, not a phenotype feature")
+        areas = data.fovs[self.area_col].to_numpy(dtype=float)
+        meta = {
+            "direction": Direction.HIGHER_IS_BETTER,
+            "units": f"units of {self.area_col!r}",
+            "component": Component.POPULATION,
+        }
+        if np.isnan(areas).any() or (areas < 0).any():
+            reason = f"missing or negative areas in {self.area_col!r}"
+            quantity = Quantity.not_applicable(reason, **meta)
+            return Evidence({_AREA: quantity}, {"undefined_reason": reason})
+        return Evidence({_AREA: Quantity.available(float(areas.sum()), **meta)})
+
+
+@dataclass(frozen=True)
+class FixedAreaStrategy(SamplingStrategy):
+    """Stop once the visible FOVs cover at least ``target_area`` (in ``area_col`` units)."""
+
+    target_area: float
+    area_col: str
+    name: str = "fixed_area"
+
+    def __post_init__(self) -> None:
+        if isinstance(self.target_area, bool) or not (
+            self.target_area > 0 and math.isfinite(self.target_area)
+        ):
+            raise ValueError("target_area must be a positive, finite area")
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """The target area and the area column."""
+        return {"target_area": float(self.target_area), "area_col": self.area_col}
+
+    @property
+    def estimators(self) -> tuple[ImagedAreaEstimator]:
+        """The imaged-area sum."""
+        return (ImagedAreaEstimator(self.area_col),)
+
+    @property
+    def policies(self) -> tuple[ThresholdPolicy]:
+        """``imaged_area >= target_area``."""
+        return (ThresholdPolicy(_AREA, float(self.target_area)),)

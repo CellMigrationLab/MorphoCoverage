@@ -191,7 +191,7 @@ src/morphocoverage/
     framework.py           # run_strategies convenience entry point
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
-        baselines.py       # fixed-FOV, generic-observation and legacy object-count baselines
+        baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
@@ -262,7 +262,7 @@ Rules for these tests:
 - Every outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
-- `baseline_comparison` covers the fixed-cell, fixed-FOV, JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedCellCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
+- `baseline_comparison` covers the fixed-cell, fixed-FOV, fixed-area (`FixedAreaStrategy`), JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedCellCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
 
 A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 
