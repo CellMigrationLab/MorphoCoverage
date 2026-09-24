@@ -46,10 +46,11 @@ def test_zero_observation_fovs_count_as_imaged_area():
     assert _first_stop(results).n_fovs == 5
 
 
-def test_missing_or_negative_areas_are_not_applicable():
+def test_missing_zero_or_negative_areas_are_not_applicable():
     built = SCENARIOS["homogeneous"]()
     estimator = ImagedAreaEstimator("area_um2")
-    for bad in (np.nan, -1.0):
+    # A zero-area FOV (external re-audit) would add no effort silently.
+    for bad in (np.nan, -1.0, 0.0):
         fovs = built.fovs.copy()
         fovs.loc[0, "area_um2"] = bad
         data = validate_input_tables(built.objects, fovs=fovs, feature_cols=list(FEATURE_COLS))

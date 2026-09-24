@@ -13,7 +13,15 @@ estimator reports
 
 the posterior probability that the state is at least as common as the target
 yet has not been seen in ``r`` FOVs. A strategy stops the rare component when
-the risk is at most ``max_risk`` (typically ``1 - detection_probability``).
+the risk is at most ``max_risk``.
+
+This is a Bayesian statement, not a frequentist guarantee. "Posterior risk
+at most 5%" means: given the prior and these FOVs, the probability that the
+incidence is at least ``p*`` is at most 5%. It does not mean that an
+experiment run this way detects a state at incidence ``p*`` with probability
+at least 95%; that is the binomial plan of ``rare_planning``. Choosing
+``max_risk = 1 - detection_probability`` makes the two rules similar, not
+equal, and how far apart they are depends on the prior.
 
 With a uniform prior (``a = b = 1``) and no detections the risk is
 ``(1 - p*) ** (k + 1)``, so the rule stops one FOV before the binomial plan of
@@ -148,8 +156,10 @@ class RareIncidenceEstimator(Estimator):
 class RareIncidenceStrategy(SamplingStrategy):
     """Stop the rare component once ``rare_incidence_risk`` is at most ``max_risk``.
 
-    ``RareIncidenceEstimator`` plus ``ThresholdPolicy(max_risk)``; set
-    ``max_risk`` to ``1 - detection_probability`` to match the target.
+    ``RareIncidenceEstimator`` plus ``ThresholdPolicy(max_risk)``.
+    ``max_risk`` bounds a posterior probability; ``1 - detection_probability``
+    gives a rule close to, but not the same as, the binomial detection plan
+    (see the module docstring).
     """
 
     label_col: str

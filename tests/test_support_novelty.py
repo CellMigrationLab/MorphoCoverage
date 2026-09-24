@@ -395,3 +395,38 @@ def test_one_stray_cell_elsewhere_does_not_cancel_a_new_state():
     # A state that genuinely recurs as a group in another FOV is still covered.
     fovs[1] = np.vstack([fovs[1], rng.normal((5.0, 5.0), 0.05, size=(3, 2))])
     assert estimator.estimate(_table(fovs), objective=POPULATION).diagnostics["novel_fovs"] == 0
+
+
+def test_a_held_out_fov_does_not_shape_the_geometry_that_judges_it():
+    # External audit: fitted on all visible FOVs, the extreme FOV inflated the
+    # standard deviation to about 50 and sat only ~2 SD from the others, so it
+    # was not novel at epsilon 2.1. Fitted without it, it is ~1,000 SD away.
+    objects = pd.DataFrame({"image_file": ["a", "b", "c", "novel"], "x": [-0.1, 0.0, 0.1, 100.0]})
+    one = validate_input_tables(objects, feature_cols=["x"])
+    estimator = SupportNoveltyEstimator(2.1, 1, Standardize(), 2)
+    assert list(estimator.novel_observation_flags(one)) == [False, False, False, True]
+    evidence = estimator.estimate(one, objective=POPULATION)
+    # Held out, the three ordinary FOVs are judged against folds that include
+    # the extreme FOV and are covered by each other; only "novel" is new.
+    assert evidence.diagnostics["novel_fovs"] == 1
+    assert evidence.diagnostics["transform_folds"] == 4
+    # The LOFO verdict matches judging it as a genuinely new FOV.
+    seen = validate_input_tables(objects.iloc[:3], feature_cols=["x"])
+    new = validate_input_tables(objects.iloc[3:], feature_cols=["x"])
+    assert list(estimator.novel_fovs_against(seen, new)) == [True]
+
+
+def test_nested_folds_that_cannot_be_fitted_make_the_estimate_insufficient():
+    # One FOV carries all the spread of a feature: without it the feature is
+    # constant, so the fold cannot be standardized.
+    objects = pd.DataFrame(
+        {"image_file": ["a", "a", "b", "c"], "x": [0.0, 1.0, 5.0, 5.0], "y": [0.0, 1.0, 2.0, 3.0]}
+    )
+    data = validate_input_tables(objects, feature_cols=["x", "y"])
+    quantity = (
+        SupportNoveltyEstimator(0.5, 1, Standardize(), 2)
+        .estimate(data, objective=POPULATION)
+        .quantities["lofo_novel_fov_fraction"]
+    )
+    assert quantity.availability.value == "insufficient_data"
+    assert "without one FOV" in quantity.reason

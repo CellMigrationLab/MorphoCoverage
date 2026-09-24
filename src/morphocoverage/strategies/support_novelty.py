@@ -30,9 +30,12 @@ empty too.
 
 With few FOVs that fraction is uninformative: two homogeneous FOVs give 0,
 yet say little about a third. ``lofo_novel_fov_upper`` is the one-sided
-Clopper-Pearson upper bound at ``confidence`` on the same probability
-(``morphocoverage.bounds``), 0.78 for 0 novel FOVs of 2 at 95%, and is the
-quantity to stop on when few FOVs have been seen. Support is counted in
+Clopper-Pearson upper bound at nominal level ``confidence`` on the same
+probability. The leave-one-FOV-out outcomes are not independent, so its
+coverage is approximate and is checked empirically by
+``morphocoverage.calibration`` (``morphocoverage.bounds``). It is 0.78 for 0
+novel FOVs of 2 at a nominal 95%, and is the quantity to stop on when few
+FOVs have been seen. Support is counted in
 FOVs, not cells: a state seen only in one FOV stays novel however many cells
 it has there, and support from another FOV counts once however many of its
 cells are nearby, so a dense FOV cannot cover what a sparse FOV showing the
@@ -82,8 +85,12 @@ Choices and limits:
 - In high dimensions nearest-neighbour distances concentrate, and a single
   ``epsilon`` either covers everything or nothing; use a transform that
   reduces the dimension.
-- ``transform`` is fitted once on all visible data (including the held-out
-  FOV), which uses no future FOVs but is not a fully nested holdout.
+- With a ``transform``, each held-out FOV is judged in a geometry fitted on
+  the other FOVs only (a nested holdout), as a genuinely new FOV is by
+  ``novel_fovs_against``. Fitting once on all visible FOVs would let an
+  extreme FOV widen the standardization that judges it: three FOVs near 0
+  and one at 100 put it about 2 SD away instead of about 1,000. The
+  diagnostics record the fit on all visible FOVs and the number of folds.
 - It only sees states that have appeared: a phenotype absent from every
   visible FOV contributes nothing.
 - Zero-observation FOVs add no observations to judge; they still count as
@@ -341,17 +348,17 @@ class SupportNoveltyEstimator(Estimator):
         if reason is not None:
             return _unavailable("insufficient", reason, diagnostics)
 
-        novel = novel_observations(
-            values, positions, self.epsilon, self.min_other_fovs, self.min_novel_observations
-        )
+        lofo = self._lofo(matrix, values, positions, tuple(data.feature_cols))
+        if isinstance(lofo, str):
+            return _unavailable("insufficient", lofo, diagnostics)
+        novel, members = lofo
+        if self.transform is not None:
+            diagnostics["transform_folds"] = len(np.unique(positions))
         k = len(data.fovs)
         novel_per_fov = np.bincount(positions, weights=novel, minlength=k)
         counts = np.bincount(positions, minlength=k)
         per_fov = novel_per_fov / np.maximum(counts, 1)
         observed = counts > 0
-        members = new_state_members(
-            values, positions, novel, self.epsilon, self.min_novel_observations
-        )
         novel_fov_count = int(np.unique(positions[members]).size)
         upper = upper_bound(novel_fov_count, k, self.confidence)
         diagnostics.update(
@@ -424,19 +431,51 @@ class SupportNoveltyEstimator(Estimator):
         positions = fov_positions(data, data.fovs)
         if np.isnan(matrix).any() or len(np.unique(positions)) < self.min_fovs:
             return None
-        if self.transform is not None:
-            fitted = self.transform.fit(data)
-            if not fitted.fitted:
-                return None
-            matrix = fitted.apply(data)
-        novel = novel_observations(
-            matrix, positions, self.epsilon, self.min_other_fovs, self.min_novel_observations
-        )
-        if not new_states_only:
-            return novel
-        return new_state_members(
-            matrix, positions, novel, self.epsilon, self.min_novel_observations
-        )
+        if self.transform is not None and not self.transform.fit(data).fitted:
+            return None
+        lofo = self._lofo(matrix, matrix, positions, tuple(data.feature_cols))
+        if isinstance(lofo, str):
+            return None
+        novel, members = lofo
+        return members if new_states_only else novel
+
+    def _lofo(
+        self,
+        matrix: np.ndarray,
+        values: np.ndarray,
+        positions: np.ndarray,
+        names: tuple[str, ...],
+    ) -> tuple[np.ndarray, np.ndarray] | str:
+        """Leave-one-FOV-out novel observations and new-state members, or why not.
+
+        Without a transform, ``values`` (the raw features) serve every fold. With
+        one, each held-out FOV is judged in a geometry fitted on the other FOVs
+        only, as a genuinely new FOV would be (``novel_fovs_against``): an extreme
+        FOV must not widen the standardization or rotate the PCA that decides
+        whether it is extreme.
+        """
+        m = self.min_novel_observations
+        if self.transform is None:
+            novel = novel_observations(values, positions, self.epsilon, self.min_other_fovs, m)
+            return novel, new_state_members(values, positions, novel, self.epsilon, m)
+        novel = np.zeros(len(matrix), dtype=bool)
+        members = np.zeros(len(matrix), dtype=bool)
+        for fov in np.unique(positions):
+            own = positions == fov
+            fitted = self.transform.fit_matrix(matrix[~own], names)
+            if isinstance(fitted, str):
+                return f"the transform could not be fitted without one FOV: {fitted}"
+            state = fitted[0]
+            reference = self.transform.apply_matrix(state, matrix[~own])
+            queries = self.transform.apply_matrix(state, matrix[own])
+            flags = novel_against(
+                reference, positions[~own], queries, self.epsilon, self.min_other_fovs, m
+            )
+            novel[own] = flags
+            members[own] = new_state_members(
+                queries, np.zeros(len(queries), dtype=np.int64), flags, self.epsilon, m
+            )
+        return novel, members
 
 
 @dataclass(frozen=True)

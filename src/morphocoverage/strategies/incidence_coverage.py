@@ -40,14 +40,18 @@ without observations included), ``Q_k`` states seen in exactly ``k`` FOVs and
   about 20 FOVs and runs low with fewer, which would make stopping look safe
   too early;
 
-- a conservative companion, ``min(1, Q_1 / T)``: Q_1 / T is the Good-Turing
-  estimate of the expected number of new states in one more unit, which
-  bounds the probability of at least one (Markov's inequality). In the same
-  simulations it stayed at or above the realized rate;
+- the Good-Turing plug-in estimate ``min(1, Q_1 / T)``: Q_1 / T estimates the
+  expected number of new states in one more unit. That expectation would
+  bound the probability of at least one (Markov's inequality), but an
+  estimate of it is not a bound: two identical FOVs give Q_1 = 0 and so 0,
+  although a third FOV can clearly show something new. In the independent-FOV
+  simulations it stayed at or above the realized rate on average, which is an
+  empirical property, not a guarantee;
 
 - the leave-one-FOV-out rate ``x / T``, where ``x`` is the number of FOVs
   holding a state seen in no other FOV, and its one-sided Clopper-Pearson
-  upper bound at ``confidence`` (``morphocoverage.bounds``). The model-based
+  upper bound at nominal level ``confidence`` (``morphocoverage.bounds``;
+  approximate, since the leave-one-FOV-out outcomes are not independent). The model-based
   probabilities above are 0 whenever no state is a singleton, even after two
   FOVs; the bound is not (0.78 for 0 of 2 at 95%) and is the quantity to stop
   on when few FOVs have been seen.
@@ -93,7 +97,7 @@ QUANTITIES = (
     "chao2_completeness",
     "expected_new_states_next_fov",
     "prob_new_state_next_fov",
-    "good_turing_new_state_bound",
+    "good_turing_new_state_estimate",
     "lofo_new_state_fov_fraction",
     "new_state_fov_upper",
 )
@@ -102,14 +106,14 @@ _UNITS = {
     "chao2_completeness": "observed states / Chao2 estimated states",
     "expected_new_states_next_fov": "states",
     "prob_new_state_next_fov": "probability",
-    "good_turing_new_state_bound": "probability (upper bound)",
+    "good_turing_new_state_estimate": "probability (plug-in estimate)",
     "lofo_new_state_fov_fraction": "fraction of FOVs (probability)",
-    "new_state_fov_upper": "probability (upper confidence bound)",
+    "new_state_fov_upper": "probability (nominal upper bound)",
 }
 _LOWER_IS_BETTER = {
     "expected_new_states_next_fov",
     "prob_new_state_next_fov",
-    "good_turing_new_state_bound",
+    "good_turing_new_state_estimate",
     "lofo_new_state_fov_fraction",
     "new_state_fov_upper",
 }
@@ -167,8 +171,11 @@ def prob_new_state(incidences: np.ndarray, n_units: int) -> float:
     return 1 - (1 - q1 / (n_units * unseen + q1)) ** unseen
 
 
-def good_turing_bound(incidences: np.ndarray, n_units: int) -> float:
-    """``min(1, Q_1 / T)``: a conservative bound on the probability of a new state next unit."""
+def good_turing_estimate(incidences: np.ndarray, n_units: int) -> float:
+    """``min(1, Q_1 / T)``: Good-Turing plug-in estimate of a new state in the next unit.
+
+    An estimate, not a bound: it is 0 whenever no state is a singleton.
+    """
     return min(1.0, int(np.sum(incidences == 1)) / n_units)
 
 
@@ -208,7 +215,7 @@ class IncidenceCoverageEstimator(Estimator):
 
     Reports ``incidence_coverage`` and ``chao2_completeness`` (higher is
     better) and ``expected_new_states_next_fov``, ``prob_new_state_next_fov``,
-    ``good_turing_new_state_bound``, ``lofo_new_state_fov_fraction`` and
+    ``good_turing_new_state_estimate``, ``lofo_new_state_fov_fraction`` and
     ``new_state_fov_upper`` (lower is better), all population evidence.
     ``label_col`` is an observation column of labels fixed independently of
     the acquisition; it is metadata and must not be a
@@ -265,7 +272,7 @@ class IncidenceCoverageEstimator(Estimator):
             "chao2_completeness": len(incidences) / estimated,
             "expected_new_states_next_fov": expected_new_states(incidences, n_units),
             "prob_new_state_next_fov": prob_new_state(incidences, n_units),
-            "good_turing_new_state_bound": good_turing_bound(incidences, n_units),
+            "good_turing_new_state_estimate": good_turing_estimate(incidences, n_units),
             "lofo_new_state_fov_fraction": unique_fovs / n_units,
             "new_state_fov_upper": upper_bound(unique_fovs, n_units, self.confidence),
         }
