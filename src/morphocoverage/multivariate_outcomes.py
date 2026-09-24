@@ -25,10 +25,26 @@ Every metric returns ``None`` (undefined, never NaN) when either sample has
 too few observations or any selected value is missing: missing values are
 neither imputed nor dropped.
 
-Bias: the energy distance and MMD are unbiased U-statistics when
-observations are independent, so they then do not shrink merely because the
-stop has more observations. Cells within one FOV are usually correlated, so
-on real acquisitions this holds only approximately; compare strategies at
+Weighting: every metric pools observations, so each FOV counts in proportion
+to its number of observations. The estimand is the observation-level
+(cell-weighted) phenotype distribution, not that of a typical FOV: a stop
+that misses one sparse FOV with a different phenotype scores almost as well
+as one that includes it (1,000 cells at 0 in one FOV and 1 cell at 10 in
+another give a centroid error of 10/1,001 for a stop without the second FOV,
+although the FOV-weighted centroids differ by 5). This favours cell-count
+rules when sparse FOVs hold different biology; read these outcomes alongside
+FOV-level ones and check sensitivity to observations per FOV.
+
+Bias: the energy distance and MMD are unbiased U-statistics only when the
+stop and the reference are independent samples of independent observations.
+Against the default reference, the full acquisition, the stop is contained
+in the reference: identical observations enter the cross term and bias both
+downward (about -0.0004 for the energy distance and -0.0013 for MMD with
+bandwidth 1, for a 100-observation stop inside 1,000 i.i.d. normal
+observations). Values against the full acquisition are therefore descriptive,
+not unbiased; a held-out reservoir (``morphocoverage.reservoir``) keeps the
+two samples disjoint. Cells within one FOV are usually correlated as well,
+so even then the property holds only approximately; compare strategies at
 matched FOV and observation counts. The centroid,
 covariance, quantile and Fréchet errors use plug-in estimates and are biased
 upward for small stops; compare them at matched observation counts or read
@@ -254,9 +270,12 @@ class _SubsampledOutcome(_MultivariateOutcome):
 
 @dataclass(frozen=True)
 class EnergyError(_SubsampledOutcome):
-    """Unbiased energy distance between the stop and the reference (``distances.energy_distance``).
+    """Energy-distance U-statistic between the stop and the reference (``distances``).
 
-    Can be slightly negative when the two distributions are equal.
+    Unbiased only for a reference disjoint from the stop, such as a held-out
+    reservoir; against the full acquisition, which contains the stop, it is
+    biased downward (module docstring). Can be slightly negative when the two
+    distributions are equal.
     """
 
     @property
@@ -272,10 +291,11 @@ class EnergyError(_SubsampledOutcome):
 
 @dataclass(frozen=True)
 class MMDError(_SubsampledOutcome):
-    """Unbiased squared MMD with a Gaussian kernel of explicit ``bandwidth`` (``distances``).
+    """Squared-MMD U-statistic with a Gaussian kernel of explicit ``bandwidth`` (``distances``).
 
     ``bandwidth`` is in the metric's feature units (standard deviations when
-    ``standardize`` is true). Can be slightly negative when the two
+    ``standardize`` is true). Unbiased only for a reference disjoint from the
+    stop (module docstring). Can be slightly negative when the two
     distributions are equal.
     """
 

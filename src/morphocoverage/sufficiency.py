@@ -284,11 +284,12 @@ def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | N
     if pd.isna(row["chance_new"]):
         return f"Not estimable: {row['reason']}."
     confidence = _percent(row["confidence"])
-    lines = [
+    chance = (
         f"Chance: {_percent(row['chance_new'])} (at most {_percent(row['chance_new_at_most'])} "
         f"with {confidence} confidence); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
         "showed something the others did not."
-    ]
+    )
+    lines = [chance]
     if target is not None:
         goal = f"To claim below {_percent(target)} with {confidence} confidence"
         if row["chance_new_at_most"] <= target:
