@@ -361,3 +361,78 @@ median of 1 (1–13; 75% by 2 FOVs).
   not independent experiments.
 - **The minimum of 2 FOVs is a setting of this run**, and it caps how early the
   rules could stop.
+
+## 6. Protocol, fields to inspect, controls, effort and order on idr0028 (2026-09-24)
+
+**Question.** Roadmap Steps 4–8 and 10 on the same 12 wells: what field number
+would a protocol need, which fields should be reopened, can these features see
+the declared siYAP phenotype, would more fields or more wells help, and could
+the same positions have been visited in a better order?
+
+**Method** (`data/crick_idr/report_steps_idr0028.py`, fixed seeds; about 35 s
+after the Step 1 curves of entry 4). Every table is in `data/crick_idr/results/`,
+and the assembled report is `microscopist_report_idr0028.txt`. idr0028 remains a
+development dataset.
+
+**What this shows**
+
+- **Protocol (Step 4).** A well counts as adequately represented when at least
+  90% of random acquisitions preserved the criterion, and all conditions are
+  pooled explicitly.
+  - For the well mean within 5%, 2 fields were enough for 12 of 12 wells.
+  - Within 2.5%, 2 fields were enough for 9 of 12 wells (by plate: 4 of 5, 3
+    of 4, 2 of 3), and 4 fields for all 12.
+  - A number chosen on two plates served every well of the third.
+  - For the variance within 10%, no well was adequately represented at any
+    depth (the reservoir ceiling of entry 4).
+  - With 3 plates the summary says the uncertainty is too large to fix a
+    protocol, and it is.
+- **Fields to inspect (Step 5).**
+  - Two fields hold far fewer nuclei than their well (6 against a median of
+    27 and 21.5).
+  - One siYAP field has a mean YAP/TAZ ratio 4.2 SD below its four stage
+    neighbours.
+  - Four fields hold a small new state: 3 nuclei no other field of the well
+    shows, in 30 standardized features.
+  - No field moved the well mean or 95th percentile of the ratio by 10% or
+    more when left out, as expected with 28 fields per well.
+- **Representation control (Step 6).** Measured after 10 MOCK fields on the
+  same plate:
+  - siYAP fields were recognized as different in 100% of 1680 checks;
+  - MOCK fields with 5 siYAP nuclei planted were recognized in 100% of 720;
+  - the other MOCK fields were called different in 2% of 720 (false alarms).
+
+  This matches the tracked positive control (entry 2: 100% for siYAP, about
+  2% false alarms at 10 fields) computed by independent code.
+- **More fields or more wells (Step 7).** For the mean ratio of a condition:
+  - in MOCK, 52% of the variance of the mean is between fields within a well;
+  - in the knockdowns, 80–99% is between wells, which are on different plates;
+  - fields vary 1.5–2.5 times as much as random cells would (design effect).
+
+  With 3 wells per condition the answer is "cannot tell from these data", as
+  designed. Plate and well are confounded here: in MOCK each plate has one
+  well. The analysis therefore refuses a plate level and uses plate-qualified
+  well and field identities.
+- **Order (Step 8).** For the well mean within 2.5%, recorded, random and
+  dispersed orders all reached it after a median of 1 field. The recorded
+  serpentine raster needed 2–3 fields (444–888 µm of travel) in 3 wells. This
+  is the null result the roadmap allows: the mean is too easy here to tell
+  orders apart.
+  - In 5 of 12 wells, fields closer than about 520–780 µm are more alike than
+    random pairs.
+  - The other 7 wells show no such redundancy down to the closest spacing
+    measured (336 µm).
+
+**What this does not show**
+
+- **One easy readout, 12 wells, 3 plates, development data.** None of these
+  numbers is a protocol. The Step 7 and Step 4 answers are limited by 3 wells
+  per condition and 3 plates, and they say so.
+- **The Step 7 intervals are approximate.** Simulated nested designs with 8
+  samples recover the variance components on average (tested), but the
+  bootstrap interval covered the true sample and field components in only
+  88% and 80% of 40 runs, not 95%. Resampling only the samples was worse (68%
+  for the sample component). A stated difference between allocations
+  therefore also needs five or more independent units.
+- **The reading test** (roadmap rule 4) has not been done by the project
+  owner on this report.

@@ -159,7 +159,12 @@ def leave_one_dataset_out(
 
 @dataclass(frozen=True)
 class AcquisitionOrder:
-    """The recorded acquisition order, or a seeded random permutation of whole FOVs."""
+    """The recorded acquisition order, a seeded random permutation of whole FOVs, or a
+    seeded spatially dispersed order (greedy farthest point on stage coordinates).
+
+    A dispersed order needs stage coordinates, so it is replayed with
+    ``morphocoverage.retrospective.replay_acquisitions(stage_cols=...)``.
+    """
 
     kind: str
     seed: int | None = None
@@ -168,11 +173,11 @@ class AcquisitionOrder:
         if self.kind == "recorded":
             if self.seed is not None:
                 raise ValueError("the recorded order takes no seed")
-        elif self.kind == "permuted":
+        elif self.kind in ("permuted", "dispersed"):
             if isinstance(self.seed, bool) or not isinstance(self.seed, int):
-                raise TypeError("a permuted order needs an integer seed")
+                raise TypeError(f"a {self.kind} order needs an integer seed")
         else:
-            raise ValueError("kind must be 'recorded' or 'permuted'")
+            raise ValueError("kind must be 'recorded', 'permuted' or 'dispersed'")
 
     @classmethod
     def recorded(cls) -> AcquisitionOrder:
@@ -184,6 +189,11 @@ class AcquisitionOrder:
         """A uniformly random order of whole FOVs, reproducible from ``seed``."""
         return cls("permuted", seed)
 
+    @classmethod
+    def dispersed(cls, seed: int) -> AcquisitionOrder:
+        """Greedy farthest-point order on stage coordinates from a start chosen by ``seed``."""
+        return cls("dispersed", seed)
+
     def apply(self, fovs: pd.DataFrame, order_col: str) -> tuple[pd.DataFrame, str]:
         """The FOV table with the order to replay, and the name of its order column.
 
@@ -192,6 +202,11 @@ class AcquisitionOrder:
         """
         if self.kind == "recorded":
             return fovs, order_col
+        if self.kind == "dispersed":
+            raise ValueError(
+                "a dispersed order needs stage coordinates; replay it with "
+                "morphocoverage.retrospective.replay_acquisitions(stage_cols=...)"
+            )
         if _PERMUTED_ORDER_COL in fovs.columns:
             raise ValueError(f"the FOV table already has a column {_PERMUTED_ORDER_COL!r}")
         rank = np.random.default_rng(self.seed).permutation(len(fovs))

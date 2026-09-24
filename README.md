@@ -8,18 +8,18 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 
 | Question | Today |
 | --- | --- |
-| Can my features detect the phenotype I care about? | positive and frequency controls on idr0028 (preliminary findings, entries 2–3); a positive-control report for declared controls is proposed |
+| Can my features detect the phenotype I care about? | `morphocoverage.retrospective.representation_control`: detection and false-alarm rates for declared positive and reference controls, or "not assessed" |
 | Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, first stop points across acquisition orders, rare-state statements |
 | Would one more FOV show something new, and is that chance right? | `sufficiency_report` next-FOV chance and nominal bound, flagged cells, `calibrate_next_fov_novelty` |
-| What is limiting my sampling? | design effect (preliminary findings, entry 1), semivariogram; a sampling profile is proposed |
-| How many FOVs should I image next time? | `morphocoverage.retrospective.sampling_reliability`: how often k random fields preserve what you declared (for example the well mean within 5%) in fixed held-back fields, per sample; across held-out samples is proposed |
+| What is limiting my sampling? | the sampling profile of `microscopist_report`: control detection, design effect, where the variance of the mean sits, spatial correlation distance, fields holding new states |
+| How many FOVs should I image next time? | `morphocoverage.retrospective.sampling_reliability`: how often k random fields preserve what you declared (for example the well mean within 5%) in fixed held-back fields, per sample; `protocol_reliability` across samples, counted by independent unit |
 | What did the extra FOVs buy? | `morphocoverage.retrospective.adequacy_points`: when a rule first and lastingly said stop, and when held-back fields confirmed it was enough, first and lastingly |
 | Can I trust an automated stopping rule? | `morphocoverage.retrospective.stopping_calibration`: how often a rule's stop was too early for what you declared, in held-back fields, over replayed orders |
-| Which FOVs and cells should I inspect? | the cells counted as new; a traceable inspect-these-fields report is proposed |
-| More FOVs, or more biological samples? | proposed: a hierarchical variance decomposition with projected uncertainty under alternative allocations |
-| Could I have sampled more efficiently? | recorded versus random orders; a spatially dispersed order, and later a comparison with all candidate positions, are proposed |
+| Which FOVs and cells should I inspect? | `inspect_fovs`: fields to reopen, each with its reason and numbers (new state, influence on a summary, observation count, difference from stage neighbours), image file and stage position |
+| More FOVs, or more biological samples? | `effort_projection`: nested variance components of a scalar mean and projected standard errors at equal total FOVs; "cannot tell" unless the intervals separate |
+| Could I have sampled more efficiently? | `order_efficiency`: recorded, random and dispersed orders of the same positions with stage travel; `redundancy_distance`; a comparison with all candidate positions is not implemented |
 
-A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** The proposed report is `docs/proposals/microscopist_report.md`. Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
+A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** `morphocoverage.retrospective.microscopist_report` assembles these answers question by question (`docs/proposals/microscopist_report.md`). Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
 
 ## Project boundary
 

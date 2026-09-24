@@ -325,3 +325,5 @@ must make its observation-unit assumptions explicit.
 
 A generic input contract must never silently change the meaning of a published
 cell-count method.
+
+`morphocoverage.retrospective` holds the retrospective analyses of the microscopist's report (`docs/proposals/microscopist_report_roadmap.md`). They judge sets of FOVs against FOVs no estimator saw, through `OutcomeMetric` values and declared `OutcomeCriterion` tolerances, and never feed a prospective estimator. `replay_acquisitions` is the shared engine for Steps 2, 3 and 8: it reuses `sequential`'s prefix machinery and the estimators and policies a live session runs, so decisions are identical to online acquisition, while outcomes against the held-back reservoir are recorded separately. The names stay in the subpackage and are not part of the top-level `__all__`.

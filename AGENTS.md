@@ -202,6 +202,13 @@ src/morphocoverage/
         replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
         calibration.py     # stopping-rule calibration: how often a rule's stop was premature
         adequacy.py        # first and sustained apparent and realized adequacy points
+        protocol.py        # protocol-level reliability across samples, by independent unit
+        inspection.py      # inspect-these-fields: one traceable reason per FOV and line
+        controls.py        # representation controls: detection and false-alarm rates
+        effort.py          # nested variance components and projected SE at equal FOVs
+        stage.py           # dispersed (farthest-point) orders and stage travel
+        spatial.py         # acquisition-order efficiency and redundancy distance
+        report.py          # the microscopist's report, question by question
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
