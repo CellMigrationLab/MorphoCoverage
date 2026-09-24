@@ -99,6 +99,8 @@ Scientific rules:
 - biological-condition hypothesis testing;
 - microscope hardware control.
 
+MorphoCoverage does not replace the user's final biological inference workflow. It may, however, use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool.
+
 Do not add dependencies for those concerns merely to make an example easier.
 
 ## 5. Inter-repo contract

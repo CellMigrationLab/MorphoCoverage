@@ -63,9 +63,16 @@ observations) have no summary; they are left out and counted in the
 diagnostics. PCA resamples whose covariance has observations but too little
 spread to define the summary (no spread for the eigenspectrum; a zero
 eigenvalue among the leading ``n_components`` for the subspace, whose basis
-would be arbitrary) are not left out: any such resample makes the quantity
+would be arbitrary) are genuinely undetermined. When they are more than
+``DEGENERATE_TOLERANCE`` (5%) of the resamples the quantity is
 ``insufficient_data``, since dropping them would report certainty that the
-data do not support.
+data do not support (two one-cell FOVs: half the resamples, and an SE of 0
+if dropped). Below that share they are left out and counted
+(``degenerate_resamples``, ``degenerate_fraction``); this slightly understates
+the uncertainty. The rule depends on the share, a property of the data,
+not on whether one rare degenerate resample happens to be drawn, which with
+enough resamples always happens: five one-cell FOVs repeat one FOV in 0.16%
+of resamples (5 * 0.2 ** 5), so 2,000 resamples almost surely draw one.
 
 Blocks: with ``block_col`` the bootstrap resamples blocks, each with equal
 probability, and takes every FOV of a drawn block. This is the cluster
@@ -96,6 +103,8 @@ from .base import Estimator, SamplingStrategy
 
 SUMMARIES = ("centroid", "covariance", "quantiles", "eigenspectrum", "subspace")
 AGGREGATES = ("max", "rms")
+# Largest share of PCA resamples without enough spread that is left out.
+DEGENERATE_TOLERANCE = 0.05
 
 
 def _check(summary, n_resamples, random_state, min_fovs, quantiles, transform, n_components):
@@ -389,13 +398,18 @@ class FOVBootstrapEstimator(Estimator):
         defined = ~np.isnan(components).any(axis=1)
         diagnostics["undefined_resamples"] = int((~defined).sum())
         if degenerate:
-            # Leaving these out would condition the bootstrap on the resamples that
-            # happen to show spread, and can report zero uncertainty; their summary
-            # is genuinely undetermined, so the estimate is not yet available.
             diagnostics["degenerate_resamples"] = degenerate
+            diagnostics["degenerate_fraction"] = degenerate / self.n_resamples
+        if degenerate > DEGENERATE_TOLERANCE * self.n_resamples:
+            # Leaving these out would condition the bootstrap on the resamples that
+            # happen to show spread and can report near-zero uncertainty; when they
+            # are a real share of the bootstrap distribution the summary is not yet
+            # determined. The share, not the count, decides, so that more
+            # resamples estimate the same property instead of eventually drawing
+            # one rare degenerate resample.
             reason = (
-                f"{degenerate} of {self.n_resamples} resamples have too little spread to "
-                "define the PCA summary"
+                f"{degenerate} of {self.n_resamples} resamples (more than "
+                f"{DEGENERATE_TOLERANCE:.0%}) have too little spread to define the PCA summary"
             )
             diagnostics["undefined_reason"] = reason
             return Evidence(self._every(Quantity.insufficient(reason, **_meta(units))), diagnostics)

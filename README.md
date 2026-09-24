@@ -2,6 +2,22 @@
 
 MorphoCoverage is a feature-agnostic Python project for studying whether microscopy experiments have sampled a declared phenotypic representation adequately. It treats **fields of view (FOVs), defined as independently selected spatial acquisition positions, rather than individual observations/cells or z-planes, as the primary operational acquisition units** and asks whether additional representative imaging is likely to provide useful new phenotypic information.
 
+## Questions MorphoCoverage is built to answer
+
+For a completed experiment, the aim is to tell a microscopist whether the imaging effort was sufficient, what the additional FOVs actually bought, and how to spend the imaging budget in the next experiment. Every answer depends on the declared phenotype representation (the features and the definition of "new") and is stated with the criterion behind it.
+
+| Question | Today |
+| --- | --- |
+| Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, stop points across acquisition orders, rare-state statements |
+| Would one more FOV show something new, and is that chance right? | `sufficiency_report` next-FOV chance and nominal bound, flagged cells, `calibrate_next_fov_novelty` |
+| Which FOVs and cells should I inspect? | the cells counted as new; a per-FOV influence report is proposed |
+| How many FOVs should I image next time? | proposed: a reliability curve over resampled acquisitions |
+| What did the extra FOVs buy; was acquisition redundant? | stop points and spare FOVs; saturation per criterion and spatial redundancy are proposed |
+| More FOVs, or more biological samples? | whole-FOV versus random-cell error (preliminary findings, entry 1); a variance decomposition is proposed |
+| Was my way of choosing FOVs sensible? | recorded versus random orders; a spatially dispersed order is proposed |
+
+A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** The proposed report is `docs/proposals/microscopist_report.md`. Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
+
 ## Project boundary
 
 MorphoCoverage consumes numeric phenotype feature tables together with FOV identity and optional grouping metadata. A feature row is a generic **observation**: it may be a cell, nucleus, patch, slice-level measurement, FOV summary, embedding, or another declared unit.
@@ -45,7 +61,7 @@ MorphoCoverage is a strategy-comparison framework. No default coverage estimator
   - `SupportNoveltyStrategy`: leave-one-FOV-out fraction of observations outside the other FOVs' support at a declared resolution;
   - `IncidenceCoverageStrategy`: Chao–Jost incidence sample coverage and Chao2 completeness for externally fixed labels, with the FOV as the sampling unit;
   - rare-state rules for a `RareTarget` with FOV incidence: a fixed binomial plan (`FOVIncidencePlanStrategy`) and a beta-binomial risk that stops on recurrence (`RareIncidenceStrategy`).
-- **Was it sampled enough, and would one more FOV show something new?** `morphocoverage.sufficiency.sufficiency_report` answers both for a finished dataset, per analysis group. For each criterion (strategy and thresholds) it says whether the acquired FOVs meet it and after how many FOVs it was first met across acquisition orders. Given a definition of "new" (`SupportNoveltyEstimator`), it gives the chance that one more FOV shows a phenotype the other FOVs do not (a cluster of similar unsupported cells, so scattered outliers do not count), an upper confidence bound, how many more FOVs are needed to claim that chance is below a target, the frequency above which an unseen state is ruled out (about 3/k after k FOVs), and the cells counted as new so they can be checked in the images. `report.summary()` states the answers in sentences.
+- **Was it sampled enough, and would one more FOV show something new?** `morphocoverage.sufficiency.sufficiency_report` answers both for a finished dataset, per analysis group. For each criterion (strategy and thresholds) it says whether the acquired FOVs meet it and after how many FOVs it was first met across acquisition orders. Given a definition of "new" (`SupportNoveltyEstimator`), it gives the chance that one more FOV shows a phenotype the other FOVs do not (a cluster of similar unsupported cells, so scattered outliers do not count), a nominal upper bound whose coverage is checked empirically, how many more FOVs are needed to bring that bound below a target, the frequency above which an unseen state is ruled out (about 3/k after k FOVs), and the cells counted as new so they can be checked in the images. `report.summary()` states the answers in sentences.
 - **Is that chance right?** `morphocoverage.calibration.calibrate_next_fov_novelty` checks it on the dataset itself: it predicts from random subsets of FOVs and compares with how often the remaining FOVs actually showed something new.
 - **Leakage-safe replay.** Recorded acquisitions are evaluated prefix by prefix: `evaluate_acquisition_prefixes`.
 - **Benchmark protocol.** Datasets are declared as development or held out, and tuning on held-out data raises. `run_benchmark` replays recorded or seeded-permuted acquisition orders and records one row per run: effort at the stop, strategy-independent outcome metrics, and compute time (`morphocoverage.benchmark`, `morphocoverage.outcomes`). Outcomes can be scored against a held-out evaluation reservoir split by spatial block instead of the self-containing full acquisition (`morphocoverage.reservoir`), and include multivariate distribution errors (`morphocoverage.multivariate_outcomes`: centroid, covariance, quantile, Fréchet, energy and MMD U-statistics, sliced Wasserstein). `morphocoverage.spatial` gives FOV semivariograms for choosing block sizes.

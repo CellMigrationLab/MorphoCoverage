@@ -173,7 +173,7 @@ def test_summary_answers_both_questions_in_words():
     text = report.summary()
     assert "Did we sample enough?" in text and "Would one more FOV show something new?" in text
     assert "fixed_fov" in text and "yes, met by the 13 acquired FOVs" in text
-    assert "Chance: 15% (at most" in text and "2 of 13 FOVs" in text
+    assert "Chance: 15% (nominal 95% upper bound" in text and "2 of 13 FOVs" in text
     assert "Check on this dataset: predicting from 6 random FOVs" in text
     assert "'New' means a cluster of at least 3 similar observations" in text
     assert "with fewer than 1 other FOV within distance 0.5" in text
@@ -224,7 +224,7 @@ def test_the_report_states_what_the_fovs_rule_out():
     assert "is in at most 21% of FOVs (95% confidence, about 3 / 13)" in text
     assert "Rarer states can remain." in text
     assert "To rule out unseen states in more than 20% of FOVs: at least 1 more FOV" in text
-    assert "To claim the chance for the next FOV is below 20%" in text
+    assert "To bring the nominal 95% bound for the next FOV below 20%" in text
     # Without a target the statement is still made, without the extra FOVs.
     plain = _novelty_report()
     assert pd.isna(plain.next_fov["extra_fovs_to_rule_out_target"].iloc[0])

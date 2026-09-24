@@ -18,7 +18,7 @@ from morphocoverage.strategies.incidence_coverage import (
     chao2,
     expected_new_states,
     fovs_with_unique_states,
-    good_turing_bound,
+    good_turing_estimate,
     incidence_coverage,
     incidence_frequencies,
     prob_new_state,
@@ -189,21 +189,21 @@ def test_strategy_can_stop_on_expected_new_states():
         IncidenceCoverageStrategy("state", "expected_new_states_next_fov", 0.0, 2)
 
 
-def test_new_state_probability_formula_and_bound():
+def test_new_state_probability_formula_and_good_turing_estimate():
     # Incidences 5, 2, 1, 1 in 5 FOVs: Q1 = 2, Q0 = 1.6, q = 2 / (5 * 1.6 + 2).
     incidences = np.array([5, 2, 1, 1])
     q = 2 / (5 * 1.6 + 2)
     assert prob_new_state(incidences, 5) == pytest.approx(1 - (1 - q) ** 1.6)
-    assert good_turing_bound(incidences, 5) == pytest.approx(2 / 5)
+    assert good_turing_estimate(incidences, 5) == pytest.approx(2 / 5)
     assert prob_new_state(np.array([3, 2]), 5) == 0.0
-    assert good_turing_bound(np.array([1, 1, 1]), 2) == 1.0
+    assert good_turing_estimate(np.array([1, 1, 1]), 2) == 1.0
 
 
 @pytest.mark.parametrize("n_fovs", [20, 40])
 def test_new_state_probability_matches_the_next_fov_in_simulation(n_fovs):
     # Independent FOVs with known incidences: the Chao-model probability
     # matches how often the next FOV really shows a new state from about 20
-    # FOVs, and the Good-Turing bound is not below it.
+    # FOVs, and the Good-Turing estimate is not below it on average.
     rng = np.random.default_rng(2)
     pi = np.concatenate([np.full(10, 0.6), np.full(20, 0.1), np.full(30, 0.02)])
     estimated, bound, realized = [], [], []
@@ -212,7 +212,7 @@ def test_new_state_probability_matches_the_next_fov_in_simulation(n_fovs):
         incidences = present[:n_fovs].sum(axis=0)
         seen = incidences > 0
         estimated.append(prob_new_state(incidences[seen], n_fovs))
-        bound.append(good_turing_bound(incidences[seen], n_fovs))
+        bound.append(good_turing_estimate(incidences[seen], n_fovs))
         realized.append((present[n_fovs] & ~seen).any())
     assert np.mean(estimated) == pytest.approx(np.mean(realized), abs=0.03)
     assert np.mean(bound) >= np.mean(realized) - 0.01
@@ -222,7 +222,7 @@ def test_strategy_can_stop_on_the_new_state_probability():
     strategy = IncidenceCoverageStrategy("true_state", "prob_new_state_next_fov", 0.05, 3)
     assert strategy.policies[0].quantity == "prob_new_state_next_fov"
     with pytest.raises(ValueError):
-        IncidenceCoverageStrategy("state", "good_turing_new_state_bound", 1.5, 2)
+        IncidenceCoverageStrategy("state", "good_turing_new_state_estimate", 1.5, 2)
 
 
 def test_two_identical_fovs_leave_a_high_new_state_bound():
@@ -230,7 +230,7 @@ def test_two_identical_fovs_leave_a_high_new_state_bound():
     # states give model probabilities of 0, yet say little about a third.
     evidence = _estimate(_labelled([["a", "b"], ["a", "b"]]))
     assert evidence.value("prob_new_state_next_fov") == 0.0
-    assert evidence.value("good_turing_new_state_bound") == 0.0
+    assert evidence.value("good_turing_new_state_estimate") == 0.0
     assert evidence.value("lofo_new_state_fov_fraction") == 0.0
     assert evidence.value("new_state_fov_upper") == pytest.approx(1 - 0.05 ** (1 / 2))
 

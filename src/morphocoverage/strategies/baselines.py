@@ -179,9 +179,14 @@ _AREA = "imaged_area"
 class ImagedAreaEstimator(Estimator):
     """Total physical area of the visible FOVs, from the FOV-table column ``area_col``.
 
-    Acquired FOVs without observations count, as they were imaged. Missing or
-    negative areas make the quantity ``not_applicable``: an unknown field size
-    cannot be summed. A missing column is a configuration error and raises.
+    Acquired FOVs without observations count, as they were imaged. Missing,
+    zero or negative areas make the quantity ``not_applicable``: an unknown or
+    impossible field size cannot be summed. A missing column is a
+    configuration error and raises.
+
+    The sum is the nominal area acquired, not the unique specimen area
+    covered: overlapping FOVs (tiles with overlap, repeated positions) count
+    their shared area more than once.
     """
 
     area_col: str
@@ -208,8 +213,8 @@ class ImagedAreaEstimator(Estimator):
             "units": f"units of {self.area_col!r}",
             "component": Component.POPULATION,
         }
-        if np.isnan(areas).any() or (areas < 0).any():
-            reason = f"missing or negative areas in {self.area_col!r}"
+        if np.isnan(areas).any() or (areas <= 0).any():
+            reason = f"missing, zero or negative areas in {self.area_col!r}"
             quantity = Quantity.not_applicable(reason, **meta)
             return Evidence({_AREA: quantity}, {"undefined_reason": reason})
         return Evidence({_AREA: Quantity.available(float(areas.sum()), **meta)})

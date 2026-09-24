@@ -180,8 +180,8 @@ are added to a fraction `p` of the FOVs: each FOV independently (spread), or
 the same expected number nearest a random FOV by stage position (clustered).
 Each planted acquisition (50 per plate, `p` and layout) is replayed in a random
 order. After `k` FOVs the estimator (`epsilon = sqrt(30)`, clusters of 3,
-symmetric support) predicts the chance that the next FOV shows something new,
-with its 95% bound. The biological truth is the chance that the next FOV shows
+symmetric support, transform refitted without each held-out FOV) predicts the chance that the next FOV shows something new,
+with its nominal 95% bound. The biological truth is the chance that the next FOV shows
 the planted state while none of the first `k` does. A stopping replay stops at
 the first `k` whose bound is at most 25%. Results are tracked in
 `data/crick_idr/results/frequency_control_idr0028.csv` and
@@ -189,21 +189,21 @@ the first `k` whose bound is at most 25%. Results are tracked in
 
 | `p` | FOVs seen | predicted | true chance (planted state) | bound | bound held | state already seen |
 |---|---|---|---|---|---|---|
-| 5% | 5 | 0.08–0.10 | 0.03–0.04 | 0.53–0.56 | 100% | 21–28% |
+| 5% | 5 | 0.10–0.12 | 0.03–0.04 | 0.55–0.58 | 100% | 21–28% |
 | 5% | 20 | 0.03 | 0.02 | 0.18–0.19 | 97–99% | 64–68% |
-| 10% | 5 | 0.11–0.12 | 0.05–0.06 | 0.56–0.57 | 100% | 38–46% |
-| 10% | 20 | 0.02–0.03 | 0.01–0.02 | 0.17–0.18 | 96–99% | 85–86% |
-| 20% | 5 | 0.12 | 0.07 | 0.57 | 99–100% | 65–68% |
-| 20% | 20 | 0.01–0.02 | 0.00 | 0.16 | 99–100% | 98–99% |
+| 10% | 5 | 0.12 | 0.05–0.06 | 0.57–0.58 | 100% | 38–46% |
+| 10% | 20 | 0.02–0.03 | 0.01–0.02 | 0.16–0.18 | 96–99% | 85–86% |
+| 20% | 5 | 0.11–0.13 | 0.07 | 0.57–0.58 | 99–100% | 65–68% |
+| 20% | 20 | 0.01 | 0.00 | 0.16 | 99–100% | 98–99% |
 
 Ranges span the spread and clustered layouts. Stopping when the bound first
 reaches 25%:
 
 | `p` | stop (median FOVs) | planted state never seen at the stop, among acquisitions that had it | true chance of it in the next FOV at the stop |
 |---|---|---|---|
-| 5% | 11 | 46–48% | 3.2–3.3% |
-| 10% | 11 | 27–32% | 3.0–3.3% |
-| 20% | 11 | 7–8% | 1.4–1.5% |
+| 5% | 11 | 46–49% | 3.0–3.3% |
+| 10% | 11–11.5 | 27–30% | 2.9–3.2% |
+| 20% | 11 | 7–8% | 1.4–1.8% |
 
 **What this shows**
 

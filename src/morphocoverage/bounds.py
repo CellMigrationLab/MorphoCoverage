@@ -7,10 +7,15 @@ bound on the probability that another FOV is novel, which stays high until
 many FOVs have been seen (0.78 for 0 of 2, 0.45 for 0 of 5, 0.14 for 0 of 20,
 at 95%).
 
-The bound treats the ``k`` held-out outcomes as independent Bernoulli trials.
-They are not quite: each FOV is judged against the others, and neighbouring
-FOVs can be correlated, so the bound is approximate. It is the exact binomial
-bound, not an asymptotic one, so it stays valid-sized for small ``k``.
+For ``k`` independent Bernoulli trials this is the exact binomial bound,
+valid for small ``k``. Leave-one-FOV-out outcomes are not independent: each
+FOV is judged against the others, so the outcomes share almost all their
+reference data, and neighbouring FOVs can be correlated. Applied to them the
+confidence level is **nominal**: the bound is an approximate upper bound
+whose actual coverage must be checked empirically
+(``morphocoverage.calibration``), and it should be reported as a nominal
+bound rather than as "at most X with 95% confidence". For zero successes in
+``k`` independent, representative FOVs (a state no FOV has shown) it is exact.
 """
 
 from __future__ import annotations

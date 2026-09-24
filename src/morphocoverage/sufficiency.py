@@ -11,8 +11,10 @@ observation table and the FOV table of every acquired position:
    met by the acquired FOVs says more FOVs were needed by that criterion.
 2. **Would one more FOV show something new?** (``next_fov``, when a
    ``novelty`` definition is given) The estimated chance that one more
-   representative FOV shows a phenotype not seen in the other FOVs, with an
-   upper confidence bound, and how many more FOVs would be needed before the
+   representative FOV shows a phenotype not seen in the other FOVs, with a
+   nominal upper bound (a Clopper-Pearson bound on leave-one-FOV-out
+   outcomes, which are not independent, so its coverage is approximate and
+   is checked by ``calibration``), and how many more FOVs would be needed before the
    bound could fall below ``novelty_target``. It also says what the FOVs rule
    out: a state not yet seen in any of ``k`` representative FOVs is present in
    at most ``1 - (1 - confidence) ** (1 / k)`` of FOVs, about ``3 / k`` at 95%
@@ -300,14 +302,16 @@ def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | N
         return f"Not estimable: {row['reason']}."
     confidence = _percent(row["confidence"])
     chance = (
-        f"Chance: {_percent(row['chance_new'])} (at most {_percent(row['chance_new_at_most'])} "
-        f"with {confidence} confidence); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
+        f"Chance: {_percent(row['chance_new'])} (nominal {confidence} upper bound "
+        f"{_percent(row['chance_new_at_most'])}, approximate: the leave-one-FOV-out outcomes "
+        f"share their reference FOVs); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
         "showed something the others did not."
     )
     unseen = (
         f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
         f"{_percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
-        f"3 / {row['fovs_imaged']}), if FOVs are representative. Rarer states can remain."
+        f"3 / {row['fovs_imaged']}), if FOVs are independent, representative draws. Rarer "
+        "states can remain."
     )
     lines = [chance, unseen]
     if target is not None:
@@ -319,10 +323,7 @@ def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | N
             else f"{rule_out}: at least {_more_fovs(extra)} with nothing new."
         )
     if target is not None:
-        goal = (
-            f"To claim the chance for the next FOV is below {_percent(target)} "
-            f"with {confidence} confidence"
-        )
+        goal = f"To bring the nominal {confidence} bound for the next FOV below {_percent(target)}"
         if row["chance_new_at_most"] <= target:
             lines.append(f"{goal}: already reached.")
         else:

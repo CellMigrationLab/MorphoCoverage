@@ -426,3 +426,26 @@ def test_stable_features_do_not_make_the_strategy_stop_earlier(n_stable):
 def test_aggregate_must_be_max_or_rms():
     with pytest.raises(ValueError, match="aggregate"):
         FOVBootstrapStrategy("centroid", 0.1, None, 10, 0, 2, aggregate="mean")
+
+
+def test_pca_availability_does_not_depend_on_the_number_of_resamples():
+    # External re-audit: with "any degenerate resample" as the rule, more
+    # resamples eventually draw one and flip the answer to insufficient_data.
+    # Five one-cell FOVs spanning two dimensions repeat one FOV in 5 * 0.2**5
+    # = 0.16% of resamples, below the tolerance, at every resample count.
+    objects = pd.DataFrame(
+        {
+            "image_file": [f"f{i}" for i in range(5)],
+            "a": [0.0, 1.0, 0.0, 1.0, 0.5],
+            "b": [0.0, 0.0, 1.0, 1.0, 0.3],
+        }
+    )
+    data = validate_input_tables(objects, feature_cols=["a", "b"])
+    for n in (20, 200, 2000, 20000):
+        evidence = FOVBootstrapEstimator("eigenspectrum", None, n, 0, 2).estimate(
+            data, objective=POPULATION
+        )
+        assert evidence.quantities["fov_bootstrap_eigenspectrum_se"].availability.value == (
+            "available"
+        )
+    assert evidence.diagnostics["degenerate_fraction"] == pytest.approx(0.0016, abs=0.001)
