@@ -104,13 +104,14 @@ cells in 168 FOVs).
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 from scipy import sparse
 from scipy.sparse import csgraph
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree, distance
 
 from ..bounds import check_confidence, upper_bound
 from ..evidence import Component, Direction, Evidence, Quantity
@@ -168,6 +169,63 @@ def _check_novel(min_novel_observations) -> None:
         raise ValueError("min_novel_observations must be a positive integer")
 
 
+_QUERY_CHUNK = 512
+_LIST_NEIGHBOURS_UP_TO = 64
+
+
+def _supporting_fovs_per_fov(
+    reference, reference_positions, queries, epsilon, min_observations, exclude
+):
+    """``_supporting_fovs`` with one tree per reference FOV (fast in dense neighbourhoods)."""
+    supporting = np.zeros(len(queries), dtype=np.int64)
+    for fov in np.unique(reference_positions):
+        members = reference[reference_positions == fov]
+        if len(members) < min_observations:
+            continue
+        tree = cKDTree(members)
+        if min_observations == 1:
+            nearest, _ = tree.query(queries, k=1, distance_upper_bound=epsilon * (1 + 1e-12))
+            # The bound is exclusive in cKDTree.query, so it is widened; recheck exactly.
+            near = nearest <= epsilon
+        else:
+            counts = tree.query_ball_point(queries, epsilon, return_length=True)
+            near = counts >= min_observations
+        if exclude is not None:
+            near &= exclude != fov
+        supporting += near
+    return supporting
+
+
+# Trees stop pruning in high dimensions: from here on, exact distances to every
+# reference observation, counted per FOV with one matrix product, are faster.
+_BRUTE_FORCE_DIMENSIONS = 8
+_DENSE_CELLS = 4_000_000
+# Up to this many query-reference pairs, exact pairwise distances are faster
+# than any tree, whatever the dimension.
+_DENSE_PAIRS = 20_000_000
+
+
+def _supporting_fovs_dense(
+    reference, reference_positions, queries, epsilon, min_observations, exclude, n_fovs
+):
+    """``_supporting_fovs`` by exact pairwise distances, in memory-bounded chunks."""
+    one_hot = np.zeros((len(reference), n_fovs))
+    one_hot[np.arange(len(reference)), reference_positions] = 1.0
+    supporting = np.zeros(len(queries), dtype=np.int64)
+    chunk = max(1, _DENSE_CELLS // len(reference))
+    for start in range(0, len(queries), chunk):
+        block = queries[start : start + chunk]
+        within = (distance.cdist(block, reference) <= epsilon).astype(float)
+        counts = within @ one_hot  # observations within epsilon, per query and FOV
+        near = counts >= min_observations
+        if exclude is not None:
+            own = exclude[start : start + len(block)]
+            inside = (own >= 0) & (own < n_fovs)
+            near[np.flatnonzero(inside), own[inside]] = False
+        supporting[start : start + len(block)] = near.sum(axis=1)
+    return supporting
+
+
 def _supporting_fovs(
     reference: np.ndarray,
     reference_positions: np.ndarray,
@@ -180,24 +238,49 @@ def _supporting_fovs(
 
     One count per query row. ``exclude[i]`` is a reference FOV that must not
     count for query row ``i`` (its own FOV), or ``None``.
+
+    One tree over all reference observations answers every query, and the
+    neighbours are then counted per reference FOV. (A tree per reference FOV
+    made leave-one-FOV-out quadratic in the number of FOVs.) Distances are
+    ``<= epsilon``: the search radius is widened for rounding and every
+    candidate is rechecked exactly.
     """
     supporting = np.zeros(len(queries), dtype=np.int64)
-    for fov in np.unique(reference_positions):
-        members = reference[reference_positions == fov]
-        if len(members) < min_observations or not len(queries):
+    if not len(queries) or not len(reference):
+        return supporting
+    n_fovs = int(reference_positions.max()) + 1
+    small = len(queries) * len(reference) <= _DENSE_PAIRS
+    if small or reference.shape[1] >= _BRUTE_FORCE_DIMENSIONS:
+        return _supporting_fovs_dense(
+            reference, reference_positions, queries, epsilon, min_observations, exclude, n_fovs
+        )
+    tree = cKDTree(reference)
+    radius = epsilon * (1 + 1e-12)
+    # Listing neighbours pays off when they are few; in dense neighbourhoods a
+    # nearest-neighbour search per reference FOV stops earlier. Counting them
+    # first (in C, without listing) chooses.
+    sample = queries[:: max(1, len(queries) // 64)]
+    if tree.query_ball_point(sample, radius, return_length=True).mean() > _LIST_NEIGHBOURS_UP_TO:
+        return _supporting_fovs_per_fov(
+            reference, reference_positions, queries, epsilon, min_observations, exclude
+        )
+    for start in range(0, len(queries), _QUERY_CHUNK):
+        block = queries[start : start + _QUERY_CHUNK]
+        hits = tree.query_ball_point(block, radius, return_sorted=False)
+        lengths = np.fromiter((len(h) for h in hits), dtype=np.int64, count=len(hits))
+        total = int(lengths.sum())
+        if total == 0:
             continue
-        if min_observations == 1:
-            # The bound is exclusive in cKDTree.query, so widen it and compare exactly.
-            nearest, _ = cKDTree(members).query(
-                queries, k=1, distance_upper_bound=epsilon * (1 + 1e-12)
-            )
-            near = nearest <= epsilon
-        else:
-            counts = cKDTree(members).query_ball_point(queries, epsilon, return_length=True)
-            near = counts >= min_observations
+        rows = np.repeat(np.arange(len(block)), lengths)
+        cols = np.fromiter(itertools.chain.from_iterable(hits), dtype=np.int64, count=total)
+        close = np.linalg.norm(reference[cols] - block[rows], axis=1) <= epsilon
+        rows, fovs = rows[close], reference_positions[cols[close]]
         if exclude is not None:
-            near &= exclude != fov
-        supporting += near
+            other = fovs != exclude[start + rows]
+            rows, fovs = rows[other], fovs[other]
+        pairs, counts = np.unique(rows * n_fovs + fovs, return_counts=True)
+        supported = pairs[counts >= min_observations] // n_fovs
+        supporting[start : start + len(block)] += np.bincount(supported, minlength=len(block))
     return supporting
 
 
@@ -259,20 +342,43 @@ def new_state_members(
     members = np.zeros(len(values), dtype=bool)
     if min_size == 1:
         return novel.copy()
+    # Linked pairs of every FOV, in one graph: pairs never join two FOVs, so its
+    # connected components are the clusters of each FOV, and one graph costs far
+    # less than one per FOV.
+    firsts, seconds = [], []
     for fov in np.unique(positions[novel]):
         rows = np.flatnonzero(novel & (positions == fov))
         if len(rows) < min_size:
             continue
-        pairs = cKDTree(values[rows]).query_pairs(epsilon * (1 + 1e-12), output_type="ndarray")
-        # query_pairs uses <=, with the bound widened for rounding; recheck exactly.
-        close = np.linalg.norm(values[rows[pairs[:, 0]]] - values[rows[pairs[:, 1]]], axis=1)
-        pairs = pairs[close <= epsilon]
-        graph = sparse.coo_matrix(
-            (np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])), shape=(len(rows), len(rows))
-        )
-        _, labels = csgraph.connected_components(graph, directed=False)
-        sizes = np.bincount(labels)
-        members[rows] = sizes[labels] >= min_size
+        if values.shape[1] >= _BRUTE_FORCE_DIMENSIONS:
+            # Trees do not prune in high dimensions; all pairs, exactly.
+            pairs = np.column_stack(np.triu_indices(len(rows), k=1))
+            close = distance.pdist(values[rows]) <= epsilon
+        else:
+            pairs = cKDTree(values[rows]).query_pairs(epsilon * (1 + 1e-12), output_type="ndarray")
+            # query_pairs uses <=, with the bound widened for rounding; recheck exactly.
+            close = (
+                np.linalg.norm(values[rows[pairs[:, 0]]] - values[rows[pairs[:, 1]]], axis=1)
+                <= epsilon
+            )
+        pairs = pairs[close]
+        firsts.append(rows[pairs[:, 0]])
+        seconds.append(rows[pairs[:, 1]])
+        # A FOV's rows are all candidates, linked or not (single rows are clusters of 1).
+        members[rows] = True
+    candidates = np.flatnonzero(members)
+    if not len(candidates):
+        return members
+    local = np.full(len(values), -1, dtype=np.int64)
+    local[candidates] = np.arange(len(candidates))
+    first = local[np.concatenate(firsts)] if firsts else np.array([], dtype=np.int64)
+    second = local[np.concatenate(seconds)] if seconds else np.array([], dtype=np.int64)
+    graph = sparse.coo_matrix(
+        (np.ones(len(first)), (first, second)), shape=(len(candidates), len(candidates))
+    )
+    _, labels = csgraph.connected_components(graph, directed=False)
+    sizes = np.bincount(labels)
+    members[candidates] = sizes[labels] >= min_size
     return members
 
 

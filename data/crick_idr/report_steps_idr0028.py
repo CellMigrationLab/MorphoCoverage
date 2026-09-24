@@ -180,6 +180,7 @@ def order(objects, fovs):
         n_splits=5,
         incremental=True,
         group_cols=GROUPS,
+        n_jobs=-1,
     )
     redundancy = redundancy_distance(
         objects,

@@ -343,3 +343,11 @@ def test_summary_speaks_in_fields_and_states_its_limits():
 def test_invalid_settings_are_refused(kwargs):
     with pytest.raises((TypeError, ValueError)):
         _reliability("homogeneous", **kwargs)
+
+
+def test_worker_processes_give_identical_curves():
+    one = _reliability("condition_repeat_groups", counts=(2, 4))
+    two = _reliability("condition_repeat_groups", counts=(2, 4), n_jobs=2)
+    pd.testing.assert_frame_equal(one.curve, two.curve)
+    pd.testing.assert_frame_equal(one.draws, two.draws)
+    pd.testing.assert_frame_equal(one.ceiling, two.ceiling)

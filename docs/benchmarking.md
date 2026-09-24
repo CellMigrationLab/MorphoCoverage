@@ -149,7 +149,7 @@ The objective is a regime map: identify when simple current-practice guidance is
 
 ## Computational performance
 
-Runtime is a first-class benchmark because an intended application is smart microscopy.
+Runtime is a first-class benchmark because an intended application is smart microscopy. The retrospective analyses are offline, but they should still run in minutes: `sampling_reliability` and `replay_acquisitions` take `n_jobs` to use several CPUs, and `docs/architecture.md` ("Computation") describes where the time goes.
 
 For every strategy record at least:
 

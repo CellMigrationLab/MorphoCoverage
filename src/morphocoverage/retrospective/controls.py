@@ -34,8 +34,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..evaluator import objects_in_fovs, restrict_input
-from ..schema import ValidatedInput, validate_input_tables
+from ..evaluator import FovSubsets, restrict_input
+from ..schema import validate_input_tables
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ._text import group_identity, percent, unit_plural, where
 
@@ -126,15 +126,14 @@ def _select(fovs: pd.DataFrame, selector: dict[str, tuple]) -> pd.Series:
     return mask
 
 
-def _subset(data: ValidatedInput, fovs: pd.DataFrame) -> ValidatedInput:
-    return restrict_input(data, objects_in_fovs(data, fovs), fovs)
-
-
-def _planted(data: ValidatedInput, hosts: pd.DataFrame, donors: list[pd.DataFrame], size, rng):
+def _planted(subsets: FovSubsets, host_rows, donors: list[pd.DataFrame], size, rng):
     """Each host FOV with ``size`` cells of a random donor FOV (with enough cells) added."""
     usable = [cells for cells in donors if len(cells) >= size]
     if not usable:
         return None
+    data = subsets.data
+    hosts_input = subsets.take(host_rows)
+    hosts = hosts_input.fovs
     key = list(data.fov_key)
     added = []
     for _, host in hosts.iterrows():
@@ -143,7 +142,7 @@ def _planted(data: ValidatedInput, hosts: pd.DataFrame, donors: list[pd.DataFram
         for column in key:
             picked[column] = host[column]
         added.append(picked)
-    objects = pd.concat([objects_in_fovs(data, hosts), *added], ignore_index=True)
+    objects = pd.concat([hosts_input.objects, *added], ignore_index=True)
     return restrict_input(data, objects, hosts)
 
 
@@ -209,6 +208,7 @@ def representation_control(
     else:
         base_mask = ~positive_mask
     strata = data.fovs[pair_cols].drop_duplicates().to_dict("records") if pair_cols else [{}]
+    subsets = FovSubsets(data)
     rows, skipped = [], []
     for stratum in strata:
         # One generator per stratum, so adding a plate never changes another plate's rates.
@@ -216,7 +216,8 @@ def representation_control(
         inside = pd.Series(True, index=data.fovs.index)
         for column, value in stratum.items():
             inside &= data.fovs[column].eq(value)
-        base, positive = data.fovs[inside & base_mask], data.fovs[inside & positive_mask]
+        base = np.flatnonzero((inside & base_mask).to_numpy())
+        positive = np.flatnonzero((inside & positive_mask).to_numpy())
         label = where(stratum) if stratum else "all FOVs"
         if len(positive) == 0 or len(base) <= fovs_seen:
             reason = (
@@ -226,18 +227,18 @@ def representation_control(
             )
             skipped.append({**stratum, "stratum": label, "reason": reason})
             continue
-        positive_input = _subset(data, positive)
-        donors = [objects_in_fovs(data, positive.iloc[[i]]) for i in range(len(positive))]
+        positive_input = subsets.take(positive)
+        donors = [data.objects.loc[subsets.positions == row] for row in positive]
         counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
         for _ in range(draws):
             order = rng.permutation(len(base))
-            seen = _subset(data, base.iloc[order[:fovs_seen]])
-            rest = base.iloc[order[fovs_seen:]]
+            seen = subsets.take(base[order[:fovs_seen]])
+            rest = base[order[fovs_seen:]]
             candidates = {"positive": positive_input}
             if control.reference is not None:
-                candidates["reference"] = _subset(data, rest)
+                candidates["reference"] = subsets.take(rest)
             if control.planted_cells is not None:
-                planted = _planted(data, rest, donors, control.planted_cells, rng)
+                planted = _planted(subsets, rest, donors, control.planted_cells, rng)
                 if planted is not None:
                     candidates["planted"] = planted
             for kind, table in candidates.items():

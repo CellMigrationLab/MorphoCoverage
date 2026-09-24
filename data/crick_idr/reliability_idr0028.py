@@ -79,6 +79,7 @@ def main() -> None:
         n_splits=10,
         draws=50,
         random_state=0,
+        n_jobs=-1,
         group_cols=["condition", "repeat", "well"],
     )
     RESULTS.mkdir(exist_ok=True)

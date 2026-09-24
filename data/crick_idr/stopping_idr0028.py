@@ -90,6 +90,7 @@ def main() -> None:
         random_state=0,
         min_fovs=2,
         incremental=True,
+        n_jobs=-1,
         group_cols=["condition", "repeat", "well"],
     )
     seconds = time.perf_counter() - started

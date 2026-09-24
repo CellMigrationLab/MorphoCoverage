@@ -338,3 +338,12 @@ def test_distinct_dispersed_seeds_give_distinct_orders():
     }
     assert len(set(sequences.values())) == len(orders)
     assert len(firsts) == len(orders)
+
+
+def test_worker_processes_give_identical_replays():
+    one = _replay("condition_repeat_groups", [FixedFOVStrategy(3)], n_splits=2)
+    two = _replay("condition_repeat_groups", [FixedFOVStrategy(3)], n_splits=2, n_jobs=2)
+    for name in ("decisions", "outcomes", "streams", "paths"):
+        pd.testing.assert_frame_equal(getattr(one, name), getattr(two, name))
+    with pytest.raises(ValueError, match="n_jobs"):
+        _replay("homogeneous", [FixedFOVStrategy(3)], n_jobs=0)
