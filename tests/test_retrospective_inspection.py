@@ -37,7 +37,8 @@ def _acquisition(seed=5, duplicate_tail=1):
         if name == NEW:
             state = np.column_stack([rng.normal(8, 0.1, 8), rng.normal(0, 0.1, 8)])
             values = np.vstack([values, state])
-        rows.append(pd.DataFrame(values, columns=FEATURES).assign(image_file=name))
+        # A positive baseline, as for areas or intensities: a relative change needs one.
+        rows.append(pd.DataFrame(values + 10, columns=FEATURES).assign(image_file=name))
     objects = pd.concat(rows, ignore_index=True).assign(condition="control", repeat="R1")
     return objects, fovs
 
@@ -98,3 +99,70 @@ def test_thresholds_are_declared_and_nothing_is_listed_below_them():
         Summary("feature_a", 1.5)
     with pytest.raises(ValueError):
         _inspect(*_acquisition(), count_ratio=1)
+
+
+def test_zero_centred_features_are_not_checked_for_relative_influence():
+    rng = np.random.default_rng(2)
+    names = [f"f{i:02d}" for i in range(20)]
+    fovs = pd.DataFrame({"condition": "c", "repeat": "r", "image_file": names})
+    objects = pd.DataFrame(
+        {
+            "condition": "c",
+            "repeat": "r",
+            "image_file": np.repeat(names, 20),
+            "a": rng.normal(0, 1, 400),
+        }
+    )
+    result = inspect_fovs(
+        objects, fovs, feature_cols=["a"], summaries=[Summary("a", "mean")], count_ratio=None
+    )
+    assert result.fovs.empty  # used to flag 19 of 20 fields at about 99%
+    assert "influence on the mean of a was not checked" in result.summary()
+
+
+def test_a_lone_deviant_field_is_found_in_a_small_group():
+    names = [f"f{i}" for i in range(8)]
+    fovs = pd.DataFrame(
+        {
+            "condition": "c",
+            "repeat": "r",
+            "image_file": names,
+            "stage_x": np.arange(8) * 100.0,
+            "stage_y": 0.0,
+        }
+    )
+    rng = np.random.default_rng(3)
+    values = rng.normal(10, 1, 80)
+    values[:10] += 100
+    objects = pd.DataFrame(
+        {"condition": "c", "repeat": "r", "image_file": np.repeat(names, 10), "a": values}
+    )
+    result = inspect_fovs(
+        objects,
+        fovs,
+        feature_cols=["a"],
+        stage_cols=("stage_x", "stage_y"),
+        n_neighbours=3,
+        count_ratio=None,
+    )
+    assert set(result.fovs["image_file"]) == {"f0"}
+
+
+def test_fields_at_the_same_stage_position_are_not_their_own_neighbours():
+    names = [f"f{i}" for i in range(10)]
+    fovs = pd.DataFrame(
+        {"condition": "c", "repeat": "r", "image_file": names, "stage_x": 0.0, "stage_y": 0.0}
+    )
+    rng = np.random.default_rng(4)
+    objects = pd.DataFrame(
+        {
+            "condition": "c",
+            "repeat": "r",
+            "image_file": np.repeat(names, 10),
+            "a": rng.normal(10, 1, 100),
+        }
+    )
+    result = inspect_fovs(
+        objects, fovs, feature_cols=["a"], stage_cols=("stage_x", "stage_y"), count_ratio=None
+    )
+    assert result.fovs.empty

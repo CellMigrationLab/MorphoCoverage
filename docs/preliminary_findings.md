@@ -164,8 +164,8 @@ both knockdown wells of each (tracked in
   used; the tuned setting (`epsilon`, `m`) was chosen here and is not validated
   on held-out data.
 - **Single candidates, not stopping.** This measures whether one next FOV is
-  judged new. It does not yet test whether the probability and bound of the
-  report are right when a rare phenotype occurs in a given fraction of FOVs.
+  judged new. Whether the probability and bound of the report are right when a
+  rare phenotype occurs in a given fraction of FOVs is entry 3.
 
 ## 3. Frequency control: is the next-FOV chance right when a rare state is there? (2026-09-24)
 
@@ -262,26 +262,26 @@ together met the criterion.
 
 | criterion | 2 fields | 4 fields | 8 fields | 18 fields | all 18 fields (ceiling) |
 |---|---|---|---|---|---|
-| mean within 5% | 99–100% | 100% | 100% | 100% | 100% |
-| mean within 2.5% | 81–100% (median 93%) | 93–100% (99%) | 99–100% | 100% | 100% |
-| variance within 10% | 14–30% (20%) | 15–41% (26%) | 14–57% (29%) | 10–80% (30%) | 10–80% (30%) |
+| mean within 5% | 98–100% | 100% | 100% | 100% | 100% |
+| mean within 2.5% | 83–100% (median 90%) | 91–100% (98%) | 98–100% | 100% | 100% |
+| variance within 10% | 14–29% (21%) | 16–42% (26%) | 15–49% (35%) | 10–80% (40%) | 10–80% (40%) |
 
 Each cell gives the range across the 12 wells, with the median in brackets.
 
 **What this shows**
 
 - **For the well mean, two fields are almost always enough.** At a 5%
-  tolerance, 2 fields matched the held-back fields in at least 99% of draws in
-  every well. At 2.5%, 2 fields were enough in 81–100% of draws (worst:
-  ARAP2 2B C17 and YAP 2A N23), 4 fields in at least 93%, and 8 in at least
-  99%. The median error of a 2-field mean was 1%. With 28 FOVs per well, this
+  tolerance, 2 fields matched the held-back fields in at least 98% of draws in
+  every well. At 2.5%, 2 fields were enough in 83–100% of draws (worst:
+  YAP 2A N23, MOCK 2B P13 and ARAP2 2B C17), 4 fields in at least 91%, and 8 in
+  at least 98%. The median error of a 2-field mean was 1%. With 28 FOVs per well, this
   mean was heavily oversampled.
 - **The variance within 10% cannot be judged with this design.** Even all 18
-  fields matched the 10 held-back fields in only 30% of splits (median; 10–80%
+  fields matched the 10 held-back fields in only 40% of splits (median; 10–80%
   across wells). The held-back fields are too few to pin the variance down to
   10%. The curve is flat because it is capped by that ceiling, not because
   more fields do not help: the median error falls from 0.26 at 2 fields to
-  0.17 at 18. The report states the ceiling for this reason. Here it says that
+  0.11 at 18. The report states the ceiling for this reason. Here it says that
   the question needs more fields than the well holds, not that 18 fields fail.
 - **The criterion decides the answer.** The same wells need 2 fields or cannot
   be answered, depending on whether the question is the mean or the spread.
@@ -323,14 +323,14 @@ and `adequacy_idr0028.csv`.
 
 | rule | stop (FOVs) | premature, mean within 5% (random orders; median, max over wells) | premature, mean within 2.5% (random orders; median, max over wells) | premature, 2.5%, recorded order (max over wells, of 5) |
 |---|---|---|---|---|
-| JCB CV ≤ 5%, cells | 2 | 0%, 2% | 10%, 20% | 40% |
-| JCB CV ≤ 5%, FOVs | 2 | 0%, 2% | 10%, 20% | 40% |
-| fixed 4 FOVs | 4 | 0%, 0% | 0%, 10% | 20% |
-| fixed 8 FOVs | 8 | 0%, 0% | 0%, 2% | 0% |
+| JCB CV ≤ 5%, cells | 2 | 0%, 2% | 9%, 18% | 40% |
+| JCB CV ≤ 5%, FOVs | 2 | 0%, 2% | 9%, 18% | 40% |
+| fixed 4 FOVs | 4 | 0%, 0% | 1%, 14% | 40% |
+| fixed 8 FOVs | 8 | 0%, 0% | 0%, 8% | 0% |
 
 Judged on held-back fields, the mean was first within both tolerances at a
-median of 1 FOV (all 660 replayed acquisitions: 1–5), and lastingly from a
-median of 1 (1–13; 75% by 2 FOVs).
+median of 1 FOV (all 660 replayed acquisitions: 1–11), and lastingly from a
+median of 1 (1–15; 75% by 2 FOVs).
 
 **What this shows**
 
@@ -338,18 +338,19 @@ median of 1 (1–13; 75% by 2 FOVs).
   every well.** With about a hundred nuclei per field, the averaging CV of the
   mean ratio is below 5% after two fields, whether cells or FOVs are the
   resampling unit. For the mean within 5%, which is the target the rule was
-  designed for, that stop was almost always right (at most 2% premature). For
-  the stricter 2.5%, it was premature in a median 10% of random acquisitions,
-  up to 20% in the worst well. A rule at 5% CV answers the 5% question; it is
+  designed for, that stop was almost always right (at most 2% premature in
+  random orders; 1 of 5 recorded-order hold-outs in the worst well). For the
+  stricter 2.5%, it was premature in a median 9% of random acquisitions, up to
+  18% in the worst well. A rule at 5% CV answers the 5% question; it is
   not a promise for 2.5%.
 - **The mean was never the hard part here.** Held-back fields confirmed it
-  after one or two fields in most runs, and never later than 13. This is the
+  after one or two fields in most runs, and never later than 15. This is the
   regime AGENTS.md section 10 asks us to name: for the mean nuclear YAP/TAZ
   ratio of a well in this screen, the cell-number guidance is sufficient, and
   FOV-aware sampling adds nothing for this readout.
 - **Fixed rules.** Four fields were enough for 5% in every run, and for 2.5% in
-  all but up to 10% of random acquisitions of the worst well. Eight fields
-  were almost never premature.
+  all but up to 14% of random acquisitions of the worst well. Eight fields
+  were premature in at most 8%.
 
 **What this does not show**
 
@@ -380,8 +381,8 @@ development dataset.
   90% of random acquisitions preserved the criterion, and all conditions are
   pooled explicitly.
   - For the well mean within 5%, 2 fields were enough for 12 of 12 wells.
-  - Within 2.5%, 2 fields were enough for 9 of 12 wells (by plate: 4 of 5, 3
-    of 4, 2 of 3), and 4 fields for all 12.
+  - Within 2.5%, 2 fields were enough for 6 of 12 wells (by plate: 4 of 5, 1
+    of 4, 1 of 3), and 4 fields for all 12.
   - A number chosen on two plates served every well of the third.
   - For the variance within 10%, no well was adequately represented at any
     depth (the reservoir ceiling of entry 4).
@@ -390,8 +391,9 @@ development dataset.
 - **Fields to inspect (Step 5).**
   - Two fields hold far fewer nuclei than their well (6 against a median of
     27 and 21.5).
-  - One siYAP field has a mean YAP/TAZ ratio 4.2 SD below its four stage
-    neighbours.
+  - One siYAP field has a mean YAP/TAZ ratio 5.6 SD below its four stage
+    neighbours, and one siARAP2 field 3.1 SD above. The SD is now that of the
+    other fields, not including the field itself (audit fix).
   - Four fields hold a small new state: 3 nuclei no other field of the well
     shows, in 30 standardized features.
   - No field moved the well mean or 95th percentile of the ratio by 10% or
@@ -407,7 +409,8 @@ development dataset.
 - **More fields or more wells (Step 7).** For the mean ratio of a condition:
   - in MOCK, 52% of the variance of the mean is between fields within a well;
   - in the knockdowns, 80–99% is between wells, which are on different plates;
-  - fields vary 1.5–2.5 times as much as random cells would (design effect).
+  - fields vary 1.6–2.6 times as much as random cells would (design effect,
+    with the cluster size of unequal fields).
 
   With 3 wells per condition the answer is "cannot tell from these data", as
   designed. Plate and well are confounded here: in MOCK each plate has one
@@ -415,7 +418,8 @@ development dataset.
   well and field identities.
 - **Order (Step 8).** For the well mean within 2.5%, recorded, random and
   dispersed orders all reached it after a median of 1 field. The recorded
-  serpentine raster needed 2–3 fields (444–888 µm of travel) in 3 wells. This
+  serpentine raster needed 2–4 fields (805–2003 µm of travel) in 5 wells,
+  dispersed orders 2 fields in 1 well. This
   is the null result the roadmap allows: the mean is too easy here to tell
   orders apart.
   - In 5 of 12 wells, fields closer than about 520–780 µm are more alike than
@@ -436,3 +440,9 @@ development dataset.
   therefore also needs five or more independent units.
 - **The reading test** (roadmap rule 4) has not been done by the project
   owner on this report.
+- **Audit revision (2026-09-24).** Entries 4–6 were regenerated after an audit.
+  The held-back fields no longer depend on the row order of the FOV table, and
+  a draw with no observations counts as not enough. The effort projection now
+  uses the acquired design, and empty fields no longer shrink it. The
+  neighbour check uses the spread of the other fields. The numbers above are
+  those of the regenerated tables.

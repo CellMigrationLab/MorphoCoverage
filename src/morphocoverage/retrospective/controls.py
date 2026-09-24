@@ -37,6 +37,7 @@ import pandas as pd
 from ..evaluator import objects_in_fovs, restrict_input
 from ..schema import ValidatedInput, validate_input_tables
 from ..strategies.support_novelty import SupportNoveltyEstimator
+from ._text import group_identity, percent, unit_plural, where
 
 CANDIDATES = ("reference", "positive", "planted")
 
@@ -183,10 +184,12 @@ def representation_control(
         "draws": draws,
         "random_state": random_state,
     }
-    columns = ["stratum", "candidate", "judged_new", "candidates", "rate"]
+    columns = ["stratum", "candidate", "judged_new", "candidates", "not_judged", "rate"]
     if control.positive is None:
         empty = pd.DataFrame(columns=columns)
-        return ControlResult(empty, empty.copy(), "not assessed", tuple(pair_cols), settings)
+        return ControlResult(
+            empty, empty.copy(), "not assessed", tuple(pair_cols), {**settings, "reason": "none"}
+        )
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -205,19 +208,27 @@ def representation_control(
             raise ValueError("a FOV cannot be both a positive and a reference control")
     else:
         base_mask = ~positive_mask
-    rng = np.random.default_rng(random_state)
     strata = data.fovs[pair_cols].drop_duplicates().to_dict("records") if pair_cols else [{}]
-    rows = []
+    rows, skipped = [], []
     for stratum in strata:
+        # One generator per stratum, so adding a plate never changes another plate's rates.
+        rng = np.random.default_rng([random_state, group_identity(stratum)])
         inside = pd.Series(True, index=data.fovs.index)
         for column, value in stratum.items():
             inside &= data.fovs[column].eq(value)
         base, positive = data.fovs[inside & base_mask], data.fovs[inside & positive_mask]
+        label = where(stratum) if stratum else "all FOVs"
         if len(positive) == 0 or len(base) <= fovs_seen:
+            reason = (
+                "no positive-control FOV"
+                if len(positive) == 0
+                else f"{len(base)} reference FOVs, not more than the {fovs_seen} seen"
+            )
+            skipped.append({**stratum, "stratum": label, "reason": reason})
             continue
         positive_input = _subset(data, positive)
         donors = [objects_in_fovs(data, positive.iloc[[i]]) for i in range(len(positive))]
-        counts = {kind: [0, 0] for kind in CANDIDATES}
+        counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
         for _ in range(draws):
             order = rng.permutation(len(base))
             seen = _subset(data, base.iloc[order[:fovs_seen]])
@@ -232,12 +243,13 @@ def representation_control(
             for kind, table in candidates.items():
                 flags = novelty.novel_fovs_against(seen, table)
                 if flags is None:
+                    # Missing values or too few FOVs: this check could not be made.
+                    counts[kind][2] += len(table.fovs)
                     continue
                 counts[kind][0] += int(np.sum(flags))
                 counts[kind][1] += len(flags)
-        label = ", ".join(f"{k}={v}" for k, v in stratum.items()) or "all FOVs"
-        for kind, (new, total) in counts.items():
-            if total:
+        for kind, (new, total, not_judged) in counts.items():
+            if total or not_judged:
                 rows.append(
                     {
                         **stratum,
@@ -245,30 +257,52 @@ def representation_control(
                         "candidate": kind,
                         "judged_new": new,
                         "candidates": total,
-                        "rate": new / total,
+                        "not_judged": not_judged,
+                        "rate": new / total if total else None,
                     }
                 )
     table = pd.DataFrame(rows, columns=[*pair_cols, *columns])
     pooled = (
-        table.groupby("candidate", sort=False)[["judged_new", "candidates"]].sum().reset_index()
+        table.groupby("candidate", sort=False)[["judged_new", "candidates", "not_judged"]]
+        .sum()
+        .reset_index()
     )
-    pooled["rate"] = pooled["judged_new"] / pooled["candidates"]
-    status = "assessed" if control.reference is not None else "positive only"
-    if table.empty:
+    pooled["rate"] = [
+        new / total if total else None
+        for new, total in zip(pooled["judged_new"], pooled["candidates"], strict=True)
+    ]
+    judged = set(pooled.loc[pooled["candidates"] > 0, "candidate"])
+    # The status says what was actually measured, not what was declared.
+    status = "assessed" if {"positive", "reference"} <= judged else "positive only"
+    if "positive" not in judged:
         status = "not assessed"
+    settings = {
+        **settings,
+        "skipped_strata": skipped,
+        "reason": "unusable" if skipped else None,
+        "observation_unit": data.observation_unit,
+    }
     return ControlResult(table, pooled, status, tuple(pair_cols), settings)
-
-
-def _percent(value: float) -> str:
-    return f"{100 * value:.0f}%"
 
 
 def control_summary(result: ControlResult) -> str:
     """ "Can these features see the declared phenotype?" in sentences."""
+    skipped = result.settings.get("skipped_strata", [])
+    cells = unit_plural(result.settings.get("observation_unit", "object"))
     if result.status == "not assessed":
+        declared = result.settings.get("reason") != "none"
+        why = (
+            "a control was declared, but no stratum could be judged ("
+            + "; ".join(f"{s['stratum']}: {s['reason']}" for s in skipped)
+            + ")"
+            if declared and skipped
+            else "a control was declared, but no check could be made (missing values?)"
+            if declared
+            else "no control was declared"
+        )
         return (
-            "Representation sensitivity: not assessed. No usable control was declared, so a "
-            "'nothing new' answer says nothing about phenotypes these features cannot see."
+            f"Representation sensitivity: not assessed: {why}. A 'nothing new' answer says "
+            "nothing about phenotypes these features cannot see."
         )
     rates = result.pooled.set_index("candidate")
     seen = result.settings["fovs_seen"]
@@ -276,21 +310,23 @@ def control_summary(result: ControlResult) -> str:
     positive = rates.loc["positive"]
     lines.append(
         f"  Fields of the declared positive control were recognized as different in "
-        f"{_percent(positive['rate'])} of {int(positive['candidates'])} checks."
+        f"{percent(positive['rate'])} of {int(positive['candidates'])} checks."
     )
     if "planted" in rates.index:
         planted = rates.loc["planted"]
-        cells = result.settings["control"]["planted_cells"]
+        planted_cells = result.settings["control"]["planted_cells"]
         lines.append(
-            f"  Ordinary reference fields with {cells} positive-control cells added were "
-            f"recognized in {_percent(planted['rate'])} of {int(planted['candidates'])} checks."
+            f"  Ordinary reference fields with {planted_cells} positive-control {cells} added were "
+            f"recognized in {percent(planted['rate'])} of {int(planted['candidates'])} checks."
         )
-    if "reference" in rates.index:
+    if "reference" in rates.index and rates.loc["reference", "candidates"] > 0:
         reference = rates.loc["reference"]
         lines.append(
-            f"  Reference fields were called different in {_percent(reference['rate'])} of "
+            f"  Reference fields were called different in {percent(reference['rate'])} of "
             f"{int(reference['candidates'])} checks (false alarms)."
         )
+    elif result.status == "positive only" and "reference" in rates.index:
+        lines.append("  False-alarm rate: not assessed (no reference field could be judged).")
     else:
         lines.append("  False-alarm rate: not assessed (no reference control was declared).")
     if len(result.table["stratum"].unique()) > 1:
@@ -299,8 +335,12 @@ def control_summary(result: ControlResult) -> str:
             "  Positive control per "
             + "/".join(result.pair_cols)
             + ": "
-            + ", ".join(f"{r.stratum}: {_percent(r.rate)}" for r in by.itertuples())
+            + ", ".join(f"{r.stratum}: {percent(r.rate)}" for r in by.itertuples())
             + "."
+        )
+    if skipped:
+        lines.append(
+            "  Not judged: " + "; ".join(f"{s['stratum']} ({s['reason']})" for s in skipped) + "."
         )
     lines.append(
         "  This holds for this definition of new and these features, on these controls; "

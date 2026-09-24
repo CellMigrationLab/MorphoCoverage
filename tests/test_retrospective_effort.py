@@ -6,6 +6,7 @@ import pytest
 
 from morphocoverage.retrospective import (
     SamplingHierarchy,
+    design_effect,
     effort_projection,
     nested_variance_components,
 )
@@ -79,7 +80,8 @@ def test_projected_standard_errors_match_simulated_designs():
             _simulate(rng, TRUTH, 2, samples // 2, fovs, 15)[0]["x"].mean() for _ in range(300)
         ]
         # 2 repeats of samples // 2 samples each, 15 cells per FOV.
-        expected = _se(components, 2, samples, fovs, 15, True)
+        design = {"has_repeat": True, "repeats": 2, "yield": 1.0, "per_fov": 15}
+        expected = _se(components, design, samples, fovs)
         assert np.std(means, ddof=1) == pytest.approx(expected, rel=0.15)
 
 
@@ -118,7 +120,7 @@ def test_a_dominant_between_sample_component_favours_more_samples():
     comparisons = result.comparisons.set_index("samples")
     assert comparisons.loc[24, "resolved"] and comparisons.loc[24, "ratio"] < 1
     assert comparisons.loc[6, "resolved"] and comparisons.loc[6, "ratio"] > 1
-    assert "24 samples x 4 fields would give a" in result.summary()
+    assert "24 samples of about 4 fields would give a" in result.summary()
     assert "Most of the uncertainty of the mean is between samples" in result.summary()
 
 
@@ -134,11 +136,39 @@ def test_fields_without_observations_count_as_acquired_effort():
     empty = effort_projection(
         objects, with_empty, feature="x", hierarchy=hierarchy, strata=[], n_boot=20
     )
-    # Same observations over more acquired FOVs: fewer observations per FOV, higher SE.
-    se = plain.projections.set_index(["samples", "fovs_per_sample"])["se"]
-    se_empty = empty.projections.set_index(["samples", "fovs_per_sample"])["se"]
-    common = se.index.intersection(se_empty.index)
-    assert len(common) and (se_empty[common] >= se[common]).all()
+    # The same observations over more acquired FOVs: the acquired design's SE is
+    # unchanged (empty FOVs average out nothing), and they are reported as effort.
+    se = plain.projections.set_index("current")["se"][True]
+    se_empty = empty.projections.set_index("current")["se"][True]
+    assert se_empty == pytest.approx(se)
+    level = empty.components.iloc[0]
+    assert level["fovs"] == 38 and level["fovs_with_observations"] == 36
+    assert "2 of 38 acquired fields had no observations" in empty.summary()
+
+
+def test_empty_fields_do_not_shrink_the_projected_error_or_design_effect():
+    # Audit regression: with 60% empty FOVs the projection was about 19% too small
+    # and the design effect halved.
+    rng = np.random.default_rng(12)
+    objects, fovs = _simulate(rng, (0.0, 0.5, 0.5, 1.0), 1, 6, 10, 30)
+    hierarchy = SamplingHierarchy("image_file", "well")
+    full = effort_projection(objects, fovs, feature="x", hierarchy=hierarchy, strata=[], n_boot=20)
+    kept = fovs["image_file"].iloc[::5].tolist() + fovs["image_file"].iloc[1::5].tolist()
+    sparse = objects[objects["image_file"].isin(kept)]
+    thin = effort_projection(sparse, fovs, feature="x", hierarchy=hierarchy, strata=[], n_boot=20)
+    assert design_effect(thin, "all") == pytest.approx(design_effect(full, "all"), rel=0.4)
+    se_full = full.projections.set_index("current")["se"][True]
+    se_thin = thin.projections.set_index("current")["se"][True]
+    assert se_thin > se_full  # fewer fields with observations: a less precise mean
+
+
+def test_one_observation_per_field_is_refused_clearly():
+    rng = np.random.default_rng(13)
+    objects, fovs = _simulate(rng, TRUTH, 1, 4, 5, 1)
+    with pytest.raises(ValueError, match="single observation"):
+        effort_projection(
+            objects, fovs, feature="x", hierarchy=SamplingHierarchy("image_file", "well"), strata=[]
+        )
 
 
 def test_invalid_declarations_are_refused():

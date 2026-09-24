@@ -137,8 +137,13 @@ class ReservoirSplit:
     def split(
         self, group: Mapping[str, Any], data: ValidatedInput
     ) -> tuple[ValidatedInput, ValidatedInput]:
-        """(stream, reservoir) for one analysis group; both keep whole blocks."""
-        blocks = self._blocks(data.fovs)
+        """(stream, reservoir) for one analysis group; both keep whole blocks.
+
+        FOVs are put in FOV-key order first, so the split depends on which FOVs
+        were acquired and never on the row order of the FOV table.
+        """
+        fovs = data.fovs.sort_values(list(data.fov_key), kind="stable")
+        blocks = self._blocks(fovs)
         labels, block_of_fov = np.unique(blocks, return_inverse=True)
         if len(labels) < 2:
             raise ValueError(
@@ -152,7 +157,7 @@ class ReservoirSplit:
         rng = np.random.default_rng(_group_seed(self.seed, group))
         chosen = rng.choice(len(labels), size=n_held, replace=False)
         held_out = np.isin(block_of_fov, chosen)
-        return _subset(data, data.fovs.loc[~held_out]), _subset(data, data.fovs.loc[held_out])
+        return _subset(data, fovs.loc[~held_out]), _subset(data, fovs.loc[held_out])
 
 
 def reference_error_floor(

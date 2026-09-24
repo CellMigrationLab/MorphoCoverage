@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 
 from ..sufficiency import SufficiencyReport
+from ._text import unit_plural
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
 from .controls import ControlResult
@@ -89,15 +90,21 @@ def _indent(text: str) -> str:
 
 
 def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
+    units = [
+        r.settings.get("observation_unit")
+        for r in (controls, effort)
+        if r is not None and r.settings.get("observation_unit")
+    ]
+    observations = unit_plural(units[0] if units else "object")
     rows = []
     if controls is not None and controls.status != "not assessed":
         rates = controls.pooled.set_index("candidate")["rate"]
         for kind, words in (
             ("positive", "declared positive-control fields recognized as different"),
-            ("planted", "fields with planted positive-control cells recognized"),
+            ("planted", f"fields with planted positive-control {observations} recognized"),
             ("reference", "reference fields called different (false alarms)"),
         ):
-            if kind in rates.index:
+            if kind in rates.index and pd.notna(rates[kind]):
                 rows.append(
                     {
                         "item": "representation",
@@ -113,7 +120,7 @@ def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
             hierarchy.get("fov"): "between fields within a sample",
             hierarchy.get("sample"): "between samples",
             hierarchy.get("biological_repeat"): "between repeats",
-            "observation": "between cells within a field",
+            "observation": f"between {observations} within a field",
         }
         for stratum, block in effort.components.groupby("stratum", sort=False):
             effect = design_effect(effort, stratum)
@@ -125,7 +132,7 @@ def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
                         "value": effect,
                         "statement": (
                             f"a mean from whole fields varies {effect:.1f} times as much as one "
-                            "from the same number of random cells (design effect)"
+                            f"from the same number of random {observations} (design effect)"
                         ),
                         "source": "effort_projection",
                     }
@@ -146,16 +153,28 @@ def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
                     }
                 )
     if redundancy is not None and len(redundancy):
-        measured = redundancy.dropna(subset=["redundancy_distance", "smallest_lag"])
-        alike = measured[measured["redundancy_distance"] > measured["smallest_lag"]]
+        measured = redundancy.dropna(subset=["smallest_lag"])
+        always = measured[measured["redundancy_distance"].isna()]
+        found = measured.dropna(subset=["redundancy_distance"])
+        alike = found[found["redundancy_distance"] > found["smallest_lag"]]
         smallest = float(measured["smallest_lag"].min()) if len(measured) else None
         unit = str(redundancy["unit"].iloc[0]) if "unit" in redundancy.columns else "stage units"
+        parts = []
         if len(alike):
-            statement = (
+            parts.append(
                 f"in {len(alike)} of {len(redundancy)} groups, fields closer than about "
                 f"{np.median(alike['redundancy_distance']):.0f} {unit} (median) are more "
                 "alike than random pairs"
             )
+        if len(always):
+            largest = float(always["largest_lag"].max()) if "largest_lag" in always else None
+            reach = f" (up to {largest:.0f} {unit})" if largest is not None else ""
+            parts.append(
+                f"in {len(always)} of {len(redundancy)} groups, fields are more alike than "
+                f"random pairs at every distance measured{reach}"
+            )
+        if parts:
+            statement = "; ".join(parts)
         elif smallest is not None:
             statement = (
                 f"no group shows neighbouring fields more alike than random pairs, down to the "

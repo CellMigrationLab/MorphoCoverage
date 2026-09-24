@@ -263,9 +263,58 @@ def test_a_clustered_rare_state_needs_many_fields():
     assert (curve["undefined_draws"] + curve["defined_draws"] > 0).all()
 
 
-def test_fov_counts_beyond_the_stream_are_not_reported():
+def test_fov_counts_beyond_the_stream_say_so_instead_of_vanishing():
     result = _reliability("condition_repeat_groups", counts=(2, 50))
-    assert set(result.curve["fovs"]) == {2}
+    beyond = result.curve[result.curve["fovs"] == 50]
+    assert len(beyond) == 4  # one row per group, so no sample disappears downstream
+    assert (beyond["splits"] == 0).all() and beyond["preserved"].isna().all()
+    assert "50 fields: more than the" in result.summary()
+
+
+def test_draws_of_only_empty_fovs_are_not_enough_rather_than_undefined():
+    # Audit regression: 60% of FOVs are empty; a draw of empty FOVs used to be
+    # dropped as undefined, which inflated the share at 1 field to about 97%.
+    rng = np.random.default_rng(0)
+    names = [f"f{i:02d}" for i in range(40)]
+    fovs = pd.DataFrame({"condition": "c", "repeat": "r", "image_file": names})
+    full = [n for i, n in enumerate(names) if i % 5 < 2]
+    objects = pd.DataFrame(
+        {
+            "condition": "c",
+            "repeat": "r",
+            "image_file": np.repeat(full, 20),
+            "feature_a": rng.normal(10, 0.1, 20 * len(full)),
+        }
+    )
+    result = sampling_reliability(
+        objects,
+        fovs,
+        feature_cols=["feature_a"],
+        criteria=[OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better")],
+        fov_counts=[1],
+        reservoir_fraction=0.3,
+        n_splits=5,
+        draws=100,
+    )
+    row = result.curve.iloc[0]
+    assert row["undefined_draws"] == 0
+    assert 0.25 < row["preserved"] < 0.55  # about the 40% of FOVs with observations
+
+
+def test_the_split_does_not_depend_on_the_row_order_of_the_fov_table():
+    built = SCENARIOS["homogeneous"]()
+    settings = {
+        "feature_cols": list(FEATURE_COLS),
+        "criteria": [MEAN_A],
+        "fov_counts": [3],
+        "reservoir_fraction": 0.3,
+        "n_splits": 3,
+        "draws": 10,
+    }
+    forward = sampling_reliability(built.objects, built.fovs, **settings)
+    backward = sampling_reliability(built.objects, built.fovs.iloc[::-1], **settings)
+    pd.testing.assert_frame_equal(forward.curve, backward.curve)
+    pd.testing.assert_frame_equal(forward.ceiling, backward.ceiling)
 
 
 def test_summary_speaks_in_fields_and_states_its_limits():

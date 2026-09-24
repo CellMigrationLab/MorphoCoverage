@@ -23,8 +23,6 @@ so adding a group or a split never changes another's orders.
 
 from __future__ import annotations
 
-import json
-import zlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -39,6 +37,7 @@ from ..reservoir import ReservoirSplit
 from ..schema import ValidatedInput, validate_input_tables
 from ..sequential import _Acquisition, _in_acquisition_order, _replay_full, _replay_incremental
 from ..strategies.base import SamplingStrategy
+from ._text import group_identity
 from .criteria import OutcomeCriterion
 from .stage import dispersed_order, stage_travel
 
@@ -99,20 +98,20 @@ def order_id(order: AcquisitionOrder) -> str:
     return order.kind if order.seed is None else f"{order.kind}-{order.seed}"
 
 
-def _identity(group: Mapping[str, Any]) -> int:
-    return zlib.crc32(json.dumps(sorted(group.items()), default=str).encode())
-
-
 def _ordered_stream(
     group, stream: ValidatedInput, order, order_col, split, stage_cols
 ) -> pd.DataFrame:
     """The stream's FOV rows in the order to replay."""
     if order.kind == "recorded":
         return _in_acquisition_order(group, stream, order_col)
-    rng = np.random.default_rng([order.seed, _identity(group), split])
     if order.kind == "dispersed":
+        # The start is the only free choice of a dispersed order. Stepping it by
+        # the seed (from a group- and split-specific offset) makes seeds below
+        # the stream length give distinct orders, never repeated ones.
         xy = stream.fovs[list(stage_cols)].to_numpy(dtype=float)
-        return stream.fovs.iloc[dispersed_order(xy, int(rng.integers(len(xy))))]
+        start = (order.seed + group_identity(group) + split) % len(xy)
+        return stream.fovs.iloc[dispersed_order(xy, start)]
+    rng = np.random.default_rng([order.seed, group_identity(group), split])
     return stream.fovs.iloc[rng.permutation(len(stream.fovs))]
 
 

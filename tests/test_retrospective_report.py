@@ -121,3 +121,17 @@ def test_a_declared_control_joins_the_first_question_and_the_profile():
 def test_results_of_the_wrong_kind_are_refused():
     with pytest.raises(TypeError, match="effort"):
         microscopist_report(effort=pd.DataFrame())
+
+
+def test_fields_alike_at_every_distance_are_the_strongest_redundancy_not_none():
+    redundancy = pd.DataFrame(
+        {
+            "redundancy_distance": [None, 336.0],
+            "smallest_lag": [119.0, 336.0],
+            "largest_lag": [350.0, 900.0],
+            "unit": "µm",
+        }
+    )
+    profile = microscopist_report(redundancy=redundancy).sections["profile"]
+    assert "in 1 of 2 groups, fields are more alike than random pairs at every distance" in profile
+    assert "no group shows" not in profile

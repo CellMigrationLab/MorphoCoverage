@@ -100,3 +100,19 @@ paper's Table 1: mean, median, quartiles, SD and number of cells.
 - `fov_vs_cells.py RAW_DIR` runs the retrospective whole-FOV versus random-cell
   comparison on the complete plates, as summarized in
   `docs/preliminary_findings.md`.
+
+The scripts below run on the committed tables and write to `results/`; each
+is described in `docs/preliminary_findings.md` (entry in brackets).
+
+- `positive_control.py` (entry 2): `results/positive_control_idr0028.csv`.
+- `frequency_control.py` (entry 3): `results/frequency_control*_idr0028.csv`.
+- `reliability_idr0028.py` (entry 4): `results/reliability_idr0028.csv` and
+  `results/reliability_ceiling_idr0028.csv`.
+- `stopping_idr0028.py` (entry 5): `results/stopping_calibration_idr0028.csv`
+  and `results/adequacy_idr0028.csv`.
+- `report_steps_idr0028.py` (entry 6; run `reliability_idr0028.py` first):
+  `results/protocol_idr0028.csv`, `inspection_idr0028.csv`,
+  `control_idr0028.csv`, `effort_idr0028.csv`, `effort_comparisons_idr0028.csv`,
+  `order_efficiency_idr0028.csv`, `redundancy_idr0028.csv`,
+  `sampling_profile_idr0028.csv` and the assembled
+  `microscopist_report_idr0028.txt`.

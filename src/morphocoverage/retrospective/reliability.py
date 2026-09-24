@@ -17,12 +17,21 @@ Design, per analysis group (one sample):
 4. Per split, the share of draws that preserved the criterion is this
    sample's conditional reliability at ``k``; the curve reports its mean and
    spread over splits, the metric's distribution, and the information gain
-   from ``k`` to the next listed ``k``.
+   of ``k`` over the previous listed ``k``.
+
+A draw of FOVs without any observations is acquired effort and counts as not
+preserved (``OutcomeCriterion.assess``). A draw is undefined only when the
+metric cannot be computed for other reasons, most often because the reservoir
+lacks what the criterion needs (a rare state absent from the held-back FOVs);
+the summary says how many draws and hold-outs could be judged, since the
+answer is then conditional on the hold-outs that could.
 
 Limits, stated with every result:
 
 - ``k`` cannot exceed the stream: with 28 FOVs and a reservoir of 10, nothing
-  is said beyond 18.
+  is said beyond 18. A listed ``k`` beyond every split's stream gets a row that
+  says so (``splits`` 0), so no sample disappears from later analyses; with
+  unequal blocks, a ``k`` judged on only some splits says on how many.
 - Draws and splits estimate one sample's behaviour; they are not independent
   replicates. Statements across samples count samples or repeats (Step 4).
 - Random draws treat FOVs as exchangeable, as random-position sampling does;
@@ -33,8 +42,6 @@ Limits, stated with every result:
 
 from __future__ import annotations
 
-import json
-import zlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -45,12 +52,14 @@ import pandas as pd
 from ..evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from ..reservoir import ReservoirSplit
 from ..schema import validate_input_tables
+from ._text import fields, group_identity, percent, where
 from .criteria import OutcomeCriterion, Preservation
 
 CURVE_COLUMNS = (
     "criterion",
     "fovs",
     "splits",
+    "defined_splits",
     "preserved",
     "preserved_split_sd",
     "defined_draws",
@@ -113,8 +122,7 @@ def _check_settings(criteria, fov_counts, reservoir_fraction, n_splits, draws, r
 
 def _draw_rng(random_state: int, group: Mapping[str, Any], split: int) -> np.random.Generator:
     """A generator for one group and split: the same draws whatever other groups exist."""
-    identity = zlib.crc32(json.dumps(sorted(group.items()), default=str).encode())
-    return np.random.default_rng([random_state, identity, split])
+    return np.random.default_rng([random_state, group_identity(group), split])
 
 
 def _group_draws(group, data, criteria, counts, splitter, n_splits, draws, random_state):
@@ -169,6 +177,7 @@ def _curve_row(runs: pd.DataFrame) -> dict[str, Any]:
     values = defined["value"].to_numpy(dtype=float)
     return {
         "splits": int(runs["split"].nunique()),
+        "defined_splits": len(per_split),
         "preserved": float(per_split.mean()) if len(per_split) else None,
         "preserved_split_sd": float(per_split.std(ddof=1)) if len(per_split) > 1 else None,
         "defined_draws": len(defined),
@@ -177,7 +186,7 @@ def _curve_row(runs: pd.DataFrame) -> dict[str, Any]:
         "metric_p10": float(np.quantile(values, 0.1)) if len(values) else None,
         "metric_p90": float(np.quantile(values, 0.9)) if len(values) else None,
         "reservoir_fovs": int(runs["reservoir_fovs"].min()),
-        "stream_fovs": int(runs["stream_fovs"].min()),
+        "stream_fovs": int(runs["stream_fovs"].max()),
     }
 
 
@@ -255,6 +264,7 @@ def sampling_reliability(
     for key, runs in draw_table.groupby([*keys, "criterion", "fovs"], sort=False, dropna=False):
         values = dict(zip([*keys, "criterion", "fovs"], key, strict=True))
         curve_rows.append({**values, **_curve_row(runs)})
+    curve_rows += _beyond_every_stream(ceiling_rows, curve_rows, criteria, counts, keys)
     curve = pd.DataFrame(curve_rows, columns=[*keys, *CURVE_COLUMNS])
     if len(curve):
         curve = _add_gain(curve, criteria, keys)
@@ -272,9 +282,50 @@ def sampling_reliability(
     return ReliabilityResult(curve, draw_table, tuple(keys), settings, ceiling)
 
 
+def _beyond_every_stream(ceiling_rows, curve_rows, criteria, counts, keys) -> list[dict]:
+    """Rows saying so for listed counts no split of a group could draw."""
+    have = {(tuple(r[k] for k in keys), r["criterion"], r["fovs"]) for r in curve_rows}
+    streams: dict[tuple, int] = {}
+    for row in ceiling_rows:
+        group = tuple(row[k] for k in keys)
+        streams[group] = max(streams.get(group, 0), int(row["stream_fovs"]))
+    rows = []
+    for group, stream in streams.items():
+        for criterion in criteria:
+            for k in counts:
+                if (group, criterion.name, k) in have:
+                    continue
+                rows.append(
+                    {
+                        **dict(zip(keys, group, strict=True)),
+                        "criterion": criterion.name,
+                        "fovs": k,
+                        "splits": 0,
+                        "defined_splits": 0,
+                        "preserved": None,
+                        "preserved_split_sd": None,
+                        "defined_draws": 0,
+                        "undefined_draws": 0,
+                        "metric_median": None,
+                        "metric_p10": None,
+                        "metric_p90": None,
+                        "reservoir_fovs": None,
+                        "stream_fovs": stream,
+                    }
+                )
+    return rows
+
+
 def _ceiling(table: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
     """Share of splits in which the whole stream preserved each criterion."""
-    columns = [*keys, "criterion", "splits", "whole_stream_preserved", "stream_fovs"]
+    columns = [
+        *keys,
+        "criterion",
+        "splits",
+        "defined_splits",
+        "whole_stream_preserved",
+        "stream_fovs",
+    ]
     if table.empty:
         return pd.DataFrame(columns=columns)
     rows = []
@@ -286,19 +337,12 @@ def _ceiling(table: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
             {
                 **values,
                 "splits": len(runs),
+                "defined_splits": len(defined),
                 "whole_stream_preserved": None if share is None else float(share),
-                "stream_fovs": int(runs["stream_fovs"].min()),
+                "stream_fovs": int(runs["stream_fovs"].max()),
             }
         )
     return pd.DataFrame(rows, columns=columns)
-
-
-def _fields(count: int) -> str:
-    return "1 field" if count == 1 else f"{count} fields"
-
-
-def _percent(value: float) -> str:
-    return f"{100 * value:.0f}%"
 
 
 def reliability_summary(result: ReliabilityResult) -> str:
@@ -306,47 +350,65 @@ def reliability_summary(result: ReliabilityResult) -> str:
     blocks = []
     keys = list(result.group_cols)
     labels = result.settings.get("labels", {})
-    grouping = [*keys, "criterion"]
-    for key, rows in result.curve.groupby(grouping, sort=False, dropna=False):
+    n_splits = int(result.settings.get("n_splits", 0))
+    for key, rows in result.curve.groupby([*keys, "criterion"], sort=False, dropna=False):
         key = key if isinstance(key, tuple) else (key,)
         group = dict(zip(keys, key[: len(keys)], strict=True))
-        where = ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
         criterion = key[-1]
         rows = rows.sort_values("fovs")
-        lines = [f"{where}: how many fields do you need for {labels.get(criterion, criterion)}?"]
+        stream = int(rows["stream_fovs"].max())
+        lines = [
+            f"{where(group)}: how many fields do you need for {labels.get(criterion, criterion)}?"
+        ]
         for row in rows.itertuples(index=False):
+            if row.splits == 0:
+                lines.append(f"  {fields(row.fovs)}: more than the {stream} fields available")
+                continue
             if row.preserved is None or pd.isna(row.preserved):
                 lines.append(
-                    f"  {_fields(row.fovs)}: could not be judged "
-                    f"({row.undefined_draws} draws undefined)"
+                    f"  {fields(row.fovs)}: could not be judged ({row.undefined_draws} draws "
+                    "undefined)"
                 )
                 continue
             spread = (
                 ""
                 if row.preserved_split_sd is None or pd.isna(row.preserved_split_sd)
-                else f" (±{_percent(row.preserved_split_sd)} across hold-outs)"
+                else f" (±{percent(row.preserved_split_sd)} across hold-outs)"
             )
+            partial = []
+            if n_splits and row.defined_splits < n_splits:
+                partial.append(f"judged on {row.defined_splits} of {n_splits} hold-outs")
+            if row.undefined_draws:
+                total = row.undefined_draws + row.defined_draws
+                partial.append(f"{percent(row.undefined_draws / total)} of draws not judged")
+            note = f" [{'; '.join(partial)}]" if partial else ""
             lines.append(
-                f"  {_fields(row.fovs)}: enough in {_percent(row.preserved)} of random "
-                f"acquisitions{spread}"
+                f"  {fields(row.fovs)}: enough in {percent(row.preserved)} of random "
+                f"acquisitions{spread}{note}"
             )
-        first = rows.iloc[0]
         match = result.ceiling
         if not match.empty:
             match = match[match["criterion"] == criterion]
             for column, value in group.items():
                 match = match[match[column] == value]
         if len(match) and match["whole_stream_preserved"].notna().iloc[0]:
-            share = float(match["whole_stream_preserved"].iloc[0])
-            lines.append(
-                f"  All {int(match['stream_fovs'].iloc[0])} available fields together were "
-                f"enough in {_percent(share)} of hold-outs: the held-back fields are "
-                "themselves a sample, so the curve cannot be read above this."
+            ceiling = match.iloc[0]
+            defined = int(ceiling["defined_splits"])
+            judged = (
+                f" of the {defined} that could judge it" if defined < int(ceiling["splits"]) else ""
             )
+            lines.append(
+                f"  All {int(ceiling['stream_fovs'])} available fields together were enough in "
+                f"{percent(float(ceiling['whole_stream_preserved']))} of hold-outs{judged}: the "
+                "held-back fields are themselves a sample, so the curve cannot be read above "
+                "this."
+            )
+        judged = rows[rows["splits"] > 0]
+        smallest = int(judged["reservoir_fovs"].min()) if len(judged) else 0
         lines.append(
-            f"  Judged on {first['reservoir_fovs']} or more held-back fields over "
-            f"{int(rows['splits'].max())} hold-outs; nothing is said beyond "
-            f"{int(first['stream_fovs'])} fields, and fields are treated as random draws."
+            f"  Judged on {smallest} or more held-back fields over "
+            f"{n_splits or int(rows['splits'].max())} hold-outs; nothing is said beyond "
+            f"{stream} fields, and fields are treated as random draws."
         )
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
