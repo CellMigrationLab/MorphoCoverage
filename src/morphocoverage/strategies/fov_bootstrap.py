@@ -145,7 +145,9 @@ def quantile_resamples(values, positions, weights, quantiles) -> np.ndarray:
 def eigenspectrum_resamples(covariances: np.ndarray, d: int) -> np.ndarray:
     """Explained-variance fractions, largest first, of each flattened ``d x d`` covariance."""
     eigenvalues = np.clip(np.linalg.eigvalsh(covariances.reshape(-1, d, d))[:, ::-1], 0, None)
-    return eigenvalues / eigenvalues.sum(axis=1, keepdims=True)
+    # A resample with no spread at all has undefined fractions (NaN, left out later).
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return eigenvalues / eigenvalues.sum(axis=1, keepdims=True)
 
 
 def subspace_angles_to(covariances: np.ndarray, reference: np.ndarray, r: int) -> np.ndarray:
@@ -283,10 +285,14 @@ class FOVBootstrapEstimator(Estimator):
         sums = _per_fov_sums(values, positions, k)
         if self.summary == "centroid":
             return centroid_resamples(counts, sums, weights)
+        # Covariance is shift-invariant; centring first keeps the one-pass formula
+        # accurate when a feature's mean is large relative to its spread.
+        centred = values - values.mean(axis=0)
+        centred_sums = _per_fov_sums(centred, positions, k)
         # Outer products only for covariance summaries: memory grows with features squared.
-        products = np.einsum("ni,nj->nij", values, values).reshape(len(values), -1)
+        products = np.einsum("ni,nj->nij", centred, centred).reshape(len(values), -1)
         outer = _per_fov_sums(products, positions, k)
-        covariances = covariance_resamples(counts, sums, outer, weights)
+        covariances = covariance_resamples(counts, centred_sums, outer, weights)
         if self.summary == "covariance":
             return covariances
         d = values.shape[1]

@@ -50,8 +50,10 @@ def frechet_distance(x: np.ndarray, y: np.ndarray) -> float:
     cross = linalg.sqrtm(root_x @ cov_y @ root_x)
     trace = np.trace(cov_x + cov_y - 2 * np.real(cross))
     squared = float(np.sum((x.mean(axis=0) - y.mean(axis=0)) ** 2) + trace)
-    # sqrtm rounding can leave a tiny negative trace for identical samples.
-    return float(np.sqrt(max(squared, 0.0)))
+    # sqrtm rounding leaves a residual of order 1e-15 * scale for identical
+    # samples, which the square root would magnify; treat it as zero.
+    scale = float(np.trace(cov_x) + np.trace(cov_y)) + 1.0
+    return float(np.sqrt(squared)) if squared > 1e-12 * scale else 0.0
 
 
 def energy_distance(x: np.ndarray, y: np.ndarray) -> float:
@@ -74,8 +76,8 @@ def mmd_squared(x: np.ndarray, y: np.ndarray, bandwidth: float) -> float:
     observations. ``bandwidth`` is in the units of the supplied features.
     """
     x, y = _pair(x, y, 2)
-    if not bandwidth > 0:
-        raise ValueError("bandwidth must be positive")
+    if not (bandwidth > 0 and np.isfinite(bandwidth)):
+        raise ValueError("bandwidth must be positive and finite")
     scale = -1.0 / (2.0 * bandwidth**2)
 
     def kernel(a: np.ndarray, b: np.ndarray) -> np.ndarray:

@@ -46,7 +46,7 @@ def test_split_is_a_seeded_partition_of_the_group():
     stream, held = ReservoirSplit(0.3, 1, None).split(group, data)
     assert _keys(stream) | _keys(held) == _keys(data)
     assert not _keys(stream) & _keys(held)
-    assert len(held.fovs) >= 0.3 * len(data.fovs)
+    assert len(held.fovs) == 6  # ceil(0.3 * 20), single-FOV blocks fit exactly
     assert len(stream.objects) + len(held.objects) == len(data.objects)
     again = ReservoirSplit(0.3, 1, None).split(group, data)[1]
     assert _keys(again) == _keys(held)
@@ -72,6 +72,26 @@ def test_groups_get_their_own_split_from_the_same_seed():
         positions.append(tuple(sorted(held.fovs["image_file"])))
     # Same image names in every group, but not the same held-out positions.
     assert len(set(positions)) > 1
+
+
+def test_one_large_block_cannot_swallow_the_stream():
+    # Regression: blocks of 90, 5 and 5 FOVs with fraction 0.1 used to put the
+    # 90-FOV block in the reservoir for most seeds. The reservoir now never
+    # exceeds ceil(fraction * n) and here always takes the two small blocks.
+    built = SCENARIOS["homogeneous"]()
+    objects = pd.concat(
+        [built.objects.assign(image_file=f"r{i}_" + built.objects.image_file) for i in range(5)]
+    )
+    fovs = pd.concat(
+        [built.fovs.assign(image_file=f"r{i}_" + built.fovs.image_file) for i in range(5)]
+    )
+    blocks = np.array(["big"] * 90 + ["a"] * 5 + ["b"] * 5)
+    data = validate_input_tables(
+        objects, fovs=fovs.assign(block=blocks), feature_cols=list(FEATURE_COLS)
+    )
+    for seed in range(6):
+        held = ReservoirSplit(0.1, seed, "block").split({}, data)[1]
+        assert len(held.fovs) == 10 and set(held.fovs["block"]) == {"a", "b"}
 
 
 def test_groups_too_small_to_split_are_refused():

@@ -208,3 +208,16 @@ def test_names_and_parameters_are_provenance():
         "bandwidth": 0.5,
     }
     assert metric.config_id != MMDError(FEATURES, True, 200, 7, 1.0).config_id
+
+
+def test_frechet_of_identical_samples_is_exactly_zero():
+    # Regression: sqrtm rounding gave ~1e-7 through the square root.
+    x = _normal(200, sd=(5.0, 0.1), seed=9)
+    assert distances.frechet_distance(x, x) == 0.0
+
+
+def test_infinite_bandwidth_is_refused():
+    with pytest.raises(ValueError):
+        distances.mmd_squared(_normal(5), _normal(5), float("inf"))
+    with pytest.raises(ValueError):
+        MMDError(FEATURES, True, None, 0, float("inf"))

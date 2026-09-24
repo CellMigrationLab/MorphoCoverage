@@ -280,8 +280,8 @@ class MMDError(_SubsampledOutcome):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if not float(self.bandwidth) > 0:
-            raise ValueError("bandwidth must be positive")
+        if not (float(self.bandwidth) > 0 and np.isfinite(self.bandwidth)):
+            raise ValueError("bandwidth must be positive and finite")
         object.__setattr__(self, "bandwidth", float(self.bandwidth))
 
     @property

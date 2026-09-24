@@ -16,8 +16,11 @@ Splitting rules:
   sit on opposite sides, which would leak spatially correlated information
   into the reference. Without it every FOV is its own block, which assumes
   FOVs are exchangeable; the record states which was used.
-- Blocks are drawn at random from ``seed`` and the group identity, until the
-  reservoir holds at least ``fraction`` of the group's FOVs. Repeat a
+- Blocks are taken in a random order drawn from ``seed`` and the group
+  identity; a block joins the reservoir only if the reservoir then holds at
+  most ``ceil(fraction * n_fovs)`` FOVs, so one large block can never swallow
+  the stream. With very unequal blocks the reservoir can hold less than
+  ``fraction``; the achieved size is recorded (``reservoir_fovs``). Repeat a
   benchmark over several seeds so that conclusions do not rest on one
   partition.
 
@@ -76,7 +79,7 @@ def _subset(data: ValidatedInput, fovs: pd.DataFrame) -> ValidatedInput:
 class ReservoirSplit:
     """Split each analysis group into a replay stream and a fixed evaluation reservoir.
 
-    ``fraction`` is the minimum share of each group's FOVs held out, ``seed``
+    ``fraction`` is the largest share of each group's FOVs held out, ``seed``
     makes the split reproducible, and ``block_col`` names an FOV-table column
     of spatial blocks (``None``: each FOV is its own block).
     """
@@ -116,16 +119,22 @@ class ReservoirSplit:
         blocks = self._blocks(data.fovs)
         labels, block_of_fov = np.unique(blocks, return_inverse=True)
         order = np.random.default_rng(_group_seed(self.seed, group)).permutation(len(labels))
-        sizes = np.bincount(block_of_fov, minlength=len(labels))[order]
+        sizes = np.bincount(block_of_fov, minlength=len(labels))
         target = math.ceil(self.fraction * len(data.fovs))
-        # Blocks enter the reservoir in random order until it reaches the target.
-        n_blocks = int(np.searchsorted(np.cumsum(sizes), target) + 1)
-        if n_blocks >= len(labels):
+        chosen, held = [], 0
+        # Blocks join in random order, skipping any that would overshoot the target.
+        for block in order:
+            if held + sizes[block] <= target:
+                chosen.append(block)
+                held += sizes[block]
+            if held == target:
+                break
+        if not chosen or held >= len(data.fovs):
             raise ValueError(
                 f"analysis group {dict(group)} has too few FOVs or blocks ({len(labels)}) to "
-                f"hold out {self.fraction:.0%} and keep a stream"
+                f"hold out at most {self.fraction:.0%} and keep a stream"
             )
-        held_out = np.isin(block_of_fov, order[:n_blocks])
+        held_out = np.isin(block_of_fov, chosen)
         return _subset(data, data.fovs.loc[~held_out]), _subset(data, data.fovs.loc[held_out])
 
 

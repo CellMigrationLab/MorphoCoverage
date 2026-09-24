@@ -19,6 +19,11 @@ without observations included), ``Q_k`` states seen in exactly ``k`` FOVs and
 
   reported as completeness ``S_obs / S``.
 
+The two can disagree: with one singleton and no doubletons, Chao2 adds
+``(T - 1) / T * 1 * 0 / 2 = 0`` unseen states (completeness exactly 1) while
+coverage is ``1 - 1 / U``. Both follow the published formulas; a stop on
+Chao2 alone would ignore the singleton.
+
 Many cells of one state in one FOV are one incidence, so these count
 recurrence across positions, not cells. Assumptions and limits:
 

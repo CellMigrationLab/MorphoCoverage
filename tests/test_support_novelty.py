@@ -16,6 +16,7 @@ from morphocoverage import (
     validate_input_tables,
 )
 from morphocoverage.evaluator import objects_in_fovs, restrict_input
+from morphocoverage.schema import fov_positions
 from morphocoverage.strategies import SupportNoveltyEstimator, SupportNoveltyStrategy
 from morphocoverage.strategies.support_novelty import novel_observations
 from morphocoverage.transforms import Standardize
@@ -36,8 +37,8 @@ def _table(values_per_fov, empty_fovs=0):
     )
 
 
-def _novelty(data, epsilon=0.5, n_neighbors=1, transform=None, min_fovs=2):
-    estimator = SupportNoveltyEstimator(epsilon, n_neighbors, transform, min_fovs)
+def _novelty(data, epsilon=0.5, min_other_fovs=1, transform=None, min_fovs=2):
+    estimator = SupportNoveltyEstimator(epsilon, min_other_fovs, transform, min_fovs)
     return estimator.estimate(data, objective=POPULATION)
 
 
@@ -47,11 +48,15 @@ def test_counting_queries_match_brute_force_distances():
         counts = rng.integers(1, 12, size=rng.integers(2, 7))
         positions = np.repeat(np.arange(len(counts)), counts)
         values = rng.normal(size=(len(positions), 3))
-        epsilon, n_neighbors = rng.uniform(0.3, 1.5), int(rng.integers(1, 4))
-        pairwise = distance.cdist(values, values)
-        other = positions[:, None] != positions[None, :]
-        expected = ((pairwise <= epsilon) & other).sum(axis=1) < n_neighbors
-        assert np.array_equal(novel_observations(values, positions, epsilon, n_neighbors), expected)
+        epsilon, min_other = rng.uniform(0.3, 1.5), int(rng.integers(1, 4))
+        near = distance.cdist(values, values) <= epsilon
+        expected = np.array(
+            [
+                len({positions[j] for j in np.flatnonzero(near[i])} - {positions[i]}) < min_other
+                for i in range(len(values))
+            ]
+        )
+        assert np.array_equal(novel_observations(values, positions, epsilon, min_other), expected)
 
 
 def test_a_state_seen_in_one_fov_stays_novel_however_many_cells_show_it():
@@ -71,14 +76,32 @@ def test_a_state_seen_in_one_fov_stays_novel_however_many_cells_show_it():
     assert _novelty(_table(recurring)).quantities["lofo_novel_fraction"].value == 0
 
 
-def test_more_neighbours_demand_denser_support():
+def test_requiring_more_other_fovs_demands_wider_support():
     rng = np.random.default_rng(2)
     fovs = [rng.normal(size=(15, 2)) for _ in range(6)]
     fractions = [
-        _novelty(_table(fovs), n_neighbors=k).quantities["lofo_novel_fraction"].value
-        for k in (1, 3, 10)
+        _novelty(_table(fovs), min_other_fovs=k).quantities["lofo_novel_fraction"].value
+        for k in (1, 3, 5)
     ]
     assert fractions == sorted(fractions) and fractions[-1] > fractions[0]
+
+
+def test_support_counts_fovs_not_cells_on_both_sides():
+    # Regression: counting neighbouring observations let a dense FOV cover a
+    # state that a sparse FOV showing the same state could not. The same state
+    # in the same two FOVs must now be judged alike, whatever the cell counts.
+    rng = np.random.default_rng(5)
+    common = [rng.normal(0, 0.1, size=(20, 2)) for _ in range(4)]
+    rare = np.array([[5.0, 5.0]])
+    fovs = [np.vstack([common[0], rare]), np.vstack([common[1], np.repeat(rare, 10, 0)])]
+    fovs += common[2:]
+    data = _table(fovs)
+    values = data.feature_matrix()
+    positions = fov_positions(data, data.fovs)
+    rare_rows = values[:, 0] > 4
+    for required, novel in ((1, False), (2, True)):
+        flags = novel_observations(values, positions, 0.5, required)[rare_rows]
+        assert set(flags) == {novel}
 
 
 def test_novelty_falls_as_representative_fovs_accumulate():
@@ -141,6 +164,7 @@ def test_strategy_stops_once_novelty_is_within_tolerance():
         lambda: SupportNoveltyEstimator(0.0, 1, None, 2),
         lambda: SupportNoveltyEstimator(float("inf"), 1, None, 2),
         lambda: SupportNoveltyEstimator(0.5, 0, None, 2),
+        lambda: SupportNoveltyEstimator(0.5, 1.5, None, 2),
         lambda: SupportNoveltyEstimator(0.5, 1, None, 1),
         lambda: SupportNoveltyEstimator(0.5, 1, "standardize", 2),
         lambda: SupportNoveltyStrategy(0.5, 1.0, 1, None, 2),
@@ -156,7 +180,7 @@ def test_parameters_are_serializable_provenance():
     record = json.loads(json.dumps(strategy.parameters))
     assert record == {
         "epsilon": 0.4,
-        "n_neighbors": 2,
+        "min_other_fovs": 2,
         "transform": Standardize().describe(),
         "min_fovs": 3,
         "tolerance": 0.05,

@@ -3,7 +3,7 @@
 Roadmap 4.1-4.2 (docs/proposals/candidate_estimators_roadmap.md): are
 observations still arriving in regions of phenotype space that the other
 FOVs do not cover? At resolution ``epsilon`` an observation is covered when
-at least ``n_neighbors`` observations of *other* FOVs lie within
+observations from at least ``min_other_fovs`` *other* FOVs lie within
 ``epsilon`` (Euclidean, in the transformed feature space). Holding out each
 visible FOV in turn estimates how much of a new representative FOV would be
 novel:
@@ -13,15 +13,17 @@ novel:
 
 This is the leave-one-FOV-out estimate of ``1 - C_epsilon``, the chance that
 an observation from another FOV falls outside the current support. It counts
-FOVs, not cells: a state seen only in one FOV stays novel however many cells
-it has there, and becomes covered once a second FOV shows it.
+FOVs, not cells, on both sides: a state seen only in one FOV stays novel
+however many cells it has there, and support from another FOV counts once
+however many of its cells are nearby, so a dense FOV cannot cover what a
+sparse FOV showing the same state would not.
 
 Choices and limits:
 
 - The estimate uses ``k - 1`` FOVs for each held-out FOV, so it slightly
   overstates the novelty of the full visible set.
 - It is resolution-dependent by construction: ``epsilon`` and
-  ``n_neighbors`` define the estimand and have no defaults. Density varies
+  ``min_other_fovs`` define the estimand and have no defaults. Density varies
   across phenotype space, so one global ``epsilon`` is coarse where
   phenotypes are dense and fine where they are sparse.
 - In high dimensions nearest-neighbour distances concentrate, and a single
@@ -34,8 +36,10 @@ Choices and limits:
 - Zero-observation FOVs add no observations to judge; they still count as
   acquisition effort.
 
-Cost: one k-d tree over all visible observations and one per FOV
-(``scipy.spatial.cKDTree``), with counting ball queries.
+Cost: ``scipy.spatial.cKDTree`` queries. With ``min_other_fovs=1``, counting
+ball queries (about 10 ms for a 1,000-cell well); otherwise one bounded
+nearest-neighbour query of every observation per FOV (about 0.5 s for 6,700
+cells in 168 FOVs).
 """
 
 from __future__ import annotations
@@ -56,11 +60,14 @@ from .base import Estimator, SamplingStrategy
 QUANTITY = "lofo_novel_fraction"
 
 
-def _check(epsilon, n_neighbors, min_fovs, transform) -> None:
+def _check(epsilon, min_other_fovs, min_fovs, transform) -> None:
     """Validate the settings shared by the estimator and the strategy."""
     if isinstance(epsilon, bool) or not (float(epsilon) > 0 and np.isfinite(epsilon)):
         raise ValueError("epsilon must be a positive, finite distance")
-    for value, label, minimum in ((n_neighbors, "n_neighbors", 1), (min_fovs, "min_fovs", 2)):
+    for value, label, minimum in (
+        (min_other_fovs, "min_other_fovs", 1),
+        (min_fovs, "min_fovs", 2),
+    ):
         if isinstance(value, bool) or not isinstance(value, int):
             raise TypeError(f"{label} must be an integer")
         if value < minimum:
@@ -69,15 +76,8 @@ def _check(epsilon, n_neighbors, min_fovs, transform) -> None:
         raise TypeError("transform must be a FeatureTransform or None (raw feature units)")
 
 
-def novel_observations(
-    values: np.ndarray, positions: np.ndarray, epsilon: float, n_neighbors: int
-) -> np.ndarray:
-    """Whether each observation has too few other-FOV observations within ``epsilon``.
-
-    Novel means fewer than ``n_neighbors`` observations of other FOVs at
-    distance ``<= epsilon``. ``positions`` gives each row's FOV. Counts over all
-    rows, minus those within its own FOV, are the other-FOV counts.
-    """
+def _other_fov_observations(values: np.ndarray, positions: np.ndarray, epsilon: float):
+    """Observations of other FOVs within ``epsilon`` of each row, by counting queries."""
     total = cKDTree(values).query_ball_point(values, epsilon, return_length=True)
     same = np.empty(len(values), dtype=np.int64)
     for fov in np.unique(positions):
@@ -85,7 +85,31 @@ def novel_observations(
         same[rows] = cKDTree(values[rows]).query_ball_point(
             values[rows], epsilon, return_length=True
         )
-    return (total - same) < n_neighbors
+    return total - same
+
+
+def novel_observations(
+    values: np.ndarray, positions: np.ndarray, epsilon: float, min_other_fovs: int
+) -> np.ndarray:
+    """Whether each observation has too few other FOVs within ``epsilon``.
+
+    Novel means that fewer than ``min_other_fovs`` distinct other FOVs have an
+    observation at distance ``<= epsilon``. ``positions`` gives each row's FOV.
+    """
+    if min_other_fovs == 1:
+        # One other FOV is one other observation: count ball members without
+        # listing them (all rows minus the row's own FOV), which is much faster.
+        return _other_fov_observations(values, positions, epsilon) < 1
+    # One nearest-neighbour query per FOV: does that FOV reach each row within epsilon?
+    supporting = np.zeros(len(values), dtype=np.int64)
+    for fov in np.unique(positions):
+        own = positions == fov
+        # The bound is exclusive in cKDTree.query, so widen it and compare exactly.
+        nearest, _ = cKDTree(values[own]).query(
+            values, k=1, distance_upper_bound=epsilon * (1 + 1e-12)
+        )
+        supporting += (nearest <= epsilon) & ~own
+    return supporting < min_other_fovs
 
 
 def _meta() -> dict[str, Any]:
@@ -106,13 +130,13 @@ class SupportNoveltyEstimator(Estimator):
     """
 
     epsilon: float
-    n_neighbors: int
+    min_other_fovs: int
     transform: FeatureTransform | None
     min_fovs: int
     name: str = "support_novelty"
 
     def __post_init__(self) -> None:
-        _check(self.epsilon, self.n_neighbors, self.min_fovs, self.transform)
+        _check(self.epsilon, self.min_other_fovs, self.min_fovs, self.transform)
         object.__setattr__(self, "epsilon", float(self.epsilon))
 
     @property
@@ -120,7 +144,7 @@ class SupportNoveltyEstimator(Estimator):
         """The resolution, neighbour count, transform and minimum FOVs."""
         return {
             "epsilon": self.epsilon,
-            "n_neighbors": self.n_neighbors,
+            "min_other_fovs": self.min_other_fovs,
             "transform": None if self.transform is None else self.transform.describe(),
             "min_fovs": self.min_fovs,
         }
@@ -148,7 +172,7 @@ class SupportNoveltyEstimator(Estimator):
             diagnostics["undefined_reason"] = reason
             return Evidence({QUANTITY: Quantity.insufficient(reason, **_meta())}, diagnostics)
 
-        novel = novel_observations(values, positions, self.epsilon, self.n_neighbors)
+        novel = novel_observations(values, positions, self.epsilon, self.min_other_fovs)
         per_fov = np.bincount(positions, weights=novel) / np.maximum(np.bincount(positions), 1)
         observed = np.bincount(positions) > 0
         diagnostics.update(
@@ -171,13 +195,13 @@ class SupportNoveltyStrategy(SamplingStrategy):
 
     epsilon: float
     tolerance: float
-    n_neighbors: int
+    min_other_fovs: int
     transform: FeatureTransform | None
     min_fovs: int
     name: str = "support_novelty"
 
     def __post_init__(self) -> None:
-        _check(self.epsilon, self.n_neighbors, self.min_fovs, self.transform)
+        _check(self.epsilon, self.min_other_fovs, self.min_fovs, self.transform)
         if not 0 <= self.tolerance < 1:
             raise ValueError("tolerance must be a fraction in [0, 1)")
 
@@ -190,7 +214,9 @@ class SupportNoveltyStrategy(SamplingStrategy):
     def estimators(self) -> tuple[SupportNoveltyEstimator]:
         """The support-novelty estimator with this strategy's settings."""
         return (
-            SupportNoveltyEstimator(self.epsilon, self.n_neighbors, self.transform, self.min_fovs),
+            SupportNoveltyEstimator(
+                self.epsilon, self.min_other_fovs, self.transform, self.min_fovs
+            ),
         )
 
     @property

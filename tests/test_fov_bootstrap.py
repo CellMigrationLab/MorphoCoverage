@@ -311,3 +311,16 @@ def test_block_column_must_exist_and_be_complete():
         _block_se(gaps)
     strategy = FOVBootstrapStrategy("centroid", 0.1, None, 10, 0, 2, None, None, "block")
     assert strategy.parameters["block_col"] == "block"
+
+
+@pytest.mark.parametrize(
+    "summary, r", [("covariance", None), ("eigenspectrum", None), ("subspace", 1)]
+)
+def test_covariance_summaries_do_not_depend_on_a_location_shift(summary, r):
+    # Regression: a one-pass covariance on raw values lost precision when the
+    # mean was large relative to the spread (offset 1e8 gave a 60x SE).
+    rng = np.random.default_rng(0)
+    values = rng.normal(size=(1000, 2)) * [2.0, 1.0]
+    base = _estimate(_fov_table(values, per_fov=50), summary, n_components=r)
+    shifted = _estimate(_fov_table(values + 1e8, per_fov=50), summary, n_components=r)
+    assert shifted.value == pytest.approx(base.value, rel=1e-6)
