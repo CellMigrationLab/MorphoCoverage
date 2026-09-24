@@ -60,6 +60,12 @@ The definition moves the answer a lot. Counting any 3 unsupported cells in a FOV
 
 It is self-assessment of one dataset; whether a criterion is right in general is a benchmark question.
 
+## How many FOVs next time? Sampling reliability
+
+`morphocoverage.retrospective.sampling_reliability` answers the planning question without any stopping rule (roadmap Step 1). For each analysis group and outer split it holds back a fixed reservoir of whole FOVs (`ReservoirSplit`), draws `k` random FOVs from the rest, and assesses each declared `OutcomeCriterion` (an outcome metric with a tolerance and direction, for example the well mean within 5%) against the same reservoir for every `k`. The curve gives, per `k`, the share of draws in which the criterion was preserved (averaged over splits, with its spread), the metric's median and 10–90% range, and the gain from the previous `k`. The ceiling table gives how often the whole stream preserved the criterion: the reservoir is itself a finite sample, so the curve cannot be read above it. `summary()` states the curve in sentences. Draws and splits describe one sample and are not independent replicates; statements across samples count samples or repeats (roadmap Step 4). `SamplingHierarchy` declares which columns are the FOV, the sample and the independent unit; nothing is inferred from column names.
+
+**Registered datasets.** idr0028 (committed subset: 12 wells × 28 FOVs on 3 plates) is a **development** dataset: used to build and check these analyses, not to set a protocol. No held-out dataset is registered yet; deeper datasets will be added.
+
 ## Scientific performance dimensions
 
 Strategies should be compared on several independent outcomes, not only a metric related to their own score.

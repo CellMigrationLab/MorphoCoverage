@@ -195,6 +195,10 @@ src/morphocoverage/
     framework.py           # run_strategies convenience entry point
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
+    retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
+        criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
+        hierarchy.py       # SamplingHierarchy: declared FOV / sample / repeat levels
+        reliability.py     # sampling reliability: how often k random FOVs are enough
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
