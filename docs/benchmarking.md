@@ -48,15 +48,15 @@ Not yet implemented: excess FOVs beyond an empirical adequacy point (it needs an
 
 `summary()` states both answers in sentences. `final` and `stops` keep the full evidence and stop distributions.
 
-The chance can be checked on the dataset itself (`calibration=CalibrationSettings(...)`, or `morphocoverage.calibration.calibrate_next_fov_novelty`). Random subsets of `k` FOVs predict the chance, and the remaining FOVs, judged against the same subset with the same definition, give the actual rate. A FOV shows something new when at least `min_novel_observations` of its unsupported cells form one cluster (linked within `epsilon`), so scattered outliers do not add up to a phenotype. On idr0028 (12 wells of 28 FOVs; 30 standardized intensity features; unsupported meaning no other FOV within `sqrt(30)`), pooled over wells with 20 draws each:
+The chance can be checked on the dataset itself (`calibration=CalibrationSettings(...)`, or `morphocoverage.calibration.calibrate_next_fov_novelty`). Random subsets of `k` FOVs predict the chance, and the remaining FOVs, judged against the same subset with the same definition, give the actual rate. A FOV shows something new when at least `min_novel_observations` (`m`) of its unsupported cells form one cluster (linked within `epsilon`), so scattered outliers do not add up to a phenotype. Support is symmetric: another FOV covers a cell only with at least `m` cells of its own within `epsilon`, so a single stray cell cannot cancel a new state. On idr0028 (12 wells of 28 FOVs; 30 standardized intensity features; `epsilon = sqrt(30)`), pooled over wells with 20 draws each:
 
-| FOVs imaged | new = cluster of 2: predicted | actual | mean 95% bound | bound held | new = cluster of 3: predicted | actual |
-| --- | --- | --- | --- | --- | --- | --- |
-| 5 | 0.054 | 0.049 | 0.51 | 100% | 0.008 | 0.004 |
-| 10 | 0.026 | 0.028 | 0.29 | 100% | 0.001 | 0.001 |
-| 20 | 0.020 | 0.020 | 0.17 | 99% | 0.000 | 0.000 |
+| FOVs imaged | `m = 2`: predicted | actual | mean 95% bound | bound held | `m = 3`: predicted | actual | bound held |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 5 | 0.153 | 0.136 | 0.60 | 100% | 0.058 | 0.050 | 100% |
+| 10 | 0.087 | 0.083 | 0.37 | 100% | 0.023 | 0.023 | 100% |
+| 20 | 0.058 | 0.057 | 0.22 | 95% | 0.015 | 0.009 | 99% |
 
-Before clusters were required, "3 unsupported cells anywhere in the FOV" gave 0.20, 0.12 and 0.08: most of those FOVs held scattered cells, not a coherent state. With a finer resolution (`0.5 sqrt(30)`), 3-cell clusters appear in 2% of FOVs after 5 FOVs and almost none after 20. Predictions track the actual rate, and the bound holds, but with no new FOVs among `k` the bound is `1 - 0.05 ** (1 / k)` (0.14 at 20 FOVs) whatever the data: it is the number of FOVs, not the data, that keeps it high. Random subsets treat FOVs as exchangeable, so this does not test drift along the recorded order, and the actual rate is measured on few remaining FOVs when `k` is close to the group size.
+The definition moves the answer a lot. Counting any 3 unsupported cells in a FOV gave 0.20, 0.12 and 0.08, mostly scattered cells; requiring a cluster but letting one cell of another FOV support it gave 0.008, 0.001 and 0.000, because stray cells cancelled real groups. At half the distance (`0.5 sqrt(30)`, `m = 3`) about 18% of FOVs still show a new 3-cell state after 20 FOVs, and the bound held in only 91% of draws there. In every setting the prediction tracks the actual rate. With no new FOVs among `k` the bound is `1 - 0.05 ** (1 / k)` (0.14 at 20 FOVs) whatever the data. Random subsets treat FOVs as exchangeable, so this does not test drift along the recorded order, and the actual rate is measured on few remaining FOVs when `k` is close to the group size.
 
 It is self-assessment of one dataset; whether a criterion is right in general is a benchmark question.
 

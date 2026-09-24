@@ -38,6 +38,18 @@ it has there, and support from another FOV counts once however many of its
 cells are nearby, so a dense FOV cannot cover what a sparse FOV showing the
 same state would not.
 
+Support is symmetric with the new-state rule: another FOV supports an
+observation only with at least ``min_novel_observations`` of its own
+observations within ``epsilon``. A state must recur as a group of similar
+cells to be covered, so a single stray cell (debris, a mis-segmented
+object) in another FOV cannot cancel a real new state, just as scattered
+outliers cannot make one. With ``min_novel_observations=1`` one nearby
+observation is enough, as before.
+
+Single linkage can chain: unsupported cells spaced at most ``epsilon``
+apart form one state however far the chain extends. A continuous run of
+unseen cells is treated as one new state.
+
 Weighting of the held-out side differs between the quantities:
 
 - ``lofo_novel_fraction`` pools observations, so each FOV counts in
@@ -149,27 +161,59 @@ def _check_novel(min_novel_observations) -> None:
         raise ValueError("min_novel_observations must be a positive integer")
 
 
-def novel_observations(
-    values: np.ndarray, positions: np.ndarray, epsilon: float, min_other_fovs: int
+def _supporting_fovs(
+    reference: np.ndarray,
+    reference_positions: np.ndarray,
+    queries: np.ndarray,
+    epsilon: float,
+    min_observations: int,
+    exclude: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Whether each observation has too few other FOVs within ``epsilon``.
+    """Reference FOVs with at least ``min_observations`` observations within ``epsilon``.
 
-    Novel means that fewer than ``min_other_fovs`` distinct other FOVs have an
-    observation at distance ``<= epsilon``. ``positions`` gives each row's FOV.
+    One count per query row. ``exclude[i]`` is a reference FOV that must not
+    count for query row ``i`` (its own FOV), or ``None``.
     """
-    if min_other_fovs == 1:
+    supporting = np.zeros(len(queries), dtype=np.int64)
+    for fov in np.unique(reference_positions):
+        members = reference[reference_positions == fov]
+        if len(members) < min_observations or not len(queries):
+            continue
+        if min_observations == 1:
+            # The bound is exclusive in cKDTree.query, so widen it and compare exactly.
+            nearest, _ = cKDTree(members).query(
+                queries, k=1, distance_upper_bound=epsilon * (1 + 1e-12)
+            )
+            near = nearest <= epsilon
+        else:
+            counts = cKDTree(members).query_ball_point(queries, epsilon, return_length=True)
+            near = counts >= min_observations
+        if exclude is not None:
+            near &= exclude != fov
+        supporting += near
+    return supporting
+
+
+def novel_observations(
+    values: np.ndarray,
+    positions: np.ndarray,
+    epsilon: float,
+    min_other_fovs: int,
+    min_support_observations: int = 1,
+) -> np.ndarray:
+    """Whether each observation has too few other FOVs supporting it within ``epsilon``.
+
+    Novel means that fewer than ``min_other_fovs`` distinct other FOVs each
+    have at least ``min_support_observations`` observations at distance
+    ``<= epsilon``. ``positions`` gives each row's FOV.
+    """
+    if min_other_fovs == 1 and min_support_observations == 1:
         # One other FOV is one other observation: count ball members without
         # listing them (all rows minus the row's own FOV), which is much faster.
         return _other_fov_observations(values, positions, epsilon) < 1
-    # One nearest-neighbour query per FOV: does that FOV reach each row within epsilon?
-    supporting = np.zeros(len(values), dtype=np.int64)
-    for fov in np.unique(positions):
-        own = positions == fov
-        # The bound is exclusive in cKDTree.query, so widen it and compare exactly.
-        nearest, _ = cKDTree(values[own]).query(
-            values, k=1, distance_upper_bound=epsilon * (1 + 1e-12)
-        )
-        supporting += (nearest <= epsilon) & ~own
+    supporting = _supporting_fovs(
+        values, positions, values, epsilon, min_support_observations, exclude=positions
+    )
     return supporting < min_other_fovs
 
 
@@ -179,21 +223,17 @@ def novel_against(
     queries: np.ndarray,
     epsilon: float,
     min_other_fovs: int,
+    min_support_observations: int = 1,
 ) -> np.ndarray:
-    """Whether each query row has fewer than ``min_other_fovs`` reference FOVs within ``epsilon``.
+    """Whether each query row has too few reference FOVs supporting it within ``epsilon``.
 
     The rule of ``novel_observations`` applied to observations from FOVs that
     are not in the reference set, such as a newly acquired FOV judged against
     all the FOVs acquired before it.
     """
-    supporting = np.zeros(len(queries), dtype=np.int64)
-    if len(queries) == 0:
-        return supporting.astype(bool)
-    for fov in np.unique(reference_positions):
-        nearest, _ = cKDTree(reference[reference_positions == fov]).query(
-            queries, k=1, distance_upper_bound=epsilon * (1 + 1e-12)
-        )
-        supporting += nearest <= epsilon
+    supporting = _supporting_fovs(
+        reference, reference_positions, queries, epsilon, min_support_observations
+    )
     return supporting < min_other_fovs
 
 
@@ -301,7 +341,9 @@ class SupportNoveltyEstimator(Estimator):
         if reason is not None:
             return _unavailable("insufficient", reason, diagnostics)
 
-        novel = novel_observations(values, positions, self.epsilon, self.min_other_fovs)
+        novel = novel_observations(
+            values, positions, self.epsilon, self.min_other_fovs, self.min_novel_observations
+        )
         k = len(data.fovs)
         novel_per_fov = np.bincount(positions, weights=novel, minlength=k)
         counts = np.bincount(positions, minlength=k)
@@ -354,7 +396,14 @@ class SupportNoveltyEstimator(Estimator):
             if not fitted.fitted:
                 return None
             reference, queries = fitted.apply(visible), fitted.apply(new)
-        flags = novel_against(reference, positions, queries, self.epsilon, self.min_other_fovs)
+        flags = novel_against(
+            reference,
+            positions,
+            queries,
+            self.epsilon,
+            self.min_other_fovs,
+            self.min_novel_observations,
+        )
         new_positions = fov_positions(new, new.fovs)
         members = new_state_members(
             queries, new_positions, flags, self.epsilon, self.min_novel_observations
@@ -380,7 +429,9 @@ class SupportNoveltyEstimator(Estimator):
             if not fitted.fitted:
                 return None
             matrix = fitted.apply(data)
-        novel = novel_observations(matrix, positions, self.epsilon, self.min_other_fovs)
+        novel = novel_observations(
+            matrix, positions, self.epsilon, self.min_other_fovs, self.min_novel_observations
+        )
         if not new_states_only:
             return novel
         return new_state_members(

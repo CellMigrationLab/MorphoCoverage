@@ -350,3 +350,48 @@ def test_cell_weighted_and_fov_weighted_fractions_differ_with_unequal_fovs():
             data.objects, strategies=[strategy], feature_cols=["a", "b"], objective=POPULATION
         )
         assert (result.decision is Decision.STOP) is stops
+
+
+def test_support_needing_several_cells_matches_brute_force():
+    rng = np.random.default_rng(15)
+    for _ in range(25):
+        counts = rng.integers(1, 12, size=rng.integers(2, 6))
+        positions = np.repeat(np.arange(len(counts)), counts)
+        values = rng.normal(size=(len(positions), 2))
+        queries = rng.normal(size=(int(rng.integers(0, 8)), 2))
+        epsilon = rng.uniform(0.3, 1.5)
+        others, support = int(rng.integers(1, 3)), int(rng.integers(1, 4))
+
+        def supporters(rows_near, support=support):
+            fovs, per_fov = np.unique(rows_near, return_counts=True)
+            return set(fovs[per_fov >= support])
+
+        near = distance.cdist(values, values) <= epsilon
+        expected = [
+            len(supporters(positions[near[i]]) - {positions[i]}) < others
+            for i in range(len(values))
+        ]
+        flags = novel_observations(values, positions, epsilon, others, support)
+        assert list(flags) == expected
+        near_q = distance.cdist(queries, values) <= epsilon
+        expected_q = [len(supporters(positions[row])) < others for row in near_q]
+        assert list(novel_against(values, positions, queries, epsilon, others, support)) == (
+            expected_q
+        )
+
+
+def test_one_stray_cell_elsewhere_does_not_cancel_a_new_state():
+    # Regression (re-audit of this module): one cell near a tight 5-cell state
+    # in another FOV used to cover the whole state, and the state covered it.
+    rng = np.random.default_rng(16)
+    fovs = [rng.normal(0, 0.1, size=(20, 2)) for _ in range(8)]
+    fovs[0] = np.vstack([fovs[0], rng.normal((5.0, 5.0), 0.05, size=(5, 2))])
+    fovs[1] = np.vstack([fovs[1], [[5.0, 5.0]]])
+    estimator = SupportNoveltyEstimator(0.5, 1, None, 2, 3)
+    evidence = estimator.estimate(_table(fovs), objective=POPULATION)
+    assert evidence.diagnostics["novel_fovs"] == 1
+    counted = estimator.novel_observation_flags(_table(fovs), new_states_only=True)
+    assert counted.sum() == 5
+    # A state that genuinely recurs as a group in another FOV is still covered.
+    fovs[1] = np.vstack([fovs[1], rng.normal((5.0, 5.0), 0.05, size=(3, 2))])
+    assert estimator.estimate(_table(fovs), objective=POPULATION).diagnostics["novel_fovs"] == 0
