@@ -44,8 +44,18 @@ bandwidth 1, for a 100-observation stop inside 1,000 i.i.d. normal
 observations). Values against the full acquisition are therefore descriptive,
 not unbiased; a held-out reservoir (``morphocoverage.reservoir``) keeps the
 two samples disjoint. Cells within one FOV are usually correlated as well,
-so even then the property holds only approximately; compare strategies at
-matched FOV and observation counts. The centroid,
+and then even a disjoint reservoir of the same population gives a positive
+expected value that shrinks as FOVs are added: cells of one FOV are closer
+to each other than to cells of other FOVs, so the within-sample terms are
+too small. In a simulation with 20 cells per FOV and 30% of the variance
+between FOVs, the null energy distance averaged 0.065 for a 3-FOV stop and
+0.027 for a 10-FOV stop against a 20-FOV reservoir, against 0.000 for
+independent cells. So these values are not zero-centred per run: compare
+strategies at matched FOV and observation counts, over repeated orders and
+splits, never against zero. The U-statistics can also be negative (an
+energy distance of -0.2 for a stop at 0 and 1 against a reference at 0.4
+and 0.6); a negative value is sampling noise around a small discrepancy, not
+an error smaller than none. The centroid,
 covariance, quantile and Fréchet errors use plug-in estimates and are biased
 upward for small stops; compare them at matched observation counts or read
 them alongside ``RandomCellRelativeError``-style references. The quadratic
@@ -274,8 +284,9 @@ class EnergyError(_SubsampledOutcome):
 
     Unbiased only for a reference disjoint from the stop, such as a held-out
     reservoir; against the full acquisition, which contains the stop, it is
-    biased downward (module docstring). Can be slightly negative when the two
-    distributions are equal.
+    biased downward (module docstring). Not zero-centred when cells within a FOV
+    are correlated, and can be negative: compare runs at matched effort,
+    not against zero.
     """
 
     @property
@@ -295,8 +306,9 @@ class MMDError(_SubsampledOutcome):
 
     ``bandwidth`` is in the metric's feature units (standard deviations when
     ``standardize`` is true). Unbiased only for a reference disjoint from the
-    stop (module docstring). Can be slightly negative when the two
-    distributions are equal.
+    stop (module docstring). Not zero-centred when cells within a FOV
+    are correlated, and can be negative: compare runs at matched effort,
+    not against zero.
     """
 
     bandwidth: float

@@ -31,9 +31,22 @@ Splitting rules:
   and repeat a benchmark over several seeds so that conclusions do not rest
   on one partition.
 
+The stream is a thinned acquisition. Holding FOVs out removes them from the
+recorded order too, so a recorded-order replay of the stream is not the
+recorded acquisition: with single-FOV blocks and ``fraction=0.5``, successive
+stream FOVs of a raster scan lie about twice as far apart as successive
+acquired FOVs, which weakens neighbour correlation and can make stopping look
+easier than it would be at the microscope. Contiguous blocks keep runs of
+neighbours together in the stream. Report reservoir runs as thinned-stream
+validation, and read recorded-order results alongside a replay without a
+reservoir.
+
 A finite reservoir has its own sampling error. ``reference_error_floor``
-estimates its scale from split halves; adequacy tolerances should sit well
-above it.
+estimates its scale from split halves. It is a diagnostic noise scale, not a
+decision threshold: a stop whose error is below it is not thereby
+"sufficient", since the floor depends on the metric, the reservoir size and
+the blocks. Adequacy tolerances should sit well above it, and conclusions
+should rest on several splits, never one.
 """
 
 from __future__ import annotations
@@ -160,7 +173,9 @@ def reference_error_floor(
     the floor below which a stop's error cannot be distinguished from
     reference noise. With unequal blocks the halves differ in size, and with
     correlated blocks they are not independent, so the scale is then only
-    approximate. Values are ``None`` where the metric is undefined.
+    approximate. It is a noise scale for reading errors, not a threshold for
+    deciding that imaging was sufficient. Values are ``None`` where the metric
+    is undefined.
     """
     if isinstance(n_splits, bool) or not isinstance(n_splits, int) or n_splits < 1:
         raise ValueError("n_splits must be a positive integer")

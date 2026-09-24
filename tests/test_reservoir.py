@@ -223,3 +223,44 @@ def test_reference_error_floor_is_seeded_and_positive():
     assert floor == reference_error_floor(metric, held, n_splits=5, seed=1, block_col=None)
     with pytest.raises(ValueError):
         reference_error_floor(metric, held, n_splits=0, seed=1, block_col=None)
+
+
+def _raster(n=100):
+    """A raster scan of ``n`` FOVs along x whose phenotype drifts smoothly with position."""
+    fovs = pd.DataFrame(
+        {
+            "image_file": [f"f{i}" for i in range(n)],
+            "stage_x": np.arange(n, dtype=float),
+            "block": np.arange(n) // 10,
+        }
+    )
+    drift = np.cumsum(np.random.default_rng(0).normal(size=n))
+    objects = pd.DataFrame({"image_file": fovs["image_file"], "x": drift})
+    return validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+
+
+def _stream_steps(stream):
+    """Distance and phenotype change between successive stream FOVs in acquisition order."""
+    ordered = stream.fovs.sort_values("stage_x")
+    values = stream.objects.set_index("image_file").loc[ordered["image_file"], "x"].to_numpy()
+    return np.diff(ordered["stage_x"].to_numpy()), np.abs(np.diff(values))
+
+
+def test_the_reservoir_stream_is_a_thinned_acquisition():
+    # External re-audit: holding FOVs out also removes them from the recorded
+    # order. Successive stream FOVs of a raster scan are about twice as far
+    # apart, and differ more in a drifting phenotype, than successive acquired
+    # FOVs; contiguous blocks keep most neighbours together.
+    data = _raster()
+    full_step, full_change = _stream_steps(data)
+    singles, blocked = [], []
+    for seed in range(20):
+        singles.append(_stream_steps(ReservoirSplit(0.5, seed, None).split({}, data)[0]))
+        blocked.append(_stream_steps(ReservoirSplit(0.5, seed, "block").split({}, data)[0]))
+    single_step = np.mean([step.mean() for step, _ in singles])
+    single_change = np.mean([change.mean() for _, change in singles])
+    assert full_step.mean() == 1.0
+    assert 1.7 < single_step < 2.3
+    assert single_change > 1.2 * full_change.mean()
+    # Blocks of 10 contiguous FOVs: most successive stream FOVs are still neighbours.
+    assert np.mean([np.median(step) for step, _ in blocked]) == 1.0
