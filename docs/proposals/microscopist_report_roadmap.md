@@ -35,6 +35,38 @@ null or negative result.
    effort; random procedures take seeds; no future-FOV leakage in anything
    prospective.
 
+## Microscopist first
+
+The reason for every step is a decision a microscopist makes. Four rules make
+that concrete, and each step below is written against them:
+
+1. **Every step ships an answer, not only a table.** Each step defines the
+   sentences the report prints, the decision they support, and adds them to
+   `sufficiency_report(...).summary()` when the step lands. Nothing waits for
+   the final assembly.
+2. **Plain words in everything the user reads.** The report says "fields",
+   "held-back fields", "what you wanted to preserve", "how often it would have
+   worked"; it never says reservoir, criterion, prefix, outcome metric or
+   `config_id` except in the detailed tables. Every number in a sentence comes
+   with its unit (FOVs, % of acquisitions, µm, minutes).
+3. **Only scientific choices are asked of the user.** What to preserve (the
+   readout, the distribution, rare states) and how closely (for example "the
+   well mean within 5%") are asked in words, with provisional presets.
+   Computational settings (outer splits, draws, seeds) have documented
+   defaults sized for a result in minutes, and the report says how stable the
+   answer is across them.
+4. **A reading test is part of acceptance.** On a real dataset, the project
+   owner reads the step's output without the code and says what they would do
+   differently. If they cannot, the step is not done.
+
+The example outputs in each step are illustrative wording, not results.
+
+Steps 1, 3, 4, 5, 6, 7 and 8 answer a microscopist's question directly. Step 2
+(stopping-rule calibration) answers the question of someone choosing or
+building an automated stopping rule for smart microscopy; its answer is still
+worded for the microscopist ("this rule would have stopped too early in 7% of
+acquisitions").
+
 ## Architecture
 
 Three boundaries, kept apart:
@@ -100,6 +132,14 @@ example the tiled images the project owner can provide.
 - Registration of the deeper dataset(s), with development and held-out roles
   fixed before any curve is computed.
 
+**What the microscopist gets.** The ability to start from what they have: a
+CellProfiler-style export. `fov_table_from_observations(...)` builds the FOV
+table from an observation table when no acquisition record exists, and says
+loudly that FOVs without cells are then missing and effort is undercounted.
+The report asks, in words, what matters: "a reliable average of <readout>",
+"the full distribution", "rare states", each mapped to criteria with
+provisional thresholds.
+
 **Validation:** threshold direction; undefined outcomes; each nesting
 violation raises a clear error; both types are JSON-serializable.
 
@@ -135,6 +175,19 @@ per sample × criterion × `k`:
 
 A secondary mode scores against the sample's remaining FOVs, labelled as a
 changing-reference cross-validation for small datasets.
+
+**What the microscopist sees.**
+
+```text
+How many fields do you need? (what you wanted: the well mean of YAP/TAZ ratio within 5%)
+  10 fields   worked in 62% of random acquisitions
+  15 fields   worked in 84%
+  20 fields   worked in 93%     <- each further field changes the answer by < 0.5%
+  (judged on 10 held-back fields; stable across 10 different hold-outs)
+```
+
+Decision supported: how many fields to plan for a sample like this one. A
+first notebook cell on idr0028 shows it.
 
 **Validation**
 
@@ -175,6 +228,11 @@ that stops late is visible as well as one that stops early. The existing
 next-FOV novelty calibration (`morphocoverage.calibration`) is a special case
 and joins this module.
 
+**What the microscopist sees.** "If you had let <rule> stop the acquisition, it
+would have stopped after a median of 17 fields; 7% of those stops were too
+early for what you wanted to preserve, and in 9% it never stopped." Decision
+supported: whether to trust an automated stopping rule on the microscope.
+
 **Validation:** a rule that always stops at the first FOV (every stop
 premature unless the sample is homogeneous); a rule that never stops (never
 stopped = 100%); a fixed-FOV rule, whose calibration must match Step 1 at the
@@ -203,6 +261,12 @@ preserved?*
 
 The apparent points use only decisions; the realized points use only
 outcomes. They are never mixed.
+
+**What the microscopist sees.** "A live rule would have stopped at field 16, but
+the data changed again at field 24; judged on held-back fields, what you
+wanted was reliably preserved from field 25." Decision supported: how many of
+the acquired fields were really needed, and whether an early stop would have
+been a mistake.
 
 **Validation:** stop at 16, stop to 23, continue at 24, stop from 25 gives first
 apparent 16 and sustained apparent 25; an undefined decision at 30 moves
@@ -237,6 +301,18 @@ the declared independent unit (samples, or repeats when declared), with `n`
 equal to the number of those units. A contract test checks that the interval
 does not narrow when draws or splits are increased at fixed samples.
 
+**What the microscopist sees.**
+
+```text
+For experiments like this one (12 samples, 3 plates):
+  20 fields per sample: enough for 9 of 12 samples (plates: 3 of 3, 3 of 4, 3 of 5)
+  25 fields: enough for 11 of 12; one sample (<plate, well>) needs more than the fields acquired
+  Uncertainty is large with 3 plates: repeat on more plates before fixing a protocol.
+```
+
+Decision supported: the FOV number to write into the protocol, and whether a
+fixed number is sensible at all or adaptive acquisition would save time.
+
 **Validation:** that test; a constructed set with one very heterogeneous
 sample, which is named; tuning on held-out samples raises
 (`BenchmarkRegistry`); denominators always shown.
@@ -260,6 +336,12 @@ No combined score, and no FOV is called bad, an outlier or an artifact:
 influential FOVs may be biologically crucial, technical artifacts, or simply
 large.
 
+**What the microscopist sees.** A short list of fields to reopen, each with the
+image file, where it is on the stage, and why ("the only field with 8 cells of
+a state seen nowhere else"; "removing it lowers the 95th percentile of cell
+area by 18%"; "412 cells, the median is 90"). Decision supported: which images
+to look at before trusting the result.
+
 **Validation:** constructed scenarios where one FOV holds the only rare state,
 one drives a tail quantile and one is dense; each is listed with the right
 reason and no other is. Duplicating cells within a FOV does not raise its
@@ -282,6 +364,13 @@ declared negative population (for example MOCK). Reports:
   assessed";
 - with neither: "representation sensitivity: not assessed".
 
+**What the microscopist sees.** "With these features, fields of the declared
+positive control were recognized as different in 94% of cases, and reference
+fields in 3%." Or: "not assessed: no control was declared, so a 'nothing new'
+answer says nothing about phenotypes these features cannot see." Decision
+supported: whether to trust the sampling answers for the phenotype they care
+about, or to change the features first.
+
 **Validation:** reproduces the tracked positive-control numbers from the same
 seed; a positive control identical to the reference gives detection equal to
 the false-alarm rate.
@@ -302,6 +391,12 @@ YAP/TAZ ratio, a mean cell area, a phenotype-state fraction) and a declared
 - projected standard error under counterfactual allocations at equal total FOV
   acquisition (for example 6 × 40, 8 × 30, 10 × 24), each with an interval;
 - text only when intervals separate; otherwise "cannot tell from these data".
+
+**What the microscopist sees.** "For the mean YAP/TAZ ratio, most of the
+remaining uncertainty is between samples: at the same total number of fields,
+8 samples × 30 fields would give a 24% smaller standard error than 6 × 40."
+Or: "cannot tell from 3 plates." Decision supported: whether to spend the
+next experiment on more fields or on more samples.
 
 **Validation:** simulated hierarchies with known components (including no
 between-sample variance, and FOV variance dominating), recovered within their
@@ -329,6 +424,11 @@ order?* (Not whether they were the right locations; that is Step 9.)
 - Spatial redundancy stated in µm from the semivariogram, as a limitation, not
   an adequacy claim.
 
+**What the microscopist sees.** "Your raster needed 28 fields and 7 mm of stage
+travel; spreading the same positions out would have needed about 19 fields and
+38 mm. Neighbouring fields closer than about 250 µm were largely redundant."
+Decision supported: how to lay out fields next time.
+
 **Validation:** a constructed gradient where dispersed orders reach sustained
 realized adequacy with fewer FOVs but more travel; a spatially uniform sample
 where orders do not differ beyond noise. A null result on idr0028's small grid
@@ -341,14 +441,15 @@ Needs a table of all candidate positions from an overview, with covariates
 such as density or region: a new input contract (AGENTS.md section 15) and
 upstream support in CellPatcher. Not started until approved.
 
-## Step 10 — The report
+## Step 10 — The report as one document
 
-Assemble Steps 1–8 into the question-first report
-(`docs/proposals/microscopist_report.md`), with the plain-language front door
-mapping user choices to criteria and tolerances, provisional presets labelled
-as such, and every sentence traceable to a table column. Includes a worked
-notebook from a published CellProfiler export and a helper that builds the FOV
-table from an observation table, warning that FOVs without cells are lost.
+Each step already adds its sentences to `summary()`. This step orders them
+by the question list of the proposal, adds the sampling profile (what is
+limiting this experiment, drawn from Steps 1, 5, 6, 7 and 8), and finishes the
+worked notebook from a published CellProfiler export to the answers, started
+in Steps 0 and 1. Every sentence stays traceable to a table column. The
+reading test (rule 4) is repeated on the whole report and on a dataset the
+roadmap was not built on.
 
 ## Cross-cutting
 
