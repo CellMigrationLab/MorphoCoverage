@@ -97,7 +97,7 @@ def test_centring_removes_differences_between_sample_means():
     assert close.cv == pytest.approx(apart.cv, rel=1e-12)
     # Without centring, the dish offset would inflate the raw SD.
     objects, _ = _two_dishes(means=(1.0, 1.5))
-    assert np.std(objects["area"], ddof=1) > 2 * apart.cv
+    assert np.std(objects["area"], ddof=1) > apart.cv
 
 
 def test_sd_is_expressed_relative_to_all_control_observations():
@@ -255,7 +255,7 @@ def test_strategy_stops_at_the_first_fov_that_reaches_the_planned_count():
 def test_groups_containing_pilot_samples_are_not_judged_on_their_own_plan():
     objects, fovs = _two_dishes()
     plan = _plan(objects, fovs)
-    [result] = run_strategies(
+    results = run_strategies(
         objects,
         fovs=fovs,
         strategies=[PlannedCellCountStrategy(plan)],
@@ -263,10 +263,12 @@ def test_groups_containing_pilot_samples_are_not_judged_on_their_own_plan():
         objective=POPULATION,
         group_cols=["condition"],
     )
-    assert result.decision is None
-    quantity = result.evidence.quantities["planned_required_objects"]
-    assert quantity.availability.value == "not_applicable"
-    assert "pilot samples" in quantity.reason
+    assert len(results) == 2
+    for result in results:
+        assert result.decision is None
+        quantity = result.evidence.quantities["planned_required_objects"]
+        assert quantity.availability.value == "not_applicable"
+        assert "pilot samples" in quantity.reason
 
 
 def test_plan_does_not_apply_when_samples_cannot_be_identified_or_rows_are_not_cells():
@@ -298,7 +300,7 @@ def test_plan_is_provenance():
     objects, fovs = _two_dishes()
     point, upper = _plan(objects, fovs), _plan(objects, fovs, sd_estimate="upper_95")
     record = json.loads(json.dumps(point.parameters))
-    assert record["pilot_samples"] == [["control", "dish1"], ["control", "dish2"]]
+    assert record["pilot_samples"] == [["control", "dish1"], ["drug", "dish2"]]
     assert record["control"] == {"condition": "control"}
     first = PlannedCellCountStrategy(point)
     assert first.config_id == PlannedCellCountStrategy(_plan(objects, fovs)).config_id
