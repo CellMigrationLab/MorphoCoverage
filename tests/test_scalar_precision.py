@@ -281,6 +281,22 @@ def test_pilot_uses_order_column_not_row_order():
     )
 
 
+def test_diagnostics_leave_effort_to_the_framework_and_keep_the_pilot_counts():
+    objects, fovs = _tables([[2.0, 2.0], [1.0, 3.0], [1.0, 3.0]])
+    strategy = ScalarPrecisionStrategy(
+        "area", 0.05, "object", "point", pilot_fovs=2, order_col="order"
+    )
+    result = _evaluate(objects, fovs, strategy)
+    # AGENTS.md section 20: effort of the visible data is the framework's.
+    assert "n_objects" not in result.diagnostics and "n_fovs" not in result.diagnostics
+    assert (result.n_fovs, result.n_objects) == (3, 6)
+    # The pilot's own counts are its provenance: the first two FOVs by order.
+    assert (result.diagnostics["pilot"]["n_fovs"], result.diagnostics["pilot"]["n_objects"]) == (
+        2,
+        4,
+    )
+
+
 # --- Undefined cases and input rules --------------------------------------------
 
 

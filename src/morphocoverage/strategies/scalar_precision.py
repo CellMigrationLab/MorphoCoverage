@@ -146,6 +146,11 @@ def required_fovs(cv_mean: float, n_fovs: int, target_cv: float) -> int:
 _CV_UNITS = "fraction of the mean (CV)"
 
 
+# Effort counts of the visible data belong to the framework (``StrategyResult``),
+# not to an estimator's diagnostics; only the pilot's own counts are reported.
+_EFFORT_KEYS = ("n_objects", "n_fovs")
+
+
 def _cv_quantity(value: float | None, availability: str = "available", reason=None) -> Quantity:
     """An averaging-CV quantity: population evidence, lower is better, fraction of the mean."""
     return Quantity(
@@ -275,6 +280,8 @@ class ScalarPrecisionEstimator(Estimator):
                 "between-cell SD exceeds 50% CV; the paper advises acquiring more data "
                 "and repeating the estimate"
             )
+        # The data this estimate came from: kept for the pilot's provenance, and
+        # dropped from the visible estimate's diagnostics (the framework owns effort).
         estimate["n_objects"] = n_objects
         estimate["n_fovs"] = len(sums)
         return estimate
@@ -320,7 +327,7 @@ class ScalarPrecisionEstimator(Estimator):
             diagnostics["undefined_reason"] = reason
             quantities["averaging_cv"] = _cv_quantity(None, availability, reason)
         else:
-            diagnostics.update(current)
+            diagnostics.update({k: v for k, v in current.items() if k not in _EFFORT_KEYS})
             quantities["averaging_cv"] = _cv_quantity(current["cv_mean" + self._suffix()])
         if self.pilot_fovs is not None:
             quantities["pilot_projected_averaging_cv"] = self._projection(
