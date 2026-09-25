@@ -54,8 +54,8 @@ was not chosen on.
 | P2 | **Does that recommendation generalize across samples and biological repeats?** Not "20 worked in this well", but "20 worked in 75% of held-out samples; 25 in 93%". | `protocol_reliability`, counted by independent unit, with a leave-one-unit-out check; held-out datasets (`data/crick_idr/datasets.py`) | partial: implemented; needs at least 5 independent units and deeper held-out data |
 | P3 | **What did the additional imaging buy?** From 5 to 10 FOVs, 10 to 20, 20 to 30. | the `gain` column of the reliability curve; adequacy points | partial: the gains are computed but not printed as increments |
 | P4 | **When did additional imaging become mostly redundant?** At the same point for common and rare phenotypes? | sustained realized adequacy per criterion, with its 90th percentile | partial: rare phenotypes need independent labels |
-| P5 | **Would a simple sampling rule have been sufficient?** A fixed number of FOVs, a fixed area, a fixed cell number, the JCB/Zweifach rule, the JCS descriptor rule? | the packaged baselines, replayed and calibrated | partial: the matched-risk comparison is planned. **Benchmark** |
-| P6 | **How reliable is a proposed automated stopping rule?** When it says STOP: how often is it correct, how often premature, how much acquisition does it save? This is ONLINE 6 seen from the planning side. | `stopping_calibration` on replayed acquisitions | done for correct and premature stops; savings at matched risk planned. **Benchmark** |
+| P5 | **Would a simple sampling rule have been sufficient?** A fixed number of FOVs, a fixed area, a fixed cell number, the JCB/Zweifach rule, the JCS descriptor rule? | the packaged baselines, replayed and calibrated; fields saved at matched risk (`retrospective.frontier`, `data/crick_idr/benchmark.py`) | done for the mean and for planted rare states on idr0028, with transfer to idr0139; the distribution questions need deeper data. **Benchmark** |
+| P6 | **How reliable is a proposed automated stopping rule?** When it says STOP: how often is it correct, how often premature, how much acquisition does it save? This is ONLINE 6 seen from the planning side. | `stopping_calibration` on replayed acquisitions; savings and risk at matched effort (`retrospective.frontier`) | done. **Benchmark** |
 | P7 | **Am I repeatedly imaging essentially the same thing?** How strong is spatial redundancy, and over what distance? | `redundancy_distance`, FOV semivariogram | done, as a diagnostic, not an adequacy claim |
 | P8 | **Could I acquire the same information more efficiently?** Would random or spatially dispersed orders beat the recorded raster, and at what cost in stage travel and time? | `order_efficiency` with recorded, random and dispersed orders | done |
 | P9 | **Were my selected locations representative of the specimen?** | needs every candidate position from an overview (a new input contract) | gap |
@@ -95,9 +95,10 @@ extension, which changes the sampling distribution and needs its own design.
 
 ## Open work, in order
 
-1. The benchmark behind the **Benchmark** rows: threshold sweeps and fields
-   saved at matched risk against the fixed-FOV rule, with JCB and JCS per cell
-   and per field as the current-practice baselines (`docs/benchmarking.md`).
+1. The benchmark behind the remaining **Benchmark** rows: the distribution
+   questions of R2, P1 (a method's recommended number against the realized
+   need), P10 and O6, which need deeper held-out data. The score and the mean
+   and rare-state rows are done (`docs/benchmarking.md`, "The score").
 2. R6 as its own report section; P3 printed as increments; O4 as one view.
 3. O5, a borderline state in the decision, and O6, the calibration of the
    same rule attached to the live session.

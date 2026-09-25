@@ -90,6 +90,22 @@ The remaining retrospective analyses (roadmap Steps 4–8 and 10) each answer on
 
 **Registered datasets** (`data/crick_idr/datasets.py`, a `BenchmarkRegistry`). idr0028 (committed subset: 12 wells × 28 FOVs on 3 plates) is the **development** dataset: every preset and definition of new was chosen on it, and it sets no protocol. idr0139 (10 wells × 4 FOVs on one plate, the JCS case study) is registered **held out**: never used to choose a setting, so `check_tuning` refuses a run that claims to be tuned on it. It is shallow (a 2-field reservoir judges 1 or 2 stream fields), so it can refute a development conclusion but not establish a field number; `heldout_idr0139.py` runs that check (`docs/preliminary_findings.md`, entry 7). Deeper held-out data are still needed.
 
+## The score: fields saved at matched risk
+
+`morphocoverage.retrospective.frontier` turns replayed acquisitions into one number per rule family, question and risk level, and keeps the curve behind it.
+
+- **Risk** of a rule at one setting: the share of replayed acquisitions whose acquisition, ended at the rule's stop (or at the end of the stream when it never stopped), did not preserve the declared outcome in the held-back fields. Outcomes that could not be judged are left out of the share and counted.
+- **Effort**: the mean number of fields acquired, the stop or the whole stream.
+- **Baseline**: a fixed number of fields `k`, for every `k` up to the longest stream, computed from the same replays. It needs no data, so it is the null every rule must beat.
+- **Chosen setting** at risk level `alpha`: the cheapest setting from which risk stays within `alpha` at every setting with more effort, so a lucky dip in a noisy curve is not taken as safe (the rule of `protocol_reliability`).
+- **Score**: fields saved = the baseline's effort at `alpha` minus the family's. Zero is the null result; negative is worse than a fixed count. The interval resamples the declared independent units, never hold-outs or orders.
+- **Adaptivity**: the Spearman correlation between where the rule stopped and where held-back fields confirmed the outcome lastingly. A rule that saves fields by stopping later on harder samples has a positive value.
+- **Transfer**: the setting chosen on a development dataset to meet `alpha`, scored on a held-out dataset. A threshold is only as good as its risk on data it was not chosen on.
+
+A family is either strategies replayed side by side (`family`) or one replayed configuration re-decided at many thresholds (`sweep`, which uses `redecide` on results kept with `replay_acquisitions(keep_results=True)`, so no estimator runs twice).
+
+The benchmark on the committed data is `data/crick_idr/benchmark.py`. Its protocol (`benchmark_protocol.py`: questions, criteria, families and their threshold grids, risk levels, replay design, units) is locked by digest before the first run, and the runner refuses to run a changed protocol; a change needs a new version. Stage 1 compares each rule per cell and per field; stage 2 compares the richer rules with those and with the fixed count, question by question (`docs/questions.md`, the **Benchmark** rows). Results are in `docs/preliminary_findings.md`, entry 8.
+
 ## Scientific performance dimensions
 
 Strategies should be compared on several independent outcomes, not only a metric related to their own score.
