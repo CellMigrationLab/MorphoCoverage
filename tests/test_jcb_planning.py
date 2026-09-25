@@ -86,15 +86,17 @@ def test_reproduces_the_papers_worked_example_from_two_dishes():
         (0.05, "point"): 13,
         (0.05, "upper_95"): 27,
     }
-    assert (plan.n_samples, plan.n_control_samples, plan.n_objects) == (2, 2, 20)
+    assert (plan.n_samples, plan.n_control_samples, plan.n_objects) == (2, 1, 20)
 
 
 def test_centring_removes_differences_between_sample_means():
-    close = _plan(*_two_dishes(means=(0.99, 1.01)))
-    apart = _plan(*_two_dishes(means=(0.5, 1.5)))
+    # Keep the control normalization fixed and move only the treated mean:
+    # centring each sample removes that between-sample offset from the SD.
+    close = _plan(*_two_dishes(means=(1.0, 1.01)))
+    apart = _plan(*_two_dishes(means=(1.0, 1.5)))
     assert close.cv == pytest.approx(apart.cv, rel=1e-12)
-    # Without centring, the dish offset would inflate the SD.
-    objects, _ = _two_dishes(means=(0.5, 1.5))
+    # Without centring, the dish offset would inflate the raw SD.
+    objects, _ = _two_dishes(means=(1.0, 1.5))
     assert np.std(objects["area"], ddof=1) > 2 * apart.cv
 
 
