@@ -72,7 +72,7 @@ FOV bootstrap of the mean   0.05    0.004          0.050000            5.693939 
              JCB per cell   0.05    0.005          0.016667            8.200000       0.583333              2.0            360.0 the well mean within 2.5%
             JCB per field   0.05    0.030          0.037879            4.292424       0.583333              2.0            360.0 the well mean within 2.5%
       JCS spread per cell   0.05    0.040          0.037879            4.131818       0.583333              2.0            360.0 the well mean within 2.5%
-     JCS spread per field   0.05    0.020          0.025758           10.236364       0.583333              2.0            360.0 the well mean within 2.5%
+     JCS spread per field   0.05    0.020          0.025758           10.237879       0.583333              2.0            360.0 the well mean within 2.5%
              fixed fields   0.10    2.000          0.089394            2.000000       0.583333              2.0            360.0 the well mean within 2.5%
 FOV bootstrap of the mean   0.10    0.032          0.089394            2.000000       0.583333              2.0            360.0 the well mean within 2.5%
              JCB per cell   0.10    0.010          0.051515            2.824242       0.583333              2.0            360.0 the well mean within 2.5%
@@ -80,7 +80,7 @@ FOV bootstrap of the mean   0.10    0.032          0.089394            2.000000 
       JCS spread per cell   0.10    0.040          0.037879            4.131818       0.583333              2.0            360.0 the well mean within 2.5%
      JCS spread per field   0.10    0.080          0.089394            2.000000       0.583333              2.0            360.0 the well mean within 2.5%
 
-== rare, planted states in idr0028 (semi-synthetic; replays 43 s) ==
+== rare, planted states in idr0028 (semi-synthetic; replays 40 s) ==
 
 For the planted state seen, when the held-back fields show it, stopping too early in at most 5% of acquisitions:
   a fixed number of fields needed 15 fields (risk 5%).

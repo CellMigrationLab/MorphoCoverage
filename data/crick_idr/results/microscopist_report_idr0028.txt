@@ -1,13 +1,54 @@
-1. Can these features detect what I care about?
+1. Can I count objects, or must I count fields?
+  How variable are the fields? Feature YAPTAZ_Ratio.
+  condition=MOCK, repeat=1A, well=B6: 28 fields, 966 nuclei (34 per field). 2% of the variance lies between fields. A mean from whole fields has 1.7 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.3-fold. 14% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=LATS1, repeat=1A, well=I23: 28 fields, 718 nuclei (26 per field). 4% of the variance lies between fields. A mean from whole fields has 2.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 11% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=LATS1, repeat=1A, well=J23: 28 fields, 647 nuclei (23 per field). 4% of the variance lies between fields. A mean from whole fields has 1.9 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 11% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=YAP, repeat=1A, well=M23: 28 fields, 651 nuclei (23 per field). 4% of the variance lies between fields. A mean from whole fields has 2.1 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 18% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=YAP, repeat=1A, well=N23: 28 fields, 607 nuclei (22 per field). 0% of the variance lies between fields. A mean from whole fields has 1.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.0-fold. 4% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=ARAP2, repeat=2A, well=C13: 28 fields, 797 nuclei (28 per field). 0% of the variance lies between fields. A mean from whole fields has 1.1 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.0-fold. 4% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=LATS1, repeat=2A, well=J23: 28 fields, 736 nuclei (26 per field). 4% of the variance lies between fields. A mean from whole fields has 2.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 14% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=MOCK, repeat=2A, well=K16: 28 fields, 953 nuclei (34 per field). 4% of the variance lies between fields. A mean from whole fields has 2.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.5-fold. 21% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=YAP, repeat=2A, well=N23: 28 fields, 557 nuclei (20 per field). 6% of the variance lies between fields. A mean from whole fields has 2.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.5-fold. 18% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=ARAP2, repeat=2B, well=C13: 28 fields, 999 nuclei (36 per field). 5% of the variance lies between fields. A mean from whole fields has 2.8 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.7-fold. 21% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=ARAP2, repeat=2B, well=C17: 28 fields, 956 nuclei (34 per field). 7% of the variance lies between fields. A mean from whole fields has 3.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.8-fold. 36% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=MOCK, repeat=2B, well=P13: 28 fields, 963 nuclei (34 per field). 5% of the variance lies between fields. A mean from whole fields has 2.8 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.7-fold. 29% of fields differ more than random nuclei would let them (about 5% expected).
+
+  Would the JCB object-count rule hold with whole fields? Feature YAPTAZ_Ratio; reference mean: mean of 3 control group(s) {'condition': 'MOCK'}.
+  condition=MOCK, repeat=1A, well=B6, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.3% (1.2 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=1A, well=B6, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.3% (1.2 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=1A, well=I23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.8% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=1A, well=I23, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.8% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=1A, well=J23, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.6%; the real error of that mean is 2.1% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=1A, well=J23, target 2.5%: the rule asks for 10 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.6%; the real error of that mean is 2.1% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=1A, well=M23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=1A, well=M23, target 2.5%: the rule asks for 6 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=1A, well=N23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.3% (0.9 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=1A, well=N23, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.3% (0.9 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2A, well=C13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.3% (1.0 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2A, well=C13, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.3% (1.1 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=2A, well=J23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=2A, well=J23, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=2A, well=K16, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.3%; the real error of that mean is 2.0% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=2A, well=K16, target 2.5%: the rule asks for 9 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.3%; the real error of that mean is 1.9% (1.5 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=2A, well=N23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.0% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=2A, well=N23, target 2.5%: the rule asks for 6 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.0% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2B, well=C13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2B, well=C13, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2B, well=C17, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.5% (1.8 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2B, well=C17, target 2.5%: the rule asks for 10 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.4% (1.8 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=2B, well=P13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.9% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=2B, well=P13, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+
+2. Can these features detect what I care about?
   Can these features see the declared phenotype? (after 10 reference fields)
     Fields of the declared positive control were recognized as different in 100% of 1680 checks.
-    Ordinary reference fields with 5 positive-control observations added were recognized in 100% of 720 checks.
+    Ordinary reference fields with 5 positive-control objects added were recognized in 100% of 720 checks.
     Reference fields were called different in 2% of 720 checks (false alarms).
     Positive control per repeat: repeat=1A: 100%, repeat=2A: 100%.
     Not judged: repeat=2B (no positive-control FOV).
     This holds for this definition of new and these features, on these controls; a phenotype unlike the control may be seen better or worse.
 
-2. Did I image enough?
+3. Did I image enough?
   condition=MOCK, repeat=1A, well=B6:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
@@ -510,22 +551,48 @@
       for the well mean within 2.5%: 12% of acquisitions stopped too early, 88% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-3. What is limiting my sampling?
+4. What is limiting my sampling?
+  a mean from whole fields varies 2.1 times as much as one from as many random nuclei (design effect, range 1.0-3.4); 16% of fields differ more than random nuclei would (5% expected) [median of 12 groups; fov_variability]
+  unusual: clustered in a few fields (p <= 0.05) in 5 of the 11 groups where it was seen; there, seeing it takes about 1.9 times the fields that a count of nuclei predicts [all groups; fov_clustering]
   100% of declared positive-control fields recognized as different [pooled; representation_control]
-  100% of fields with planted positive-control observations recognized [pooled; representation_control]
+  100% of fields with planted positive-control nuclei recognized [pooled; representation_control]
   2% of reference fields called different (false alarms) [pooled; representation_control]
-  a mean from whole fields varies 2.3 times as much as one from the same number of random observations (design effect) [condition=MOCK; effort_projection]
   52% of the variance of the mean is between fields within a sample; not established: only 3 samples [condition=MOCK; effort_projection]
-  a mean from whole fields varies 2.0 times as much as one from the same number of random observations (design effect) [condition=LATS1; effort_projection]
   98% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero [condition=LATS1; effort_projection]
-  a mean from whole fields varies 1.6 times as much as one from the same number of random observations (design effect) [condition=YAP; effort_projection]
   99% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero [condition=YAP; effort_projection]
-  a mean from whole fields varies 2.6 times as much as one from the same number of random observations (design effect) [condition=ARAP2; effort_projection]
   80% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero [condition=ARAP2; effort_projection]
   in 5 of 12 groups, fields closer than about 520 µm (median) are more alike than random pairs [all groups; redundancy_distance]
   new states come from 4 fields (about 6 of 336 expected by chance at the 2% false-alarm rate of the declared reference) [all groups; inspect_fovs]
 
-4. How many fields should I image next time?
+  Unusual nuclei: farther from the reference {'condition': 'MOCK'} than all but 1.0% of reference nuclei are from other reference fields (30 standardized features, 5 nearest neighbours).
+  condition=MOCK, repeat=1A, well=B6: 14 of 966 nuclei unusual (1.4%). Refits with other reference samples agree on 100% of them.
+  condition=LATS1, repeat=1A, well=I23: 12 of 718 nuclei unusual (1.7%). Refits with other reference samples agree on 100% of them.
+  condition=LATS1, repeat=1A, well=J23: 7 of 647 nuclei unusual (1.1%). Refits with other reference samples agree on 100% of them.
+  condition=YAP, repeat=1A, well=M23: 1 of 651 nuclei unusual (0.2%). Refits with other reference samples agree on 100% of them.
+  condition=YAP, repeat=1A, well=N23: 2 of 607 nuclei unusual (0.3%). Refits with other reference samples agree on 100% of them.
+  condition=ARAP2, repeat=2A, well=C13: 5 of 797 nuclei unusual (0.6%). Refits with other reference samples agree on 100% of them.
+  condition=LATS1, repeat=2A, well=J23: 0 of 736 nuclei unusual (0.0%). Refits with other reference samples agree on 100% of them.
+  condition=MOCK, repeat=2A, well=K16: 11 of 953 nuclei unusual (1.2%). Refits with other reference samples agree on 100% of them.
+  condition=YAP, repeat=2A, well=N23: 7 of 557 nuclei unusual (1.3%). Refits with other reference samples agree on 100% of them.
+  condition=ARAP2, repeat=2B, well=C13: 25 of 999 nuclei unusual (2.5%). Refits with other reference samples agree on 100% of them.
+  condition=ARAP2, repeat=2B, well=C17: 19 of 956 nuclei unusual (2.0%). Refits with other reference samples agree on 100% of them.
+  condition=MOCK, repeat=2B, well=P13: 6 of 963 nuclei unusual (0.6%). Refits with other reference samples agree on 100% of them.
+
+  Are the states spread over the fields? Labels unusual.
+  condition=MOCK, repeat=1A, well=B6, unusual: 14 nuclei (1.4%) in 8 of 28 fields; random nuclei would fill 11.1 (clustering ratio 1.4, p = 0.015). To see it with 95% chance: 9 fields (up to 19) from its field incidence, against 6 fields if the nuclei were random.
+  condition=LATS1, repeat=1A, well=I23, unusual: 12 nuclei (1.7%) in 6 of 28 fields; random nuclei would fill 9.7 (clustering ratio 1.6, p = 0.004). To see it with 95% chance: 13 fields (up to 30) from its field incidence, against 7 fields if the nuclei were random.
+  condition=LATS1, repeat=1A, well=J23, unusual: 7 nuclei (1.1%) in 7 of 28 fields; random nuclei would fill 6.3 (clustering ratio 0.9, p = 1). To see it with 95% chance: 11 fields (up to 23) from its field incidence, against 12 fields if the nuclei were random.
+  condition=YAP, repeat=1A, well=M23, unusual: 1 nuclei (0.2%) in 1 of 28 fields; random nuclei would fill 1.0 (clustering ratio 1.0, p = 1). To see it with 95% chance: 83 fields (up to 1636) from its field incidence, against 84 fields if the nuclei were random.
+  condition=YAP, repeat=1A, well=N23, unusual: 2 nuclei (0.3%) in 2 of 28 fields; random nuclei would fill 2.0 (clustering ratio 1.0, p = 1). To see it with 95% chance: 41 fields (up to 232) from its field incidence, against 42 fields if the nuclei were random.
+  condition=ARAP2, repeat=2A, well=C13, unusual: 5 nuclei (0.6%) in 4 of 28 fields; random nuclei would fill 4.6 (clustering ratio 1.2, p = 0.33). To see it with 95% chance: 20 fields (up to 59) from its field incidence, against 17 fields if the nuclei were random.
+  condition=LATS1, repeat=2A, well=J23, unusual: not seen in 28 fields.
+  condition=MOCK, repeat=2A, well=K16, unusual: 11 nuclei (1.2%) in 6 of 28 fields; random nuclei would fill 9.2 (clustering ratio 1.5, p = 0.007). To see it with 95% chance: 13 fields (up to 30) from its field incidence, against 8 fields if the nuclei were random.
+  condition=YAP, repeat=2A, well=N23, unusual: 7 nuclei (1.3%) in 3 of 28 fields; random nuclei would fill 6.2 (clustering ratio 2.1, p = 0.002). To see it with 95% chance: 27 fields (up to 99) from its field incidence, against 12 fields if the nuclei were random.
+  condition=ARAP2, repeat=2B, well=C13, unusual: 25 nuclei (2.5%) in 9 of 28 fields; random nuclei would fill 16.6 (clustering ratio 1.8, p = 0.001). To see it with 95% chance: 8 fields (up to 16) from its field incidence, against 4 fields if the nuclei were random.
+  condition=ARAP2, repeat=2B, well=C17, unusual: 19 nuclei (2.0%) in 12 of 28 fields; random nuclei would fill 13.9 (clustering ratio 1.2, p = 0.2). To see it with 95% chance: 6 fields (up to 10) from its field incidence, against 5 fields if the nuclei were random.
+  condition=MOCK, repeat=2B, well=P13, unusual: 6 nuclei (0.6%) in 5 of 28 fields; random nuclei would fill 5.5 (clustering ratio 1.1, p = 0.47). To see it with 95% chance: 16 fields (up to 40) from its field incidence, against 14 fields if the nuclei were random.
+
+5. How many fields should I image next time?
   condition=MOCK, repeat=1A, well=B6: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -616,7 +683,7 @@
 
   condition=LATS1, repeat=1A, well=J23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 18% of random acquisitions (±9% across hold-outs)
-    4 fields: enough in 20% of random acquisitions (±14% across hold-outs)
+    4 fields: enough in 19% of random acquisitions (±14% across hold-outs)
     6 fields: enough in 18% of random acquisitions (±15% across hold-outs)
     8 fields: enough in 19% of random acquisitions (±16% across hold-outs)
     12 fields: enough in 22% of random acquisitions (±24% across hold-outs)
@@ -958,7 +1025,7 @@
     For 3 repeats, the others reached no number that served enough samples, so nothing was checked there.
     Uncertainty is large with only 3 repeats: add more before fixing a protocol.
 
-5. What did the extra fields buy?
+6. What did the extra fields buy?
   condition=MOCK, repeat=1A, well=B6: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
@@ -1139,21 +1206,21 @@
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-6. Which fields should I look at?
+7. Which fields should I look at?
   condition=YAP, repeat=1A, well=N23: fields to reopen before trusting the result
-    014023-15.tif: 3 observations of a state no other field shows.
+    014023-15.tif: 3 objects of a state no other field shows.
     None of these is called an error: look at the images to see whether it is biology, technique or simply a large field.
 
   condition=LATS1, repeat=2A, well=J23: fields to reopen before trusting the result
-    010023-3.tif: 3 observations of a state no other field shows.
-    010023-5.tif: 3 observations of a state no other field shows.
+    010023-3.tif: 3 objects of a state no other field shows.
+    010023-5.tif: 3 objects of a state no other field shows.
     None of these is called an error: look at the images to see whether it is biology, technique or simply a large field.
 
   condition=ARAP2, repeat=2B, well=C13: fields to reopen before trusting the result
-    003013-26.tif: 3 observations of a state no other field shows.
+    003013-26.tif: 3 objects of a state no other field shows.
     None of these is called an error: look at the images to see whether it is biology, technique or simply a large field.
 
-7. More fields or more samples?
+8. More fields or more samples?
   condition=MOCK: more fields or more samples, for the mean YAPTAZ_Ratio?
     Most of the uncertainty of the mean is between fields within a sample (52% of its variance with the acquired design; not established: only 3 samples).
     More fields or more samples: cannot tell from these data (only 3 samples).
@@ -1170,7 +1237,7 @@
     Most of the uncertainty of the mean is between samples (80% of its variance with the acquired design; not established: only 3 samples, its interval includes zero).
     More fields or more samples: cannot tell from these data (only 3 samples).
 
-8. Could I have sampled more efficiently?
+9. Could I have sampled more efficiently?
   condition=MOCK, repeat=1A, well=B6: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 1 field and 0 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
