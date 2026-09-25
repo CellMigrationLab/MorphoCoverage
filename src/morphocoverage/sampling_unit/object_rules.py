@@ -12,9 +12,10 @@ as a microscope does. Nothing else changes. Both are retrospective: they use
 every acquired FOV of the group.
 
 **``object_rule_check``** (JCB). Values are divided by a reference mean: the
-mean of the declared control groups, as the paper normalizes "by calculating
-the average of all the control samples", or each group's own mean when no
-control is declared. The rule's number of objects is
+mean of every object of the declared control groups, as the paper normalizes
+"by calculating the average of all the control samples" and as its
+supplementary spreadsheet and R code compute it, or each group's own mean when
+no control is declared. The rule's number of objects is
 ``ceil((SD / (reference * target)) ** 2)``, with the SD of every object of
 the group; with hundreds of objects the paper's point and upper-95 estimates
 agree, so the point estimate is used. Whole FOVs are then drawn at random
@@ -110,22 +111,25 @@ class ObjectRuleCheck:
 
 
 def _reference_means(all_groups, feature: str, control) -> tuple[dict[int, float | None], str]:
-    """The mean that normalizes each group: its own, or the mean of the control groups."""
-    means = {}
+    """The mean that normalizes each group: its own, or the mean of all control objects.
+
+    As in the JCB supplementary spreadsheet and R code, the control mean pools
+    every control object, so control groups weigh by their object counts.
+    """
+    values_by_group = {}
     for group, data in all_groups:
         values = data.feature_values(feature)
-        values = values[~np.isnan(values)]
-        means[group_identity(group)] = float(values.mean()) if len(values) else None
+        values_by_group[group_identity(group)] = values[~np.isnan(values)]
     if control is None:
+        means = {k: float(v.mean()) if len(v) else None for k, v in values_by_group.items()}
         return means, "each group's own mean"
     chosen = matching_groups(all_groups, control, "control")
-    control_means = [means[group_identity(g)] for g in chosen]
-    control_means = [m for m in control_means if m is not None]
-    if not control_means:
+    pooled = np.concatenate([values_by_group[group_identity(g)] for g in chosen])
+    if not len(pooled):
         raise ValueError("the control groups have no observations of the feature")
-    reference = float(np.mean(control_means))
-    label = f"mean of {len(control_means)} control group(s) {dict(control)}"
-    return dict.fromkeys(means, reference), label
+    reference = float(pooled.mean())
+    label = f"mean of all objects of {len(chosen)} control group(s) {dict(control)}"
+    return dict.fromkeys(values_by_group, reference), label
 
 
 def _fovs_until(

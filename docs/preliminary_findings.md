@@ -324,7 +324,9 @@ splits holds back 10 FOVs, the same reservoirs as the first five splits of
 entry 4. The other 18 FOVs are replayed in the recorded order and in 10 random
 orders. Every rule decides from 2 FOVs on. The rules are:
 
-- the JCB averaging-CV rule at 5%, on cells as published;
+- the single-group JCB-style averaging-CV rule at 5% on objects (own-group
+  normalization; the faithful control-normalized multi-sample procedure is
+  `plan_objects_to_average` + `PlannedObjectCountStrategy`);
 - the same rule on whole FOVs;
 - fixed rules of 4 and 8 FOVs.
 
@@ -494,8 +496,8 @@ chosen on it. Does the conclusion hold there, for the paper's fascin ratio?
 **Method** (`data/crick_idr/heldout_idr0139.py`, fixed seed; tables
 `results/heldout_*_idr0139.csv`). Per well, 6 hold-outs each keep 2 fields as
 the reference and draw 1 or 2 of the other 2 (10 draws). Criteria: the well
-mean within 5% and within 2.5%. The JCB rule (object unit, upper-95 SD, at 5%
-and 2.5% CV) and a fixed 2-field rule are replayed from 1 field on, in the
+mean within 5% and within 2.5%. The single-group JCB-style rule (object unit, own-group normalization,
+upper-95 SD, at 5% and 2.5% CV) and a fixed 2-field rule are replayed from 1 field on, in the
 recorded and 5 random orders.
 
 | | 1 field | 2 fields | all 2 stream fields (ceiling) |
@@ -655,8 +657,10 @@ per well).
 
 - The stored idr0139 tables reproduce JCS Table 1 exactly: wells J05, E22,
   L08 and O02, with the same counts, means, medians and SDs.
-- **JCB** (`object_rule_check`). Values are normalized to the mean of the
-  negative-control wells, as the paper does. For each well,
+- **JCB** (`object_rule_check`). Values are normalized to the mean of every
+  object of the negative-control wells, as the paper's supplementary
+  spreadsheet and R code do (a correction to the first version, which
+  averaged the control wells' means; see below). For each well,
   `n = ceil((SD / target)^2)` at 5% and 2.5%. Whole fields are then drawn at
   random, with replacement, until at least `n` objects, 4000 times (1000 on
   the complete plates); the SD of that average is the real averaging error.
@@ -678,14 +682,14 @@ JCB, medians over wells (`results/objects_vs_fields_jcb.csv`):
 
 | | idr0139, paper's 10 wells | idr0139, all 308 wells | idr0028, paper's 12 wells | idr0028, all 1,144 wells |
 |---|---|---|---|---|
-| object SD, % of the control mean | 25.8% | 26.3% | 6.6% | 6.8% |
-| JCB objects at 5% / 2.5% | 28 / 107 | 28 / 112 | 2 / 8 | 2 / 8 |
+| object SD, % of the control mean | 25.8% | 26.3% | 6.6% | 6.6% |
+| JCB objects at 5% / 2.5% | 28 / 107 | 28 / 112 | 2 / 8 | 2 / 7 |
 | fields that holds | 1 | 1 | 1 | 1 |
-| real / predicted error for the objects obtained | 2.2 (0.7–3.9) | 2.8 (0.3–6.6) | 1.4 (0.9–1.8) | 1.5 (0.8–14.3) |
-| real error of that average | 3.1% | 4.1% | 1.9% | 1.8% |
-| wells missing 5% | 2 of 10 | 97 of 308 (31%) | 0 of 12 | 19 of 1,144 (2%) |
-| wells missing 2.5% | 7 of 10 | 236 of 308 (77%) | 0 of 12 | 95 of 1,144 (8%) |
-| JCB per field at 2.5%, point / upper-95 | 2 / 30 fields | 4 / 50 fields | 1 / 2 fields | 1 / 2 fields |
+| real / predicted error for the objects obtained | 2.2 (0.7–3.9) | 2.8 (0.3–6.6) | 1.4 (0.9–1.8) | 1.5 (0.8–14.1) |
+| real error of that average | 3.1% | 4.1% | 1.9% | 1.7% |
+| wells missing 5% | 2 of 10 | 97 of 308 (31%) | 0 of 12 | 17 of 1,144 (1%) |
+| wells missing 2.5% | 7 of 10 | 236 of 308 (77%) | 0 of 12 | 78 of 1,144 (7%) |
+| JCB per field at 2.5%, point / upper-95 | 2 / 30 fields | 4 / 50 fields | 1 / 2 fields | 1 / 1 field |
 
 The field variability behind it (`results/objects_vs_fields_variability.csv`),
 medians over wells:
@@ -739,7 +743,7 @@ random objects and −0.09 to 0.33 from whole fields.
   agree with the paper's wells, and with entry 1.
 - **Whether that matters depends on the readout and on objects per field.**
   On idr0028 the YAP/TAZ ratio varies little between objects and a field
-  holds about 30 objects, so one field meets both JCB targets in 92–98% of
+  holds about 30 objects, so one field meets both JCB targets in 93–99% of
   all 1,144 wells, 200 objects means about 8 fields, and every treatment
   comparison survives. On idr0139 a field holds about 270 objects: the
   JCB-sized sample misses the paired-design 2.5% target in 77% of the plate's
@@ -757,6 +761,15 @@ random objects and −0.09 to 0.33 from whole fields.
 - **The number to plan by is fields, not objects.** "X objects" means very
   different effort at 30 and at 270 objects per field. Large effects, such as
   leptomycin B, survive either way.
+
+**Corrected 2026-09-25.** Two changes moved the idr0028 complete-plate
+column only. The control mean now pools every control object, as in the
+JCB supplementary spreadsheet and R code (PR #39). And the complete plates had
+labelled every well without a gene symbol MOCK, including 92 technical-control
+and 19 empty wells whose nuclei (up to 10,134 per well) have a much lower
+ratio; they now keep their control type, so MOCK means negative control only.
+Before, the plates gave 95 of 1,144 wells missing 2.5% and 19 missing 5%. The
+paper's wells and the idr0139 plate are unchanged.
 
 **What this does not show**
 

@@ -51,7 +51,7 @@ and changed only that one thing.
    dataset, the objects it asks for fit in one picture. That one picture met
    the 5% target in 8 of 10 wells, but the 2.5% target in only 3 of 10.
    Across all 308 wells of the plate, it misses the 2.5% target in 77% of
-   wells; across all 1,144 wells of the second dataset, in 8%. The formula
+   wells; across all 1,144 wells of the second dataset, in 7%. The formula
    itself still works if you count pictures instead of objects. But
    with only 4 pictures per well, there is not enough information to say how
    many pictures you would need.
