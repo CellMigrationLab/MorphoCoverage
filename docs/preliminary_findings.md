@@ -446,3 +446,17 @@ development dataset.
   uses the acquired design, and empty fields no longer shrink it. The
   neighbour check uses the spread of the other fields. The numbers above are
   those of the regenerated tables.
+- **Second audit (2026-09-25,** `docs/audit/microscopist_audit_2026-09-25.md`**).**
+  The report and profile were regenerated with unchanged numbers; every
+  other tracked table came out identical. What changed is wording that had
+  turned a limit of the data into a claim: the variance curves now print
+  their ceiling (they were rebuilt from the CSV without it), the protocol
+  names the 12 wells whose held-back fields could not judge the variance
+  instead of listing them as needing more than 18 fields, and the
+  "98% of the variance is between samples" lines are marked as not
+  established (3 wells; the well component's interval includes zero). The
+  audit also found that a rare state seen in two neighbouring fields is
+  invisible to the next-FOV novelty with `min_other_fovs=1`, that the four
+  "new state" fields above are at the 0.8–2% false-alarm level, and that
+  the object-unit JCB verdict was printed without its independence
+  assumption; see the audit for the ranked list.

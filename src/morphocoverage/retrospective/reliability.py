@@ -429,6 +429,14 @@ def reliability_summary(result: ReliabilityResult) -> str:
                 "held-back fields are themselves a sample, so the curve cannot be read above "
                 "this."
             )
+        elif result.ceiling.empty:
+            # A result rebuilt without its ceiling table (for example from a saved curve)
+            # would otherwise read as if every field count could reach 100%.
+            lines.append(
+                f"  How often all {stream} available fields together were enough was not "
+                "computed: the held-back fields are themselves a sample, so a flat curve may "
+                "be capped by them rather than by the fields."
+            )
         judged = rows[rows["splits"] > 0]
         smallest = int(judged["reservoir_fovs"].min()) if len(judged) else 0
         lines.append(

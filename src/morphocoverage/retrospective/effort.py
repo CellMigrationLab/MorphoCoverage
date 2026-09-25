@@ -35,7 +35,7 @@ tell from these data".
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -434,6 +434,28 @@ def _contributions(estimate, design: dict) -> list[float | None]:
     return [float(p / total) if total > 0 else None for p in parts]
 
 
+def share_caveat(component: Mapping[str, Any], units: int, unit_word: str) -> str:
+    """Why the largest variance share is not established, or an empty string.
+
+    A share is a point estimate from the truncated components. With fewer
+    than ``FEW_UNITS`` independent units, or when the bootstrap interval of
+    the largest component includes zero, the same data are consistent with
+    that level contributing nothing (a null simulation with 3 samples and no
+    between-sample variance attributed most of the variance to the samples
+    in 4 of 20 runs), so the sentence says so.
+    """
+    low = component.get("low")
+    includes_zero = low is not None and not pd.isna(low) and float(low) <= 0
+    if units >= FEW_UNITS and not includes_zero:
+        return ""
+    reasons = []
+    if units < FEW_UNITS:
+        reasons.append(f"only {units} {unit_word}{'s' if units != 1 else ''}")
+    if includes_zero:
+        reasons.append("its interval includes zero")
+    return f"; not established: {', '.join(reasons)}"
+
+
 def effort_summary(result: EffortResult) -> str:
     """ "More fields or more samples?" in sentences, per stratum."""
     feature = result.settings.get("feature", "the measurement")
@@ -451,14 +473,15 @@ def effort_summary(result: EffortResult) -> str:
     for stratum, rows in result.components.groupby("stratum", sort=False):
         lines = [f"{stratum}: more fields or more samples, for the mean {feature}?"]
         shares = rows.dropna(subset=["share"]).sort_values("share", ascending=False)
+        units = int(rows["units"].iloc[0])
         if len(shares):
             top = shares.iloc[0]
             lines.append(
                 f"  Most of the uncertainty of the mean is {words.get(top['level'], top['level'])} "
-                f"({100 * top['share']:.0f}% of its variance with the acquired design)."
+                f"({100 * top['share']:.0f}% of its variance with the acquired design"
+                f"{share_caveat(top, units, unit)})."
             )
         compared = result.comparisons[result.comparisons["stratum"] == stratum]
-        units = int(rows["units"].iloc[0])
         resolved = compared[compared["resolved"]]
         if len(compared) and len(resolved):
             best = resolved.sort_values("ratio").iloc[0]

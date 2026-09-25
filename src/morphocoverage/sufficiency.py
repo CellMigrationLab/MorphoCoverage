@@ -139,11 +139,12 @@ class SufficiencyReport:
             group = dict(zip(keys, values, strict=True))
             label = ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
             lines = [f"{label}:"]
-            criteria = _rows_of(self.enough, group)
+            # A question that was not asked has an empty table without the group columns.
+            criteria = _rows_of(self.enough, group) if not self.enough.empty else self.enough
             if len(criteria):
                 lines.append("  Did we sample enough?")
                 lines += [f"  - {answer}" for answer in criteria["answer"]]
-            outlook = _rows_of(self.next_fov, group)
+            outlook = _rows_of(self.next_fov, group) if not self.next_fov.empty else self.next_fov
             if len(outlook):
                 lines.append("  Would one more FOV show something new?")
                 lines += [f"  - {line}" for line in outlook["answer"].iloc[0].split("\n")]
@@ -191,6 +192,11 @@ def _final_row(result: StrategyResult, group_cols: Sequence[str]) -> dict:
             "n_observations": result.n_observations,
             "verdict": None if result.decision is None else result.decision.value,
             "undefined_reason": result.evidence.diagnostics.get("undefined_reason"),
+            # The object-unit JCB rule treats cells as independent draws; the
+            # sentence says so, since that is what makes a stop after one FOV possible.
+            "assumes_spatial_uniformity": bool(
+                result.evidence.diagnostics.get("assumes_spatial_uniformity", False)
+            ),
         }
     )
     for name, quantity in result.evidence.quantities.items():
@@ -232,6 +238,8 @@ def _enough_answer(final: Mapping, stops: Mapping) -> str:
         head = f"{criterion}: no, not met by the {acquired} acquired FOVs"
     else:
         head = f"{criterion}: yes, met by the {acquired} acquired FOVs"
+    if final.get("assumes_spatial_uniformity"):
+        head += " (treats observations as independent draws: assumes a spatially uniform sample)"
     if pd.isna(stops["stop_fov_median"]):
         return f"{head}; not met at any point in {orders} replayed orders."
     first = (
@@ -307,11 +315,18 @@ def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | N
         f"share their reference FOVs); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
         "showed something the others did not."
     )
+    empty = int(row.get("fovs_without_observations", 0) or 0)
+    counted = (
+        f" The count includes {empty} FOV{'s' if empty > 1 else ''} without observations, "
+        "which cannot show a state."
+        if empty
+        else ""
+    )
     unseen = (
         f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
         f"{_percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
         f"3 / {row['fovs_imaged']}), if FOVs are independent, representative draws. Rarer "
-        "states can remain."
+        f"states can remain.{counted}"
     )
     lines = [chance, unseen]
     if target is not None:
@@ -356,7 +371,13 @@ def _next_fov_tables(data, novelty, target):
         evidence = novelty.estimate(group_data, objective=_POPULATION)
         chance, upper = evidence.quantities[FOV_QUANTITY], evidence.quantities[UPPER_QUANTITY]
         k = len(group_data.fovs)
-        row = {**group, "fovs_imaged": k, "confidence": novelty.confidence}
+        with_observations = int(evidence.diagnostics.get("fovs_with_observations", k))
+        row = {
+            **group,
+            "fovs_imaged": k,
+            "fovs_without_observations": k - with_observations,
+            "confidence": novelty.confidence,
+        }
         if chance.availability is not Availability.AVAILABLE:
             row.update(
                 dict.fromkeys(("fovs_with_new", "chance_new", "chance_new_at_most"), None),

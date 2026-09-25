@@ -173,7 +173,11 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=[*groups, *SUMMARY_COLUMNS])
 
 
-_ORDER_WORDS = {"recorded": "in the recorded order", "permuted": "in random orders"}
+_ORDER_WORDS = {
+    "recorded": "in the recorded order",
+    "permuted": "in random orders",
+    "dispersed": "spreading the same positions out",
+}
 
 
 def calibration_summary(result: StoppingCalibration) -> str:

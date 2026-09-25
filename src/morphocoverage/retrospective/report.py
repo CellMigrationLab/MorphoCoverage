@@ -37,7 +37,7 @@ from ._text import unit_plural
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
 from .controls import ControlResult
-from .effort import EffortResult, design_effect
+from .effort import EffortResult, design_effect, share_caveat
 from .inspection import InspectionResult
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
@@ -140,6 +140,9 @@ def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
             top = block.dropna(subset=["share"]).sort_values("share", ascending=False)
             if len(top):
                 first = top.iloc[0]
+                unit = effort.settings.get("independent_unit", "unit")
+                unit = "sample" if unit == hierarchy.get("sample") else unit
+                caveat = share_caveat(first, int(first["units"]), unit)
                 rows.append(
                     {
                         "item": "largest source of uncertainty of the mean",
@@ -147,7 +150,7 @@ def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
                         "value": float(first["share"]),
                         "statement": (
                             f"{100 * first['share']:.0f}% of the variance of the mean is "
-                            f"{level_words.get(first['level'], first['level'])}"
+                            f"{level_words.get(first['level'], first['level'])}{caveat}"
                         ),
                         "source": "effort_projection",
                     }
