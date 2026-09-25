@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from idr0028_data import HERE, RESULTS, blocks_table, fov_cells, load
+from datasets import RESULTS, blocks_table, fov_matrices, load
 
 from morphocoverage import ObjectiveConfig, SamplingObjective
 from morphocoverage._parallel import map_units, worker_pool
@@ -123,13 +123,14 @@ def run(n_jobs: int = -1) -> tuple[pd.DataFrame, pd.DataFrame]:
     the replays, which draw nothing, go to ``n_jobs`` worker processes (every
     CPU by default, each with one BLAS thread), so the tables do not depend on ``n_jobs``.
     """
-    objects, fovs, features = load()
+    dataset = load("idr0028_screenB")
+    objects, fovs, features = dataset.objects, dataset.fovs, list(dataset.features)
     rng = np.random.default_rng(SEED)
     prefixes, stops = [], []
     with worker_pool(n_jobs) as pool:
         for plate, host_well, donor_well in DESIGN:
-            host = fov_cells(objects, fovs, plate, host_well, features)
-            donor = fov_cells(objects, fovs, plate, donor_well, features)
+            host = fov_matrices(objects, fovs, plate, host_well, features)
+            donor = fov_matrices(objects, fovs, plate, donor_well, features)
             table = fovs[(fovs["repeat"] == plate) & (fovs["well"] == host_well)]
             positions = table[["stage_x_um", "stage_y_um"]].to_numpy(float)
             for p in FREQUENCIES:
@@ -168,7 +169,6 @@ def main() -> None:
         ["predicted", "biological", "operational", "bound", "held_bio", "held_op", "state_seen"]
     ]
     print(summary.mean().round(3).to_string())
-    print(HERE)
 
 
 if __name__ == "__main__":

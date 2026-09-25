@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from idr0028_data import RESULTS, blocks_table, fov_cells, load
+from datasets import RESULTS, blocks_table, fov_matrices, load
 
 from morphocoverage._parallel import map_units, worker_pool
 from morphocoverage.strategies import SupportNoveltyEstimator
@@ -89,14 +89,15 @@ def run(n_jobs: int = -1) -> pd.DataFrame:
     the novelty checks, which draw nothing, go to ``n_jobs`` worker processes
     (every CPU by default), so the table does not depend on ``n_jobs``.
     """
-    objects, fovs, features = load()
+    dataset = load("idr0028_screenB")
+    objects, fovs, features = dataset.objects, dataset.fovs, list(dataset.features)
     rng = np.random.default_rng(SEED)
     scale = np.sqrt(len(features))
     tallies: dict[tuple, list[int]] = {}
     with worker_pool(n_jobs) as pool:
         for plate, host_well, donor_wells in DESIGN:
-            host = fov_cells(objects, fovs, plate, host_well, features)
-            donors = {w: fov_cells(objects, fovs, plate, w, features) for w in donor_wells}
+            host = fov_matrices(objects, fovs, plate, host_well, features)
+            donors = {w: fov_matrices(objects, fovs, plate, w, features) for w in donor_wells}
             for k in FOVS_SEEN:
                 jobs = []
                 for _ in range(DRAWS):

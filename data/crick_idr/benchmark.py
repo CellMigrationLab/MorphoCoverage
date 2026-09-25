@@ -31,9 +31,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from benchmark_protocol import PROTOCOL, digest
-from datasets import FASCIN_RATIO, YAPTAZ_RATIO, load_idr0028, load_idr0139, registry
+from datasets import FASCIN_RATIO, RESULTS, YAPTAZ_RATIO, load, registry
 from frequency_control import _planted_fovs
-from idr0028_data import RESULTS
 
 from morphocoverage import (
     ObjectiveConfig,
@@ -57,7 +56,6 @@ LOCK = Path(__file__).resolve().parent / "benchmark_protocol.lock"
 GROUPS = ["condition", "repeat", "well"]
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 READOUT = {"idr0028_screenB": YAPTAZ_RATIO, "idr0139": FASCIN_RATIO}
-LOADERS = {"idr0028_screenB": load_idr0028, "idr0139": load_idr0139}
 
 
 def check_lock(write: bool) -> None:
@@ -126,7 +124,7 @@ def run_mean() -> tuple[list[str], list[pd.DataFrame]]:
     for dataset in question["datasets"]:
         settings = PROTOCOL["datasets"][dataset]
         readout = READOUT[dataset]
-        objects, fovs, _ = LOADERS[dataset]()
+        objects, fovs = load(dataset).tables
         criteria = [
             OutcomeCriterion(
                 RelativeMeanError(readout), c["tolerance"], "lower_is_better", c["label"]
@@ -186,7 +184,8 @@ def run_mean() -> tuple[list[str], list[pd.DataFrame]]:
 
 def _planted_tables(question: dict):
     """Planted acquisitions: MOCK host wells with donor siYAP nuclei in a share of fields."""
-    objects, fovs, features = load_idr0028()
+    dataset = load("idr0028_screenB")
+    objects, fovs, features = dataset.objects, dataset.fovs, list(dataset.features)
     rng = np.random.default_rng(PROTOCOL["random_state"])
     object_parts, fov_parts = [], []
     for plate, host, donor in question["design"]:

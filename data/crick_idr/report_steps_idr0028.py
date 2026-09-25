@@ -28,6 +28,9 @@ development dataset: nothing here is a protocol.
 - **Sufficiency** (``sufficiency_idr0028.csv``, ``next_fov_idr0028.csv``): what
   the fixed-8 and JCB rules say on the full wells, by their own thresholds, and
   the next-field novelty with states seen in fewer than 3 fields.
+- **Objects or fields** (R0, R4): ``fov_variability`` and ``object_rule_check``
+  of the YAP/TAZ ratio, and the clustering by field of objects unusual against
+  the MOCK wells (the full tables are written by ``objects_vs_fields.py``).
 - **Step 10, the report** (``microscopist_report_idr0028.txt``,
   ``sampling_profile_idr0028.csv``): all of the above, question by question.
 
@@ -42,7 +45,8 @@ import time
 
 import numpy as np
 import pandas as pd
-from idr0028_data import RATIO, RESULTS, load
+from datasets import RESULTS, load
+from datasets import YAPTAZ_RATIO as RATIO
 
 from morphocoverage import (
     FixedFOVStrategy,
@@ -68,6 +72,12 @@ from morphocoverage.retrospective import (
     replay_acquisitions,
     representation_control,
     stopping_calibration,
+)
+from morphocoverage.sampling_unit import (
+    fov_clustering,
+    fov_variability,
+    object_rule_check,
+    unusual_objects,
 )
 from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.sufficiency import sufficiency_report
@@ -233,9 +243,34 @@ def order(objects, fovs):
     return replay, redundancy
 
 
+def sampling_unit(dataset) -> dict:
+    """R0 and R4: fields against random objects, and unusual objects clustered by field."""
+    objects, fovs = dataset.tables
+    common = {"group_cols": list(dataset.groups), "observation_unit": dataset.observation_unit}
+    reference = {"condition": dataset.control}
+    unusual = unusual_objects(
+        objects, fovs, feature_cols=list(dataset.features), reference=reference, **common
+    )
+    return {
+        "variability": fov_variability(objects, fovs, feature=RATIO, **common),
+        "object_rules": object_rule_check(
+            objects, fovs, feature=RATIO, control=reference, **common
+        ),
+        "unusual": unusual,
+        "clustering": fov_clustering(
+            objects.assign(unusual=unusual.labels),
+            fovs,
+            label_col="unusual",
+            states=[True],
+            **common,
+        ),
+    }
+
+
 def main() -> None:
     """Run every part, print its summary and write its tables."""
-    objects, fovs, features = load()
+    dataset = load("idr0028_screenB")
+    objects, fovs, features = dataset.objects, dataset.fovs, list(dataset.features)
     RESULTS.mkdir(exist_ok=True)
 
     protocol_result = _timed("protocol", protocol)
@@ -281,8 +316,13 @@ def main() -> None:
     print(efficiency.summary(), "\n")
     print(redundancy.to_string(index=False))
 
+    unit = _timed("objects or fields", lambda: sampling_unit(dataset))
+    for part in unit.values():
+        print(part.summary(), "\n")
+
     # Step 10: every answer in one document (Step 1 curves reloaded from their tables).
     report = microscopist_report(
+        **unit,
         controls=control_result,
         sufficiency=sufficiency_result,
         calibration=stopping_calibration(replay),
