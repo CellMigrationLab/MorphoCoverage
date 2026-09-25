@@ -193,3 +193,24 @@ A second audit of commit `ec80e53` reached the same layer-level verdicts. Where 
 - **Disagreement: "the report explicitly exposes the finite-reference ceiling" for the idr0028 variance.** The code did, but the shipped report did not: the script rebuilt the reliability result without its ceiling table, and the protocol section turned the ceiling into "every well needs more than 18 fields" (F2, F3). Both are fixed in this branch and the report is regenerated.
 - **Disagreement: protocol aggregation over a shrinking evaluable subset is "potentially misleading".** The table and summary print the denominator at every field count ("11 of 12 eligible; 1 could not be judged at this depth"), so this is a stated caveat rather than a hidden one.
 - Points the second audit did not reach, all confirmed by execution here: the summary crash without a novelty definition (F8), the "98% between samples" share from 3 wells (F4), a rare state in two neighbouring fields invisible to the novelty definition (F5), the "new states" line at the false-alarm level (F12), medians hiding the adequacy tail (F10), and the invisible batch shift (F14).
+
+## 8. Decisions taken for the open findings (second pass)
+
+The project owner asked for the open findings to be addressed. Each choice below is the one a microscopist would most plausibly make under the repository's conventions (explicit parameters, the roadmap's provisional presets), and each is reversible by changing one argument or one sentence. None changes an estimator, an outcome metric, a decision threshold or `morphocoverage.__all__`.
+
+| Finding | Decision | Where |
+|---|---|---|
+| Fixed-FOV "yes, met" (section 7) | The question is now "Did each criterion say enough? (its own threshold, not a held-out check)". An effort rule reports "its target was reached by the N acquired FOVs"; a threshold rule "yes, its threshold was met by". A criterion met and later lost says so (F16). | `sufficiency.py` |
+| F5, rare state seen in few fields | `sufficiency_report(..., few_fovs=r)` (no default; must exceed the novelty definition's `min_other_fovs`) adds "Seen in few FOVs: 2 of 40 FOVs hold a state that fewer than 3 other FOVs show", computed with the same definition at `min_other_fovs=r`. The idr0028 report uses `few_fovs=3`. | `sufficiency.py`, `report_steps_idr0028.py` |
+| F6, weak control | `microscopist_report(..., minimum_detection=0.9)` (provisional preset, as for the protocol threshold). Below it, sections 2, 4 and 5 open with "Weak representation: fields of the declared positive control were recognized in only X% of checks", and the note is repeated under "Read with care". | `report.py` |
+| F7, reason line | `StrategyResult.explain()`: "stop: lofo_novel_fov_upper = 0.24 <= 0.25 (population); after 11 FOVs, 1100 cells". `docs/online.md` says why the quantity, not the word, is what to read. | `results.py`, `docs/online.md` |
+| F10, medians only | Adequacy summaries add the 90th percentile: "(medians; by field 4 in 90% of runs)" or "not within the fields available in 10% or more of runs". | `adequacy.py` |
+| F12, new states at the false-alarm level | The profile line adds "(about M of N expected by chance at the X% false-alarm rate of the declared reference)" when a reference control was measured. | `report.py`, `inspection.py` (records `n_fovs`) |
+| F14, batch shift | No diagnostic exists, so the report now says so under "Read with care": "Technical drift between repeats, batches or plates is not assessed". A between-group shift diagnostic remains future work. | `report.py` |
+| Protocol evaluability (section 7) | The table carries `partly_judged` per field count (samples whose reliability came from fewer than all hold-outs) and the summary names them; no sample is dropped, since what share of hold-outs makes a sample evaluable is not decided here. | `protocol.py` |
+| F9, `k` equal to the stream | That point reads "(all available fields: one acquisition per hold-out)" instead of a draw spread. | `reliability.py` |
+| F17, order null result | When every order reaches adequacy within one field of the others: "The orders do not differ by more than one field for this criterion: a null result, not a preference for any order." | `spatial.py` |
+| F13, F21, shipped report | `report_steps_idr0028.py` adds a sufficiency block (fixed 8, JCB object- and FOV-unit rules, next-field novelty with `few_fovs=3`) and the two JCB rules to the replayed calibration; tables `sufficiency_idr0028.csv` and `next_fov_idr0028.csv`. | `data/crick_idr` |
+| F19, latency | Measured decision times are in `docs/online.md`. | docs |
+
+Still open, because they need data or a design rather than a sentence: a validated rare-state planning line (F11: the fixed reservoir removes the few positive fields), a held-out dataset, and the representation-adequacy coupling beyond a warning (F6 stays a warning, not a suppression).

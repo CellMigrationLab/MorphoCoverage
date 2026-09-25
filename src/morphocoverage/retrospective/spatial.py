@@ -203,6 +203,14 @@ def efficiency_summary(result: EfficiencyResult) -> str:
             lines.append(
                 f"  {label}: reliably enough after {fields}{travel} of stage travel{time}{missed}."
             )
+        reached = rows[rows["median_fovs"] <= rows["stream_fovs"]]
+        if len(reached) == len(rows) and len(rows) > 1:
+            spread = float(reached["median_fovs"].max() - reached["median_fovs"].min())
+            if spread <= 1:
+                lines.append(
+                    "  The orders do not differ by more than one field for this criterion: "
+                    "a null result, not a preference for any order."
+                )
         lines.append(
             "  Medians over hold-outs and orders; stage travel is the straight-line path "
             "between successive fields."

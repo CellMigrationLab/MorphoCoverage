@@ -11,4 +11,4 @@ largest source of uncertainty of the mean,condition=YAP,0.9863680592178707,"99% 
 field-to-field heterogeneity,condition=ARAP2,2.5896116431303526,a mean from whole fields varies 2.6 times as much as one from the same number of random observations (design effect),effort_projection
 largest source of uncertainty of the mean,condition=ARAP2,0.7968649431049283,"80% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero",effort_projection
 spatial correlation,all groups,5.0,"in 5 of 12 groups, fields closer than about 520 µm (median) are more alike than random pairs",redundancy_distance
-new states,all groups,4.0,new states come from 4 fields,inspect_fovs
+new states,all groups,4.0,new states come from 4 fields (about 6 of 336 expected by chance at the 2% false-alarm rate of the declared reference),inspect_fovs

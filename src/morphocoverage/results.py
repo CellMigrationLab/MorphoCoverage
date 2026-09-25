@@ -103,6 +103,42 @@ class StrategyResult:
     feature_cols: tuple[str, ...] = ()
     fov_key: tuple[str, ...] = ()
 
+    def explain(self) -> str:
+        """One line: the decision, each policy's rule with its evidence, and the effort.
+
+        For example ``stop: lofo_novel_fov_upper = 0.24 <= 0.25 (population); after
+        11 FOVs, 1100 cells``. A rule's own threshold is not a held-out check:
+        the line names the quantity so the reader can see when a stop rests
+        on the number of FOVs alone.
+        """
+        decision = "undefined" if self.decision is None else self.decision.value
+        parts = []
+        for policy in self.configuration.get("policies", []):
+            parameters = policy.get("parameters", {})
+            name = parameters.get("quantity")
+            quantity = self.evidence.quantities.get(name) if name else None
+            if quantity is not None and "threshold" in parameters:
+                better = "<=" if quantity.direction.value == "lower_is_better" else ">="
+                if quantity.value is None:
+                    parts.append(f"{name} unavailable ({quantity.reason})")
+                else:
+                    parts.append(
+                        f"{name} = {quantity.value:.3g} {better} {parameters['threshold']:g} "
+                        f"({quantity.component.value})"
+                    )
+            elif "effort" in parameters and "target" in parameters:
+                current = getattr(self, parameters["effort"], None)
+                parts.append(
+                    f"{parameters['effort']} = {current} >= {parameters['target']} "
+                    f"({parameters.get('component', 'population')})"
+                )
+            else:
+                parts.append(policy.get("name", "policy"))
+        unit = self.observation_unit if self.observation_unit_declared else "observation"
+        effort = f"after {self.n_fovs} FOVs, {self.n_observations} {unit}s"
+        rules = "; ".join(parts) if parts else "no decision policy"
+        return f"{decision}: {rules}; {effort}"
+
     def without_timing(self) -> StrategyResult:
         """This result with the time measurements removed, for comparing results."""
         return replace(self, compute_seconds=None, timing=None)

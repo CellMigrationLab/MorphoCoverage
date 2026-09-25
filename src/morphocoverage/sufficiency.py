@@ -58,7 +58,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
@@ -142,7 +142,9 @@ class SufficiencyReport:
             # A question that was not asked has an empty table without the group columns.
             criteria = _rows_of(self.enough, group) if not self.enough.empty else self.enough
             if len(criteria):
-                lines.append("  Did we sample enough?")
+                lines.append(
+                    "  Did each criterion say enough? (its own threshold, not a held-out check)"
+                )
                 lines += [f"  - {answer}" for answer in criteria["answer"]]
             outlook = _rows_of(self.next_fov, group) if not self.next_fov.empty else self.next_fov
             if len(outlook):
@@ -234,10 +236,14 @@ def _enough_answer(final: Mapping, stops: Mapping) -> str:
     acquired, orders = final["n_fovs"], stops["orders"]
     if pd.isna(final["verdict"]):
         return f"{criterion}: undefined for these data ({final['undefined_reason']})."
+    # A fixed count says its target was reached, not that the sample was enough.
+    effort_rule = " >= " in str(final["policies"]) and str(final["policies"]).startswith("n_")
     if final["verdict"] == "continue":
         head = f"{criterion}: no, not met by the {acquired} acquired FOVs"
+    elif effort_rule:
+        head = f"{criterion}: its target was reached by the {acquired} acquired FOVs"
     else:
-        head = f"{criterion}: yes, met by the {acquired} acquired FOVs"
+        head = f"{criterion}: yes, its threshold was met by the {acquired} acquired FOVs"
     if final.get("assumes_spatial_uniformity"):
         head += " (treats observations as independent draws: assumes a spatially uniform sample)"
     if pd.isna(stops["stop_fov_median"]):
@@ -248,7 +254,10 @@ def _enough_answer(final: Mapping, stops: Mapping) -> str:
     )
     never = stops["never_stopped"]
     missing = f", never in {never}" if never else ""
-    return f"{head}; {first}{missing}."
+    lost = (
+        "; it was met and then lost as more FOVs arrived" if final["verdict"] == "continue" else ""
+    )
+    return f"{head}; {first}{missing}{lost}."
 
 
 def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str]):
@@ -329,6 +338,18 @@ def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | N
         f"states can remain.{counted}"
     )
     lines = [chance, unseen]
+    few = row.get("few_fovs")
+    if few is not None and not pd.isna(few):
+        seen_in_few = row["fovs_with_state_in_few"]
+        if pd.isna(seen_in_few):
+            lines.append(f"Seen in few FOVs: not estimable ({row['few_reason']}).")
+        else:
+            lines.append(
+                f"Seen in few FOVs: {int(seen_in_few)} of {row['fovs_imaged']} FOVs hold a "
+                f"state that fewer than {int(few)} other FOVs show. A state seen in 2 FOVs "
+                "is not new to the next FOV but is not established either; it counts as "
+                "recurrent above, so look at those FOVs before calling the sample settled."
+            )
     if target is not None:
         extra = row["extra_fovs_to_rule_out_target"]
         rule_out = f"To rule out unseen states in more than {_percent(target)} of FOVs"
@@ -363,7 +384,23 @@ def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | N
     return "\n".join(lines)
 
 
-def _next_fov_tables(data, novelty, target):
+def _seen_in_few(novelty, group_data, few_fovs):
+    """FOVs holding a state that fewer than ``few_fovs`` other FOVs show, or the reason not."""
+    if few_fovs is None:
+        return {}
+    looser = replace(novelty, min_other_fovs=few_fovs)
+    evidence = looser.estimate(group_data, objective=_POPULATION)
+    quantity = evidence.quantities[FOV_QUANTITY]
+    if quantity.availability is not Availability.AVAILABLE:
+        return {"few_fovs": few_fovs, "fovs_with_state_in_few": None, "few_reason": quantity.reason}
+    return {
+        "few_fovs": few_fovs,
+        "fovs_with_state_in_few": int(evidence.diagnostics["novel_fovs"]),
+        "few_reason": None,
+    }
+
+
+def _next_fov_tables(data, novelty, target, few_fovs=None):
     """Question 2 per group, and the observations counted as new."""
     rows, flagged = [], []
     features = set(data.feature_cols)
@@ -418,6 +455,7 @@ def _next_fov_tables(data, novelty, target):
             if target is None
             else extra_trials_for_bound(0, k, target, novelty.confidence, keep_rate=False)
         )
+        row.update(_seen_in_few(novelty, group_data, few_fovs))
         rows.append(row)
         # Only the cells of new states, so scattered outliers stay out when
         # several similar new cells are required.
@@ -469,6 +507,7 @@ def sufficiency_report(
     novelty: SupportNoveltyEstimator | None = None,
     novelty_target: float | None = None,
     calibration: CalibrationSettings | None = None,
+    few_fovs: int | None = None,
     acquisition_order_col: str | None = None,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
@@ -484,6 +523,12 @@ def sufficiency_report(
     orders are allowed, since the table's row order is not an acquisition
     record.
 
+    ``few_fovs`` (with ``novelty``) also reports how many FOVs hold a state
+    that fewer than ``few_fovs`` other FOVs show: a state recurring in two
+    neighbouring FOVs is not new to the next FOV, yet is not established
+    either, and would otherwise go unmentioned. It is the user's choice of
+    "few" and has no default.
+
     ``novelty`` defines what counts as new and turns on the second question.
     With ``novelty_target``, the report also says how many more FOVs are
     needed before the chance of something new can be claimed below the target,
@@ -493,6 +538,13 @@ def sufficiency_report(
     """
     strategies, orders = list(strategies), list(orders)
     _check_report_inputs(strategies, orders, novelty, novelty_target, calibration)
+    if few_fovs is not None:
+        if novelty is None:
+            raise ValueError("few_fovs needs a novelty definition")
+        if isinstance(few_fovs, bool) or not isinstance(few_fovs, int):
+            raise TypeError("few_fovs must be an integer number of FOVs")
+        if few_fovs <= novelty.min_other_fovs:
+            raise ValueError("few_fovs must exceed the novelty definition's min_other_fovs")
     if novelty is not None and novelty_target is not None:
         strategies.append(
             SupportNoveltyStrategy(
@@ -540,7 +592,7 @@ def sufficiency_report(
 
     next_fov, new_observations, calibrated = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     if novelty is not None:
-        next_fov, new_observations = _next_fov_tables(data, novelty, novelty_target)
+        next_fov, new_observations = _next_fov_tables(data, novelty, novelty_target, few_fovs)
         if calibration is not None:
             calibrated = calibrate_next_fov_novelty(
                 objects,

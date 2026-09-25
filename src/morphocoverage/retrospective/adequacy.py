@@ -208,6 +208,16 @@ def _median_point(values: pd.Series, streams: pd.Series) -> str:
     return f"field {median:.0f}" if median.is_integer() else f"field {median:.1f}"
 
 
+def _tail_point(values: pd.Series, streams: pd.Series) -> str:
+    """The 90th percentile over runs, the number a protocol has to serve."""
+    filled = values.astype("Float64").to_numpy(dtype=float, na_value=np.inf)
+    tail = float(np.quantile(filled, 0.9))
+    if not np.isfinite(tail):
+        limit = int(streams.max())
+        return f"not within the fields available (up to {limit}) in 10% or more of runs"
+    return f"by field {tail:.0f} in 90% of runs"
+
+
 def _at(point: str) -> str:
     return point if point.startswith("not") else f"at {point}"
 
@@ -232,9 +242,11 @@ def adequacy_summary(result: AdequacyResult) -> str:
             stream = rows["stream_fovs"]
             first = _at(_median_point(rows["first_realized"], stream))
             lasting = _from(_median_point(rows["sustained_realized"], stream))
+            tail = _tail_point(rows["sustained_realized"], stream)
             lines.append(
                 f"  {_ORDER_WORDS.get(order, order)}: judged on held-back fields, everything "
-                f"you wanted was first preserved {first} and reliably {lasting}."
+                f"you wanted was first preserved {first} and reliably {lasting} (medians; "
+                f"{tail})."
             )
             if len(labels) > 1:
                 for criterion, own in realized[

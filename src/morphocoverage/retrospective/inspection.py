@@ -303,7 +303,9 @@ def inspect_fovs(
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
     rows, skipped, neighbours_skipped = [], {}, []
+    n_fovs = 0
     for group, group_data in iter_analysis_groups(data):
+        n_fovs += len(group_data.fovs)
         found = []
         if novelty is not None:
             found += _novel(group_data, novelty)
@@ -354,6 +356,7 @@ def inspect_fovs(
         "trace": trace,
         "skipped_summaries": skipped,
         "skipped_neighbours": neighbours_skipped,
+        "n_fovs": n_fovs,
     }
     return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
 

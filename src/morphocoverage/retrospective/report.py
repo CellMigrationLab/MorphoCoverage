@@ -89,6 +89,16 @@ def _indent(text: str) -> str:
     return "\n".join(f"  {line}" if line else line for line in text.splitlines())
 
 
+def _false_alarm_rate(controls) -> float | None:
+    """The declared reference's false-alarm rate, when it was measured."""
+    if controls is None or controls.status != "assessed":
+        return None
+    rates = controls.pooled.set_index("candidate")["rate"]
+    if "reference" not in rates.index or pd.isna(rates["reference"]):
+        return None
+    return float(rates["reference"])
+
+
 def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
     units = [
         r.settings.get("observation_unit")
@@ -199,14 +209,23 @@ def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
         new = inspection.fovs[inspection.fovs["reason"] == "new state"]
         keys = [c for c in inspection.settings.get("fov_key", []) if c in new.columns]
         if len(new):
+            count = new[keys].drop_duplicates().shape[0]
+            statement = f"new states come from {count} fields"
+            false_alarms = _false_alarm_rate(controls)
+            n_fovs = inspection.settings.get("n_fovs")
+            if false_alarms is not None and n_fovs:
+                # The same definition called that share of reference fields new.
+                expected = false_alarms * n_fovs
+                statement += (
+                    f" (about {expected:.0f} of {n_fovs} expected by chance at the "
+                    f"{100 * false_alarms:.0f}% false-alarm rate of the declared reference)"
+                )
             rows.append(
                 {
                     "item": "new states",
                     "where": "all groups",
-                    "value": float(new[keys].drop_duplicates().shape[0]),
-                    "statement": (
-                        f"new states come from {new[keys].drop_duplicates().shape[0]} fields"
-                    ),
+                    "value": float(count),
+                    "statement": statement,
                     "source": "inspect_fovs",
                 }
             )
@@ -230,8 +249,18 @@ def microscopist_report(
     effort: EffortResult | None = None,
     efficiency: EfficiencyResult | None = None,
     redundancy: pd.DataFrame | None = None,
+    minimum_detection: float = 0.9,
 ) -> MicroscopistReport:
-    """Assemble computed results into one report, question by question (see the module)."""
+    """Assemble computed results into one report, question by question (see the module).
+
+    ``minimum_detection`` is the share of declared positive-control fields the
+    representation must recognize before the adequacy answers are read
+    without a warning (provisional preset 0.9, as for the protocol threshold).
+    Below it, every adequacy section is prefixed with the detection rate, since
+    a "nothing new" answer cannot exclude a phenotype the features miss.
+    """
+    if isinstance(minimum_detection, bool) or not 0 < float(minimum_detection) <= 1:
+        raise ValueError("minimum_detection must be a share in (0, 1]")
     for value, kind, name in (
         (controls, ControlResult, "controls"),
         (sufficiency, SufficiencyReport, "sufficiency"),
@@ -276,10 +305,6 @@ def microscopist_report(
             "Whether these were the right positions needs every candidate position from an "
             "overview (not available: sampling-frame bias is not assessed)."
         )
-    sections = {
-        key: _indent("\n\n".join(texts)) if texts else f"  Not assessed: {_NEEDS[key]}."
-        for key, texts in parts.items()
-    }
     notes = [
         "Every answer holds for the stated features, tolerances and definition of new.",
         (
@@ -296,6 +321,27 @@ def microscopist_report(
             "No representation control: a 'nothing new' answer says nothing about phenotypes "
             "these features cannot see."
         )
+    else:
+        rates = controls.pooled.set_index("candidate")["rate"]
+        detection = float(rates["positive"]) if "positive" in rates.index else None
+        if detection is not None and detection < float(minimum_detection):
+            warning = (
+                f"Weak representation: fields of the declared positive control were recognized "
+                f"in only {100 * detection:.0f}% of checks (below {100 * minimum_detection:.0f}%)"
+                ", so the answers below cannot exclude a phenotype like it."
+            )
+            for key in ("enough", "next_time", "bought"):
+                if parts[key]:
+                    parts[key].insert(0, warning)
+            notes.append(warning)
+    notes.append(
+        "Technical drift between repeats, batches or plates is not assessed: groups are "
+        "analysed apart, and a shift shared by all fields of a group is not new within it."
+    )
+    sections = {
+        key: _indent("\n\n".join(texts)) if texts else f"  Not assessed: {_NEEDS[key]}."
+        for key, texts in parts.items()
+    }
     inputs = {key: ("given" if parts[key] else "not assessed") for key, _ in QUESTIONS}
     return MicroscopistReport(sections, profile, tuple(notes), inputs)
 
