@@ -50,7 +50,6 @@ from morphocoverage import (
     SamplingObjective,
     ScalarPrecisionStrategy,
 )
-from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
@@ -71,6 +70,7 @@ from morphocoverage.retrospective import (
     stopping_calibration,
 )
 from morphocoverage.strategies import SupportNoveltyEstimator
+from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.transforms import Standardize
 
 GROUPS = ["condition", "repeat", "well"]
