@@ -116,13 +116,14 @@ def _detection_adjusted_bounds(sufficiency, controls) -> str | None:
         return None
     detection = float(rates["positive"])
     keys = list(sufficiency.group_cols)
-    lines = [
+    heading = (
         f"Adjusted for the declared control's detection rate ({100 * detection:.0f}% of its "
         "fields recognized): a phenotype seen as well as the control, and shown by no FOV yet,"
         " could still be in"
-    ]
+    )
+    lines = [heading]
     for row in sufficiency.next_fov.itertuples(index=False):
-        bound = getattr(row, "unseen_state_max_frequency")
+        bound = row.unseen_state_max_frequency
         if bound is None or pd.isna(bound):
             continue
         adjusted = min(1.0, float(bound) / detection)
