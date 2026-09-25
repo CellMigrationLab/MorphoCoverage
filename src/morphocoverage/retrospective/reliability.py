@@ -49,9 +49,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
+from ..evaluator import FovSubsets, iter_analysis_groups
 from ..reservoir import ReservoirSplit
 from ..schema import validate_input_tables
+from ._parallel import check_n_jobs, map_groups
 from ._text import fields, group_identity, percent, where
 from .criteria import OutcomeCriterion, Preservation
 
@@ -125,11 +126,14 @@ def _draw_rng(random_state: int, group: Mapping[str, Any], split: int) -> np.ran
     return np.random.default_rng([random_state, group_identity(group), split])
 
 
-def _group_draws(group, data, criteria, counts, splitter, n_splits, draws, random_state):
+def _group_draws(group, data, criteria, counts, split_settings, n_splits, draws, random_state):
     """Every assessed draw for one analysis group, and the whole stream per split."""
+    fraction, block_col = split_settings
     rows, ceiling = [], []
     for split in range(n_splits):
-        stream, reservoir = splitter(split).split(group, data)
+        stream, reservoir = ReservoirSplit(fraction, random_state + split, block_col).split(
+            group, data
+        )
         for criterion in criteria:
             status, value = criterion.assess(reservoir, stream)
             ceiling.append(
@@ -144,10 +148,10 @@ def _group_draws(group, data, criteria, counts, splitter, n_splits, draws, rando
             )
         rng = _draw_rng(random_state, group, split)
         n_stream = len(stream.fovs)
+        subsets = FovSubsets(stream)
         for k in (k for k in counts if k <= n_stream):
             for draw in range(draws):
-                chosen = stream.fovs.iloc[np.sort(rng.choice(n_stream, size=k, replace=False))]
-                subset = restrict_input(stream, objects_in_fovs(stream, chosen), chosen)
+                subset = subsets.take(np.sort(rng.choice(n_stream, size=k, replace=False)))
                 for criterion in criteria:
                     status, value = criterion.assess(reservoir, subset)
                     rows.append(
@@ -221,6 +225,7 @@ def sampling_reliability(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    n_jobs: int = 1,
 ) -> ReliabilityResult:
     """How often ``k`` random whole FOVs preserve each criterion in held-back FOVs.
 
@@ -230,8 +235,11 @@ def sampling_reliability(
     split, a design choice with no default: a larger reservoir is a better
     reference and leaves a shorter stream. ``n_splits`` and ``draws`` are
     computational settings; the curve reports how much the answer varies
-    across splits. Other arguments are those of ``validate_input_tables``.
+    across splits. ``n_jobs`` runs analysis groups in that many worker
+    processes (``-1``: every CPU); results are identical for every value.
+    Other arguments are those of ``validate_input_tables``.
     """
+    check_n_jobs(n_jobs)
     criteria, counts = _check_settings(
         criteria, fov_counts, reservoir_fraction, n_splits, draws, random_state
     )
@@ -244,14 +252,13 @@ def sampling_reliability(
         observation_unit=observation_unit,
     )
 
-    def splitter(split: int) -> ReservoirSplit:
-        return ReservoirSplit(float(reservoir_fraction), random_state + split, block_col)
-
+    split_settings = (float(reservoir_fraction), block_col)
+    jobs = [
+        (group, group_data, criteria, counts, split_settings, n_splits, draws, random_state)
+        for group, group_data in iter_analysis_groups(data)
+    ]
     rows, ceiling_rows = [], []
-    for group, group_data in iter_analysis_groups(data):
-        group_rows, group_ceiling = _group_draws(
-            group, group_data, criteria, counts, splitter, n_splits, draws, random_state
-        )
+    for group_rows, group_ceiling in map_groups(_group_draws, jobs, n_jobs):
         rows += group_rows
         ceiling_rows += group_ceiling
     keys = list(data.group_cols)

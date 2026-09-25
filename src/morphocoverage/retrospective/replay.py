@@ -31,12 +31,13 @@ import numpy as np
 import pandas as pd
 
 from ..benchmark import AcquisitionOrder
-from ..evaluator import iter_analysis_groups
+from ..evaluator import iter_analysis_groups, restrict_input
 from ..objectives import ObjectiveConfig
 from ..reservoir import ReservoirSplit
 from ..schema import ValidatedInput, validate_input_tables
 from ..sequential import _Acquisition, _in_acquisition_order, _replay_full, _replay_incremental
 from ..strategies.base import SamplingStrategy
+from ._parallel import check_n_jobs, map_groups
 from ._text import group_identity
 from .criteria import OutcomeCriterion
 from .stage import dispersed_order, stage_travel
@@ -75,6 +76,33 @@ class ReplayResult:
     group_cols: tuple[str, ...]
     settings: Mapping[str, Any] = field(default_factory=dict)
     paths: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+
+class _SortedPrefixes:
+    """Prefixes as slices of observations sorted by acquisition rank, for scoring outcomes.
+
+    ``_Acquisition.prefix`` masks the whole stream for every prefix. Outcomes
+    are scored on every prefix of every order, so observations are sorted once
+    by the rank of their FOV (their table order kept within each FOV) and each
+    prefix is a slice. Outcome metrics are summaries of the prefix's rows, so
+    only floating-point summation order can differ from the masked prefix.
+    """
+
+    def __init__(self, acquisition: _Acquisition) -> None:
+        rank = acquisition.rank
+        order = np.argsort(rank, kind="stable")
+        order = order[rank[order] >= 0]
+        self.data = acquisition.data
+        self.ordered = acquisition.ordered
+        self.objects = acquisition.data.objects.iloc[order]
+        # Number of observations in the first ``step`` FOVs.
+        self.ends = np.searchsorted(rank[order], np.arange(1, acquisition.n_fovs + 1))
+
+    def prefix(self, step: int) -> ValidatedInput:
+        """The first ``step`` FOVs and their observations."""
+        return restrict_input(
+            self.data, self.objects.iloc[: self.ends[step - 1]], self.ordered.iloc[:step]
+        )
 
 
 def default_orders(acquisition_order_col: str | None) -> list[AcquisitionOrder]:
@@ -152,6 +180,80 @@ def _check(
     return strategies, criteria, orders
 
 
+def _replay_group(
+    group,
+    group_data,
+    strategies,
+    criteria,
+    orders,
+    objective,
+    split_settings,
+    acquisition_order_col,
+    stage_cols,
+    min_fovs,
+    incremental,
+):
+    """Decisions, outcomes, streams and stage paths of every replay of one analysis group."""
+    reservoir_fraction, block_col, n_splits, random_state = split_settings
+    replay = _replay_incremental if incremental else _replay_full
+    decisions, outcomes, streams, paths = [], [], [], []
+    for split in range(n_splits):
+        splitter = ReservoirSplit(float(reservoir_fraction), random_state + split, block_col)
+        stream, reservoir = splitter.split(group, group_data)
+        for order in orders:
+            ordered = _ordered_stream(
+                group, stream, order, acquisition_order_col, split, stage_cols
+            )
+            acquisition = _Acquisition(stream, ordered)
+            prefixes = _SortedPrefixes(acquisition)
+            where = {
+                **group,
+                "split": split,
+                "order_id": order_id(order),
+                "order": order.kind,
+                "order_seed": order.seed,
+            }
+            streams.append(
+                {
+                    **where,
+                    "stream_fovs": acquisition.n_fovs,
+                    "reservoir_fovs": len(reservoir.fovs),
+                }
+            )
+            if stage_cols is not None:
+                travel = stage_travel(ordered[list(stage_cols)].to_numpy(dtype=float))
+                paths += [
+                    {**where, "fovs": i + 1, "travel": float(t)} for i, t in enumerate(travel)
+                ]
+            for step, result in replay(
+                strategies, group, acquisition, objective=objective, min_fovs=min_fovs
+            ):
+                decision = None if result.decision is None else result.decision.value
+                decisions.append(
+                    {
+                        **where,
+                        "strategy": result.strategy,
+                        "config_id": result.config_id,
+                        "fovs": step,
+                        "decision": decision,
+                    }
+                )
+            for step in range(1, acquisition.n_fovs + 1):
+                prefix = prefixes.prefix(step)
+                for criterion in criteria:
+                    status, value = criterion.assess(reservoir, prefix)
+                    outcomes.append(
+                        {
+                            **where,
+                            "fovs": step,
+                            "criterion": criterion.name,
+                            "value": value,
+                            "status": status.value,
+                        }
+                    )
+    return decisions, outcomes, streams, paths
+
+
 def replay_acquisitions(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -173,6 +275,7 @@ def replay_acquisitions(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    n_jobs: int = 1,
 ) -> ReplayResult:
     """Decisions and held-back outcomes after every prefix of every replayed acquisition.
 
@@ -185,8 +288,11 @@ def replay_acquisitions(
     ``min_fovs`` FOVs on; outcomes from the first FOV. ``fovs`` lists every
     acquired FOV, including FOVs without observations. ``stage_cols`` (x, y
     columns of the FOV table, in ``stage_unit``) enables dispersed orders and
-    records the stage path of every replayed order.
+    records the stage path of every replayed order. ``n_jobs`` replays
+    analysis groups in that many worker processes (``-1``: every CPU);
+    results are identical for every value.
     """
+    check_n_jobs(n_jobs)
     strategies, criteria, orders = _check(
         strategies,
         criteria,
@@ -222,62 +328,27 @@ def replay_acquisitions(
             raise ValueError("stage coordinates contain missing values")
         if any(c in feature_cols for c in stage_cols):
             raise ValueError("stage coordinates cannot also be phenotype features")
-    replay = _replay_incremental if incremental else _replay_full
+    split_settings = (float(reservoir_fraction), block_col, n_splits, random_state)
+    jobs = [
+        (
+            group,
+            group_data,
+            strategies,
+            criteria,
+            orders,
+            objective,
+            split_settings,
+            acquisition_order_col,
+            stage_cols,
+            min_fovs,
+            incremental,
+        )
+        for group, group_data in iter_analysis_groups(data)
+    ]
     decisions, outcomes, streams, paths = [], [], [], []
-    for group, group_data in iter_analysis_groups(data):
-        for split in range(n_splits):
-            splitter = ReservoirSplit(float(reservoir_fraction), random_state + split, block_col)
-            stream, reservoir = splitter.split(group, group_data)
-            for order in orders:
-                ordered = _ordered_stream(
-                    group, stream, order, acquisition_order_col, split, stage_cols
-                )
-                acquisition = _Acquisition(stream, ordered)
-                where = {
-                    **group,
-                    "split": split,
-                    "order_id": order_id(order),
-                    "order": order.kind,
-                    "order_seed": order.seed,
-                }
-                streams.append(
-                    {
-                        **where,
-                        "stream_fovs": acquisition.n_fovs,
-                        "reservoir_fovs": len(reservoir.fovs),
-                    }
-                )
-                if stage_cols is not None:
-                    travel = stage_travel(ordered[list(stage_cols)].to_numpy(dtype=float))
-                    paths += [
-                        {**where, "fovs": i + 1, "travel": float(t)} for i, t in enumerate(travel)
-                    ]
-                for step, result in replay(
-                    strategies, group, acquisition, objective=objective, min_fovs=min_fovs
-                ):
-                    decision = None if result.decision is None else result.decision.value
-                    decisions.append(
-                        {
-                            **where,
-                            "strategy": result.strategy,
-                            "config_id": result.config_id,
-                            "fovs": step,
-                            "decision": decision,
-                        }
-                    )
-                for step in range(1, acquisition.n_fovs + 1):
-                    prefix = acquisition.prefix(step)
-                    for criterion in criteria:
-                        status, value = criterion.assess(reservoir, prefix)
-                        outcomes.append(
-                            {
-                                **where,
-                                "fovs": step,
-                                "criterion": criterion.name,
-                                "value": value,
-                                "status": status.value,
-                            }
-                        )
+    for part in map_groups(_replay_group, jobs, n_jobs):
+        for collected, rows in zip((decisions, outcomes, streams, paths), part, strict=True):
+            collected += rows
     keys = list(data.group_cols)
     settings = {
         "criteria": [c.parameters for c in criteria],

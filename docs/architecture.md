@@ -329,3 +329,12 @@ cell-count method.
 ## Retrospective analyses
 
 `morphocoverage.retrospective` holds the retrospective analyses of the microscopist's report (`docs/proposals/microscopist_report_roadmap.md`). They judge sets of FOVs against FOVs no estimator saw, through `OutcomeMetric` values and declared `OutcomeCriterion` tolerances, and never feed a prospective estimator. `replay_acquisitions` is the shared engine for Steps 2, 3 and 8: it reuses `sequential`'s prefix machinery and the estimators and policies a live session runs, so decisions are identical to online acquisition, while outcomes against the held-back reservoir are recorded separately. The names stay in the subpackage and are not part of the top-level `__all__`.
+
+### Computation
+
+The retrospective analyses spend their time in three places, each handled without changing results:
+
+- **Many subsets of whole FOVs.** `evaluator.FovSubsets` looks up each observation's FOV once, so a subset of FOVs costs one vectorized mask instead of a key match. It is used for random draws and the representation control. Replayed prefixes that only score outcomes are slices of observations sorted by acquisition rank, and a newly revealed FOV in `sequential` is a slice too (identical rows, in table order).
+- **Support novelty.** `_supporting_fovs` counts, for each query, the reference FOVs with enough observations within `epsilon`. It picks the fastest exact method: pairwise distances with a per-FOV count by matrix product for small problems or eight or more dimensions (trees do not prune there); otherwise one tree over all reference observations with its neighbours counted per FOV; and one nearest-neighbour search per reference FOV when neighbourhoods are dense. A test checks all three against the original on random data; only points at exactly `epsilon` on a rounded grid can resolve differently, by floating-point rounding. New-state clusters of all FOVs are found in one graph.
+- **Independent groups.** `sampling_reliability` and `replay_acquisitions` take `n_jobs` and run analysis groups in worker processes. Every group is seeded from the random state and its own identity, so the results are identical for every `n_jobs`, which a test checks.
+

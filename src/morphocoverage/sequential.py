@@ -6,6 +6,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from time import perf_counter
 
+import numpy as np
 import pandas as pd
 
 from .evaluator import (
@@ -155,6 +156,12 @@ class _Acquisition:
         self.keys = tuple(
             ordered.loc[:, list(group_data.fov_key)].itertuples(index=False, name=None)
         )
+        # Observations sorted by FOV rank (table order kept within each FOV), so
+        # one newly revealed FOV is a slice rather than a mask over the stream.
+        by_rank = np.argsort(self.rank, kind="stable")
+        by_rank = by_rank[self.rank[by_rank] >= 0]
+        self._by_rank = group_data.objects.iloc[by_rank]
+        self._bounds = np.searchsorted(self.rank[by_rank], np.arange(self.n_fovs + 1))
 
     def _select(self, first: int, last: int) -> ValidatedInput:
         """FOVs ranked ``first`` to ``last - 1`` in acquisition order, with their observations."""
@@ -167,7 +174,10 @@ class _Acquisition:
 
     def new_fov(self, step: int) -> ValidatedInput:
         """Only the FOV revealed at ``step`` and its observations."""
-        return self._select(step - 1, step)
+        first, last = self._bounds[step - 1], self._bounds[step]
+        return restrict_input(
+            self.data, self._by_rank.iloc[first:last], self.ordered.iloc[step - 1 : step]
+        )
 
 
 def _replay_full(strategies, group, acquisition, *, objective, min_fovs):

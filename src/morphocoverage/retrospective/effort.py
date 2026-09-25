@@ -50,6 +50,15 @@ from .protocol import FEW_UNITS
 OBSERVATION = "observation"
 
 
+def _dense_codes(code: np.ndarray) -> np.ndarray:
+    """Codes renumbered 0..K-1 by value; returned as they are when they already are."""
+    if code.dtype.kind in "iu" and len(code) and code.min() == 0:
+        present = np.bincount(code)
+        if present.all():
+            return code
+    return np.unique(code, return_inverse=True)[1]
+
+
 def nested_variance_components(values: np.ndarray, codes: Sequence[np.ndarray]) -> np.ndarray:
     """Method-of-moments variance components of a nested random design.
 
@@ -65,7 +74,7 @@ def nested_variance_components(values: np.ndarray, codes: Sequence[np.ndarray]) 
     levels = [np.zeros(n, dtype=int), *[np.asarray(c) for c in codes], np.arange(n)]
     sizes, totals = [], []
     for code in levels:
-        _, inverse = np.unique(code, return_inverse=True)
+        inverse = _dense_codes(code)
         counts = np.bincount(inverse)
         sums = np.bincount(inverse, weights=values)
         sizes.append((inverse, counts))
@@ -136,15 +145,18 @@ def _resample(tree, rng):
 
 
 def _flatten(tree, depth: int):
-    """Values and one code array per level for a (resampled) tree of ``depth`` levels."""
-    values, codes = [], [[] for _ in range(depth)]
+    """Values and one code array per level for a (resampled) tree of ``depth`` levels.
+
+    Codes number the units of each level 0, 1, ... in the order they are met,
+    so a unit drawn twice becomes two units, as a bootstrap requires.
+    """
+    values, leaf_codes = [], []
     counters = [0] * depth
 
     def walk(node, level):
         if level == depth:
             values.append(node)
-            for d in range(depth):
-                codes[d].append(np.full(len(node), counters[d] - 1))
+            leaf_codes.append([c - 1 for c in counters])
             return
         for child in node:
             counters[level] += 1
@@ -152,8 +164,10 @@ def _flatten(tree, depth: int):
 
     walk(tree, 0)
     if not values:
-        return np.array([]), [np.array([]) for _ in range(depth)]
-    return np.concatenate(values), [np.concatenate(c) for c in codes]
+        return np.array([]), [np.array([], dtype=np.int64) for _ in range(depth)]
+    lengths = np.fromiter((len(v) for v in values), dtype=np.int64, count=len(values))
+    table = np.asarray(leaf_codes, dtype=np.int64)
+    return np.concatenate(values), [np.repeat(table[:, d], lengths) for d in range(depth)]
 
 
 def _se(components, design: dict, samples: float, fovs_per_sample: float) -> float:

@@ -430,3 +430,38 @@ def test_nested_folds_that_cannot_be_fitted_make_the_estimate_insufficient():
     )
     assert quantity.availability.value == "insufficient_data"
     assert "without one FOV" in quantity.reason
+
+
+def test_every_supporting_fov_count_path_matches_one_tree_per_fov():
+    """The dense, single-tree and per-FOV paths give the reference per-FOV counts."""
+    from scipy.spatial import cKDTree
+
+    from morphocoverage.strategies import support_novelty as sn
+
+    def reference_counts(reference, positions, queries, epsilon, m, exclude):
+        supporting = np.zeros(len(queries), dtype=np.int64)
+        for fov in np.unique(positions):
+            members = reference[positions == fov]
+            if len(members) < m or not len(queries):
+                continue
+            counts = cKDTree(members).query_ball_point(queries, epsilon, return_length=True)
+            near = counts >= m
+            if exclude is not None:
+                near &= exclude != fov
+            supporting += near
+        return supporting
+
+    rng = np.random.default_rng(11)
+    for trial in range(60):
+        n = int(rng.integers(5, 5000 if trial % 5 == 0 else 300))
+        d = int(rng.choice([1, 2, 5, 12]))
+        reference = rng.normal(size=(n, d))
+        positions = rng.integers(0, int(rng.integers(1, 30)), n)
+        same = trial % 2 == 0
+        queries = reference if same else rng.normal(size=(int(rng.integers(0, 200)), d))
+        epsilon = float(rng.choice([0.2, 0.6, np.sqrt(d)]))
+        m = int(rng.integers(1, 4))
+        exclude = positions if same else None
+        expected = reference_counts(reference, positions, queries, epsilon, m, exclude)
+        got = sn._supporting_fovs(reference, positions, queries, epsilon, m, exclude)
+        np.testing.assert_array_equal(got, expected)
