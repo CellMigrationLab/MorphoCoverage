@@ -37,7 +37,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._text import group_identity, percent, rows_of
+from ._text import fields, group_identity, percent, rows_of
 from .hierarchy import SamplingHierarchy
 from .reliability import ReliabilityResult
 
@@ -264,13 +264,40 @@ def protocol_reliability(
     return ProtocolResult(
         table=pd.DataFrame(table),
         per_unit=pd.DataFrame(per_unit),
-        difficulty=difficulty_table,
+        difficulty=_with_ceiling(difficulty_table, per_sample, sample_cols, strata, threshold),
         validation=validation_table,
         sample_cols=tuple(sample_cols),
         unit_cols=tuple(unit_cols),
         strata=tuple(strata),
         settings=settings,
     )
+
+
+def _with_ceiling(difficulty, per_sample, sample_cols, strata, threshold) -> pd.DataFrame:
+    """Add each sample's reliability ceiling: how often its whole stream was enough.
+
+    ``ceiling_below_threshold`` marks samples whose held-back fields did not
+    reach the criterion even with every available field in at least
+    ``threshold`` of the hold-outs. Such a sample is not shown to need more
+    fields than it has: its reference could not judge the criterion at all.
+    Without a ceiling table the columns are missing values.
+    """
+    if not len(difficulty):
+        return difficulty
+    identity = [*strata, *sample_cols, "criterion"]
+    ceiling = per_sample.ceiling
+    if ceiling.empty or not set(identity) <= set(ceiling.columns):
+        difficulty["ceiling"] = np.nan
+        difficulty["ceiling_below_threshold"] = pd.array([None] * len(difficulty), dtype="boolean")
+        return difficulty
+    values = ceiling[[*identity, "whole_stream_preserved"]].drop_duplicates(subset=identity)
+    merged = difficulty.merge(values, on=identity, how="left", validate="one_to_one")
+    difficulty["ceiling"] = merged["whole_stream_preserved"].to_numpy(dtype=float)
+    below = difficulty["ceiling"] < float(threshold)
+    pairs = zip(difficulty["ceiling"], below, strict=True)
+    flags = [None if pd.isna(c) else bool(b) for c, b in pairs]
+    difficulty["ceiling_below_threshold"] = pd.array(flags, dtype="boolean")
+    return difficulty
 
 
 def _plural(count: int, word: str) -> str:
@@ -301,7 +328,7 @@ def protocol_summary(result: ProtocolResult) -> str:
         units = rows_of(result.per_unit, where)
         for row in rows.sort_values("fovs").itertuples(index=False):
             if row.eligible == 0:
-                lines.append(f"  {row.fovs} fields: no sample had that many fields to judge")
+                lines.append(f"  {fields(row.fovs)}: no sample had that many fields to judge")
                 continue
             per = units[units["fovs"] == row.fovs]
             by_unit = ", ".join(f"{u.adequate} of {u.eligible}" for u in per.itertuples())
@@ -316,12 +343,15 @@ def protocol_summary(result: ProtocolResult) -> str:
                 else f"; plausible range {percent(row.share_low)}–{percent(row.share_high)}"
             )
             lines.append(
-                f"  {row.fovs} fields: enough for {row.adequate} of {row.eligible} samples "
+                f"  {fields(row.fovs)}: enough for {row.adequate} of {row.eligible} samples "
                 f"({unit_word}s: {by_unit}{interval}){missing}"
             )
         hard = rows_of(result.difficulty, where)
         never = hard[hard["max_fovs"].isna()]
         needs_more = hard[hard["fields_needed"].isna() & hard["max_fovs"].notna()]
+        # A sample whose held-back fields were not enough even with every field is
+        # capped by its reference, not short of fields; it is named apart.
+        capped = hard["ceiling_below_threshold"].fillna(False).astype(bool) if len(hard) else None
         if len(hard):
             known = hard["fields_needed"].dropna().astype(int)
             if len(known):
@@ -329,13 +359,26 @@ def protocol_summary(result: ProtocolResult) -> str:
                     f"  Fields needed per sample: median {int(np.median(known))}, "
                     f"range {known.min()}–{known.max()}."
                 )
-            if len(needs_more):
+            short = needs_more[~capped.loc[needs_more.index]]
+            if len(short):
                 named = "; ".join(
                     ", ".join(str(r[c]) for c in result.sample_cols)
                     + f" (more than {r['max_fovs']})"
-                    for _, r in needs_more.iterrows()
+                    for _, r in short.iterrows()
                 )
                 lines.append(f"  Needs more fields than could be judged: {named}.")
+            reference_capped = hard[capped]
+            if len(reference_capped):
+                named = "; ".join(
+                    ", ".join(str(r[c]) for c in result.sample_cols)
+                    + f" (all fields enough in {percent(float(r['ceiling']))} of hold-outs)"
+                    for _, r in reference_capped.iterrows()
+                )
+                lines.append(
+                    f"  The held-back fields could not judge this for {len(reference_capped)} "
+                    f"of {len(hard)} samples, even with every available field, so these are "
+                    f"not counted as needing more fields: {named}."
+                )
             if len(never):
                 named = "; ".join(
                     ", ".join(str(r[c]) for c in result.sample_cols) for _, r in never.iterrows()

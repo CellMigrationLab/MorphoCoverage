@@ -193,8 +193,15 @@ def efficiency_summary(result: EfficiencyResult) -> str:
             )
             time = "" if row.median_time is None else f" (about {row.median_time / 60:.0f} min)"
             fields = "1 field" if row.median_fovs == 1 else f"{row.median_fovs:.0f} fields"
+            # The median hides runs that never got there; a protocol must serve those too.
+            missed = (
+                f" (never within the {row.stream_fovs} fields in "
+                f"{100 * (1 - row.reached):.0f}% of runs)"
+                if row.reached < 1
+                else ""
+            )
             lines.append(
-                f"  {label}: reliably enough after {fields}{travel} of stage travel{time}."
+                f"  {label}: reliably enough after {fields}{travel} of stage travel{time}{missed}."
             )
         lines.append(
             "  Medians over hold-outs and orders; stage travel is the straight-line path "

@@ -80,9 +80,21 @@ def _timed(label, run):
     return result
 
 
-def protocol():
+def reliability_from_tables() -> ReliabilityResult:
+    """The Step 1 curves and their ceilings, as ``reliability_idr0028.py`` wrote them.
+
+    The ceiling table travels with the curve: without it the summary cannot say
+    that a flat curve (the variance within 10%) is capped by the held-back
+    fields rather than by the fields acquired.
+    """
     curve = pd.read_csv(RESULTS / "reliability_idr0028.csv", dtype={"repeat": str})
-    per_sample = ReliabilityResult(curve, pd.DataFrame(), tuple(GROUPS), {"labels": LABELS})
+    ceiling = pd.read_csv(RESULTS / "reliability_ceiling_idr0028.csv", dtype={"repeat": str})
+    settings = {"labels": LABELS, "n_splits": int(ceiling["splits"].max())}
+    return ReliabilityResult(curve, pd.DataFrame(), tuple(GROUPS), settings, ceiling)
+
+
+def protocol():
+    per_sample = reliability_from_tables()
     return protocol_reliability(
         per_sample,
         SamplingHierarchy("image_file", "well", "repeat"),
@@ -220,13 +232,12 @@ def main() -> None:
     print(efficiency.summary(), "\n")
     print(redundancy.to_string(index=False))
 
-    # Step 10: every answer in one document (Step 1 curves reloaded from their table).
-    curve = pd.read_csv(RESULTS / "reliability_idr0028.csv", dtype={"repeat": str})
+    # Step 10: every answer in one document (Step 1 curves reloaded from their tables).
     report = microscopist_report(
         controls=control_result,
         calibration=stopping_calibration(replay),
         adequacy=adequacy,
-        reliability=ReliabilityResult(curve, pd.DataFrame(), tuple(GROUPS), {"labels": LABELS}),
+        reliability=reliability_from_tables(),
         protocol=protocol_result,
         inspection=novelty_view,
         effort=effort_result,

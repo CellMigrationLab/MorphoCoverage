@@ -38,7 +38,11 @@ from .replay import ReplayResult
 
 ALL_CRITERIA = "all criteria"
 _STOP = "stop"
-_ORDER_WORDS = {"recorded": "In the recorded order", "permuted": "In random orders"}
+_ORDER_WORDS = {
+    "recorded": "In the recorded order",
+    "permuted": "In random orders",
+    "dispersed": "Spreading the same positions out",
+}
 _RUN_KEYS = ("split", "order_id")
 
 

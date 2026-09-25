@@ -13,7 +13,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -22,7 +22,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -31,7 +31,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -40,7 +40,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -49,7 +49,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -58,7 +58,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -67,7 +67,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -76,7 +76,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -85,7 +85,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -94,7 +94,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -103,7 +103,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -112,7 +112,7 @@
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    dispersed: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
@@ -121,13 +121,13 @@
   100% of fields with planted positive-control observations recognized [pooled; representation_control]
   2% of reference fields called different (false alarms) [pooled; representation_control]
   a mean from whole fields varies 2.3 times as much as one from the same number of random observations (design effect) [condition=MOCK; effort_projection]
-  52% of the variance of the mean is between fields within a sample [condition=MOCK; effort_projection]
+  52% of the variance of the mean is between fields within a sample; not established: only 3 samples [condition=MOCK; effort_projection]
   a mean from whole fields varies 2.0 times as much as one from the same number of random observations (design effect) [condition=LATS1; effort_projection]
-  98% of the variance of the mean is between samples [condition=LATS1; effort_projection]
+  98% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero [condition=LATS1; effort_projection]
   a mean from whole fields varies 1.6 times as much as one from the same number of random observations (design effect) [condition=YAP; effort_projection]
-  99% of the variance of the mean is between samples [condition=YAP; effort_projection]
+  99% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero [condition=YAP; effort_projection]
   a mean from whole fields varies 2.6 times as much as one from the same number of random observations (design effect) [condition=ARAP2; effort_projection]
-  80% of the variance of the mean is between samples [condition=ARAP2; effort_projection]
+  80% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero [condition=ARAP2; effort_projection]
   in 5 of 12 groups, fields closer than about 520 µm (median) are more alike than random pairs [all groups; redundancy_distance]
   new states come from 4 fields [all groups; inspect_fovs]
 
@@ -140,6 +140,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=MOCK, repeat=1A, well=B6: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -150,6 +151,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=MOCK, repeat=1A, well=B6: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -160,6 +162,7 @@
     12 fields: enough in 40% of random acquisitions (±35% across hold-outs)
     15 fields: enough in 42% of random acquisitions (±40% across hold-outs)
     18 fields: enough in 30% of random acquisitions (±48% across hold-outs)
+    All 18 available fields together were enough in 30% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=1A, well=I23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -170,6 +173,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=1A, well=I23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -180,6 +184,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=1A, well=I23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -190,6 +195,7 @@
     12 fields: enough in 45% of random acquisitions (±29% across hold-outs)
     15 fields: enough in 47% of random acquisitions (±39% across hold-outs)
     18 fields: enough in 50% of random acquisitions (±53% across hold-outs)
+    All 18 available fields together were enough in 50% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=1A, well=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -200,6 +206,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=1A, well=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -210,6 +217,7 @@
     12 fields: enough in 98% of random acquisitions (±5% across hold-outs)
     15 fields: enough in 99% of random acquisitions (±2% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=1A, well=J23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -220,6 +228,7 @@
     12 fields: enough in 22% of random acquisitions (±24% across hold-outs)
     15 fields: enough in 19% of random acquisitions (±28% across hold-outs)
     18 fields: enough in 20% of random acquisitions (±42% across hold-outs)
+    All 18 available fields together were enough in 20% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=1A, well=M23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -230,6 +239,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=1A, well=M23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -240,6 +250,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=1A, well=M23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -250,6 +261,7 @@
     12 fields: enough in 55% of random acquisitions (±31% across hold-outs)
     15 fields: enough in 63% of random acquisitions (±39% across hold-outs)
     18 fields: enough in 70% of random acquisitions (±48% across hold-outs)
+    All 18 available fields together were enough in 70% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=1A, well=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -260,6 +272,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=1A, well=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -270,6 +283,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=1A, well=N23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -280,6 +294,7 @@
     12 fields: enough in 33% of random acquisitions (±24% across hold-outs)
     15 fields: enough in 32% of random acquisitions (±31% across hold-outs)
     18 fields: enough in 30% of random acquisitions (±48% across hold-outs)
+    All 18 available fields together were enough in 30% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2A, well=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -290,6 +305,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2A, well=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -300,6 +316,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2A, well=C13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -310,6 +327,7 @@
     12 fields: enough in 47% of random acquisitions (±38% across hold-outs)
     15 fields: enough in 53% of random acquisitions (±45% across hold-outs)
     18 fields: enough in 60% of random acquisitions (±52% across hold-outs)
+    All 18 available fields together were enough in 60% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=2A, well=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -320,6 +338,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=2A, well=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -330,6 +349,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=LATS1, repeat=2A, well=J23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -340,6 +360,7 @@
     12 fields: enough in 31% of random acquisitions (±32% across hold-outs)
     15 fields: enough in 33% of random acquisitions (±40% across hold-outs)
     18 fields: enough in 30% of random acquisitions (±48% across hold-outs)
+    All 18 available fields together were enough in 30% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=MOCK, repeat=2A, well=K16: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -350,6 +371,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=MOCK, repeat=2A, well=K16: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -360,6 +382,7 @@
     12 fields: enough in 100% of random acquisitions (±1% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=MOCK, repeat=2A, well=K16: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -370,6 +393,7 @@
     12 fields: enough in 58% of random acquisitions (±33% across hold-outs)
     15 fields: enough in 64% of random acquisitions (±37% across hold-outs)
     18 fields: enough in 80% of random acquisitions (±42% across hold-outs)
+    All 18 available fields together were enough in 80% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=2A, well=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -380,6 +404,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=2A, well=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -390,6 +415,7 @@
     12 fields: enough in 99% of random acquisitions (±3% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=YAP, repeat=2A, well=N23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -400,6 +426,7 @@
     12 fields: enough in 13% of random acquisitions (±26% across hold-outs)
     15 fields: enough in 10% of random acquisitions (±27% across hold-outs)
     18 fields: enough in 10% of random acquisitions (±32% across hold-outs)
+    All 18 available fields together were enough in 10% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2B, well=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -410,6 +437,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2B, well=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -420,6 +448,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2B, well=C13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -430,6 +459,7 @@
     12 fields: enough in 28% of random acquisitions (±31% across hold-outs)
     15 fields: enough in 29% of random acquisitions (±40% across hold-outs)
     18 fields: enough in 30% of random acquisitions (±48% across hold-outs)
+    All 18 available fields together were enough in 30% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2B, well=C17: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -440,6 +470,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2B, well=C17: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -450,6 +481,7 @@
     12 fields: enough in 99% of random acquisitions (±4% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0.6% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=ARAP2, repeat=2B, well=C17: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -460,6 +492,7 @@
     12 fields: enough in 38% of random acquisitions (±33% across hold-outs)
     15 fields: enough in 40% of random acquisitions (±39% across hold-outs)
     18 fields: enough in 50% of random acquisitions (±53% across hold-outs)
+    All 18 available fields together were enough in 50% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=MOCK, repeat=2B, well=P13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
@@ -470,6 +503,7 @@
     12 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=MOCK, repeat=2B, well=P13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
@@ -480,6 +514,7 @@
     12 fields: enough in 100% of random acquisitions (±0.6% across hold-outs)
     15 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     18 fields: enough in 100% of random acquisitions (±0% across hold-outs)
+    All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   condition=MOCK, repeat=2B, well=P13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
@@ -490,6 +525,7 @@
     12 fields: enough in 55% of random acquisitions (±32% across hold-outs)
     15 fields: enough in 59% of random acquisitions (±37% across hold-outs)
     18 fields: enough in 60% of random acquisitions (±52% across hold-outs)
+    All 18 available fields together were enough in 60% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
   all samples: fields per sample for the well mean of YAP/TAZ ratio within 5% (12 samples in 3 repeats; a sample counts when 90% of random acquisitions were enough)
@@ -524,13 +560,13 @@
     12 fields: enough for 0 of 12 samples (repeats: 0 of 5, 0 of 4, 0 of 3; plausible range 0%–0%)
     15 fields: enough for 0 of 12 samples (repeats: 0 of 5, 0 of 4, 0 of 3; plausible range 0%–0%)
     18 fields: enough for 0 of 12 samples (repeats: 0 of 5, 0 of 4, 0 of 3; plausible range 0%–0%)
-    Needs more fields than could be judged: B6, 1A (more than 18); I23, 1A (more than 18); J23, 1A (more than 18); M23, 1A (more than 18); N23, 1A (more than 18); C13, 2A (more than 18); J23, 2A (more than 18); K16, 2A (more than 18); N23, 2A (more than 18); C13, 2B (more than 18); C17, 2B (more than 18); P13, 2B (more than 18).
+    The held-back fields could not judge this for 12 of 12 samples, even with every available field, so these are not counted as needing more fields: B6, 1A (all fields enough in 30% of hold-outs); I23, 1A (all fields enough in 50% of hold-outs); J23, 1A (all fields enough in 20% of hold-outs); M23, 1A (all fields enough in 70% of hold-outs); N23, 1A (all fields enough in 30% of hold-outs); C13, 2A (all fields enough in 60% of hold-outs); J23, 2A (all fields enough in 30% of hold-outs); K16, 2A (all fields enough in 80% of hold-outs); N23, 2A (all fields enough in 10% of hold-outs); C13, 2B (all fields enough in 30% of hold-outs); C17, 2B (all fields enough in 50% of hold-outs); P13, 2B (all fields enough in 60% of hold-outs).
     For 3 repeats, the others reached no number that served enough samples, so nothing was checked there.
     Uncertainty is large with only 3 repeats: add more before fixing a protocol.
 
 5. What did the extra fields buy?
   condition=MOCK, repeat=1A, well=B6: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -539,7 +575,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=LATS1, repeat=1A, well=I23: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -548,7 +584,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=LATS1, repeat=1A, well=J23: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -557,7 +593,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=YAP, repeat=1A, well=M23: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -566,7 +602,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=YAP, repeat=1A, well=N23: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -575,7 +611,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=ARAP2, repeat=2A, well=C13: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -584,7 +620,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=LATS1, repeat=2A, well=J23: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -593,7 +629,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=MOCK, repeat=2A, well=K16: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -602,7 +638,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=YAP, repeat=2A, well=N23: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -611,7 +647,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=ARAP2, repeat=2B, well=C13: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -620,7 +656,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=ARAP2, repeat=2B, well=C17: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -629,7 +665,7 @@
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
   condition=MOCK, repeat=2B, well=P13: when was it enough? (medians over hold-outs and orders)
-    dispersed: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -653,19 +689,19 @@
 
 7. More fields or more samples?
   condition=MOCK: more fields or more samples, for the mean YAPTAZ_Ratio?
-    Most of the uncertainty of the mean is between fields within a sample (52% of its variance with the acquired design).
+    Most of the uncertainty of the mean is between fields within a sample (52% of its variance with the acquired design; not established: only 3 samples).
     More fields or more samples: cannot tell from these data (only 3 samples).
 
   condition=LATS1: more fields or more samples, for the mean YAPTAZ_Ratio?
-    Most of the uncertainty of the mean is between samples (98% of its variance with the acquired design).
+    Most of the uncertainty of the mean is between samples (98% of its variance with the acquired design; not established: only 3 samples, its interval includes zero).
     More fields or more samples: cannot tell from these data (only 3 samples).
 
   condition=YAP: more fields or more samples, for the mean YAPTAZ_Ratio?
-    Most of the uncertainty of the mean is between samples (99% of its variance with the acquired design).
+    Most of the uncertainty of the mean is between samples (99% of its variance with the acquired design; not established: only 3 samples, its interval includes zero).
     More fields or more samples: cannot tell from these data (only 3 samples).
 
   condition=ARAP2: more fields or more samples, for the mean YAPTAZ_Ratio?
-    Most of the uncertainty of the mean is between samples (80% of its variance with the acquired design).
+    Most of the uncertainty of the mean is between samples (80% of its variance with the acquired design; not established: only 3 samples, its interval includes zero).
     More fields or more samples: cannot tell from these data (only 3 samples).
 
 8. Could I have sampled more efficiently?
