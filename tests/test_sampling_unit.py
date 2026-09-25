@@ -163,6 +163,21 @@ def test_control_groups_set_the_reference_mean():
         object_rule_check(objects, fovs, feature="x", control={"condition": "C"})
 
 
+def test_the_control_mean_pools_every_control_object():
+    # control groups of 10 x 5 and 10 x 45 objects at means 10 and 20: the pooled
+    # control mean is 19, not the mean of the two group means (15)
+    small = acquisition(mean=10.0, n_fields=10, per_field=5, condition="A", repeat="r1", seed=1)
+    large = acquisition(mean=20.0, n_fields=10, per_field=45, condition="A", repeat="r2", seed=2)
+    objects, fovs = combined(small, large)
+    check = object_rule_check(
+        objects, fovs, feature="x", targets=[0.05], control={"condition": "A"}, n_draws=50
+    )
+    reference = objects["x"].mean()
+    assert reference == pytest.approx(19.0, abs=0.1)
+    for (part, _), row in zip([small, large], check.table.to_dict("records"), strict=True):
+        assert row["object_sd"] == pytest.approx(part["x"].std(ddof=1) / reference)
+
+
 def test_the_rule_check_is_deterministic_and_group_local():
     a = acquisition(field_sd=0.5, condition="A", seed=1)
     b = acquisition(field_sd=0.5, condition="B", seed=2)

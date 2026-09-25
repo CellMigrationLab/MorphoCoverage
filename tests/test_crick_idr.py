@@ -278,6 +278,13 @@ def test_every_stored_dataset_loads_ready_to_use(name, wells, fields_per_well, n
     assert len(data.fovs) == len(fovs)
 
 
+def test_mock_means_negative_control_on_every_idr0028_dataset():
+    datasets = _crick_scripts()
+    for name in ("idr0028_screenB", "idr0028_screenB_plates"):
+        fovs = datasets.load(name).fovs
+        assert set(fovs.loc[fovs["condition"] == "MOCK", "control_type"]) == {"negative control"}
+
+
 def test_the_stored_readout_is_the_papers_ratio_and_the_plates_contain_the_paper_wells():
     datasets = _crick_scripts()
     for wells, plate, protein in (

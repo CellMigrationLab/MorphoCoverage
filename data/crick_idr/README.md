@@ -101,7 +101,9 @@ Common to both tables:
 
 - `condition`: the paper's labels. idr0139 uses Untreated, DMSO, Leptomycin b,
   the compound ID, or `unannotated` for wells without an annotation. idr0028
-  uses the gene symbol, or MOCK for negative-control wells.
+  uses the gene symbol, or MOCK for negative-control wells. The complete
+  plates also hold untargeted `technical control` and `empty well` wells,
+  labelled by their control type, so MOCK always means negative control.
 - `repeat`: the plate (`1A`, `2A`, `2B` or `1093711385`). It is not asserted to
   be a biological repeat.
 - `well`, `image_file`: `(condition, repeat, image_file)` identifies a field.

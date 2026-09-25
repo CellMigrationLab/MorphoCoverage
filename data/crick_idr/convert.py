@@ -79,6 +79,12 @@ IDR0028_PAPER_WELLS = {
     "2B": ["C13", "C17", "P13"],
 }
 IDR0139_PAPER_WELLS = ["J05", "I19", "G15", "O02", "B02", "N12", "L08", "L18", "H13", "E22"]
+# Labels of untargeted idr0028 wells (no gene symbol), by IDR control type.
+IDR0028_UNTARGETED = {
+    "negative control": "MOCK",
+    "technical control": "technical control",
+    "empty well": "empty well",
+}
 # Control-type labels used by the Crick notebook for idr0139 (companion_notebook_idr0139).
 IDR0139_CONTROLS = {
     "Negative Control": "Untreated",
@@ -191,9 +197,12 @@ def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, 
             columns={"Well": "well"}
         )
         # Condition labels as in the Crick idr0028 notebook: gene symbol, with
-        # untargeted (negative-control) wells labelled MOCK.
+        # untargeted negative-control wells labelled MOCK. The complete plates
+        # also hold untargeted technical-control and empty wells; they keep their
+        # control type as the label, so MOCK means negative control only.
+        untargeted = wells["Control Type"].map(IDR0028_UNTARGETED)
         wells = wells.assign(
-            condition=wells["Gene Symbol"].fillna("MOCK"),
+            condition=wells["Gene Symbol"].fillna(untargeted),
             control_type=wells["Control Type"],
             quality_control=wells["Quality Control"],
         )[["well", "condition", "control_type", "quality_control"]]
