@@ -1,0 +1,46 @@
+Is a few hundred cells enough when the cells come as whole fields? (JCS Fig. 3G-I, S3G-I)
+
+== idr0139, plate 1093711385, control J05 ==
+cells per field, control: 282, 327, 392, 361
+effect sizes from every imaged cell: DMSO 0.08, SN0212398523 0.18, Leptomycin b 0.87
+  50 cells per well:
+    DMSO: random cells 0.08 [-0.07, 0.21]; whole fields 0.14 [-0.10, 0.38] from 1.0 fields
+    SN0212398523: random cells 0.18 [0.04, 0.31]; whole fields 0.17 [-0.04, 0.33] from 1.0 fields
+    Leptomycin b: random cells 0.88 [0.78, 0.98]; whole fields 0.89 [0.73, 1.01] from 1.0 fields
+    SN0212398523 > DMSO: ranked as the full wells in 64% of random-cell samples and 50% of whole-field samples; IQR bands overlap: yes (cells), yes (fields)
+    Leptomycin b > SN0212398523: ranked as the full wells in 100% of random-cell samples and 99% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+  250 cells per well:
+    DMSO: random cells 0.08 [0.02, 0.13]; whole fields 0.13 [-0.09, 0.33] from 1.2 fields
+    SN0212398523: random cells 0.18 [0.13, 0.23]; whole fields 0.21 [0.07, 0.28] from 2.0 fields
+    Leptomycin b: random cells 0.88 [0.83, 0.92]; whole fields 0.92 [0.69, 0.97] from 2.0 fields
+    SN0212398523 > DMSO: ranked as the full wells in 81% of random-cell samples and 55% of whole-field samples; IQR bands overlap: yes (cells), yes (fields)
+    Leptomycin b > SN0212398523: ranked as the full wells in 100% of random-cell samples and 100% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+  300 cells per well:
+    DMSO: random cells 0.09 [0.04, 0.13]; whole fields 0.12 [-0.09, 0.32] from 1.2 fields
+    SN0212398523: random cells 0.18 [0.13, 0.22]; whole fields 0.21 [0.09, 0.28] from 2.0 fields
+    Leptomycin b: random cells 0.87 [0.84, 0.91]; whole fields 0.93 [0.69, 0.96] from 2.5 fields
+    SN0212398523 > DMSO: ranked as the full wells in 83% of random-cell samples and 57% of whole-field samples; IQR bands overlap: yes (cells), yes (fields)
+    Leptomycin b > SN0212398523: ranked as the full wells in 100% of random-cell samples and 100% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+
+== idr0028, plate 2A, control K16 ==
+cells per field, control: 28, 40, 29, 26, 41, 38, 16, 27, 16, 34, 39, 32, 39, 42, 27, 30, 52, 36, 44, 50, 45, 44, 38, 29, 38, 24, 20, 29
+effect sizes from every imaged cell: ARAP2 0.28, YAP -1.52, LATS1 0.67
+  50 cells per well:
+    ARAP2: random cells 0.27 [0.15, 0.39]; whole fields 0.26 [0.11, 0.42] from 2.3 fields
+    YAP: random cells -1.54 [-1.75, -1.33]; whole fields -1.56 [-1.82, -1.30] from 3.1 fields
+    LATS1: random cells 0.68 [0.57, 0.80]; whole fields 0.69 [0.53, 0.85] from 2.4 fields
+    ARAP2 > YAP: ranked as the full wells in 100% of random-cell samples and 100% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+    LATS1 > ARAP2: ranked as the full wells in 95% of random-cell samples and 91% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+  200 cells per well:
+    ARAP2: random cells 0.28 [0.22, 0.33]; whole fields 0.27 [0.20, 0.34] from 7.5 fields
+    YAP: random cells -1.53 [-1.63, -1.44]; whole fields -1.52 [-1.65, -1.41] from 10.6 fields
+    LATS1: random cells 0.68 [0.63, 0.73]; whole fields 0.68 [0.60, 0.75] from 8.1 fields
+    ARAP2 > YAP: ranked as the full wells in 100% of random-cell samples and 100% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+    LATS1 > ARAP2: ranked as the full wells in 100% of random-cell samples and 100% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+  300 cells per well:
+    ARAP2: random cells 0.28 [0.24, 0.32]; whole fields 0.28 [0.23, 0.32] from 11.0 fields
+    YAP: random cells -1.53 [-1.59, -1.45]; whole fields -1.52 [-1.61, -1.43] from 15.6 fields
+    LATS1: random cells 0.68 [0.63, 0.71]; whole fields 0.68 [0.63, 0.72] from 11.9 fields
+    ARAP2 > YAP: ranked as the full wells in 100% of random-cell samples and 100% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+    LATS1 > ARAP2: ranked as the full wells in 100% of random-cell samples and 100% of whole-field samples; IQR bands overlap: no (cells), no (fields)
+

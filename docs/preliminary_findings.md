@@ -705,6 +705,42 @@ in only 5 of 10 wells.
 - **The JCS max − min statistic is itself noisy.** It is the paper's
   statistic and is kept for faithfulness. The "cells needed to match" uses
   the first `n` from which the field curve stays at or below the reference.
+**Follow-up: the paper's own treatment comparisons, fields against cells**
+(`data/crick_idr/jcs_effect_fields.py`). JCS argue that about 200–300 random
+cells per well reproduce the full-well conclusion, so imaging more wastes
+time and money (Fig. 3G–I, S3G–I). Their random cells are drawn from every
+imaged field, so the saving is computed after the whole well was imaged. A
+microscope that stops early gets whole fields. The same effect-size analysis
+(their Eqn 2, their wells from the companion notebooks, 1000 samples per
+size) was run both ways.
+
+Share of samples that rank two treatments as the full wells do:
+
+| comparison | cells per well | fields that takes | random cells | whole fields |
+|---|---|---|---|---|
+| idr0139: SN0212398523 > DMSO | 250 | 1–2 of 4 | 81% | 55% |
+| | 500 | 2–3 of 4 | 93% | 66% |
+| idr0139: Leptomycin B > SN0212398523 | 250 | 2 of 4 | 100% | 100% |
+| idr0028: LATS1 > ARAP2 | 200 | about 8 of 28 | 100% | 100% |
+| idr0028: ARAP2 > YAP siRNA | 200 | about 8 of 28 | 100% | 100% |
+
+At 250 cells on idr0139, the DMSO effect-size IQR band is 0.02 to 0.13 from
+random cells and −0.09 to 0.33 from whole fields.
+
+- **The saving holds when fields are small and many.** On idr0028 a field
+  holds about 30 cells, so 200 cells means about 8 fields, and whole fields
+  behave like random cells for every comparison.
+- **It fails for the small effect when fields are large and few.** On
+  idr0139, 250 cells is one or two fields. The paper's SN0212398523 > DMSO
+  reading then comes out right in about half of the samples, a coin flip,
+  and still only two times in three with 500 cells. The paper itself
+  questions the biological meaning of that difference; this shows that the
+  stated cell number would not have measured it reliably either.
+- **Large effects survive either way.** Leptomycin B is always ranked
+  correctly.
+- **The number to plan by is fields, not cells.** "X cells" means very
+  different things at 30 and at 330 cells per field.
+
 - **The earlier benchmark (entry 8) is a different test.** It scores a rule
   against a tolerance on the realized error in held-back fields and sweeps
   thresholds. The paper's own 5% and 2.5% targets are tested here.
