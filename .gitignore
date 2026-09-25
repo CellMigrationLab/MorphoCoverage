@@ -9,3 +9,4 @@ dist/
 *.egg-info/
 .ipynb_checkpoints/
 .DS_Store
+data/crick_idr/results/logs/

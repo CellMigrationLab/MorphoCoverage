@@ -242,9 +242,59 @@ def test_the_registry_declares_idr0028_development_and_idr0139_held_out():
     assert registry.check_tuning(["idr0028_screenB"]) == ("idr0028_screenB",)
     with pytest.raises(ValueError, match="held out"):
         registry.check_tuning(["idr0139"])
-    objects, fovs, features = datasets.load_idr0139()
-    assert datasets.FASCIN_RATIO in objects.columns and len(fovs) == 40
-    assert datasets.FASCIN_RATIO not in features
+    dataset = datasets.load("idr0139")
+    assert datasets.FASCIN_RATIO in dataset.objects.columns and len(dataset.fovs) == 40
+    assert datasets.FASCIN_RATIO not in dataset.features
+
+
+@pytest.mark.parametrize(
+    "name, wells, fields_per_well, n_features",
+    [
+        ("idr0028_screenB", 12, 28, 30),
+        ("idr0139", 10, 4, 60),
+        ("idr0028_screenB_plates", 1144, 28, 0),
+        ("idr0139_plate", 308, 4, 0),
+    ],
+)
+def test_every_stored_dataset_loads_ready_to_use(name, wells, fields_per_well, n_features):
+    datasets = _crick_scripts()
+    dataset = datasets.load(name)
+    objects, fovs = dataset.tables
+    key = ["condition", "repeat", "image_file"]
+    assert fovs.groupby(["repeat", "well"]).size().eq(fields_per_well).all()
+    assert len(fovs.groupby(["repeat", "well"])) == wells
+    assert not fovs.duplicated(key).any()
+    assert objects[key].merge(fovs[key], how="left", indicator=True)["_merge"].eq("both").all()
+    assert len(dataset.features) == n_features
+    readout = objects[dataset.readout].dropna()
+    assert readout.between(0, 1).all() and len(readout) > 0.99 * len(objects)
+    data = validate_input_tables(
+        objects,
+        fovs=fovs,
+        feature_cols=[dataset.readout, *dataset.features],
+        group_cols=list(dataset.groups),
+        observation_unit=dataset.observation_unit,
+    )
+    assert len(data.fovs) == len(fovs)
+
+
+def test_the_stored_readout_is_the_papers_ratio_and_the_plates_contain_the_paper_wells():
+    datasets = _crick_scripts()
+    for wells, plate, protein in (
+        ("idr0139", "idr0139_plate", "Fascin"),
+        ("idr0028_screenB", "idr0028_screenB_plates", "YAPTAZ"),
+    ):
+        paper = datasets.load(wells)
+        ratio = _ratio(paper.objects, protein)
+        assert (paper.objects[paper.readout] - ratio).abs().max() < 1e-5
+        full = datasets.load(plate).objects
+        key = ["repeat", "image_file", "label_id"]
+        joined = paper.objects[[*key, "condition", "well", paper.readout]].merge(
+            full[[*key, "condition", "well", paper.readout]], on=key, validate="one_to_one"
+        )
+        assert len(joined) == len(paper.objects)
+        assert (joined["condition_x"] == joined["condition_y"]).all()
+        assert (joined[f"{paper.readout}_x"] - joined[f"{paper.readout}_y"]).abs().max() < 1e-9
 
 
 def test_the_binomial_incidence_model_matches_the_planted_state_control():

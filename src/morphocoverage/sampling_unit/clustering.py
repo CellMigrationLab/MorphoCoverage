@@ -1,38 +1,38 @@
-"""Are rare or unusual cells spread over the fields, or clustered in a few? (F4 and F5)
+"""Are rare or unusual objects spread over the FOVs, or clustered in a few? (questions R4)
 
-A cell-number argument about rare states assumes random cells: the chance
-of missing a state carried by a share ``p`` of cells in ``n`` cells is
+An object-count argument about rare states assumes random objects: the chance
+of missing a state carried by a share ``p`` of objects in ``n`` objects is
 ``(1 - p) ** n``. A microscope acquires fields, and what decides whether a
-state is seen is the share of **fields** that contain it. When rare cells
+state is seen is the share of **fields** that contain it. When rare objects
 cluster (a mitotic group, a clone, a damaged patch, the well edge), many
-cells from a few fields can miss a state that the cell count says is
+objects from a few fields can miss a state that the object count says is
 covered.
 
-**``field_clustering``** takes any per-observation state labels: unusual
-cells from ``unusual_cells``, clusters from a mixture model fitted elsewhere
+**``fov_clustering``** takes any per-observation state labels: unusual
+objects from ``unusual_objects``, clusters from a mixture model fitted elsewhere
 (such as fiberfeatures' pixel categories summarized per patch), a gate on one
 feature, or manual annotations. Labels are data here, never inferred from
 features. Per analysis group and state it reports:
 
-- the state's share of cells and the share of acquired fields holding it;
-- the fields expected to hold it if the same cells were spread at random over
+- the state's share of objects and the share of acquired fields holding it;
+- the fields expected to hold it if the same objects were spread at random over
   the same fields (hypergeometric, ``scipy.stats.hypergeom``), and the
-  **clustering ratio** expected / observed (1: spread like random cells);
-- a permutation p-value: how often labels shuffled across the group's cells
+  **clustering ratio** expected / observed (1: spread like random objects);
+- a permutation p-value: how often labels shuffled across the group's objects
   reach as few fields as observed;
 - the fields needed to see the state once with ``detection_probability``,
   from the observed field incidence (``rare_planning.first_detection_fovs``),
   with a Clopper-Pearson bound from the lower bound of that incidence, beside
-  the fields a random-cell argument would ask for.
+  the fields a random-object argument would ask for.
 
 Fields without observations count as acquired fields that did not show the
 state. This is the retrospective, labelled counterpart of the rare-state
 planning of ``strategies.rare_planning``; a state is only as good as its
 labels.
 
-**``unusual_cells``** labels out-of-distribution cells: cells farther from a
+**``unusual_objects``** labels out-of-distribution objects: objects farther from a
 declared reference population, in standardized feature space, than all but
-a share ``quantile`` of reference cells are from reference cells of other
+a share ``quantile`` of reference objects are from reference objects of other
 fields. The design follows fiberfeatures' ``fit_pixel_categories``: fit on
 declared reference data of the same dataset (here, control groups), with every
 reference field contributing the same number of observations (at most
@@ -42,15 +42,15 @@ where the purpose differs: fiberfeatures fits a Gaussian mixture (scikit-learn)
 on normal scores to name categories; MorphoCoverage has no scikit-learn
 dependency, and rare states are exactly what a mixture tends to absorb, so
 this scores distance to the reference instead: the mean Euclidean distance to
-the ``n_neighbors`` nearest reference cells (``scipy.spatial.cKDTree``) after
+the ``n_neighbors`` nearest reference objects (``scipy.spatial.cKDTree``) after
 ``transforms.Standardize`` fitted on the reference sample, which keeps
 extreme values extreme where a quantile transform would clip them.
 
-Two choices keep the field-clustering test honest. The threshold comes from
-reference cells scored against reference cells of **other** fields, so a
+Two choices keep the FOV-clustering test honest. The threshold comes from
+reference objects scored against reference objects of **other** fields, so a
 reference field is never its own reference. And a group is never its own
 reference: a control group is scored against the other control groups, so
-labels never depend on how the tested group's cells sit in its fields. A
+labels never depend on how the tested group's objects sit in its fields. A
 control group with no other control group to compare with is not scored.
 Observations with a missing feature value are not scored.
 """
@@ -81,10 +81,10 @@ SEED_AGREEMENT_WARNING = 0.9
 
 
 @dataclass(frozen=True)
-class FieldClustering:
+class FOVClustering:
     """How each labelled state is spread over the fields, per analysis group.
 
-    ``table`` has one row per group and state; see ``field_clustering`` for
+    ``table`` has one row per group and state; see ``fov_clustering`` for
     the columns.
     """
 
@@ -92,31 +92,37 @@ class FieldClustering:
     group_cols: tuple[str, ...]
     settings: dict[str, Any]
 
+    def state_name(self, state: Any) -> str:
+        """A True/False state by its label column (``unusual``, ``not unusual``), else the state."""
+        if isinstance(state, (bool, np.bool_)):
+            return self.settings["label_col"] if state else f"not {self.settings['label_col']}"
+        return f"state {state!r}"
+
     def summary(self) -> str:
         """Plain sentences, one per group and state."""
-        cells = unit_plural(self.settings["observation_unit"])
+        words = unit_plural(self.settings["observation_unit"])
         chance = self.settings["detection_probability"]
         lines = [f"Are the states spread over the fields? Labels {self.settings['label_col']}."]
         for row in self.table.to_dict("records"):
-            head = f"{where({c: row[c] for c in self.group_cols})}, state {row['state']!r}"
-            if not row["state_cells"]:
+            head = f"{where({c: row[c] for c in self.group_cols})}, {self.state_name(row['state'])}"
+            if not row["state_objects"]:
                 lines.append(f"{head}: not seen in {fields_text(int(row['fovs']))}.")
                 continue
             upper = row["fovs_needed_upper"]
             bound = "" if pd.isna(upper) else f" (up to {int(upper)})"
             lines.append(
-                f"{head}: {int(row['state_cells'])} {cells} ({row['prevalence']:.1%}) in "
+                f"{head}: {int(row['state_objects'])} {words} ({row['prevalence']:.1%}) in "
                 f"{int(row['fovs_with_state'])} of {fields_text(int(row['fovs']))}; random "
-                f"{cells} would fill {row['expected_fovs_if_random']:.1f} (clustering ratio "
+                f"{words} would fill {row['expected_fovs_if_random']:.1f} (clustering ratio "
                 f"{row['clustering_ratio']:.1f}, p = {row['p_clustered']:.2g}). To see it "
                 f"with {chance:.0%} chance: {fields_text(int(row['fovs_needed']))}{bound} from "
                 f"its field incidence, against {fields_text(int(row['fovs_needed_if_random']))} "
-                f"if the {cells} were random."
+                f"if the {words} were random."
             )
         return "\n".join(lines)
 
 
-def field_clustering(
+def fov_clustering(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
     *,
@@ -129,19 +135,19 @@ def field_clustering(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
-) -> FieldClustering:
+) -> FOVClustering:
     """How each state in ``objects[label_col]`` is spread over the acquired fields.
 
     ``states`` are the label values to assess (default: every value present).
     Missing labels mark observations that were not labelled; they are left
     out. Columns of the result's ``table``: the group, ``state``, the
-    ``labelled`` observations, ``state_cells``, ``prevalence``, ``fovs``
+    ``labelled`` observations, ``state_objects``, ``prevalence``, ``fovs``
     (acquired), ``fovs_with_state``, ``fov_incidence``,
     ``expected_fovs_if_random``, ``clustering_ratio``, ``p_clustered``,
-    ``largest_field_share`` (the share of the state's cells in its fullest
+    ``largest_fov_share`` (the share of the state's objects in its fullest
     field), ``fovs_needed`` and ``fovs_needed_upper`` (from the observed field
     incidence and its lower ``confidence`` bound), and
-    ``fovs_needed_if_random`` (from the cell prevalence and the mean
+    ``fovs_needed_if_random`` (from the object prevalence and the mean
     observations per acquired field).
     """
     if not isinstance(label_col, str) or label_col not in objects.columns:
@@ -151,8 +157,7 @@ def field_clustering(
     check_count(n_permutations, "n_permutations", 1)
     check_seed(random_state)
     labels = objects[label_col]
-    present = [v for v in pd.unique(labels.dropna())]
-    chosen = present if states is None else list(states)
+    chosen = list(pd.unique(labels.dropna())) if states is None else list(states)
     codes = pd.Series(np.nan, index=objects.index)
     lookup = {state: i for i, state in enumerate(chosen)}
     known = labels.notna()
@@ -195,7 +200,7 @@ def field_clustering(
         "random_state": random_state,
         "observation_unit": data.observation_unit,
     }
-    return FieldClustering(pd.DataFrame(rows), tuple(data.group_cols), settings)
+    return FOVClustering(pd.DataFrame(rows), tuple(data.group_cols), settings)
 
 
 def _state_row(
@@ -208,11 +213,11 @@ def _state_row(
     confidence: float,
 ) -> dict[str, Any]:
     labelled, n_fovs, c = len(is_state), len(sizes), int(is_state.sum())
-    per_field = np.bincount(positions[is_state], minlength=n_fovs)
-    observed = int((per_field > 0).sum())
+    per_fov = np.bincount(positions[is_state], minlength=n_fovs)
+    observed = int((per_fov > 0).sum())
     row: dict[str, Any] = {
         "labelled": labelled,
-        "state_cells": c,
+        "state_objects": c,
         "prevalence": c / labelled if labelled else None,
         "fovs": n_fovs,
         "fovs_with_state": observed,
@@ -222,7 +227,7 @@ def _state_row(
         "expected_fovs_if_random",
         "clustering_ratio",
         "p_clustered",
-        "largest_field_share",
+        "largest_fov_share",
         "fovs_needed",
         "fovs_needed_upper",
         "fovs_needed_if_random",
@@ -230,7 +235,7 @@ def _state_row(
     row.update(dict.fromkeys(empty))
     if c == 0 or labelled == 0:
         return row
-    # P(a field of n_j labelled cells holds none of the c state cells) under random cells
+    # P(a FOV of n_j labelled objects holds none of the c state objects) under random objects
     miss = stats.hypergeom(labelled, c, sizes).pmf(0)
     expected = float(np.sum(1 - miss))
     null = np.empty(n_permutations)
@@ -238,10 +243,10 @@ def _state_row(
         shuffled = rng.permutation(is_state)
         null[i] = np.count_nonzero(np.bincount(positions[shuffled], minlength=n_fovs))
     prevalence = c / labelled
-    per_acquired_field = labelled / n_fovs
+    per_acquired_fov = labelled / n_fovs
     if prevalence < 1:
-        cells_needed = math.ceil(math.log(1 - detection_probability) / math.log(1 - prevalence))
-        if_random = max(1, math.ceil(cells_needed / per_acquired_field))
+        objects_needed = math.ceil(math.log(1 - detection_probability) / math.log(1 - prevalence))
+        if_random = max(1, math.ceil(objects_needed / per_acquired_fov))
     else:
         if_random = 1
     incidence = observed / n_fovs
@@ -251,7 +256,7 @@ def _state_row(
             "expected_fovs_if_random": expected,
             "clustering_ratio": expected / observed,
             "p_clustered": float((1 + np.sum(null <= observed)) / (1 + n_permutations)),
-            "largest_field_share": float(per_field.max() / c),
+            "largest_fov_share": float(per_fov.max() / c),
             "fovs_needed": first_detection_fovs(incidence, detection_probability)
             if incidence < 1
             else 1,
@@ -265,7 +270,7 @@ def _state_row(
 
 
 @dataclass(frozen=True)
-class UnusualCells:
+class UnusualObjects:
     """Out-of-distribution labels for every observation, against a declared reference.
 
     - ``labels``: aligned with the input ``objects`` (same index): ``True``
@@ -274,7 +279,7 @@ class UnusualCells:
     - ``groups``: per analysis group, the reference groups used, the
       threshold, the scored and unusual observations, and, when
       ``seed_checks`` were asked for, the agreement (Jaccard index of the
-      unusual cells) of refits with other seeds.
+      unusual objects) of refits with other seeds.
     """
 
     labels: pd.Series
@@ -285,11 +290,11 @@ class UnusualCells:
 
     def summary(self) -> str:
         """Plain sentences, one per group, with the seed check."""
-        cells = unit_plural(self.settings["observation_unit"])
+        words = unit_plural(self.settings["observation_unit"])
         lines = [
             (
-                f"Unusual {cells}: farther from the reference {dict(self.settings['reference'])} "
-                f"than all but {self.settings['quantile']:.1%} of reference {cells} are from "
+                f"Unusual {words}: farther from the reference {dict(self.settings['reference'])} "
+                f"than all but {self.settings['quantile']:.1%} of reference {words} are from "
                 f"other reference fields ({len(self.settings['feature_cols'])} standardized "
                 f"features, {self.settings['n_neighbors']} nearest neighbours)."
             )
@@ -307,17 +312,17 @@ class UnusualCells:
                     ", so treat the labels as unstable." if unstable else "."
                 )
             lines.append(
-                f"{head}: {int(row['unusual'])} of {int(row['scored'])} {cells} unusual "
+                f"{head}: {int(row['unusual'])} of {int(row['scored'])} {words} unusual "
                 f"({row['unusual_share']:.1%}).{check}"
             )
         return "\n".join(lines)
 
 
-def _reference_sample(group_datas, feature_matrix, per_fov: int, rng) -> tuple:
-    """Up to ``per_fov`` complete observations of every reference field, and their field ids."""
-    rows, field_ids, offset = [], [], 0
+def _reference_sample(group_datas, per_fov: int, rng) -> tuple[np.ndarray, np.ndarray]:
+    """Up to ``per_fov`` complete observations of every reference FOV, and their FOV ids."""
+    rows, fov_ids, offset = [], [], 0
     for data in group_datas:
-        matrix = feature_matrix(data)
+        matrix = data.feature_matrix()
         positions = fov_positions(data, data.fovs)
         complete = ~np.isnan(matrix).any(axis=1)
         for j in range(len(data.fovs)):
@@ -325,26 +330,27 @@ def _reference_sample(group_datas, feature_matrix, per_fov: int, rng) -> tuple:
             if len(members) > per_fov:
                 members = rng.choice(members, size=per_fov, replace=False)
             rows.append(matrix[np.sort(members)])
-            field_ids.append(np.full(len(members), offset + j))
+            fov_ids.append(np.full(len(members), offset + j))
         offset += len(data.fovs)
-    return np.concatenate(rows), np.concatenate(field_ids)
+    return np.concatenate(rows), np.concatenate(fov_ids)
 
 
 def _score(
-    reference: np.ndarray, field_ids: np.ndarray, tested: np.ndarray, k: int, quantile: float
+    reference: np.ndarray, fov_ids: np.ndarray, tested: np.ndarray, k: int, quantile: float
 ) -> tuple[np.ndarray, float, dict[str, Any]] | str:
+    """Scores of ``tested`` and the threshold from reference FOVs scored against the others."""
     fitted = Standardize().fit_matrix(reference, tuple(str(i) for i in range(reference.shape[1])))
     if isinstance(fitted, str):
         return fitted
     state, _ = fitted
     ref = Standardize().apply_matrix(state, reference)
     tree = cKDTree(ref)
-    largest = int(np.bincount(field_ids).max())
+    largest = int(np.bincount(fov_ids).max())
     if len(ref) - largest < k:
-        return f"fewer than {k} reference observations outside some reference field"
-    # leave-one-field-out: the k nearest reference cells from other fields
+        return f"fewer than {k} reference observations outside some reference FOV"
+    # leave-one-FOV-out: the k nearest reference objects from other FOVs
     distance, index = tree.query(ref, k=min(len(ref), k + largest))
-    other = field_ids[index] != field_ids[:, None]
+    other = fov_ids[index] != fov_ids[:, None]
     reference_scores = np.array([d[o][:k].mean() for d, o in zip(distance, other, strict=True)])
     threshold = float(np.quantile(reference_scores, 1 - quantile))
     scores = np.full(len(tested), np.nan)
@@ -355,7 +361,7 @@ def _score(
     return scores, threshold, state
 
 
-def unusual_cells(
+def unusual_objects(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
     *,
@@ -369,15 +375,16 @@ def unusual_cells(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
-) -> UnusualCells:
+) -> UnusualObjects:
     """Label observations that lie outside a declared reference population.
 
     ``reference`` selects the reference groups by FOV metadata, for example
     ``{"condition": "MOCK"}``; it is required, because "unusual" is only
-    defined against something. ``quantile`` is the share of reference cells
-    that would be called unusual when scored against other reference fields.
-    ``per_fov`` caps the observations each reference field contributes, so
-    every reference field weighs the same. ``seed_checks`` refits with the
+    defined against something. ``quantile`` is the share of reference objects
+    that would be called unusual when scored against other reference FOVs.
+    ``per_fov`` caps the observations each reference FOV contributes, so
+    every reference FOV weighs the same. Labels are aligned with the rows of
+    ``objects`` (its index is kept). ``seed_checks`` refits with the
     next seeds and reports how much the labels agree.
     """
     if not 0 < quantile < 1:
@@ -421,8 +428,8 @@ def unusual_cells(
         results = []
         for seed in range(random_state, random_state + seed_checks + 1):
             rng = np.random.default_rng([seed, identities[g_index]])
-            sample, field_ids = _reference_sample(refs, lambda d: d.feature_matrix(), per_fov, rng)
-            results.append(_score(sample, field_ids, matrix[mine], n_neighbors, quantile))
+            sample, fov_ids = _reference_sample(refs, per_fov, rng)
+            results.append(_score(sample, fov_ids, matrix[mine], n_neighbors, quantile))
         if isinstance(results[0], str):
             rows.append({**row, "status": results[0]})
             continue
@@ -465,7 +472,7 @@ def unusual_cells(
         "distance": "mean Euclidean distance to the n_neighbors nearest reference observations",
         "observation_unit": data.observation_unit,
     }
-    return UnusualCells(
+    return UnusualObjects(
         label_series,
         pd.Series(distances, index=objects.index),
         pd.DataFrame(rows),
@@ -474,4 +481,4 @@ def unusual_cells(
     )
 
 
-__all__ = ["FieldClustering", "UnusualCells", "field_clustering", "unusual_cells"]
+__all__ = ["FOVClustering", "UnusualObjects", "fov_clustering", "unusual_objects"]

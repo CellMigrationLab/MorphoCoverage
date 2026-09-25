@@ -61,7 +61,7 @@ def srs_relative_rmse(variance: float, mean: float, n: float, total: float) -> f
 
     Simple random sampling without replacement, with finite-population
     correction: ``sqrt(variance / n * (1 - n / total)) / |mean|``. This is the
-    error cell-number rules assume, used by ``data/crick_idr/fov_vs_cells.py``.
+    error cell-number rules assume, used by ``data/crick_idr/fov_vs_objects.py``.
     """
     return math.sqrt(variance / n * (1 - n / total)) / abs(mean)
 
@@ -81,7 +81,7 @@ class RelativeMeanError(OutcomeMetric):
     the stop prefix has no observations, either acquisition contains missing
     values for the selected feature, or the full mean is zero. With FOVs as the
     acquisition unit this is the quantity whose spread across acquisition
-    orders gives the whole-FOV error of ``fov_vs_cells.py``.
+    orders gives the whole-FOV error of ``fov_vs_objects.py``.
     """
 
     feature: str

@@ -36,7 +36,7 @@ def groups(data: ValidatedInput):
     return list(iter_analysis_groups(data))
 
 
-def field_values(data: ValidatedInput, values: np.ndarray) -> list[np.ndarray]:
+def fov_values(data: ValidatedInput, values: np.ndarray) -> list[np.ndarray]:
     """``values`` split by acquired FOV, one array per FOV row (empty for zero-observation FOVs).
 
     ``values`` is aligned with ``data.objects``; missing values (NaN) are dropped.

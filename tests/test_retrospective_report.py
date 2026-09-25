@@ -51,8 +51,8 @@ def test_given_answers_are_placed_under_their_question():
     assert report.inputs["next_time"] == "given"
     assert report.sections["effort"].strip().startswith("Not assessed")
     text = report.summary()
-    assert text.index("4. How many fields") < text.index("how many fields do you need")
-    assert text.index("how many fields do you need") < text.index("5. What did")
+    assert text.index("5. How many fields") < text.index("how many fields do you need")
+    assert text.index("how many fields do you need") < text.index("6. What did")
 
 
 def test_the_profile_states_measured_numbers_with_their_source():

@@ -52,16 +52,16 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
     return pd.DataFrame(rows), pd.DataFrame(fields)
 
 
-def test_cells_or_fields_example_runs(tmp_path, capsys):
-    """The usage example of docs/cells_or_fields.md runs against the current API."""
-    text = (ROOT / "docs" / "cells_or_fields.md").read_text()
+def test_objects_or_fields_example_runs(tmp_path, capsys):
+    """The usage example of docs/objects_or_fields.md runs against the current API."""
+    text = (ROOT / "docs" / "objects_or_fields.md").read_text()
     section = re.search(r"## Checking your own data.*?```python\n(.*?)```", text, flags=re.DOTALL)
-    assert section, "docs/cells_or_fields.md example not found"
-    script = tmp_path / "cells_or_fields_example.py"
+    assert section, "docs/objects_or_fields.md example not found"
+    script = tmp_path / "objects_or_fields_example.py"
     script.write_text(section.group(1))
-    cells, fields = _constructed_wells()
+    objects, fovs = _constructed_wells()
     runpy.run_path(
-        str(script), init_globals={"cells": cells, "fields": fields, "features": ["ratio", "b"]}
+        str(script), init_globals={"objects": objects, "fovs": fovs, "features": ["ratio", "b"]}
     )
     printed = capsys.readouterr().out
     assert "How variable are the fields?" in printed
