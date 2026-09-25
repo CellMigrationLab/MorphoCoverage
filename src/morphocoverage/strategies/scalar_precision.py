@@ -19,11 +19,15 @@ the upper bound of the 95% confidence interval for SD, recommended when only a
 few cells are available; the upper bound is the chi-square bound with
 ``n - 1`` degrees of freedom, which reproduces the paper's worked example.
 
-This is the paper's **single-sample / pilot variant**: the requirement is
-estimated from the cells of one analysis group. The paper's full multi-sample
-procedure needs data from other analysis groups, which a strategy never sees,
-so it is a separate planning step: ``plan_cells_to_average`` and
-``PlannedCellCountStrategy`` in ``jcb_planning``.
+This is a **single-group JCB-style adaptation**: the requirement is estimated
+from the cells of one analysis group and the group's own mean is used as the
+normalizing mean. It exactly matches the paper's single-sample calculation
+when that group is the normalization control, or when the supplied feature has
+already been normalized to the control mean. For an arbitrary treated group,
+the published procedure instead expresses its within-sample SD relative to the
+control mean. The faithful multi-sample/control-normalized planning procedure
+is therefore ``plan_cells_to_average`` plus ``PlannedCellCountStrategy``
+in ``jcb_planning``.
 
 ``resampling_unit="object"`` is the published criterion. ``resampling_unit="fov"``
 is a MorphoCoverage variant, not part of the paper: the same averaging noise
@@ -38,8 +42,9 @@ procedure:
 - when several samples are used, subtracting each sample's mean before
   estimating the pooled within-sample SD.
 
-Within one group the sample's own mean is used, as in the paper's
-single-sample case.
+Within one group the sample's own mean is used by this adaptation. That is
+not the general published normalization for treated samples; use the planning
+procedure when a separate control normalization is required.
 
 Estimation and decision are separate. ``ScalarPrecisionEstimator`` reports the
 averaging CV (and, with a pilot, the averaging CV the pilot projects for the
