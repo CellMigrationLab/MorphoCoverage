@@ -114,6 +114,8 @@ intensity features and the helpers that rebuild FOVs from blocks of cells.
   and `results/adequacy_idr0028.csv`.
 - `datasets.py`: the `BenchmarkRegistry` of both datasets (idr0028 development,
   idr0139 held out) and their loaders.
+- `benchmark.py` (entry 8) with its locked `benchmark_protocol.py`: the
+  benchmark score, `results/benchmark_*`.
 - `heldout_idr0139.py` (entry 7): `results/heldout_reliability_idr0139.csv`,
   `heldout_ceiling_idr0139.csv`, `heldout_protocol_idr0139.csv` and
   `heldout_calibration_idr0139.csv`.

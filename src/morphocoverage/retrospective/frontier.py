@@ -489,9 +489,16 @@ def transfer(development: FrontierResult, held_out: FrontierResult, alpha: float
 
 
 def _fields(value: float) -> str:
+    value = round(float(value), 1)
     if value == 1:
         return "1 field"
-    return f"{value:g} fields" if float(value).is_integer() else f"{value:.1f} fields"
+    return f"{value:.0f} fields" if value.is_integer() else f"{value:.1f} fields"
+
+
+def _number(value: float) -> str:
+    """One decimal, without a negative zero."""
+    value = round(float(value), 1)
+    return f"{0.0 if value == 0 else value:.1f}"
 
 
 def frontier_summary(result: FrontierResult) -> str:
@@ -519,16 +526,17 @@ def frontier_summary(result: FrontierResult) -> str:
                 continue
             saved = row.fields_saved
             verdict = (
-                f"saves {saved:.1f} fields"
+                f"saves {_number(saved)} fields"
                 if saved > 0.05
-                else f"costs {-saved:.1f} more fields"
+                else f"costs {_number(-saved)} more fields"
                 if saved < -0.05
                 else "does as well as the fixed count, no better"
             )
             interval = (
                 ""
                 if row.saved_low is None or pd.isna(row.saved_low)
-                else f", {percent(0.95)} interval {row.saved_low:.1f} to {row.saved_high:.1f}"
+                else f", {percent(0.95)} interval {_number(row.saved_low)} to "
+                f"{_number(row.saved_high)}"
             )
             adaptive = (
                 ""

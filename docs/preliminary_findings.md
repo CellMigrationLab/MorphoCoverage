@@ -522,3 +522,92 @@ recorded and 5 random orders.
   is printed.
 - **One readout.** The fascin ratio only; the 30 intensity features and the
   novelty definition were not tested here.
+
+## 8. The first locked benchmark: fields saved at matched risk (2026-09-25)
+
+**Question.** Do the richer rules, or the JCB and JCS rules per field rather
+than per cell, need fewer fields than a fixed count for the same risk of
+stopping too early? This is the benchmark of `docs/questions.md` (rows R2,
+P5 and P6), scored with `retrospective.frontier` (`docs/benchmarking.md`,
+"The score").
+
+**Method.** `data/crick_idr/benchmark.py` under protocol version 1
+(`benchmark_protocol.py`, locked by digest `8edc7dc0` before the first run).
+Replays hold back 35% of each idr0028 well (5 splits, recorded and 10 random
+orders; 50% of each idr0139 well, 6 splits, recorded and 5 random orders).
+Each rule family is swept over a threshold grid fixed in the protocol; risk
+is the share of acquisitions that did not preserve the outcome in held-back
+fields when the rule stopped; the unit is the well. Before locking, a
+reduced dry run (one split, one order, not scored) showed several grids
+ending before the cheap end; they were widened under a stated rule (every
+grid reaches from never stopping to stopping at the first allowed field), not
+on a result. Tables: `results/benchmark_*`.
+
+Fields saved against a fixed count, idr0028 (negative: costs fields):
+
+| rule | mean within 5%, risk ≤ 5% | mean within 2.5%, risk ≤ 5% | mean within 2.5%, risk ≤ 10% |
+|---|---|---|---|
+| fixed count (fields needed) | 1 | 4 | 2 |
+| JCB per cell | 0.0 | −4.2 | −0.8 |
+| JCB per field | −1.3 | −0.3 | −0.3 |
+| JCS spread per cell | 0.0 | −0.1 | −2.1 |
+| JCS spread per field | −1.0 | −6.2 | 0.0 |
+| FOV bootstrap of the mean | −1.0 | −1.7 | 0.0 |
+
+The 95% intervals over the 12 wells are wide (for example −4.5 to 1.6 for
+JCB per field at 2.5%), and every adaptivity correlation is 0.3 or less.
+
+Settings chosen on idr0028 to meet 5% risk, scored on the held-out idr0139:
+
+| mean within 5% | stop on idr0139 | risk on idr0139 |
+|---|---|---|
+| fixed 1 field, JCB per cell, JCS spread per cell | 1 field | 35% |
+| JCB per field, JCS spread per field, FOV bootstrap | 2 fields (all available) | 27% |
+
+For the mean within 2.5%, every setting reaches 58% risk on idr0139.
+
+Planted rare state (semi-synthetic: 5 siYAP nuclei in 10% or 20% of the
+fields of the MOCK wells of plates 1A and 2A, 48 acquisitions):
+
+| rule | risk ≤ 5% | risk ≤ 10% |
+|---|---|---|
+| fixed count (fields needed) | 15 | 12 |
+| novelty bound | −3.0 | −3.0 |
+| rare incidence, reading the planted label | +8.3 (Spearman 0.72) | +5.3 (Spearman 0.72) |
+
+**What this shows**
+
+- **For the well mean on idr0028, nothing beats a fixed count.** This is the
+  null result the regime map needs: the readout is easy, one field meets the
+  mean within 5%, and every rule either matches that or costs fields.
+- **Per cell against per field changes where each rule fails.** At 5% the
+  per-cell rules match a fixed single field, and the per-field rules cost one
+  field because they need two fields to estimate field-to-field variance. At
+  2.5% it reverses: the per-cell JCB rule (upper-95 SD) costs 4.2 fields,
+  JCB per field only 0.3, because cell counts overstate what the fields add.
+- **No development setting transfers to the held-out wells.** At the setting
+  chosen for 5% risk on idr0028, idr0139 gives 27–35% risk. Part of that is
+  idr0139 itself: its 2-field reference cannot confirm the mean within 5% in
+  about a quarter of hold-outs even with every field (entry 7). Stopping at one
+  field (fixed, JCB per cell, JCS per cell) is worse than that floor; stopping
+  at two is at it. Entry 7's conclusion holds: the count does not transfer.
+- **For a rare state, the rule that sees the state saves fields; the novelty
+  bound does not.** The label rule stops as soon as the state has appeared,
+  so easy acquisitions stop early and its stops track the need. The novelty
+  bound behaves like a stricter fixed count: with nothing new it depends on
+  the number of fields only, and a new state keeps it acquiring. It answers
+  "would the next field show something new", not "has the rare state been
+  seen" (entry 3).
+
+**What this does not show**
+
+- **Development data, one easy readout.** The distribution questions of R2 and
+  the variance could not be scored (entry 4: the reservoir cannot judge them).
+- **The held-out dataset is too shallow** to score a rule by itself: its fixed
+  count never reaches 5% risk within its 2 stream fields.
+- **The rare-state result is semi-synthetic and has 2 independent units.** The
+  label rule assumes the state can be classified at the microscope; without
+  labels, no packaged rule beat a fixed count.
+- **One grid per family**, fixed in advance; a finer grid could move a chosen
+  setting by one step.
+

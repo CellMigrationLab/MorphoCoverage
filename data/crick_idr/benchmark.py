@@ -301,7 +301,7 @@ def main(argv: list[str]) -> None:
     # No setting of this protocol was chosen on the held-out dataset.
     datasets.check_tuning(["idr0028_screenB"])
     RESULTS.mkdir(exist_ok=True)
-    lines = [f"Benchmark, protocol version {PROTOCOL['version']} ({digest()[:12]})", ""]
+    lines = [f"Benchmark, protocol version {PROTOCOL['version']} ({digest()[:12]})"]
     mean_lines, transfers = run_mean()
     lines += mean_lines
     table = pd.concat(transfers, ignore_index=True)

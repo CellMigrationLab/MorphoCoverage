@@ -1,0 +1,25 @@
+family,alpha,setting,development_risk,development_effort,held_out_risk,held_out_effort,held_out_judged,criterion
+fixed fields,0.0500,1.0000,0.0121,1.0000,0.3500,1.0000,360.0000,the well mean within 5%
+FOV bootstrap of the mean,0.0500,0.0320,0.0030,2.0000,0.2667,2.0000,360.0000,the well mean within 5%
+JCB per cell,0.0500,0.2000,0.0121,1.0000,0.3500,1.0000,360.0000,the well mean within 5%
+JCB per field,0.0500,0.4000,0.0030,2.2788,0.2667,2.0000,360.0000,the well mean within 5%
+JCS spread per cell,0.0500,0.1600,0.0136,1.0455,0.3500,1.0000,360.0000,the well mean within 5%
+JCS spread per field,0.0500,0.0800,0.0030,2.0000,0.2667,2.0000,360.0000,the well mean within 5%
+fixed fields,0.1000,1.0000,0.0121,1.0000,0.3500,1.0000,360.0000,the well mean within 5%
+FOV bootstrap of the mean,0.1000,0.0320,0.0030,2.0000,0.2667,2.0000,360.0000,the well mean within 5%
+JCB per cell,0.1000,0.2000,0.0121,1.0000,0.3500,1.0000,360.0000,the well mean within 5%
+JCB per field,0.1000,0.4000,0.0030,2.2788,0.2667,2.0000,360.0000,the well mean within 5%
+JCS spread per cell,0.1000,0.1600,0.0136,1.0455,0.3500,1.0000,360.0000,the well mean within 5%
+JCS spread per field,0.1000,0.0800,0.0030,2.0000,0.2667,2.0000,360.0000,the well mean within 5%
+fixed fields,0.0500,4.0000,0.0394,4.0000,,,,the well mean within 2.5%
+FOV bootstrap of the mean,0.0500,0.0040,0.0500,5.6939,0.5833,2.0000,360.0000,the well mean within 2.5%
+JCB per cell,0.0500,0.0050,0.0167,8.2000,0.5833,2.0000,360.0000,the well mean within 2.5%
+JCB per field,0.0500,0.0300,0.0379,4.2924,0.5833,2.0000,360.0000,the well mean within 2.5%
+JCS spread per cell,0.0500,0.0400,0.0379,4.1318,0.5833,2.0000,360.0000,the well mean within 2.5%
+JCS spread per field,0.0500,0.0200,0.0258,10.2364,0.5833,2.0000,360.0000,the well mean within 2.5%
+fixed fields,0.1000,2.0000,0.0894,2.0000,0.5833,2.0000,360.0000,the well mean within 2.5%
+FOV bootstrap of the mean,0.1000,0.0320,0.0894,2.0000,0.5833,2.0000,360.0000,the well mean within 2.5%
+JCB per cell,0.1000,0.0100,0.0515,2.8242,0.5833,2.0000,360.0000,the well mean within 2.5%
+JCB per field,0.1000,0.4000,0.0727,2.2788,0.5833,2.0000,360.0000,the well mean within 2.5%
+JCS spread per cell,0.1000,0.0400,0.0379,4.1318,0.5833,2.0000,360.0000,the well mean within 2.5%
+JCS spread per field,0.1000,0.0800,0.0894,2.0000,0.5833,2.0000,360.0000,the well mean within 2.5%
