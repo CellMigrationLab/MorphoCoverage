@@ -37,6 +37,7 @@ import pandas as pd
 from positive_control import HERE, RESULTS, _fov_cells, _load, _table
 
 from morphocoverage import ObjectiveConfig, SamplingObjective
+from morphocoverage._parallel import map_units, worker_pool
 from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.transforms import Standardize
 
@@ -100,34 +101,52 @@ def _prefix(blocks, planted, order, k, features):
     }
 
 
-def run() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Per-prefix predictions against both truths, and one row per stopping replay."""
+def _replay(blocks, planted, order, features):
+    """``(k, row)`` for every prefix length of one planted acquisition; no randomness."""
+    rows = []
+    for k in range(2, len(blocks)):
+        row = _prefix(blocks, planted, order, k, features)
+        if row is not None:
+            rows.append((k, row))
+    return rows
+
+
+def run(n_jobs: int = -1) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Per-prefix predictions against both truths, and one row per stopping replay.
+
+    Every random choice is drawn here, in the same order as a serial run; only
+    the replays, which draw nothing, go to ``n_jobs`` worker processes (every
+    CPU by default, each with one BLAS thread), so the tables do not depend on ``n_jobs``.
+    """
     objects, fovs, features = _load()
     rng = np.random.default_rng(SEED)
     prefixes, stops = [], []
-    for plate, host_well, donor_well in DESIGN:
-        host = _fov_cells(objects, fovs, plate, host_well, features)
-        donor = _fov_cells(objects, fovs, plate, donor_well, features)
-        table = fovs[(fovs["repeat"] == plate) & (fovs["well"] == host_well)]
-        positions = table[["stage_x_um", "stage_y_um"]].to_numpy(float)
-        for p in FREQUENCIES:
-            for layout in LAYOUTS:
-                for replicate in range(REPLICATES):
-                    planted = _planted_fovs(p, layout, positions, rng)
-                    blocks = _acquisition(host, donor, planted, rng)
-                    order = rng.permutation(len(blocks))
-                    key = {"plate": plate, "frequency": p, "layout": layout}
-                    key.update({"replicate": replicate, "planted": int(planted.sum())})
-                    stop = None
-                    for k in range(2, len(blocks)):
-                        row = _prefix(blocks, planted, order, k, features)
-                        if row is None:
-                            continue
-                        if k in FOVS_SEEN:
-                            prefixes.append({**key, "fovs_seen": k, **row})
-                        if stop is None and row["bound"] <= TARGET:
-                            stop = {**key, "stop_fov": k, **row}
-                    stops.append(stop or {**key, "stop_fov": None, "state_seen": None})
+    with worker_pool(n_jobs) as pool:
+        for plate, host_well, donor_well in DESIGN:
+            host = _fov_cells(objects, fovs, plate, host_well, features)
+            donor = _fov_cells(objects, fovs, plate, donor_well, features)
+            table = fovs[(fovs["repeat"] == plate) & (fovs["well"] == host_well)]
+            positions = table[["stage_x_um", "stage_y_um"]].to_numpy(float)
+            for p in FREQUENCIES:
+                for layout in LAYOUTS:
+                    # One batch of replicates at a time keeps memory bounded.
+                    keys, jobs = [], []
+                    for replicate in range(REPLICATES):
+                        planted = _planted_fovs(p, layout, positions, rng)
+                        blocks = _acquisition(host, donor, planted, rng)
+                        order = rng.permutation(len(blocks))
+                        key = {"plate": plate, "frequency": p, "layout": layout}
+                        key.update({"replicate": replicate, "planted": int(planted.sum())})
+                        keys.append(key)
+                        jobs.append((blocks, planted, order, features))
+                    for key, rows in zip(keys, map_units(_replay, jobs, n_jobs, pool), strict=True):
+                        stop = None
+                        for k, row in rows:
+                            if k in FOVS_SEEN:
+                                prefixes.append({**key, "fovs_seen": k, **row})
+                            if stop is None and row["bound"] <= TARGET:
+                                stop = {**key, "stop_fov": k, **row}
+                        stops.append(stop or {**key, "stop_fov": None, "state_seen": None})
     return pd.DataFrame(prefixes), pd.DataFrame(stops)
 
 

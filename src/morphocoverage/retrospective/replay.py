@@ -30,14 +30,20 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._parallel import check_n_jobs, map_units
 from ..benchmark import AcquisitionOrder
 from ..evaluator import iter_analysis_groups, restrict_input
 from ..objectives import ObjectiveConfig
 from ..reservoir import ReservoirSplit
 from ..schema import ValidatedInput, validate_input_tables
-from ..sequential import _Acquisition, _in_acquisition_order, _replay_full, _replay_incremental
+from ..sequential import (
+    _Acquisition,
+    _in_acquisition_order,
+    _interleave,
+    _replay_strategies,
+    _strategy_units,
+)
 from ..strategies.base import SamplingStrategy
-from ._parallel import check_n_jobs, map_groups
 from ._text import group_identity
 from .criteria import OutcomeCriterion
 from .stage import dispersed_order, stage_travel
@@ -180,23 +186,13 @@ def _check(
     return strategies, criteria, orders
 
 
-def _replay_group(
-    group,
-    group_data,
-    strategies,
-    criteria,
-    orders,
-    objective,
-    split_settings,
-    acquisition_order_col,
-    stage_cols,
-    min_fovs,
-    incremental,
-):
-    """Decisions, outcomes, streams and stage paths of every replay of one analysis group."""
+def _runs(group, group_data, orders, split_settings, acquisition_order_col, stage_cols):
+    """Every replayed acquisition of one group: its label, stream order and reservoir.
+
+    Reservoirs and orders are fixed here, before any run is handed out, so a
+    run's result does not depend on where it is computed.
+    """
     reservoir_fraction, block_col, n_splits, random_state = split_settings
-    replay = _replay_incremental if incremental else _replay_full
-    decisions, outcomes, streams, paths = [], [], [], []
     for split in range(n_splits):
         splitter = ReservoirSplit(float(reservoir_fraction), random_state + split, block_col)
         stream, reservoir = splitter.split(group, group_data)
@@ -204,8 +200,6 @@ def _replay_group(
             ordered = _ordered_stream(
                 group, stream, order, acquisition_order_col, split, stage_cols
             )
-            acquisition = _Acquisition(stream, ordered)
-            prefixes = _SortedPrefixes(acquisition)
             where = {
                 **group,
                 "split": split,
@@ -213,45 +207,93 @@ def _replay_group(
                 "order": order.kind,
                 "order_seed": order.seed,
             }
-            streams.append(
+            yield where, stream, ordered, reservoir
+
+
+def _decide(where, group, acquisition, strategies, objective, min_fovs, incremental):
+    """``(step, row)`` of every strategy's decision after every prefix of one run."""
+    if not isinstance(acquisition, _Acquisition):
+        acquisition = _Acquisition(*acquisition)
+    rows = []
+    for step, result in _replay_strategies(
+        strategies,
+        group,
+        acquisition,
+        objective=objective,
+        min_fovs=min_fovs,
+        incremental=incremental,
+    ):
+        decision = None if result.decision is None else result.decision.value
+        row = {
+            **where,
+            "strategy": result.strategy,
+            "config_id": result.config_id,
+            "fovs": step,
+            "decision": decision,
+        }
+        rows.append((step, row))
+    return rows
+
+
+def _score(where, acquisition, reservoir, criteria, stage_cols):
+    """Outcomes, stream sizes and stage path of one run; independent of every strategy."""
+    if not isinstance(acquisition, _Acquisition):
+        acquisition = _Acquisition(*acquisition)
+    ordered = acquisition.ordered
+    prefixes = _SortedPrefixes(acquisition)
+    streams = [{**where, "stream_fovs": acquisition.n_fovs, "reservoir_fovs": len(reservoir.fovs)}]
+    paths = []
+    if stage_cols is not None:
+        travel = stage_travel(ordered[list(stage_cols)].to_numpy(dtype=float))
+        paths = [{**where, "fovs": i + 1, "travel": float(t)} for i, t in enumerate(travel)]
+    outcomes = []
+    for step in range(1, acquisition.n_fovs + 1):
+        prefix = prefixes.prefix(step)
+        for criterion in criteria:
+            status, value = criterion.assess(reservoir, prefix)
+            outcomes.append(
                 {
                     **where,
-                    "stream_fovs": acquisition.n_fovs,
-                    "reservoir_fovs": len(reservoir.fovs),
+                    "fovs": step,
+                    "criterion": criterion.name,
+                    "value": value,
+                    "status": status.value,
                 }
             )
-            if stage_cols is not None:
-                travel = stage_travel(ordered[list(stage_cols)].to_numpy(dtype=float))
-                paths += [
-                    {**where, "fovs": i + 1, "travel": float(t)} for i, t in enumerate(travel)
-                ]
-            for step, result in replay(
-                strategies, group, acquisition, objective=objective, min_fovs=min_fovs
-            ):
-                decision = None if result.decision is None else result.decision.value
-                decisions.append(
-                    {
-                        **where,
-                        "strategy": result.strategy,
-                        "config_id": result.config_id,
-                        "fovs": step,
-                        "decision": decision,
-                    }
-                )
-            for step in range(1, acquisition.n_fovs + 1):
-                prefix = prefixes.prefix(step)
-                for criterion in criteria:
-                    status, value = criterion.assess(reservoir, prefix)
-                    outcomes.append(
-                        {
-                            **where,
-                            "fovs": step,
-                            "criterion": criterion.name,
-                            "value": value,
-                            "status": status.value,
-                        }
-                    )
+    return outcomes, streams, paths
+
+
+def _replay_group(
+    group,
+    group_data,
+    orders,
+    split_settings,
+    acquisition_order_col,
+    stage_cols,
+    strategies,
+    criteria,
+    objective,
+    min_fovs,
+    incremental,
+):
+    """Decisions, outcomes, streams and stage paths of every run of one analysis group."""
+    decisions, outcomes, streams, paths = [], [], [], []
+    for where, stream, ordered, reservoir in _runs(
+        group, group_data, orders, split_settings, acquisition_order_col, stage_cols
+    ):
+        # One acquisition serves the decisions and the outcomes of this run.
+        acquisition = _Acquisition(stream, ordered)
+        decided = _decide(where, group, acquisition, strategies, objective, min_fovs, incremental)
+        decisions += [row for _, row in decided]
+        scored = _score(where, acquisition, reservoir, criteria, stage_cols)
+        for collected, rows in zip((outcomes, streams, paths), scored, strict=True):
+            collected += rows
     return decisions, outcomes, streams, paths
+
+
+def _run_unit(kind, *args):
+    units = {"group": _replay_group, "decide": _decide, "score": _score}
+    return units[kind](*args)
 
 
 def replay_acquisitions(
@@ -288,9 +330,10 @@ def replay_acquisitions(
     ``min_fovs`` FOVs on; outcomes from the first FOV. ``fovs`` lists every
     acquired FOV, including FOVs without observations. ``stage_cols`` (x, y
     columns of the FOV table, in ``stage_unit``) enables dispersed orders and
-    records the stage path of every replayed order. ``n_jobs`` replays
-    analysis groups in that many worker processes (``-1``: every CPU);
-    results are identical for every value.
+    records the stage path of every replayed order. ``n_jobs`` spreads the
+    replayed acquisitions (group, split and order) over that many worker
+    processes (``-1``: every CPU), each strategy apart when they are too few
+    to keep every worker busy; results are identical for every value.
     """
     check_n_jobs(n_jobs)
     strategies, criteria, orders = _check(
@@ -329,26 +372,40 @@ def replay_acquisitions(
         if any(c in feature_cols for c in stage_cols):
             raise ValueError("stage coordinates cannot also be phenotype features")
     split_settings = (float(reservoir_fraction), block_col, n_splits, random_state)
-    jobs = [
-        (
-            group,
-            group_data,
-            strategies,
-            criteria,
-            orders,
-            objective,
-            split_settings,
-            acquisition_order_col,
-            stage_cols,
-            min_fovs,
-            incremental,
-        )
-        for group, group_data in iter_analysis_groups(data)
-    ]
+    # Units are as coarse as keeps every worker busy, since each sends its data
+    # once: whole groups; else one unit per run (group, split and order) and
+    # one scoring its outcomes, which no strategy affects; else, when runs are
+    # fewer than workers too, every strategy apart. Decisions of strategies
+    # replayed apart are put back in the order of one joint replay, so the
+    # tables are identical for every n_jobs.
+    groups = list(iter_analysis_groups(data))
+    settings_of_run = (orders, split_settings, acquisition_order_col, stage_cols)
+    replay_settings = (objective, min_fovs, incremental)
     decisions, outcomes, streams, paths = [], [], [], []
-    for part in map_groups(_replay_group, jobs, n_jobs):
-        for collected, rows in zip((decisions, outcomes, streams, paths), part, strict=True):
-            collected += rows
+    if len(groups) >= check_n_jobs(n_jobs):
+        jobs = [
+            ("group", group, group_data, *settings_of_run, strategies, criteria, *replay_settings)
+            for group, group_data in groups
+        ]
+        for part in map_units(_run_unit, jobs, n_jobs):
+            for collected, rows in zip((decisions, outcomes, streams, paths), part, strict=True):
+                collected += rows
+    else:
+        units = _strategy_units(strategies, n_jobs, len(groups) * n_splits * len(orders))
+        jobs, layout = [], []
+        for group, group_data in groups:
+            for where, stream, ordered, reservoir in _runs(group, group_data, *settings_of_run):
+                # A run sent to a worker is built there, from the stream and its order.
+                run = (stream, ordered)
+                jobs += [("decide", where, group, run, part, *replay_settings) for part in units]
+                jobs.append(("score", where, run, reservoir, criteria, stage_cols))
+                layout.append(len(units))
+        parts = iter(map_units(_run_unit, jobs, n_jobs))
+        for n_units in layout:
+            decided = [next(parts) for _ in range(n_units)]
+            decisions += [row for _, row in _interleave(decided)]
+            for collected, rows in zip((outcomes, streams, paths), next(parts), strict=True):
+                collected += rows
     keys = list(data.group_cols)
     settings = {
         "criteria": [c.parameters for c in criteria],

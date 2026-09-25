@@ -135,6 +135,7 @@ def controls(objects, fovs, features):
         pair_cols=["repeat"],
         fovs_seen=10,
         draws=20,
+        n_jobs=-1,
     )
 
 

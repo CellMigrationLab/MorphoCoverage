@@ -34,6 +34,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._parallel import check_n_jobs, map_units
 from ..evaluator import FovSubsets, restrict_input
 from ..schema import validate_input_tables
 from ..strategies.support_novelty import SupportNoveltyEstimator
@@ -146,6 +147,19 @@ def _planted(subsets: FovSubsets, host_rows, donors: list[pd.DataFrame], size, r
     return restrict_input(data, objects, hosts)
 
 
+def _judge(novelty, seen, candidates):
+    """Per candidate kind: FOVs judged new, FOVs judged, FOVs that could not be judged."""
+    counts = {}
+    for kind, table in candidates.items():
+        flags = novelty.novel_fovs_against(seen, table)
+        if flags is None:
+            # Missing values or too few FOVs: this check could not be made.
+            counts[kind] = (0, 0, len(table.fovs))
+        else:
+            counts[kind] = (int(np.sum(flags)), len(flags), 0)
+    return counts
+
+
 def representation_control(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -159,12 +173,16 @@ def representation_control(
     random_state: int = 0,
     fov_col: str | None = None,
     observation_unit: str | None = None,
+    n_jobs: int = 1,
 ) -> ControlResult:
     """Detection and false-alarm rates of ``novelty`` for the declared controls.
 
     ``fovs_seen`` is how many reference FOVs are "already imaged" in each draw,
     ``draws`` how many random draws per stratum. See the module docstring.
+    ``n_jobs`` runs the novelty checks of the draws in that many worker
+    processes (``-1``: every CPU); results are identical for every value.
     """
+    check_n_jobs(n_jobs)
     if not isinstance(novelty, SupportNoveltyEstimator):
         raise TypeError("novelty must be a SupportNoveltyEstimator")
     if not isinstance(control, RepresentationControl):
@@ -209,7 +227,10 @@ def representation_control(
         base_mask = ~positive_mask
     strata = data.fovs[pair_cols].drop_duplicates().to_dict("records") if pair_cols else [{}]
     subsets = FovSubsets(data)
-    rows, skipped = [], []
+    judged, skipped = [], []
+    # Every random choice is made here, in stratum and draw order; only the
+    # novelty checks, which use none, are handed to worker processes.
+    jobs = []
     for stratum in strata:
         # One generator per stratum, so adding a plate never changes another plate's rates.
         rng = np.random.default_rng([random_state, group_identity(stratum)])
@@ -227,9 +248,9 @@ def representation_control(
             )
             skipped.append({**stratum, "stratum": label, "reason": reason})
             continue
+        judged.append((stratum, label, len(jobs), len(jobs) + draws))
         positive_input = subsets.take(positive)
         donors = [data.objects.loc[subsets.positions == row] for row in positive]
-        counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
         for _ in range(draws):
             order = rng.permutation(len(base))
             seen = subsets.take(base[order[:fovs_seen]])
@@ -241,14 +262,16 @@ def representation_control(
                 planted = _planted(subsets, rest, donors, control.planted_cells, rng)
                 if planted is not None:
                     candidates["planted"] = planted
-            for kind, table in candidates.items():
-                flags = novelty.novel_fovs_against(seen, table)
-                if flags is None:
-                    # Missing values or too few FOVs: this check could not be made.
-                    counts[kind][2] += len(table.fovs)
-                    continue
-                counts[kind][0] += int(np.sum(flags))
-                counts[kind][1] += len(flags)
+            jobs.append((novelty, seen, candidates))
+    checked = map_units(_judge, jobs, n_jobs)
+    rows = []
+    for stratum, label, first, last in judged:
+        counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
+        for draw in checked[first:last]:
+            for kind, (new, total, not_judged) in draw.items():
+                counts[kind][0] += new
+                counts[kind][1] += total
+                counts[kind][2] += not_judged
         for kind, (new, total, not_judged) in counts.items():
             if total or not_judged:
                 rows.append(

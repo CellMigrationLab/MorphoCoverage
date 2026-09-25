@@ -13,7 +13,7 @@ authors = [{name = "CellMigrationLab"}]
 dependencies = ["numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff==0.16.8"]
+dev = ["pytest>=8.0", "pytest-xdist>=3.5", "ruff==0.16.8"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -24,6 +24,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Test files run in parallel on every CPU (pytest-xdist); each file stays on
+# one worker so module-level data is loaded once. `pytest -n 0` runs serially.
+addopts = "-n auto --dist loadfile"
 
 [tool.ruff]
 target-version = "py311"

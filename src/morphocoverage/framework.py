@@ -23,12 +23,15 @@ def run_strategies(
     fovs: pd.DataFrame | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    n_jobs: int = 1,
 ) -> list[StrategyResult]:
     """Validate one phenotype-observation table and run strategies within resolved groups.
 
     By default, canonical MorphoBricks condition and repeat columns are kept
     separate when available. Pass group_cols=[] only when intentional pooling
-    is scientifically appropriate.
+    is scientifically appropriate. ``n_jobs`` runs every (group, strategy)
+    pair in that many worker processes (``-1``: every CPU); results are
+    identical for every value, apart from timings.
     """
     data = validate_input_tables(
         objects,
@@ -38,4 +41,4 @@ def run_strategies(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
-    return evaluate_strategies(strategies, data, objective=objective)
+    return evaluate_strategies(strategies, data, objective=objective, n_jobs=n_jobs)
