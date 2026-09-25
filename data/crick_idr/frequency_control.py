@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from positive_control import HERE, RESULTS, _fov_cells, _load, _table
+from idr0028_data import HERE, RESULTS, blocks_table, fov_cells, load
 
 from morphocoverage import ObjectiveConfig, SamplingObjective
 from morphocoverage._parallel import map_units, worker_pool
@@ -88,13 +88,15 @@ def _acquisition(host, donor, planted, rng):
 def _prefix(blocks, planted, order, k, features):
     """Prediction, bound and both truths after the first ``k`` FOVs of ``order``."""
     seen, rest = order[:k], order[k:]
-    visible = _table([blocks[i] for i in seen], features, "seen")
+    visible = blocks_table([blocks[i] for i in seen], features, "seen")
     evidence = NOVELTY.estimate(visible, objective=POPULATION)
     if evidence.quantities[PREDICTED].availability.value != "available":
         return None
     unseen_state = not planted[seen].any()
     biological = float(planted[rest].mean()) if unseen_state else 0.0
-    judged = NOVELTY.novel_fovs_against(visible, _table([blocks[i] for i in rest], features, "new"))
+    judged = NOVELTY.novel_fovs_against(
+        visible, blocks_table([blocks[i] for i in rest], features, "new")
+    )
     return {
         "predicted": evidence.value(PREDICTED),
         "bound": evidence.value(UPPER),
@@ -121,13 +123,13 @@ def run(n_jobs: int = -1) -> tuple[pd.DataFrame, pd.DataFrame]:
     the replays, which draw nothing, go to ``n_jobs`` worker processes (every
     CPU by default, each with one BLAS thread), so the tables do not depend on ``n_jobs``.
     """
-    objects, fovs, features = _load()
+    objects, fovs, features = load()
     rng = np.random.default_rng(SEED)
     prefixes, stops = [], []
     with worker_pool(n_jobs) as pool:
         for plate, host_well, donor_well in DESIGN:
-            host = _fov_cells(objects, fovs, plate, host_well, features)
-            donor = _fov_cells(objects, fovs, plate, donor_well, features)
+            host = fov_cells(objects, fovs, plate, host_well, features)
+            donor = fov_cells(objects, fovs, plate, donor_well, features)
             table = fovs[(fovs["repeat"] == plate) & (fovs["well"] == host_well)]
             positions = table[["stage_x_um", "stage_y_um"]].to_numpy(float)
             for p in FREQUENCIES:
