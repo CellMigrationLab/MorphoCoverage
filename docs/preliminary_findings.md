@@ -324,7 +324,9 @@ splits holds back 10 FOVs, the same reservoirs as the first five splits of
 entry 4. The other 18 FOVs are replayed in the recorded order and in 10 random
 orders. Every rule decides from 2 FOVs on. The rules are:
 
-- the JCB averaging-CV rule at 5%, on cells as published;
+- the single-group JCB-style averaging-CV rule at 5% on objects (own-group
+  normalization; the faithful control-normalized multi-sample procedure is
+  `plan_objects_to_average` + `PlannedObjectCountStrategy`);
 - the same rule on whole FOVs;
 - fixed rules of 4 and 8 FOVs.
 
@@ -494,8 +496,8 @@ chosen on it. Does the conclusion hold there, for the paper's fascin ratio?
 **Method** (`data/crick_idr/heldout_idr0139.py`, fixed seed; tables
 `results/heldout_*_idr0139.csv`). Per well, 6 hold-outs each keep 2 fields as
 the reference and draw 1 or 2 of the other 2 (10 draws). Criteria: the well
-mean within 5% and within 2.5%. The JCB rule (object unit, upper-95 SD, at 5%
-and 2.5% CV) and a fixed 2-field rule are replayed from 1 field on, in the
+mean within 5% and within 2.5%. The single-group JCB-style rule (object unit, own-group normalization,
+upper-95 SD, at 5% and 2.5% CV) and a fixed 2-field rule are replayed from 1 field on, in the
 recorded and 5 random orders.
 
 | | 1 field | 2 fields | all 2 stream fields (ceiling) |
