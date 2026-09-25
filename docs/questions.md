@@ -5,14 +5,17 @@ numbered list in `docs/proposals/microscopist_report.md`, which gave the
 reasons and the first designs. Every analysis, report section and benchmark
 should name the question it answers here.
 
-The questions are grouped by the three moments of use. Each moment fixes
-what information may legitimately answer its questions:
+The questions are grouped by the three moments of use, plus a fourth
+section, CHECK, that tests the premise all three rest on: that the field, not
+the cell, is the unit a microscope samples. Each moment fixes what
+information may legitimately answer its questions:
 
 | Moment | The microscopist asks | May use | May not use |
 |---|---|---|---|
 | **REPORT** | "I have finished imaging. What can I trust, and what can't I?" | every acquired FOV of this dataset | a statement about another FOV without a calibration of it; any claim about other samples |
 | **OPTIMISE / PLAN** | "What should I do next time?" | completed datasets, with outcomes judged on held-back FOVs | a best or minimal subset as a recommendation; tuning on held-out datasets; subset draws counted as samples |
 | **ONLINE** | "I am imaging now. Should I acquire another field?" | only the FOVs acquired so far | any future FOV: its identity, metadata, features, or its effect on scaling, PCA or thresholds |
+| **CHECK** | "Can I count cells, or must I count fields? How variable are my fields?" | every acquired FOV of this dataset; declared control or reference groups | a random-cell sample of the finished well presented as what a microscope would have acquired |
 
 Two distinctions run through all three:
 
@@ -37,7 +40,7 @@ measurements or diagnostics to report, not to rank.
 | R1 | **Can my analysis detect the phenotype I care about?** Does the selected representation detect a declared positive control, and at what false-alarm rate? | `representation_control`: detection and false-alarm rates for declared controls, or "not assessed"; the unseen-state bound divided by the detection rate | done, for declared controls only |
 | R2 | **Did I image enough?** Separately for the average or common phenotype, the phenotype distribution, and rare or minority phenotypes. | `sufficiency_report` (what each criterion says, by its own threshold), `adequacy_points` (when held-back FOVs confirmed it) | average: done. Distribution: partial (criteria exist; judged only through distribution distances, which are not zero-centred). Rare: partial (states seen in few FOVs and a planning line; realized adequacy needs independent labels). **Benchmark** |
 | R3 | **Would another representative FOV likely have shown something new?** What phenotype information might still be missing? | next-FOV novelty chance with its nominal bound, checked by `calibrate_next_fov_novelty`; what the FOVs rule out (about 3 / k) | done. **Benchmark** (calibration of a probability) |
-| R4 | **What is limiting my sampling?** Too few FOVs, strong FOV heterogeneity, spatial correlation, rare-state clustering, or a poor representation? | the sampling profile of `microscopist_report`: design effect, variance components, redundancy distance, control detection, fields with new states | partial: rare-state clustering is not in the profile |
+| R4 | **What is limiting my sampling?** Too few FOVs, strong FOV heterogeneity, spatial correlation, rare-state clustering, or a poor representation? | the sampling profile of `microscopist_report`: design effect, variance components, redundancy distance, control detection, fields with new states; rare-state clustering by field in `sampling_unit.field_clustering` (F5) | partial: rare-state clustering is measured (F5) but not yet in the profile |
 | R5 | **Which FOVs should I go back and inspect?** Unique states, strong influence, disagreement with neighbours, empty or unusual fields. | `inspect_fovs`, one reason per line, no combined score, no FOV called an artifact | done |
 | R6 | **What can this dataset not tell me?** For example: too shallow to assess a 1% state, no positive control, no stage coordinates, only one biological repeat. | "not assessed" lines, ceilings and notes spread across the report | partial: needs one section that lists every limit in one place |
 
@@ -80,6 +83,28 @@ extension, which changes the sampling distribution and needs its own design.
 | O8 | **Does it behave correctly in awkward real acquisitions?** Empty FOV, few cells, missing feature values, patches rather than cells, z/c/t of one position, unsupported estimators, a new condition or repeat, changed grouping or FOV identity. | input validation and the session contract; contract tests | done |
 | O9 | **Is there any future-data leakage?** Scaling, PCA, thresholds and other preprocessing must use only FOVs already acquired. | transforms fitted inside `estimate`; the no-future-leakage contract | done |
 
+## 4. CHECK: "Can I count cells, or must I count fields?"
+
+Every cell-number rule, including the published JCB (Zweifach 2024) and JCS
+(Marcotti et al. 2026) rules, assumes the cells it counts are a random sample
+of the well. The JCS saving argument ("a few hundred cells is enough") draws
+those cells from every imaged field, after the whole well was imaged. A
+microscope that stops early acquires whole fields instead, so the argument
+holds only if fields behave like random cells. This section measures whether
+they do, and what it costs when they do not. It is the premise of sections 1
+to 3, and the first row of the regime map: when cell-number guidance is
+sufficient and when fields must be counted. All of it is retrospective and
+lives in `morphocoverage.sampling_unit`.
+
+| # | Question | Answered by | Status |
+|---|---|---|---|
+| F1 | **Does a mean from whole fields have the error a cell count predicts?** How much larger is its variance than that of a mean of as many random cells? | `field_variability`: the design effect and the error ratio, from the between- and within-field variance components | done |
+| F2 | **How variable are my fields?** How much of the variance lies between fields, and which fields differ more than random cells would? | `field_variability`: the between-field share, a z-score per field against random-cell expectation, the share of fields beyond it (5% expected), a one-way ANOVA | done |
+| F3 | **Would a published cell-number rule hold if the cells come as whole fields?** The JCB rule at its own 5% and 2.5% targets; the JCS descriptor stabilisation (Fig. 2A) at the paper's threshold. | `cell_rule_check`, `descriptor_spread_check`: each paper's procedure with random cells and with whole fields; the JCB formula with the field as the unit | done |
+| F4 | **Which cells are out of distribution?** Cells unlike a declared reference (control) population. | `unusual_cells`: distance to the reference in standardized feature space, thresholded against reference cells of other fields; a group is never its own reference; a seed check | done; labels depend on the representation |
+| F5 | **Are rare or unusual cells spread over the fields, or clustered in a few?** And so how many fields, rather than cells, are needed to see them? | `field_clustering` on any labels (from F4, a mixture model, a gate, annotations): field incidence against random-cell expectation, a permutation test, fields needed from field incidence beside those a cell count asks for | done |
+| F6 | **Does a treatment comparison survive whole-field sampling at a given cell number?** | `data/crick_idr/jcs_effect_fields.py` (the JCS Fig. 3G-I analysis with whole fields) | partial: compares groups, so it stays a benchmark script until multi-group outcomes have their own contract (AGENTS.md section 9) |
+
 ## In one line each
 
 - **REPORT: can I trust the experiment I already performed?** Can I detect the
@@ -92,6 +117,9 @@ extension, which changes the sampling distribution and needs its own design.
 - **ONLINE: should the microscope acquire another representative FOV now?**
   Continue or stop? For which objective? Why? How safe is that rule on
   retrospective validation? Is it fast and leakage-free?
+- **CHECK: can I count cells, or must I count fields?** How much do my
+  fields differ? Would a cell-number rule hold with whole fields? Are rare
+  or unusual cells clustered in a few fields?
 
 ## Open work, in order
 

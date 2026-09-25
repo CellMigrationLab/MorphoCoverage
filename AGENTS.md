@@ -27,7 +27,7 @@ The central questions are:
 
 > Is another representative FOV likely to provide enough useful new information to justify acquiring it?
 
-The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`; new analyses should name the question they answer there.
+The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) plus the CHECK of the sampling unit (can cells be counted, or must fields be), with the information each may use, are listed in `docs/questions.md`; new analyses should name the question they answer there.
 
 The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Feature observations such as cells, nuclei, patches, slice-level measurements, embeddings, channels and time points are nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
@@ -211,6 +211,10 @@ src/morphocoverage/
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
         _text.py           # private: shared wording and group seeding for summaries
+    sampling_unit/         # cells or fields? section 4 (CHECK) of docs/questions.md
+        variability.py     # field variability: variance components, design effect, unusual fields
+        cell_rules.py      # JCB rule and JCS descriptor spread with random cells and whole fields
+        rare_fields.py     # unusual (out-of-distribution) cells; state clustering by field
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines

@@ -44,7 +44,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from cells_vs_fields import _field_sample, _wells
+from datasets import FASCIN_RATIO, load_idr0139
+from idr0028_data import RATIO as YAPTAZ_RATIO
+from idr0028_data import load as load_idr0028
 
 RESULTS = Path(__file__).resolve().parent / "results"
 SEED = 0
@@ -69,10 +71,34 @@ PAPER = {
 }
 
 
+LOADERS = {"idr0139": (load_idr0139, FASCIN_RATIO), "idr0028": (load_idr0028, YAPTAZ_RATIO)}
+
+
 def _paper_wells(name: str) -> tuple[list[np.ndarray], dict[str, list[np.ndarray]]]:
+    """The control well's fields and each treated well's fields, as arrays of the metric."""
     repeat, control, treated, _, _ = PAPER[name]
-    wells = {(w["repeat"], w["well"]): w["fields"] for w in _wells(name)[0]}
-    return wells[(repeat, control)], {c: wells[(repeat, w)] for c, w in treated.items()}
+    load, metric = LOADERS[name]
+    objects, _, _ = load()
+
+    def fields(well: str) -> list[np.ndarray]:
+        cells = objects[(objects["repeat"] == repeat) & (objects["well"] == well)]
+        return [g[metric].to_numpy() for _, g in cells.groupby("image_file")]
+
+    return fields(control), {c: fields(w) for c, w in treated.items()}
+
+
+def _field_sample(fields: list[np.ndarray], n: int, rng: np.random.Generator) -> np.ndarray:
+    """Whole fields in random order until ``n`` cells, with a random part of the last one."""
+    taken, count = [], 0
+    for i in rng.permutation(len(fields)):
+        need = n - count
+        field = fields[i]
+        if len(field) >= need:
+            taken.append(rng.choice(field, size=need, replace=False))
+            break
+        taken.append(field)
+        count += len(field)
+    return np.concatenate(taken)
 
 
 def _sample(fields: list[np.ndarray], n: int, how: str, rng: np.random.Generator):

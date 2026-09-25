@@ -615,106 +615,76 @@ fields of the MOCK wells of plates 1A and 2A, 48 acquisitions):
 ## 9. Cells or fields, each paper's own procedure (2026-09-25)
 
 **Question.** Entry 1 compared errors. This entry runs each reference
-paper's own procedure, from the papers themselves, twice: once with cells
-drawn at random from the well, as the paper does, and once with the same
-number of cells obtained by imaging whole fields in random order, as a
-microscope does. Both papers state the assumption being tested. Zweifach
-(JCB 2024) "further assume[s] that samples are spatially uniform". Marcotti
-et al. (JCS 2026) assume "this small number of cells is representative of the
-broader population", and call that "likely a reasonable assumption" for
-cultured cells.
+paper's own procedure twice: once with cells drawn at random from the well,
+as the paper does, and once with the same number of cells obtained by
+imaging whole fields in random order, as a microscope does. Both papers state
+the assumption being tested. Zweifach (JCB 2024) "further assume[s] that
+samples are spatially uniform". Marcotti et al. (JCS 2026) assume "this small
+number of cells is representative of the broader population", and call that
+"likely a reasonable assumption" for cultured cells. The JCS saving argument,
+that a few hundred cells are enough and imaging more wastes time and money,
+draws those cells from every imaged field, after the whole well was imaged.
 
-**Method** (`data/crick_idr/cells_vs_fields.py`, committed tables, seed 0).
+**Method** (`data/crick_idr/cells_vs_fields.py`, which runs
+`morphocoverage.sampling_unit`, section 4 of `docs/questions.md`; committed
+tables; seed 0; one analysis group per well).
 
 - The committed idr0139 tables reproduce JCS Table 1 exactly: wells J05, E22,
   L08 and O02, with the same cell counts, means, medians and SDs.
-- **JCB.** Values are normalized to the negative-control mean, as the paper
-  does. For each well, `n = ceil((SD / target)^2)` at 5% and 2.5%. Then random
-  whole fields are imaged until at least `n` cells, 4000 times, and the SD of
+- **JCB** (`cell_rule_check`). Values are normalized to the mean of the
+  negative-control wells, as the paper does. For each well,
+  `n = ceil((SD / target)^2)` at 5% and 2.5%. Whole fields are then drawn at
+  random, with replacement, until at least `n` cells, 4000 times; the SD of
   that average is the real averaging error. The JCB formula with the field as
   the unit (SD of field means, point and upper-95 as the paper's calculator
-  gives) says how many fields would meet the target.
-- **JCS Fig. 2A.** For `n` from 10 to 500 cells, 100 samples of `n` cells;
-  max − min of the IQR, median, SD and mean. Field samples take fields in
-  random order until `n` cells, with a random part of the last field. The
-  comparison is made at the paper's threshold: 250 cells for idr0139 (Fig. 2)
-  and 200 for idr0028 (Fig. S2).
+  gives) says how many fields the rule would ask for.
+- **JCS Fig. 2A** (`descriptor_spread_check`). For `n` from 10 to 500 cells,
+  100 samples of `n` cells; max − min of the mean, median, SD and IQR. Field
+  samples take distinct fields in random order until `n` cells, with a random
+  part of the last field. The comparison is made at the paper's threshold:
+  250 cells for idr0139 (Fig. 2) and 200 for idr0028 (Fig. S2).
 - Draws come from the imaged fields only: 4 per idr0139 well and 28 per
   idr0028 well. Field errors are therefore, if anything, optimistic.
 
-JCB, medians over wells (tables: `results/cells_vs_fields_jcb.csv`):
+JCB, medians over wells (`results/cells_vs_fields_jcb.csv`):
 
 | | idr0139, 10 wells | idr0028, 12 wells |
 |---|---|---|
 | cell SD, % of the control mean | 25.8% | 6.6% |
 | JCB cells at 5% / 2.5% | 28 / 107 | 2 / 8 |
 | fields that holds | 1 | 1 |
-| error predicted by `SD / sqrt(n)` for the cells obtained | 1.5% | 1.4% |
-| real error of that average | 3.1% (1.2–6.1%) | 1.8% (1.3–2.5%) |
-| real / predicted | 2.2 (0.7–3.9) | 1.4 (0.9–1.8) |
+| real / predicted error for the cells obtained | 2.2 (0.7–3.9) | 1.4 (0.9–1.8) |
+| real error of that average | 3.1% (1.2–6.2%) | 1.9% (1.3–2.5%) |
 | wells missing 5% | 2 of 10 | 0 of 12 |
-| wells missing 2.5% | 8 of 10 | 0 of 12 |
+| wells missing 2.5% | 7 of 10 | 0 of 12 |
 | JCB per field at 2.5%, point / upper-95 | 2 / 30 fields | 1 / 2 fields |
+
+The field variability behind it (`results/cells_vs_fields_variability.csv`):
+the design effect has a median of 6.4 on idr0139 (range 1.0–24.3) and 2.1 on
+idr0028 (1.0–3.4), although only 1.6% and 3.8% of the variance lies between
+fields. With hundreds of cells per field, a small between-field share is
+enough to dominate the error of a mean. A median of 38% (idr0139) and 16%
+(idr0028) of fields differ from their well more than random cells would let
+them, against 5% expected.
 
 JCS Fig. 2A at the paper's threshold, whole-field spread divided by
 random-cell spread, medians over wells (`results/cells_vs_fields_jcs.csv`):
 
-| descriptor | idr0139, 250 cells | idr0028, 200 cells | idr0028: cells that fields need for the same spread |
+| descriptor | idr0139, 250 cells | idr0028, 200 cells | idr0028: cells fields need for the same spread |
 |---|---|---|---|
-| mean | 1.6 | 1.4 | 350 |
-| median | 2.0 | 1.3 | 305 |
-| IQR | 1.4 | 1.1 | 265 |
-| SD | 0.8 | 1.0 | 250 |
+| mean | 1.3 (0.7–2.4) | 1.4 (0.6–1.8) | 305 |
+| median | 1.5 (0.6–3.3) | 1.2 (0.9–1.7) | 320 |
+| IQR | 1.2 (0.9–1.8) | 1.1 (0.8–1.6) | 245 |
+| SD | 0.9 (0.5–2.1) | 1.1 (0.8–1.4) | 260 |
 
-On idr0139, fields reached the 250-cell spread of the mean within 500 cells
-in only 5 of 10 wells.
+On idr0139, field samples reached the 250-cell spread of the mean within 500
+cells in only 6 of 10 wells.
 
-**What this shows**
-
-- **Both papers are right under their assumption, and the assumption does not
-  hold for fields.** The same number of cells gives a less precise average
-  when it comes as whole fields. The real error is 2.2 times the JCB
-  prediction on idr0139 and 1.4 times on idr0028. This agrees with entry 1 on
-  the complete plates.
-- **Whether that matters depends on the readout.** On idr0028 the YAP/TAZ
-  ratio varies little between cells, so one field (about 30 cells) already
-  meets both targets. The cell rule is sufficient there, and the field
-  effect has no consequence. On idr0139 one field meets 5% in 8 of 10 wells
-  but 2.5% in only 2 of 10. The cell rule then says "done" after one field
-  when the paired-design target is missed.
-- **The JCB formula still works when the field is the unit.** With the SD of
-  field means, it asks for about 2 fields at 2.5% on idr0139, which matches
-  the real error. With 4 fields, however, that SD is so uncertain that the
-  upper-95 bound the paper recommends for small pilots asks for 30 fields.
-  A 4-field pilot cannot say how many fields are needed.
-- **The JCS stabilization depends on how the cells arrive.** Location
-  descriptors (mean, median) vary more between field samples than between
-  random-cell samples. Spread descriptors (SD, IQR) barely do. On idr0028,
-  fields need about 250–350 cells to be as stable as 200 random cells. The
-  paper's threshold, read as a cell count, therefore carries over only with
-  a margin, and the margin is largest for the mean.
-- **The papers' conclusions are not affected.** The leptomycin B effect is
-  far larger than these errors (entry 1).
-
-**What this does not show**
-
-- **Only the committed wells**: 10 wells on one idr0139 plate and 12 on
-  idr0028. Entry 1 has the complete plates for the JCB error.
-- **4 fields per idr0139 well** limit every field estimate. A well has more
-  positions than were imaged, so the real field error is likely larger.
-- **The JCS max − min statistic is itself noisy.** It is the paper's
-  statistic and is kept for faithfulness. The "cells needed to match" uses
-  the first `n` from which the field curve stays at or below the reference.
 **Follow-up: the paper's own treatment comparisons, fields against cells**
-(`data/crick_idr/jcs_effect_fields.py`). JCS argue that about 200–300 random
-cells per well reproduce the full-well conclusion, so imaging more wastes
-time and money (Fig. 3G–I, S3G–I). Their random cells are drawn from every
-imaged field, so the saving is computed after the whole well was imaged. A
-microscope that stops early gets whole fields. The same effect-size analysis
-(their Eqn 2, their wells from the companion notebooks, 1000 samples per
-size) was run both ways.
-
-Share of samples that rank two treatments as the full wells do:
+(`data/crick_idr/jcs_effect_fields.py`, F6). The same effect-size analysis as
+JCS Fig. 3G–I and S3G–I (their Eqn 2, their wells from the companion
+notebooks, 1000 samples per size) was run both ways. Share of samples that
+rank two treatments as the full wells do:
 
 | comparison | cells per well | fields that takes | random cells | whole fields |
 |---|---|---|---|---|
@@ -727,20 +697,116 @@ Share of samples that rank two treatments as the full wells do:
 At 250 cells on idr0139, the DMSO effect-size IQR band is 0.02 to 0.13 from
 random cells and −0.09 to 0.33 from whole fields.
 
-- **The saving holds when fields are small and many.** On idr0028 a field
-  holds about 30 cells, so 200 cells means about 8 fields, and whole fields
-  behave like random cells for every comparison.
-- **It fails for the small effect when fields are large and few.** On
-  idr0139, 250 cells is one or two fields. The paper's SN0212398523 > DMSO
-  reading then comes out right in about half of the samples, a coin flip,
-  and still only two times in three with 500 cells. The paper itself
-  questions the biological meaning of that difference; this shows that the
-  stated cell number would not have measured it reliably either.
-- **Large effects survive either way.** Leptomycin B is always ranked
-  correctly.
-- **The number to plan by is fields, not cells.** "X cells" means very
-  different things at 30 and at 330 cells per field.
+**What this shows**
 
+- **Both papers are right under their assumption, and the assumption does not
+  hold for fields.** The same number of cells gives a less precise average
+  when it comes as whole fields: 2.2 times the JCB prediction on idr0139 and
+  1.4 times on idr0028. This agrees with entry 1 on the complete plates.
+- **Whether that matters depends on the readout and on cells per field.** On
+  idr0028 the YAP/TAZ ratio varies little between cells and a field holds
+  about 30 cells, so one field meets both JCB targets, 200 cells means about
+  8 fields, and every treatment comparison survives. On idr0139 a field holds
+  about 270 cells: one field meets 5% in 8 of 10 wells but 2.5% in only 3 of
+  10, and the paper's SN0212398523 > DMSO reading at 250 cells comes out
+  right in about half of the whole-field samples, a coin flip.
+- **The JCB formula still works when the field is the unit.** With the SD of
+  field means it asks for about 2 fields at 2.5% on idr0139, which fits the
+  real error. With 4 fields, however, that SD is so uncertain that the
+  upper-95 bound the paper recommends for small pilots asks for 30 fields. A
+  4-field pilot cannot say how many fields are needed.
+- **The JCS stabilization depends on how the cells arrive.** Location
+  descriptors (mean, median) vary more between field samples than between
+  random-cell samples; spread descriptors (SD, IQR) barely do. On idr0028,
+  fields need about 250–320 cells to be as stable as 200 random cells.
+- **The number to plan by is fields, not cells.** "X cells" means very
+  different effort at 30 and at 270 cells per field. Large effects, such as
+  leptomycin B, survive either way.
+
+**What this does not show**
+
+- **Only the committed wells**: 10 wells on one idr0139 plate and 12 on
+  idr0028. Entry 1 has the complete plates for the JCB error.
+- **4 fields per idr0139 well** limit every field estimate. A well has more
+  positions than were imaged, so the real field error is likely larger.
+- **The JCS max − min statistic is noisy.** It is the paper's statistic and
+  is kept for faithfulness, but a first run of the same analysis with another
+  random stream gave a median ratio of 1.6 for the mean on idr0139 where the
+  package gives 1.3. Read the ratios as "above 1 for location descriptors",
+  not to one decimal.
 - **The earlier benchmark (entry 8) is a different test.** It scores a rule
   against a tolerance on the realized error in held-back fields and sweeps
-  thresholds. The paper's own 5% and 2.5% targets are tested here.
+  thresholds. The papers' own targets and thresholds are tested here.
+
+## 10. Unusual cells as a rare-state readout: are they clustered by field? (2026-09-25)
+
+**Question.** A cell-number argument about rare states assumes random cells:
+a state carried by a share `p` of cells is missed in `n` cells with
+probability `(1 - p)^n`. A microscope acquires fields, and what decides
+whether a state is seen is the share of fields that hold it. Are rare,
+out-of-distribution cells in these datasets spread over the fields, or
+clustered in a few (F4, F5 of `docs/questions.md`)?
+
+**Method** (`data/crick_idr/cells_vs_fields.py`; `sampling_unit.unusual_cells`
+and `field_clustering`).
+
+- **Unusual cells** (F4): every intensity feature (30 for idr0028, 60 for
+  idr0139), standardized on a reference sample of the negative-control wells
+  (up to 100 cells per field, so every reference field weighs the same). A
+  cell's score is its mean distance to the 5 nearest reference cells. It is
+  unusual when that score exceeds what all but 1% of reference cells reach
+  against reference cells of other fields. Each well is scored against the
+  control wells other than itself. The design follows fiberfeatures'
+  pixel-category fit (reference sampling, provenance, a seed check), without
+  its scikit-learn Gaussian mixture: rare states are what a mixture tends to
+  absorb, and MorphoCoverage has no scikit-learn dependency.
+- **Clustering** (F5): per well, the fields that hold unusual cells against
+  the fields expected if the same cells were spread at random over the same
+  fields (hypergeometric), a permutation test (999 shuffles of the labels over
+  the well's cells), and the fields needed to see the state once with 95%
+  chance: from its field incidence, and as a random-cell argument would say
+  (cells needed from the prevalence, divided by cells per field).
+
+Results (`results/cells_vs_fields_rare.csv`, `_unusual.csv`):
+
+| | idr0139, 10 wells | idr0028, 12 wells |
+|---|---|---|
+| unusual cells per well | 1.6% (0.5–3.0%) | 1.1% (0–2.5%) |
+| agreement of refits with other reference samples | 68% (50–100%) | 100% |
+| wells where unusual cells cluster by field (p ≤ 0.05) | 2 of 10 | 5 of 12 |
+| in those wells, fields needed / fields a cell count asks for | 3.0 | 1.9 (1.5–2.2) |
+
+On idr0028, the clustered wells are MOCK 1A B6, LATS1 1A I23, MOCK 2A K16,
+YAP siRNA 2A N23 and ARAP2 2B C13. In YAP siRNA 2A N23, 7 unusual cells sit
+in 3 of 28 fields (71% in one field), where random cells would fill 6.
+Seeing them with 95% chance takes 27 fields from their field incidence (up to
+99 at the 95% bound), against 12 if the cells were random.
+
+**What this shows**
+
+- **Rare cells can cluster by field in real data, and then a cell count
+  under-asks.** In 5 of 12 idr0028 wells, unusual cells occupy fewer fields
+  than random cells would. There, seeing them reliably takes about twice the
+  fields that the cell-count argument predicts. That is the rare-state
+  version of entry 9: the mean needs fields counted when fields differ; rare
+  states need fields counted when they cluster.
+- **It is not universal.** In the other wells unusual cells are spread like
+  random cells, and a cell-count argument gives about the right number of
+  fields.
+
+**What this does not show**
+
+- **"Unusual" is a proxy, not a biological state.** It means far from the
+  control wells in the chosen intensity features. It mixes rare biology with
+  technical outliers (debris, segmentation errors, bright edges), which is
+  why the inspection list of the report (R5) exists. Named states need
+  labels.
+- **idr0139 labels depend on the reference sample** (refits agree on only
+  50–100% of unusual cells there): its fields hold about 270 cells, of which
+  100 are sampled. The idr0139 clustering results should not be read beyond
+  "some wells cluster". idr0028 fields hold fewer than 100 cells, so every
+  reference cell is used and the labels do not depend on the seed.
+- **Multiple wells, one test each.** With 12 wells at p ≤ 0.05, about 0.6
+  would be flagged by chance; 5 were.
+- **Few fields per idr0139 well.** With 4 fields, clustering can hardly be
+  detected, and the fields needed carry wide bounds.

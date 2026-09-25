@@ -4,12 +4,14 @@ MorphoCoverage is a feature-agnostic Python project for studying whether microsc
 
 ## Questions MorphoCoverage is built to answer
 
-The canonical list, grouped by the three moments of use (REPORT: what can I trust in a finished acquisition; OPTIMISE: what should I do next time; ONLINE: should I acquire another field now), with what information may answer each question and its status, is [`docs/questions.md`](docs/questions.md). The table below maps the main questions to the functions that answer them.
+The canonical list, grouped by the three moments of use (REPORT: what can I trust in a finished acquisition; OPTIMISE: what should I do next time; ONLINE: should I acquire another field now) and a fourth section (CHECK: can I count cells, or must I count fields), with what information may answer each question and its status, is [`docs/questions.md`](docs/questions.md). The table below maps the main questions to the functions that answer them.
 
 For a completed experiment, the aim is to tell a microscopist whether the imaging effort was sufficient, what the additional FOVs actually bought, and how to spend the imaging budget in the next experiment. Every answer depends on the declared phenotype representation (the features and the definition of "new") and is stated with the criterion behind it.
 
 | Question | Today |
 | --- | --- |
+| Can I count cells, or must I count fields? How variable are my fields? | `morphocoverage.sampling_unit`: `field_variability` (design effect, fields that differ more than random cells would), `cell_rule_check` and `descriptor_spread_check` (the JCB and JCS rules with random cells and with whole fields) |
+| Are rare or unusual cells clustered in a few fields? | `morphocoverage.sampling_unit`: `unusual_cells` against declared control groups, `field_clustering` on any state labels (field incidence against random cells, fields needed) |
 | Can my features detect the phenotype I care about? | `morphocoverage.retrospective.representation_control`: detection and false-alarm rates for declared positive and reference controls, or "not assessed" |
 | Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, first stop points across acquisition orders, rare-state statements |
 | Would one more FOV show something new, and is that chance right? | `sufficiency_report` next-FOV chance and nominal bound, flagged cells, `calibrate_next_fov_novelty` |

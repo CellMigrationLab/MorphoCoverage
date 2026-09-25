@@ -157,6 +157,10 @@ The runner cannot detect leakage introduced upstream, such as features normalize
 
 The framework deliberately keeps strategy execution separate from the later benchmark outcome calculation so a method is not rewarded by being judged only with its own internal metric. `morphocoverage.benchmark` records one run per dataset, group, acquisition order and strategy, and `morphocoverage.outcomes` scores each stop against the full acquisition, or, with `run_benchmark(..., reservoir=ReservoirSplit(...))`, against a held-out reservoir; see `docs/benchmarking.md`.
 
+## Sampling-unit checks
+
+`morphocoverage.sampling_unit` answers section 4 (CHECK) of `docs/questions.md`: whether the cells of a completed acquisition behave like the random cells that cell-number rules assume. `field_variability` gives the variance components of one feature (reusing `retrospective.effort.nested_variance_components`), the design effect and the fields that differ more than random cells would. `cell_rule_check` and `descriptor_spread_check` run the JCB rule and the JCS Fig. 2A procedure twice, with random cells and with whole fields. `unusual_cells` labels observations far from declared reference groups (standardized features, mean distance to the nearest reference observations with `scipy.spatial.cKDTree`, thresholded against reference observations of other fields; a group is never its own reference), following the reference-sampling, provenance and seed-check design of fiberfeatures' pixel categories without its scikit-learn mixture model. `field_clustering` takes any per-observation state labels and compares their field incidence with the random-cell expectation. All are retrospective and group-local; the names stay in the subpackage and are not part of the top-level `__all__`. Comparisons between groups (the JCS treatment comparisons with whole fields) stay in `data/crick_idr/jcs_effect_fields.py` until multi-group outcomes have their own contract (AGENTS.md section 9).
+
 ## Computational benchmarking
 
 Every result carries a `Timing` breakdown:
