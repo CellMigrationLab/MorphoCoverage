@@ -35,7 +35,12 @@ def _visible_table(table: pd.DataFrame) -> pd.DataFrame:
 
 def _isolated_input(data: ValidatedInput) -> ValidatedInput:
     """A deep copy of the input tables for one strategy call."""
-    return replace(data, objects=data.objects.copy(deep=True), fovs=data.fovs.copy(deep=True))
+    return replace(
+        data,
+        objects=data.objects.copy(deep=True),
+        fovs=data.fovs.copy(deep=True),
+        _feature_cache={},
+    )
 
 
 def restrict_input(

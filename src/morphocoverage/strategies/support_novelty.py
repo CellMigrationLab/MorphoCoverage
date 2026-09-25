@@ -104,6 +104,7 @@ cells in 168 FOVs).
 
 from __future__ import annotations
 
+import functools
 import itertools
 from dataclasses import dataclass
 from typing import Any
@@ -203,6 +204,14 @@ _DENSE_CELLS = 4_000_000
 # Up to this many query-reference pairs, exact pairwise distances are faster
 # than any tree, whatever the dimension.
 _DENSE_PAIRS = 20_000_000
+
+
+@functools.lru_cache(maxsize=256)
+def _upper_pairs(n: int) -> np.ndarray:
+    """All index pairs ``i < j`` of ``n`` rows, in ``pdist`` order (cached: FOV sizes repeat)."""
+    pairs = np.column_stack(np.triu_indices(n, k=1))
+    pairs.flags.writeable = False
+    return pairs
 
 
 def _supporting_fovs_dense(
@@ -352,7 +361,7 @@ def new_state_members(
             continue
         if values.shape[1] >= _BRUTE_FORCE_DIMENSIONS:
             # Trees do not prune in high dimensions; all pairs, exactly.
-            pairs = np.column_stack(np.triu_indices(len(rows), k=1))
+            pairs = _upper_pairs(len(rows))
             close = distance.pdist(values[rows]) <= epsilon
         else:
             pairs = cKDTree(values[rows]).query_pairs(epsilon * (1 + 1e-12), output_type="ndarray")

@@ -74,12 +74,11 @@ def _fov_cells(objects, fovs, plate, well, features):
 def _table(blocks, features, prefix):
     """Validated input with one FOV per block of cells, named ``prefix0``, ``prefix1``, ..."""
     names = [f"{prefix}{j}" for j in range(len(blocks))]
-    rows = [
-        pd.DataFrame(block, columns=features).assign(image_file=name)
-        for name, block in zip(names, blocks, strict=True)
-        if len(block)
-    ]
-    objects = pd.concat(rows, ignore_index=True)
+    kept = [(name, block) for name, block in zip(names, blocks, strict=True) if len(block)]
+    # One frame for all blocks: building and concatenating a frame per block
+    # dominated the runtime of the controls.
+    objects = pd.DataFrame(np.vstack([block for _, block in kept]), columns=features)
+    objects["image_file"] = np.repeat([name for name, _ in kept], [len(b) for _, b in kept])
     return validate_input_tables(
         objects, fovs=pd.DataFrame({"image_file": names}), feature_cols=features
     )
