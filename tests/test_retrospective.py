@@ -345,9 +345,11 @@ def test_invalid_settings_are_refused(kwargs):
         _reliability("homogeneous", **kwargs)
 
 
-def test_worker_processes_give_identical_curves():
+# 4 analysis groups: 2 workers take whole groups, 6 workers take every split apart.
+@pytest.mark.parametrize("n_jobs", [2, 6], ids=["groups", "splits_apart"])
+def test_worker_processes_give_identical_curves(n_jobs):
     one = _reliability("condition_repeat_groups", counts=(2, 4))
-    two = _reliability("condition_repeat_groups", counts=(2, 4), n_jobs=2)
+    two = _reliability("condition_repeat_groups", counts=(2, 4), n_jobs=n_jobs)
     pd.testing.assert_frame_equal(one.curve, two.curve)
     pd.testing.assert_frame_equal(one.draws, two.draws)
     pd.testing.assert_frame_equal(one.ceiling, two.ceiling)

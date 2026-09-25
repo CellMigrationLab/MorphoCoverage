@@ -49,10 +49,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._parallel import check_n_jobs, map_units
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..reservoir import ReservoirSplit
 from ..schema import validate_input_tables
-from ._parallel import check_n_jobs, map_groups
 from ._text import fields, group_identity, percent, where
 from .criteria import OutcomeCriterion, Preservation
 
@@ -126,47 +126,56 @@ def _draw_rng(random_state: int, group: Mapping[str, Any], split: int) -> np.ran
     return np.random.default_rng([random_state, group_identity(group), split])
 
 
-def _group_draws(group, data, criteria, counts, split_settings, n_splits, draws, random_state):
-    """Every assessed draw for one analysis group, and the whole stream per split."""
+def _group_draws(group, data, criteria, counts, split_settings, splits, draws, random_state):
+    """Every assessed draw for one analysis group and the given splits, and the whole streams."""
+    rows, ceiling = [], []
+    for split in splits:
+        split_rows, split_ceiling = _split_draws(
+            group, data, criteria, counts, split_settings, split, draws, random_state
+        )
+        rows += split_rows
+        ceiling += split_ceiling
+    return rows, ceiling
+
+
+def _split_draws(group, data, criteria, counts, split_settings, split, draws, random_state):
+    """Every assessed draw for one analysis group and split, and the whole stream."""
     fraction, block_col = split_settings
     rows, ceiling = [], []
-    for split in range(n_splits):
-        stream, reservoir = ReservoirSplit(fraction, random_state + split, block_col).split(
-            group, data
+    stream, reservoir = ReservoirSplit(fraction, random_state + split, block_col).split(group, data)
+    for criterion in criteria:
+        status, value = criterion.assess(reservoir, stream)
+        ceiling.append(
+            {
+                **group,
+                "split": split,
+                "criterion": criterion.name,
+                "value": value,
+                "status": status.value,
+                "stream_fovs": len(stream.fovs),
+            }
         )
-        for criterion in criteria:
-            status, value = criterion.assess(reservoir, stream)
-            ceiling.append(
-                {
-                    **group,
-                    "split": split,
-                    "criterion": criterion.name,
-                    "value": value,
-                    "status": status.value,
-                    "stream_fovs": len(stream.fovs),
-                }
-            )
-        rng = _draw_rng(random_state, group, split)
-        n_stream = len(stream.fovs)
-        subsets = FovSubsets(stream)
-        for k in (k for k in counts if k <= n_stream):
-            for draw in range(draws):
-                subset = subsets.take(np.sort(rng.choice(n_stream, size=k, replace=False)))
-                for criterion in criteria:
-                    status, value = criterion.assess(reservoir, subset)
-                    rows.append(
-                        {
-                            **group,
-                            "split": split,
-                            "fovs": k,
-                            "draw": draw,
-                            "criterion": criterion.name,
-                            "value": value,
-                            "status": status.value,
-                            "reservoir_fovs": len(reservoir.fovs),
-                            "stream_fovs": n_stream,
-                        }
-                    )
+    rng = _draw_rng(random_state, group, split)
+    n_stream = len(stream.fovs)
+    subsets = FovSubsets(stream)
+    for k in (k for k in counts if k <= n_stream):
+        for draw in range(draws):
+            subset = subsets.take(np.sort(rng.choice(n_stream, size=k, replace=False)))
+            for criterion in criteria:
+                status, value = criterion.assess(reservoir, subset)
+                rows.append(
+                    {
+                        **group,
+                        "split": split,
+                        "fovs": k,
+                        "draw": draw,
+                        "criterion": criterion.name,
+                        "value": value,
+                        "status": status.value,
+                        "reservoir_fovs": len(reservoir.fovs),
+                        "stream_fovs": n_stream,
+                    }
+                )
     return rows, ceiling
 
 
@@ -235,8 +244,9 @@ def sampling_reliability(
     split, a design choice with no default: a larger reservoir is a better
     reference and leaves a shorter stream. ``n_splits`` and ``draws`` are
     computational settings; the curve reports how much the answer varies
-    across splits. ``n_jobs`` runs analysis groups in that many worker
-    processes (``-1``: every CPU); results are identical for every value.
+    across splits. ``n_jobs`` runs the groups (their splits apart when
+    groups are fewer than workers) in that many worker processes (``-1``:
+    every CPU); results are identical for every value.
     Other arguments are those of ``validate_input_tables``.
     """
     check_n_jobs(n_jobs)
@@ -253,12 +263,20 @@ def sampling_reliability(
     )
 
     split_settings = (float(reservoir_fraction), block_col)
+    # Every split of every group has its own reservoir and generator, so each
+    # is an independent unit of work. Splits are sent apart only when the
+    # groups are fewer than the workers; otherwise a group's splits stay
+    # together, which sends its data once.
+    groups = list(iter_analysis_groups(data))
+    apart = len(groups) < check_n_jobs(n_jobs)
+    blocks = [[split] for split in range(n_splits)] if apart else [list(range(n_splits))]
     jobs = [
-        (group, group_data, criteria, counts, split_settings, n_splits, draws, random_state)
-        for group, group_data in iter_analysis_groups(data)
+        (group, group_data, criteria, counts, split_settings, splits, draws, random_state)
+        for group, group_data in groups
+        for splits in blocks
     ]
     rows, ceiling_rows = [], []
-    for group_rows, group_ceiling in map_groups(_group_draws, jobs, n_jobs):
+    for group_rows, group_ceiling in map_units(_group_draws, jobs, n_jobs):
         rows += group_rows
         ceiling_rows += group_ceiling
     keys = list(data.group_cols)

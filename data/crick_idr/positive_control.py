@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from morphocoverage import validate_input_tables
+from morphocoverage._parallel import map_units, worker_pool
 from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.transforms import Standardize
 
@@ -96,40 +97,52 @@ def _spiked(host_blocks, donor_blocks, size, rng):
     return spiked
 
 
-def run() -> pd.DataFrame:
-    """Rates at which each kind of candidate FOV is judged new, per setting."""
+def _judge(seen_blocks, candidates, k, features, scale):
+    """``(setting, judged new, candidates)`` for one draw; no randomness."""
+    seen = _table(seen_blocks, features, "seen")
+    tables = {key: _table(blocks, features, "new") for key, blocks in candidates.items()}
+    counts = []
+    for fraction in EPSILON_SCALES:
+        for m in CLUSTER_SIZES:
+            novelty = SupportNoveltyEstimator(fraction * scale, 1, Standardize(), 2, m)
+            for (kind, donor, size), table in tables.items():
+                flags = novelty.novel_fovs_against(seen, table)
+                counts.append(((fraction, m, k, kind, donor, size), int(np.sum(flags)), len(flags)))
+    return counts
+
+
+def run(n_jobs: int = -1) -> pd.DataFrame:
+    """Rates at which each kind of candidate FOV is judged new, per setting.
+
+    Every random choice is drawn here, in the same order as a serial run; only
+    the novelty checks, which draw nothing, go to ``n_jobs`` worker processes
+    (every CPU by default), so the table does not depend on ``n_jobs``.
+    """
     objects, fovs, features = _load()
     rng = np.random.default_rng(SEED)
     scale = np.sqrt(len(features))
     tallies: dict[tuple, list[int]] = {}
-
-    def tally(key, flags):
-        count = tallies.setdefault(key, [0, 0])
-        count[0] += int(np.sum(flags))
-        count[1] += len(flags)
-
-    for plate, host_well, donor_wells in DESIGN:
-        host = _fov_cells(objects, fovs, plate, host_well, features)
-        donors = {w: _fov_cells(objects, fovs, plate, w, features) for w in donor_wells}
-        for k in FOVS_SEEN:
-            for _ in range(DRAWS):
-                order = rng.permutation(len(host))
-                seen = _table([host[i] for i in order[:k]], features, "seen")
-                rest = [host[i] for i in order[k:]]
-                candidates = {("host", "-", 0): rest}
-                for well, blocks in donors.items():
-                    candidates[("whole_fov", well, 0)] = blocks
-                    for size in RARE_CELLS:
-                        candidates[("rare_cells", well, size)] = _spiked(rest, blocks, size, rng)
-                tables = {
-                    key: _table(blocks, features, "new") for key, blocks in candidates.items()
-                }
-                for fraction in EPSILON_SCALES:
-                    for m in CLUSTER_SIZES:
-                        novelty = SupportNoveltyEstimator(fraction * scale, 1, Standardize(), 2, m)
-                        for (kind, donor, size), table in tables.items():
-                            flags = novelty.novel_fovs_against(seen, table)
-                            tally((fraction, m, k, kind, donor, size), flags)
+    with worker_pool(n_jobs) as pool:
+        for plate, host_well, donor_wells in DESIGN:
+            host = _fov_cells(objects, fovs, plate, host_well, features)
+            donors = {w: _fov_cells(objects, fovs, plate, w, features) for w in donor_wells}
+            for k in FOVS_SEEN:
+                jobs = []
+                for _ in range(DRAWS):
+                    order = rng.permutation(len(host))
+                    rest = [host[i] for i in order[k:]]
+                    candidates = {("host", "-", 0): rest}
+                    for well, blocks in donors.items():
+                        candidates[("whole_fov", well, 0)] = blocks
+                        for size in RARE_CELLS:
+                            spiked = _spiked(rest, blocks, size, rng)
+                            candidates[("rare_cells", well, size)] = spiked
+                    jobs.append(([host[i] for i in order[:k]], candidates, k, features, scale))
+                for draw in map_units(_judge, jobs, n_jobs, pool):
+                    for key, new, total in draw:
+                        count = tallies.setdefault(key, [0, 0])
+                        count[0] += new
+                        count[1] += total
     rows = [
         {
             "epsilon_scale": fraction,

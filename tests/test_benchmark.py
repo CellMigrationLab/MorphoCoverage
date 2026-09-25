@@ -449,3 +449,17 @@ def test_benchmark_records_whether_the_observation_unit_was_declared():
     assert (assumed.observation_unit, assumed.observation_unit_declared) == ("object", False)
     assert (declared.observation_unit, declared.observation_unit_declared) == ("cell", True)
     assert records_to_frame([assumed])["observation_unit_declared"].tolist() == [False]
+
+
+def test_worker_processes_give_identical_records_apart_from_latencies():
+    registry = _registry(_dataset("dev", scenario="condition_repeat_groups"))
+    settings = {
+        "strategies": [FixedFOVStrategy(3), FixedFOVStrategy(6)],
+        "metrics": [RelativeMeanError("feature_a")],
+    }
+
+    def rows(n_jobs):
+        table = records_to_frame(_run(registry, n_jobs=n_jobs, **settings))
+        return table.drop(columns=[c for c in table.columns if "seconds" in c])
+
+    pd.testing.assert_frame_equal(rows(1), rows(2))

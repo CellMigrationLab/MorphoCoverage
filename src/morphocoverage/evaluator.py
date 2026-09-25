@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._parallel import check_n_jobs, map_units
 from .evidence import Evidence, Quantity
 from .objectives import ObjectiveConfig
 from .policies import Effort, decide
@@ -329,18 +330,23 @@ def evaluate_strategies(
     data: ValidatedInput,
     *,
     objective: ObjectiveConfig,
+    n_jobs: int = 1,
 ) -> list[StrategyResult]:
-    """Run all strategies independently within every resolved analysis group."""
+    """Run all strategies independently within every resolved analysis group.
+
+    Every (group, strategy) pair is independent, so ``n_jobs`` runs the pairs
+    in that many worker processes (``-1``: every CPU). Results come back in
+    the same order and are identical for every value, apart from timings.
+    """
+    check_n_jobs(n_jobs)
     strategy_list = list(strategies)
-    results: list[StrategyResult] = []
-    for group, group_data in iter_analysis_groups(data):
-        for strategy in strategy_list:
-            results.append(
-                evaluate_strategy(
-                    strategy,
-                    group_data,
-                    objective=objective,
-                    group=group,
-                )
-            )
-    return results
+    jobs = [
+        (strategy, group_data, objective, group)
+        for group, group_data in iter_analysis_groups(data)
+        for strategy in strategy_list
+    ]
+    return map_units(_evaluate_unit, jobs, n_jobs)
+
+
+def _evaluate_unit(strategy, group_data, objective, group) -> StrategyResult:
+    return evaluate_strategy(strategy, group_data, objective=objective, group=group)

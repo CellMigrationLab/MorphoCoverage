@@ -391,6 +391,7 @@ def run_benchmark(
     min_fovs: int = 1,
     incremental: bool = False,
     reservoir: ReservoirSplit | None = None,
+    n_jobs: int = 1,
 ) -> list[BenchmarkRecord]:
     """Replay every strategy on one registered dataset and record one run per group and order.
 
@@ -400,7 +401,9 @@ def run_benchmark(
     passed to the replay; decisions are the same either way, only the recorded
     latencies differ. With ``reservoir``, strategies replay each group's stream
     and outcomes are scored against its held-out reservoir; effort totals
-    then refer to the stream.
+    then refer to the stream. ``n_jobs`` replays the analysis groups of each
+    strategy and order in that many worker processes (``-1``: every CPU);
+    records are identical for every value, apart from the recorded latencies.
     """
     tuned = registry.check_tuning(tuned_on)
     dataset = registry[dataset_name]
@@ -459,6 +462,7 @@ def run_benchmark(
                 objective=objective,
                 min_fovs=min_fovs,
                 incremental=incremental,
+                n_jobs=n_jobs,
                 **columns,
             )
             histories: dict[tuple, list[SequentialResult]] = {}

@@ -9,6 +9,7 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 
+from ._parallel import check_n_jobs, map_units
 from .evaluator import (
     IncrementalReplay,
     evaluate_strategy,
@@ -48,6 +49,7 @@ def evaluate_acquisition_prefixes(
     min_fovs: int = 1,
     incremental: bool = False,
     observation_unit: str | None = None,
+    n_jobs: int = 1,
 ) -> list[SequentialResult]:
     """Evaluate strategies after each prefix of a recorded real acquisition.
 
@@ -67,7 +69,14 @@ def evaluate_acquisition_prefixes(
     and decisions are the same either way, to floating-point rounding; only
     the timing differs. Each result's ``timing`` separates estimator time from
     framework overhead, including building the prefix.
+
+    Every strategy is replayed independently of the others, so ``n_jobs``
+    replays the groups in that many worker processes (``-1``: every CPU),
+    each strategy apart when there are too few groups to keep them busy.
+    Results come back in the same order and are identical for every value,
+    apart from timings.
     """
+    check_n_jobs(n_jobs)
     _check_order_column(fovs, acquisition_order_col, feature_cols, min_fovs)
     data = validate_input_tables(
         objects,
@@ -80,25 +89,65 @@ def evaluate_acquisition_prefixes(
     strategy_list = list(strategies)
     groups = list(iter_analysis_groups(data))
     _check_min_fovs(groups, min_fovs)
-    replay = _replay_incremental if incremental else _replay_full
-
+    jobs = [
+        (part, group, group_data, acquisition_order_col, objective, min_fovs, incremental)
+        for group, group_data in groups
+        for part in _strategy_units(strategy_list, n_jobs, len(groups))
+    ]
+    parts = iter(map_units(_replay_unit, jobs, n_jobs))
     all_results: list[SequentialResult] = []
-    for group, group_data in groups:
-        acquisition = _Acquisition(
-            group_data, _in_acquisition_order(group, group_data, acquisition_order_col)
-        )
-        for step, result in replay(
-            strategy_list, group, acquisition, objective=objective, min_fovs=min_fovs
-        ):
+    for _ in groups:
+        replayed = [next(parts) for _ in _strategy_units(strategy_list, n_jobs, len(groups))]
+        for step, keys, result in _interleave(replayed):
             all_results.append(
-                SequentialResult(
-                    step=step,
-                    fov_key=data.fov_key,
-                    acquired_fovs=acquisition.keys[:step],
-                    result=result,
-                )
+                SequentialResult(step=step, fov_key=data.fov_key, acquired_fovs=keys, result=result)
             )
     return all_results
+
+
+def _strategy_units(strategies: list[SamplingStrategy], n_jobs: int, n_runs: int) -> list[list]:
+    """The strategies replayed together in one unit of work, for ``n_runs`` independent runs.
+
+    Strategies replayed together share each visible prefix and send the data
+    to a worker once, so they stay together in this process and whenever the
+    runs alone can occupy every worker. With fewer runs than workers (one
+    sample compared across several strategies, say), every strategy is its
+    own unit: sending the data more often costs less than idle workers.
+    """
+    if n_runs >= check_n_jobs(n_jobs):
+        return [strategies]
+    return [[strategy] for strategy in strategies]
+
+
+def _interleave(parts: list[list[tuple]]) -> list[tuple]:
+    """Results of strategies replayed apart, in the order of one joint replay.
+
+    A joint replay yields every strategy at step k, in strategy order, before
+    step k + 1. Each part is in step order, so a stable sort of the parts
+    concatenated in strategy order by step restores exactly that order.
+    """
+    return sorted((row for part in parts for row in part), key=lambda row: row[0])
+
+
+def _replay_strategies(strategies, group, acquisition, *, objective, min_fovs, incremental):
+    """``(step, result)`` of every strategy after every prefix of ``acquisition``."""
+    replay = _replay_incremental if incremental else _replay_full
+    return list(replay(strategies, group, acquisition, objective=objective, min_fovs=min_fovs))
+
+
+def _replay_unit(strategies, group, group_data, order_col, objective, min_fovs, incremental):
+    acquisition = _Acquisition(group_data, _in_acquisition_order(group, group_data, order_col))
+    return [
+        (step, acquisition.keys[:step], result)
+        for step, result in _replay_strategies(
+            strategies,
+            group,
+            acquisition,
+            objective=objective,
+            min_fovs=min_fovs,
+            incremental=incremental,
+        )
+    ]
 
 
 def _check_order_column(

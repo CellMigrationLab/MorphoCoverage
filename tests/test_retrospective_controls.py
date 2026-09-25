@@ -132,3 +132,14 @@ def test_adding_a_plate_does_not_change_another_plates_rates():
     pd.testing.assert_frame_equal(
         both[both["repeat"] == "P1"].reset_index(drop=True), alone.reset_index(drop=True)
     )
+
+
+def test_worker_processes_give_identical_rates():
+    objects, fovs = _plate()
+    one = _control(objects, fovs, BOTH)
+    two = _control(objects, fovs, BOTH, n_jobs=3)
+    pd.testing.assert_frame_equal(one.table, two.table)
+    pd.testing.assert_frame_equal(one.pooled, two.pooled)
+    assert one.status == two.status
+    with pytest.raises(ValueError, match="n_jobs"):
+        _control(objects, fovs, BOTH, n_jobs=0)
