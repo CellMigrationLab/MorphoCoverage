@@ -22,12 +22,12 @@ acquired the planned number of cells. An evaluated group that contains a
 pilot sample would be tested on its own planning data, so its evidence is
 reported as not applicable.
 
-Choices the paper leaves open, stated explicitly:
+Supplementary Data S1 and S3 resolve the control normalization:
 
-- "The average of all the control samples" is taken as the mean of the
-  control samples' means, each sample counting once, as the paper treats a
-  sample's average as n = 1. With equal cells per control sample this is also
-  the mean of all control cells.
+- "The average of all the control samples" is the mean of all control-cell
+  observations, so control samples are weighted by the number of entered
+  cells. With equal cells per control sample this is also the mean of the
+  control-sample means.
 - The SD of the centred data set uses ``ddof=1`` over all cells, and the
   upper bound uses a chi-square interval on ``n_cells - 1`` degrees of
   freedom: the SD "for the entire data set", as the paper's spreadsheet
@@ -171,10 +171,11 @@ def plan_cells_to_average(
             table[column] = data.objects[column]
     is_control = np.logical_and.reduce([table[c].eq(v).to_numpy() for c, v in control.items()])
     sample_means = table.groupby(list(sample_cols), sort=True)["_value"].mean()
-    control_means = table.loc[is_control].groupby(list(sample_cols))["_value"].mean()
+    control_rows = table.loc[is_control]
+    control_means = control_rows.groupby(list(sample_cols))["_value"].mean()
     if control_means.empty:
         raise ValueError(f"no pilot sample matches the control {dict(control)}")
-    control_mean = float(control_means.mean())
+    control_mean = float(control_rows["_value"].mean())
     if not control_mean > 0:
         raise ValueError("the control mean must be positive to express SD as a CV")
 
