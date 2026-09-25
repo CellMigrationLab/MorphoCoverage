@@ -4,8 +4,8 @@ Two questions of ``docs/questions.md`` are scored with
 ``morphocoverage.retrospective.frontier``:
 
 - **mean**: on idr0028 (development) and idr0139 (held out), the JCB rule and
-  the JCS descriptor spread, each per cell and per field, and the FOV
-  bootstrap of the mean, against a fixed number of fields. Per cell against
+  the JCS descriptor spread, each per object and per field, and the FOV
+  bootstrap of the mean, against a fixed number of fields. Per object against
   per field is stage 1; the rest is stage 2. Each rule's setting chosen on
   idr0028 to meet a risk level is then scored on idr0139 (``transfer``).
 - **rare**: on planted states in idr0028 MOCK wells, the support-novelty
@@ -58,18 +58,27 @@ POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 READOUT = {"idr0028_screenB": YAPTAZ_RATIO, "idr0139": FASCIN_RATIO}
 
 
-def check_lock(write: bool) -> None:
-    """Refuse to run unless the protocol matches the digest locked before the first run."""
-    current = digest()
-    if write:
-        if LOCK.exists():
-            raise SystemExit(f"{LOCK.name} exists; a new protocol needs a new version")
-        LOCK.write_text(current + "\n")
-        print(f"locked protocol version {PROTOCOL['version']}: {current}")
-        return
+def _locked() -> dict[int, str]:
+    """The locked digest of every protocol version, one ``version digest`` line each."""
     if not LOCK.exists():
-        raise SystemExit("the protocol is not locked; run with --lock before the first run")
-    if LOCK.read_text().strip() != current:
+        return {}
+    return {int(v): d for v, d in (line.split() for line in LOCK.read_text().splitlines())}
+
+
+def check_lock(write: bool) -> None:
+    """Refuse to run unless this protocol version matches the digest locked before its runs."""
+    current, version = digest(), PROTOCOL["version"]
+    locked = _locked()
+    if write:
+        if version in locked:
+            raise SystemExit(f"version {version} is locked; a changed protocol needs a new version")
+        with LOCK.open("a") as lock:
+            lock.write(f"{version} {current}\n")
+        print(f"locked protocol version {version}: {current}")
+        return
+    if version not in locked:
+        raise SystemExit(f"version {version} is not locked; run with --lock before its first run")
+    if locked[version] != current:
         raise SystemExit("the protocol changed after it was locked; make a new version")
 
 
@@ -192,7 +201,7 @@ def _planted_tables(question: dict):
         host_fovs = fovs[(fovs["repeat"] == plate) & (fovs["well"] == host)].reset_index(drop=True)
         donor_cells = objects[(objects["repeat"] == plate) & (objects["well"] == donor)]
         donor_blocks = [block for _, block in donor_cells.groupby("image_file")]
-        usable = [b for b in donor_blocks if len(b) >= question["planted_cells"]]
+        usable = [b for b in donor_blocks if len(b) >= question["planted_objects"]]
         xy = host_fovs[["stage_x_um", "stage_y_um"]].to_numpy(float)
         for frequency in question["frequencies"]:
             for layout in question["layouts"]:
@@ -212,7 +221,9 @@ def _planted_tables(question: dict):
                         object_parts.append(cells.assign(**group, planted=False))
                         if plant:
                             source = usable[rng.integers(len(usable))]
-                            pick = rng.choice(len(source), question["planted_cells"], replace=False)
+                            pick = rng.choice(
+                                len(source), question["planted_objects"], replace=False
+                            )
                             added = source.iloc[np.sort(pick)].assign(
                                 **group, image_file=fov, planted=True
                             )

@@ -107,7 +107,7 @@ class StrategyResult:
         """One line: the decision, each policy's rule with its evidence, and the effort.
 
         For example ``stop: lofo_novel_fov_upper = 0.24 <= 0.25 (population); after
-        11 FOVs, 1100 cells``. A rule's own threshold is not a held-out check:
+        11 FOVs, 1100 objects``. A rule's own threshold is not a held-out check:
         the line names the quantity so the reader can see when a stop rests
         on the number of FOVs alone.
         """

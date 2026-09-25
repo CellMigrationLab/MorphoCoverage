@@ -1,4 +1,4 @@
-"""JCB/Zweifach multi-sample planning: how many cells to average, from pilot samples.
+"""JCB/Zweifach multi-sample planning: how many objects (the paper's cells) to average.
 
 The full procedure of Zweifach, "Determining how many cells to average for
 statistical testing of microscopy experiments", J Cell Biol 2024;223(8):
@@ -15,10 +15,10 @@ e202401074, doi:10.1083/jcb.202401074, as the paper states it:
 ``ScalarPrecisionStrategy`` is the single-sample variant, re-estimated inside
 each analysis group. This multi-sample procedure needs several samples, and
 usually control samples from other conditions, so it cannot run inside one
-group. It is therefore a separate planning step. ``plan_cells_to_average``
-runs once on pilot data and returns a fixed ``CellCountPlan``;
-``PlannedCellCountStrategy`` then stops each evaluated group once it has
-acquired the planned number of cells. An evaluated group that contains a
+group. It is therefore a separate planning step. ``plan_objects_to_average``
+runs once on pilot data and returns a fixed ``ObjectCountPlan``;
+``PlannedObjectCountStrategy`` then stops each evaluated group once it has
+acquired the planned number of objects. An evaluated group that contains a
 pilot sample would be tested on its own planning data, so its evidence is
 reported as not applicable.
 
@@ -26,14 +26,14 @@ Choices the paper leaves open, stated explicitly:
 
 - "The average of all the control samples" is taken as the mean of the
   control samples' means, each sample counting once, as the paper treats a
-  sample's average as n = 1. With equal cells per control sample this is also
-  the mean of all control cells.
-- The SD of the centred data set uses ``ddof=1`` over all cells, and the
-  upper bound uses a chi-square interval on ``n_cells - 1`` degrees of
+  sample's average as n = 1. With equal objects per control sample this is also
+  the mean of all control objects.
+- The SD of the centred data set uses ``ddof=1`` over all objects, and the
+  upper bound uses a chi-square interval on ``n_objects - 1`` degrees of
   freedom: the SD "for the entire data set", as the paper's spreadsheet
   computes it. Its worked example (17.8% point, 26.0% upper, from 20 cells) is
   reproduced with these choices. A pooled-variance estimate would use
-  ``n_cells - n_samples``; the difference matters only for small pilots.
+  ``n_objects - n_samples``; the difference matters only for small pilots.
 """
 
 from __future__ import annotations
@@ -45,6 +45,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .. import _deprecated
 from ..evidence import Availability, Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import DecisionPolicy, Effort
@@ -58,8 +59,8 @@ _REQUIRED = "planned_required_objects"
 
 
 @dataclass(frozen=True)
-class CellCountPlan:
-    """The number of cells to average, planned once from pilot samples.
+class ObjectCountPlan:
+    """The number of objects to average, planned once from pilot samples.
 
     ``pilot_samples`` lists the ``sample_cols`` values of every pilot sample,
     so evaluation can refuse groups that were used for planning.
@@ -132,7 +133,7 @@ def _pilot_values(
     return data, values
 
 
-def plan_cells_to_average(
+def plan_objects_to_average(
     objects: pd.DataFrame,
     *,
     feature: str,
@@ -142,8 +143,8 @@ def plan_cells_to_average(
     control: Mapping[str, Any],
     observation_unit: str | None = None,
     **validation: Any,
-) -> CellCountPlan:
-    """Plan the number of cells to average from pilot samples (see the module docstring).
+) -> ObjectCountPlan:
+    """Plan the number of objects to average from pilot samples (see the module docstring).
 
     ``sample_cols`` identify one sample (for example condition, repeat and
     well); ``control`` selects the control samples by column value, e.g.
@@ -181,7 +182,7 @@ def plan_cells_to_average(
     centred = values - table.groupby(list(sample_cols))["_value"].transform("mean").to_numpy()
     cv = float(np.std(centred, ddof=1)) / control_mean
     cv_upper = cv * sd_upper_bound_factor(len(values) - 1)
-    return CellCountPlan(
+    return ObjectCountPlan(
         feature=feature,
         target_cv=float(target_cv),
         sd_estimate=sd_estimate,
@@ -211,8 +212,8 @@ def _samples_seen(data: ValidatedInput, sample_cols: tuple[str, ...]) -> set[tup
 
 
 @dataclass(frozen=True)
-class PlannedCellCountEstimator(Estimator):
-    """Reports a plan's required cell count as evidence, if the plan applies to the group.
+class PlannedObjectCountEstimator(Estimator):
+    """Reports a plan's required object count as evidence, if the plan applies to the group.
 
     The plan does not apply (``not_applicable``, with the reason) when the rows
     are not objects, when the group's samples cannot be identified, or when the
@@ -220,8 +221,8 @@ class PlannedCellCountEstimator(Estimator):
     planning data.
     """
 
-    plan: CellCountPlan
-    name: str = "planned_cells"
+    plan: ObjectCountPlan
+    name: str = "planned_objects"
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -270,20 +271,20 @@ class _PlannedCountPolicy(DecisionPolicy):
 
 
 @dataclass(frozen=True)
-class PlannedCellCountStrategy(SamplingStrategy):
-    """Stop each group once it has the number of cells a JCB pilot plan requires.
+class PlannedObjectCountStrategy(SamplingStrategy):
+    """Stop each group once it has the number of objects a JCB pilot plan requires.
 
     The multi-sample counterpart of ``ScalarPrecisionStrategy``: the
     requirement is fixed before evaluation, from pilot samples, instead of
-    being re-estimated from each group's visible cells.
+    being re-estimated from each group's visible objects.
     """
 
-    plan: CellCountPlan
+    plan: ObjectCountPlan
     name: str = "scalar_precision_planned"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.plan, CellCountPlan):
-            raise TypeError("plan must be a CellCountPlan from plan_cells_to_average")
+        if not isinstance(self.plan, ObjectCountPlan):
+            raise TypeError("plan must be an ObjectCountPlan from plan_objects_to_average")
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -291,9 +292,9 @@ class PlannedCellCountStrategy(SamplingStrategy):
         return {"plan": self.plan.parameters}
 
     @property
-    def estimators(self) -> tuple[PlannedCellCountEstimator]:
+    def estimators(self) -> tuple[PlannedObjectCountEstimator]:
         """The plan as evidence for each group."""
-        return (PlannedCellCountEstimator(self.plan),)
+        return (PlannedObjectCountEstimator(self.plan),)
 
     @property
     def policies(self) -> tuple[_PlannedCountPolicy]:
@@ -302,8 +303,21 @@ class PlannedCellCountStrategy(SamplingStrategy):
 
 
 __all__ = [
-    "CellCountPlan",
-    "PlannedCellCountEstimator",
-    "PlannedCellCountStrategy",
-    "plan_cells_to_average",
+    "ObjectCountPlan",
+    "PlannedObjectCountEstimator",
+    "PlannedObjectCountStrategy",
+    "plan_objects_to_average",
 ]
+
+
+# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
+__getattr__ = _deprecated.module_getattr(
+    __name__,
+    globals(),
+    (
+        "plan_cells_to_average",
+        "CellCountPlan",
+        "PlannedCellCountEstimator",
+        "PlannedCellCountStrategy",
+    ),
+)

@@ -22,7 +22,7 @@ outside the current support at this resolution. A FOV shows a **new state**
 when at least ``min_novel_observations`` of its novel observations form one
 cluster: they are linked by chains of steps of at most ``epsilon`` between
 novel observations of that FOV (single linkage at the same resolution). So
-``m`` new cells must resemble each other, and scattered outliers (debris,
+``m`` new objects must resemble each other, and scattered outliers (debris,
 segmentation errors) do not add up to a phenotype however many there are.
 With ``min_novel_observations=1`` any novel observation counts. Acquired FOVs
 without observations count in the denominator, since the next FOV may be
@@ -36,30 +36,30 @@ coverage is approximate and is checked empirically by
 ``morphocoverage.calibration`` (``morphocoverage.bounds``). It is 0.78 for 0
 novel FOVs of 2 at a nominal 95%, and is the quantity to stop on when few
 FOVs have been seen. Support is counted in
-FOVs, not cells: a state seen only in one FOV stays novel however many cells
+FOVs, not objects: a state seen only in one FOV stays novel however many objects
 it has there, and support from another FOV counts once however many of its
-cells are nearby, so a dense FOV cannot cover what a sparse FOV showing the
+objects are nearby, so a dense FOV cannot cover what a sparse FOV showing the
 same state would not.
 
 Support is symmetric with the new-state rule: another FOV supports an
 observation only with at least ``min_novel_observations`` of its own
 observations within ``epsilon``. A state must recur as a group of similar
-cells to be covered, so a single stray cell (debris, a mis-segmented
+objects to be covered, so a single stray object (debris, a mis-segmented
 object) in another FOV cannot cancel a real new state, just as scattered
 outliers cannot make one. With ``min_novel_observations=1`` one nearby
 observation is enough, as before.
 
-Single linkage can chain: unsupported cells spaced at most ``epsilon``
+Single linkage can chain: unsupported objects spaced at most ``epsilon``
 apart form one state however far the chain extends. A continuous run of
-unseen cells is treated as one new state.
+unseen objects is treated as one new state.
 
 Weighting of the held-out side differs between the quantities:
 
 - ``lofo_novel_fraction`` pools observations, so each FOV counts in
-  proportion to its cells: two dense, mutually supporting FOVs of 1,000
-  cells and eight one-cell FOVs each in its own unsupported state give
+  proportion to its objects: two dense, mutually supporting FOVs of 1,000
+  objects and eight one-object FOVs each in its own unsupported state give
   8 / 2,008 = 0.004, although 8 of 10 FOVs are wholly novel. It estimates
-  the chance that a random *cell* of a new FOV is novel, not a
+  the chance that a random *object* of a new FOV is novel, not a
   representative-FOV quantity, and a dense homogeneous FOV can make it
   look settled.
 - ``lofo_mean_fov_novel_fraction`` averages the novel fraction per FOV over
@@ -97,9 +97,9 @@ Choices and limits:
   acquisition effort.
 
 Cost: ``scipy.spatial.cKDTree`` queries. With ``min_other_fovs=1``, counting
-ball queries (about 10 ms for a 1,000-cell well); otherwise one bounded
+ball queries (about 10 ms for a 1,000-object well); otherwise one bounded
 nearest-neighbour query of every observation per FOV (about 0.5 s for 6,700
-cells in 168 FOVs).
+objects in 168 FOVs).
 """
 
 from __future__ import annotations
@@ -460,7 +460,7 @@ def _unavailable(kind: str, reason: str, diagnostics: dict[str, Any]) -> Evidenc
 class SupportNoveltyEstimator(Estimator):
     """Leave-one-FOV-out fraction of observations outside the other FOVs' ``epsilon``-support.
 
-    Reports ``lofo_novel_fraction`` (cell-weighted),
+    Reports ``lofo_novel_fraction`` (object-weighted),
     ``lofo_mean_fov_novel_fraction`` (FOV-weighted), ``lofo_novel_fov_fraction``
     and its upper bound (population, lower is better). See the module
     docstring for the estimands, their weighting and their limits.
@@ -587,7 +587,7 @@ class SupportNoveltyEstimator(Estimator):
         """Leave-one-FOV-out novelty of each observation of ``data``, or ``None``.
 
         The per-observation flags behind the estimate, for inspecting which
-        cells were counted as new; ``None`` when the estimate is unavailable.
+        objects were counted as new; ``None`` when the estimate is unavailable.
         With ``new_states_only``, only the novel observations that form a new
         state (a cluster of at least ``min_novel_observations``) are flagged.
         """
@@ -646,7 +646,7 @@ class SupportNoveltyStrategy(SamplingStrategy):
     """Stop when a leave-one-FOV-out novel fraction is at most ``tolerance``.
 
     ``SupportNoveltyEstimator`` plus ``ThresholdPolicy`` on ``quantity``: the
-    cell-weighted fraction of novel observations (default), the FOV-weighted
+    object-weighted fraction of novel observations (default), the FOV-weighted
     mean fraction, the fraction of FOVs showing a new state or its upper
     bound. The
     resolution, support and minimum FOVs have no defaults.

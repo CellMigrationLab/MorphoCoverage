@@ -7,9 +7,9 @@ tests this on the dataset itself:
 - **positive**: FOVs of a declared phenotype (for example a knockdown well),
   judged as candidate next FOVs against ``fovs_seen`` random FOVs of the
   reference. The share judged new is the **detection rate** for whole fields.
-  With ``planted_cells``, that many cells of a random positive FOV are also
+  With ``planted_objects``, that many objects of a random positive FOV are also
   added to remaining reference FOVs: the detection rate for a small group of
-  such cells in an otherwise ordinary field. Planted cells come from other
+  such objects in an otherwise ordinary field. Planted objects come from other
   fields, so this approximates a rare state rather than measuring one.
 - **reference**: the declared negative population (for example MOCK). Its
   remaining FOVs, judged the same way, give the **false-alarm rate**. Without
@@ -27,6 +27,7 @@ which are not independent; they describe these controls in this dataset.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -62,22 +63,34 @@ class RepresentationControl:
 
     ``positive`` and ``reference`` map FOV-table columns to accepted values,
     for example ``{"condition": ["YAP"]}`` and ``{"condition": ["MOCK"]}``.
-    ``planted_cells`` (needs both) also plants that many positive cells into
+    ``planted_objects`` (needs both) also plants that many positive objects into
     reference FOVs.
     """
 
     positive: Mapping[str, Any] | None = None
     reference: Mapping[str, Any] | None = None
-    planted_cells: int | None = None
+    planted_objects: int | None = None
+    # Deprecated spelling of ``planted_objects``, accepted with a DeprecationWarning.
+    planted_cells: int | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if self.planted_cells is not None:
+            warnings.warn(
+                "RepresentationControl(planted_cells=...) is deprecated; use planted_objects",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            if self.planted_objects is not None:
+                raise ValueError("give planted_objects only (planted_cells is its old name)")
+            object.__setattr__(self, "planted_objects", self.planted_cells)
+            object.__setattr__(self, "planted_cells", None)
         object.__setattr__(self, "positive", _selector(self.positive, "positive"))
         object.__setattr__(self, "reference", _selector(self.reference, "reference"))
-        if self.planted_cells is not None:
-            if isinstance(self.planted_cells, bool) or not isinstance(self.planted_cells, int):
-                raise TypeError("planted_cells must be a positive integer")
-            if self.planted_cells < 1:
-                raise ValueError("planted_cells must be a positive integer")
+        if self.planted_objects is not None:
+            if isinstance(self.planted_objects, bool) or not isinstance(self.planted_objects, int):
+                raise TypeError("planted_objects must be a positive integer")
+            if self.planted_objects < 1:
+                raise ValueError("planted_objects must be a positive integer")
             if self.positive is None or self.reference is None:
                 raise ValueError("planting cells needs a positive and a reference control")
 
@@ -91,7 +104,7 @@ class RepresentationControl:
             "reference": None
             if self.reference is None
             else {k: list(v) for k, v in self.reference.items()},
-            "planted_cells": self.planted_cells,
+            "planted_objects": self.planted_objects,
         }
 
 
@@ -101,7 +114,7 @@ class ControlResult:
 
     ``table`` has one row per stratum (``pair_cols`` values) and candidate
     (``reference``: false alarms; ``positive``: whole positive FOVs;
-    ``planted``: reference FOVs with planted positive cells), with
+    ``planted``: reference FOVs with planted positive objects), with
     ``judged_new``, ``candidates`` and ``rate``; ``pooled`` the same over
     strata. ``status`` is ``"assessed"``, ``"positive only"`` or
     ``"not assessed"``.
@@ -128,7 +141,7 @@ def _select(fovs: pd.DataFrame, selector: dict[str, tuple]) -> pd.Series:
 
 
 def _planted(subsets: FovSubsets, host_rows, donors: list[pd.DataFrame], size, rng):
-    """Each host FOV with ``size`` cells of a random donor FOV (with enough cells) added."""
+    """Each host FOV with ``size`` objects of a random donor FOV (with enough objects) added."""
     usable = [cells for cells in donors if len(cells) >= size]
     if not usable:
         return None
@@ -260,8 +273,8 @@ def representation_control(
                 candidates = {"positive": positive_input}
                 if control.reference is not None:
                     candidates["reference"] = subsets.take(rest)
-                if control.planted_cells is not None:
-                    planted = _planted(subsets, rest, donors, control.planted_cells, rng)
+                if control.planted_objects is not None:
+                    planted = _planted(subsets, rest, donors, control.planted_objects, rng)
                     if planted is not None:
                         candidates["planted"] = planted
                 jobs.append((novelty, seen, candidates))
@@ -337,9 +350,9 @@ def control_summary(result: ControlResult) -> str:
     )
     if "planted" in rates.index:
         planted = rates.loc["planted"]
-        planted_cells = result.settings["control"]["planted_cells"]
+        planted_n = result.settings["control"]["planted_objects"]
         lines.append(
-            f"  Ordinary reference fields with {planted_cells} positive-control {cells} added were "
+            f"  Ordinary reference fields with {planted_n} positive-control {cells} added were "
             f"recognized in {percent(planted['rate'])} of {int(planted['candidates'])} checks."
         )
     if "reference" in rates.index and rates.loc["reference", "candidates"] > 0:

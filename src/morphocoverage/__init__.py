@@ -1,5 +1,6 @@
 """MorphoCoverage: FOV-aware phenotypic sampling analysis."""
 
+from . import _deprecated
 from .evidence import Availability, Component, Direction, Evidence, Quantity
 from .framework import run_strategies
 from .objectives import ObjectiveConfig, RareTarget, SamplingObjective
@@ -9,7 +10,6 @@ from .results import Decision, StrategyResult
 from .schema import ValidatedInput, validate_input_tables
 from .sequential import SequentialResult, evaluate_acquisition_prefixes
 from .strategies import (
-    CellCountPlan,
     DescriptorPlateauEstimator,
     DescriptorPlateauStrategy,
     DescriptorSpreadEstimator,
@@ -18,17 +18,17 @@ from .strategies import (
     FixedFOVStrategy,
     FixedObjectStrategy,
     FixedObservationStrategy,
-    PlannedCellCountEstimator,
-    PlannedCellCountStrategy,
+    ObjectCountPlan,
+    PlannedObjectCountEstimator,
+    PlannedObjectCountStrategy,
     SamplingStrategy,
     ScalarPrecisionEstimator,
     ScalarPrecisionStrategy,
-    plan_cells_to_average,
+    plan_objects_to_average,
 )
 
 __all__ = [
     "Availability",
-    "CellCountPlan",
     "Component",
     "Decision",
     "DecisionPolicy",
@@ -44,10 +44,11 @@ __all__ = [
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "FixedObservationStrategy",
+    "ObjectCountPlan",
     "ObjectiveConfig",
     "OnlineSession",
-    "PlannedCellCountEstimator",
-    "PlannedCellCountStrategy",
+    "PlannedObjectCountEstimator",
+    "PlannedObjectCountStrategy",
     "Quantity",
     "RareTarget",
     "SamplingObjective",
@@ -59,8 +60,21 @@ __all__ = [
     "ThresholdPolicy",
     "ValidatedInput",
     "evaluate_acquisition_prefixes",
-    "plan_cells_to_average",
+    "plan_objects_to_average",
     "redecide",
     "run_strategies",
     "validate_input_tables",
 ]
+
+
+# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
+__getattr__ = _deprecated.module_getattr(
+    __name__,
+    globals(),
+    (
+        "plan_cells_to_average",
+        "CellCountPlan",
+        "PlannedCellCountEstimator",
+        "PlannedCellCountStrategy",
+    ),
+)

@@ -4,17 +4,28 @@ Everything that decides a result is declared here, before any score exists:
 the datasets and their roles, the questions and their criteria, each rule
 family with its threshold grid, the risk levels, the replay design and the
 independent unit. ``benchmark.py`` refuses to run when this protocol does not
-match the digest in ``benchmark_protocol.lock``, which is written once, with
-``python data/crick_idr/benchmark.py --lock``, before the first run. Changing
-a setting afterwards needs a new version and a new lock, recorded in the
-findings, so no threshold is chosen after seeing which rule wins.
+match the digest locked for its version in ``benchmark_protocol.lock`` (one
+``version digest`` line per version, written with
+``python data/crick_idr/benchmark.py --lock`` before that version's first
+run). Changing a setting afterwards needs a new version and a new lock,
+recorded in the findings, so no threshold is chosen after seeing which rule
+wins.
+
+Versions:
+
+- 1 (locked 2026-09-25, before the first run; ``docs/preliminary_findings.md``
+  entry 8).
+- 2 (2026-09-25): names only. The families "JCB per cell" and "JCS spread per
+  cell" became "JCB per object" and "JCS spread per object", and the rare
+  question's ``planted_cells`` became ``planted_objects``, when the package
+  renamed cells to objects. Every setting, grid and seed is that of version 1.
 
 Questions scored (codes of ``docs/questions.md``):
 
 - **mean** (R2 average, P5, P6; stage 1): the well mean of the YAP/TAZ ratio
   within 5% and within 2.5% of the held-back fields. Families: the JCB rule
-  (averaging CV, upper-95 SD) per cell and per field, the JCS descriptor
-  spread per cell and per field, and the FOV bootstrap of the mean. The JCS
+  (averaging CV, upper-95 SD) per object and per field, the JCS descriptor
+  spread per object and per field, and the FOV bootstrap of the mean. The JCS
   plateau rule is left out: it orders visible fields by the recorded
   acquisition-order column, which a permuted replay does not rewrite.
 - **rare** (R2 rare, P5): whether the acquisition, ended at the stop, saw a
@@ -44,7 +55,7 @@ import hashlib
 import json
 
 PROTOCOL = {
-    "version": 1,
+    "version": 2,
     "alphas": [0.05, 0.10],
     "n_boot": 2000,
     "random_state": 0,
@@ -74,7 +85,7 @@ PROTOCOL = {
                 {"tolerance": 0.025, "label": "the well mean within 2.5%"},
             ],
             "families": {
-                "JCB per cell": {
+                "JCB per object": {
                     "kind": "scalar_precision",
                     "resampling_unit": "object",
                     "quantity": "averaging_cv",
@@ -86,7 +97,7 @@ PROTOCOL = {
                     "quantity": "averaging_cv",
                     "thresholds": [0.0025, 0.005, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.4],
                 },
-                "JCS spread per cell": {
+                "JCS spread per object": {
                     "kind": "descriptor_spread",
                     "resampling_unit": "object",
                     "quantity": "max_descriptor_spread",
@@ -113,7 +124,7 @@ PROTOCOL = {
             "frequencies": [0.1, 0.2],
             "layouts": ["spread", "clustered"],
             "replicates": 6,
-            "planted_cells": 5,
+            "planted_objects": 5,
             "reservoir_fraction": 0.35,
             "n_splits": 3,
             "permuted_orders": 3,

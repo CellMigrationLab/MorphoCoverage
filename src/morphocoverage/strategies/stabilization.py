@@ -23,9 +23,9 @@ describes this as reasonable for cells on coverslips and less so for tissue.
 - ``DescriptorSpreadStrategy`` follows Fig. 2A: the difference between the
   maximum and minimum of a descriptor across repeated random samples. The
   paper draws subsamples without replacement from the whole well; drawn from
-  the visible cells, that spread collapses to zero at the full visible size,
+  the visible objects, that spread collapses to zero at the full visible size,
   so resamples are drawn with replacement at the current size.
-  ``resampling_unit="object"`` resamples cells, as in the paper;
+  ``resampling_unit="object"`` resamples objects, as in the paper;
   ``resampling_unit="fov"`` resamples whole FOVs (a MorphoCoverage variant).
 
 The paper's exponential fit to the spread curve is a visual aid and is not used.
@@ -221,7 +221,7 @@ class DescriptorPlateauEstimator(Estimator):
     the quantity is ``insufficient_data``.
 
     FOVs without objects add no state: the paper's curve is indexed by number
-    of cells, so empty FOVs must not make descriptors look stable.
+    of objects, so empty FOVs must not make descriptors look stable.
     """
 
     feature: str
@@ -247,7 +247,7 @@ class DescriptorPlateauEstimator(Estimator):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_range`` over the trailing window of growth steps."""
         values = data.feature_values(self.feature)
-        # The paper's curve is indexed by number of cells, so other rows do not fit.
+        # The paper's curve is indexed by number of objects, so other rows do not fit.
         reason = unsupported_observation_unit(
             data, OBJECT_LIKE_UNITS, method="the descriptor-plateau rule"
         )
@@ -295,7 +295,7 @@ class DescriptorSpreadEstimator(Estimator):
     """Largest descriptor spread across resamples of the visible data.
 
     Draws ``n_resamples`` resamples, with replacement, of the currently visible
-    data at its current size: cells for ``resampling_unit="object"``, whole
+    data at its current size: objects for ``resampling_unit="object"``, whole
     FOVs (including zero-object FOVs) for ``"fov"``. For each descriptor, the
     spread is max - min across resamples, as in the paper's Fig. 2A, which used
     100 random samples. It reports the largest as ``max_descriptor_spread``, in
@@ -358,7 +358,7 @@ class DescriptorSpreadEstimator(Estimator):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """``max_descriptor_spread`` across resamples of the visible data."""
         values = data.feature_values(self.feature)
-        # Resampling cells assumes cell rows; the FOV variant resamples whole
+        # Resampling objects assumes object rows; the FOV variant resamples whole
         # FOVs and applies to any observation unit.
         reason = None
         if self.resampling_unit == "object":
@@ -371,7 +371,7 @@ class DescriptorSpreadEstimator(Estimator):
             return _not_applicable("max_descriptor_spread", self.feature, reason)
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
-            "assumes_random_cell_sampling": self.resampling_unit == "object",
+            "assumes_random_object_sampling": self.resampling_unit == "object",
         }
         resampled = self._resampled_descriptors(data)
         if isinstance(resampled, str):

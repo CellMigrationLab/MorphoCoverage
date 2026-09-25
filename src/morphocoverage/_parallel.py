@@ -19,7 +19,7 @@ results are bit for bit identical for every ``n_jobs``.
 Workers start from a clean process ("forkserver", or "spawn" where that is
 unavailable), never as a copy of the caller, so strategies, estimators and
 criteria must be picklable from an importable module. A class defined only in
-a notebook cell or a script's ``__main__`` cannot be rebuilt in a worker; run
+a notebook object or a script's ``__main__`` cannot be rebuilt in a worker; run
 it with ``n_jobs=1``, or move it to a module. A script that uses ``n_jobs``
 must guard its entry point with ``if __name__ == "__main__":``.
 

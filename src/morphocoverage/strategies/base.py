@@ -163,7 +163,7 @@ def unsupported_observation_unit(
 
     Generic MorphoCoverage inputs may contain cells, nuclei, patches, slices,
     embeddings or FOV summaries. A method derived for cell/object sampling must
-    not reinterpret other rows as cells. It reports its quantities as
+    not reinterpret other rows as objects. It reports its quantities as
     ``not_applicable`` with this reason, so a benchmark or live session keeps
     running and the decision is undefined rather than an error.
     """

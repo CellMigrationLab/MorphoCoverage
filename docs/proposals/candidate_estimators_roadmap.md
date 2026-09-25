@@ -296,7 +296,7 @@ The package contains:
 - the published object-level criterion;
 - an explicitly labelled FOV-unit MorphoCoverage variant;
 - the multi-sample planning workflow;
-- `PlannedCellCountStrategy`.
+- `PlannedObjectCountStrategy`.
 
 The FOV-unit implementation already reports a design effect. Future spatial work should extend or interpret this quantity rather than duplicate it as though it were absent.
 
@@ -1087,9 +1087,9 @@ These methods are **not core one-group coverage estimators**, but they are impor
 
 Already implemented through:
 
-- `plan_cells_to_average`;
-- `CellCountPlan`;
-- `PlannedCellCountStrategy`.
+- `plan_objects_to_average`;
+- `ObjectCountPlan`;
+- `PlannedObjectCountStrategy`.
 
 This is the model for separating multi-group planning from one-group prospective estimators.
 

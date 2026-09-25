@@ -44,10 +44,10 @@ from morphocoverage import (
     Evidence,
     FixedFOVStrategy,
     FixedObjectStrategy,
-    PlannedCellCountStrategy,
+    PlannedObjectCountStrategy,
     SamplingStrategy,
     ScalarPrecisionStrategy,
-    plan_cells_to_average,
+    plan_objects_to_average,
     run_strategies,
 )
 from morphocoverage.strategies import FixedAreaStrategy
@@ -398,8 +398,8 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     spread = DescriptorSpreadStrategy("feature_a", 0.5, "object", 50, 0)
     # The multi-sample JCB plan, made on a pilot repeat that is not evaluated.
     pilot = scenario.objects.assign(repeat="PILOT")
-    planned = PlannedCellCountStrategy(
-        plan_cells_to_average(
+    planned = PlannedObjectCountStrategy(
+        plan_objects_to_average(
             pilot,
             fovs=scenario.fovs.assign(repeat="PILOT"),
             feature="feature_a",

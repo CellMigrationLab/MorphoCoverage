@@ -17,8 +17,8 @@ from morphocoverage import (
     validate_input_tables,
 )
 from morphocoverage.strategies.scalar_precision import (
-    cell_averaging_cv,
     fov_averaging_cv,
+    object_averaging_cv,
     required_fovs,
     required_objects,
     sd_upper_bound_factor,
@@ -62,19 +62,19 @@ def _tables(values_per_fov):
 
 
 def test_cell_averaging_cv_matches_hand_calculation():
-    estimate = cell_averaging_cv(np.array([1.0, 2.0, 3.0, 4.0]))
-    cv_cells = np.std([1, 2, 3, 4], ddof=1) / 2.5
-    assert estimate["cv_cells"] == pytest.approx(cv_cells)
-    assert estimate["cv_mean"] == pytest.approx(cv_cells / 2)
+    estimate = object_averaging_cv(np.array([1.0, 2.0, 3.0, 4.0]))
+    cv_objects = np.std([1, 2, 3, 4], ddof=1) / 2.5
+    assert estimate["cv_objects"] == pytest.approx(cv_objects)
+    assert estimate["cv_mean"] == pytest.approx(cv_objects / 2)
 
 
 def test_object_unit_required_cells_follows_cv_squared_over_target_squared():
     objects, fovs = _tables([[1.0, 2.0], [3.0, 4.0]])
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "object", "point"))
-    cv_cells = np.std([1, 2, 3, 4], ddof=1) / 2.5
-    assert result.diagnostics["cv_cells"] == pytest.approx(cv_cells)
-    assert required_objects(cv_cells, 0.05) == math.ceil((cv_cells / 0.05) ** 2)
-    assert _cv(result) == pytest.approx(cv_cells / 2)
+    cv_objects = np.std([1, 2, 3, 4], ddof=1) / 2.5
+    assert result.diagnostics["cv_objects"] == pytest.approx(cv_objects)
+    assert required_objects(cv_objects, 0.05) == math.ceil((cv_objects / 0.05) ** 2)
+    assert _cv(result) == pytest.approx(cv_objects / 2)
     assert result.decision == "continue"
     assert result.diagnostics["assumes_spatial_uniformity"] is True
 
@@ -90,7 +90,7 @@ def test_object_unit_stops_exactly_when_averaging_cv_reaches_target():
     # The estimate does not depend on the target; only the policy does.
     assert stop.evidence == go_on.evidence
     assert stop.config_id != go_on.config_id
-    assert required_objects(stop.diagnostics["cv_cells"], 0.0202) <= 100
+    assert required_objects(stop.diagnostics["cv_objects"], 0.0202) <= 100
 
 
 @pytest.mark.parametrize(
@@ -116,17 +116,17 @@ def test_reproduces_the_papers_worked_example():
     # 19 df, and the printed 26.0% bound together require SD in about
     # [17.767%, 17.789%], so 17.78% is used.
     objects, fovs = _tables([_cells_with_cv(20, 0.1778)])
-    estimate = cell_averaging_cv(objects["area"].to_numpy())
-    assert round(estimate["cv_cells"], 3) == 0.178
-    assert round(estimate["cv_cells_upper_95"], 3) == 0.260
+    estimate = object_averaging_cv(objects["area"].to_numpy())
+    assert round(estimate["cv_objects"], 3) == 0.178
+    assert round(estimate["cv_objects_upper_95"], 3) == 0.260
     required = {}
     for target in (0.025, 0.05):
         for sd_estimate in ("point", "upper_95"):
             strategy = ScalarPrecisionStrategy("area", target, "object", sd_estimate)
             result = _evaluate(objects, fovs, strategy)
             suffix = "_upper_95" if sd_estimate == "upper_95" else ""
-            cv_cells = result.diagnostics["cv_cells" + suffix]
-            required[target, sd_estimate] = required_objects(cv_cells, target)
+            cv_objects = result.diagnostics["cv_objects" + suffix]
+            required[target, sd_estimate] = required_objects(cv_objects, target)
     assert required == {
         (0.025, "point"): 51,
         (0.025, "upper_95"): 108,
@@ -236,7 +236,7 @@ def test_pilot_plan_is_fixed_by_the_first_fovs_in_acquisition_order():
     projected = results[0].result.evidence.quantities["pilot_projected_averaging_cv"]
     assert projected.availability == "insufficient_data"
     for item in results[1:]:
-        assert item.result.diagnostics["pilot"]["cv_cells"] == pytest.approx(cv_pilot)
+        assert item.result.diagnostics["pilot"]["cv_objects"] == pytest.approx(cv_pilot)
         assert _cv(item.result, "pilot_projected_averaging_cv") == pytest.approx(
             cv_pilot / math.sqrt(item.result.n_objects)
         )
@@ -276,7 +276,7 @@ def test_pilot_uses_order_column_not_row_order():
         "area", 0.05, "object", "point", pilot_fovs=2, order_col="order"
     )
     result = _evaluate(objects, fovs, strategy)
-    assert result.diagnostics["pilot"]["cv_cells"] == pytest.approx(
+    assert result.diagnostics["pilot"]["cv_objects"] == pytest.approx(
         np.std([1, 3, 1, 3], ddof=1) / 2
     )
 

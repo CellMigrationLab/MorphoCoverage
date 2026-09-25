@@ -16,7 +16,7 @@ that no FOV is listed twice.
 
 Uncertainty for statements across samples counts the declared independent
 unit (``biological_repeat`` when given, otherwise ``sample``), never FOVs,
-cells, subset draws or reservoir splits.
+objects, subset draws or reservoir splits.
 """
 
 from __future__ import annotations

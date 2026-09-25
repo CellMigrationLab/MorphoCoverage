@@ -16,7 +16,7 @@ Reasons:
 - **influence** (with ``summaries``): removing the FOV changes a declared
   summary (the mean or a quantile of a named feature) by at least
   ``influence_threshold`` in relative terms. Summaries weight every FOV
-  equally, so duplicating cells within a FOV does not raise its influence
+  equally, so duplicating objects within a FOV does not raise its influence
   beyond its effect as one FOV; a dense FOV is reported by the count reason
   instead.
 - **count**: the observation count is at least ``count_ratio`` times the group

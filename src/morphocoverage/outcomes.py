@@ -26,6 +26,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from . import _deprecated
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput, fov_positions
 
@@ -57,11 +58,11 @@ class OutcomeMetric(ABC):
 
 
 def srs_relative_rmse(variance: float, mean: float, n: float, total: float) -> float:
-    """Expected relative RMSE of the mean of ``n`` cells drawn at random from ``total``.
+    """Expected relative RMSE of the mean of ``n`` objects drawn at random from ``total``.
 
     Simple random sampling without replacement, with finite-population
     correction: ``sqrt(variance / n * (1 - n / total)) / |mean|``. This is the
-    error cell-number rules assume, used by ``data/crick_idr/fov_vs_objects.py``.
+    error object-number rules assume, used by ``data/crick_idr/fov_vs_objects.py``.
     """
     return math.sqrt(variance / n * (1 - n / total)) / abs(mean)
 
@@ -114,10 +115,10 @@ class RelativeMeanError(OutcomeMetric):
 
 
 @dataclass(frozen=True)
-class RandomCellRelativeError(OutcomeMetric):
-    """Expected relative RMSE had the stop's number of cells been drawn at random.
+class RandomObjectRelativeError(OutcomeMetric):
+    """Expected relative RMSE had the stop's number of objects been drawn at random.
 
-    The comparator that cell-number rules assume: the same number of objects
+    The comparator that object-number rules assume: the same number of objects
     as the stop prefix, drawn at random from the full group (simple random
     sampling with finite-population correction, ``srs_relative_rmse``).
     Averaged over acquisition orders, the ratio of ``RelativeMeanError``'s RMSE
@@ -133,8 +134,8 @@ class RandomCellRelativeError(OutcomeMetric):
 
     @property
     def name(self) -> str:
-        """``random_cell_relative_error:<feature>``."""
-        return f"random_cell_relative_error:{self.feature}"
+        """``random_object_relative_error:<feature>``."""
+        return f"random_object_relative_error:{self.feature}"
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -142,7 +143,7 @@ class RandomCellRelativeError(OutcomeMetric):
         return {"feature": self.feature}
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
-        """Expected random-cell error at the stop's object count."""
+        """Expected random-object error at the stop's object count."""
         reference = full.feature_values(self.feature)
         n = len(stopped.objects)
         if len(reference) < 2 or n == 0:
@@ -207,3 +208,7 @@ class RareStateDetected(OutcomeMetric):
         if self._fovs_with_state(full) < self.min_fov_occurrences:
             return None
         return float(self._fovs_with_state(stopped) >= self.min_fov_occurrences)
+
+
+# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
+__getattr__ = _deprecated.module_getattr(__name__, globals(), ("RandomCellRelativeError",))

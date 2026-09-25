@@ -26,7 +26,7 @@ from morphocoverage.benchmark import (
     BenchmarkRegistry,
     run_benchmark,
 )
-from morphocoverage.outcomes import RandomCellRelativeError, RelativeMeanError
+from morphocoverage.outcomes import RandomObjectRelativeError, RelativeMeanError
 
 DATA = Path(__file__).resolve().parents[1] / "data" / "crick_idr"
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -174,7 +174,7 @@ def test_benchmark_protocol_runs_on_a_real_acquisition(idr0028):
         registry,
         "idr0028_screenB",
         strategies=strategies,
-        metrics=[RelativeMeanError(feature), RandomCellRelativeError(feature)],
+        metrics=[RelativeMeanError(feature), RandomObjectRelativeError(feature)],
         objective=POPULATION,
         orders=[AcquisitionOrder.recorded(), AcquisitionOrder.permuted(0)],
     )

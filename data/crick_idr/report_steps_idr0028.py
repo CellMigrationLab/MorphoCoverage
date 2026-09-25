@@ -142,7 +142,7 @@ def inspection(objects, fovs, features):
 def controls(objects, fovs, features):
     novelty = SupportNoveltyEstimator(np.sqrt(len(features)), 1, Standardize(), 2, 3)
     control = RepresentationControl(
-        positive={"condition": ["YAP"]}, reference={"condition": ["MOCK"]}, planted_cells=5
+        positive={"condition": ["YAP"]}, reference={"condition": ["MOCK"]}, planted_objects=5
     )
     return representation_control(
         objects,

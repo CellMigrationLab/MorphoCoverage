@@ -546,13 +546,16 @@ recorded and 5 random orders.
 ## 8. The first locked benchmark: fields saved at matched risk (2026-09-25)
 
 **Question.** Do the richer rules, or the JCB and JCS rules per field rather
-than per cell, need fewer fields than a fixed count for the same risk of
+than per object, need fewer fields than a fixed count for the same risk of
 stopping too early? This is the benchmark of `docs/questions.md` (rows R2,
 P5 and P6), scored with `retrospective.frontier` (`docs/benchmarking.md`,
 "The score").
 
 **Method.** `data/crick_idr/benchmark.py` under protocol version 1
 (`benchmark_protocol.py`, locked by digest `8edc7dc0` before the first run).
+Version 2 (digest `f586f431`) renames the families "JCB per cell" and "JCS
+spread per cell" to "per object" and changes no setting; the rerun under it
+gives the numbers below.
 Replays hold back 35% of each idr0028 well (5 splits, recorded and 10 random
 orders; 50% of each idr0139 well, 6 splits, recorded and 5 random orders).
 Each rule family is swept over a threshold grid fixed in the protocol; risk
@@ -568,9 +571,9 @@ Fields saved against a fixed count, idr0028 (negative: costs fields):
 | rule | mean within 5%, risk ≤ 5% | mean within 2.5%, risk ≤ 5% | mean within 2.5%, risk ≤ 10% |
 |---|---|---|---|
 | fixed count (fields needed) | 1 | 4 | 2 |
-| JCB per cell | 0.0 | −4.2 | −0.8 |
+| JCB per object | 0.0 | −4.2 | −0.8 |
 | JCB per field | −1.3 | −0.3 | −0.3 |
-| JCS spread per cell | 0.0 | −0.1 | −2.1 |
+| JCS spread per object | 0.0 | −0.1 | −2.1 |
 | JCS spread per field | −1.0 | −6.2 | 0.0 |
 | FOV bootstrap of the mean | −1.0 | −1.7 | 0.0 |
 
@@ -581,7 +584,7 @@ Settings chosen on idr0028 to meet 5% risk, scored on the held-out idr0139:
 
 | mean within 5% | stop on idr0139 | risk on idr0139 |
 |---|---|---|
-| fixed 1 field, JCB per cell, JCS spread per cell | 1 field | 35% |
+| fixed 1 field, JCB per object, JCS spread per object | 1 field | 35% |
 | JCB per field, JCS spread per field, FOV bootstrap | 2 fields (all available) | 27% |
 
 For the mean within 2.5%, every setting reaches 58% risk on idr0139.
@@ -601,15 +604,15 @@ fields of the MOCK wells of plates 1A and 2A, 48 acquisitions):
   null result the regime map needs: the readout is easy, one field meets the
   mean within 5%, and every rule either matches that or costs fields.
 - **Per cell against per field changes where each rule fails.** At 5% the
-  per-cell rules match a fixed single field, and the per-field rules cost one
+  per-object rules match a fixed single field, and the per-field rules cost one
   field because they need two fields to estimate field-to-field variance. At
-  2.5% it reverses: the per-cell JCB rule (upper-95 SD) costs 4.2 fields,
-  JCB per field only 0.3, because cell counts overstate what the fields add.
+  2.5% it reverses: the per-object JCB rule (upper-95 SD) costs 4.2 fields,
+  JCB per field only 0.3, because object counts overstate what the fields add.
 - **No development setting transfers to the held-out wells.** At the setting
   chosen for 5% risk on idr0028, idr0139 gives 27–35% risk. Part of that is
   idr0139 itself: its 2-field reference cannot confirm the mean within 5% in
   about a quarter of hold-outs even with every field (entry 7). Stopping at one
-  field (fixed, JCB per cell, JCS per cell) is worse than that floor; stopping
+  field (fixed, JCB per object, JCS spread per object) is worse than that floor; stopping
   at two is at it. Entry 7's conclusion holds: the count does not transfer.
 - **For a rare state, the rule that sees the state saves fields; the novelty
   bound does not.** The label rule stops as soon as the state has appeared,
