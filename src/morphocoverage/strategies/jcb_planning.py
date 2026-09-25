@@ -31,9 +31,12 @@ Supplementary Data S1 and S3 resolve the control normalization:
 - The SD of the centred data set uses ``ddof=1`` over all cells, and the
   upper bound uses a chi-square interval on ``n_cells - 1`` degrees of
   freedom: the SD "for the entire data set", as the paper's spreadsheet
-  computes it. Its worked example (17.8% point, 26.0% upper, from 20 cells) is
-  reproduced with these choices. A pooled-variance estimate would use
-  ``n_cells - n_samples``; the difference matters only for small pilots.
+  computes it. The paper reports a worked example of 17.8% point SD and 26.0%
+  upper SD from 20 cells. Supplementary Data S1 carries cached result cells
+  matching those reported values, but its visible 10 control and 10 treated
+  inputs recalculate to about 20.38% and 29.77%; tests preserve both facts.
+  A pooled-variance estimate would use ``n_cells - n_samples``; the
+  difference matters only for small pilots.
 """
 
 from __future__ import annotations
