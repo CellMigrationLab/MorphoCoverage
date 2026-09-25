@@ -233,6 +233,24 @@ def test_the_cached_feature_matrix_is_a_fresh_copy_and_can_be_cleared():
     assert data.feature_matrix().ravel().tolist() == [10.0, 2.0, 3.0]
 
 
+def test_a_copy_with_other_tables_never_shares_the_cache():
+    # OnlineSession joins each new FOV with dataclasses.replace; a shared cache
+    # would return the first FOV's features for every later prefix.
+    from dataclasses import replace
+
+    from morphocoverage.schema import fov_positions
+
+    objects = pd.DataFrame({"image_file": ["a", "b", "b"], "x": [1.0, 2.0, 3.0]})
+    fovs = pd.DataFrame({"image_file": ["a", "b"]})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
+    first = replace(data, objects=objects.iloc[:1], fovs=fovs.iloc[:1])
+    assert first.feature_matrix().ravel().tolist() == [1.0]
+    assert fov_positions(first, first.fovs).tolist() == [0]
+    joined = replace(first, objects=objects, fovs=fovs)
+    assert joined.feature_matrix().ravel().tolist() == [1.0, 2.0, 3.0]
+    assert fov_positions(joined, joined.fovs).tolist() == [0, 1, 1]
+
+
 def test_feature_problems_are_reported_in_column_order():
     fovs = pd.DataFrame({"image_file": ["a"]})
     both = pd.DataFrame({"image_file": ["a"], "x": [np.inf], "label": ["s"]})
@@ -245,3 +263,10 @@ def test_feature_problems_are_reported_in_column_order():
         ValueError, match=r"absent from the supplied fovs table, e.g. \[\('zz',\)\]"
     ):
         validate_input_tables(missing, fovs=fovs, feature_cols=["x"])
+
+
+def test_an_observation_of_an_unlisted_fov_is_named_when_groups_come_from_fovs():
+    objects = pd.DataFrame({"image_file": ["a", "zz"], "x": [1.0, 2.0]})
+    fovs = pd.DataFrame({"image_file": ["a"], "condition": ["c"], "repeat": ["r"]})
+    with pytest.raises(ValueError, match=r"absent from the supplied fovs table.*\['zz'\]"):
+        validate_input_tables(objects, fovs=fovs, feature_cols=["x"])

@@ -166,3 +166,14 @@ def test_fields_at_the_same_stage_position_are_not_their_own_neighbours():
         objects, fovs, feature_cols=["a"], stage_cols=("stage_x", "stage_y"), count_ratio=None
     )
     assert result.fovs.empty
+
+
+def test_a_group_whose_stage_neighbours_cannot_be_compared_says_so():
+    objects, fovs = _acquisition()
+    fovs.loc[3, "stage_x"] = np.nan
+    result = _inspect(objects, fovs, stage_cols=("stage_x", "stage_y"))
+    assert result.settings["skipped_neighbours"] == [
+        {"group": "condition=control, repeat=R1", "reason": "stage coordinates are missing"}
+    ]
+    assert "Stage neighbours were not compared" in result.summary()
+    assert "neighbour" not in set(result.fovs["reason"])

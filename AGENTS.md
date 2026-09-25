@@ -11,7 +11,7 @@
 | Ecosystem | MorphoBricks |
 | Position | Step 3 of the MorphoBricks pipeline (analysis & applications). It consumes features; it does not extract them. See section 18. |
 | Language | Python 3.11+ |
-| Tests | `pytest` (all tests, including real-data tests on `data/crick_idr`) |
+| Tests | `pytest` (all tests, including real-data tests on `data/crick_idr`; runs on every CPU with pytest-xdist, `pytest -n 0` runs serially) |
 | Lint | `ruff check src tests data` and `ruff format --check src tests data` (ruff pinned in `pyproject.toml`; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
@@ -193,6 +193,7 @@ src/morphocoverage/
     spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
     bounds.py              # Clopper-Pearson bounds for probabilities from few FOVs
     framework.py           # run_strategies convenience entry point
+    _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
@@ -209,6 +210,7 @@ src/morphocoverage/
         stage.py           # dispersed (farthest-point) orders and stage travel
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
+        _text.py           # private: shared wording and group seeding for summaries
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
@@ -228,6 +230,8 @@ tests/
     test_contracts_*.py    # outcome-metric, transform and incremental contracts
     test_<module>.py       # unit tests per module or strategy family
     test_crick_idr.py      # real-data integrity and end-to-end tests
+    test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
+    conftest.py            # one BLAS thread per test process
 
 data/crick_idr/            # real feature tables (CC BY 4.0) for tests; README gives provenance
 docs/                      # scientific aims, contracts, architecture, benchmarking, findings
@@ -459,7 +463,7 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 6. Do not decide inside the estimator. Thresholds belong to a `DecisionPolicy` (usually `ThresholdPolicy`), so they are explicit, sweepable with `redecide`, and part of `config_id`.
 7. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter. Incremental support is optional: `start(template, *, objective)` returns an `EstimatorState` whose `update(new)` receives only each newly revealed FOV and must return the same evidence as `estimate` on the whole prefix. Full recomputation stays the reference implementation.
 8. Document the source, any published parameters, and each deviation from the published method in the module docstring; expose non-standard choices as explicit parameters without defaults. To keep a published parameterization, add a `SamplingStrategy` subclass that pairs the estimator with its published policy, as the baselines do.
-9. Export it from `strategies/__init__.py` and `morphocoverage/__init__.py` (ask first, section 15), and add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
+9. Export it from `strategies/__init__.py`; adding it to the top-level `morphocoverage.__all__` needs approval (section 15), and candidate estimators currently stay in the subpackage. Add a strategy using it to `STRATEGIES_UNDER_CONTRACT`. `test_every_package_strategy_is_under_contract` fails otherwise; it also covers exported estimators and policies. If it is a current-practice baseline, also add it to `baseline_comparison`.
 
 
 ### Multidimensional acquisition rule

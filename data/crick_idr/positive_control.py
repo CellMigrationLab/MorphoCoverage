@@ -87,6 +87,9 @@ def _table(blocks, features, prefix):
 
 def _spiked(host_blocks, donor_blocks, size, rng):
     """Host FOVs, each with ``size`` cells of a random donor FOV added."""
+    if not any(len(donor) >= size for donor in donor_blocks):
+        # Redrawing below would never end; the draws themselves are unchanged.
+        raise ValueError(f"no donor FOV has {size} cells to add")
     spiked = []
     for block in host_blocks:
         donor = donor_blocks[rng.integers(len(donor_blocks))]

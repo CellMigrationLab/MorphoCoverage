@@ -59,7 +59,7 @@ MorphoCoverage is a strategy-comparison framework. No default coverage estimator
   - a JCB/Zweifach-style scalar precision rule, re-estimated within each group or planned once from disjoint pilot samples (`plan_cells_to_average`, `PlannedCellCountStrategy`);
   - Marcotti et al.-style descriptor stabilization.
 
-  Candidate MorphoCoverage estimators from the estimator roadmap proposal (under review in pull request #13), all in `morphocoverage.strategies` and none selected as a default:
+  Candidate MorphoCoverage estimators from the estimator roadmap proposal (`docs/proposals/candidate_estimators_roadmap.md`), all in `morphocoverage.strategies` and none selected as a default:
   - `FOVBootstrapStrategy`: whole-FOV (or spatial-block) bootstrap uncertainty of the centroid, covariance, quantiles, PCA eigenspectrum or PCA subspace;
   - `SupportNoveltyStrategy`: leave-one-FOV-out fraction of observations outside the other FOVs' support at a declared resolution;
   - `IncidenceCoverageStrategy`: Chao–Jost incidence sample coverage and Chao2 completeness for externally fixed labels, with the FOV as the sampling unit;
@@ -148,8 +148,9 @@ Python 3.11+ is required.
 
 ```bash
 python -m pip install -e ".[dev]"
-pytest
+pytest            # on every CPU (pytest-xdist); pytest -n 0 runs serially
 ruff check src tests data
+ruff format --check src tests data
 ```
 
 ## License

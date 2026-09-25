@@ -70,6 +70,9 @@ def _planted_fovs(p, layout, positions, rng):
 
 def _acquisition(host, donor, planted, rng):
     """Host FOVs with ``PLANTED_CELLS`` donor cells added to the planted ones."""
+    if planted.any() and not any(len(source) >= PLANTED_CELLS for source in donor):
+        # Redrawing below would never end; the draws themselves are unchanged.
+        raise ValueError(f"no donor FOV has {PLANTED_CELLS} cells to plant")
     blocks = []
     for block, plant in zip(host, planted, strict=True):
         if plant:

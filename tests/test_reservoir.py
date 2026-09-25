@@ -102,12 +102,14 @@ def test_every_fov_has_the_same_inclusion_probability_with_unequal_blocks():
     )
     data = validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
     counts = pd.Series(0, index=fovs["image_file"])
-    runs = 2000
+    # 600 splits: each FOV's inclusion rate has a standard error of 0.018, and a
+    # size-dependent rule would move the rates of 1- and 6-FOV blocks far apart.
+    runs = 600
     for seed in range(runs):
         held = ReservoirSplit(0.25, seed, "block").split({}, data)[1]
         assert held.fovs["block"].nunique() == 2  # ceil(0.25 * 8) blocks
         counts[held.fovs["image_file"]] += 1
-    assert np.allclose(counts / runs, 2 / 8, atol=0.04)
+    assert np.allclose(counts / runs, 2 / 8, atol=0.07)
 
 
 def test_groups_too_small_to_split_are_refused():

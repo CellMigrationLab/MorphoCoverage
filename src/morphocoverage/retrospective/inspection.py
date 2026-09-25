@@ -43,7 +43,7 @@ from scipy.spatial import cKDTree
 from ..evaluator import iter_analysis_groups
 from ..schema import ValidatedInput, fov_positions, validate_input_tables
 from ..strategies.support_novelty import SupportNoveltyEstimator
-from ._text import unit_plural
+from ._text import unit_plural, where
 
 REASONS = ("new state", "influence", "count", "neighbours")
 _TRACE = ("image_file", "position_id", "mask_file")
@@ -161,10 +161,19 @@ def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
     return rows
 
 
+def _neighbours_skipped(fovs: pd.DataFrame, x_col, y_col, k) -> str | None:
+    """Why stage neighbours cannot be compared in this group, or None."""
+    if len(fovs) <= k:
+        return f"{len(fovs)} fields, not more than the {k} neighbours compared"
+    if fovs[[x_col, y_col]].isna().any().any():
+        return "stage coordinates are missing"
+    return None
+
+
 def _neighbours(data: ValidatedInput, x_col, y_col, k, threshold, unit) -> list[dict]:
     fovs = data.fovs
     xy = fovs[[x_col, y_col]].to_numpy(dtype=float)
-    if len(fovs) <= k or np.isnan(xy).any():
+    if _neighbours_skipped(fovs, x_col, y_col, k) is not None:
         return []
     positions = fov_positions(data, fovs)
     frame = pd.DataFrame(data.feature_matrix(), columns=list(data.feature_cols))
@@ -290,7 +299,7 @@ def inspect_fovs(
         if absent:
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
-    rows, skipped = [], {}
+    rows, skipped, neighbours_skipped = [], {}, []
     for group, group_data in iter_analysis_groups(data):
         found = []
         if novelty is not None:
@@ -300,6 +309,9 @@ def inspect_fovs(
         if count_ratio is not None:
             found += _counts(group_data, float(count_ratio))
         if stage_cols is not None:
+            why = _neighbours_skipped(group_data.fovs, *stage_cols, n_neighbours)
+            if why is not None:
+                neighbours_skipped.append({"group": where(group), "reason": why})
             found += _neighbours(
                 group_data,
                 *stage_cols,
@@ -338,6 +350,7 @@ def inspect_fovs(
         "fov_key": list(data.fov_key),
         "trace": trace,
         "skipped_summaries": skipped,
+        "skipped_neighbours": neighbours_skipped,
     }
     return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
 
@@ -349,6 +362,9 @@ def inspection_summary(result: InspectionResult) -> str:
     note = "".join(
         f"\nThe influence on the {label} was not checked: it {why}."
         for label, why in skipped.items()
+    ) + "".join(
+        f"\nStage neighbours were not compared in {s['group']}: {s['reason']}."
+        for s in result.settings.get("skipped_neighbours", [])
     )
     if result.fovs.empty:
         return "No field stands out under the declared thresholds." + note
@@ -357,8 +373,8 @@ def inspection_summary(result: InspectionResult) -> str:
     blocks = []
     for key, rows in result.fovs.groupby(keys, sort=False) if keys else [((), result.fovs)]:
         key = key if isinstance(key, tuple) else (key,)
-        where = ", ".join(f"{k}={v}" for k, v in zip(keys, key, strict=True)) or "all FOVs"
-        lines = [f"{where}: fields to reopen before trusting the result"]
+        place = ", ".join(f"{k}={v}" for k, v in zip(keys, key, strict=True)) or "all FOVs"
+        lines = [f"{place}: fields to reopen before trusting the result"]
         for _, own in rows.groupby(fov_key, sort=False):
             first = own.iloc[0]
             name = " / ".join(str(first[c]) for c in fov_key)

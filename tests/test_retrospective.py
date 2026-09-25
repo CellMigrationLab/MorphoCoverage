@@ -187,7 +187,7 @@ def test_whole_fovs_are_drawn_and_never_from_the_reservoir():
 def test_every_fov_count_in_a_split_is_judged_against_the_same_reservoir():
     _, probe, _ = _probe_run("homogeneous")
     reservoirs = {}
-    for held, seen, n, _ in probe.calls:
+    for held, _, n, _ in probe.calls:
         if n in (2, 5, 8):
             reservoirs.setdefault(held, set()).add(n)
     assert len(reservoirs) == 3  # one reservoir per split

@@ -31,7 +31,8 @@ def run_strategies(
     separate when available. Pass group_cols=[] only when intentional pooling
     is scientifically appropriate. ``n_jobs`` runs every (group, strategy)
     pair in that many worker processes (``-1``: every CPU); results are
-    identical for every value, apart from timings.
+    identical for every value, apart from timings
+    (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
     """
     data = validate_input_tables(
         objects,

@@ -84,7 +84,7 @@ retrospective analyses    reliability, calibration, adequacy, protocol, inspecti
 `OutcomeCriterion` is deliberately not a `DecisionPolicy`: a policy acts
 prospectively on an estimator's evidence; a criterion acts retrospectively on
 an outcome measured against hidden FOVs. The retrospective analyses live in a
-subpackage, not in `sufficiency.py`, which becomes one consumer of them:
+subpackage, not in `sufficiency.py`, which becomes one consumer of them (as implemented, stage travel and dispersed orders are in `stage.py` and the report assembly in `retrospective/report.py`):
 
 ```text
 morphocoverage/
@@ -357,7 +357,7 @@ if it appeared?* Can be developed in parallel with Steps 1–5, since the
 positive and frequency controls are a prototype.
 
 **Deliverable:** `RepresentationControl(positive=..., reference=...)` and
-`representation_control_report(...)`. A positive control is whole FOVs of a
+`morphocoverage.retrospective.representation_control(...)`. A positive control is whole FOVs of a
 declared phenotype or cells planted into reference FOVs; a reference is the
 declared negative population (for example MOCK). Reports:
 

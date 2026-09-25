@@ -1,4 +1,4 @@
-"""Roadmap Steps 4-8 on the committed idr0028 subset: protocol, inspection, controls, effort, order.
+"""Roadmap Steps 4-8 and 10 on the committed idr0028 subset: protocol to the full report.
 
 Each part answers one microscopist's question on the 12 wells (28 FOVs each)
 and prints its plain-language summary; tables go to ``results/``. idr0028 is a
