@@ -111,6 +111,14 @@ def _samples(per_sample: ReliabilityResult, sample_cols, strata, threshold) -> p
         )
     rows = curve[[*identity, "criterion", "fovs", "preserved", "stream_fovs"]].copy()
     rows["adequate"] = rows["preserved"].astype(float) >= float(threshold)
+    # How many hold-outs could judge the sample at this depth: a reliability
+    # judged on 3 of 10 hold-outs (a rare state absent from the others' reservoir)
+    # is named, not silently counted like a fully judged one.
+    if {"defined_splits", "splits"} <= set(curve.columns):
+        judged = curve["defined_splits"].astype(float) / curve["splits"].replace(0, np.nan)
+        rows["partly_judged"] = (judged < 1).to_numpy()
+    else:
+        rows["partly_judged"] = False
     return rows
 
 
@@ -201,6 +209,7 @@ def protocol_reliability(
                     "fovs": int(k),
                     "eligible": len(eligible),
                     "adequate": int(eligible["adequate"].sum()),
+                    "partly_judged": int(eligible["partly_judged"].sum()),
                     "not_evaluated": n_samples - len(eligible),
                     "share": float(eligible["adequate"].mean()) if len(eligible) else None,
                     "share_low": low,
@@ -337,6 +346,12 @@ def protocol_summary(result: ProtocolResult) -> str:
                 if row.not_evaluated
                 else ""
             )
+            partly = getattr(row, "partly_judged", 0)
+            if partly:
+                missing += (
+                    f"; {partly} judged on only some of the hold-outs (the others could not "
+                    "judge the criterion)"
+                )
             interval = (
                 ""
                 if row.share_low is None or pd.isna(row.share_low)

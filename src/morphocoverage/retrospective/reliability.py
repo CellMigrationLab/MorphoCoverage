@@ -401,6 +401,9 @@ def reliability_summary(result: ReliabilityResult) -> str:
                 if row.preserved_split_sd is None or pd.isna(row.preserved_split_sd)
                 else f" (±{percent(row.preserved_split_sd)} across hold-outs)"
             )
+            if row.fovs == stream:
+                # Every draw is the same acquisition: this point is the ceiling itself.
+                spread = " (all available fields: one acquisition per hold-out)"
             partial = []
             if n_splits and row.defined_splits < n_splits:
                 partial.append(f"judged on {row.defined_splits} of {n_splits} hold-outs")

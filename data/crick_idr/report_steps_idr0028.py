@@ -25,6 +25,9 @@ development dataset: nothing here is a protocol.
   raster), random and dispersed orders of the same positions, with the stage
   travel needed to preserve the well mean within 2.5% reliably, and the
   distance below which neighbouring fields are alike.
+- **Sufficiency** (``sufficiency_idr0028.csv``, ``next_fov_idr0028.csv``): what
+  the fixed-8 and JCB rules say on the full wells, by their own thresholds, and
+  the next-field novelty with states seen in fewer than 3 fields.
 - **Step 10, the report** (``microscopist_report_idr0028.txt``,
   ``sampling_profile_idr0028.csv``): all of the above, question by question.
 
@@ -41,7 +44,12 @@ import numpy as np
 import pandas as pd
 from idr0028_data import RATIO, RESULTS, load
 
-from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
+from morphocoverage import (
+    FixedFOVStrategy,
+    ObjectiveConfig,
+    SamplingObjective,
+    ScalarPrecisionStrategy,
+)
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
@@ -62,6 +70,7 @@ from morphocoverage.retrospective import (
     stopping_calibration,
 )
 from morphocoverage.strategies import SupportNoveltyEstimator
+from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.transforms import Standardize
 
 GROUPS = ["condition", "repeat", "well"]
@@ -157,6 +166,33 @@ def effort(objects, fovs):
     )
 
 
+def sufficiency(objects, fovs, features):
+    """What each rule says on the full wells, and whether one more field would show something new.
+
+    The rules' own thresholds, not a held-out check (that is the calibration
+    below); the novelty definition is the one the controls and the inspection
+    use, and ``few_fovs=3`` names states seen in one or two fields only.
+    """
+    novelty = SupportNoveltyEstimator(np.sqrt(len(features)), 1, Standardize(), 5, 3)
+    return sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=[*features, RATIO],
+        strategies=[
+            FixedFOVStrategy(8),
+            ScalarPrecisionStrategy(RATIO, 0.05, "object", "upper_95"),
+            ScalarPrecisionStrategy(RATIO, 0.05, "fov", "upper_95"),
+        ],
+        objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        orders=[AcquisitionOrder.recorded(), *(AcquisitionOrder.permuted(s) for s in range(5))],
+        novelty=novelty,
+        novelty_target=0.05,
+        few_fovs=3,
+        acquisition_order_col="acquisition_order",
+        group_cols=GROUPS,
+    )
+
+
 def order(objects, fovs):
     criterion = OutcomeCriterion(
         RelativeMeanError(RATIO), 0.025, "lower_is_better", "the well mean within 2.5%"
@@ -170,7 +206,11 @@ def order(objects, fovs):
         objects,
         fovs,
         feature_cols=[RATIO],
-        strategies=[FixedFOVStrategy(8)],
+        strategies=[
+            FixedFOVStrategy(8),
+            ScalarPrecisionStrategy(RATIO, 0.05, "object", "upper_95"),
+            ScalarPrecisionStrategy(RATIO, 0.05, "fov", "upper_95"),
+        ],
         criteria=[criterion],
         objective=ObjectiveConfig(SamplingObjective.POPULATION),
         reservoir_fraction=0.35,
@@ -209,6 +249,15 @@ def main() -> None:
     print(ratio_view.summary(), "\n")
     print(novelty_view.summary(), "\n")
 
+    sufficiency_result = _timed("sufficiency", lambda: sufficiency(objects, fovs, features))
+    sufficiency_result.enough.to_csv(
+        RESULTS / "sufficiency_idr0028.csv", index=False, float_format="%.4f"
+    )
+    sufficiency_result.next_fov.drop(columns=["answer"]).to_csv(
+        RESULTS / "next_fov_idr0028.csv", index=False, float_format="%.4f"
+    )
+    print(sufficiency_result.summary(), "\n")
+
     control_result = _timed("controls", lambda: controls(objects, fovs, features))
     control_result.table.to_csv(RESULTS / "control_idr0028.csv", index=False, float_format="%.4f")
     print(control_result.summary(), "\n")
@@ -235,6 +284,7 @@ def main() -> None:
     # Step 10: every answer in one document (Step 1 curves reloaded from their tables).
     report = microscopist_report(
         controls=control_result,
+        sufficiency=sufficiency_result,
         calibration=stopping_calibration(replay),
         adequacy=adequacy,
         reliability=reliability_from_tables(),

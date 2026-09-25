@@ -79,6 +79,18 @@ performance optimization, not a second estimator.
 
 Contract tests require incremental replay to agree with full recomputation.
 
+## Reading a decision
+
+Every `StrategyResult` has `explain()`: one line with the decision, each
+policy's rule beside its evidence, and the effort, for example
+`stop: lofo_novel_fov_upper = 0.24 <= 0.25 (population); after 11 FOVs, 1100
+cells`. Read the quantity, not only the word: with nothing new among `k`
+FOVs the novelty bound is `1 - 0.05 ** (1 / k)` whatever the data, so a stop
+on it after 11 FOVs is a statement about the next field, not about rare
+states (`docs/preliminary_findings.md`, entry 3). A rule's threshold is its
+own; whether its stops were premature is the retrospective calibration
+(`morphocoverage.retrospective.stopping_calibration`).
+
 ## Timing
 
 Every result contains `Timing`:
@@ -90,6 +102,12 @@ Every result contains `Timing`:
 - total MorphoCoverage decision latency.
 
 These times exclude upstream feature extraction and microscope-control latency.
+Measured on 30 standardized features, the leave-one-FOV-out support-novelty
+estimator took 0.16 s per decision at 30 FOVs of 100 cells, 0.64 s at 60 FOVs
+of 100 cells and 5.9 s at 60 FOVs of 300 cells (it refits the transform once
+per visible FOV and compares every pair); the FOV bootstrap took 0.03 s.
+Compare the measured latency with the time available before the next
+acquisition.
 End-to-end deployment should therefore measure:
 
 ```text

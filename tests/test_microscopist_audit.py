@@ -51,7 +51,7 @@ def test_sufficiency_summary_works_without_a_novelty_definition():
     )
     text = report.summary()
     assert "condition=control, repeat=R1:" in text
-    assert "Did we sample enough?" in text and "one more FOV" not in text
+    assert "Did each criterion say enough?" in text and "one more FOV" not in text
 
 
 def test_the_unseen_state_bound_names_the_fovs_without_observations():
@@ -298,3 +298,219 @@ def test_fields_with_observations_are_listed_when_most_fields_are_empty():
     listed = result.fovs[result.fovs["reason"] == "count"]
     assert sorted(listed["image_file"]) == sorted(kept)
     assert "most fields have none (the median is 0)" in result.summary()
+
+
+def test_a_fixed_rule_reports_a_reached_target_and_a_threshold_rule_a_met_threshold():
+    from morphocoverage import ScalarPrecisionStrategy
+
+    built = SCENARIOS["homogeneous"]()
+    report = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[
+            FixedFOVStrategy(5),
+            ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
+        ],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+    )
+    answers = report.enough.set_index("criterion")["answer"]
+    assert "its target was reached by the 20 acquired FOVs" in answers["fixed_fov"]
+    assert "yes, its threshold was met by the 20 acquired FOVs" in answers["scalar_precision_fov"]
+    assert "yes, met by" not in report.summary()
+
+
+def test_a_state_seen_in_two_neighbouring_fovs_is_reported_as_seen_in_few():
+    # rare_clustered: 10 rare cells in each of two adjacent FOVs of 40. With one
+    # supporting FOV they cover each other, so the next-FOV chance is 0 and the
+    # state went unmentioned; few_fovs=3 names the two fields.
+    built = SCENARIOS["rare_clustered"]()
+    novelty = SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3)
+    report = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=novelty,
+        few_fovs=3,
+    )
+    row = report.next_fov.iloc[0]
+    assert row["fovs_with_new"] == 0 and row["fovs_with_state_in_few"] == 2
+    text = report.summary()
+    assert "Seen in few FOVs: 2 of 40 FOVs hold a state that fewer than 3 other FOVs show" in text
+    with pytest.raises(ValueError, match="few_fovs must exceed"):
+        sufficiency_report(
+            built.objects,
+            built.fovs,
+            feature_cols=list(FEATURE_COLS),
+            strategies=[],
+            objective=POPULATION,
+            orders=[AcquisitionOrder.permuted(0)],
+            novelty=novelty,
+            few_fovs=1,
+        )
+
+
+def test_a_result_explains_its_decision_in_one_line():
+    from morphocoverage import OnlineSession
+    from morphocoverage.strategies import SupportNoveltyStrategy
+
+    built = SCENARIOS["homogeneous"]()
+    strategies = [
+        FixedFOVStrategy(3),
+        SupportNoveltyStrategy(np.sqrt(2), 0.25, 1, Standardize(), 2, 3, "lofo_novel_fov_upper"),
+    ]
+    session = OnlineSession(
+        strategies=strategies,
+        feature_cols=list(FEATURE_COLS),
+        objective=POPULATION,
+        observation_unit="cell",
+    )
+    for _, fov in built.fovs.iloc[:3].iterrows():
+        rows = built.objects[built.objects["image_file"] == fov["image_file"]]
+        results = session.add_fov(rows.drop(columns=["condition", "repeat"]), fov.to_dict())
+    fixed, novelty = results
+    assert fixed.explain() == "stop: n_fovs = 3 >= 3 (population); after 3 FOVs, 90 cells"
+    line = novelty.explain()
+    assert line.startswith("continue: lofo_novel_fov_upper = 0.632 <= 0.25 (population)")
+    assert line.endswith("after 3 FOVs, 90 cells")
+
+
+def _weak_control_report():
+    from scenarios import _fov_table, _objects_for
+
+    from morphocoverage.retrospective import RepresentationControl, representation_control
+
+    rng = np.random.default_rng(1)
+    ref_f = _fov_table(20, condition="MOCK")
+    pos_f = _fov_table(20, condition="KD")
+    ref_o, pos_o = (
+        _objects_for(ref_f, np.full(20, 30), rng),
+        _objects_for(pos_f, np.full(20, 30), rng),
+    )
+    pos_o[list(FEATURE_COLS)] += 0.8
+    objects, fovs = pd.concat([ref_o, pos_o], ignore_index=True), pd.concat([ref_f, pos_f])
+    novelty = SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3)
+    controls = representation_control(
+        objects,
+        fovs,
+        feature_cols=list(FEATURE_COLS),
+        novelty=novelty,
+        control=RepresentationControl(
+            positive={"condition": ["KD"]}, reference={"condition": ["MOCK"]}
+        ),
+        pair_cols=[],
+        fovs_seen=10,
+        draws=5,
+    )
+    sufficiency = sufficiency_report(
+        objects,
+        fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[FixedFOVStrategy(10)],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=novelty,
+    )
+    return controls, sufficiency
+
+
+def test_a_weakly_detected_control_prefixes_every_adequacy_answer():
+    controls, sufficiency = _weak_control_report()
+    detection = float(controls.pooled.set_index("candidate")["rate"]["positive"])
+    assert detection < 0.9
+    report = microscopist_report(controls=controls, sufficiency=sufficiency)
+    warning = "Weak representation: fields of the declared positive control were recognized"
+    assert report.sections["enough"].lstrip().startswith(warning)
+    assert any(note.startswith(warning) for note in report.notes)
+    relaxed = microscopist_report(controls=controls, sufficiency=sufficiency, minimum_detection=0.1)
+    assert warning not in relaxed.summary()
+    assert any("Technical drift" in note for note in relaxed.notes)
+
+
+def test_adequacy_and_order_summaries_state_the_tail(gradient_replay):
+    adequacy = adequacy_points(gradient_replay)
+    text = adequacy.summary()
+    assert "(medians; by field" in text or "in 10% or more of runs" in text
+    realized = adequacy.realized[adequacy.realized["criterion"] == "all criteria"]
+    one_order = realized[realized["order"] == "recorded"]["sustained_realized"]
+    tail = float(
+        np.quantile(one_order.astype("Float64").to_numpy(dtype=float, na_value=np.inf), 0.9)
+    )
+    if np.isfinite(tail):
+        assert f"by field {tail:.0f} in 90% of runs" in text
+
+
+def test_orders_that_agree_within_one_field_are_called_a_null_result():
+    built = SCENARIOS["homogeneous"]()
+    replay = replay_acquisitions(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[FixedFOVStrategy(2)],
+        criteria=[
+            OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better", "the mean")
+        ],
+        objective=POPULATION,
+        reservoir_fraction=0.3,
+        orders=[
+            AcquisitionOrder.recorded(),
+            AcquisitionOrder.permuted(0),
+            AcquisitionOrder.dispersed(0),
+        ],
+        acquisition_order_col=ORDER_COL,
+        stage_cols=("stage_x", "stage_y"),
+        n_splits=2,
+    )
+    result = order_efficiency(replay)
+    spread = result.table["median_fovs"].max() - result.table["median_fovs"].min()
+    text = result.summary()
+    assert ("null result" in text) == (spread <= 1 and (result.table["reached"] == 1).all())
+
+
+def test_the_whole_stream_point_is_labelled_as_one_acquisition():
+    result = _reliability(counts=(2, 14))
+    stream = int(result.curve["stream_fovs"].max())
+    text = result.summary()
+    if stream == 14:
+        assert "14 fields: enough in" in text
+        assert "(all available fields: one acquisition per hold-out)" in text
+    assert "2 fields: enough in" in text and "±" in text.split("2 fields")[1].split("\n")[0]
+
+
+def test_partly_judged_samples_are_named_in_the_protocol():
+    curve = pd.DataFrame(
+        [
+            {
+                "condition": "c",
+                "plate": "P1",
+                "well": "A",
+                "criterion": "rare",
+                "fovs": 5,
+                "preserved": 0.95,
+                "stream_fovs": 18,
+                "splits": 10,
+                "defined_splits": 3,
+            },
+            {
+                "condition": "c",
+                "plate": "P1",
+                "well": "B",
+                "criterion": "rare",
+                "fovs": 5,
+                "preserved": 0.95,
+                "stream_fovs": 18,
+                "splits": 10,
+                "defined_splits": 10,
+            },
+        ]
+    )
+    per_sample = ReliabilityResult(curve, pd.DataFrame(), ("condition", "plate", "well"), {})
+    result = protocol_reliability(
+        per_sample, SamplingHierarchy("image_file", "well", "plate"), threshold=0.9, strata=[]
+    )
+    assert result.table["partly_judged"].tolist() == [1]
+    assert "1 judged on only some of the hold-outs" in result.summary()

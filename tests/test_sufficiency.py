@@ -171,8 +171,8 @@ def test_summary_answers_both_questions_in_words():
         calibration=CalibrationSettings((6,), 10, 0),
     )
     text = report.summary()
-    assert "Did we sample enough?" in text and "Would one more FOV show something new?" in text
-    assert "fixed_fov" in text and "yes, met by the 13 acquired FOVs" in text
+    assert "Did each criterion say enough?" in text and "one more FOV show something new?" in text
+    assert "fixed_fov" in text and "its target was reached by the 13 acquired FOVs" in text
     assert "Chance: 15% (nominal 95% upper bound" in text and "2 of 13 FOVs" in text
     assert "Check on this dataset: predicting from 6 random FOVs" in text
     assert "'New' means a cluster of at least 3 similar observations" in text
