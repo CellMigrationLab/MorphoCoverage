@@ -56,6 +56,7 @@ Scientific rules:
 - **FOV is an operational acquisition unit, not an automatic independence assumption.** Preserve spatial coordinates, area, and design metadata when available; whole-FOV resampling does not by itself eliminate spatial autocorrelation.
 - **Do not assume one mathematical solution.** Ecological coverage, missing mass, clustering, nearest-neighbour novelty, distributional convergence, Bayesian methods, information-theoretic methods, and simple empirical rules remain candidate approaches until comparative validation supports a default.
 - **Current cell-number guidance must be benchmarked fairly.** Reproduce the scoped scalar precision problem before arguing that FOV-aware sampling adds information; identify regimes where the simpler approach is sufficient.
+- **Retrospective representability is not the prospective sampling requirement.** A completed dataset may be represented by a few well-chosen FOVs, while an experiment that samples representative FOVs needs more to meet the same criterion reliably. Never report a best or minimal subset as a recommendation, and never without the prospective requirement beside it. Planning advice ("how many FOVs next time") must rest on what subsets actually preserved in hidden FOVs, judged by strategy-independent outcome metrics, not on how often a stopping rule says enough.
 - **Permit null results.** Do not optimize validation, examples, or documentation to guarantee that MorphoCoverage outperforms fixed cells/FOVs or scalar precision rules.
 - **FOV/spatial position is the primary acquisition/resampling unit.** Never bootstrap, permute, or sequentially reveal individual objects, z-planes, channels, or time points as independent FOVs. All observations from one position must enter together.
 - **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
@@ -99,7 +100,7 @@ Scientific rules:
 - owning the user's final biological-condition inference workflow;
 - microscope hardware control.
 
-MorphoCoverage may nevertheless use **multi-group planning comparators** and **retrospective downstream biological-fidelity outcomes** when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step. Condition-level benchmark outcomes must never leak into prospective evidence or be presented as a replacement for the user's final biological analysis.
+MorphoCoverage does not replace the user's final biological inference workflow. It may, however, use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
 
 Do not add dependencies for those concerns merely to make an example easier.
 
@@ -184,15 +185,41 @@ src/morphocoverage/
     sequential.py          # leakage-safe acquisition-prefix replay
     online.py              # live OnlineSession: add one newly acquired spatial FOV at a time
     outcomes.py            # retrospective group-local outcome metrics, strategy-independent
-    multigroup_outcomes.py # future cross-group biological-fidelity metrics; add only with dedicated contracts
+    multivariate_outcomes.py  # distribution-level outcome metrics (centroid ... MMD)
+    distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
     transforms.py          # feature transforms fitted on the visible prefix only
     benchmark.py           # dataset roles, acquisition orders, one record per run
+    reservoir.py           # held-out evaluation reservoirs split by spatial block
+    spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
+    bounds.py              # Clopper-Pearson bounds for probabilities from few FOVs
     framework.py           # run_strategies convenience entry point
+    calibration.py         # shuffle check of the next-FOV new-phenotype prediction
+    sufficiency.py         # did we sample enough; would one more FOV show something new
+    retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
+        criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
+        hierarchy.py       # SamplingHierarchy: declared FOV / sample / repeat levels
+        reliability.py     # sampling reliability: how often k random FOVs are enough
+        replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
+        calibration.py     # stopping-rule calibration: how often a rule's stop was premature
+        adequacy.py        # first and sustained apparent and realized adequacy points
+        protocol.py        # protocol-level reliability across samples, by independent unit
+        inspection.py      # inspect-these-fields: one traceable reason per FOV and line
+        controls.py        # representation controls: detection and false-alarm rates
+        effort.py          # nested variance components and projected SE at equal FOVs
+        stage.py           # dispersed (farthest-point) orders and stage travel
+        spatial.py         # acquisition-order efficiency and redundancy distance
+        report.py          # the microscopist's report, question by question
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
-        baselines.py       # fixed-FOV, generic-observation and legacy object-count baselines
+        baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
+        jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
+        fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
+        rare_planning.py   # binomial FOV-incidence planning for a RareTarget
+        rare_incidence.py  # beta-binomial rare-state incidence risk with recurrence
+        support_novelty.py # leave-one-FOV-out epsilon-support novelty
+        incidence_coverage.py  # Chao-Jost incidence coverage and Chao2 on fixed labels
 
 tests/
     scenarios.py           # constructed acquisitions for contract tests (section 9)
@@ -204,7 +231,7 @@ tests/
 
 data/crick_idr/            # real feature tables (CC BY 4.0) for tests; README gives provenance
 docs/                      # scientific aims, contracts, architecture, benchmarking, findings
-docs/proposals/            # design proposals awaiting approval; not implemented
+docs/proposals/            # design proposals and roadmaps; each Status line says what is implemented
 ```
 
 A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.
@@ -256,7 +283,7 @@ Rules for these tests:
 - Future multi-group biological-fidelity outcomes require a **separate contract registry and contract-test module** rather than being silently added to `METRICS_UNDER_CONTRACT`. Those contracts must verify determinism, invariance to strategy identity at matched stop prefixes, preservation of the declared biological-repeat unit, no mutation of inputs, and strict retrospective-only use. Until that registry exists, multi-group outcomes remain proposal/benchmark design work rather than packaged metrics.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
-- `baseline_comparison` covers the fixed-cell, fixed-FOV, JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedCellCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
+- `baseline_comparison` covers the fixed-cell, fixed-FOV, fixed-area (`FixedAreaStrategy`), JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedCellCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
 
 A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 

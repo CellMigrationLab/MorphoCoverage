@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -81,6 +81,17 @@ class ValidatedInput:
     fov_key: tuple[str, ...]
     observation_unit: str = DEFAULT_OBSERVATION_UNIT
     observation_unit_declared: bool = False
+    # The feature matrix and FOV positions, computed once per input: selecting columns from a
+    # DataFrame costs about a millisecond, and resampling analyses read the same
+    # input thousands of times. Inputs are treated as immutable; the framework
+    # hands every estimator call a fresh copy with an empty cache
+    # (``evaluator._isolated_input``). Code that edits ``objects`` in place and
+    # then reads the features again must call ``clear_cache`` in between.
+    _feature_cache: dict = field(default_factory=dict, compare=False, repr=False)
+
+    def clear_cache(self) -> None:
+        """Forget the cached feature matrix and FOV positions, after editing tables in place."""
+        self._feature_cache.clear()
 
     @property
     def observations(self) -> pd.DataFrame:
@@ -100,9 +111,13 @@ class ValidatedInput:
         how they handle missingness. Positive/negative infinity is rejected at
         validation time.
         """
-        return self.objects.loc[:, list(self.feature_cols)].to_numpy(
-            dtype=float, na_value=np.nan, copy=True
-        )
+        cached = self._feature_cache.get("matrix")
+        if cached is None:
+            cached = self.objects.loc[:, list(self.feature_cols)].to_numpy(
+                dtype=float, na_value=np.nan, copy=True
+            )
+            self._feature_cache["matrix"] = cached
+        return cached.copy()
 
     def feature_values(self, feature: str) -> np.ndarray:
         """Return one explicitly selected feature as a new float array."""
@@ -116,6 +131,17 @@ class ValidatedInput:
 
 def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
     """Position of each observation's FOV within fovs (-1 if absent)."""
+    if fovs is data.fovs:
+        # The input's own FOV table: looked up once and cached, like the features.
+        cached = data._feature_cache.get("positions")
+        if cached is None:
+            cached = _fov_positions(data, fovs)
+            data._feature_cache["positions"] = cached
+        return cached.copy()
+    return _fov_positions(data, fovs)
+
+
+def _fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
     key = list(data.fov_key)
     lookup = {fov: i for i, fov in enumerate(zip(*(fovs[c].tolist() for c in key)))}
     observation_keys = zip(*(data.objects[c].tolist() for c in key))
@@ -252,12 +278,20 @@ def _check_observation_values(
         if objects[column].isna().any():
             kind = "FOV identifiers" if column == fov_key[-1] else "group values"
             raise ValueError(f"objects[{column!r}] contains missing {kind}")
-    for column in feature_cols:
-        if not pd.api.types.is_numeric_dtype(objects[column]):
-            raise TypeError(f"feature column {column!r} must be numeric")
-        values = objects[column].to_numpy(dtype=float, na_value=np.nan, copy=False)
-        if np.isinf(values).any():
+    # Column by column, the first problem wins, as a per-column loop would find
+    # it; but the numeric columns are checked for infinity in one array.
+    dtypes = objects.dtypes
+    numeric = [pd.api.types.is_numeric_dtype(dtypes[column]) for column in feature_cols]
+    first_bad = numeric.index(False) if False in numeric else len(feature_cols)
+    checked = list(feature_cols[:first_bad])
+    if checked:
+        values = objects.loc[:, checked].to_numpy(dtype=float, na_value=np.nan)
+        infinite = np.isinf(values).any(axis=0)
+        if infinite.any():
+            column = checked[int(np.argmax(infinite))]
             raise ValueError(f"feature column {column!r} contains infinite values")
+    if first_bad < len(feature_cols):
+        raise TypeError(f"feature column {feature_cols[first_bad]!r} must be numeric")
 
 
 def _validated_fov_table(
@@ -277,13 +311,19 @@ def _validated_fov_table(
             raise ValueError(f"fovs[{column!r}] contains missing values")
     if fovs.duplicated(key).any():
         raise ValueError(f"fovs must contain exactly one row per acquired FOV (key: {key})")
-    listed = pd.MultiIndex.from_frame(fovs.loc[:, key])
-    observed = pd.MultiIndex.from_frame(objects.loc[:, key].drop_duplicates())
-    missing = observed.difference(listed)
-    if len(missing):
+    # Key tuples as Python sets: several times faster than MultiIndex set
+    # operations at these sizes, and identity columns contain no missing values.
+    listed = set(zip(*(fovs[c].tolist() for c in key)))
+    observed = set(zip(*(objects[c].tolist() for c in key)))
+    missing = observed - listed
+    if missing:
+        try:
+            examples = sorted(missing)[:3]
+        except TypeError:
+            examples = list(missing)[:3]
         raise ValueError(
             "objects contains FOV/group combinations that are absent from the "
-            f"supplied fovs table, e.g. {list(missing[:3])}"
+            f"supplied fovs table, e.g. {examples}"
         )
     return fovs.copy()
 
@@ -350,3 +390,49 @@ def validate_input_tables(
         observation_unit=observation_unit,
         observation_unit_declared=unit_declared,
     )
+
+
+def fov_table_from_observations(
+    objects: pd.DataFrame,
+    fov_key: Sequence[str],
+    *,
+    carry: Sequence[str] = (),
+) -> pd.DataFrame:
+    """A FOV table reconstructed from an observation table, when no acquisition record exists.
+
+    Published feature tables (for example CellProfiler exports) often come
+    without a table of acquired FOVs. This builds one row per distinct
+    ``fov_key`` (for example ``["condition", "repeat", "image_file"]``) and
+    copies ``carry`` columns that are constant within each FOV (stage
+    coordinates, area, acquisition order). It warns every time, because FOVs
+    that were acquired but hold no observations are missing from such a table:
+    acquisition effort is undercounted and FOVs with nothing in them never
+    count, which makes every sampling answer optimistic. Provide the real FOV
+    table whenever it exists.
+    """
+    import warnings
+
+    key = list(fov_key)
+    columns = key + [c for c in carry if c not in key]
+    missing = [c for c in columns if c not in objects.columns]
+    if missing:
+        raise ValueError(f"columns missing from the observation table: {missing}")
+    if not key:
+        raise ValueError("fov_key must name at least one column")
+    grouped = objects.groupby(key, sort=False, dropna=False)
+    for column in carry:
+        varying = grouped[column].nunique(dropna=False) > 1
+        if varying.any():
+            raise ValueError(
+                f"carry column {column!r} varies within FOV {varying.index[varying][0]!r}; "
+                "only FOV-level columns can be carried"
+            )
+    table = objects.loc[:, columns].drop_duplicates(subset=key).reset_index(drop=True)
+    warnings.warn(
+        f"FOV table reconstructed from observations ({len(table)} FOVs): acquired FOVs "
+        "without observations are missing, so effort is undercounted and sampling "
+        "answers are optimistic. Provide the acquisition's FOV table if it exists.",
+        UserWarning,
+        stacklevel=2,
+    )
+    return table

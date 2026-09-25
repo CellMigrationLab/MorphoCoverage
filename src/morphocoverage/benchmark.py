@@ -18,6 +18,14 @@ success:
 - **Stop.** A strategy stops at the first prefix whose decision is ``stop``.
   A run that never stops is recorded with ``stopped=False``, its final
   decision, and outcomes and effort at the full acquisition.
+- **Reference.** Outcomes compare the stop with the full group by default.
+  That reference contains the prefix, so errors shrink to zero as the prefix
+  grows. With ``reservoir=ReservoirSplit(...)`` each group is split first:
+  strategies replay the stream only and outcomes are scored against the
+  held-out reservoir (``reservoir.py``). The stream is a thinned acquisition:
+  its recorded order skips the held-out FOVs, so neighbouring stream FOVs are
+  further apart than at the microscope, and a recorded-order replay is not an
+  exact replay of the acquisition.
 - **Record.** One ``BenchmarkRecord`` per dataset, analysis group, order and
   strategy, with effort at the stop (FOVs, objects, area), outcomes,
   estimator compute times, and whole-decision latency (median and maximum
@@ -37,6 +45,7 @@ import pandas as pd
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
+from .reservoir import ReservoirSplit
 from .results import Decision
 from .schema import ValidatedInput, normalize_observation_unit, validate_input_tables
 from .sequential import SequentialResult, evaluate_acquisition_prefixes
@@ -150,7 +159,12 @@ def leave_one_dataset_out(
 
 @dataclass(frozen=True)
 class AcquisitionOrder:
-    """The recorded acquisition order, or a seeded random permutation of whole FOVs."""
+    """The recorded acquisition order, a seeded random permutation of whole FOVs, or a
+    seeded spatially dispersed order (greedy farthest point on stage coordinates).
+
+    A dispersed order needs stage coordinates, so it is replayed with
+    ``morphocoverage.retrospective.replay_acquisitions(stage_cols=...)``.
+    """
 
     kind: str
     seed: int | None = None
@@ -159,11 +173,11 @@ class AcquisitionOrder:
         if self.kind == "recorded":
             if self.seed is not None:
                 raise ValueError("the recorded order takes no seed")
-        elif self.kind == "permuted":
+        elif self.kind in ("permuted", "dispersed"):
             if isinstance(self.seed, bool) or not isinstance(self.seed, int):
-                raise TypeError("a permuted order needs an integer seed")
+                raise TypeError(f"a {self.kind} order needs an integer seed")
         else:
-            raise ValueError("kind must be 'recorded' or 'permuted'")
+            raise ValueError("kind must be 'recorded', 'permuted' or 'dispersed'")
 
     @classmethod
     def recorded(cls) -> AcquisitionOrder:
@@ -175,6 +189,11 @@ class AcquisitionOrder:
         """A uniformly random order of whole FOVs, reproducible from ``seed``."""
         return cls("permuted", seed)
 
+    @classmethod
+    def dispersed(cls, seed: int) -> AcquisitionOrder:
+        """Greedy farthest-point order on stage coordinates from a start chosen by ``seed``."""
+        return cls("dispersed", seed)
+
     def apply(self, fovs: pd.DataFrame, order_col: str) -> tuple[pd.DataFrame, str]:
         """The FOV table with the order to replay, and the name of its order column.
 
@@ -183,6 +202,11 @@ class AcquisitionOrder:
         """
         if self.kind == "recorded":
             return fovs, order_col
+        if self.kind == "dispersed":
+            raise ValueError(
+                "a dispersed order needs stage coordinates; replay it with "
+                "morphocoverage.retrospective.replay_acquisitions(stage_cols=...)"
+            )
         if _PERMUTED_ORDER_COL in fovs.columns:
             raise ValueError(f"the FOV table already has a column {_PERMUTED_ORDER_COL!r}")
         rank = np.random.default_rng(self.seed).permutation(len(fovs))
@@ -223,6 +247,9 @@ class BenchmarkRecord:
     decision_seconds_to_stop: float
     median_decision_seconds: float
     max_decision_seconds: float
+    reference: str = "full"
+    reservoir_fovs: int | None = None
+    reservoir: Mapping[str, Any] | None = None
 
     @property
     def n_objects(self) -> int:
@@ -267,7 +294,11 @@ class BenchmarkRecord:
             "decision_seconds_to_stop": self.decision_seconds_to_stop,
             "median_decision_seconds": self.median_decision_seconds,
             "max_decision_seconds": self.max_decision_seconds,
+            "reference": self.reference,
+            "reservoir_fovs": self.reservoir_fovs,
         }
+        for key, value in (self.reservoir or {}).items():
+            row[f"reservoir.{key}"] = value
         row.update({f"group.{column}": value for column, value in self.group.items()})
         row.update({f"outcome.{name}": value for name, value in self.outcomes.items()})
         return row
@@ -293,11 +324,15 @@ def _area(data: ValidatedInput, area_col: str | None) -> float | None:
 def _record_run(
     history: Sequence[SequentialResult],
     full: ValidatedInput,
+    scored_against: ValidatedInput,
     metrics: Sequence[OutcomeMetric],
     dataset: BenchmarkDataset,
     **provenance: Any,
 ) -> BenchmarkRecord:
-    """Find the stop in one strategy's history on one group and score it."""
+    """Find the stop in one strategy's history on one group and score it against ``scored_against``.
+
+    ``full`` is everything the replay could reveal (the group, or its stream).
+    """
     stop_index = next(
         (i for i, item in enumerate(history) if item.result.decision is Decision.STOP), None
     )
@@ -333,7 +368,7 @@ def _record_run(
         total_fovs=len(full.fovs),
         total_observations=len(full.objects),
         total_area=_area(full, dataset.area_col),
-        outcomes={metric.name: metric.evaluate(full, stopped) for metric in metrics},
+        outcomes={metric.name: metric.evaluate(scored_against, stopped) for metric in metrics},
         outcome_ids={metric.name: metric.config_id for metric in metrics},
         compute_seconds_to_stop=float(sum(used_times)),
         max_compute_seconds=float(max(used_times)),
@@ -355,6 +390,7 @@ def run_benchmark(
     tuned_on: Iterable[str] = (),
     min_fovs: int = 1,
     incremental: bool = False,
+    reservoir: ReservoirSplit | None = None,
 ) -> list[BenchmarkRecord]:
     """Replay every strategy on one registered dataset and record one run per group and order.
 
@@ -362,7 +398,9 @@ def run_benchmark(
     they must be development datasets. Metrics see the full group and the stop
     prefix only, so they are identical for every strategy. ``incremental`` is
     passed to the replay; decisions are the same either way, only the recorded
-    latencies differ.
+    latencies differ. With ``reservoir``, strategies replay each group's stream
+    and outcomes are scored against its held-out reservoir; effort totals
+    then refer to the stream.
     """
     tuned = registry.check_tuning(tuned_on)
     dataset = registry[dataset_name]
@@ -387,13 +425,34 @@ def run_benchmark(
     full_groups = {
         _group_key(group): group_data for group, group_data in iter_analysis_groups(data)
     }
+    references = full_groups
+    replay_tables = (objects, fovs)
+    reference_fields: dict[tuple, dict[str, Any]] = {key: {} for key in full_groups}
+    if reservoir is not None:
+        if not isinstance(reservoir, ReservoirSplit):
+            raise TypeError("reservoir must be a ReservoirSplit")
+        splits = {key: reservoir.split(dict(key), group) for key, group in full_groups.items()}
+        full_groups = {key: stream for key, (stream, _) in splits.items()}
+        references = {key: held for key, (_, held) in splits.items()}
+        replay_tables = (
+            pd.concat([stream.objects for stream in full_groups.values()]),
+            pd.concat([stream.fovs for stream in full_groups.values()]),
+        )
+        reference_fields = {
+            key: {
+                "reference": "reservoir",
+                "reservoir_fovs": len(held.fovs),
+                "reservoir": reservoir.parameters,
+            }
+            for key, held in references.items()
+        }
 
     records: list[BenchmarkRecord] = []
     for order in orders:
-        ordered_fovs, order_col = order.apply(fovs, dataset.acquisition_order_col)
+        ordered_fovs, order_col = order.apply(replay_tables[1], dataset.acquisition_order_col)
         for strategy in strategy_list:
             replay = evaluate_acquisition_prefixes(
-                objects,
+                replay_tables[0],
                 ordered_fovs,
                 strategies=[strategy],
                 acquisition_order_col=order_col,
@@ -410,12 +469,14 @@ def run_benchmark(
                     _record_run(
                         history,
                         full_groups[key],
+                        references[key],
                         metric_list,
                         dataset,
                         in_sample=dataset.name in tuned,
                         tuned_on=tuned,
                         order=order,
                         incremental=incremental,
+                        **reference_fields[key],
                     )
                 )
     return records

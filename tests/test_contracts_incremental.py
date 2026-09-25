@@ -72,7 +72,11 @@ def test_packaged_incremental_estimators_are_exercised():
             SamplingStrategy([estimator]), data, objective=POPULATION, group={}
         ).incremental
     }
-    assert incremental == {"ScalarPrecisionEstimator", "_ObjectRowsCheck"}
+    assert incremental == {
+        "ScalarPrecisionEstimator",
+        "_ObjectRowsCheck",
+        "FOVIncidencePlanEstimator",
+    }
 
 
 @pytest.mark.parametrize("incremental", [False, True])

@@ -8,6 +8,7 @@ from dataclasses import replace
 from time import perf_counter
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from .evidence import Evidence, Quantity
@@ -34,7 +35,12 @@ def _visible_table(table: pd.DataFrame) -> pd.DataFrame:
 
 def _isolated_input(data: ValidatedInput) -> ValidatedInput:
     """A deep copy of the input tables for one strategy call."""
-    return replace(data, objects=data.objects.copy(deep=True), fovs=data.fovs.copy(deep=True))
+    return replace(
+        data,
+        objects=data.objects.copy(deep=True),
+        fovs=data.fovs.copy(deep=True),
+        _feature_cache={},
+    )
 
 
 def restrict_input(
@@ -53,6 +59,29 @@ def restrict_input(
         observation_unit=data.observation_unit,
         observation_unit_declared=data.observation_unit_declared,
     )
+
+
+class FovSubsets:
+    """Fast subsets of whole FOVs of one input, by FOV row position.
+
+    Each observation's FOV row is looked up once, so a subset of FOVs costs one
+    vectorized mask instead of a key match per call; for resampling analyses
+    that draw thousands of subsets of the same FOVs. Observations keep their
+    table order, as with ``objects_in_fovs``.
+    """
+
+    def __init__(self, data: ValidatedInput) -> None:
+        self.data = data
+        self.positions = fov_positions(data, data.fovs)
+
+    def __len__(self) -> int:
+        return len(self.data.fovs)
+
+    def take(self, rows: np.ndarray) -> ValidatedInput:
+        """The FOVs at row positions ``rows`` of ``data.fovs``, with their observations."""
+        rows = np.asarray(rows, dtype=np.int64)
+        mask = np.isin(self.positions, rows)
+        return restrict_input(self.data, self.data.objects.loc[mask], self.data.fovs.iloc[rows])
 
 
 def objects_in_fovs(data: ValidatedInput, fovs: pd.DataFrame) -> pd.DataFrame:

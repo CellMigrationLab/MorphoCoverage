@@ -1,0 +1,14 @@
+item,where,value,statement,source
+representation,pooled,1.0,100% of declared positive-control fields recognized as different,representation_control
+representation,pooled,1.0,100% of fields with planted positive-control observations recognized,representation_control
+representation,pooled,0.018055555555555554,2% of reference fields called different (false alarms),representation_control
+field-to-field heterogeneity,condition=MOCK,2.2826492485102325,a mean from whole fields varies 2.3 times as much as one from the same number of random observations (design effect),effort_projection
+largest source of uncertainty of the mean,condition=MOCK,0.5175751698418477,52% of the variance of the mean is between fields within a sample,effort_projection
+field-to-field heterogeneity,condition=LATS1,1.9850701936910078,a mean from whole fields varies 2.0 times as much as one from the same number of random observations (design effect),effort_projection
+largest source of uncertainty of the mean,condition=LATS1,0.9816189229804997,98% of the variance of the mean is between samples,effort_projection
+field-to-field heterogeneity,condition=YAP,1.634701478705832,a mean from whole fields varies 1.6 times as much as one from the same number of random observations (design effect),effort_projection
+largest source of uncertainty of the mean,condition=YAP,0.9863680592178707,99% of the variance of the mean is between samples,effort_projection
+field-to-field heterogeneity,condition=ARAP2,2.5896116431303526,a mean from whole fields varies 2.6 times as much as one from the same number of random observations (design effect),effort_projection
+largest source of uncertainty of the mean,condition=ARAP2,0.7968649431049283,80% of the variance of the mean is between samples,effort_projection
+spatial correlation,all groups,5.0,"in 5 of 12 groups, fields closer than about 520 µm (median) are more alike than random pairs",redundancy_distance
+new states,all groups,4.0,new states come from 4 fields,inspect_fovs

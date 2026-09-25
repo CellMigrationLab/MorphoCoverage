@@ -2,16 +2,22 @@
 
 from .base import Estimator, EstimatorState, SamplingStrategy
 from .baselines import (
+    FixedAreaStrategy,
     FixedFOVStrategy,
     FixedObjectStrategy,
     FixedObservationStrategy,
+    ImagedAreaEstimator,
 )
+from .fov_bootstrap import FOVBootstrapEstimator, FOVBootstrapStrategy
+from .incidence_coverage import IncidenceCoverageEstimator, IncidenceCoverageStrategy
 from .jcb_planning import (
     CellCountPlan,
     PlannedCellCountEstimator,
     PlannedCellCountStrategy,
     plan_cells_to_average,
 )
+from .rare_incidence import RareIncidenceEstimator, RareIncidenceStrategy
+from .rare_planning import FOVIncidencePlanEstimator, FOVIncidencePlanStrategy
 from .scalar_precision import ScalarPrecisionEstimator, ScalarPrecisionStrategy
 from .stabilization import (
     DescriptorPlateauEstimator,
@@ -19,6 +25,7 @@ from .stabilization import (
     DescriptorSpreadEstimator,
     DescriptorSpreadStrategy,
 )
+from .support_novelty import SupportNoveltyEstimator, SupportNoveltyStrategy
 
 __all__ = [
     "CellCountPlan",
@@ -28,13 +35,25 @@ __all__ = [
     "DescriptorSpreadStrategy",
     "Estimator",
     "EstimatorState",
+    "FOVBootstrapEstimator",
+    "FOVBootstrapStrategy",
+    "FOVIncidencePlanEstimator",
+    "FOVIncidencePlanStrategy",
+    "FixedAreaStrategy",
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "FixedObservationStrategy",
+    "ImagedAreaEstimator",
+    "IncidenceCoverageEstimator",
+    "IncidenceCoverageStrategy",
     "PlannedCellCountEstimator",
     "PlannedCellCountStrategy",
+    "RareIncidenceEstimator",
+    "RareIncidenceStrategy",
     "SamplingStrategy",
     "ScalarPrecisionEstimator",
     "ScalarPrecisionStrategy",
+    "SupportNoveltyEstimator",
+    "SupportNoveltyStrategy",
     "plan_cells_to_average",
 ]

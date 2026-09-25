@@ -1,0 +1,7 @@
+repeat,stratum,candidate,judged_new,candidates,not_judged,rate
+1A,repeat=1A,reference,1,360,0,0.0028
+1A,repeat=1A,positive,1120,1120,0,1.0000
+1A,repeat=1A,planted,360,360,0,1.0000
+2A,repeat=2A,reference,12,360,0,0.0333
+2A,repeat=2A,positive,560,560,0,1.0000
+2A,repeat=2A,planted,360,360,0,1.0000

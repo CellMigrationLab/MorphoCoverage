@@ -103,3 +103,346 @@ Errors are relative RMSE of the well mean, as medians across wells. Every number
 
 The data used are described in `data/crick_idr/README.md`. The complete plates
 are downloaded by the script; only the paper's wells are committed.
+
+## 2. Positive control: does "something new in the next FOV" find a phenotype that is there? (2026-09-24)
+
+**Question.** The sufficiency report estimates the chance that one more FOV
+shows something new. Calibration checks that estimate against the data it came
+from, but a homogeneous well cannot show whether a real, different phenotype
+would be caught. Here the truth is known by construction.
+
+**Method** (`data/crick_idr/positive_control.py`, committed idr0028 subset,
+fixed seed). For each plate, the MOCK well is the host. `k` host FOVs are drawn
+at random (20 draws for each `k`), and candidate next FOVs are judged against
+them with the report's definition of new: 30 standardized intensity features,
+fitted on the `k` FOVs only; a cluster of at least `m` unsupported cells, where
+another FOV supports a cell only with at least `m` of its own cells within
+`epsilon`. Candidates:
+
+- the host's remaining FOVs (nothing new by construction: the false-alarm rate);
+- every FOV of a knockdown well on the same plate (siYAP, siLATS1 or siARAP2);
+- a remaining host FOV with 3, 5 or 10 cells of a knockdown FOV added.
+
+Rates at `epsilon = sqrt(30)` and `m = 3`, pooled over the three plates and
+both knockdown wells of each (tracked in
+`data/crick_idr/results/positive_control_idr0028.csv`):
+
+| FOVs seen | host (false alarm) | whole siYAP FOV | whole siLATS1 FOV | whole siARAP2 FOV | host + 3 siYAP cells | host + 10 siLATS1 cells | host + 10 siARAP2 cells |
+|---|---|---|---|---|---|---|---|
+| 5 | 5.0% | 100% | 65% | 19% | 94% | 16% | 8% |
+| 10 | 2.4% | 100% | 53% | 9% | 94% | 10% | 5% |
+| 20 | 0.8% | 100% | 39% | 8% | 95% | 4% | 3% |
+
+**What this shows**
+
+- **A strongly different phenotype is found, even as 3 cells.** Three siYAP
+  cells added to a host FOV make it count as new in about 95% of cases, at a
+  false-alarm rate of 1–5%.
+- **Detection depends on the representation, not on the readout the biologist
+  reports.** siLATS1 shifts the YAP/TAZ nuclear ratio further than siYAP
+  (+1.4 versus −1.1 SD of the MOCK cells), yet whole siLATS1 fields count as new only 39–65% of
+  the time and 10 siLATS1 cells barely beat the false-alarm rate. The 30
+  intensity features separate siYAP far more than a
+  change in localization, presumably because siYAP lowers YAP/TAZ intensity
+  in every compartment. A method is only as sensitive as its features.
+- **Weak phenotypes are not distinguished.** siARAP2 fields sit close to the
+  false-alarm rate, as expected for a 0.3–0.5 SD shift.
+- **The definition matters more than the statistics.** At `epsilon = 0.5 sqrt(30)`
+  or with `m = 1`, 22–100% of host FOVs count as new: everything looks new, so
+  nothing is informative. `m = 3` at `epsilon = sqrt(30)` was the only setting
+  tried with both a low false-alarm rate and full detection of siYAP.
+- **Seeing more FOVs lowers false alarms and also lowers detection of moderate
+  phenotypes** (siLATS1 65% to 39%): with more FOVs, some host cells resemble
+  the knockdown cells and support them.
+
+**What this does not show**
+
+- **Semi-synthetic.** Knockdown cells added to a host FOV were imaged in other
+  fields, so the rare-cell case approximates a rare state rather than measuring
+  one. The labels are conditions, not verified phenotypes.
+- **One dataset and one representation.** Only idr0028 intensity features were
+  used; the tuned setting (`epsilon`, `m`) was chosen here and is not validated
+  on held-out data.
+- **Single candidates, not stopping.** This measures whether one next FOV is
+  judged new. Whether the probability and bound of the report are right when a
+  rare phenotype occurs in a given fraction of FOVs is entry 3.
+
+## 3. Frequency control: is the next-FOV chance right when a rare state is there? (2026-09-24)
+
+**Question.** Entry 2 shows that the definition of new catches a strong
+phenotype in a single candidate FOV. Are the report's probability and 95% bound
+right when a rare state occurs in a known fraction of FOVs, and what does
+stopping on the bound miss?
+
+**Method** (`data/crick_idr/frequency_control.py`, fixed seed). In the MOCK
+wells of plates 1A and 2A (28 FOVs each), 5 siYAP cells from the same plate
+are added to a fraction `p` of the FOVs: each FOV independently (spread), or
+the same expected number nearest a random FOV by stage position (clustered).
+Each planted acquisition (50 per plate, `p` and layout) is replayed in a random
+order. After `k` FOVs the estimator (`epsilon = sqrt(30)`, clusters of 3,
+symmetric support, transform refitted without each held-out FOV) predicts the chance that the next FOV shows something new,
+with its nominal 95% bound. The biological truth is the chance that the next FOV shows
+the planted state while none of the first `k` does. A stopping replay stops at
+the first `k` whose bound is at most 25%. Results are tracked in
+`data/crick_idr/results/frequency_control_idr0028.csv` and
+`frequency_control_stops_idr0028.csv`.
+
+| `p` | FOVs seen | predicted | true chance (planted state) | bound | bound held | state already seen |
+|---|---|---|---|---|---|---|
+| 5% | 5 | 0.10–0.12 | 0.03–0.04 | 0.55–0.58 | 100% | 21–28% |
+| 5% | 20 | 0.03 | 0.02 | 0.18–0.19 | 97–99% | 64–68% |
+| 10% | 5 | 0.12 | 0.05–0.06 | 0.57–0.58 | 100% | 38–46% |
+| 10% | 20 | 0.02–0.03 | 0.01–0.02 | 0.16–0.18 | 96–99% | 85–86% |
+| 20% | 5 | 0.11–0.13 | 0.07 | 0.57–0.58 | 99–100% | 65–68% |
+| 20% | 20 | 0.01 | 0.00 | 0.16 | 99–100% | 98–99% |
+
+Ranges span the spread and clustered layouts. Stopping when the bound first
+reaches 25%:
+
+| `p` | stop (median FOVs) | planted state never seen at the stop, among acquisitions that had it | true chance of it in the next FOV at the stop |
+|---|---|---|---|
+| 5% | 11 | 46–49% | 3.0–3.3% |
+| 10% | 11–11.5 | 27–30% | 2.9–3.2% |
+| 20% | 11 | 7–8% | 1.4–1.8% |
+
+**What this shows**
+
+- **The bound keeps its promise.** It was at least the true chance of meeting
+  the planted state in the next FOV in 96–100% of cases at every frequency and
+  prefix length. The point prediction overstates the true chance, by about the
+  host false-alarm rate of entry 2.
+- **The promise is about the next FOV, not about whether a rare state exists.**
+  Stopping when the bound reaches 25% happens at 11 FOVs in every condition,
+  because with no new FOV the bound depends only on the number of FOVs. At
+  that stop the planted state had not been seen yet in almost half the
+  acquisitions that contained it at a 5% frequency, and in about 30% at 10%,
+  while the chance of it appearing in the very next FOV was only about 3%, as
+  the bound said. A small next-FOV risk is not evidence that no rare state
+  remains (AGENTS.md §3).
+- **The actionable rule is a count of FOVs.** Seeing no new FOV among `k`
+  bounds the per-FOV frequency of an unseen state below about `3 / k` (rule
+  of three). Ruling out a state present in 5% of FOVs at 95% needs about 60
+  FOVs with nothing new, more than these wells have (28).
+- **Clustering made no difference here** because FOVs were replayed in random
+  order; a clustered state then behaves like a spread one. In a raster or
+  otherwise spatially ordered acquisition it would be found later.
+
+**What this does not show**
+
+- **Semi-synthetic**, as entry 2: planted cells come from other fields, and
+  siYAP is the easiest state to detect. A state detected less reliably (entry
+  2: siLATS1) would be missed more often.
+- **Random orders only.** Recorded, spatially ordered acquisition was not
+  replayed.
+- **Two wells of 28 FOVs**, one representation and one setting of the
+  definition, chosen on the same dataset.
+
+## 4. How many fields do you need? Sampling reliability on idr0028 (2026-09-24)
+
+**Question.** For a stated tolerance, how often does a random set of `k`
+fields give the same answer as fields that were not used? This is roadmap
+Step 1 (`morphocoverage.retrospective.sampling_reliability`). It is a property
+of the acquisition, not of any stopping rule.
+
+**Method** (`data/crick_idr/reliability_idr0028.py`, fixed seed). The data are
+the 12 wells of the committed subset, 28 FOVs each, analysed one well at a
+time. The phenotype is the YAP/TAZ nuclear ratio of Marcotti et al. (nuclear
+mean / (nuclear + cytoplasmic mean intensity)). Each of 10 splits holds back a
+random 10 FOVs as the reference. For each `k`, 50 random sets of `k` whole
+FOVs are drawn from the other 18 and judged against that same reference. The
+three criteria are the roadmap's provisional presets:
+
+- the well mean within 5%;
+- the well mean within 2.5%;
+- the variance within 10%.
+
+Results are in `data/crick_idr/results/reliability_idr0028.csv` and
+`reliability_ceiling_idr0028.csv`. The ceiling is how often all 18 fields
+together met the criterion.
+
+| criterion | 2 fields | 4 fields | 8 fields | 18 fields | all 18 fields (ceiling) |
+|---|---|---|---|---|---|
+| mean within 5% | 98–100% | 100% | 100% | 100% | 100% |
+| mean within 2.5% | 83–100% (median 90%) | 91–100% (98%) | 98–100% | 100% | 100% |
+| variance within 10% | 14–29% (21%) | 16–42% (26%) | 15–49% (35%) | 10–80% (40%) | 10–80% (40%) |
+
+Each cell gives the range across the 12 wells, with the median in brackets.
+
+**What this shows**
+
+- **For the well mean, two fields are almost always enough.** At a 5%
+  tolerance, 2 fields matched the held-back fields in at least 98% of draws in
+  every well. At 2.5%, 2 fields were enough in 83–100% of draws (worst:
+  YAP 2A N23, MOCK 2B P13 and ARAP2 2B C17), 4 fields in at least 91%, and 8 in
+  at least 98%. The median error of a 2-field mean was 1%. With 28 FOVs per well, this
+  mean was heavily oversampled.
+- **The variance within 10% cannot be judged with this design.** Even all 18
+  fields matched the 10 held-back fields in only 40% of splits (median; 10–80%
+  across wells). The held-back fields are too few to pin the variance down to
+  10%. The curve is flat because it is capped by that ceiling, not because
+  more fields do not help: the median error falls from 0.26 at 2 fields to
+  0.11 at 18. The report states the ceiling for this reason. Here it says that
+  the question needs more fields than the well holds, not that 18 fields fail.
+- **The criterion decides the answer.** The same wells need 2 fields or cannot
+  be answered, depending on whether the question is the mean or the spread.
+  A protocol must therefore state its criterion; there is no single number of
+  fields.
+
+**What this does not show**
+
+- **Development data only.** idr0028 is the only registered dataset and was
+  used to build this analysis. No field count here is a protocol.
+- **Nothing beyond 18 fields**, and nothing about wells, plates or repeats:
+  every statement is within one well. Draws and splits are not independent
+  replicates. The ranges across wells describe these 12 wells only.
+- **Fields are treated as random draws** from the well. Spatial order and
+  neighbour correlation between fields are not modelled (roadmap Step 8).
+- **One feature**, one representation, and provisional tolerances.
+
+## 5. Would a stopping rule have stopped at the right time? Replayed idr0028 acquisitions (2026-09-24)
+
+**Question.** Entry 4 shows how often random sets of fields preserve the well
+mean. A stopping rule decides from the fields seen so far, in the order they
+arrive. When would the rule have stopped, and was it enough at that point,
+judged on fields the rule never saw? This is roadmap Steps 2 and 3
+(`replay_acquisitions`, `stopping_calibration`, `adequacy_points`).
+
+**Method** (`data/crick_idr/stopping_idr0028.py`, fixed seed; 45 s, 18 s on 4 CPUs after the optimizations of 2026-09-24). The data
+are the same 12 wells and the same YAP/TAZ nuclear ratio as entry 4. Each of 5
+splits holds back 10 FOVs, the same reservoirs as the first five splits of
+entry 4. The other 18 FOVs are replayed in the recorded order and in 10 random
+orders. Every rule decides from 2 FOVs on. The rules are:
+
+- the JCB averaging-CV rule at 5%, on cells as published;
+- the same rule on whole FOVs;
+- fixed rules of 4 and 8 FOVs.
+
+"Enough" is judged against the held-back FOVs: the well mean within 5%, and
+within 2.5%. The tables are `data/crick_idr/results/stopping_calibration_idr0028.csv`
+and `adequacy_idr0028.csv`.
+
+| rule | stop (FOVs) | premature, mean within 5% (random orders; median, max over wells) | premature, mean within 2.5% (random orders; median, max over wells) | premature, 2.5%, recorded order (max over wells, of 5) |
+|---|---|---|---|---|
+| JCB CV ≤ 5%, cells | 2 | 0%, 2% | 9%, 18% | 40% |
+| JCB CV ≤ 5%, FOVs | 2 | 0%, 2% | 9%, 18% | 40% |
+| fixed 4 FOVs | 4 | 0%, 0% | 1%, 14% | 40% |
+| fixed 8 FOVs | 8 | 0%, 0% | 0%, 8% | 0% |
+
+Judged on held-back fields, the mean was first within both tolerances at a
+median of 1 FOV (all 660 replayed acquisitions: 1–11), and lastingly from a
+median of 1 (1–15; 75% by 2 FOVs).
+
+**What this shows**
+
+- **Both JCB-style rules stopped as early as they were allowed (2 FOVs) in
+  every well.** With about a hundred nuclei per field, the averaging CV of the
+  mean ratio is below 5% after two fields, whether cells or FOVs are the
+  resampling unit. For the mean within 5%, which is the target the rule was
+  designed for, that stop was almost always right (at most 2% premature in
+  random orders; 1 of 5 recorded-order hold-outs in the worst well). For the
+  stricter 2.5%, it was premature in a median 9% of random acquisitions, up to
+  18% in the worst well. A rule at 5% CV answers the 5% question; it is
+  not a promise for 2.5%.
+- **The mean was never the hard part here.** Held-back fields confirmed it
+  after one or two fields in most runs, and never later than 15. This is the
+  regime AGENTS.md section 10 asks us to name: for the mean nuclear YAP/TAZ
+  ratio of a well in this screen, the cell-number guidance is sufficient, and
+  FOV-aware sampling adds nothing for this readout.
+- **Fixed rules.** Four fields were enough for 5% in every run, and for 2.5% in
+  all but up to 14% of random acquisitions of the worst well. Eight fields
+  were premature in at most 8%.
+
+**What this does not show**
+
+- **One easy readout.** The stop rules were not tested on a question they find
+  hard (the variance, a quantile, a rare state), since entry 4 shows the
+  variance cannot be judged with this reservoir.
+- **Development data, 12 wells**, recorded-order results over only 5 hold-outs
+  per well. Replayed acquisitions are hold-outs and orders of the same fields,
+  not independent experiments.
+- **The minimum of 2 FOVs is a setting of this run**, and it caps how early the
+  rules could stop.
+
+## 6. Protocol, fields to inspect, controls, effort and order on idr0028 (2026-09-24)
+
+**Question.** Roadmap Steps 4–8 and 10 on the same 12 wells: what field number
+would a protocol need, which fields should be reopened, can these features see
+the declared siYAP phenotype, would more fields or more wells help, and could
+the same positions have been visited in a better order?
+
+**Method** (`data/crick_idr/report_steps_idr0028.py`, fixed seeds; about 35 s, 16 s after the optimizations
+after the Step 1 curves of entry 4). Every table is in `data/crick_idr/results/`,
+and the assembled report is `microscopist_report_idr0028.txt`. idr0028 remains a
+development dataset.
+
+**What this shows**
+
+- **Protocol (Step 4).** A well counts as adequately represented when at least
+  90% of random acquisitions preserved the criterion, and all conditions are
+  pooled explicitly.
+  - For the well mean within 5%, 2 fields were enough for 12 of 12 wells.
+  - Within 2.5%, 2 fields were enough for 6 of 12 wells (by plate: 4 of 5, 1
+    of 4, 1 of 3), and 4 fields for all 12.
+  - A number chosen on two plates served every well of the third.
+  - For the variance within 10%, no well was adequately represented at any
+    depth (the reservoir ceiling of entry 4).
+  - With 3 plates the summary says the uncertainty is too large to fix a
+    protocol, and it is.
+- **Fields to inspect (Step 5).**
+  - Two fields hold far fewer nuclei than their well (6 against a median of
+    27 and 21.5).
+  - One siYAP field has a mean YAP/TAZ ratio 5.6 SD below its four stage
+    neighbours, and one siARAP2 field 3.1 SD above. The SD is now that of the
+    other fields, not including the field itself (audit fix).
+  - Four fields hold a small new state: 3 nuclei no other field of the well
+    shows, in 30 standardized features.
+  - No field moved the well mean or 95th percentile of the ratio by 10% or
+    more when left out, as expected with 28 fields per well.
+- **Representation control (Step 6).** Measured after 10 MOCK fields on the
+  same plate:
+  - siYAP fields were recognized as different in 100% of 1680 checks;
+  - MOCK fields with 5 siYAP nuclei planted were recognized in 100% of 720;
+  - the other MOCK fields were called different in 2% of 720 (false alarms).
+
+  This matches the tracked positive control (entry 2: 100% for siYAP, about
+  2% false alarms at 10 fields) computed by independent code.
+- **More fields or more wells (Step 7).** For the mean ratio of a condition:
+  - in MOCK, 52% of the variance of the mean is between fields within a well;
+  - in the knockdowns, 80–99% is between wells, which are on different plates;
+  - fields vary 1.6–2.6 times as much as random cells would (design effect,
+    with the cluster size of unequal fields).
+
+  With 3 wells per condition the answer is "cannot tell from these data", as
+  designed. Plate and well are confounded here: in MOCK each plate has one
+  well. The analysis therefore refuses a plate level and uses plate-qualified
+  well and field identities.
+- **Order (Step 8).** For the well mean within 2.5%, recorded, random and
+  dispersed orders all reached it after a median of 1 field. The recorded
+  serpentine raster needed 2–4 fields (805–2003 µm of travel) in 5 wells,
+  dispersed orders 2 fields in 1 well. This
+  is the null result the roadmap allows: the mean is too easy here to tell
+  orders apart.
+  - In 5 of 12 wells, fields closer than about 520–780 µm are more alike than
+    random pairs.
+  - The other 7 wells show no such redundancy down to the closest spacing
+    measured (336 µm).
+
+**What this does not show**
+
+- **One easy readout, 12 wells, 3 plates, development data.** None of these
+  numbers is a protocol. The Step 7 and Step 4 answers are limited by 3 wells
+  per condition and 3 plates, and they say so.
+- **The Step 7 intervals are approximate.** Simulated nested designs with 8
+  samples recover the variance components on average (tested), but the
+  bootstrap interval covered the true sample and field components in only
+  88% and 80% of 40 runs, not 95%. Resampling only the samples was worse (68%
+  for the sample component). A stated difference between allocations
+  therefore also needs five or more independent units.
+- **The reading test** (roadmap rule 4) has not been done by the project
+  owner on this report.
+- **Audit revision (2026-09-24).** Entries 4–6 were regenerated after an audit.
+  The held-back fields no longer depend on the row order of the FOV table, and
+  a draw with no observations counts as not enough. The effort projection now
+  uses the acquired design, and empty fields no longer shrink it. The
+  neighbour check uses the spread of the other fields. The numbers above are
+  those of the regenerated tables.
