@@ -62,6 +62,7 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from .benchmark import (
     AcquisitionOrder,
@@ -79,6 +80,7 @@ from .objectives import ObjectiveConfig, SamplingObjective
 from .results import StrategyResult
 from .schema import validate_input_tables
 from .strategies.base import SamplingStrategy
+from .strategies.rare_planning import fovs_to_detect
 from .strategies.support_novelty import (
     FOV_QUANTITY,
     UPPER_QUANTITY,
@@ -350,6 +352,17 @@ def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | N
                 "is not new to the next FOV but is not established either; it counts as "
                 "recurrent above, so look at those FOVs before calling the sample settled."
             )
+            if int(seen_in_few):
+                lines.append(
+                    f"Planning for such a state: seen in {_percent(row['few_state_incidence'])} "
+                    f"of FOVs ({confidence} interval "
+                    f"{_percent(row['few_state_incidence_low'])}-"
+                    f"{_percent(row['few_state_incidence_high'])}); to see it at least once "
+                    f"with {confidence} probability, image about "
+                    f"{int(row['fovs_to_see_again'])} independent representative FOVs at the "
+                    f"observed incidence, up to {int(row['fovs_to_see_again_low_end'])} at "
+                    "the low end of the interval. Fields that cluster the state need more."
+                )
     if target is not None:
         extra = row["extra_fovs_to_rule_out_target"]
         rule_out = f"To rule out unseen states in more than {_percent(target)} of FOVs"
@@ -393,11 +406,31 @@ def _seen_in_few(novelty, group_data, few_fovs):
     quantity = evidence.quantities[FOV_QUANTITY]
     if quantity.availability is not Availability.AVAILABLE:
         return {"few_fovs": few_fovs, "fovs_with_state_in_few": None, "few_reason": quantity.reason}
-    return {
-        "few_fovs": few_fovs,
-        "fovs_with_state_in_few": int(evidence.diagnostics["novel_fovs"]),
-        "few_reason": None,
-    }
+    seen = int(evidence.diagnostics["novel_fovs"])
+    k = len(group_data.fovs)
+    row = {"few_fovs": few_fovs, "fovs_with_state_in_few": seen, "few_reason": None}
+    if seen:
+        # Planning for a state seen in ``seen`` of ``k`` independent, representative
+        # FOVs: its incidence with a two-sided Clopper-Pearson interval, and the
+        # binomial number of FOVs to see it at least once with probability
+        # ``confidence`` at the observed incidence and at the interval's low end.
+        # The model was checked against the planted-state control
+        # (docs/preliminary_findings.md, entry 3; tests/test_crick_idr.py).
+        alpha = 1 - novelty.confidence
+        low = float(stats.beta.ppf(alpha / 2, seen, k - seen + 1))
+        high = 1.0 if seen == k else float(stats.beta.ppf(1 - alpha / 2, seen + 1, k - seen))
+        row.update(
+            {
+                "few_state_incidence": seen / k,
+                "few_state_incidence_low": low,
+                "few_state_incidence_high": high,
+                "fovs_to_see_again": fovs_to_detect(seen / k, novelty.confidence, 1)
+                if seen < k
+                else 1,
+                "fovs_to_see_again_low_end": fovs_to_detect(low, novelty.confidence, 1),
+            }
+        )
+    return row
 
 
 def _next_fov_tables(data, novelty, target, few_fovs=None):

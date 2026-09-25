@@ -220,3 +220,51 @@ def test_sufficiency_report_answers_both_questions_on_idr0028():
     assert (report.next_fov["chance_new_at_most"] >= report.next_fov["chance_new"]).all()
     assert len(report.enough) == 4 and set(report.calibration["remaining_fovs"]) == {18}
     assert report.summary().count("Would one more FOV show something new?") == 2
+
+
+def _crick_scripts():
+    """Import helpers from the data scripts, which are not part of the package."""
+    import importlib
+    import sys
+
+    sys.path.insert(0, str(DATA))
+    try:
+        return importlib.import_module("datasets")
+    finally:
+        sys.path.pop(0)
+
+
+def test_the_registry_declares_idr0028_development_and_idr0139_held_out():
+    datasets = _crick_scripts()
+    registry = datasets.registry()
+    assert registry.names("development") == ["idr0028_screenB"]
+    assert registry.names("held_out") == ["idr0139"]
+    assert registry.check_tuning(["idr0028_screenB"]) == ("idr0028_screenB",)
+    with pytest.raises(ValueError, match="held out"):
+        registry.check_tuning(["idr0139"])
+    objects, fovs, features = datasets.load_idr0139()
+    assert datasets.FASCIN_RATIO in objects.columns and len(fovs) == 40
+    assert datasets.FASCIN_RATIO not in features
+
+
+def test_the_binomial_incidence_model_matches_the_planted_state_control():
+    # The planning line for a state seen in few FOVs assumes independent,
+    # representative FOVs: the share of acquisitions that had seen a state
+    # planted in a share p of FOVs after k FOVs should be 1 - (1 - p) ** k.
+    # The tracked frequency control (docs/preliminary_findings.md, entry 3)
+    # replayed 50 planted acquisitions per plate, frequency and layout.
+    table = pd.read_csv(DATA / "results" / "frequency_control_idr0028.csv")
+    seen = table.groupby(["frequency", "fovs_seen"])["state_seen"].mean()
+    for (p, k), observed in seen.items():
+        expected = 1 - (1 - p) ** k
+        assert abs(observed - expected) < 0.05, (p, k, observed, expected)
+
+
+def test_the_held_out_tables_carry_their_ceilings_and_denominators():
+    ceiling = pd.read_csv(DATA / "results" / "heldout_ceiling_idr0139.csv")
+    protocol = pd.read_csv(DATA / "results" / "heldout_protocol_idr0139.csv")
+    calibration = pd.read_csv(DATA / "results" / "heldout_calibration_idr0139.csv")
+    assert (ceiling["stream_fovs"] == 2).all() and ceiling["whole_stream_preserved"].min() == 0
+    assert (protocol["eligible"] == 10).all() and protocol["fovs"].max() == 2
+    assert set(calibration["strategy"]) == {"scalar_precision_object_upper95", "fixed_fov"}
+    assert calibration["premature"].max() == 1.0

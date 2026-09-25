@@ -86,7 +86,7 @@ The remaining retrospective analyses (roadmap Steps 4–8 and 10) each answer on
 - `order_efficiency` compares recorded, random and dispersed (`AcquisitionOrder.dispersed(seed)`, greedy farthest point on stage coordinates) orders of the same positions by sustained realized adequacy and stage travel; `redundancy_distance` gives the distance below which neighbouring fields are more alike than random pairs.
 - `microscopist_report` assembles the answers in the order of the proposal's questions, with a sampling profile of measured quantities; a question without its analysis says "not assessed" and what it needs.
 
-**Registered datasets.** idr0028 (committed subset: 12 wells × 28 FOVs on 3 plates) is a **development** dataset: used to build and check these analyses, not to set a protocol. No held-out dataset is registered yet; deeper datasets will be added.
+**Registered datasets** (`data/crick_idr/datasets.py`, a `BenchmarkRegistry`). idr0028 (committed subset: 12 wells × 28 FOVs on 3 plates) is the **development** dataset: every preset and definition of new was chosen on it, and it sets no protocol. idr0139 (10 wells × 4 FOVs on one plate, the JCS case study) is registered **held out**: never used to choose a setting, so `check_tuning` refuses a run that claims to be tuned on it. It is shallow (a 2-field reservoir judges 1 or 2 stream fields), so it can refute a development conclusion but not establish a field number; `heldout_idr0139.py` runs that check (`docs/preliminary_findings.md`, entry 7). Deeper held-out data are still needed.
 
 ## Scientific performance dimensions
 

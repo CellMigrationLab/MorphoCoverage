@@ -99,6 +99,43 @@ def _false_alarm_rate(controls) -> float | None:
     return float(rates["reference"])
 
 
+def _detection_adjusted_bounds(sufficiency, controls) -> str | None:
+    """The unseen-state bound divided by the declared control's detection rate.
+
+    The rule-of-three bound holds for states this definition would detect in
+    every FOV that has them. A phenotype recognized like the declared
+    positive control, in a share ``d`` of the fields that show it, is seen
+    with probability ``d * f`` per FOV when present in a share ``f``, so the
+    same run of FOVs with nothing new bounds ``f`` at ``bound / d`` (at most 1),
+    assuming detection is independent between fields.
+    """
+    if controls is None or controls.status != "assessed" or sufficiency.next_fov.empty:
+        return None
+    rates = controls.pooled.set_index("candidate")["rate"]
+    if "positive" not in rates.index or pd.isna(rates["positive"]) or rates["positive"] <= 0:
+        return None
+    detection = float(rates["positive"])
+    keys = list(sufficiency.group_cols)
+    heading = (
+        f"Adjusted for the declared control's detection rate ({100 * detection:.0f}% of its "
+        "fields recognized): a phenotype seen as well as the control, and shown by no FOV yet,"
+        " could still be in"
+    )
+    lines = [heading]
+    for row in sufficiency.next_fov.itertuples(index=False):
+        bound = row.unseen_state_max_frequency
+        if bound is None or pd.isna(bound):
+            continue
+        adjusted = min(1.0, float(bound) / detection)
+        label = ", ".join(f"{k}={getattr(row, k)}" for k in keys) or "all FOVs (pooled)"
+        lines.append(
+            f"  {label}: up to {100 * adjusted:.0f}% of FOVs (the {100 * float(bound):.0f}% "
+            f"bound above divided by {100 * detection:.0f}%), if detection is independent "
+            "between fields."
+        )
+    return "\n".join(lines) if len(lines) > 1 else None
+
+
 def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
     units = [
         r.settings.get("observation_unit")
@@ -279,6 +316,9 @@ def microscopist_report(
         parts["controls"].append(controls.summary())
     if sufficiency is not None:
         parts["enough"].append(sufficiency.summary())
+        adjusted = _detection_adjusted_bounds(sufficiency, controls)
+        if adjusted:
+            parts["enough"].append(adjusted)
     if calibration is not None:
         parts["enough"].append(calibration.summary())
     if adequacy is not None:

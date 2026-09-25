@@ -460,3 +460,65 @@ development dataset.
   "new state" fields above are at the 0.8–2% false-alarm level, and that
   the object-unit JCB verdict was printed without its independence
   assumption; see the audit for the ranked list.
+
+## 7. Held-out check on idr0139: does "two fields are enough for the mean" transfer? (2026-09-25)
+
+**Question.** Entries 4 and 5 found, on the development wells of idr0028, that
+the well mean of the YAP/TAZ ratio was within 5% of held-back fields from 2
+fields in every well and that the JCB cell-number rule's stop at 2 fields was
+almost never premature at 5%. Those wells were also where every preset was
+chosen. idr0139 (10 wells × 4 fields, one plate, the JCS case study) is now
+registered as **held out** (`data/crick_idr/datasets.py`): no setting was ever
+chosen on it. Does the conclusion hold there, for the paper's fascin ratio?
+
+**Method** (`data/crick_idr/heldout_idr0139.py`, fixed seed; tables
+`results/heldout_*_idr0139.csv`). Per well, 6 hold-outs each keep 2 fields as
+the reference and draw 1 or 2 of the other 2 (10 draws). Criteria: the well
+mean within 5% and within 2.5%. The JCB rule (object unit, upper-95 SD, at 5%
+and 2.5% CV) and a fixed 2-field rule are replayed from 1 field on, in the
+recorded and 5 random orders.
+
+| | 1 field | 2 fields | all 2 stream fields (ceiling) |
+|---|---|---|---|
+| mean within 5%, share of draws enough (median over wells; range) | 64% (23–100%) | 75% (33–100%) | 75% (33–100%) |
+| mean within 2.5% | 33% (0–100%) | 33% (0–100%) | 33% (0–100%) |
+| wells adequately represented (≥ 90% of draws), within 5% | 3 of 10 | 5 of 10 | |
+| wells adequately represented, within 2.5% | 1 of 10 | 3 of 10 | |
+
+| rule | stop | premature, mean within 5% (median; max over wells) | premature, 2.5% |
+|---|---|---|---|
+| JCB CV ≤ 5% or ≤ 2.5%, cells | 1 field | 33%; 77% | 65%; 100% |
+| fixed 2 fields | 2 fields | 25%; 67% | 67%; 100% |
+
+**What this shows**
+
+- **The development conclusion does not transfer as a number.** On idr0028,
+  2 fields were enough for the mean within 5% in 12 of 12 wells; on idr0139,
+  2 fields are enough in 5 of 10 wells, and 1 field (where the JCB rule stops,
+  since one field holds about 330 nuclei) in 3 of 10. The JCB stop is premature
+  at 5% in a median 33% of replayed acquisitions and up to 77% in the worst
+  well. This is the held-out counterpart of entry 1's observation that with
+  the actual single field 35% of wells miss 5%.
+- **What transfers is the regime, not the count.** idr0139 has about 3 times
+  the FOV-level error that random cells predict (entry 1), idr0028 about 1.5
+  times; the cell-number rule is sufficient where fields vary little and
+  insufficient where they vary more. A protocol must be set per readout and
+  per preparation, not carried over.
+- **The report says what it can and cannot judge.** The 2-field reference is
+  itself noisy: the ceiling is 75% (median) at 5% and 33% at 2.5%, and the
+  protocol summary names the wells whose reference could not judge the
+  criterion rather than listing them as needing more fields. So the shares
+  above are lower bounds on nothing and upper bounds on nothing: with 4
+  fields per well the dataset can refute "one or two fields suffice" but
+  cannot say how many do.
+
+**What this does not show**
+
+- **One plate, 10 wells, 4 fields each.** The independent unit is the well
+  (one repeat), and nothing beyond 2 fields is judged.
+- **The reference error is of the same order as the tolerance**: a 2-field
+  reference mean has about the sampling error of a 2-field draw, so part of
+  every "not preserved" is the reference's own noise. That is why the ceiling
+  is printed.
+- **One readout.** The fascin ratio only; the 30 intensity features and the
+  novelty definition were not tested here.

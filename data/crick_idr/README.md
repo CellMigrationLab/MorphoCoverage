@@ -112,6 +112,11 @@ intensity features and the helpers that rebuild FOVs from blocks of cells.
   `results/reliability_ceiling_idr0028.csv`.
 - `stopping_idr0028.py` (entry 5): `results/stopping_calibration_idr0028.csv`
   and `results/adequacy_idr0028.csv`.
+- `datasets.py`: the `BenchmarkRegistry` of both datasets (idr0028 development,
+  idr0139 held out) and their loaders.
+- `heldout_idr0139.py` (entry 7): `results/heldout_reliability_idr0139.csv`,
+  `heldout_ceiling_idr0139.csv`, `heldout_protocol_idr0139.csv` and
+  `heldout_calibration_idr0139.csv`.
 - `report_steps_idr0028.py` (entry 6; run `reliability_idr0028.py` first):
   `results/protocol_idr0028.csv`, `inspection_idr0028.csv`,
   `control_idr0028.csv`, `effort_idr0028.csv`, `effort_comparisons_idr0028.csv`,
