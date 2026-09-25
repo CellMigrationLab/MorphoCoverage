@@ -19,6 +19,8 @@ The project has two connected aims:
 
 The project deliberately does **not** assume in advance what mathematical method will solve these problems. Ecological coverage estimators, missing-mass methods, clustering, nearest-neighbour novelty, distributional distances, Bayesian approaches, information-theoretic quantities, and simple empirical stopping rules are candidate solutions to be compared, not assumptions built into the project definition.
 
+A proposed estimator roadmap, including benchmark prerequisites and unresolved scope decisions, is maintained in [`docs/proposals/candidate_estimators_roadmap.md`](proposals/candidate_estimators_roadmap.md).
+
 ## 1. Why this project is needed
 
 ### 1.1 Three different questions are often conflated

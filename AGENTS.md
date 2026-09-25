@@ -97,10 +97,10 @@ Scientific rules:
 - DINO or other foundation-model inference;
 - Torch/GPU model execution;
 - feature-extractor benchmarking/tuning;
-- biological-condition hypothesis testing;
+- owning the user's final biological-condition inference workflow;
 - microscope hardware control.
 
-MorphoCoverage does not replace the user's final biological inference workflow. It may, however, use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool.
+MorphoCoverage does not replace the user's final biological inference workflow. It may, however, use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
 
 Do not add dependencies for those concerns merely to make an example easier.
 
@@ -184,7 +184,7 @@ src/morphocoverage/
     evaluator.py           # group iteration, isolation, timing, framework-built results
     sequential.py          # leakage-safe acquisition-prefix replay
     online.py              # live OnlineSession: add one newly acquired spatial FOV at a time
-    outcomes.py            # retrospective outcome metrics, strategy-independent
+    outcomes.py            # retrospective group-local outcome metrics, strategy-independent
     multivariate_outcomes.py  # distribution-level outcome metrics (centroid ... MMD)
     distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
     transforms.py          # feature transforms fitted on the visible prefix only
@@ -279,7 +279,8 @@ Rules for these tests:
 - Every fixture must also have a test proving it has the property it claims (exact prevalence, FOV incidence, separation, correlation, shift), so contracts are never checked against hollow data.
 - Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/contract_registry.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-observation FOVs counted as effort) apply to all strategies automatically.
 - An estimator that supports incremental updates (`Estimator.start`) must give, at every step and on every scenario, the same evidence and decisions under `incremental=True` replay as under full recomputation, to floating-point rounding. The incremental-equivalence contract in `tests/test_contracts_incremental.py` runs this for every strategy in `STRATEGIES_UNDER_CONTRACT`.
-- Every outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
+- Every group-local outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
+- Future multi-group biological-fidelity outcomes require a **separate contract registry and contract-test module** rather than being silently added to `METRICS_UNDER_CONTRACT`. Those contracts must verify determinism, invariance to strategy identity at matched stop prefixes, preservation of the declared biological-repeat unit, no mutation of inputs, and strict retrospective-only use. Until that registry exists, multi-group outcomes remain proposal/benchmark design work rather than packaged metrics.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
 - `baseline_comparison` covers the fixed-cell, fixed-FOV, fixed-area (`FixedAreaStrategy`), JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedCellCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
@@ -399,7 +400,7 @@ The sampling objective is separate from the mathematical strategy. Supported hig
 
 MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
 
-Strategies must not reimplement condition/repeat splitting. Each strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, FOV count, observation count/unit, and measured runtime.
+Strategies must not reimplement condition/repeat splitting. Each core prospective strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, FOV count, observation count/unit, and measured runtime. Methods that require several groups belong in an explicit planning/comparator layer (as with JCB multi-sample planning), not inside a normal group-local estimator. Retrospective benchmark outcomes may compare groups when the purpose is to test whether a stopping rule preserves the biological analysis. This scope expansion is deliberate: it changes the repository contract so that biological-condition comparisons are permitted **only** as retrospective benchmark outcomes or explicit planning comparators, never as hidden inputs to ordinary prospective estimators.
 
 Scientific and computational benchmarking are separate dimensions. Runtime is first-class because smart microscopy requires a decision before the next acquisition is needed. See docs/sampling_objectives.md, docs/benchmarking.md, and docs/architecture.md.
 
