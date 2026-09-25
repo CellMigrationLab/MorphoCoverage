@@ -4,6 +4,8 @@ MorphoCoverage is a feature-agnostic Python project for studying whether microsc
 
 ## Questions MorphoCoverage is built to answer
 
+The canonical list, grouped by the three moments of use (REPORT: what can I trust in a finished acquisition; OPTIMISE: what should I do next time; ONLINE: should I acquire another field now), with what information may answer each question and its status, is [`docs/questions.md`](docs/questions.md). The table below maps the main questions to the functions that answer them.
+
 For a completed experiment, the aim is to tell a microscopist whether the imaging effort was sufficient, what the additional FOVs actually bought, and how to spend the imaging budget in the next experiment. Every answer depends on the declared phenotype representation (the features and the definition of "new") and is stated with the criterion behind it.
 
 | Question | Today |

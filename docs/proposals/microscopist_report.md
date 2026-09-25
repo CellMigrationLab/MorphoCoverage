@@ -137,6 +137,8 @@ prescription. Two kinds are kept separate:
 
 ## The questions, in order
 
+**Superseded (2026-09-25):** the canonical list is now `docs/questions.md`, grouped by moment of use (REPORT, OPTIMISE, ONLINE). The table below is kept as the original design record.
+
 | # | Question | Builds on | New work | Input needed |
 |---|---|---|---|---|
 | 1 | Can this representation detect what I care about? | positive and frequency controls (preliminary findings, entries 2–3) | a positive-control report for declared controls only: detection and false-alarm rates per setting, or "not assessed" | a declared positive control (known phenotype, condition or planted state) |

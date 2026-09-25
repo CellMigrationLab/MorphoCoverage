@@ -27,7 +27,7 @@ The central questions are:
 
 > Is another representative FOV likely to provide enough useful new information to justify acquiring it?
 
-The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`.
+The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`; new analyses should name the question they answer there.
 
 The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Feature observations such as cells, nuclei, patches, slice-level measurements, embeddings, channels and time points are nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
