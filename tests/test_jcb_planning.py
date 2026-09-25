@@ -54,10 +54,11 @@ def _plan(objects, fovs, **kwargs):
     return plan_cells_to_average(objects, fovs=fovs, **settings)
 
 
-def _two_dishes(sd=0.1778, means=(0.9, 1.1)):
-    # Zweifach 2024's worked example: 20 cells, 10 per dish, pooled after
-    # centring each dish on its own mean. The within-dish spread is set so the
-    # centred data set has SD ``sd`` relative to the control mean of 1.
+def _two_dishes(sd=0.1778, means=(1.0, 1.1)):
+    # Reproduce the paper's reported worked example with one control and one
+    # treated dish, 10 cells each. The centred data set is engineered to have
+    # SD ``sd`` relative to the control mean of 1.0, matching the reported
+    # 17.8% point estimate rather than the inconsistent visible Data S1 inputs.
     centred = _centred(20, sd, seed=3)
     centred[:10] -= centred[:10].mean()
     centred[10:] -= centred[10:].mean()
@@ -65,7 +66,7 @@ def _two_dishes(sd=0.1778, means=(0.9, 1.1)):
     return _pilot(
         [
             ("control", "dish1", means[0] + centred[:10]),
-            ("control", "dish2", means[1] + centred[10:]),
+            ("drug", "dish2", means[1] + centred[10:]),
         ]
     )
 
@@ -97,10 +98,10 @@ def test_centring_removes_differences_between_sample_means():
     assert np.std(objects["area"], ddof=1) > 2 * apart.cv
 
 
-def test_sd_is_expressed_relative_to_the_mean_of_control_sample_means():
-    # Control dishes at 10 (5 cells) and 20 (15 cells): the control average is
-    # 15, the mean of the dish means, not the cell-weighted 17.5. The treated
-    # sample adds to the pooled SD but not to the normalizing mean.
+def test_sd_is_expressed_relative_to_all_control_observations():
+    # Supplementary Data S1/S3 normalize to the mean of all control-cell
+    # observations. With unequal control sample sizes that differs from the
+    # equal-weight mean of control sample means.
     rng = np.random.default_rng(0)
     parts = [
         ("control", "c1", 10 + _centred(5, 1.0, 1)),
@@ -109,15 +110,64 @@ def test_sd_is_expressed_relative_to_the_mean_of_control_sample_means():
     ]
     objects, fovs = _pilot(parts)
     plan = _plan(objects, fovs)
-    assert plan.control_mean == pytest.approx(15.0)
+    assert plan.control_mean == pytest.approx(17.5)
     centred = np.concatenate([values - values.mean() for _, _, values in parts])
-    assert plan.cv == pytest.approx(np.std(centred, ddof=1) / 15.0)
+    assert plan.cv == pytest.approx(np.std(centred, ddof=1) / 17.5)
     assert plan.n_control_samples == 2 and plan.n_samples == 3
 
 
 def test_upper_bound_uses_all_cells_minus_one_degrees_of_freedom():
     plan = _plan(*_two_dishes())
     assert plan.cv_upper_95 == pytest.approx(plan.cv * sd_upper_bound_factor(19))
+
+
+def test_datas1_visible_inputs_recalculate_differently_from_cached_reported_result():
+    # Supplementary Data S1 ships with cached result cells matching the paper's
+    # reported 17.8% / 26.0% example, but its visible 10 control and 10 treated
+    # values recalculate to 20.3808% / 29.7676%. Keep this discrepancy explicit
+    # so a future refactor does not silently "validate" against stale cache data.
+    control = np.array(
+        [
+            19.162246666666665,
+            27.77174888888889,
+            26.188026666666666,
+            19.359966666666665,
+            25.781626666666668,
+            22.64094,
+            20.364784444444446,
+            16.210504444444446,
+            20.26476,
+            17.732388888888888,
+        ]
+    )
+    treated = np.array(
+        [
+            35.442235555555555,
+            21.09789111111111,
+            30.06036222222222,
+            25.09115111111111,
+            17.61352,
+            27.524764444444443,
+            28.43596888888889,
+            25.922217777777778,
+            28.28141111111111,
+            21.952986666666664,
+        ]
+    )
+    objects, fovs = _pilot(
+        [
+            ("control", "dish1", control),
+            ("drug", "dish2", treated),
+        ]
+    )
+    plan = _plan(objects, fovs, target_cv=0.025, sd_estimate="upper_95")
+    assert plan.control_mean == pytest.approx(21.547699333333334)
+    assert plan.cv == pytest.approx(0.20380765852997446)
+    assert plan.cv_upper_95 == pytest.approx(0.2976756852727519)
+    assert plan.required_objects == 142
+
+    point = _plan(objects, fovs, target_cv=0.025, sd_estimate="point")
+    assert point.required_objects == 67
 
 
 @pytest.mark.parametrize(
