@@ -514,3 +514,47 @@ def test_partly_judged_samples_are_named_in_the_protocol():
     )
     assert result.table["partly_judged"].tolist() == [1]
     assert "1 judged on only some of the hold-outs" in result.summary()
+
+
+def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
+    from morphocoverage.strategies.rare_planning import fovs_to_detect
+
+    built = SCENARIOS["rare_clustered"]()
+    novelty = SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3)
+    report = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[],
+        objective=POPULATION,
+        orders=[AcquisitionOrder.permuted(0)],
+        novelty=novelty,
+        few_fovs=3,
+    )
+    row = report.next_fov.iloc[0]
+    assert row["few_state_incidence"] == pytest.approx(2 / 40)
+    assert 0 < row["few_state_incidence_low"] < 0.05 < row["few_state_incidence_high"] < 0.2
+    assert row["fovs_to_see_again"] == fovs_to_detect(0.05, 0.95, 1) == 59
+    assert row["fovs_to_see_again_low_end"] == fovs_to_detect(
+        row["few_state_incidence_low"], 0.95, 1
+    )
+    text = report.summary()
+    assert "Planning for such a state: seen in 5% of FOVs (95% interval" in text
+    assert "image about 59 independent representative FOVs at the observed incidence" in text
+    assert "Fields that cluster the state need more." in text
+
+
+def test_the_unseen_state_bound_is_divided_by_the_controls_detection_rate():
+    controls, sufficiency = _weak_control_report()
+    detection = float(controls.pooled.set_index("candidate")["rate"]["positive"])
+    bound = float(sufficiency.next_fov["unseen_state_max_frequency"].iloc[0])
+    section = microscopist_report(controls=controls, sufficiency=sufficiency).sections["enough"]
+    adjusted = min(1.0, bound / detection)
+    assert f"Adjusted for the declared control's detection rate ({100 * detection:.0f}%" in section
+    assert (
+        f"up to {100 * adjusted:.0f}% of FOVs (the {100 * bound:.0f}% bound above divided by"
+        in section
+    )
+    assert "if detection is independent between fields" in section
+    without = microscopist_report(sufficiency=sufficiency).sections["enough"]
+    assert "Adjusted for" not in without
