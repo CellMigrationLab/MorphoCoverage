@@ -1,5 +1,7 @@
 # Benchmarking strategies
 
+The questions being benchmarked are the rows marked **Benchmark** in `docs/questions.md` (R2, R3, P1, P5, P6, P10, O6); the other questions are measurements or diagnostics, reported but not ranked.
+
 MorphoCoverage is a method-comparison framework. Candidate strategies must be evaluated using common criteria that are independent of any one strategy's internal score.
 
 The proposed next-generation estimator and benchmark roadmap is documented in [`docs/proposals/candidate_estimators_roadmap.md`](proposals/candidate_estimators_roadmap.md).
