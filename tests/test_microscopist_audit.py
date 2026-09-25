@@ -284,3 +284,17 @@ def test_the_object_unit_jcb_verdict_states_its_independence_assumption():
     clause = "assumes a spatially uniform sample"
     assert clause in answers["scalar_precision_object_upper95"]
     assert clause not in answers["scalar_precision_fov_upper95"]
+
+
+def test_fields_with_observations_are_listed_when_most_fields_are_empty():
+    # 3 fields with cells among 20: the median count is 0, and nothing was listed,
+    # neither the empty fields nor the three that hold every observation.
+    from morphocoverage.retrospective import inspect_fovs
+
+    built = SCENARIOS["homogeneous"]()
+    kept = built.fovs["image_file"].iloc[:3]
+    objects = built.objects[built.objects["image_file"].isin(kept)]
+    result = inspect_fovs(objects, built.fovs, feature_cols=list(FEATURE_COLS))
+    listed = result.fovs[result.fovs["reason"] == "count"]
+    assert sorted(listed["image_file"]) == sorted(kept)
+    assert "most fields have none (the median is 0)" in result.summary()

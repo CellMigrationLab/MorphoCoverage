@@ -155,6 +155,9 @@ def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
             detail = f"no {words}; the median is {median:g}"
         elif median > 0 and (count >= ratio * median or count <= median / ratio):
             detail = f"{count} {words}; the median is {median:g}"
+        elif median == 0 and count > 0:
+            # Most fields are empty: the fields with observations are the unusual ones.
+            detail = f"{count} {words}; most fields have none (the median is 0)"
         else:
             continue
         rows.append({"position": fov, "reason": "count", "value": float(count), "detail": detail})
