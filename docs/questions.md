@@ -94,7 +94,8 @@ holds only if fields behave like random cells. This section measures whether
 they do, and what it costs when they do not. It is the premise of sections 1
 to 3, and the first row of the regime map: when cell-number guidance is
 sufficient and when fields must be counted. All of it is retrospective and
-lives in `morphocoverage.sampling_unit`.
+lives in `morphocoverage.sampling_unit`. The results on the committed data,
+in plain language, are in `docs/cells_or_fields.md`.
 
 | # | Question | Answered by | Status |
 |---|---|---|---|
