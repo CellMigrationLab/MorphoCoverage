@@ -611,3 +611,100 @@ fields of the MOCK wells of plates 1A and 2A, 48 acquisitions):
 - **One grid per family**, fixed in advance; a finer grid could move a chosen
   setting by one step.
 
+
+## 9. Cells or fields, each paper's own procedure (2026-09-25)
+
+**Question.** Entry 1 compared errors. This entry runs each reference
+paper's own procedure, from the papers themselves, twice: once with cells
+drawn at random from the well, as the paper does, and once with the same
+number of cells obtained by imaging whole fields in random order, as a
+microscope does. Both papers state the assumption being tested. Zweifach
+(JCB 2024) "further assume[s] that samples are spatially uniform". Marcotti
+et al. (JCS 2026) assume "this small number of cells is representative of the
+broader population", and call that "likely a reasonable assumption" for
+cultured cells.
+
+**Method** (`data/crick_idr/cells_vs_fields.py`, committed tables, seed 0).
+
+- The committed idr0139 tables reproduce JCS Table 1 exactly: wells J05, E22,
+  L08 and O02, with the same cell counts, means, medians and SDs.
+- **JCB.** Values are normalized to the negative-control mean, as the paper
+  does. For each well, `n = ceil((SD / target)^2)` at 5% and 2.5%. Then random
+  whole fields are imaged until at least `n` cells, 4000 times, and the SD of
+  that average is the real averaging error. The JCB formula with the field as
+  the unit (SD of field means, point and upper-95 as the paper's calculator
+  gives) says how many fields would meet the target.
+- **JCS Fig. 2A.** For `n` from 10 to 500 cells, 100 samples of `n` cells;
+  max − min of the IQR, median, SD and mean. Field samples take fields in
+  random order until `n` cells, with a random part of the last field. The
+  comparison is made at the paper's threshold: 250 cells for idr0139 (Fig. 2)
+  and 200 for idr0028 (Fig. S2).
+- Draws come from the imaged fields only: 4 per idr0139 well and 28 per
+  idr0028 well. Field errors are therefore, if anything, optimistic.
+
+JCB, medians over wells (tables: `results/cells_vs_fields_jcb.csv`):
+
+| | idr0139, 10 wells | idr0028, 12 wells |
+|---|---|---|
+| cell SD, % of the control mean | 25.8% | 6.6% |
+| JCB cells at 5% / 2.5% | 28 / 107 | 2 / 8 |
+| fields that holds | 1 | 1 |
+| error predicted by `SD / sqrt(n)` for the cells obtained | 1.5% | 1.4% |
+| real error of that average | 3.1% (1.2–6.1%) | 1.8% (1.3–2.5%) |
+| real / predicted | 2.2 (0.7–3.9) | 1.4 (0.9–1.8) |
+| wells missing 5% | 2 of 10 | 0 of 12 |
+| wells missing 2.5% | 8 of 10 | 0 of 12 |
+| JCB per field at 2.5%, point / upper-95 | 2 / 30 fields | 1 / 2 fields |
+
+JCS Fig. 2A at the paper's threshold, whole-field spread divided by
+random-cell spread, medians over wells (`results/cells_vs_fields_jcs.csv`):
+
+| descriptor | idr0139, 250 cells | idr0028, 200 cells | idr0028: cells that fields need for the same spread |
+|---|---|---|---|
+| mean | 1.6 | 1.4 | 350 |
+| median | 2.0 | 1.3 | 305 |
+| IQR | 1.4 | 1.1 | 265 |
+| SD | 0.8 | 1.0 | 250 |
+
+On idr0139, fields reached the 250-cell spread of the mean within 500 cells
+in only 5 of 10 wells.
+
+**What this shows**
+
+- **Both papers are right under their assumption, and the assumption does not
+  hold for fields.** The same number of cells gives a less precise average
+  when it comes as whole fields. The real error is 2.2 times the JCB
+  prediction on idr0139 and 1.4 times on idr0028. This agrees with entry 1 on
+  the complete plates.
+- **Whether that matters depends on the readout.** On idr0028 the YAP/TAZ
+  ratio varies little between cells, so one field (about 30 cells) already
+  meets both targets. The cell rule is sufficient there, and the field
+  effect has no consequence. On idr0139 one field meets 5% in 8 of 10 wells
+  but 2.5% in only 2 of 10. The cell rule then says "done" after one field
+  when the paired-design target is missed.
+- **The JCB formula still works when the field is the unit.** With the SD of
+  field means, it asks for about 2 fields at 2.5% on idr0139, which matches
+  the real error. With 4 fields, however, that SD is so uncertain that the
+  upper-95 bound the paper recommends for small pilots asks for 30 fields.
+  A 4-field pilot cannot say how many fields are needed.
+- **The JCS stabilization depends on how the cells arrive.** Location
+  descriptors (mean, median) vary more between field samples than between
+  random-cell samples. Spread descriptors (SD, IQR) barely do. On idr0028,
+  fields need about 250–350 cells to be as stable as 200 random cells. The
+  paper's threshold, read as a cell count, therefore carries over only with
+  a margin, and the margin is largest for the mean.
+- **The papers' conclusions are not affected.** The leptomycin B effect is
+  far larger than these errors (entry 1).
+
+**What this does not show**
+
+- **Only the committed wells**: 10 wells on one idr0139 plate and 12 on
+  idr0028. Entry 1 has the complete plates for the JCB error.
+- **4 fields per idr0139 well** limit every field estimate. A well has more
+  positions than were imaged, so the real field error is likely larger.
+- **The JCS max − min statistic is itself noisy.** It is the paper's
+  statistic and is kept for faithfulness. The "cells needed to match" uses
+  the first `n` from which the field curve stays at or below the reference.
+- **The earlier benchmark (entry 8) is a different test.** It scores a rule
+  against a tolerance on the realized error in held-back fields and sweeps
+  thresholds. The paper's own 5% and 2.5% targets are tested here.

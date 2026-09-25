@@ -1,0 +1,30 @@
+Cells or fields: each paper's own procedure, random cells against whole fields
+
+== idr0139 (Fascin_Ratio; control Untreated) ==
+
+JCB: n = ceil((cell SD / target)^2); averaging error when n cells come as
+whole random fields (random cells give the target by construction).
+  cell SD median 25.8% of the control mean. For the cells one draw really holds, SD / sqrt(n) predicts 1.5%; the real error is 3.1%, 2.2 times the prediction (range 0.7-3.9).
+  target 5.0%: median 28 cells (range 19-35), about 1.0 fields; real error median 3.1% (range 1.2-6.1); 2 of 10 wells miss the target; JCB per field asks 1 fields (upper-95 8) of 4 imaged.
+  target 2.5%: median 107 cells (range 74-140), about 1.0 fields; real error median 3.1% (range 1.2-6.1); 8 of 10 wells miss the target; JCB per field asks 2 fields (upper-95 30) of 4 imaged.
+
+JCS Fig. 2A: max - min over 100 samples of 250 cells (the paper's threshold).
+  IQR: whole fields spread 1.4 times random cells (range 0.7-1.7); fields matched the 250-cell spread in 7 of 10 wells, at a median of 330 cells (up to 500 cells tried).
+  median: whole fields spread 2.0 times random cells (range 0.6-2.9); fields matched the 250-cell spread in 4 of 10 wells, at a median of 230 cells (up to 500 cells tried).
+  SD: whole fields spread 0.8 times random cells (range 0.6-1.8); fields matched the 250-cell spread in 8 of 10 wells, at a median of 210 cells (up to 500 cells tried).
+  mean: whole fields spread 1.6 times random cells (range 0.7-2.3); fields matched the 250-cell spread in 5 of 10 wells, at a median of 220 cells (up to 500 cells tried).
+
+== idr0028 (YAPTAZ_Ratio; control MOCK) ==
+
+JCB: n = ceil((cell SD / target)^2); averaging error when n cells come as
+whole random fields (random cells give the target by construction).
+  cell SD median 6.6% of the control mean. For the cells one draw really holds, SD / sqrt(n) predicts 1.4%; the real error is 1.8%, 1.4 times the prediction (range 0.9-1.8).
+  target 5.0%: median 2 cells (range 2-3), about 1.0 fields; real error median 1.8% (range 1.3-2.5); 0 of 12 wells miss the target; JCB per field asks 1 fields (upper-95 1) of 28 imaged.
+  target 2.5%: median 8 cells (range 6-10), about 1.0 fields; real error median 1.9% (range 1.3-2.5); 0 of 12 wells miss the target; JCB per field asks 1 fields (upper-95 2) of 28 imaged.
+
+JCS Fig. 2A: max - min over 100 samples of 200 cells (the paper's threshold).
+  IQR: whole fields spread 1.1 times random cells (range 0.6-1.4); fields matched the 200-cell spread in 12 of 12 wells, at a median of 265 cells (up to 500 cells tried).
+  median: whole fields spread 1.3 times random cells (range 0.9-1.7); fields matched the 200-cell spread in 12 of 12 wells, at a median of 305 cells (up to 500 cells tried).
+  SD: whole fields spread 1.0 times random cells (range 0.8-1.5); fields matched the 200-cell spread in 12 of 12 wells, at a median of 250 cells (up to 500 cells tried).
+  mean: whole fields spread 1.4 times random cells (range 0.8-1.9); fields matched the 200-cell spread in 12 of 12 wells, at a median of 350 cells (up to 500 cells tried).
+
