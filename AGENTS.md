@@ -215,6 +215,10 @@ src/morphocoverage/
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
         clustering.py      # unusual (out-of-distribution) objects; state clustering by FOV
+    workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
+        setup.py           # Setup: every scientific choice of the workflows, declared once
+        retrospective.py   # report, optimise, benchmark: the analyses in question order
+        live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines

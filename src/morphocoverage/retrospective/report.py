@@ -31,6 +31,7 @@ be needed, the report says so (roadmap Step 9, not implemented).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -92,10 +93,17 @@ class MicroscopistReport:
     notes: tuple[str, ...] = ()
     inputs: dict[str, str] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The whole report, question by question."""
+    def summary(self, questions: Sequence[str] | None = None) -> str:
+        """The whole report, question by question, or only the ``questions`` keys given."""
+        keys = [key for key, _ in QUESTIONS]
+        if questions is not None:
+            unknown = sorted(set(questions) - set(keys))
+            if unknown:
+                raise ValueError(f"unknown report questions {unknown}; choose from {keys}")
         blocks = []
         for key, title in QUESTIONS:
+            if questions is not None and key not in questions:
+                continue
             blocks.append(f"{title}\n{self.sections[key]}")
         if self.notes:
             blocks.append("Read with care\n" + "\n".join(f"  - {note}" for note in self.notes))
