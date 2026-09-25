@@ -28,9 +28,8 @@ writes ``results/stopping_calibration_idr0028.csv`` and
 from __future__ import annotations
 
 import time
-from pathlib import Path
 
-import pandas as pd
+from idr0028_data import RATIO, RESULTS, load
 
 from morphocoverage import (
     FixedFOVStrategy,
@@ -47,9 +46,6 @@ from morphocoverage.retrospective import (
     stopping_calibration,
 )
 
-HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results"
-RATIO = "YAPTAZ_Ratio"
 CRITERIA = (
     OutcomeCriterion(RelativeMeanError(RATIO), 0.05, "lower_is_better", "the well mean within 5%"),
     OutcomeCriterion(
@@ -64,18 +60,9 @@ STRATEGIES = (
 )
 
 
-def load() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """The committed idr0028 tables with the YAP/TAZ ratio added."""
-    objects = pd.read_csv(HERE / "idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
-    fovs = pd.read_csv(HERE / "idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
-    nuclear = objects["Nuclei_Intensity_MeanIntensity_YAPTAZ"]
-    cytoplasm = objects["Cytoplasm_Intensity_MeanIntensity_YAPTAZ"]
-    return objects.assign(**{RATIO: nuclear / (nuclear + cytoplasm)}), fovs
-
-
 def main() -> None:
     """Replay, then write the calibration and adequacy tables."""
-    objects, fovs = load()
+    objects, fovs, _ = load()
     started = time.perf_counter()
     replay = replay_acquisitions(
         objects,

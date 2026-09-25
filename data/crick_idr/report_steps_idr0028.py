@@ -36,10 +36,10 @@ Usage::
 from __future__ import annotations
 
 import time
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from idr0028_data import RATIO, RESULTS, load
 
 from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
 from morphocoverage.benchmark import AcquisitionOrder
@@ -64,9 +64,6 @@ from morphocoverage.retrospective import (
 from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.transforms import Standardize
 
-HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results"
-RATIO = "YAPTAZ_Ratio"
 GROUPS = ["condition", "repeat", "well"]
 STAGE = ("stage_x_um", "stage_y_um")
 LABELS = {
@@ -74,16 +71,6 @@ LABELS = {
     "relative_mean_error:YAPTAZ_Ratio <= 0.025": "the well mean of YAP/TAZ ratio within 2.5%",
     "covariance_error:YAPTAZ_Ratio <= 0.1": "the variance of YAP/TAZ ratio within 10%",
 }
-
-
-def load() -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
-    """The committed tables with the YAP/TAZ ratio, and the 30 CellProfiler features."""
-    objects = pd.read_csv(HERE / "idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
-    fovs = pd.read_csv(HERE / "idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
-    features = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
-    nuclear = objects["Nuclei_Intensity_MeanIntensity_YAPTAZ"]
-    cytoplasm = objects["Cytoplasm_Intensity_MeanIntensity_YAPTAZ"]
-    return objects.assign(**{RATIO: nuclear / (nuclear + cytoplasm)}), fovs, features
 
 
 def _timed(label, run):

@@ -23,17 +23,12 @@ writes ``results/reliability_idr0028.csv`` and ``results/reliability_ceiling_idr
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pandas as pd
+from idr0028_data import RATIO, RESULTS, load
 
 from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import OutcomeCriterion, sampling_reliability
 
-HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results"
-RATIO = "YAPTAZ_Ratio"
 CRITERIA = (
     OutcomeCriterion(
         RelativeMeanError(RATIO),
@@ -57,18 +52,9 @@ CRITERIA = (
 FOV_COUNTS = (2, 4, 6, 8, 12, 15, 18)
 
 
-def load() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """The committed idr0028 tables with the YAP/TAZ ratio added."""
-    objects = pd.read_csv(HERE / "idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
-    fovs = pd.read_csv(HERE / "idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
-    nuclear = objects["Nuclei_Intensity_MeanIntensity_YAPTAZ"]
-    cytoplasm = objects["Cytoplasm_Intensity_MeanIntensity_YAPTAZ"]
-    return objects.assign(**{RATIO: nuclear / (nuclear + cytoplasm)}), fovs
-
-
 def main() -> None:
     """Run the curves and write the tables."""
-    objects, fovs = load()
+    objects, fovs, _ = load()
     result = sampling_reliability(
         objects,
         fovs,

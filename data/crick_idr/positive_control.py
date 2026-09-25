@@ -31,18 +31,14 @@ writes ``data/crick_idr/results/positive_control_idr0028.csv``.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
+from idr0028_data import RESULTS, blocks_table, fov_cells, load
 
-from morphocoverage import validate_input_tables
 from morphocoverage._parallel import map_units, worker_pool
 from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.transforms import Standardize
 
-HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results"
 SEED = 0
 DRAWS = 20
 FOVS_SEEN = (5, 10, 20)
@@ -55,34 +51,6 @@ DESIGN = (
     ("2A", "K16", ("N23", "J23")),
     ("2B", "P13", ("C13", "C17")),
 )
-
-
-def _load():
-    objects = pd.read_csv(HERE / "idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
-    fovs = pd.read_csv(HERE / "idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
-    features = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
-    return objects, fovs, features
-
-
-def _fov_cells(objects, fovs, plate, well, features):
-    """Feature matrix of each FOV of one well, in FOV-table order (empty FOVs included)."""
-    names = fovs.loc[(fovs["repeat"] == plate) & (fovs["well"] == well), "image_file"]
-    by_file = dict(tuple(objects.groupby("image_file")))
-    empty = np.empty((0, len(features)))
-    return [by_file[n][features].to_numpy(float) if n in by_file else empty for n in names]
-
-
-def _table(blocks, features, prefix):
-    """Validated input with one FOV per block of cells, named ``prefix0``, ``prefix1``, ..."""
-    names = [f"{prefix}{j}" for j in range(len(blocks))]
-    kept = [(name, block) for name, block in zip(names, blocks, strict=True) if len(block)]
-    # One frame for all blocks: building and concatenating a frame per block
-    # dominated the runtime of the controls.
-    objects = pd.DataFrame(np.vstack([block for _, block in kept]), columns=features)
-    objects["image_file"] = np.repeat([name for name, _ in kept], [len(b) for _, b in kept])
-    return validate_input_tables(
-        objects, fovs=pd.DataFrame({"image_file": names}), feature_cols=features
-    )
 
 
 def _spiked(host_blocks, donor_blocks, size, rng):
@@ -102,8 +70,8 @@ def _spiked(host_blocks, donor_blocks, size, rng):
 
 def _judge(seen_blocks, candidates, k, features, scale):
     """``(setting, judged new, candidates)`` for one draw; no randomness."""
-    seen = _table(seen_blocks, features, "seen")
-    tables = {key: _table(blocks, features, "new") for key, blocks in candidates.items()}
+    seen = blocks_table(seen_blocks, features, "seen")
+    tables = {key: blocks_table(blocks, features, "new") for key, blocks in candidates.items()}
     counts = []
     for fraction in EPSILON_SCALES:
         for m in CLUSTER_SIZES:
@@ -121,14 +89,14 @@ def run(n_jobs: int = -1) -> pd.DataFrame:
     the novelty checks, which draw nothing, go to ``n_jobs`` worker processes
     (every CPU by default), so the table does not depend on ``n_jobs``.
     """
-    objects, fovs, features = _load()
+    objects, fovs, features = load()
     rng = np.random.default_rng(SEED)
     scale = np.sqrt(len(features))
     tallies: dict[tuple, list[int]] = {}
     with worker_pool(n_jobs) as pool:
         for plate, host_well, donor_wells in DESIGN:
-            host = _fov_cells(objects, fovs, plate, host_well, features)
-            donors = {w: _fov_cells(objects, fovs, plate, w, features) for w in donor_wells}
+            host = fov_cells(objects, fovs, plate, host_well, features)
+            donors = {w: fov_cells(objects, fovs, plate, w, features) for w in donor_wells}
             for k in FOVS_SEEN:
                 jobs = []
                 for _ in range(DRAWS):

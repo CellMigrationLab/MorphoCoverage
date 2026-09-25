@@ -103,6 +103,8 @@ paper's Table 1: mean, median, quartiles, SD and number of cells.
 
 The scripts below run on the committed tables and write to `results/`; each
 is described in `docs/preliminary_findings.md` (entry in brackets).
+They share `idr0028_data.py`: the table loader, the YAP/TAZ ratio, the 30
+intensity features and the helpers that rebuild FOVs from blocks of cells.
 
 - `positive_control.py` (entry 2): `results/positive_control_idr0028.csv`.
 - `frequency_control.py` (entry 3): `results/frequency_control*_idr0028.csv`.
