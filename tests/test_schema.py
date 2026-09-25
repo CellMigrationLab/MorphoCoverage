@@ -218,3 +218,30 @@ def test_group_metadata_is_not_guessed_when_fov_id_is_reused():
     )
     with pytest.raises(ValueError, match="cannot attach.*condition"):
         validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+
+
+def test_the_cached_feature_matrix_is_a_fresh_copy_and_can_be_cleared():
+    objects = pd.DataFrame({"image_file": ["a", "a", "b"], "x": [1.0, 2.0, 3.0]})
+    data = validate_input_tables(
+        objects, fovs=pd.DataFrame({"image_file": ["a", "b"]}), feature_cols=["x"]
+    )
+    first = data.feature_matrix()
+    first[:] = -1.0  # a caller editing its array must not change the input
+    assert data.feature_matrix().ravel().tolist() == [1.0, 2.0, 3.0]
+    data.objects.loc[0, "x"] = 10.0  # editing the table in place
+    data.clear_cache()
+    assert data.feature_matrix().ravel().tolist() == [10.0, 2.0, 3.0]
+
+
+def test_feature_problems_are_reported_in_column_order():
+    fovs = pd.DataFrame({"image_file": ["a"]})
+    both = pd.DataFrame({"image_file": ["a"], "x": [np.inf], "label": ["s"]})
+    with pytest.raises(ValueError, match="'x' contains infinite values"):
+        validate_input_tables(both, fovs=fovs, feature_cols=["x", "label"])
+    with pytest.raises(TypeError, match="'label' must be numeric"):
+        validate_input_tables(both, fovs=fovs, feature_cols=["label", "x"])
+    missing = pd.DataFrame({"image_file": ["a", "zz"], "x": [1.0, 2.0]})
+    with pytest.raises(
+        ValueError, match=r"absent from the supplied fovs table, e.g. \[\('zz',\)\]"
+    ):
+        validate_input_tables(missing, fovs=fovs, feature_cols=["x"])
