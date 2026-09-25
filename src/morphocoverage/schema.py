@@ -43,6 +43,14 @@ _UNIT_ALIASES = {
 DEFAULT_OBSERVATION_UNIT = "object"
 
 
+_PLURALS = {"nucleus": "nuclei", "object": "objects", "fov_summary": "field summaries"}
+
+
+def unit_plural(observation_unit: str) -> str:
+    """Plural of an observation unit for sentences, e.g. ``nuclei``; ``object`` is ``objects``."""
+    return _PLURALS.get(observation_unit, f"{observation_unit}s")
+
+
 def resolve_observation_unit(unit: str | None) -> tuple[str, bool]:
     """The canonical unit and whether the caller declared it (``None`` means assumed)."""
     if unit is None:

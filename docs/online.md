@@ -38,6 +38,22 @@ results = session.add_fov(
 The session does not know how many future positions will be acquired and never
 receives their identifiers or features.
 
+## Live sources: a folder or tables in memory
+
+`morphocoverage.workflows` feeds a session from where the fields actually
+arrive ([`workflows.md`](workflows.md#online-continue-or-stop-while-the-microscope-acquires)):
+
+- `LiveFolder(folder, session).watch()` watches a folder with one object file
+  per field and an append-only manifest, `fovs.csv`. `write_fov` writes both
+  atomically for the acquisition side.
+- `LiveTables(session).update(objects, fovs)` reads the rows appended to two
+  in-memory tables since the last call, for features computed live and never
+  written to disk.
+
+In both sources, the FOV row (a manifest line, or a row of the FOV table) is
+the signal that a field is complete. Its objects are added together, through
+`add_fov`.
+
 ## What one update means
 
 One call to `add_fov` is one independently selected XY acquisition position.

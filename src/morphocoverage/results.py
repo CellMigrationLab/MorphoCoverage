@@ -9,6 +9,7 @@ from typing import Any
 
 from .evidence import Evidence
 from .objectives import ObjectiveConfig
+from .schema import unit_plural
 
 
 class Decision(str, Enum):
@@ -135,7 +136,7 @@ class StrategyResult:
             else:
                 parts.append(policy.get("name", "policy"))
         unit = self.observation_unit if self.observation_unit_declared else "observation"
-        effort = f"after {self.n_fovs} FOVs, {self.n_observations} {unit}s"
+        effort = f"after {self.n_fovs} FOVs, {self.n_observations} {unit_plural(unit)}"
         rules = "; ".join(parts) if parts else "no decision policy"
         return f"{decision}: {rules}; {effort}"
 
