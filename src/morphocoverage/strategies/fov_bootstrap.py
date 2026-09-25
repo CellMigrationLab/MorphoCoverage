@@ -88,6 +88,7 @@ smallest and largest visible block.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -139,7 +140,7 @@ def _per_fov_sums(values: np.ndarray, positions: np.ndarray, k: int) -> np.ndarr
     return sums
 
 
-def centroid_resamples(counts, sums, weights) -> np.ndarray:
+def centroid_resamples(counts: np.ndarray, sums: np.ndarray, weights: np.ndarray) -> np.ndarray:
     """Pooled mean of each resample; ``weights[b, j]`` is how often FOV ``j`` was drawn.
 
     Rows of resamples without observations are NaN.
@@ -149,7 +150,9 @@ def centroid_resamples(counts, sums, weights) -> np.ndarray:
         return (weights @ sums) / n[:, None]
 
 
-def covariance_resamples(counts, sums, outer, weights) -> np.ndarray:
+def covariance_resamples(
+    counts: np.ndarray, sums: np.ndarray, outer: np.ndarray, weights: np.ndarray
+) -> np.ndarray:
     """Pooled covariance (``ddof=1``) of each resample, flattened; NaN below 2 observations."""
     n = weights @ counts
     total, cross = weights @ sums, weights @ outer
@@ -158,7 +161,9 @@ def covariance_resamples(counts, sums, outer, weights) -> np.ndarray:
         return (cross - mean_outer / n[:, None]) / (n - 1)[:, None]
 
 
-def quantile_resamples(values, positions, weights, quantiles) -> np.ndarray:
+def quantile_resamples(
+    values: np.ndarray, positions: np.ndarray, weights: np.ndarray, quantiles: Sequence[float]
+) -> np.ndarray:
     """Per-feature quantiles of the pooled observations of each resample, flattened.
 
     ``weights[b, j]`` is how often FOV ``j`` was drawn in resample ``b``.

@@ -246,7 +246,8 @@ def sampling_reliability(
     computational settings; the curve reports how much the answer varies
     across splits. ``n_jobs`` runs the groups (their splits apart when
     groups are fewer than workers) in that many worker processes (``-1``:
-    every CPU); results are identical for every value.
+    every CPU); results are identical for every value
+    (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
     Other arguments are those of ``validate_input_tables``.
     """
     check_n_jobs(n_jobs)

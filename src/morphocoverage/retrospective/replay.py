@@ -85,30 +85,29 @@ class ReplayResult:
 
 
 class _SortedPrefixes:
-    """Prefixes as slices of observations sorted by acquisition rank, for scoring outcomes.
+    """Prefixes for scoring outcomes, without masking the whole stream every time.
 
     ``_Acquisition.prefix`` masks the whole stream for every prefix. Outcomes
     are scored on every prefix of every order, so observations are sorted once
-    by the rank of their FOV (their table order kept within each FOV) and each
-    prefix is a slice. Outcome metrics are summaries of the prefix's rows, so
-    only floating-point summation order can differ from the masked prefix.
+    by the rank of their FOV and each prefix takes the first rows of that
+    order, back in table order. The prefix is therefore the same table as the
+    masked one: outcome metrics that subsample rows by position (energy, MMD)
+    see the same rows.
     """
 
     def __init__(self, acquisition: _Acquisition) -> None:
         rank = acquisition.rank
         order = np.argsort(rank, kind="stable")
-        order = order[rank[order] >= 0]
+        self.order = order[rank[order] >= 0]
         self.data = acquisition.data
         self.ordered = acquisition.ordered
-        self.objects = acquisition.data.objects.iloc[order]
         # Number of observations in the first ``step`` FOVs.
-        self.ends = np.searchsorted(rank[order], np.arange(1, acquisition.n_fovs + 1))
+        self.ends = np.searchsorted(rank[self.order], np.arange(1, acquisition.n_fovs + 1))
 
     def prefix(self, step: int) -> ValidatedInput:
-        """The first ``step`` FOVs and their observations."""
-        return restrict_input(
-            self.data, self.objects.iloc[: self.ends[step - 1]], self.ordered.iloc[:step]
-        )
+        """The first ``step`` FOVs and their observations, in table order."""
+        rows = np.sort(self.order[: self.ends[step - 1]])
+        return restrict_input(self.data, self.data.objects.iloc[rows], self.ordered.iloc[:step])
 
 
 def default_orders(acquisition_order_col: str | None) -> list[AcquisitionOrder]:
@@ -333,7 +332,8 @@ def replay_acquisitions(
     records the stage path of every replayed order. ``n_jobs`` spreads the
     replayed acquisitions (group, split and order) over that many worker
     processes (``-1``: every CPU), each strategy apart when they are too few
-    to keep every worker busy; results are identical for every value.
+    to keep every worker busy; results are identical for every value
+    (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
     """
     check_n_jobs(n_jobs)
     strategies, criteria, orders = _check(

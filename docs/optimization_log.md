@@ -24,7 +24,7 @@ All five idr0028 scripts were run on one 4-CPU machine, one after another, at fo
 - before any optimization (`c835b0f`);
 - after round 1 (`5a463dc`, PR #28);
 - after round 2 (`ce99179`, PR #29);
-- after round 3 (this change).
+- after round 3 (`3830031`, PR #30).
 
 | Script | Before | Round 1 | Round 2 | Round 3 | Overall |
 |---|---|---|---|---|---|
@@ -106,7 +106,7 @@ Tried and rejected:
 - Vectorized `fov_positions` through a pandas MultiIndex: slower; caching replaced it.
 - A BLAS distance expansion (`|x|^2 + |y|^2 - 2xy`): slower once the exact recheck near `epsilon` is included, and without the recheck it resolved ties differently.
 
-## Round 3 (this change): parallelization
+## Round 3 (PR #30): parallelization
 
 **Finding.** OpenBLAS is multithreaded on this machine. On the small matrices of these analyses its threads mostly spin, using 4x the CPU time for no speedup: 0.45 s with one thread against 0.43 s with four, on a serial novelty benchmark. Worker processes that each inherit four BLAS threads oversubscribe the CPUs. The first parallel version of the frequency control therefore took 6m51s, against 6m57s serially. With one BLAS thread per worker it took 1m51s, with identical tables.
 
@@ -137,6 +137,27 @@ Tried and rejected (all measured):
 | `pytest-xdist --dist load` (tests spread individually) | 192 s, against 179 s for `loadfile` |
 
 Remaining cost: starting the worker server takes about 1.2 s, once per process. The old fork-based workers needed no start-up, but they inherited the caller's BLAS threads. So the short scripts are 1–3 s slower than after round 2, and the heavy controls are 3–4x faster.
+
+## Corrections from the audit that followed (2026-09-25)
+
+An audit of the three rounds, with a counterexample hunt, found these problems. Each is now fixed, with a regression test that fails on the old code:
+
+- **Replay prefix row order (round 1).** Outcome prefixes in `replay_acquisitions` came back sorted by acquisition rank instead of in table order. Metrics that subsample rows by position (`EnergyError` and `MMDError` with `max_observations`) therefore scored a different subsample than the masked prefix. None of the idr0028 scripts uses those metrics, so their tables were unaffected. Prefixes are now returned in table order.
+- **Ties at exactly `epsilon` (round 1).** The per-FOV tree path compared squared distances without the exact recheck the other paths use, so a point at exactly `epsilon` could count on one path and not another. That matters when `epsilon` is itself a data distance. All paths, and the leave-one-FOV-out count, now decide distances near `epsilon` with one definition.
+- **Cache shared by copies (round 2).** `dataclasses.replace` copied a `ValidatedInput`'s cache to the new object, so an `OnlineSession` prefix could have read the first FOV's features. No estimator did, because each one receives a fresh copy. The cache now always starts empty.
+- **"Identical for every `n_jobs`" (round 3).** Workers run BLAS with one thread, and the calling process may run it with several. A multithreaded BLAS splits long sums differently, which can change the last digit (about 1e-16 relative) of results that pass through it, such as FOV-bootstrap standard errors on large inputs. Results are bit for bit identical when BLAS is single-threaded in the calling process too, as in the test suite. The written tables, at their stated precision, are unaffected. The docstrings now say this.
+
+Also fixed:
+
+- **Memory.**
+  - The dense novelty path no longer builds an observations × FOVs matrix.
+  - The pair-index cache holds at most eight small entries.
+  - `representation_control` keeps one stratum's draws at a time.
+- **Workers.**
+  - The worker server's preload list is extended rather than replaced.
+  - A class that workers cannot import now gives a clear error.
+  - `run_benchmark` starts one worker pool for all its replays.
+  - Acquisition-order ties are found before any work is handed out.
 
 ## Limits
 

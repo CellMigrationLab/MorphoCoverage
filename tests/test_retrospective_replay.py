@@ -347,3 +347,22 @@ def test_worker_processes_give_identical_replays():
         pd.testing.assert_frame_equal(getattr(one, name), getattr(two, name))
     with pytest.raises(ValueError, match="n_jobs"):
         _replay("homogeneous", [FixedFOVStrategy(3)], n_jobs=0)
+
+
+def test_outcome_prefixes_are_the_masked_prefix_tables_in_table_order():
+    # Outcome metrics that subsample rows by position (energy, MMD) need the
+    # prefix rows in table order, exactly as the masked prefix has them.
+    from morphocoverage.retrospective.replay import _SortedPrefixes
+    from morphocoverage.sequential import _Acquisition
+
+    built = SCENARIOS["unequal_objects_per_fov"]()
+    data = validate_input_tables(
+        built.objects, fovs=built.fovs, feature_cols=list(FEATURE_COLS), group_cols=[]
+    )
+    ordered = data.fovs.iloc[np.random.default_rng(4).permutation(len(data.fovs))]
+    acquisition = _Acquisition(data, ordered)
+    prefixes = _SortedPrefixes(acquisition)
+    for step in range(1, acquisition.n_fovs + 1):
+        pd.testing.assert_frame_equal(
+            prefixes.prefix(step).objects, acquisition.prefix(step).objects
+        )

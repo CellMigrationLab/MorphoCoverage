@@ -52,7 +52,8 @@ OBSERVATION = "observation"
 
 def _dense_codes(code: np.ndarray) -> np.ndarray:
     """Codes renumbered 0..K-1 by value; returned as they are when they already are."""
-    if code.dtype.kind in "iu" and len(code) and code.min() == 0:
+    # bincount allocates max + 1 entries, so only codes that could be dense qualify.
+    if code.dtype.kind in "iu" and len(code) and code.min() == 0 and code.max() < len(code):
         present = np.bincount(code)
         if present.all():
             return code

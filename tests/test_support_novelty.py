@@ -465,3 +465,56 @@ def test_every_supporting_fov_count_path_matches_one_tree_per_fov():
         expected = reference_counts(reference, positions, queries, epsilon, m, exclude)
         got = sn._supporting_fovs(reference, positions, queries, epsilon, m, exclude)
         np.testing.assert_array_equal(got, expected)
+
+
+def test_counting_paths_agree_at_exact_ties(monkeypatch):
+    """Epsilon equal to data distances: every path applies one rule, ``<= epsilon``."""
+    from scipy.spatial import distance
+
+    from morphocoverage.strategies import support_novelty as sn
+
+    def exact(reference, positions, queries, epsilon, m, exclude):
+        within = distance.cdist(queries, reference) <= epsilon
+        supporting = np.zeros(len(queries), dtype=np.int64)
+        for fov in np.unique(positions):
+            near = within[:, positions == fov].sum(axis=1) >= m
+            if exclude is not None:
+                near &= exclude != fov
+            supporting += near
+        return supporting
+
+    paths = {
+        "dense": {"_DENSE_PAIRS": 10**12},
+        "one_tree": {"_DENSE_PAIRS": 0, "_LIST_NEIGHBOURS_UP_TO": 10**9},
+        "per_fov": {"_DENSE_PAIRS": 0, "_LIST_NEIGHBOURS_UP_TO": -1},
+    }
+    rng = np.random.default_rng(3)
+    for d in (2, 5):
+        reference = rng.normal(size=(120, d))
+        positions = rng.integers(0, 8, len(reference))
+        # Every epsilon is a distance between two observations: ties by design.
+        pairs = distance.pdist(reference)
+        for epsilon in rng.choice(pairs, 6, replace=False):
+            for m in (1, 2):
+                expected = exact(reference, positions, reference, epsilon, m, positions)
+                for settings in paths.values():
+                    for name, value in settings.items():
+                        monkeypatch.setattr(sn, name, value)
+                    got = sn._supporting_fovs(
+                        reference, positions, reference, epsilon, m, positions
+                    )
+                    np.testing.assert_array_equal(got, expected)
+                    monkeypatch.undo()
+            # The leave-one-FOV-out count without listing follows the same rule.
+            others = sn._other_fov_observations(reference, positions, epsilon)
+            assert np.array_equal(
+                others >= 1, exact(reference, positions, reference, epsilon, 1, positions) >= 1
+            )
+
+
+def test_non_finite_transformed_values_raise_on_every_path():
+    from morphocoverage.strategies import support_novelty as sn
+
+    reference = np.array([[0.0, 1.0], [np.inf, 0.0]])
+    with pytest.raises(ValueError, match="finite"):
+        sn._supporting_fovs(reference, np.array([0, 1]), reference, 1.0, 1)

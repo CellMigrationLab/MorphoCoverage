@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -87,7 +88,8 @@ class ValidatedInput:
     # hands every estimator call a fresh copy with an empty cache
     # (``evaluator._isolated_input``). Code that edits ``objects`` in place and
     # then reads the features again must call ``clear_cache`` in between.
-    _feature_cache: dict = field(default_factory=dict, compare=False, repr=False)
+    # Never passed in, so ``dataclasses.replace`` gives every copy an empty cache.
+    _feature_cache: dict = field(default_factory=dict, init=False, compare=False, repr=False)
 
     def clear_cache(self) -> None:
         """Forget the cached feature matrix and FOV positions, after editing tables in place."""
@@ -179,6 +181,14 @@ def _attach_fov_metadata(
         if fov_col not in enriched.columns or fov_col not in fovs.columns:
             continue
         mapping = fovs.loc[:, [fov_col, column]].drop_duplicates()
+        unknown = ~enriched[fov_col].isin(fovs[fov_col])
+        if unknown.any():
+            # Otherwise the join leaves NaN group values and the error names those.
+            examples = sorted(map(str, enriched.loc[unknown, fov_col].unique()))[:5]
+            raise ValueError(
+                f"observations of FOVs absent from the supplied fovs table, e.g. "
+                f"{fov_col} {examples}; every observation's FOV must be listed in fovs"
+            )
         if mapping.duplicated(fov_col).any():
             raise ValueError(
                 f"cannot attach {column!r} from the FOV table because {fov_col!r} "
@@ -410,8 +420,6 @@ def fov_table_from_observations(
     count, which makes every sampling answer optimistic. Provide the real FOV
     table whenever it exists.
     """
-    import warnings
-
     key = list(fov_key)
     columns = key + [c for c in carry if c not in key]
     missing = [c for c in columns if c not in objects.columns]

@@ -260,11 +260,11 @@ Results are in `data/crick_idr/results/reliability_idr0028.csv` and
 `reliability_ceiling_idr0028.csv`. The ceiling is how often all 18 fields
 together met the criterion.
 
-| criterion | 2 fields | 4 fields | 8 fields | 18 fields | all 18 fields (ceiling) |
-|---|---|---|---|---|---|
-| mean within 5% | 98–100% | 100% | 100% | 100% | 100% |
-| mean within 2.5% | 83–100% (median 90%) | 91–100% (98%) | 98–100% | 100% | 100% |
-| variance within 10% | 14–29% (21%) | 16–42% (26%) | 15–49% (35%) | 10–80% (40%) | 10–80% (40%) |
+| criterion | 2 fields | 4 fields | 8 fields | all 18 fields (ceiling) |
+|---|---|---|---|---|
+| mean within 5% | 98–100% | 100% | 100% | 100% |
+| mean within 2.5% | 83–100% (median 90%) | 91–100% (98%) | 98–100% | 100% |
+| variance within 10% | 14–29% (21%) | 16–42% (26%) | 15–49% (35%) | 10–80% (40%) |
 
 Each cell gives the range across the 12 wells, with the median in brackets.
 
@@ -307,7 +307,7 @@ arrive. When would the rule have stopped, and was it enough at that point,
 judged on fields the rule never saw? This is roadmap Steps 2 and 3
 (`replay_acquisitions`, `stopping_calibration`, `adequacy_points`).
 
-**Method** (`data/crick_idr/stopping_idr0028.py`, fixed seed; 45 s, 18 s on 4 CPUs after the optimizations of 2026-09-24). The data
+**Method** (`data/crick_idr/stopping_idr0028.py`, fixed seed; 45 s before the optimizations, about 20 s on 4 CPUs after them; see `docs/optimization_log.md`). The data
 are the same 12 wells and the same YAP/TAZ nuclear ratio as entry 4. Each of 5
 splits holds back 10 FOVs, the same reservoirs as the first five splits of
 entry 4. The other 18 FOVs are replayed in the recorded order and in 10 random
@@ -370,8 +370,8 @@ would a protocol need, which fields should be reopened, can these features see
 the declared siYAP phenotype, would more fields or more wells help, and could
 the same positions have been visited in a better order?
 
-**Method** (`data/crick_idr/report_steps_idr0028.py`, fixed seeds; about 35 s, 16 s after the optimizations
-after the Step 1 curves of entry 4). Every table is in `data/crick_idr/results/`,
+**Method** (`data/crick_idr/report_steps_idr0028.py`, fixed seeds; about 35 s before the optimizations and about 15 s after them,
+see `docs/optimization_log.md`; run after the Step 1 curves of entry 4). Every table is in `data/crick_idr/results/`,
 and the assembled report is `microscopist_report_idr0028.txt`. idr0028 remains a
 development dataset.
 

@@ -4,6 +4,8 @@
 
 This document is a **proposal**. It records candidate methods, benchmark requirements, and an implementation order for discussion. It does not select a default estimator and does not imply that every listed method should be implemented.
 
+**Implemented so far (2026-09-25):** fixed evaluation reservoirs and `reference_error_floor` (0.2, `morphocoverage.reservoir`); multivariate outcomes (0.3, `multivariate_outcomes`, `distances`); dataset roles (part of 0.6, `benchmark`); the fixed-area baseline (0.5, 5.3, `FixedAreaStrategy`); the FOV bootstrap of the centroid, covariance, quantiles, PCA eigenspectrum and subspace, with a spatial block option (1.1–1.3, 1.6–1.7, 8.4, `FOVBootstrapStrategy`); epsilon support novelty (4.2, `SupportNoveltyStrategy`); Chao–Jost incidence coverage, Chao2, the Good–Turing estimate and next-FOV extrapolation on fixed labels (5.4, 5.6, 5.8, `IncidenceCoverageStrategy`); FOV-incidence planning (7.1, `FOVIncidencePlanStrategy`); beta-binomial incidence with recurrence (7.3–7.4, `RareIncidenceStrategy`); the semivariogram (8.2, `morphocoverage.spatial`). Not implemented: biological-fidelity outcomes (0.4, Phase 10), learning curves (2.2, 6.1), C2ST, kNN/adaptive/PRDC support, abundance Good–Turing, Chao1, ICE, Hill numbers, FOV embeddings, occupancy models, spatial ICC, pMoSS and Phase 11. No held-out dataset is registered.
+
 The central rule is:
 
 > **MorphoCoverage should choose sampling methods by how well they preserve scientifically relevant information in unseen data, not by how smoothly their own internal statistic appears to converge.**
@@ -271,7 +273,7 @@ Stop after a fixed number of spatial acquisition positions.
 
 ### 5.3 Fixed imaged area
 
-Proposed baseline.
+Implemented as `FixedAreaStrategy` (nominal summed area; overlapping FOVs count twice).
 
 When physical FOV area is available, stop after
 
@@ -431,7 +433,7 @@ These outcomes are retrospective and must never leak into the prospective estima
 
 #### 0.5 Fixed imaged area baseline
 
-Add when physical area is available.
+Add when physical area is available. Implemented as `FixedAreaStrategy`.
 
 #### 0.6 Benchmark protocol lock
 
@@ -780,8 +782,6 @@ Any open-set rule must declare its distance metric and resolution before held-ou
 High-dimensional fixed grids are not a generic solution: at overly fine resolution almost every observation becomes a singleton and estimated coverage collapses toward zero; at coarse resolution distinct phenotypes are merged. **Resolution sensitivity is part of the scientific result and must be benchmarked explicitly.**
 
 Classical ecology estimators then measure coverage of the declared state system under their exchangeability assumptions; they do not provide representation-independent coverage of all possible phenotype space.
-
-#### 5.2 Morphotype accumulation
 
 #### 5.2 Morphotype accumulation
 

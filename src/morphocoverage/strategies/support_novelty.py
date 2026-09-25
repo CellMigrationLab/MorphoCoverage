@@ -151,15 +151,39 @@ def _check(epsilon, min_other_fovs, min_fovs, transform) -> None:
         raise TypeError("transform must be a FeatureTransform or None (raw feature units)")
 
 
+# Relative margin around ``epsilon`` inside which a tree's distance is rechecked
+# with ``_distances``, so that every counting path applies one rule, ``<= epsilon``.
+_TIE = 1e-12
+
+
+def _distances(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Row-wise Euclidean distances: the one definition every tie is decided by."""
+    return np.linalg.norm(a - b, axis=1)
+
+
+def _ball_counts(tree: cKDTree, data: np.ndarray, queries: np.ndarray, epsilon: float):
+    """Rows of ``data`` (indexed by ``tree``) within ``epsilon`` of each query, exactly.
+
+    Counting inside a slightly smaller and a slightly larger radius needs no
+    listing; only queries whose two counts differ have a neighbour near
+    ``epsilon``, and only those are listed and rechecked with ``_distances``.
+    """
+    inner = tree.query_ball_point(queries, epsilon * (1 - _TIE), return_length=True)
+    outer = tree.query_ball_point(queries, epsilon * (1 + _TIE), return_length=True)
+    counts = np.asarray(inner, dtype=np.int64).copy()
+    for row in np.flatnonzero(inner != outer):
+        hits = np.asarray(tree.query_ball_point(queries[row], epsilon * (1 + _TIE)), dtype=int)
+        counts[row] = int(np.sum(_distances(data[hits], queries[row]) <= epsilon))
+    return counts
+
+
 def _other_fov_observations(values: np.ndarray, positions: np.ndarray, epsilon: float):
     """Observations of other FOVs within ``epsilon`` of each row, by counting queries."""
-    total = cKDTree(values).query_ball_point(values, epsilon, return_length=True)
+    total = _ball_counts(cKDTree(values), values, values, epsilon)
     same = np.empty(len(values), dtype=np.int64)
     for fov in np.unique(positions):
         rows = np.flatnonzero(positions == fov)
-        same[rows] = cKDTree(values[rows]).query_ball_point(
-            values[rows], epsilon, return_length=True
-        )
+        same[rows] = _ball_counts(cKDTree(values[rows]), values[rows], values[rows], epsilon)
     return total - same
 
 
@@ -185,12 +209,13 @@ def _supporting_fovs_per_fov(
             continue
         tree = cKDTree(members)
         if min_observations == 1:
-            nearest, _ = tree.query(queries, k=1, distance_upper_bound=epsilon * (1 + 1e-12))
-            # The bound is exclusive in cKDTree.query, so it is widened; recheck exactly.
-            near = nearest <= epsilon
+            nearest, _ = tree.query(queries, k=1, distance_upper_bound=epsilon * (1 + _TIE))
+            near = nearest <= epsilon * (1 - _TIE)
+            # A nearest neighbour close to epsilon is decided by the exact count.
+            close = ~near & np.isfinite(nearest)
+            near[close] = _ball_counts(tree, members, queries[close], epsilon) >= 1
         else:
-            counts = tree.query_ball_point(queries, epsilon, return_length=True)
-            near = counts >= min_observations
+            near = _ball_counts(tree, members, queries, epsilon) >= min_observations
         if exclude is not None:
             near &= exclude != fov
         supporting += near
@@ -206,31 +231,53 @@ _DENSE_CELLS = 4_000_000
 _DENSE_PAIRS = 20_000_000
 
 
-@functools.lru_cache(maxsize=256)
-def _upper_pairs(n: int) -> np.ndarray:
-    """All index pairs ``i < j`` of ``n`` rows, in ``pdist`` order (cached: FOV sizes repeat)."""
+# Pair indices are cached only for FOVs up to this many novel observations
+# (FOV sizes repeat); larger arrays are built when needed rather than kept.
+_CACHED_PAIRS_UP_TO = 2_000
+
+
+@functools.lru_cache(maxsize=8)
+def _cached_upper_pairs(n: int) -> np.ndarray:
     pairs = np.column_stack(np.triu_indices(n, k=1))
     pairs.flags.writeable = False
     return pairs
 
 
+def _upper_pairs(n: int) -> np.ndarray:
+    """All index pairs ``i < j`` of ``n`` rows, in ``pdist`` order."""
+    if n <= _CACHED_PAIRS_UP_TO:
+        return _cached_upper_pairs(n)
+    return np.column_stack(np.triu_indices(n, k=1))
+
+
 def _supporting_fovs_dense(
     reference, reference_positions, queries, epsilon, min_observations, exclude, n_fovs
 ):
-    """``_supporting_fovs`` by exact pairwise distances, in memory-bounded chunks."""
-    one_hot = np.zeros((len(reference), n_fovs))
-    one_hot[np.arange(len(reference)), reference_positions] = 1.0
+    """``_supporting_fovs`` by exact pairwise distances, in memory-bounded chunks.
+
+    Reference observations are sorted by FOV, so the observations within
+    ``epsilon`` of a query are counted per FOV by summing contiguous columns;
+    memory is bounded by the chunk, whatever the number of FOVs.
+    """
+    order = np.argsort(reference_positions, kind="stable")
+    sorted_reference, sorted_positions = reference[order], reference_positions[order]
+    starts = np.flatnonzero(np.r_[True, sorted_positions[1:] != sorted_positions[:-1]])
+    # Column of each FOV among the FOVs present, or -1.
+    column = np.full(n_fovs, -1)
+    column[sorted_positions[starts]] = np.arange(len(starts))
     supporting = np.zeros(len(queries), dtype=np.int64)
     chunk = max(1, _DENSE_CELLS // len(reference))
     for start in range(0, len(queries), chunk):
         block = queries[start : start + chunk]
-        within = (distance.cdist(block, reference) <= epsilon).astype(float)
-        counts = within @ one_hot  # observations within epsilon, per query and FOV
+        within = (distance.cdist(block, sorted_reference) <= epsilon).astype(np.int32)
+        counts = np.add.reduceat(within, starts, axis=1)  # per query and FOV
         near = counts >= min_observations
         if exclude is not None:
             own = exclude[start : start + len(block)]
             inside = (own >= 0) & (own < n_fovs)
-            near[np.flatnonzero(inside), own[inside]] = False
+            rows, columns = np.flatnonzero(inside), column[own[inside]]
+            present = columns >= 0
+            near[rows[present], columns[present]] = False
         supporting[start : start + len(block)] = near.sum(axis=1)
     return supporting
 
@@ -248,15 +295,20 @@ def _supporting_fovs(
     One count per query row. ``exclude[i]`` is a reference FOV that must not
     count for query row ``i`` (its own FOV), or ``None``.
 
-    One tree over all reference observations answers every query, and the
-    neighbours are then counted per reference FOV. (A tree per reference FOV
-    made leave-one-FOV-out quadratic in the number of FOVs.) Distances are
-    ``<= epsilon``: the search radius is widened for rounding and every
-    candidate is rechecked exactly.
+    The fastest exact method is chosen: pairwise distances for small problems
+    or eight or more dimensions (trees do not prune there); otherwise one tree
+    over all reference observations with its neighbours counted per FOV; or a
+    tree per reference FOV when neighbourhoods are dense. Distances are
+    ``<= epsilon``; tree searches are widened for rounding and candidates near
+    ``epsilon`` are rechecked with one distance definition, so the paths agree
+    except, by floating-point rounding, for points at exactly ``epsilon``.
     """
     supporting = np.zeros(len(queries), dtype=np.int64)
     if not len(queries) or not len(reference):
         return supporting
+    if not (np.isfinite(reference).all() and np.isfinite(queries).all()):
+        # Inputs are finite after validation; only a transform can produce this.
+        raise ValueError("support novelty needs finite feature values after the transform")
     n_fovs = int(reference_positions.max()) + 1
     small = len(queries) * len(reference) <= _DENSE_PAIRS
     if small or reference.shape[1] >= _BRUTE_FORCE_DIMENSIONS:
@@ -264,7 +316,7 @@ def _supporting_fovs(
             reference, reference_positions, queries, epsilon, min_observations, exclude, n_fovs
         )
     tree = cKDTree(reference)
-    radius = epsilon * (1 + 1e-12)
+    radius = epsilon * (1 + _TIE)
     # Listing neighbours pays off when they are few; in dense neighbourhoods a
     # nearest-neighbour search per reference FOV stops earlier. Counting them
     # first (in C, without listing) chooses.
@@ -282,7 +334,7 @@ def _supporting_fovs(
             continue
         rows = np.repeat(np.arange(len(block)), lengths)
         cols = np.fromiter(itertools.chain.from_iterable(hits), dtype=np.int64, count=total)
-        close = np.linalg.norm(reference[cols] - block[rows], axis=1) <= epsilon
+        close = _distances(reference[cols], block[rows]) <= epsilon
         rows, fovs = rows[close], reference_positions[cols[close]]
         if exclude is not None:
             other = fovs != exclude[start + rows]
@@ -364,12 +416,9 @@ def new_state_members(
             pairs = _upper_pairs(len(rows))
             close = distance.pdist(values[rows]) <= epsilon
         else:
-            pairs = cKDTree(values[rows]).query_pairs(epsilon * (1 + 1e-12), output_type="ndarray")
+            pairs = cKDTree(values[rows]).query_pairs(epsilon * (1 + _TIE), output_type="ndarray")
             # query_pairs uses <=, with the bound widened for rounding; recheck exactly.
-            close = (
-                np.linalg.norm(values[rows[pairs[:, 0]]] - values[rows[pairs[:, 1]]], axis=1)
-                <= epsilon
-            )
+            close = _distances(values[rows[pairs[:, 0]]], values[rows[pairs[:, 1]]]) <= epsilon
         pairs = pairs[close]
         firsts.append(rows[pairs[:, 0]])
         seconds.append(rows[pairs[:, 1]])
@@ -401,7 +450,7 @@ def _meta(name: str) -> dict[str, Any]:
 
 
 def _unavailable(kind: str, reason: str, diagnostics: dict[str, Any]) -> Evidence:
-    """Both quantities insufficient or not applicable, with the reason."""
+    """Every quantity insufficient or not applicable, with the reason."""
     make = Quantity.insufficient if kind == "insufficient" else Quantity.not_applicable
     quantities = {name: make(reason, **_meta(name)) for name in QUANTITIES}
     return Evidence(quantities, {**diagnostics, "undefined_reason": reason})
@@ -450,20 +499,20 @@ class SupportNoveltyEstimator(Estimator):
             return _unavailable("not_applicable", "missing values in the selected features", {})
         positions = fov_positions(data, data.fovs)
         diagnostics: dict[str, Any] = {"fovs_with_observations": len(np.unique(positions))}
-        values, reason = matrix, None
+        reason = None
         if self.transform is not None:
+            # Fitted on all visible FOVs for provenance and the fit check only:
+            # each leave-one-FOV-out fold refits it on the other FOVs.
             fitted = self.transform.fit(data)
             diagnostics["transform"] = fitted.provenance()
-            if fitted.fitted:
-                values = fitted.apply(data)
-            else:
+            if not fitted.fitted:
                 reason = f"the transform could not be fitted: {fitted.reason}"
         if diagnostics["fovs_with_observations"] < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
         if reason is not None:
             return _unavailable("insufficient", reason, diagnostics)
 
-        lofo = self._lofo(matrix, values, positions, tuple(data.feature_cols))
+        lofo = self._lofo(matrix, positions, tuple(data.feature_cols))
         if isinstance(lofo, str):
             return _unavailable("insufficient", lofo, diagnostics)
         novel, members = lofo
@@ -548,7 +597,7 @@ class SupportNoveltyEstimator(Estimator):
             return None
         if self.transform is not None and not self.transform.fit(data).fitted:
             return None
-        lofo = self._lofo(matrix, matrix, positions, tuple(data.feature_cols))
+        lofo = self._lofo(matrix, positions, tuple(data.feature_cols))
         if isinstance(lofo, str):
             return None
         novel, members = lofo
@@ -557,13 +606,12 @@ class SupportNoveltyEstimator(Estimator):
     def _lofo(
         self,
         matrix: np.ndarray,
-        values: np.ndarray,
         positions: np.ndarray,
         names: tuple[str, ...],
     ) -> tuple[np.ndarray, np.ndarray] | str:
         """Leave-one-FOV-out novel observations and new-state members, or why not.
 
-        Without a transform, ``values`` (the raw features) serve every fold. With
+        Without a transform, the raw features serve every fold. With
         one, each held-out FOV is judged in a geometry fitted on the other FOVs
         only, as a genuinely new FOV would be (``novel_fovs_against``): an extreme
         FOV must not widen the standardization or rotate the PCA that decides
@@ -571,8 +619,8 @@ class SupportNoveltyEstimator(Estimator):
         """
         m = self.min_novel_observations
         if self.transform is None:
-            novel = novel_observations(values, positions, self.epsilon, self.min_other_fovs, m)
-            return novel, new_state_members(values, positions, novel, self.epsilon, m)
+            novel = novel_observations(matrix, positions, self.epsilon, self.min_other_fovs, m)
+            return novel, new_state_members(matrix, positions, novel, self.epsilon, m)
         novel = np.zeros(len(matrix), dtype=bool)
         members = np.zeros(len(matrix), dtype=bool)
         for fov in np.unique(positions):

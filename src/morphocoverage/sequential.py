@@ -74,8 +74,41 @@ def evaluate_acquisition_prefixes(
     replays the groups in that many worker processes (``-1``: every CPU),
     each strategy apart when there are too few groups to keep them busy.
     Results come back in the same order and are identical for every value,
-    apart from timings.
+    apart from timings (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
     """
+    return _evaluate_prefixes(
+        objects,
+        fovs,
+        strategies=strategies,
+        feature_cols=feature_cols,
+        acquisition_order_col=acquisition_order_col,
+        objective=objective,
+        fov_col=fov_col,
+        group_cols=group_cols,
+        min_fovs=min_fovs,
+        incremental=incremental,
+        observation_unit=observation_unit,
+        n_jobs=n_jobs,
+    )
+
+
+def _evaluate_prefixes(
+    objects,
+    fovs,
+    *,
+    strategies,
+    feature_cols,
+    acquisition_order_col,
+    objective,
+    fov_col,
+    group_cols,
+    min_fovs,
+    incremental,
+    observation_unit,
+    n_jobs,
+    pool=None,
+) -> list[SequentialResult]:
+    """``evaluate_acquisition_prefixes``, optionally on running workers (``pool``)."""
     check_n_jobs(n_jobs)
     _check_order_column(fovs, acquisition_order_col, feature_cols, min_fovs)
     data = validate_input_tables(
@@ -89,15 +122,18 @@ def evaluate_acquisition_prefixes(
     strategy_list = list(strategies)
     groups = list(iter_analysis_groups(data))
     _check_min_fovs(groups, min_fovs)
+    # Ordered here, so a tie in any group raises before work is handed out.
+    ordered = [_in_acquisition_order(g, g_data, acquisition_order_col) for g, g_data in groups]
+    units = _strategy_units(strategy_list, n_jobs, len(groups))
     jobs = [
-        (part, group, group_data, acquisition_order_col, objective, min_fovs, incremental)
-        for group, group_data in groups
-        for part in _strategy_units(strategy_list, n_jobs, len(groups))
+        (part, group, group_data, order, objective, min_fovs, incremental)
+        for (group, group_data), order in zip(groups, ordered, strict=True)
+        for part in units
     ]
-    parts = iter(map_units(_replay_unit, jobs, n_jobs))
+    parts = iter(map_units(_replay_unit, jobs, n_jobs, pool))
     all_results: list[SequentialResult] = []
     for _ in groups:
-        replayed = [next(parts) for _ in _strategy_units(strategy_list, n_jobs, len(groups))]
+        replayed = [next(parts) for _ in units]
         for step, keys, result in _interleave(replayed):
             all_results.append(
                 SequentialResult(step=step, fov_key=data.fov_key, acquired_fovs=keys, result=result)
@@ -135,8 +171,8 @@ def _replay_strategies(strategies, group, acquisition, *, objective, min_fovs, i
     return list(replay(strategies, group, acquisition, objective=objective, min_fovs=min_fovs))
 
 
-def _replay_unit(strategies, group, group_data, order_col, objective, min_fovs, incremental):
-    acquisition = _Acquisition(group_data, _in_acquisition_order(group, group_data, order_col))
+def _replay_unit(strategies, group, group_data, ordered, objective, min_fovs, incremental):
+    acquisition = _Acquisition(group_data, ordered)
     return [
         (step, acquisition.keys[:step], result)
         for step, result in _replay_strategies(

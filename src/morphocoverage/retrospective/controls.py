@@ -34,7 +34,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._parallel import check_n_jobs, map_units
+from .._parallel import check_n_jobs, map_units, worker_pool
 from ..evaluator import FovSubsets, restrict_input
 from ..schema import validate_input_tables
 from ..strategies.support_novelty import SupportNoveltyEstimator
@@ -180,7 +180,8 @@ def representation_control(
     ``fovs_seen`` is how many reference FOVs are "already imaged" in each draw,
     ``draws`` how many random draws per stratum. See the module docstring.
     ``n_jobs`` runs the novelty checks of the draws in that many worker
-    processes (``-1``: every CPU); results are identical for every value.
+    processes (``-1``: every CPU); results are identical for every value
+    (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
     """
     check_n_jobs(n_jobs)
     if not isinstance(novelty, SupportNoveltyEstimator):
@@ -227,64 +228,62 @@ def representation_control(
         base_mask = ~positive_mask
     strata = data.fovs[pair_cols].drop_duplicates().to_dict("records") if pair_cols else [{}]
     subsets = FovSubsets(data)
-    judged, skipped = [], []
+    rows, skipped = [], []
     # Every random choice is made here, in stratum and draw order; only the
-    # novelty checks, which use none, are handed to worker processes.
-    jobs = []
-    for stratum in strata:
-        # One generator per stratum, so adding a plate never changes another plate's rates.
-        rng = np.random.default_rng([random_state, group_identity(stratum)])
-        inside = pd.Series(True, index=data.fovs.index)
-        for column, value in stratum.items():
-            inside &= data.fovs[column].eq(value)
-        base = np.flatnonzero((inside & base_mask).to_numpy())
-        positive = np.flatnonzero((inside & positive_mask).to_numpy())
-        label = where(stratum) if stratum else "all FOVs"
-        if len(positive) == 0 or len(base) <= fovs_seen:
-            reason = (
-                "no positive-control FOV"
-                if len(positive) == 0
-                else f"{len(base)} reference FOVs, not more than the {fovs_seen} seen"
-            )
-            skipped.append({**stratum, "stratum": label, "reason": reason})
-            continue
-        judged.append((stratum, label, len(jobs), len(jobs) + draws))
-        positive_input = subsets.take(positive)
-        donors = [data.objects.loc[subsets.positions == row] for row in positive]
-        for _ in range(draws):
-            order = rng.permutation(len(base))
-            seen = subsets.take(base[order[:fovs_seen]])
-            rest = base[order[fovs_seen:]]
-            candidates = {"positive": positive_input}
-            if control.reference is not None:
-                candidates["reference"] = subsets.take(rest)
-            if control.planted_cells is not None:
-                planted = _planted(subsets, rest, donors, control.planted_cells, rng)
-                if planted is not None:
-                    candidates["planted"] = planted
-            jobs.append((novelty, seen, candidates))
-    checked = map_units(_judge, jobs, n_jobs)
-    rows = []
-    for stratum, label, first, last in judged:
-        counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
-        for draw in checked[first:last]:
-            for kind, (new, total, not_judged) in draw.items():
-                counts[kind][0] += new
-                counts[kind][1] += total
-                counts[kind][2] += not_judged
-        for kind, (new, total, not_judged) in counts.items():
-            if total or not_judged:
-                rows.append(
-                    {
-                        **stratum,
-                        "stratum": label,
-                        "candidate": kind,
-                        "judged_new": new,
-                        "candidates": total,
-                        "not_judged": not_judged,
-                        "rate": new / total if total else None,
-                    }
+    # novelty checks, which use none, go to worker processes. One stratum's
+    # draws at a time keeps memory to one stratum.
+    with worker_pool(n_jobs) as pool:
+        for stratum in strata:
+            # One generator per stratum, so adding a plate never changes another plate's rates.
+            rng = np.random.default_rng([random_state, group_identity(stratum)])
+            inside = pd.Series(True, index=data.fovs.index)
+            for column, value in stratum.items():
+                inside &= data.fovs[column].eq(value)
+            base = np.flatnonzero((inside & base_mask).to_numpy())
+            positive = np.flatnonzero((inside & positive_mask).to_numpy())
+            label = where(stratum) if stratum else "all FOVs"
+            if len(positive) == 0 or len(base) <= fovs_seen:
+                reason = (
+                    "no positive-control FOV"
+                    if len(positive) == 0
+                    else f"{len(base)} reference FOVs, not more than the {fovs_seen} seen"
                 )
+                skipped.append({**stratum, "stratum": label, "reason": reason})
+                continue
+            positive_input = subsets.take(positive)
+            donors = [data.objects.loc[subsets.positions == row] for row in positive]
+            jobs = []
+            for _ in range(draws):
+                order = rng.permutation(len(base))
+                seen = subsets.take(base[order[:fovs_seen]])
+                rest = base[order[fovs_seen:]]
+                candidates = {"positive": positive_input}
+                if control.reference is not None:
+                    candidates["reference"] = subsets.take(rest)
+                if control.planted_cells is not None:
+                    planted = _planted(subsets, rest, donors, control.planted_cells, rng)
+                    if planted is not None:
+                        candidates["planted"] = planted
+                jobs.append((novelty, seen, candidates))
+            counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
+            for draw in map_units(_judge, jobs, n_jobs, pool):
+                for kind, (new, total, not_judged) in draw.items():
+                    counts[kind][0] += new
+                    counts[kind][1] += total
+                    counts[kind][2] += not_judged
+            for kind, (new, total, not_judged) in counts.items():
+                if total or not_judged:
+                    rows.append(
+                        {
+                            **stratum,
+                            "stratum": label,
+                            "candidate": kind,
+                            "judged_new": new,
+                            "candidates": total,
+                            "not_judged": not_judged,
+                            "rate": new / total if total else None,
+                        }
+                    )
     table = pd.DataFrame(rows, columns=[*pair_cols, *columns])
     pooled = (
         table.groupby("candidate", sort=False)[["judged_new", "candidates", "not_judged"]]
@@ -295,10 +294,10 @@ def representation_control(
         new / total if total else None
         for new, total in zip(pooled["judged_new"], pooled["candidates"], strict=True)
     ]
-    judged = set(pooled.loc[pooled["candidates"] > 0, "candidate"])
+    measured = set(pooled.loc[pooled["candidates"] > 0, "candidate"])
     # The status says what was actually measured, not what was declared.
-    status = "assessed" if {"positive", "reference"} <= judged else "positive only"
-    if "positive" not in judged:
+    status = "assessed" if {"positive", "reference"} <= measured else "positive only"
+    if "positive" not in measured:
         status = "not assessed"
     settings = {
         **settings,

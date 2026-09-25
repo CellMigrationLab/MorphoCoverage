@@ -42,13 +42,14 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._parallel import worker_pool
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
 from .reservoir import ReservoirSplit
 from .results import Decision
 from .schema import ValidatedInput, normalize_observation_unit, validate_input_tables
-from .sequential import SequentialResult, evaluate_acquisition_prefixes
+from .sequential import SequentialResult, _evaluate_prefixes
 from .strategies.base import SamplingStrategy
 
 _PERMUTED_ORDER_COL = "_benchmark_order"
@@ -403,7 +404,10 @@ def run_benchmark(
     and outcomes are scored against its held-out reservoir; effort totals
     then refer to the stream. ``n_jobs`` replays the analysis groups of each
     strategy and order in that many worker processes (``-1``: every CPU);
-    records are identical for every value, apart from the recorded latencies.
+    records are the same for every value (see ``morphocoverage._parallel`` on
+    the BLAS thread count) apart from the recorded latencies. Latencies from
+    ``n_jobs > 1`` are measured on workers sharing the CPUs, one BLAS thread
+    each, so they are not the time a live decision would take.
     """
     tuned = registry.check_tuning(tuned_on)
     dataset = registry[dataset_name]
@@ -451,36 +455,39 @@ def run_benchmark(
         }
 
     records: list[BenchmarkRecord] = []
-    for order in orders:
-        ordered_fovs, order_col = order.apply(replay_tables[1], dataset.acquisition_order_col)
-        for strategy in strategy_list:
-            replay = evaluate_acquisition_prefixes(
-                replay_tables[0],
-                ordered_fovs,
-                strategies=[strategy],
-                acquisition_order_col=order_col,
-                objective=objective,
-                min_fovs=min_fovs,
-                incremental=incremental,
-                n_jobs=n_jobs,
-                **columns,
-            )
-            histories: dict[tuple, list[SequentialResult]] = {}
-            for item in replay:
-                histories.setdefault(_group_key(item.result.group), []).append(item)
-            for key, history in histories.items():
-                records.append(
-                    _record_run(
-                        history,
-                        full_groups[key],
-                        references[key],
-                        metric_list,
-                        dataset,
-                        in_sample=dataset.name in tuned,
-                        tuned_on=tuned,
-                        order=order,
-                        incremental=incremental,
-                        **reference_fields[key],
-                    )
+    # One pool for every order and strategy, so workers start once.
+    with worker_pool(n_jobs) as pool:
+        for order in orders:
+            ordered_fovs, order_col = order.apply(replay_tables[1], dataset.acquisition_order_col)
+            for strategy in strategy_list:
+                replay = _evaluate_prefixes(
+                    replay_tables[0],
+                    ordered_fovs,
+                    strategies=[strategy],
+                    acquisition_order_col=order_col,
+                    objective=objective,
+                    min_fovs=min_fovs,
+                    incremental=incremental,
+                    n_jobs=n_jobs,
+                    pool=pool,
+                    **columns,
                 )
+                histories: dict[tuple, list[SequentialResult]] = {}
+                for item in replay:
+                    histories.setdefault(_group_key(item.result.group), []).append(item)
+                for key, history in histories.items():
+                    records.append(
+                        _record_run(
+                            history,
+                            full_groups[key],
+                            references[key],
+                            metric_list,
+                            dataset,
+                            in_sample=dataset.name in tuned,
+                            tuned_on=tuned,
+                            order=order,
+                            incremental=incremental,
+                            **reference_fields[key],
+                        )
+                    )
     return records

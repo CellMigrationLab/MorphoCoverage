@@ -40,7 +40,6 @@ def _isolated_input(data: ValidatedInput) -> ValidatedInput:
         data,
         objects=data.objects.copy(deep=True),
         fovs=data.fovs.copy(deep=True),
-        _feature_cache={},
     )
 
 
@@ -336,7 +335,8 @@ def evaluate_strategies(
 
     Every (group, strategy) pair is independent, so ``n_jobs`` runs the pairs
     in that many worker processes (``-1``: every CPU). Results come back in
-    the same order and are identical for every value, apart from timings.
+    the same order and are identical for every value, apart from timings
+    (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
     """
     check_n_jobs(n_jobs)
     strategy_list = list(strategies)
