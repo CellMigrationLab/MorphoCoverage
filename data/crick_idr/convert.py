@@ -8,13 +8,23 @@ Usage::
 
     python data/crick_idr/convert.py RAW_DIR OUT_DIR
 
-RAW_DIR must contain the LFS-resolved files, named as downloaded by ``fetch()``.
-Only the wells analysed in Marcotti et al. 2026 are kept (the same wells as
-the Crick ``data_subsets``). The output is two linked tables per dataset: one
-row per acquired field (including fields without nuclei) and one row per
-nucleus. All nuclear and cytoplasmic CellProfiler intensity measurements are
-kept, with their CellProfiler names prefixed by the compartment. Values are
+RAW_DIR must contain the LFS-resolved files, named as downloaded by ``fetch()``
+(which ``main`` calls first). Each dataset is written as two linked tables:
+one row per acquired field (including fields without nuclei,
+``*_fovs.csv.gz``) and one row per nucleus (``*_nuclei.csv.gz``), with the
+papers' readout ratio as a stored column (``YAPTAZ_Ratio``, ``Fascin_Ratio``:
+nuclear mean / (nuclear mean + cytoplasmic mean) intensity). Values are
 written with 6 significant digits.
+
+- ``idr0028_screenB`` and ``idr0139``: the wells analysed in Marcotti et al.
+  2026 (the same wells as the Crick ``data_subsets``), with every nuclear and
+  cytoplasmic CellProfiler intensity measurement, prefixed by the compartment.
+- ``idr0028_screenB_plates`` and ``idr0139_plate``: every well of the source
+  plates, with the readout ratio only, so the complete-plate analyses run
+  without the 2 GB download. To keep them small, a nucleus row holds only
+  ``repeat``, ``image_file``, ``label_id`` and the ratio; ``condition`` and
+  ``well`` are in the FOV table and are joined on ``(repeat, image_file)``
+  (idr0028 reuses file names across plates).
 
 This is a data-preparation script, not part of the package.
 """
@@ -118,17 +128,26 @@ def verify(path: Path) -> None:
         )
 
 
-def _objects(raw_dir: Path, prefix: str, image_numbers) -> pd.DataFrame:
-    """Nuclei joined one-to-one with their cytoplasm; all intensity features, prefixed."""
+def _objects(raw_dir: Path, prefix: str, image_numbers, readout: str | None) -> pd.DataFrame:
+    """Nuclei joined one-to-one with their cytoplasm; intensity features, prefixed.
+
+    Every intensity measurement, or only the mean intensity of ``readout``.
+    """
+
+    def keep(column: str) -> bool:
+        if readout is None:
+            return column.startswith("Intensity_")
+        return column == f"Intensity_MeanIntensity_{readout}"
+
     nuclei = pd.read_csv(raw_dir / f"{prefix}_Nuclei.csv")
     nuclei = nuclei[nuclei["ImageNumber"].isin(image_numbers)]
-    intensity = [c for c in nuclei.columns if c.startswith("Intensity_")]
+    intensity = [c for c in nuclei.columns if keep(c)]
     nuclei = nuclei[
         ["ImageNumber", "ObjectNumber", "Location_Center_X", "Location_Center_Y", *intensity]
     ].rename(columns={c: f"Nuclei_{c}" for c in intensity})
     cytoplasm = pd.read_csv(raw_dir / f"{prefix}_Cytoplasm.csv")
     cytoplasm = cytoplasm[cytoplasm["ImageNumber"].isin(image_numbers)]
-    intensity = [c for c in cytoplasm.columns if c.startswith("Intensity_")]
+    intensity = [c for c in cytoplasm.columns if keep(c)]
     cytoplasm = cytoplasm[["ImageNumber", "Parent_Nuclei", *intensity]].rename(
         columns={"Parent_Nuclei": "ObjectNumber", **{c: f"Cytoplasm_{c}" for c in intensity}}
     )
@@ -137,7 +156,15 @@ def _objects(raw_dir: Path, prefix: str, image_numbers) -> pd.DataFrame:
     )
 
 
-def convert_idr0028(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _with_ratio(objects: pd.DataFrame, protein: str) -> pd.DataFrame:
+    """The papers' readout: nuclear / (nuclear + cytoplasmic) mean intensity of ``protein``."""
+    nuclear = objects[f"Nuclei_Intensity_MeanIntensity_{protein}"]
+    cytoplasm = objects[f"Cytoplasm_Intensity_MeanIntensity_{protein}"]
+    return objects.assign(**{f"{protein}_Ratio": nuclear / (nuclear + cytoplasm)})
+
+
+def convert_idr0028(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The paper's wells with every intensity feature, or every well with the readout only."""
     annotation = pd.read_csv(raw_dir / "idr0028-screenB-annotation.csv")
     fov_tables, object_tables = [], []
     for plate in IDR0028_PLATES:
@@ -170,7 +197,8 @@ def convert_idr0028(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             control_type=wells["Control Type"],
             quality_control=wells["Quality Control"],
         )[["well", "condition", "control_type", "quality_control"]]
-        fovs = fovs[fovs["well"].isin(IDR0028_PAPER_WELLS[plate])]
+        if paper_wells:
+            fovs = fovs[fovs["well"].isin(IDR0028_PAPER_WELLS[plate])]
         fovs = fovs.merge(wells, on="well", how="left", validate="many_to_one")
         # Acquisition order within a well: timestamp, ties broken by field number.
         fovs = fovs.sort_values(["well", "acquisition_time_s", "field"], kind="stable")
@@ -181,7 +209,8 @@ def convert_idr0028(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         )
         images["image_file"] = images["Metadata_FileLocation"].str.rsplit("/", n=1).str[-1]
         images = images[images["image_file"].isin(fovs["image_file"])]
-        objects = _objects(raw_dir, f"idr0028_{plate}", images["ImageNumber"])
+        readout = None if paper_wells else "YAPTAZ"
+        objects = _objects(raw_dir, f"idr0028_{plate}", images["ImageNumber"], readout)
         objects = objects.merge(
             images[["ImageNumber", "image_file"]], on="ImageNumber", validate="many_to_one"
         )
@@ -201,6 +230,7 @@ def convert_idr0028(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             "Location_Center_Y": "nucleus_y_px",
         }
     )
+    objects = _with_ratio(objects, "YAPTAZ")
     fov_cols = [
         "condition",
         "repeat",
@@ -224,12 +254,14 @@ def convert_idr0028(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         "label_id",
         "nucleus_x_px",
         "nucleus_y_px",
+        "YAPTAZ_Ratio",
         *feature_cols,
     ]
     return fovs[fov_cols], objects[object_cols]
 
 
-def convert_idr0139(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def convert_idr0139(raw_dir: Path, *, paper_wells: bool) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The paper's wells with every intensity feature, or every well with the readout only."""
     annotation = pd.read_csv(raw_dir / "idr0139-screenA-annotation.csv")
     wells = annotation[annotation["Plate"] == IDR0139_PLATE].rename(columns={"Well": "well"})
     wells = wells.assign(well=wells["well"].map(normalize_well))
@@ -255,10 +287,12 @@ def convert_idr0139(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             "acquisition_order": images["Metadata_Field"],
         }
     ).merge(wells, on="well", how="left", validate="many_to_one")
-    keep = fovs["well"].isin(IDR0139_PAPER_WELLS).to_numpy()
-    fovs, images = fovs[keep], images[keep]
+    if paper_wells:
+        keep = fovs["well"].isin(IDR0139_PAPER_WELLS).to_numpy()
+        fovs, images = fovs[keep], images[keep]
 
-    objects = _objects(raw_dir, "idr0139", images["ImageNumber"])
+    readout = None if paper_wells else "Fascin"
+    objects = _objects(raw_dir, "idr0139", images["ImageNumber"], readout)
     objects = objects.merge(
         images[["ImageNumber", "FileName_DNA"]], on="ImageNumber", validate="many_to_one"
     ).rename(columns={"FileName_DNA": "image_file"})
@@ -272,6 +306,7 @@ def convert_idr0139(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             "Location_Center_Y": "nucleus_y_px",
         }
     )
+    objects = _with_ratio(objects, "Fascin")
     feature_cols = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
     fov_cols = [
         "condition",
@@ -291,18 +326,38 @@ def convert_idr0139(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         "label_id",
         "nucleus_x_px",
         "nucleus_y_px",
+        "Fascin_Ratio",
         *feature_cols,
     ]
     return fovs[fov_cols], objects[object_cols]
 
 
+OUTPUTS = {
+    "idr0028_screenB": (convert_idr0028, True),
+    "idr0139": (convert_idr0139, True),
+    "idr0028_screenB_plates": (convert_idr0028, False),
+    "idr0139_plate": (convert_idr0139, False),
+}
+# Nucleus columns kept for the complete plates (see the module docstring).
+PLATE_OBJECT_COLUMNS = ["repeat", "image_file", "label_id"]
+
+
 def main(raw_dir: Path, out_dir: Path) -> None:
     fetch(raw_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    for name, convert in (("idr0028_screenB", convert_idr0028), ("idr0139", convert_idr0139)):
-        fovs, objects = convert(raw_dir)
-        fovs.to_csv(out_dir / f"{name}_fovs.csv.gz", index=False, float_format=FLOAT_FORMAT)
-        objects.to_csv(out_dir / f"{name}_nuclei.csv.gz", index=False, float_format=FLOAT_FORMAT)
+    for name, (convert, paper_wells) in OUTPUTS.items():
+        fovs, objects = convert(raw_dir, paper_wells=paper_wells)
+        if not paper_wells:
+            ratio = [c for c in objects.columns if c.endswith("_Ratio")]
+            objects = objects[PLATE_OBJECT_COLUMNS + ratio]
+        for table, suffix in ((fovs, "fovs"), (objects, "nuclei")):
+            table.to_csv(
+                out_dir / f"{name}_{suffix}.csv.gz",
+                index=False,
+                float_format=FLOAT_FORMAT,
+                # no timestamp in the gzip header, so a rerun gives identical files
+                compression={"method": "gzip", "mtime": 0},
+            )
         print(f"{name}: {len(fovs)} fields, {len(objects)} nuclei")
 
 

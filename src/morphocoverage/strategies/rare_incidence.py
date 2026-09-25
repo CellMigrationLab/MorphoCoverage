@@ -26,7 +26,7 @@ equal, and how far apart they are depends on the prior.
 With a uniform prior (``a = b = 1``) and no detections the risk is
 ``(1 - p*) ** (k + 1)``, so the rule stops one FOV before the binomial plan of
 ``rare_planning``; unlike that plan it stops as soon as the state recurs.
-Recurrence counts positions, not cells: many labelled cells in one FOV are one
+Recurrence counts positions, not objects: many labelled objects in one FOV are one
 positive FOV.
 
 Assumptions and limits:

@@ -27,11 +27,11 @@ neither imputed nor dropped.
 
 Weighting: every metric pools observations, so each FOV counts in proportion
 to its number of observations. The estimand is the observation-level
-(cell-weighted) phenotype distribution, not that of a typical FOV: a stop
+(object-weighted) phenotype distribution, not that of a typical FOV: a stop
 that misses one sparse FOV with a different phenotype scores almost as well
-as one that includes it (1,000 cells at 0 in one FOV and 1 cell at 10 in
+as one that includes it (1,000 objects at 0 in one FOV and 1 object at 10 in
 another give a centroid error of 10/1,001 for a stop without the second FOV,
-although the FOV-weighted centroids differ by 5). This favours cell-count
+although the FOV-weighted centroids differ by 5). This favours object-count
 rules when sparse FOVs hold different biology; read these outcomes alongside
 FOV-level ones and check sensitivity to observations per FOV.
 
@@ -45,12 +45,12 @@ observations). Values against the full acquisition are therefore descriptive,
 not unbiased; a held-out reservoir (``morphocoverage.reservoir``) keeps the
 two samples disjoint. Cells within one FOV are usually correlated as well,
 and then even a disjoint reservoir of the same population gives a positive
-expected value that shrinks as FOVs are added: cells of one FOV are closer
-to each other than to cells of other FOVs, so the within-sample terms are
-too small. In a simulation with 20 cells per FOV and 30% of the variance
+expected value that shrinks as FOVs are added: objects of one FOV are closer
+to each other than to objects of other FOVs, so the within-sample terms are
+too small. In a simulation with 20 objects per FOV and 30% of the variance
 between FOVs, the null energy distance averaged 0.065 for a 3-FOV stop and
 0.027 for a 10-FOV stop against a 20-FOV reservoir, against 0.000 for
-independent cells. So these values are not zero-centred per run: compare
+independent objects. So these values are not zero-centred per run: compare
 strategies at matched FOV and observation counts, over repeated orders and
 splits, never against zero. The U-statistics can also be negative (an
 energy distance of -0.2 for a stop at 0 and 1 against a reference at 0.4
@@ -58,7 +58,7 @@ and 0.6); a negative value is sampling noise around a small discrepancy, not
 an error smaller than none. The centroid,
 covariance, quantile and Fréchet errors use plug-in estimates and are biased
 upward for small stops; compare them at matched observation counts or read
-them alongside ``RandomCellRelativeError``-style references. The quadratic
+them alongside ``RandomObjectRelativeError``-style references. The quadratic
 metrics take ``max_observations``: each sample larger than that is replaced
 by a seeded random subsample of observations (a Monte Carlo approximation of
 the same statistic, not a resampling of FOVs).
@@ -284,7 +284,7 @@ class EnergyError(_SubsampledOutcome):
 
     Unbiased only for a reference disjoint from the stop, such as a held-out
     reservoir; against the full acquisition, which contains the stop, it is
-    biased downward (module docstring). Not zero-centred when cells within a FOV
+    biased downward (module docstring). Not zero-centred when objects within a FOV
     are correlated, and can be negative: compare runs at matched effort,
     not against zero.
     """
@@ -306,7 +306,7 @@ class MMDError(_SubsampledOutcome):
 
     ``bandwidth`` is in the metric's feature units (standard deviations when
     ``standardize`` is true). Unbiased only for a reference disjoint from the
-    stop (module docstring). Not zero-centred when cells within a FOV
+    stop (module docstring). Not zero-centred when objects within a FOV
     are correlated, and can be negative: compare runs at matched effort,
     not against zero.
     """

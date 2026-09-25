@@ -209,8 +209,14 @@ def _runs(group, group_data, orders, split_settings, acquisition_order_col, stag
             yield where, stream, ordered, reservoir
 
 
-def _decide(where, group, acquisition, strategies, objective, min_fovs, incremental):
-    """``(step, row)`` of every strategy's decision after every prefix of one run."""
+def _decide(
+    where, group, acquisition, strategies, objective, min_fovs, incremental, keep_results=False
+):
+    """``(step, row)`` of every strategy's decision after every prefix of one run.
+
+    With ``keep_results`` each row also holds the ``StrategyResult`` (without
+    timings), so thresholds can be swept afterwards with ``redecide``.
+    """
     if not isinstance(acquisition, _Acquisition):
         acquisition = _Acquisition(*acquisition)
     rows = []
@@ -230,6 +236,8 @@ def _decide(where, group, acquisition, strategies, objective, min_fovs, incremen
             "fovs": step,
             "decision": decision,
         }
+        if keep_results:
+            row["result"] = result.without_timing()
         rows.append((step, row))
     return rows
 
@@ -274,6 +282,7 @@ def _replay_group(
     objective,
     min_fovs,
     incremental,
+    keep_results=False,
 ):
     """Decisions, outcomes, streams and stage paths of every run of one analysis group."""
     decisions, outcomes, streams, paths = [], [], [], []
@@ -282,7 +291,9 @@ def _replay_group(
     ):
         # One acquisition serves the decisions and the outcomes of this run.
         acquisition = _Acquisition(stream, ordered)
-        decided = _decide(where, group, acquisition, strategies, objective, min_fovs, incremental)
+        decided = _decide(
+            where, group, acquisition, strategies, objective, min_fovs, incremental, keep_results
+        )
         decisions += [row for _, row in decided]
         scored = _score(where, acquisition, reservoir, criteria, stage_cols)
         for collected, rows in zip((outcomes, streams, paths), scored, strict=True):
@@ -310,6 +321,7 @@ def replay_acquisitions(
     random_state: int = 0,
     min_fovs: int = 1,
     incremental: bool = False,
+    keep_results: bool = False,
     block_col: str | None = None,
     stage_cols: tuple[str, str] | None = None,
     stage_unit: str = "µm",
@@ -325,7 +337,9 @@ def replay_acquisitions(
     the recorded order (when ``acquisition_order_col`` is given) plus
     ``DEFAULT_PERMUTATIONS`` random orders. ``n_splits``, ``random_state``
     and ``incremental`` are computational settings; decisions are the same
-    with or without ``incremental``. Strategies are evaluated from
+    with or without ``incremental``. ``keep_results`` stores each
+    ``StrategyResult`` in a ``result`` column of the decisions, for threshold
+    sweeps (``morphocoverage.retrospective.frontier.sweep``). Strategies are evaluated from
     ``min_fovs`` FOVs on; outcomes from the first FOV. ``fovs`` lists every
     acquired FOV, including FOVs without observations. ``stage_cols`` (x, y
     columns of the FOV table, in ``stage_unit``) enables dispersed orders and
@@ -380,7 +394,7 @@ def replay_acquisitions(
     # tables are identical for every n_jobs.
     groups = list(iter_analysis_groups(data))
     settings_of_run = (orders, split_settings, acquisition_order_col, stage_cols)
-    replay_settings = (objective, min_fovs, incremental)
+    replay_settings = (objective, min_fovs, incremental, keep_results)
     decisions, outcomes, streams, paths = [], [], [], []
     if len(groups) >= check_n_jobs(n_jobs):
         jobs = [
@@ -424,7 +438,10 @@ def replay_acquisitions(
         "stage_unit": stage_unit,
     }
     return ReplayResult(
-        decisions=pd.DataFrame(decisions, columns=[*keys, *DECISION_COLUMNS]),
+        decisions=pd.DataFrame(
+            decisions,
+            columns=[*keys, *DECISION_COLUMNS, *(("result",) if keep_results else ())],
+        ),
         outcomes=pd.DataFrame(outcomes, columns=[*keys, *OUTCOME_COLUMNS]),
         streams=pd.DataFrame(streams, columns=[*keys, *STREAM_COLUMNS]),
         group_cols=tuple(keys),

@@ -23,8 +23,7 @@ Usage::
 
 from __future__ import annotations
 
-from datasets import FASCIN_RATIO, GROUPS, load_idr0139, registry
-from idr0028_data import RESULTS
+from datasets import FASCIN_RATIO, GROUPS, RESULTS, load, registry
 
 from morphocoverage import (
     FixedFOVStrategy,
@@ -59,7 +58,7 @@ def main() -> None:
     assert datasets["idr0139"].role.value == "held_out"
     # A run that claimed to be tuned on the held-out data would be refused here.
     datasets.check_tuning(["idr0028_screenB"])
-    objects, fovs, _ = load_idr0139()
+    objects, fovs = load("idr0139").tables
     RESULTS.mkdir(exist_ok=True)
 
     reliability = sampling_reliability(

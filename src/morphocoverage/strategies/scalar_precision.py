@@ -5,25 +5,25 @@ cells to average for statistical testing of microscopy experiments",
 J Cell Biol 2024;223(8):e202401074, doi:10.1083/jcb.202401074.
 
 Scope stated by the paper: one scalar property of whole cells at a single time
-point, in spatially uniform samples, with each sample's cell average treated
-as n = 1. With the between-cell SD expressed as a fraction of the mean
-(the paper's % CV), the number of cells to average is
+point, in spatially uniform samples, with each sample's object average treated
+as n = 1. With the between-object SD expressed as a fraction of the mean
+(the paper's % CV), the number of objects to average is
 
     n = ceil((SD / target) ** 2),
 
-equivalently, the averaging noise of a mean of ``n`` cells is ``SD / sqrt(n)``.
+equivalently, the averaging noise of a mean of ``n`` objects is ``SD / sqrt(n)``.
 The paper recommends a target of about 5% CV when samples are independent
 (Student's t test) and 2.5% CV for matched/paired designs whose samples share
 between-repeat variability. It reports both a point estimate and one based on
 the upper bound of the 95% confidence interval for SD, recommended when only a
-few cells are available; the upper bound is the chi-square bound with
+few objects are available; the upper bound is the chi-square bound with
 ``n - 1`` degrees of freedom, which reproduces the paper's worked example.
 
 This is the paper's **single-sample / pilot variant**: the requirement is
-estimated from the cells of one analysis group. The paper's full multi-sample
+estimated from the objects of one analysis group. The paper's full multi-sample
 procedure needs data from other analysis groups, which a strategy never sees,
-so it is a separate planning step: ``plan_cells_to_average`` and
-``PlannedCellCountStrategy`` in ``jcb_planning``.
+so it is a separate planning step: ``plan_objects_to_average`` and
+``PlannedObjectCountStrategy`` in ``jcb_planning``.
 
 ``resampling_unit="object"`` is the published criterion. ``resampling_unit="fov"``
 is a MorphoCoverage variant, not part of the paper: the same averaging noise
@@ -45,7 +45,7 @@ Estimation and decision are separate. ``ScalarPrecisionEstimator`` reports the
 averaging CV (and, with a pilot, the averaging CV the pilot projects for the
 visible effort); ``ScalarPrecisionStrategy`` applies the paper's target to it
 with a ``ThresholdPolicy``. The projected CV reaches the target exactly when
-the visible effort reaches the pilot's required number of cells
+the visible effort reaches the pilot's required number of objects
 (``required_objects``) or FOVs (``required_fovs``), so the stopping rule is the
 paper's.
 """
@@ -60,6 +60,7 @@ from typing import Any
 import numpy as np
 from scipy.stats import chi2
 
+from .. import _deprecated
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
@@ -83,21 +84,23 @@ def sd_upper_bound_factor(df: int, confidence: float = 0.95) -> float:
     return math.sqrt(df / chi2.ppf((1 - confidence) / 2, df))
 
 
-def cell_averaging_cv(values: np.ndarray) -> dict[str, float]:
-    """Between-cell CV and averaging CV of the mean, treating cells as independent."""
-    return _cell_cv_from_moments(len(values), float(np.mean(values)), float(np.std(values, ddof=1)))
+def object_averaging_cv(values: np.ndarray) -> dict[str, float]:
+    """Between-object CV and averaging CV of the mean, treating objects as independent."""
+    return _object_cv_from_moments(
+        len(values), float(np.mean(values)), float(np.std(values, ddof=1))
+    )
 
 
-def _cell_cv_from_moments(n: int, mean: float, sd: float) -> dict[str, float]:
+def _object_cv_from_moments(n: int, mean: float, sd: float) -> dict[str, float]:
     """Cell-level and averaging CVs, point and upper-95, from count, mean and SD."""
-    cv_cells = sd / mean
-    cv_cells_upper = cv_cells * sd_upper_bound_factor(n - 1)
+    cv_objects = sd / mean
+    cv_objects_upper = cv_objects * sd_upper_bound_factor(n - 1)
     return {
         "mean": mean,
-        "cv_cells": cv_cells,
-        "cv_cells_upper_95": cv_cells_upper,
-        "cv_mean": cv_cells / math.sqrt(n),
-        "cv_mean_upper_95": cv_cells_upper / math.sqrt(n),
+        "cv_objects": cv_objects,
+        "cv_objects_upper_95": cv_objects_upper,
+        "cv_mean": cv_objects / math.sqrt(n),
+        "cv_mean_upper_95": cv_objects_upper / math.sqrt(n),
     }
 
 
@@ -133,9 +136,9 @@ def fov_averaging_cv(sums: np.ndarray, counts: np.ndarray) -> dict[str, float]:
     }
 
 
-def required_objects(cv_cells: float, target_cv: float) -> int:
-    """The paper's number of cells to average: ``ceil((cv_cells / target_cv) ** 2)``."""
-    return math.ceil((cv_cells / target_cv) ** 2)
+def required_objects(cv_objects: float, target_cv: float) -> int:
+    """The paper's number of objects to average: ``ceil((cv_objects / target_cv) ** 2)``."""
+    return math.ceil((cv_objects / target_cv) ** 2)
 
 
 def required_fovs(cv_mean: float, n_fovs: int, target_cv: float) -> int:
@@ -182,7 +185,7 @@ class ScalarPrecisionEstimator(Estimator):
       for the FOV unit), from the point or upper-95 SD estimate.
     - ``pilot_projected_averaging_cv`` (only with ``pilot_fovs``): the averaging
       CV that the pilot's estimate projects for the visible effort,
-      ``cv_cells_pilot / sqrt(n_objects)`` (object unit) or
+      ``cv_objects_pilot / sqrt(n_objects)`` (object unit) or
       ``cv_mean_pilot * sqrt(k_pilot / k)`` (FOV unit). The requirement is
       planned once from the first ``pilot_fovs`` FOVs by ``order_col`` and then
       held fixed, as in the paper's pilot procedure.
@@ -243,13 +246,13 @@ class ScalarPrecisionEstimator(Estimator):
             sums,
             counts,
             has_negative=bool((values < 0).any()),
-            cells=lambda: cell_averaging_cv(values),
+            cells=lambda: object_averaging_cv(values),
         )
 
     def _precision_from(
         self, sums: np.ndarray, counts: np.ndarray, *, has_negative: bool, cells
     ) -> dict[str, Any] | tuple[str, str]:
-        """The estimate from per-FOV sums and counts; ``cells()`` gives the cell-level CVs."""
+        """The estimate from per-FOV sums and counts; ``objects()`` gives the object-level CVs."""
         if np.isnan(sums).any():
             return "not_applicable", "missing values in the selected scalar feature"
         n_objects = int(counts.sum())
@@ -267,15 +270,15 @@ class ScalarPrecisionEstimator(Estimator):
                 "non-positive mean; CV is only defined for positive-valued measurements"
             )
 
-        cell_cvs = cells() if n_objects >= 2 else None
+        object_cvs = cells() if n_objects >= 2 else None
         if self.resampling_unit == "object":
-            estimate: dict[str, Any] = dict(cell_cvs)
+            estimate: dict[str, Any] = dict(object_cvs)
         else:
             estimate = fov_averaging_cv(sums, counts)
-            if cell_cvs is not None and cell_cvs["cv_mean"] > 0:
-                # Variance inflation from treating FOVs, not cells, as the sampling unit.
-                estimate["design_effect"] = (estimate["cv_mean"] / cell_cvs["cv_mean"]) ** 2
-        if cell_cvs is not None and cell_cvs["cv_cells"] > _MAX_TRUSTED_CV:
+            if object_cvs is not None and object_cvs["cv_mean"] > 0:
+                # Variance inflation from treating FOVs, not objects, as the sampling unit.
+                estimate["design_effect"] = (estimate["cv_mean"] / object_cvs["cv_mean"]) ** 2
+        if object_cvs is not None and object_cvs["cv_objects"] > _MAX_TRUSTED_CV:
             estimate["warning"] = (
                 "between-cell SD exceeds 50% CV; the paper advises acquiring more data "
                 "and repeating the estimate"
@@ -292,7 +295,7 @@ class ScalarPrecisionEstimator(Estimator):
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
     def _unit_reason(self, data: ValidatedInput) -> str | None:
-        """The published criterion averages cells; the FOV-unit variant any observation."""
+        """The published criterion averages objects; the FOV-unit variant any observation."""
         if self.resampling_unit != "object":
             return None
         return unsupported_observation_unit(
@@ -349,7 +352,7 @@ class ScalarPrecisionEstimator(Estimator):
             return _cv_quantity(None, "not_applicable", reason)
         diagnostics["pilot"] = pilot
         if self.resampling_unit == "object":
-            projected = pilot["cv_cells" + self._suffix()] / math.sqrt(n_objects)
+            projected = pilot["cv_objects" + self._suffix()] / math.sqrt(n_objects)
         else:
             projected = pilot["cv_mean" + self._suffix()] * math.sqrt(self.pilot_fovs / n_fovs)
         return _cv_quantity(projected)
@@ -399,7 +402,7 @@ class _ScalarPrecisionState(EstimatorState):
     """Per-FOV sufficient statistics; each update costs O(new objects + acquired FOVs).
 
     The estimate from these statistics equals full recomputation up to
-    floating-point rounding: the cell mean and variance are merged per FOV
+    floating-point rounding: the object mean and variance are merged per FOV
     instead of computed over all values at once.
     """
 
@@ -415,7 +418,7 @@ class _ScalarPrecisionState(EstimatorState):
         def cells():
             """Cell-level CVs from the merged moments."""
             n, mean, m2 = _merged_moments(fovs)
-            return _cell_cv_from_moments(n, mean, math.sqrt(m2 / (n - 1)))
+            return _object_cv_from_moments(n, mean, math.sqrt(m2 / (n - 1)))
 
         return self.estimator._precision_from(
             sums, counts, has_negative=any(fov.has_negative for fov in fovs), cells=cells
@@ -464,7 +467,7 @@ class ScalarPrecisionStrategy(SamplingStrategy):
     feature:
         The single scalar measurement whose mean is estimated. It must be one of
         the explicitly selected feature columns, with non-negative values and a
-        positive mean, as for the whole-cell properties (sizes, counts,
+        positive mean, as for the whole-object properties (sizes, counts,
         intensities) the criterion was designed for. Negative values make the
         criterion undefined (``decision=None``).
     target_cv:
@@ -474,12 +477,12 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         ``"object"`` (the published criterion) or ``"fov"`` (MorphoCoverage variant).
     sd_estimate:
         ``"point"`` or ``"upper_95"`` (upper bound of the 95% confidence interval,
-        which the paper recommends when few cells are available). No default.
+        which the paper recommends when few objects are available). No default.
     pilot_fovs, order_col:
         ``None`` (default) re-checks the criterion on all visible data after every
         FOV, an adaptation for sequential stopping. With ``pilot_fovs=k`` the
         requirement is planned once from the first ``k`` FOVs by ``order_col`` and
-        then held fixed, as in the paper's pilot procedure: a number of cells
+        then held fixed, as in the paper's pilot procedure: a number of objects
         (object unit) or of FOVs (fov unit).
     """
 
@@ -539,3 +542,7 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         """The paper's target applied to the running or pilot-projected averaging CV."""
         quantity = "averaging_cv" if self.pilot_fovs is None else "pilot_projected_averaging_cv"
         return (ThresholdPolicy(quantity, self.target_cv),)
+
+
+# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
+__getattr__ = _deprecated.module_getattr(__name__, globals(), ("cell_averaging_cv",))

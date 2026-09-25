@@ -29,7 +29,8 @@ from __future__ import annotations
 
 import time
 
-from idr0028_data import RATIO, RESULTS, load
+from datasets import RESULTS, load
+from datasets import YAPTAZ_RATIO as RATIO
 
 from morphocoverage import (
     FixedFOVStrategy,
@@ -62,7 +63,7 @@ STRATEGIES = (
 
 def main() -> None:
     """Replay, then write the calibration and adequacy tables."""
-    objects, fovs, _ = load()
+    objects, fovs = load("idr0028_screenB").tables
     started = time.perf_counter()
     replay = replay_acquisitions(
         objects,

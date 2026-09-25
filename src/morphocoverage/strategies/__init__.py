@@ -1,5 +1,6 @@
 """Interchangeable sampling strategies and the estimators they are built from."""
 
+from .. import _deprecated
 from .base import Estimator, EstimatorState, SamplingStrategy
 from .baselines import (
     FixedAreaStrategy,
@@ -11,10 +12,10 @@ from .baselines import (
 from .fov_bootstrap import FOVBootstrapEstimator, FOVBootstrapStrategy
 from .incidence_coverage import IncidenceCoverageEstimator, IncidenceCoverageStrategy
 from .jcb_planning import (
-    CellCountPlan,
-    PlannedCellCountEstimator,
-    PlannedCellCountStrategy,
-    plan_cells_to_average,
+    ObjectCountPlan,
+    PlannedObjectCountEstimator,
+    PlannedObjectCountStrategy,
+    plan_objects_to_average,
 )
 from .rare_incidence import RareIncidenceEstimator, RareIncidenceStrategy
 from .rare_planning import FOVIncidencePlanEstimator, FOVIncidencePlanStrategy
@@ -28,7 +29,6 @@ from .stabilization import (
 from .support_novelty import SupportNoveltyEstimator, SupportNoveltyStrategy
 
 __all__ = [
-    "CellCountPlan",
     "DescriptorPlateauEstimator",
     "DescriptorPlateauStrategy",
     "DescriptorSpreadEstimator",
@@ -46,8 +46,9 @@ __all__ = [
     "ImagedAreaEstimator",
     "IncidenceCoverageEstimator",
     "IncidenceCoverageStrategy",
-    "PlannedCellCountEstimator",
-    "PlannedCellCountStrategy",
+    "ObjectCountPlan",
+    "PlannedObjectCountEstimator",
+    "PlannedObjectCountStrategy",
     "RareIncidenceEstimator",
     "RareIncidenceStrategy",
     "SamplingStrategy",
@@ -55,5 +56,18 @@ __all__ = [
     "ScalarPrecisionStrategy",
     "SupportNoveltyEstimator",
     "SupportNoveltyStrategy",
-    "plan_cells_to_average",
+    "plan_objects_to_average",
 ]
+
+
+# Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
+__getattr__ = _deprecated.module_getattr(
+    __name__,
+    globals(),
+    (
+        "plan_cells_to_average",
+        "CellCountPlan",
+        "PlannedCellCountEstimator",
+        "PlannedCellCountStrategy",
+    ),
+)

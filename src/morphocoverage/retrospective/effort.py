@@ -391,7 +391,7 @@ def effort_projection(
 
 
 def design_effect(result: EffortResult, stratum: str) -> float | None:
-    """How much larger the variance of a mean from whole FOVs is than from as many random cells.
+    """How much larger the variance of a mean from whole FOVs is than from as many random objects.
 
     ``(m v_fov + v_obs) / (v_fov + v_obs)`` with ``m = sum n_j^2 / N`` over the
     FOVs with observations (the cluster size that holds for unequal FOVs; the

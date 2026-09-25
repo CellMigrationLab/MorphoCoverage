@@ -40,7 +40,7 @@ Reading it:
   at least ``min_novel_observations`` similar observations (linked within
   ``epsilon``) with fewer than ``min_other_fovs`` other FOVs within
   ``epsilon``, so scattered outliers do not count. Look at
-  ``new_observations`` to see whether that is biology (a rare cell state) or
+  ``new_observations`` to see whether that is biology (a rare object state) or
   technique (clumped debris, a focus problem). Too fine a resolution calls
   almost every FOV new.
 - With few FOVs the bound stays high whatever the data look like: with no
@@ -196,7 +196,7 @@ def _final_row(result: StrategyResult, group_cols: Sequence[str]) -> dict:
             "n_observations": result.n_observations,
             "verdict": None if result.decision is None else result.decision.value,
             "undefined_reason": result.evidence.diagnostics.get("undefined_reason"),
-            # The object-unit JCB rule treats cells as independent draws; the
+            # The object-unit JCB rule treats objects as independent draws; the
             # sentence says so, since that is what makes a stop after one FOV possible.
             "assumes_spatial_uniformity": bool(
                 result.evidence.diagnostics.get("assumes_spatial_uniformity", False)
@@ -490,8 +490,8 @@ def _next_fov_tables(data, novelty, target, few_fovs=None):
         )
         row.update(_seen_in_few(novelty, group_data, few_fovs))
         rows.append(row)
-        # Only the cells of new states, so scattered outliers stay out when
-        # several similar new cells are required.
+        # Only the objects of new states, so scattered outliers stay out when
+        # several similar new objects are required.
         counted = novelty.novel_observation_flags(group_data, new_states_only=True)
         if counted is not None and counted.any():
             keep = [c for c in group_data.objects.columns if c not in features]

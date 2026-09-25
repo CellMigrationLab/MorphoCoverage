@@ -27,7 +27,7 @@ The central questions are:
 
 > Is another representative FOV likely to provide enough useful new information to justify acquiring it?
 
-The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`; new analyses should name the question they answer there.
+The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`, starting with the premise that the field, not the object, is the sampling unit (R0); new analyses should name the question they answer there.
 
 The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Feature observations such as cells, nuclei, patches, slice-level measurements, embeddings, channels and time points are nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
@@ -211,6 +211,10 @@ src/morphocoverage/
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
         _text.py           # private: shared wording and group seeding for summaries
+    sampling_unit/         # objects or fields? report questions R0 and R4 of docs/questions.md
+        variability.py     # FOV variability: variance components, design effect, unusual FOVs
+        object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
+        clustering.py      # unusual (out-of-distribution) objects; state clustering by FOV
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
@@ -233,7 +237,7 @@ tests/
     test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
     conftest.py            # one BLAS thread per test process
 
-data/crick_idr/            # real feature tables (CC BY 4.0) for tests; README gives provenance
+data/crick_idr/            # real datasets (CC BY 4.0), ready to use with datasets.load; analyses; README
 docs/                      # scientific aims, contracts, architecture, benchmarking, findings
 docs/proposals/            # design proposals and roadmaps; each Status line says what is implemented
 ```
@@ -287,7 +291,7 @@ Rules for these tests:
 - Future multi-group biological-fidelity outcomes require a **separate contract registry and contract-test module** rather than being silently added to `METRICS_UNDER_CONTRACT`. Those contracts must verify determinism, invariance to strategy identity at matched stop prefixes, preservation of the declared biological-repeat unit, no mutation of inputs, and strict retrospective-only use. Until that registry exists, multi-group outcomes remain proposal/benchmark design work rather than packaged metrics.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
-- `baseline_comparison` covers the fixed-cell, fixed-FOV, fixed-area (`FixedAreaStrategy`), JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedCellCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
+- `baseline_comparison` covers the fixed-cell, fixed-FOV, fixed-area (`FixedAreaStrategy`), JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedObjectCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
 
 A high line-coverage percentage is not a substitute for these behavior tests or for scientific validation on real acquisitions.
 

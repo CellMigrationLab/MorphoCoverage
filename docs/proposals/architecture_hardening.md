@@ -24,14 +24,15 @@ submodules and are not added to the top-level `__all__`. Differences from the
 text below:
 
 - The first two metrics are `RelativeMeanError` (the realized whole-FOV error)
-  and `RandomCellRelativeError` (the random-cell comparator from
-  `fov_vs_cells.py`). The design effect follows from their ratio across
+  and `RandomObjectRelativeError` (the random-cell comparator from
+  `fov_vs_objects.py`). The design effect follows from their ratio across
   permuted orders.
 - `RareStateDetected` is added. "Excess FOVs beyond an empirical adequacy
   point" is not implemented yet, because no adequacy definition has been
   agreed.
-- `fov_vs_cells.py` is unchanged, so its tracked results stay reproducible
-  without the 2 GB download.
+- `fov_vs_objects.py` (then `fov_vs_cells.py`) was left unchanged. It now
+  reads the complete plates stored in `data/crick_idr/`, so its tracked
+  results are reproducible without the 2 GB download.
 
 **As implemented (item 5).** `morphocoverage.transforms` provides
 `FeatureTransform`, `FittedTransform`, `Standardize`, `PCA` and `Chain`, as a
@@ -156,7 +157,7 @@ be swapped, because no outcome layer exists.
   - first detection of an independently labelled state;
   - excess FOVs beyond an empirical adequacy point.
 - **The first metrics reuse existing, reviewed code.** The design-effect and
-  error calculations in `data/crick_idr/fov_vs_cells.py` become the first two.
+  error calculations in `data/crick_idr/fov_vs_objects.py` become the first two.
 
 This is also what AGENTS.md section 10, items 4–5, needs.
 
@@ -205,8 +206,8 @@ in a separate planning function:
 
 This keeps prospective replay leakage-free.
 
-**As implemented (item 7).** `plan_cells_to_average`, `CellCountPlan` and
-`PlannedCellCountStrategy` in `strategies/jcb_planning.py`, exported from
+**As implemented (item 7).** `plan_objects_to_average`, `ObjectCountPlan` and
+`PlannedObjectCountStrategy` in `strategies/jcb_planning.py`, exported from
 `morphocoverage.strategies` and, as approved by the project owner, the
 top-level `__all__`.
 Disjointness is enforced at evaluation rather than declared up front: the

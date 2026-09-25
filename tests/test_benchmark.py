@@ -29,7 +29,7 @@ from morphocoverage.benchmark import (
 )
 from morphocoverage.evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from morphocoverage.outcomes import (
-    RandomCellRelativeError,
+    RandomObjectRelativeError,
     RareStateDetected,
     RelativeMeanError,
     srs_relative_rmse,
@@ -227,7 +227,7 @@ def test_records_carry_configuration_identity_and_flatten_to_rows():
         ScalarPrecisionStrategy("feature_a", 0.05, "object", "point"),
         ScalarPrecisionStrategy("feature_a", 0.02, "object", "point"),
     ]
-    metrics = [RelativeMeanError("feature_a"), RandomCellRelativeError("feature_a")]
+    metrics = [RelativeMeanError("feature_a"), RandomObjectRelativeError("feature_a")]
     records = _run(_registry(), strategies=strategies, metrics=metrics)
     assert [r.config_id for r in records] == [s.config_id for s in strategies]
     assert records[0].strategy == records[1].strategy  # same name, distinct ids
@@ -272,7 +272,7 @@ def test_relative_mean_error_matches_hand_calculation():
 def test_relative_mean_error_is_undefined_without_objects_at_the_stop():
     full, stopped = _prefix(SCENARIOS["zero_object_fovs"](), 1)  # first FOV is empty
     assert RelativeMeanError("feature_a").evaluate(full, stopped) is None
-    assert RandomCellRelativeError("feature_a").evaluate(full, stopped) is None
+    assert RandomObjectRelativeError("feature_a").evaluate(full, stopped) is None
 
 
 def test_random_cell_error_is_the_finite_population_srs_error():
@@ -281,7 +281,7 @@ def test_random_cell_error_is_the_finite_population_srs_error():
     values = scenario.objects["feature_a"]
     n, total = len(stopped.objects), len(values)
     expected = math.sqrt(values.var() / n * (1 - n / total)) / values.mean()
-    assert RandomCellRelativeError("feature_a").evaluate(full, stopped) == pytest.approx(expected)
+    assert RandomObjectRelativeError("feature_a").evaluate(full, stopped) == pytest.approx(expected)
     assert srs_relative_rmse(values.var(), values.mean(), total, total) == 0.0
 
 
@@ -323,7 +323,7 @@ def test_outcome_features_must_be_explicit():
 
 def test_metric_config_ids_distinguish_parameters():
     assert RelativeMeanError("a").config_id != RelativeMeanError("b").config_id
-    assert RelativeMeanError("a").config_id != RandomCellRelativeError("a").config_id
+    assert RelativeMeanError("a").config_id != RandomObjectRelativeError("a").config_id
     assert RareStateDetected("x", 1).config_id != RareStateDetected("x", 2).config_id
 
 
@@ -422,7 +422,7 @@ def test_outcome_metrics_do_not_silently_drop_missing_feature_values():
     stopped = restrict_input(data, objects_in_fovs(data, fovs), fovs)
 
     assert RelativeMeanError("feature_a").evaluate(data, stopped) is None
-    assert RandomCellRelativeError("feature_a").evaluate(data, stopped) is None
+    assert RandomObjectRelativeError("feature_a").evaluate(data, stopped) is None
 
 
 def test_benchmark_completes_when_a_rule_does_not_fit_the_rows():

@@ -16,7 +16,7 @@ from morphocoverage import (
     FixedObjectStrategy,
     FixedObservationStrategy,
     ObjectiveConfig,
-    PlannedCellCountStrategy,
+    PlannedObjectCountStrategy,
     RareTarget,
     SamplingObjective,
     SamplingStrategy,
@@ -24,7 +24,7 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
     multivariate_outcomes,
     outcomes,
-    plan_cells_to_average,
+    plan_objects_to_average,
     transforms,
 )
 from morphocoverage.strategies import (
@@ -53,7 +53,7 @@ OBJECTIVES = [
 def _pilot_plan():
     """A JCB cell plan from a pilot repeat that no scenario evaluates."""
     pilot = SCENARIOS["homogeneous"]()
-    return plan_cells_to_average(
+    return plan_objects_to_average(
         pilot.objects.assign(repeat="PILOT"),
         fovs=pilot.fovs.assign(repeat="PILOT"),
         feature="feature_a",
@@ -78,7 +78,7 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
     DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL),
     DescriptorSpreadStrategy("feature_a", 0.3, "object", 20, 0),
     DescriptorSpreadStrategy("feature_a", 0.3, "fov", 20, 0),
-    PlannedCellCountStrategy(_pilot_plan()),
+    PlannedObjectCountStrategy(_pilot_plan()),
     FOVBootstrapStrategy("centroid", 0.05, transforms.Standardize(), 30, 0, 3),
     FOVBootstrapStrategy("quantiles", 0.1, None, 20, 0, 3, (0.1, 0.5, 0.9)),
     FOVBootstrapStrategy("covariance", 0.1, transforms.Standardize(), 20, 0, 3),
@@ -94,7 +94,7 @@ STRATEGIES_UNDER_CONTRACT: list[SamplingStrategy] = [
 # Every outcome metric added to the package must be added here.
 METRICS_UNDER_CONTRACT: list[outcomes.OutcomeMetric] = [
     outcomes.RelativeMeanError("feature_a"),
-    outcomes.RandomCellRelativeError("feature_a"),
+    outcomes.RandomObjectRelativeError("feature_a"),
     outcomes.RareStateDetected("true_state", 1),
     multivariate_outcomes.CentroidError(FEATURE_COLS, True),
     multivariate_outcomes.CovarianceError(FEATURE_COLS, True),

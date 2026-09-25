@@ -4,23 +4,27 @@ Roadmap Step 10. ``microscopist_report`` takes the results a user has computed
 (each analysis stays a separate, inspectable call) and orders their plain
 sentences by the questions of ``docs/proposals/microscopist_report.md``:
 
-1. Can these features detect what I care about? (``representation_control``)
-2. Did I image enough? (``sufficiency_report``, ``adequacy_points``,
+1. Can I count objects, or must I count fields? (``sampling_unit``:
+   ``fov_variability``, ``object_rule_check``, ``descriptor_spread_check``)
+2. Can these features detect what I care about? (``representation_control``)
+3. Did I image enough? (``sufficiency_report``, ``adequacy_points``,
    ``stopping_calibration``)
-3. What is limiting my sampling? (the sampling profile, below)
-4. How many fields next time? (``sampling_reliability``, ``protocol_reliability``)
-5. What did the extra fields buy? (``adequacy_points``)
-6. Which fields should I inspect? (``inspect_fovs``)
-7. More fields or more samples? (``effort_projection``)
-8. Could the same positions have been visited in a better order?
+4. What is limiting my sampling? (the sampling profile, below, and
+   ``sampling_unit.fov_clustering`` of rare or unusual objects)
+5. How many fields next time? (``sampling_reliability``, ``protocol_reliability``)
+6. What did the extra fields buy? (``adequacy_points``)
+7. Which fields should I inspect? (``inspect_fovs``)
+8. More fields or more samples? (``effort_projection``)
+9. Could the same positions have been visited in a better order?
    (``order_efficiency``, ``redundancy_distance``)
 
 A question without its analysis says "not assessed" and what it needs; nothing
 is filled in. The **sampling profile** lists only measured quantities, each
 with its numbers and its source: how well a declared control is seen, the
 design effect of whole fields, where the variance of the mean sits, the
-distance over which neighbouring fields are alike, and how many fields hold
-the new states. It describes this acquisition under these features; it is not
+distance over which neighbouring fields are alike, how many fields hold the
+new states, and whether labelled rare or unusual objects cluster in a few
+fields. It describes this acquisition under these features; it is not
 a biological conclusion. Where the sampling frame (candidate positions) would
 be needed, the report says so (roadmap Step 9, not implemented).
 """
@@ -28,6 +32,7 @@ be needed, the report says so (roadmap Step 9, not implemented).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -43,18 +48,30 @@ from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
 from .spatial import EfficiencyResult
 
+if TYPE_CHECKING:  # sampling_unit imports retrospective helpers, so it is imported late
+    from ..sampling_unit import (
+        DescriptorSpreadCheck,
+        FOVClustering,
+        FOVVariability,
+        ObjectRuleCheck,
+        UnusualObjects,
+    )
+
 QUESTIONS = (
-    ("controls", "1. Can these features detect what I care about?"),
-    ("enough", "2. Did I image enough?"),
-    ("profile", "3. What is limiting my sampling?"),
-    ("next_time", "4. How many fields should I image next time?"),
-    ("bought", "5. What did the extra fields buy?"),
-    ("inspect", "6. Which fields should I look at?"),
-    ("effort", "7. More fields or more samples?"),
-    ("order", "8. Could I have sampled more efficiently?"),
+    ("unit", "1. Can I count objects, or must I count fields?"),
+    ("controls", "2. Can these features detect what I care about?"),
+    ("enough", "3. Did I image enough?"),
+    ("profile", "4. What is limiting my sampling?"),
+    ("next_time", "5. How many fields should I image next time?"),
+    ("bought", "6. What did the extra fields buy?"),
+    ("inspect", "7. Which fields should I look at?"),
+    ("effort", "8. More fields or more samples?"),
+    ("order", "9. Could I have sampled more efficiently?"),
 )
 
 _NEEDS = {
+    "unit": "run fov_variability (and object_rule_check or descriptor_spread_check) "
+    "from morphocoverage.sampling_unit",
     "controls": "declare a positive control (and a reference) with representation_control",
     "enough": "run sufficiency_report, or adequacy_points and stopping_calibration on a replay",
     "profile": "run any of the analyses below",
@@ -136,14 +153,68 @@ def _detection_adjusted_bounds(sufficiency, controls) -> str | None:
     return "\n".join(lines) if len(lines) > 1 else None
 
 
-def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
+def _unit_rows(variability, clustering, observations: str) -> list[dict]:
+    """Profile rows from the sampling-unit checks: FOVs against random objects, clustering."""
+    rows = []
+    if variability is not None:
+        ok = variability.groups[variability.groups["status"] == "ok"]
+        if len(ok):
+            effect = ok["design_effect"]
+            where = f"median of {len(ok)} groups" if len(ok) > 1 else "1 group"
+            rows.append(
+                {
+                    "item": "fields against random objects",
+                    "where": where,
+                    "value": float(effect.median()),
+                    "statement": (
+                        f"a mean from whole fields varies {effect.median():.1f} times as much as "
+                        f"one from as many random {observations} (design effect, range "
+                        f"{effect.min():.1f}-{effect.max():.1f}); "
+                        f"{100 * ok['unusual_fov_share'].median():.0f}% of fields differ more "
+                        f"than random {observations} would (5% expected)"
+                    ),
+                    "source": "fov_variability",
+                }
+            )
+    if clustering is not None:
+        table = clustering.table
+        for state, block in table.groupby("state", sort=False):
+            seen = block[block["state_objects"] > 0]
+            if not len(seen):
+                continue
+            clustered = seen[seen["p_clustered"] <= 0.05]
+            statement = (
+                f"{clustering.state_name(state)}: clustered in a few fields (p <= 0.05) in "
+                f"{len(clustered)} of the {len(seen)} groups where it was seen"
+            )
+            if len(clustered):
+                factor = clustered["fovs_needed"] / clustered["fovs_needed_if_random"]
+                statement += (
+                    f"; there, seeing it takes about {factor.median():.1f} times the fields "
+                    f"that a count of {observations} predicts"
+                )
+            rows.append(
+                {
+                    "item": "rare-state clustering",
+                    "where": "all groups",
+                    "value": float(len(clustered)),
+                    "statement": statement,
+                    "source": "fov_clustering",
+                }
+            )
+    return rows
+
+
+def _profile(
+    controls, effort, redundancy, inspection, variability=None, clustering=None
+) -> pd.DataFrame:
     units = [
         r.settings.get("observation_unit")
-        for r in (controls, effort)
+        for r in (variability, clustering, controls, effort)
         if r is not None and r.settings.get("observation_unit")
     ]
     observations = unit_plural(units[0] if units else "object")
-    rows = []
+    rows = _unit_rows(variability, clustering, observations)
     if controls is not None and controls.status != "not assessed":
         rates = controls.pooled.set_index("candidate")["rate"]
         for kind, words in (
@@ -171,7 +242,8 @@ def _profile(controls, effort, redundancy, inspection) -> pd.DataFrame:
         }
         for stratum, block in effort.components.groupby("stratum", sort=False):
             effect = design_effect(effort, stratum)
-            if effect is not None:
+            # fov_variability, when given, states the design effect per group already
+            if effect is not None and variability is None:
                 rows.append(
                     {
                         "item": "field-to-field heterogeneity",
@@ -286,6 +358,11 @@ def microscopist_report(
     effort: EffortResult | None = None,
     efficiency: EfficiencyResult | None = None,
     redundancy: pd.DataFrame | None = None,
+    variability: FOVVariability | None = None,
+    object_rules: ObjectRuleCheck | None = None,
+    descriptor_spread: DescriptorSpreadCheck | None = None,
+    unusual: UnusualObjects | None = None,
+    clustering: FOVClustering | None = None,
     minimum_detection: float = 0.9,
 ) -> MicroscopistReport:
     """Assemble computed results into one report, question by question (see the module).
@@ -296,6 +373,14 @@ def microscopist_report(
     Below it, every adequacy section is prefixed with the detection rate, since
     a "nothing new" answer cannot exclude a phenotype the features miss.
     """
+    from ..sampling_unit import (
+        DescriptorSpreadCheck,
+        FOVClustering,
+        FOVVariability,
+        ObjectRuleCheck,
+        UnusualObjects,
+    )
+
     if isinstance(minimum_detection, bool) or not 0 < float(minimum_detection) <= 1:
         raise ValueError("minimum_detection must be a share in (0, 1]")
     for value, kind, name in (
@@ -309,9 +394,17 @@ def microscopist_report(
         (effort, EffortResult, "effort"),
         (efficiency, EfficiencyResult, "efficiency"),
         (redundancy, pd.DataFrame, "redundancy"),
+        (variability, FOVVariability, "variability"),
+        (object_rules, ObjectRuleCheck, "object_rules"),
+        (descriptor_spread, DescriptorSpreadCheck, "descriptor_spread"),
+        (unusual, UnusualObjects, "unusual"),
+        (clustering, FOVClustering, "clustering"),
     ):
         _check(value, kind, name)
     parts: dict[str, list[str]] = {key: [] for key, _ in QUESTIONS}
+    for check in (variability, object_rules, descriptor_spread):
+        if check is not None:
+            parts["unit"].append(check.summary())
     if controls is not None:
         parts["controls"].append(controls.summary())
     if sufficiency is not None:
@@ -333,13 +426,16 @@ def microscopist_report(
         parts["effort"].append(effort.summary())
     if efficiency is not None:
         parts["order"].append(efficiency.summary())
-    profile = _profile(controls, effort, redundancy, inspection)
+    profile = _profile(controls, effort, redundancy, inspection, variability, clustering)
     if len(profile):
         parts["profile"].append(
             "\n".join(
                 f"{row.statement} [{row.where}; {row.source}]" for row in profile.itertuples()
             )
         )
+    for check in (unusual, clustering):
+        if check is not None:
+            parts["profile"].append(check.summary())
     if efficiency is not None or redundancy is not None:
         parts["order"].append(
             "Whether these were the right positions needs every candidate position from an "

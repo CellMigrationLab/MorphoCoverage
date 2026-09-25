@@ -9,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-_PLURALS = {"nucleus": "nuclei", "object": "observations", "fov_summary": "field summaries"}
+_PLURALS = {"nucleus": "nuclei", "object": "objects", "fov_summary": "field summaries"}
 
 
 def percent(value: float) -> str:
@@ -28,7 +28,7 @@ def where(group: Mapping[str, Any]) -> str:
 
 
 def unit_plural(observation_unit: str) -> str:
-    """Plural of a declared observation unit, e.g. ``cells``; undeclared rows are observations."""
+    """Plural of a declared observation unit, e.g. ``nuclei``; undeclared rows are objects."""
     return _PLURALS.get(observation_unit, f"{observation_unit}s")
 
 

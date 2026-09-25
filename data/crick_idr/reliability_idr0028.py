@@ -23,7 +23,8 @@ writes ``results/reliability_idr0028.csv`` and ``results/reliability_ceiling_idr
 
 from __future__ import annotations
 
-from idr0028_data import RATIO, RESULTS, load
+from datasets import RESULTS, load
+from datasets import YAPTAZ_RATIO as RATIO
 
 from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.outcomes import RelativeMeanError
@@ -54,7 +55,7 @@ FOV_COUNTS = (2, 4, 6, 8, 12, 15, 18)
 
 def main() -> None:
     """Run the curves and write the tables."""
-    objects, fovs, _ = load()
+    objects, fovs = load("idr0028_screenB").tables
     result = sampling_reliability(
         objects,
         fovs,

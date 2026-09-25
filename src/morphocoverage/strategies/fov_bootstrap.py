@@ -2,7 +2,7 @@
 
 Roadmap Phase 1 (docs/proposals/candidate_estimators_roadmap.md): how
 uncertain is the current estimate of simple population properties when the
-FOV, not the cell, is the sampling unit? The visible FOVs are resampled with
+FOV, not the object, is the sampling unit? The visible FOVs are resampled with
 replacement (whole FOVs, including acquired FOVs with no observations), the
 chosen summary is recomputed on the pooled observations of each resample,
 and the estimator reports the bootstrap standard error of the summary's
@@ -66,19 +66,19 @@ eigenvalue among the leading ``n_components`` for the subspace, whose basis
 would be arbitrary) are genuinely undetermined. When they are more than
 ``DEGENERATE_TOLERANCE`` (5%) of the resamples the quantity is
 ``insufficient_data``, since dropping them would report certainty that the
-data do not support (two one-cell FOVs: half the resamples, and an SE of 0
+data do not support (two one-object FOVs: half the resamples, and an SE of 0
 if dropped). Below that share they are left out and counted
 (``degenerate_resamples``, ``degenerate_fraction``); this slightly understates
 the uncertainty. The rule depends on the share, a property of the data,
 not on whether one rare degenerate resample happens to be drawn, which with
-enough resamples always happens: five one-cell FOVs repeat one FOV in 0.16%
+enough resamples always happens: five one-object FOVs repeat one FOV in 0.16%
 of resamples (5 * 0.2 ** 5), so 2,000 resamples almost surely draw one.
 
 Blocks: with ``block_col`` the bootstrap resamples blocks, each with equal
 probability, and takes every FOV of a drawn block. This is the cluster
 bootstrap for blocks as the sampling units, so the random total size of a
 resample is part of its uncertainty. With blocks of very different
-occupancy (for example grid cells cut by the sample edge) that size
+occupancy (for example grid objects cut by the sample edge) that size
 variation can dominate the standard error even when the design sampled
 FOVs, not blocks: 9 FOVs at 0 in one block and 1 FOV at 10 in another give a
 centroid SE of about 4.1, against 0.95 for the FOV bootstrap. Use many

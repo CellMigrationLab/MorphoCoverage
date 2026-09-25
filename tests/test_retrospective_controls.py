@@ -41,7 +41,7 @@ def _control(objects, fovs, control, **kwargs):
 
 
 BOTH = RepresentationControl(
-    positive={"condition": "KD"}, reference={"condition": "MOCK"}, planted_cells=5
+    positive={"condition": "KD"}, reference={"condition": "MOCK"}, planted_objects=5
 )
 
 
@@ -83,7 +83,7 @@ def test_without_a_control_nothing_is_assessed():
 
 def test_declarations_are_checked():
     with pytest.raises(ValueError, match="positive and a reference"):
-        RepresentationControl(positive={"condition": "KD"}, planted_cells=3)
+        RepresentationControl(positive={"condition": "KD"}, planted_objects=3)
     with pytest.raises(ValueError, match="both a positive and a reference"):
         _control(
             *_plate(),

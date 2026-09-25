@@ -8,13 +8,13 @@ import pandas as pd
 import pytest
 
 from morphocoverage import (
-    CellCountPlan,
     Decision,
+    ObjectCountPlan,
     ObjectiveConfig,
-    PlannedCellCountStrategy,
+    PlannedObjectCountStrategy,
     SamplingObjective,
     evaluate_acquisition_prefixes,
-    plan_cells_to_average,
+    plan_objects_to_average,
     run_strategies,
 )
 from morphocoverage.strategies.scalar_precision import sd_upper_bound_factor
@@ -51,7 +51,7 @@ def _plan(objects, fovs, **kwargs):
         "control": {"condition": "control"},
     }
     settings.update(kwargs)
-    return plan_cells_to_average(objects, fovs=fovs, **settings)
+    return plan_objects_to_average(objects, fovs=fovs, **settings)
 
 
 def _two_dishes(sd=0.1778, means=(0.9, 1.1)):
@@ -187,7 +187,7 @@ def _replay(objects, fovs, strategy, **kwargs):
 def test_strategy_stops_at_the_first_fov_that_reaches_the_planned_count():
     plan = _plan(*_two_dishes(), target_cv=0.05)  # 13 cells
     objects, fovs = _evaluation()
-    results = _replay(objects, fovs, PlannedCellCountStrategy(plan))
+    results = _replay(objects, fovs, PlannedObjectCountStrategy(plan))
     decisions = [(item.result.n_objects, item.result.decision) for item in results]
     assert decisions == [
         (10, Decision.CONTINUE),
@@ -206,7 +206,7 @@ def test_groups_containing_pilot_samples_are_not_judged_on_their_own_plan():
     [result] = run_strategies(
         objects,
         fovs=fovs,
-        strategies=[PlannedCellCountStrategy(plan)],
+        strategies=[PlannedObjectCountStrategy(plan)],
         feature_cols=["area"],
         objective=POPULATION,
         group_cols=["condition"],
@@ -223,7 +223,7 @@ def test_plan_does_not_apply_when_samples_cannot_be_identified_or_rows_are_not_c
     [unidentified] = run_strategies(
         objects.drop(columns="image_file").assign(position_id=objects["image_file"]),
         fovs=fovs.drop(columns="image_file").assign(position_id=fovs["image_file"]),
-        strategies=[PlannedCellCountStrategy(plan)],
+        strategies=[PlannedObjectCountStrategy(plan)],
         feature_cols=["area"],
         objective=POPULATION,
     )
@@ -234,7 +234,7 @@ def test_plan_does_not_apply_when_samples_cannot_be_identified_or_rows_are_not_c
     [patches] = run_strategies(
         objects,
         fovs=fovs,
-        strategies=[PlannedCellCountStrategy(plan)],
+        strategies=[PlannedObjectCountStrategy(plan)],
         feature_cols=["area"],
         objective=POPULATION,
         observation_unit="patch",
@@ -248,12 +248,12 @@ def test_plan_is_provenance():
     record = json.loads(json.dumps(point.parameters))
     assert record["pilot_samples"] == [["control", "dish1"], ["control", "dish2"]]
     assert record["control"] == {"condition": "control"}
-    first = PlannedCellCountStrategy(point)
-    assert first.config_id == PlannedCellCountStrategy(_plan(objects, fovs)).config_id
-    assert first.config_id != PlannedCellCountStrategy(upper).config_id
-    with pytest.raises(TypeError, match="CellCountPlan"):
-        PlannedCellCountStrategy(point.parameters)
-    assert isinstance(point, CellCountPlan)
+    first = PlannedObjectCountStrategy(point)
+    assert first.config_id == PlannedObjectCountStrategy(_plan(objects, fovs)).config_id
+    assert first.config_id != PlannedObjectCountStrategy(upper).config_id
+    with pytest.raises(TypeError, match="ObjectCountPlan"):
+        PlannedObjectCountStrategy(point.parameters)
+    assert isinstance(point, ObjectCountPlan)
 
 
 def test_real_pilot_wells_plan_the_other_wells():
@@ -266,7 +266,7 @@ def test_real_pilot_wells_plan_the_other_wells():
         nuclear + objects["Cytoplasm_Intensity_MeanIntensity_Fascin"]
     )
     pilot_wells = ["B02", "N12", "H13", "L18"]
-    plan = plan_cells_to_average(
+    plan = plan_objects_to_average(
         objects[objects["well"].isin(pilot_wells)],
         fovs=fovs[fovs["well"].isin(pilot_wells)],
         feature="Fascin_Ratio",
@@ -284,7 +284,7 @@ def test_real_pilot_wells_plan_the_other_wells():
     results = evaluate_acquisition_prefixes(
         objects,
         fovs,
-        strategies=[PlannedCellCountStrategy(plan)],
+        strategies=[PlannedObjectCountStrategy(plan)],
         feature_cols=["Fascin_Ratio"],
         acquisition_order_col="order",
         objective=POPULATION,

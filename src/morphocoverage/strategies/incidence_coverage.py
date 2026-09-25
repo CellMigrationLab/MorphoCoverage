@@ -2,7 +2,7 @@
 
 Roadmap Phase 5 (docs/proposals/candidate_estimators_roadmap.md), restricted
 to the category source the roadmap accepts first: labels fixed independently
-of the evaluated acquisition (``label_col``, for example an annotated cell
+of the evaluated acquisition (``label_col``, for example an annotated object
 type). The FOV is the sampling unit: with ``T`` visible FOVs (acquired FOVs
 without observations included), ``Q_k`` states seen in exactly ``k`` FOVs and
 ``U = sum_k k Q_k`` incidences,
@@ -61,8 +61,8 @@ The two can disagree: with one singleton and no doubletons, Chao2 adds
 coverage is ``1 - 1 / U``. Both follow the published formulas; a stop on
 Chao2 alone would ignore the singleton.
 
-Many cells of one state in one FOV are one incidence, so these count
-recurrence across positions, not cells. Assumptions and limits:
+Many objects of one state in one FOV are one incidence, so these count
+recurrence across positions, not objects. Assumptions and limits:
 
 - the labels must be fixed without looking at the evaluated acquisition; a
   partition fitted to it breaks the meaning of singletons and doubletons;

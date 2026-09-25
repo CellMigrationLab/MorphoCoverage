@@ -98,14 +98,32 @@ def iter_analysis_groups(
         return
 
     group_cols = list(data.group_cols)
-    unique_groups = data.fovs.loc[:, group_cols].drop_duplicates()
-    for values in unique_groups.itertuples(index=False, name=None):
+    # Groups in order of first appearance in the FOV table. Each observation's FOV
+    # row is looked up once, and rows are split by group with a stable sort, so
+    # both tables keep their order within a group: one pass over the
+    # observations instead of one per group.
+    fov_codes = data.fovs.groupby(group_cols, sort=False, dropna=False).ngroup().to_numpy(np.int64)
+    first = np.unique(fov_codes, return_index=True)[1]
+    positions = fov_positions(data, data.fovs)
+    object_codes = np.where(positions >= 0, fov_codes[np.maximum(positions, 0)], -1)
+    fov_rows = _rows_by_code(fov_codes, len(first))
+    object_rows = _rows_by_code(object_codes, len(first))
+    for code, values in enumerate(data.fovs[group_cols].iloc[first].itertuples(index=False)):
         group = dict(zip(group_cols, values, strict=True))
-        fov_mask = pd.Series(True, index=data.fovs.index)
-        for column, value in group.items():
-            fov_mask &= data.fovs[column].eq(value)
-        group_fovs = data.fovs.loc[fov_mask]
-        yield group, restrict_input(data, objects_in_fovs(data, group_fovs), group_fovs)
+        yield (
+            group,
+            restrict_input(
+                data, data.objects.iloc[object_rows[code]], data.fovs.iloc[fov_rows[code]]
+            ),
+        )
+
+
+def _rows_by_code(codes: np.ndarray, n_codes: int) -> list[np.ndarray]:
+    """Row positions of each code ``0 .. n_codes - 1``, in table order; ``-1`` is dropped."""
+    order = np.argsort(codes, kind="stable")
+    counts = np.bincount(codes[codes >= 0], minlength=n_codes)
+    start = int((codes < 0).sum())  # -1 codes sort first
+    return np.split(order[start:], np.cumsum(counts)[:-1])
 
 
 def _merge_evidence(strategy: SamplingStrategy, evidences: Iterable[Evidence]) -> Evidence:
