@@ -1,4 +1,4 @@
-"""How variable are the FOVs? Can objects be counted, or must FOVs be? (questions R0)
+"""How variable are the FOVs, and what does an object count miss? (the report's Foundation)
 
 For one declared scalar feature, per analysis group:
 

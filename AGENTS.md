@@ -15,7 +15,7 @@
 | Lint | `ruff check src tests data` and `ruff format --check src tests data` (ruff pinned in `pyproject.toml`; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
-Key dependencies: `numpy`, `pandas`, `scipy` (runtime); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
+Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; matplotlib only in `morphocoverage.plots`, added 2026-09-26 at the project owner's request for the PlotsOfData-style figures); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
 
 MorphoCoverage is deliberately independent of CellPatcher, fiberfeatures, Nyxus, CellProfiler, DINO, Torch, microscopy file formats, segmentation tools, and microscope-control software.
 
@@ -100,7 +100,7 @@ Scientific rules:
 - owning the user's final biological-condition inference workflow;
 - microscope hardware control.
 
-MorphoCoverage does not replace the user's final biological inference workflow. It may, however, use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
+MorphoCoverage does not replace the user's final biological inference workflow. It does describe, in the report, how the declared conditions differ in the acquired fields (`sampling_unit.condition_contrast`, decided by the project owner on 2026-09-26: Cohen's d and the JCS effect size on objects, as the lab's Plot&Stats notebook computes them, and with the field as the unit, plus a randomization test that shuffles condition labels over whole fields), always per repeat and always beside the field-aware version, and worded as what these fields support, never as the inference across independent repeats. It may also use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
 
 Do not add dependencies for those concerns merely to make an example easier.
 
@@ -196,6 +196,11 @@ src/morphocoverage/
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
+    sufficiency_text.py    # the sentences of the sufficiency report
+    sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops
+    statistics.py          # shared statistics: Cohen's d, JCS effect size, whole-field sampling and bootstrap
+    normalize.py           # features divided by the control condition's mean, repeat by repeat
+    plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
         hierarchy.py       # SamplingHierarchy: declared FOV / sample / repeat levels
@@ -210,10 +215,12 @@ src/morphocoverage/
         stage.py           # dispersed (farthest-point) orders and stage travel
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
+        overview.py        # what is in the dataset: counts, features, conditions and repeats
         _text.py           # private: shared wording and group seeding for summaries
-    sampling_unit/         # objects or fields? report questions R0 and R4 of docs/questions.md
+    sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
+        contrast.py        # each condition against the control, on objects and with the field as unit
         clustering.py      # unusual (out-of-distribution) objects; state clustering by FOV
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         setup.py           # Setup: every scientific choice of the workflows, declared once
@@ -228,7 +235,8 @@ src/morphocoverage/
         fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
         rare_planning.py   # binomial FOV-incidence planning for a RareTarget
         rare_incidence.py  # beta-binomial rare-state incidence risk with recurrence
-        support_novelty.py # leave-one-FOV-out epsilon-support novelty
+        support_novelty.py # leave-one-FOV-out epsilon-support novelty: estimator and strategy
+        support_geometry.py  # its counting: which observations other FOVs support within epsilon
         incidence_coverage.py  # Chao-Jost incidence coverage and Chao2 on fixed labels
 
 tests/
@@ -340,8 +348,10 @@ If acquisition becomes targeted, do not treat targeted FOVs as an unbiased popul
 - PEP 8 style.
 - 4-space indentation.
 - Descriptive names.
-- Type hints on public functions.
+- Type hints on every function, private helpers included (decided 2026-09-26; the whole package meets it).
 - Docstrings on public modules/functions/classes.
+- No module above 600 lines: split a growing module along its natural seam (computation and wording, geometry and decision), re-exporting the public names so callers do not change.
+- Statistics shared by several analyses live once, in `morphocoverage.statistics`, and are reused rather than re-derived.
 - Comments explain scientific assumptions or non-obvious reasoning.
 - Prefer specific exception types and actionable error messages.
 - Do not perform unrelated refactors, dependency upgrades, API renames, or formatting sweeps.
@@ -412,7 +422,7 @@ For substantive work, report briefly:
 
 ## 17. Sampling objectives, MorphoBricks defaults, and benchmarking
 
-The sampling objective is separate from the mathematical strategy. Supported high-level objectives are population representation, rare-phenotype discovery with an explicit user target, and balanced sampling.
+The sampling objective is separate from the mathematical strategy. Its components are the targets the microscopist declares: the population summary, the phenotypic fingerprint (the `distribution` component) and the rare phenotype with an explicit user target. The objectives are `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare) and `all`. A rule with no evidence about a required component is `unsupported` for the objective and never `stop`; its own verdict is `StrategyResult.rule_decision`, which self-assessments, replays and calibrations read (`docs/sampling_objectives.md`).
 
 MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
 
@@ -470,7 +480,7 @@ Strategies are interchangeable: the framework never branches on a strategy's ide
 1. Subclass `Estimator` in a module under `strategies/`. Give it a `name` (a constant, or a property that names the variant), a `parameters` property holding every setting that defines the estimate (JSON-serializable, since it defines `config_id`), and `estimate(data, *, objective) -> Evidence`.
 2. Read phenotype values only through `data.feature_values(name)` or `data.feature_matrix()`, and FOV identity through `data.fov_key`. Treat the input as one analysis group; never split conditions or repeats.
 3. Declare the estimator's valid `observation_unit` semantics. Observation-unit-agnostic methods, including FOV-resampling variants, accept any unit. Cell/object-derived methods must never reinterpret slices, patches, embeddings or FOV summaries as cells: they report their quantities as `not_applicable`, with the reason from `unsupported_observation_unit`, so the decision is undefined and a benchmark or live session keeps running.
-4. Report each estimate as a named `Quantity` with its `direction`, `units` and `component` (`population` or `rare`). Report a quantity that cannot be computed yet as `insufficient_data`, and one that is undefined for these data as `not_applicable`, each with a reason; never NaN. Only claim the `rare` component for evidence about the objective's `RareTarget`. Never report effort (`n_fovs`, `n_observations`; `n_objects` is only a compatibility alias): the framework owns it.
+4. Report each estimate as a named `Quantity` with its `direction`, `units` and `component` (`population` for a summary of the population, `distribution` for the phenotypic fingerprint: spread, shape, the states present; `rare` for a declared `RareTarget`). Report a quantity that cannot be computed yet as `insufficient_data`, and one that is undefined for these data as `not_applicable`, each with a reason; never NaN. Only claim the `rare` component for evidence about the objective's `RareTarget`. Never report effort (`n_fovs`, `n_observations`; `n_objects` is only a compatibility alias): the framework owns it.
 5. Preprocess features only with a `FeatureTransform` from `morphocoverage.transforms`, declared as a parameter (use `transform.describe()` in `parameters`) and fitted inside `estimate` on the data received. Record `fitted.provenance()` in the diagnostics, and report quantities as `insufficient_data` when the transform cannot be fitted. Never fit on data from outside the call.
 6. Do not decide inside the estimator. Thresholds belong to a `DecisionPolicy` (usually `ThresholdPolicy`), so they are explicit, sweepable with `redecide`, and part of `config_id`.
 7. Keep `estimate` a pure recomputation: it runs on a fresh copy for every group and prefix, so instance state is discarded. Randomness takes an explicit seed parameter. Incremental support is optional: `start(template, *, objective)` returns an `EstimatorState` whose `update(new)` receives only each newly revealed FOV and must return the same evidence as `estimate` on the whole prefix. Full recomputation stays the reference implementation.

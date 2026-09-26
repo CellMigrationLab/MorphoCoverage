@@ -1,19 +1,26 @@
-"""Can objects be counted, or must FOVs be? Checks of the sampling unit.
+"""Why count fields, and not only objects? Checks of the sampling unit.
 
-A microscope samples FOVs, not objects: every object of a FOV enters
-together. Object-count rules, including the published JCB and JCS rules this
-package reproduces, assume the objects they count are a random sample of the
-well. These checks measure, on a completed acquisition, whether that
-assumption holds and what it costs when it does not (``docs/questions.md``):
+A microscope acquires phenotype observations through spatial fields, not as
+a random sample of individual objects: every object of a FOV enters together.
+Object-count rules, including the published JCB and JCS rules this package
+reproduces, assume the objects they count are a random sample of the well.
+These checks measure, on a completed acquisition, whether that assumption
+holds and what it costs when it does not. They are the foundation of the
+report, before its questions (``docs/questions.md``):
 
 - ``fov_variability``: how much FOVs differ, the design effect and the FOVs
-  that differ more than random objects would (REPORT, R0);
+  that differ more than random objects would (Foundation);
 - ``object_rule_check`` and ``descriptor_spread_check``: the JCB rule and the
   JCS Fig. 2A procedure, each run with random objects and with whole FOVs
-  (REPORT, R0; OPTIMISE, P5);
+  (Foundation; OPTIMISE, P5);
 - ``unusual_objects`` and ``fov_clustering``: out-of-distribution objects
   against declared reference groups, and whether any labelled state, rare
-  ones included, is spread over the FOVs or clustered in a few (REPORT, R4).
+  ones included, is spread over the FOVs or clustered in a few (REPORT, R4);
+- ``condition_contrast``: each condition against the declared control, per
+  repeat, with Cohen's d and the JCS effect size computed on objects (as the
+  lab's Plot&Stats notebook does) and with the field as the unit, and a
+  randomization test that shuffles condition labels over whole fields
+  (REPORT, R7).
 
 All are retrospective (they use every acquired FOV) and group-local: each
 analysis group is assessed on its own data, except that ``object_rule_check``
@@ -25,6 +32,7 @@ The results on the committed data, in plain language, are in
 """
 
 from .clustering import FOVClustering, UnusualObjects, fov_clustering, unusual_objects
+from .contrast import ConditionContrast, condition_contrast
 from .object_rules import (
     DESCRIPTORS,
     RANDOM_OBJECTS,
@@ -40,11 +48,13 @@ __all__ = [
     "DESCRIPTORS",
     "RANDOM_OBJECTS",
     "WHOLE_FOVS",
+    "ConditionContrast",
     "DescriptorSpreadCheck",
     "FOVClustering",
     "FOVVariability",
     "ObjectRuleCheck",
     "UnusualObjects",
+    "condition_contrast",
     "descriptor_spread_check",
     "fov_clustering",
     "fov_variability",

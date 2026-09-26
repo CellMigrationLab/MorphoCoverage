@@ -73,7 +73,15 @@ class ProtocolResult:
         return protocol_summary(self)
 
 
-def _check(per_sample, hierarchy, threshold, strata, protocol_share, n_boot, random_state):
+def _check(
+    per_sample: ReliabilityResult,
+    hierarchy: SamplingHierarchy,
+    threshold: float,
+    strata: Sequence[str],
+    protocol_share: float,
+    n_boot: int,
+    random_state: int,
+) -> tuple[list[str], list[str], list[str]]:
     if not isinstance(per_sample, ReliabilityResult):
         raise TypeError("per_sample must be a ReliabilityResult from sampling_reliability")
     if not isinstance(hierarchy, SamplingHierarchy):
@@ -100,7 +108,9 @@ def _check(per_sample, hierarchy, threshold, strata, protocol_share, n_boot, ran
     return sample_cols, unit_cols, strata
 
 
-def _samples(per_sample: ReliabilityResult, sample_cols, strata, threshold) -> pd.DataFrame:
+def _samples(
+    per_sample: ReliabilityResult, sample_cols: list[str], strata: list[str], threshold: float
+) -> pd.DataFrame:
     """One row per sample, criterion and FOV count, with the adequacy flag."""
     curve = per_sample.curve
     identity = [*strata, *sample_cols]
@@ -126,7 +136,9 @@ def _unit_ids(frame: pd.DataFrame, unit_cols: list[str]) -> pd.Series:
     return frame[unit_cols].astype(str).agg(" / ".join, axis=1)
 
 
-def _bootstrap(block: pd.DataFrame, n_boot: int, rng: np.random.Generator):
+def _bootstrap(
+    block: pd.DataFrame, n_boot: int, rng: np.random.Generator
+) -> tuple[float | None, float | None]:
     """Percentile interval of the pooled share of adequate samples, resampling units."""
     per_unit = block.groupby("unit")["adequate"].agg(["sum", "count"])
     units = len(per_unit)
@@ -282,7 +294,13 @@ def protocol_reliability(
     )
 
 
-def _with_ceiling(difficulty, per_sample, sample_cols, strata, threshold) -> pd.DataFrame:
+def _with_ceiling(
+    difficulty: pd.DataFrame,
+    per_sample: ReliabilityResult,
+    sample_cols: list[str],
+    strata: list[str],
+    threshold: float,
+) -> pd.DataFrame:
     """Add each sample's reliability ceiling: how often its whole stream was enough.
 
     ``ceiling_below_threshold`` marks samples whose held-back fields did not

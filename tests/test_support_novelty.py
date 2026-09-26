@@ -155,8 +155,8 @@ def test_strategy_stops_once_novelty_is_within_tolerance():
         quantity = item.result.evidence.quantities["lofo_novel_fraction"]
         if quantity.availability.value == "available":
             expected = Decision.STOP if quantity.value <= 0.02 else Decision.CONTINUE
-            assert item.result.decision is expected
-    assert any(item.result.decision is Decision.STOP for item in results)
+            assert item.result.rule_decision is expected
+    assert any(item.result.rule_decision is Decision.STOP for item in results)
 
 
 @pytest.mark.parametrize(
@@ -349,7 +349,7 @@ def test_cell_weighted_and_fov_weighted_fractions_differ_with_unequal_fovs():
         [result] = run_strategies(
             data.objects, strategies=[strategy], feature_cols=["a", "b"], objective=POPULATION
         )
-        assert (result.decision is Decision.STOP) is stops
+        assert (result.rule_decision is Decision.STOP) is stops
 
 
 def test_support_needing_several_cells_matches_brute_force():
@@ -436,7 +436,7 @@ def test_every_supporting_fov_count_path_matches_one_tree_per_fov():
     """The dense, single-tree and per-FOV paths give the reference per-FOV counts."""
     from scipy.spatial import cKDTree
 
-    from morphocoverage.strategies import support_novelty as sn
+    from morphocoverage.strategies import support_geometry as sn
 
     def reference_counts(reference, positions, queries, epsilon, m, exclude):
         supporting = np.zeros(len(queries), dtype=np.int64)
@@ -471,7 +471,7 @@ def test_counting_paths_agree_at_exact_ties(monkeypatch):
     """Epsilon equal to data distances: every path applies one rule, ``<= epsilon``."""
     from scipy.spatial import distance
 
-    from morphocoverage.strategies import support_novelty as sn
+    from morphocoverage.strategies import support_geometry as sn
 
     def exact(reference, positions, queries, epsilon, m, exclude):
         within = distance.cdist(queries, reference) <= epsilon
@@ -513,7 +513,7 @@ def test_counting_paths_agree_at_exact_ties(monkeypatch):
 
 
 def test_non_finite_transformed_values_raise_on_every_path():
-    from morphocoverage.strategies import support_novelty as sn
+    from morphocoverage.strategies import support_geometry as sn
 
     reference = np.array([[0.0, 1.0], [np.inf, 0.0]])
     with pytest.raises(ValueError, match="finite"):

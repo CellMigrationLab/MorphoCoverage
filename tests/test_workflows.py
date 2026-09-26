@@ -11,9 +11,13 @@ import pandas as pd
 import pytest
 from scenarios import FEATURE_COLS, _fov_table, _objects_for
 
-from morphocoverage import validate_input_tables
+from morphocoverage import RareTarget, validate_input_tables
+from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.results import Decision
+from morphocoverage.retrospective import OutcomeCriterion
+from morphocoverage.retrospective.report import DECLARATION_TITLE
 from morphocoverage.strategies import FixedFOVStrategy
+from morphocoverage.strategies.rare_planning import fovs_to_detect
 from morphocoverage.workflows import (
     LiveFolder,
     LiveTables,
@@ -67,6 +71,113 @@ def test_setup_rejects_ambiguous_declarations():
     assert Setup(readout=READOUT, features=FEATURE_COLS).columns == list(FEATURE_COLS)
 
 
+def _fingerprint(tolerance: float = 0.5) -> OutcomeCriterion:
+    return OutcomeCriterion(
+        CovarianceError(FEATURE_COLS, True),
+        tolerance,
+        "lower_is_better",
+        f"the covariance of the features within {tolerance:.0%}",
+    )
+
+
+def _rare() -> RareTarget:
+    return RareTarget(
+        fov_incidence=0.2, detection_probability=0.95, min_fov_occurrences=1, phenotype="planted"
+    )
+
+
+def test_setup_declares_what_to_preserve_and_refuses_undeclared_targets():
+    plain = Setup(readout=READOUT)
+    declared = plain.declaration()
+    assert declared[0].startswith(f"Population summary: the mean of {READOUT}")
+    assert "5.0% and 2.5%" in declared[0]
+    assert declared[1].startswith("Phenotypic fingerprint: not declared")
+    assert declared[2].startswith("Rare phenotype: not declared")
+    assert [c.name for c in plain.criteria()] == [
+        f"relative_mean_error:{READOUT} <= 0.05",
+        f"relative_mean_error:{READOUT} <= 0.025",
+    ]
+    assert plain.judged_columns == [READOUT]
+
+    full = _setup(fingerprint=(_fingerprint(),), rare=_rare(), rare_label="state")
+    declared = full.declaration()
+    assert "the covariance of the features within 50%" in declared[1]
+    needed = fovs_to_detect(0.2, 0.95, 1)
+    assert f"asks for {needed} independent representative fields" in declared[2]
+    assert "label column 'state'" in declared[2]
+    names = [c.name for c in full.criteria()]
+    assert names[2].startswith("covariance_error:")
+    assert names[3] == "rare_state_detected:state:1 >= 1"
+    assert full.judged_columns == [READOUT, *(f for f in FEATURE_COLS if f != READOUT)]
+
+    # A prevalence-only target is stated but never converted to a field count.
+    prevalence_only = RareTarget(
+        object_prevalence=0.01, detection_probability=0.95, min_fov_occurrences=1, phenotype="x"
+    )
+    line = _setup(rare=prevalence_only).declaration()[2]
+    assert "No field incidence was declared" in line and "not judged" in line
+
+    assert plain.objective().objective.value == "population"
+    assert _setup(fingerprint=(_fingerprint(),)).objective().objective.value == "phenotype"
+    assert _setup(rare=_rare()).objective().objective.value == "balanced"
+    assert full.objective().objective.value == "all"
+    assert declared[-1].startswith("Live decision: the all objective (population summary and")
+    with pytest.raises(ValueError, match="normalize must be"):
+        Setup(readout=READOUT, control={"condition": "control"}, normalize="z-score")
+    with pytest.raises(ValueError, match="name the condition column"):
+        Setup(readout=READOUT, normalize="control_mean")
+    normalised = _setup(normalize="control_mean")
+    assert "divided by the mean of the control" in normalised.declaration()[-2]
+    with pytest.raises(TypeError, match="fingerprint"):
+        Setup(readout=READOUT, fingerprint=_fingerprint())  # one criterion, not a sequence
+    with pytest.raises(TypeError, match="fingerprint"):
+        Setup(readout=READOUT, fingerprint=(CovarianceError(FEATURE_COLS, True),))
+    with pytest.raises(ValueError, match="not declared"):
+        Setup(readout=READOUT, fingerprint=(_fingerprint(),))  # features not declared
+    with pytest.raises(ValueError, match="distinct"):
+        _setup(fingerprint=(_fingerprint(0.5), _fingerprint(0.5)))
+    with pytest.raises(TypeError, match="RareTarget"):
+        Setup(readout=READOUT, rare={"fov_incidence": 0.2})
+    with pytest.raises(ValueError, match="declare rare"):
+        Setup(readout=READOUT, rare_label="state")
+
+
+def test_the_documents_open_with_the_declaration_and_judge_every_declared_criterion():
+    objects, fovs = _acquisition()
+    # A labelled state in two fields of every group: the rare criterion has something to judge.
+    objects["state"] = False
+    for _, group in objects.groupby(["condition", "repeat"]):
+        first_two = group["image_file"].drop_duplicates().iloc[:2]
+        objects.loc[group.index[group["image_file"].isin(first_two)], "state"] = True
+    setup = _setup(fingerprint=(_fingerprint(),), rare=_rare(), rare_label="state")
+    result = report(objects, fovs, setup)
+    text = result.summary()
+    assert text.startswith("What is in the dataset") and DECLARATION_TITLE in text
+    fingerprint_line = text.index("Phenotypic fingerprint: the covariance")
+    assert fingerprint_line < text.index("Foundation: why count")
+    plan = optimise(
+        objects,
+        fovs,
+        setup,
+        fov_counts=[2, 4],
+        reservoir_fraction=0.25,
+        n_splits=2,
+        draws=5,
+        permuted_orders=2,
+        dispersed_orders=1,
+    )
+    curve = plan.results["reliability"].curve
+    assert set(curve["criterion"]) == {c.name for c in setup.criteria()}
+    text = plan.summary()
+    assert text.startswith(DECLARATION_TITLE)
+    assert "how many fields do you need for the covariance of the features within 50%?" in text
+    assert "the rare phenotype (planted) seen in at least 1 field" in text
+    merged = document(result, plan).summary()
+    assert merged.startswith("What is in the dataset") and DECLARATION_TITLE in merged
+    with pytest.raises(ValueError, match="rare_label"):
+        report(objects.drop(columns="state"), fovs, setup)
+
+
 def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     objects, fovs = _acquisition()
     before = (objects.copy(), fovs.copy())
@@ -76,8 +187,19 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     )
     result = report(objects, fovs, setup)
     text = result.summary()
-    assert "1. Can I count objects" in text and "4. What is limiting" in text
-    assert "5. How many fields" not in text  # a planning answer never enters the report
+    assert "Foundation: why count fields" in text and "3. What is limiting" in text
+    assert "4. How many fields" not in text  # a planning answer never enters the report
+    # A control condition and another condition: the contrast runs, per repeat.
+    assert "9. Do the conditions differ" in text and "drug vs control" in text
+    assert list(result.results["contrast"].table["repeat"]) == ["R1", "R2"]
+    assert text.startswith("What is in the dataset") and "What this dataset cannot tell me" in text
+    assert result.results["overview"].counts["fields"] == len(fovs)
+    # Normalised to the control: the control mean of the readout is 1 in every repeat.
+    normalised = report(objects, fovs, _setup(normalize="control_mean"))
+    assert "Values: every feature divided by the mean of the control" in normalised.summary()
+    means = normalised.results["variability"].groups
+    control = means[means["condition"] == "control"]
+    assert control["mean"].tolist() == pytest.approx([1.0] * len(control))
     pd.testing.assert_frame_equal(objects, before[0])
     pd.testing.assert_frame_equal(fovs, before[1])
     assert report(objects, fovs, setup).summary() == text  # deterministic
@@ -104,9 +226,9 @@ def test_optimise_and_document_merge_report_and_plan():
         dispersed_orders=1,
     )
     text = plan.summary()
-    assert "5. How many fields" in text and "1. Can I count objects" not in text
+    assert "4. How many fields" in text and "Foundation: why count fields" not in text
     merged = document(report(objects, fovs, setup), plan).summary()
-    assert "1. Can I count objects" in merged and "5. How many fields" in merged
+    assert "Foundation: why count fields" in merged and "4. How many fields" in merged
 
 
 def test_benchmark_runs_on_the_given_families():
@@ -159,6 +281,28 @@ def test_live_folder_matches_live_tables_and_add_fov(tmp_path):
     expected = [[(r.decision, r.n_fovs, r.n_observations) for r in u] for u in by_session]
     assert _decisions(by_folder) == _decisions(by_tables) == expected
     assert folder.poll() == [] and tables.update(seen_objects, seen_fovs) == []
+
+
+def test_live_updates_end_with_one_view_per_target():
+    objects, fovs = _acquisition(n_fovs=4)
+    # A fingerprint is declared, so the live objective is phenotype; the default JCB
+    # rules decide the population summary only, and the view says so.
+    setup = _setup(fingerprint=(_fingerprint(),))
+    tables = LiveTables(live_session(setup))
+    updates = tables.update(objects, fovs)
+    assert updates
+    text = updates[-1].summary()
+    assert "Population summary:" in text
+    assert "Phenotypic fingerprint: no rule decides it" in text
+    assert (
+        "Overall (phenotype objective): unsupported (no rule decides the phenotypic fingerprint)"
+        in text
+    )
+    assert all(r.decision.value == "unsupported" for r in updates[-1].results)
+    assert all(r.rule_decision is not None for r in updates[-1].results)
+    # Without a fingerprint the same rules decide the population objective.
+    plain = LiveTables(live_session(_setup())).update(objects, fovs)
+    assert "Overall (population objective):" in plain[-1].summary()
 
 
 def test_live_folder_waits_for_an_unterminated_manifest_line(tmp_path):
@@ -239,7 +383,7 @@ def test_summary_questions_select_and_reject():
     validate_input_tables(objects, fovs=fovs, feature_cols=setup.columns)
     result = report(objects, fovs, setup)
     only = result.document.summary(["unit"])
-    assert "1. Can I count objects" in only and "4. What is limiting" not in only
+    assert "Foundation: why count fields" in only and "3. What is limiting" not in only
     with pytest.raises((KeyError, ValueError)):
         result.document.summary(["not_a_question"])
 

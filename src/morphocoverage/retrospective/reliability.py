@@ -52,7 +52,7 @@ import pandas as pd
 from .._parallel import check_n_jobs, map_units
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..reservoir import ReservoirSplit
-from ..schema import validate_input_tables
+from ..schema import ValidatedInput, validate_input_tables
 from ._text import fields, group_identity, percent, where
 from .criteria import OutcomeCriterion, Preservation
 
@@ -99,7 +99,14 @@ class ReliabilityResult:
         return reliability_summary(self)
 
 
-def _check_settings(criteria, fov_counts, reservoir_fraction, n_splits, draws, random_state):
+def _check_settings(
+    criteria: Sequence[OutcomeCriterion],
+    fov_counts: Sequence[int],
+    reservoir_fraction: float,
+    n_splits: int,
+    draws: int,
+    random_state: int,
+) -> tuple[list[OutcomeCriterion], list[int]]:
     """Validate the settings; return the criteria list and sorted distinct counts."""
     criteria = list(criteria)
     if not criteria or not all(isinstance(c, OutcomeCriterion) for c in criteria):
@@ -126,7 +133,16 @@ def _draw_rng(random_state: int, group: Mapping[str, Any], split: int) -> np.ran
     return np.random.default_rng([random_state, group_identity(group), split])
 
 
-def _group_draws(group, data, criteria, counts, split_settings, splits, draws, random_state):
+def _group_draws(
+    group: Mapping[str, Any],
+    data: ValidatedInput,
+    criteria: Sequence[OutcomeCriterion],
+    counts: Sequence[int],
+    split_settings: tuple[float, str | None],
+    splits: Sequence[int],
+    draws: int,
+    random_state: int,
+) -> tuple[list[dict], list[dict]]:
     """Every assessed draw for one analysis group and the given splits, and the whole streams."""
     rows, ceiling = [], []
     for split in splits:
@@ -138,7 +154,16 @@ def _group_draws(group, data, criteria, counts, split_settings, splits, draws, r
     return rows, ceiling
 
 
-def _split_draws(group, data, criteria, counts, split_settings, split, draws, random_state):
+def _split_draws(
+    group: Mapping[str, Any],
+    data: ValidatedInput,
+    criteria: Sequence[OutcomeCriterion],
+    counts: Sequence[int],
+    split_settings: tuple[float, str | None],
+    split: int,
+    draws: int,
+    random_state: int,
+) -> tuple[list[dict], list[dict]]:
     """Every assessed draw for one analysis group and split, and the whole stream."""
     fraction, block_col = split_settings
     rows, ceiling = [], []
@@ -203,7 +228,9 @@ def _curve_row(runs: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def _add_gain(curve: pd.DataFrame, criteria, keys: list[str]) -> pd.DataFrame:
+def _add_gain(
+    curve: pd.DataFrame, criteria: Sequence[OutcomeCriterion], keys: list[str]
+) -> pd.DataFrame:
     """Improvement of the median metric from the previous listed ``k`` (None for the first)."""
     better_lower = {c.name: c.direction == "lower_is_better" for c in criteria}
     gains = []
@@ -308,7 +335,13 @@ def sampling_reliability(
     return ReliabilityResult(curve, draw_table, tuple(keys), settings, ceiling)
 
 
-def _beyond_every_stream(ceiling_rows, curve_rows, criteria, counts, keys) -> list[dict]:
+def _beyond_every_stream(
+    ceiling_rows: list[dict],
+    curve_rows: list[dict],
+    criteria: Sequence[OutcomeCriterion],
+    counts: Sequence[int],
+    keys: list[str],
+) -> list[dict]:
     """Rows saying so for listed counts no split of a group could draw."""
     have = {(tuple(r[k] for k in keys), r["criterion"], r["fovs"]) for r in curve_rows}
     streams: dict[tuple, int] = {}

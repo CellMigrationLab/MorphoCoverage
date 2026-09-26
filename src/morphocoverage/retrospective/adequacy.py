@@ -129,7 +129,7 @@ class AdequacyResult:
         return adequacy_summary(self)
 
 
-def _keyed(frame: pd.DataFrame, keys: list[str]):
+def _keyed(frame: pd.DataFrame, keys: list[str]) -> pd.core.groupby.DataFrameGroupBy:
     return frame.groupby(keys, sort=False, dropna=False)
 
 

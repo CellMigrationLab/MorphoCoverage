@@ -28,7 +28,7 @@ development dataset: nothing here is a protocol.
 - **Sufficiency** (``sufficiency_idr0028.csv``, ``next_fov_idr0028.csv``): what
   the fixed-8 and JCB rules say on the full wells, by their own thresholds, and
   the next-field novelty with states seen in fewer than 3 fields.
-- **Objects or fields** (R0, R4): ``fov_variability`` and ``object_rule_check``
+- **Objects or fields** (the Foundation, R4): ``fov_variability`` and ``object_rule_check``
   of the YAP/TAZ ratio, and the clustering by field of objects unusual against
   the MOCK wells (the full tables are written by ``objects_vs_fields.py``).
 - **Step 10, the report** (``microscopist_report_idr0028.txt``,
@@ -63,6 +63,7 @@ from morphocoverage.retrospective import (
     SamplingHierarchy,
     Summary,
     adequacy_points,
+    dataset_overview,
     effort_projection,
     inspect_fovs,
     microscopist_report,
@@ -74,6 +75,7 @@ from morphocoverage.retrospective import (
     stopping_calibration,
 )
 from morphocoverage.sampling_unit import (
+    condition_contrast,
     fov_clustering,
     fov_variability,
     object_rule_check,
@@ -247,7 +249,8 @@ def order(objects, fovs):
 
 
 def sampling_unit(dataset) -> dict:
-    """R0 and R4: fields against random objects, and unusual objects clustered by field."""
+    """The overview, the Foundation, R4 and R7: what the tables hold, fields against random
+    objects, unusual objects clustered by field, and each condition against MOCK."""
     objects, fovs = dataset.tables
     common = {"group_cols": list(dataset.groups), "observation_unit": dataset.observation_unit}
     reference = {"condition": dataset.control}
@@ -255,6 +258,10 @@ def sampling_unit(dataset) -> dict:
         objects, fovs, feature_cols=list(dataset.features), reference=reference, **common
     )
     return {
+        "overview": dataset_overview(
+            objects, fovs, feature_cols=[RATIO, *dataset.features], **common
+        ),
+        "contrast": condition_contrast(objects, fovs, feature=RATIO, control=reference, **common),
         "variability": fov_variability(objects, fovs, feature=RATIO, **common),
         "object_rules": object_rule_check(
             objects, fovs, feature=RATIO, control=reference, **common
@@ -322,6 +329,9 @@ def main() -> None:
     unit = _timed("objects or fields", lambda: sampling_unit(dataset))
     for part in unit.values():
         print(part.summary(), "\n")
+    unit["contrast"].table.to_csv(
+        RESULTS / "contrast_idr0028.csv", index=False, float_format="%.4g"
+    )
 
     # Step 10: every answer in one document (Step 1 curves reloaded from their tables).
     report = microscopist_report(

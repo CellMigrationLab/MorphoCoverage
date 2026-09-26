@@ -1,15 +1,34 @@
-"""Canonical strategy result types."""
+"""Canonical strategy result types, and the one view of a set of results per target.
+
+Two decisions live in every result. ``decision`` is the objective's: it
+combines the components the objective requires, and a rule with no evidence
+about one of them is ``unsupported``, never ``stop``. ``rule_decision`` is
+the rule's own verdict: what its policies say about the components they do
+decide, whatever the objective. The first governs the live decision; the
+second is what a self-assessment ("did each criterion say enough, by its own
+threshold?"), a replay or a calibration reads, since those ask what the rule
+said, not whether the rule alone could settle the objective.
+``decision_view`` renders a set of results (one acquisition state, several
+rules) as one line per target and the overall decision.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any
 
-from .evidence import Evidence
+from .evidence import Component, Evidence
 from .objectives import ObjectiveConfig
 from .schema import unit_plural
+
+# Plain words for each objective component, as reports and the live view print them.
+COMPONENT_WORDS: dict[Component, str] = {
+    Component.POPULATION: "Population summary",
+    Component.DISTRIBUTION: "Phenotypic fingerprint",
+    Component.RARE: "Rare phenotype",
+}
 
 
 class Decision(str, Enum):
@@ -72,8 +91,9 @@ class StrategyResult:
     - ``config_id`` identifies the estimators and policies exactly; ``strategy``
       is a human-readable name that several configurations may share.
     - ``component_decisions`` maps each objective component
-      (``"population"``, ``"rare"``) that has a policy, or that the objective
-      requires, to its decision. ``decision`` combines the required ones.
+      (``"population"``, ``"distribution"``, ``"rare"``) that has a policy, or
+      that the objective requires, to its decision. ``decision`` combines the
+      required ones; ``rule_decision`` combines the ones the rule decides.
     - ``compute_seconds`` is the wall-clock time of the estimators' own calls
       for this decision (``estimate``, or ``update`` when replaying
       incrementally). ``runtime_seconds`` is an alias. ``timing`` breaks the
@@ -107,13 +127,19 @@ class StrategyResult:
     def explain(self) -> str:
         """One line: the decision, each policy's rule with its evidence, and the effort.
 
-        For example ``stop: lofo_novel_fov_upper = 0.24 (stop at <= 0.25, population);
+        For example ``stop: lofo_novel_fov_upper = 0.24 (stop at <= 0.25, distribution);
         after 11 FOVs, 1100 objects``: the value, then the rule it is compared with,
-        so a ``continue`` never reads as a false inequality. A rule's own threshold
-        is not a held-out check: the line names the quantity so the reader can see
-        when a stop rests on the number of FOVs alone.
+        so a ``continue`` never reads as a false inequality. When the objective's
+        decision differs from the rule's own (a rule with no evidence about a
+        required target is ``unsupported``), both are printed: ``unsupported (the
+        rule itself: continue): ...``. A rule's own threshold is not a held-out
+        check: the line names the quantity so the reader can see when a stop rests
+        on the number of FOVs alone.
         """
-        decision = "undefined" if self.decision is None else self.decision.value
+        decision = _word(self.decision)
+        if self.rule_decision is not self.decision:
+            # A rule that cannot settle the objective still said something itself.
+            decision += f" (the rule itself: {_word(self.rule_decision)})"
         parts = []
         for policy in self.configuration.get("policies", []):
             parameters = policy.get("parameters", {})
@@ -141,6 +167,17 @@ class StrategyResult:
         rules = "; ".join(parts) if parts else "no decision policy"
         return f"{decision}: {rules}; {effort}"
 
+    @property
+    def rule_decision(self) -> Decision | None:
+        """The rule's own verdict, whatever the objective (see the module).
+
+        Combined over the components its policies decide: ``None`` if any is
+        undefined, ``stop`` if all stop, otherwise ``continue``; ``None`` for a
+        rule without a policy. Never ``unsupported``.
+        """
+        decided = [d for d in self.component_decisions.values() if d is not Decision.UNSUPPORTED]
+        return combine_decisions(decided) if decided else None
+
     def without_timing(self) -> StrategyResult:
         """This result with the time measurements removed, for comparing results."""
         return replace(self, compute_seconds=None, timing=None)
@@ -159,3 +196,70 @@ class StrategyResult:
     def diagnostics(self) -> Mapping[str, Any]:
         """The estimators' diagnostics."""
         return self.evidence.diagnostics
+
+
+def combine_decisions(decisions: Sequence[Decision | None]) -> Decision | None:
+    """Undefined if any decision is, stop if all stop, otherwise continue."""
+    if any(decision is None for decision in decisions):
+        return None
+    if all(decision is Decision.STOP for decision in decisions):
+        return Decision.STOP
+    return Decision.CONTINUE
+
+
+def _word(decision: Decision | None) -> str:
+    return "undefined" if decision is None else decision.value
+
+
+def decision_view(results: Sequence[StrategyResult]) -> str:
+    """One view of several rules on the same acquisition state: each target, then the overall.
+
+    For each objective component, the decision combined over the rules that
+    decide it (``combine_decisions``), with the number of rules; a required
+    component that no rule decides is said so. The overall decision is the
+    objective's: ``unsupported`` while a required component has no rule,
+    otherwise the combination of the required components. The results must
+    share one objective (one session, one acquisition state); the view
+    answers "if the targets disagree, is that obvious?" (``docs/questions.md``
+    O4).
+    """
+    results = list(results)
+    if not results:
+        raise ValueError("decision_view needs at least one result")
+    objectives = {r.objective for r in results}
+    if len(objectives) != 1:
+        raise ValueError("decision_view needs results of one objective")
+    objective = results[0].objective
+    required = objective.required_components
+    parts, overall = [], []
+    for component in Component:
+        decided = [
+            r.component_decisions[component.value]
+            for r in results
+            if r.component_decisions.get(component.value, Decision.UNSUPPORTED)
+            is not Decision.UNSUPPORTED
+        ]
+        word = COMPONENT_WORDS[component]
+        if decided:
+            combined = combine_decisions(decided)
+            rules = f"{len(decided)} rule{'s' if len(decided) != 1 else ''}"
+            parts.append(f"{word}: {_word(combined)} ({rules})")
+            if component in required:
+                overall.append(combined)
+        elif component in required:
+            parts.append(f"{word}: no rule decides it")
+            overall.append(Decision.UNSUPPORTED)
+    if Decision.UNSUPPORTED in overall:
+        missing = [
+            COMPONENT_WORDS[c].lower()
+            for c in Component
+            if c in required
+            and not any(
+                r.component_decisions.get(c.value, Decision.UNSUPPORTED) is not Decision.UNSUPPORTED
+                for r in results
+            )
+        ]
+        final = f"unsupported (no rule decides the {', '.join(missing)})"
+    else:
+        final = _word(combine_decisions(overall))
+    return "; ".join([*parts, f"Overall ({objective.objective.value} objective): {final}"])

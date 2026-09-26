@@ -21,6 +21,7 @@ from .criteria import OutcomeCriterion, Preservation
 from .effort import EffortResult, design_effect, effort_projection, nested_variance_components
 from .hierarchy import SamplingHierarchy
 from .inspection import InspectionResult, Summary, inspect_fovs
+from .overview import DatasetOverview, dataset_overview
 from .protocol import ProtocolResult, protocol_reliability
 from .reliability import ReliabilityResult, reliability_summary, sampling_reliability
 from .replay import ReplayResult, default_orders, replay_acquisitions
@@ -37,6 +38,7 @@ __all__ = [
     "ALL_CRITERIA",
     "AdequacyResult",
     "ControlResult",
+    "DatasetOverview",
     "EfficiencyResult",
     "EffortResult",
     "InspectionResult",
@@ -52,6 +54,7 @@ __all__ = [
     "Summary",
     "adequacy_points",
     "calibrate_next_fov_novelty",
+    "dataset_overview",
     "default_orders",
     "design_effect",
     "dispersed_order",

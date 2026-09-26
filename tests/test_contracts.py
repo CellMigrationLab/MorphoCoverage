@@ -427,7 +427,8 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
         return next(
             item.result
             for item in results
-            if item.result.strategy == strategy_name and item.result.decision == "stop"
+            # The rule's own verdict: the descriptor rules are distribution evidence.
+            if item.result.strategy == strategy_name and item.result.rule_decision == "stop"
         )
 
     # FOVs 0, 5, 10, ... hold 200 objects; all others hold 5.

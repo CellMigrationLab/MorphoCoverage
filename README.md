@@ -10,7 +10,7 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 
 | Question | Today |
 | --- | --- |
-| Can I count objects, or must I count fields? How variable are my fields? | `morphocoverage.sampling_unit`: `fov_variability` (design effect, fields that differ more than random objects would), `object_rule_check` and `descriptor_spread_check` (the JCB and JCS rules with random objects and with whole fields) |
+| Foundation: why count fields, and not only objects? How variable are my fields, and would the published object-count rules have held with whole fields? | `morphocoverage.sampling_unit`: `fov_variability` (design effect, fields that differ more than random objects would), `object_rule_check` and `descriptor_spread_check` (the JCB and JCS rules with random objects and with whole fields) |
 | Are rare or unusual objects clustered in a few fields? | `morphocoverage.sampling_unit`: `unusual_objects` against declared control groups, `fov_clustering` on any state labels (field incidence against random objects, fields needed) |
 | Can my features detect the phenotype I care about? | `morphocoverage.retrospective.representation_control`: detection and false-alarm rates for declared positive and reference controls, or "not assessed" |
 | Did I image enough, for common and for rare phenotypes? | `sufficiency_report`: criteria met, first stop points across acquisition orders, rare-state statements |
@@ -22,6 +22,7 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 | Which FOVs and cells should I inspect? | `inspect_fovs`: fields to reopen, each with its reason and numbers (new state, influence on a summary, observation count, difference from stage neighbours), image file and stage position |
 | More FOVs, or more biological samples? | `effort_projection`: nested variance components of a scalar mean and projected standard errors at equal total FOVs; "cannot tell" unless the intervals separate |
 | Could I have sampled more efficiently? | `order_efficiency`: recorded, random and dispersed orders of the same positions with stage travel; `redundancy_distance`; a comparison with all candidate positions is not implemented |
+| Do the conditions differ, and how confidently? | `morphocoverage.sampling_unit.condition_contrast`: each condition against the declared control, per repeat, with Cohen's d and the JCS effect size on objects (as the lab's Plot&Stats notebook computes them) and with the field as the unit, and a randomization test over whole fields |
 
 A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** `morphocoverage.retrospective.microscopist_report` assembles these answers question by question (`docs/proposals/microscopist_report.md`). Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
 
@@ -31,14 +32,14 @@ MorphoCoverage is used in four modes. The first three are the moments of use of 
 
 | Mode | The question | May use | Entry points |
 | --- | --- | --- | --- |
-| **REPORT** | I have finished imaging. Can I count objects, or must I count fields? What can I trust, and what can't I? | every acquired FOV of this dataset; declared control groups | `morphocoverage.retrospective.microscopist_report`; `morphocoverage.sampling_unit` (`fov_variability`, `object_rule_check`, `descriptor_spread_check`, `unusual_objects`, `fov_clustering`); `sufficiency.sufficiency_report`; `representation_control`, `inspect_fovs`, `calibrate_next_fov_novelty` |
+| **REPORT** | I have finished imaging. What can I trust, and what can't I? (opened by the Foundation: why count fields, and not only objects?) | every acquired FOV of this dataset; declared control groups | `morphocoverage.retrospective.microscopist_report`; `morphocoverage.sampling_unit` (`fov_variability`, `object_rule_check`, `descriptor_spread_check`, `unusual_objects`, `fov_clustering`); `sufficiency.sufficiency_report`; `representation_control`, `inspect_fovs`, `calibrate_next_fov_novelty` |
 | **OPTIMISE / PLAN** | What should I do next time? | completed datasets, judged on held-back FOVs | `morphocoverage.retrospective`: `sampling_reliability`, `protocol_reliability`, `adequacy_points`, `stopping_calibration`, `effort_projection`, `order_efficiency`, `redundancy_distance`; `plan_objects_to_average` |
 | **ONLINE** | I am imaging now. Should I acquire another field? | only the FOVs acquired so far | `OnlineSession.add_fov`, with any `SamplingStrategy`; the same estimators and policies as replay |
 | **BENCHMARK** | Which stopping rule needs the fewest fields for the same risk of stopping too early? | development datasets for tuning, held-out datasets for scoring | `morphocoverage.retrospective.frontier` (fields saved at matched risk), `replay_acquisitions`, `morphocoverage.benchmark`; the locked protocol in `data/crick_idr/benchmark.py`; [`docs/benchmarking.md`](docs/benchmarking.md) |
 
-To run a new dataset through the four modes, declare it once in a `morphocoverage.workflows.Setup` and call `report`, `optimise`, `live_session` with `LiveFolder` (files on disk) or `LiveTables` (tables in memory), or `benchmark`. Each returns a `summary()` in sentences ([`docs/workflows.md`](docs/workflows.md)). The notebook [`notebooks/MorphoCoverage_Workflows_Example`](notebooks/MorphoCoverage_Workflows_Example/MorphoCoverage_Workflows_Example.ipynb) runs all four on the example dataset or your own tables, locally or on Google Colab.
+To run a new dataset through the four modes, declare it once in a `morphocoverage.workflows.Setup`, including what the acquisition must preserve (a population summary, a phenotypic fingerprint, a rare phenotype) and whether to normalise every feature to the control condition's mean per repeat; every document opens with what is in the dataset and that declaration, and closes with what the dataset cannot tell. `workflows.plots` draws PlotsOfData-style figures (every object a point coloured by repeat, the median with its interval from resampling whole fields). Then call `report`, `optimise`, `live_session` with `LiveFolder` (files on disk) or `LiveTables` (tables in memory), or `benchmark`. Each returns a `summary()` in sentences ([`docs/workflows.md`](docs/workflows.md)). The notebook [`notebooks/MorphoCoverage_Workflows_Example`](notebooks/MorphoCoverage_Workflows_Example/MorphoCoverage_Workflows_Example.ipynb) runs all four on the example dataset or your own tables, locally or on Google Colab.
 
-The report opens with the premise every other answer rests on: a microscope samples fields, not random objects (plain-language results: [`docs/objects_or_fields.md`](docs/objects_or_fields.md)). Everything except ONLINE is retrospective.
+The report opens with the foundation every other answer rests on: a microscope acquires phenotype observations through spatial fields, not as an arbitrary random sample of individual objects, and whether that matters for a dataset is measured, not assumed (the Foundation section of [`docs/questions.md`](docs/questions.md); plain-language results: [`docs/objects_or_fields.md`](docs/objects_or_fields.md)). Everything except ONLINE is retrospective.
 
 ## Project boundary
 
@@ -49,14 +50,14 @@ It does **not**:
 - read microscopy images or segmentation masks;
 - extract morphometric, texture, intensity, or deep-learning features;
 - depend on CellPatcher, Nyxus, DINO, Torch, or another feature extractor;
-- perform biological-condition hypothesis testing;
+- replace the user's biological inference across independent repeats;
 - control a microscope.
 
-Those concerns belong upstream or downstream. MorphoCoverage focuses on the statistical problem of **FOV-aware phenotypic sampling adequacy**. The mathematical solution is deliberately open: candidate estimators must be compared against simple baselines and unseen FOVs before any one approach becomes the default.
+It does report, when a control condition is declared, how the conditions differ in the acquired fields (effect sizes and a randomization test with the field as the unit, beside the object-level numbers of the lab's Plot&Stats notebook), and whether a stop at `k` fields would have preserved that difference is a retrospective benchmark outcome. Those other concerns belong upstream or downstream. MorphoCoverage focuses on the statistical problem of **FOV-aware phenotypic sampling adequacy**. The mathematical solution is deliberately open: candidate estimators must be compared against simple baselines and unseen FOVs before any one approach becomes the default.
 
 ## Why FOVs matter
 
-Microscopes acquire images, not independent cells. Five hundred cells from two FOVs may contain very different sampling information from five hundred cells distributed across twenty FOVs when phenotypes are spatially structured. Whether that difference is important is a central hypothesis to test, not an assumption to protect.
+Microscopes acquire phenotype observations through spatial fields, not as an arbitrary random sample of individual cells. Five hundred cells from two FOVs may contain very different sampling information from five hundred cells distributed across twenty FOVs. How different depends on two things: the share of the variance that lies between fields and the number of objects a field holds (the design effect of a whole-field mean is about `1 + (m - 1) * ICC`), so a small between-field share with hundreds of cells per field can still make a cell count badly understate the sampling error. Whether that difference is important for a dataset is a central hypothesis to test, not an assumption to protect. Cells remain the phenotype observations; fields describe how they were sampled.
 
 MorphoCoverage therefore preserves the hierarchy
 
@@ -165,7 +166,7 @@ Read [`docs/project_aim.md`](docs/project_aim.md) for the detailed scientific ai
 
 ## Development
 
-Python 3.11+ is required.
+Python 3.11+ is required. Runtime dependencies: `numpy`, `pandas`, `scipy` and `matplotlib` (the last only for `morphocoverage.plots`).
 
 ```bash
 python -m pip install -e ".[dev]"

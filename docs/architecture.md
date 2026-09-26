@@ -73,7 +73,7 @@ class DecisionPolicy:
 SamplingStrategy(estimators, policies, name=...)
 ```
 
-- **Evidence** is a set of named `Quantity` values. Each has a value, a `direction` (`lower_is_better` or `higher_is_better`), `units`, the objective `component` it is evidence about (`population` or `rare`), and an `availability`. `insufficient_data` means more acquisition may make it computable; `not_applicable` means it is undefined for these data. Either needs a reason, and NaN is never a value. Free-form diagnostics accompany the quantities.
+- **Evidence** is a set of named `Quantity` values. Each has a value, a `direction` (`lower_is_better` or `higher_is_better`), `units`, the objective `component` it is evidence about (`population`, `distribution` or `rare`), and an `availability`. `insufficient_data` means more acquisition may make it computable; `not_applicable` means it is undefined for these data. Either needs a reason, and NaN is never a value. Free-form diagnostics accompany the quantities.
 - **Policies** are `ThresholdPolicy(quantity, threshold)`, whose component is the quantity's own, and `EffortPolicy("n_fovs" | "n_observations", target)` (`n_objects` remains a compatibility alias) on framework-owned effort. Custom policies subclass `DecisionPolicy`.
 - **Combination** per objective is described in `docs/sampling_objectives.md`. A required component without a policy is `unsupported`, never `stop`.
 - **`redecide(result, policies, name=...)`** applies other policies to stored results. It equals re-running the same estimators with those policies, which makes threshold sweeps and Pareto curves cheap.
@@ -106,11 +106,14 @@ The objective is independent of the strategy.
 
 Current objective types are:
 
-- `population`
+- `population` (the population summary)
+- `distribution` (the phenotypic fingerprint)
 - `rare_discovery`
-- `balanced`
+- `phenotype` (summary and fingerprint)
+- `balanced` (summary and rare phenotype)
+- `all`
 
-Rare-discovery and balanced objectives require a `RareTarget`: object prevalence and/or FOV incidence, detection probability, minimum number of FOV occurrences, and a declared phenotype definition.
+The objectives with a rare component (`rare_discovery`, `balanced`, `all`) require a `RareTarget`: object prevalence and/or FOV incidence, detection probability, minimum number of FOV occurrences, and a declared phenotype definition. `workflows.Setup.objective()` picks the objective whose components are the declared targets.
 
 A strategy may perform well for one objective and poorly for another. That is a benchmarking result, not an API failure.
 
@@ -121,8 +124,8 @@ The framework builds every result; strategies never construct one. A `StrategyRe
 - strategy name and `config_id`;
 - objective;
 - evidence (quantities and diagnostics; `diagnostics` is a shortcut);
-- overall decision: `continue`, `stop`, `unsupported` or `None` (undefined);
-- `component_decisions`, one per component;
+- overall decision: `continue`, `stop`, `unsupported` or `None` (undefined), for the objective;
+- `component_decisions`, one per component, and `rule_decision`, the rule's own verdict over the components it decides (what a self-assessment, a replay or a calibration reads; `docs/sampling_objectives.md`);
 - number of FOVs and number of observations;
 - resolved condition/repeat group identity;
 - strategy parameters, and `configuration` (name, type, `config_id` and parameters of each estimator and policy);
@@ -157,9 +160,13 @@ The runner cannot detect leakage introduced upstream, such as features normalize
 
 The framework deliberately keeps strategy execution separate from the later benchmark outcome calculation so a method is not rewarded by being judged only with its own internal metric. `morphocoverage.benchmark` records one run per dataset, group, acquisition order and strategy, and `morphocoverage.outcomes` scores each stop against the full acquisition, or, with `run_benchmark(..., reservoir=ReservoirSplit(...))`, against a held-out reservoir; see `docs/benchmarking.md`.
 
+## Shared statistics, normalisation and plots
+
+`morphocoverage.statistics` holds the statistics that several analyses use, written once: Cohen's d with the pooled variance (as the lab's Plot&Stats notebook), the JCS effect size, drawing `n` objects as whole fields in random order, the number of fields that hold `n` objects, and the percentile bootstrap of a statistic over whole fields. `sampling_unit.condition_contrast`, `plots.plots_of_data` and `data/crick_idr/jcs_effect_fovs.py` call them. `morphocoverage.normalize` divides features by the control condition's mean per repeat (`workflows.Setup.normalize`); it is a retrospective preparation of the tables, never a per-group `FeatureTransform`. `morphocoverage.plots` is the only module that imports matplotlib.
+
 ## Sampling-unit checks
 
-`morphocoverage.sampling_unit` answers the report's premise (R0 of `docs/questions.md`): whether the objects of a completed acquisition behave like the random objects that object-count rules assume. `fov_variability` gives the variance components of one feature (reusing `retrospective.effort.nested_variance_components`), the design effect and the FOVs that differ more than random objects would. `object_rule_check` and `descriptor_spread_check` run the JCB rule and the JCS Fig. 2A procedure twice, with random objects and with whole FOVs. `unusual_objects` labels observations far from declared reference groups (standardized features, mean distance to the nearest reference observations with `scipy.spatial.cKDTree`, thresholded against reference observations of other FOVs; a group is never its own reference), following the reference-sampling, provenance and seed-check design of fiberfeatures' pixel categories without its scikit-learn mixture model. `fov_clustering` takes any per-observation state labels and compares their FOV incidence with the random-object expectation (R4). `microscopist_report` places their summaries first and in the sampling profile; `sampling_unit` imports retrospective helpers, so the report imports it inside the function. All are retrospective and group-local; the names stay in the subpackage and are not part of the top-level `__all__`. Comparisons between groups (the JCS treatment comparisons with whole fields) stay in `data/crick_idr/jcs_effect_fields.py` until multi-group outcomes have their own contract (AGENTS.md section 9).
+`morphocoverage.sampling_unit` answers the report's foundation (the Foundation section of `docs/questions.md`): whether the objects of a completed acquisition behave like the random objects that object-count rules assume. `fov_variability` gives the variance components of one feature (reusing `retrospective.effort.nested_variance_components`), the design effect and the FOVs that differ more than random objects would. `object_rule_check` and `descriptor_spread_check` run the JCB rule and the JCS Fig. 2A procedure twice, with random objects and with whole FOVs. `unusual_objects` labels observations far from declared reference groups (standardized features, mean distance to the nearest reference observations with `scipy.spatial.cKDTree`, thresholded against reference observations of other FOVs; a group is never its own reference), following the reference-sampling, provenance and seed-check design of fiberfeatures' pixel categories without its scikit-learn mixture model. `fov_clustering` takes any per-observation state labels and compares their FOV incidence with the random-object expectation (R4). `condition_contrast` compares each condition with the declared control per repeat, on objects and with the field as the unit (Cohen's d, a randomization test over whole fields, the JCS effect size from random objects and from whole fields), and is the one sampling-unit check that compares groups; it is retrospective and descriptive (R7). `microscopist_report` places their summaries first and in the sampling profile; `sampling_unit` imports retrospective helpers, so the report imports it inside the function. All are retrospective and group-local; the names stay in the subpackage and are not part of the top-level `__all__`. Comparisons between groups (the JCS treatment comparisons with whole fields) stay in `data/crick_idr/jcs_effect_fields.py` until multi-group outcomes have their own contract (AGENTS.md section 9).
 
 ## Computational benchmarking
 

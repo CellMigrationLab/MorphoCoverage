@@ -65,9 +65,8 @@ import pandas as pd
 
 from ..metadata import MORPHOBRICKS_FOV_CANDIDATES, MORPHOBRICKS_GROUP_COLUMNS
 from ..online import OnlineSession
-from ..results import Decision, StrategyResult
+from ..results import Decision, StrategyResult, decision_view
 from ..strategies.base import SamplingStrategy
-from .retrospective import POPULATION
 from .setup import Setup
 
 MANIFEST = "fovs.csv"
@@ -82,7 +81,7 @@ def live_session(setup: Setup, rules: tuple[SamplingStrategy, ...] | None = None
     return OnlineSession(
         strategies=list(setup.stopping_rules() if rules is None else rules),
         feature_cols=setup.columns,
-        objective=POPULATION,
+        objective=setup.objective(),
         fov_col=setup.fov_col,
         group_cols=None if setup.group_cols is None else list(setup.group_cols),
         observation_unit=setup.observation_unit,
@@ -173,10 +172,12 @@ class LiveUpdate:
     pending_objects: int = 0
 
     def summary(self) -> str:
-        """One line per rule: the decision and why."""
+        """One line per rule (the decision and why), then one view per target."""
         where = ", ".join(f"{k}={v}" for k, v in self.fov_metadata.items() if k != OBJECTS_FILE)
         head = f"{where}: {self.n_objects} objects (read in {1000 * self.read_seconds:.0f} ms)"
         lines = [head, *(f"  {r.explain()}" for r in self.results)]
+        if self.results:
+            lines.append(f"  {decision_view(self.results)}")
         if self.pending_objects:
             waiting = (
                 "1 object row waits for its FOV row"

@@ -183,6 +183,68 @@ def test_balanced_with_one_component_is_unsupported():
     assert _combined(BALANCED, population_cv=0.5)[0] is Decision.UNSUPPORTED
 
 
+def test_distribution_evidence_cannot_answer_the_population_objective():
+    decision, components = _combined(POPULATION, distribution_se=0.5)
+    assert decision is Decision.UNSUPPORTED
+    assert components == {"distribution": Decision.STOP, "population": Decision.UNSUPPORTED}
+    phenotype = ObjectiveConfig(SamplingObjective.PHENOTYPE)
+    assert _combined(phenotype, population_cv=0.5, distribution_se=0.5)[0] is Decision.STOP
+    assert _combined(phenotype, population_cv=0.5, distribution_se=2.0)[0] is Decision.CONTINUE
+    assert _combined(phenotype, population_cv=0.5)[0] is Decision.UNSUPPORTED
+
+
+def _result(objective, **values):
+    from morphocoverage.results import StrategyResult
+
+    decision, components = _combined(objective, **values)
+    return StrategyResult(
+        strategy="rule",
+        config_id="x",
+        objective=objective,
+        evidence=Evidence(),
+        decision=decision,
+        component_decisions=components,
+    )
+
+
+def test_the_rule_verdict_is_what_the_rule_said_whatever_the_objective():
+    # A novelty rule under the population objective: unsupported for the objective,
+    # but the rule itself said stop, which is what a self-assessment or replay reads.
+    novelty = _result(POPULATION, distribution_se=0.5)
+    assert novelty.decision is Decision.UNSUPPORTED
+    assert novelty.rule_decision is Decision.STOP
+    mean = _result(RARE, population_cv=2.0)
+    assert (mean.decision, mean.rule_decision) == (Decision.UNSUPPORTED, Decision.CONTINUE)
+    both = _result(POPULATION, population_cv=0.5, distribution_se=2.0)
+    assert (both.decision, both.rule_decision) == (Decision.STOP, Decision.CONTINUE)
+
+
+def test_decision_view_shows_every_target_and_the_overall():
+    from morphocoverage.results import decision_view
+
+    phenotype = ObjectiveConfig(SamplingObjective.PHENOTYPE)
+    mean = _result(phenotype, population_cv=0.5)
+    fingerprint = _result(phenotype, distribution_se=2.0)
+    view = decision_view([mean, fingerprint])
+    assert view == (
+        "Population summary: stop (1 rule); Phenotypic fingerprint: continue (1 rule); "
+        "Overall (phenotype objective): continue"
+    )
+    # A required target no rule decides is said so, and the overall is unsupported.
+    alone = decision_view([mean])
+    assert "Phenotypic fingerprint: no rule decides it" in alone
+    assert alone.endswith(
+        "Overall (phenotype objective): unsupported (no rule decides the phenotypic fingerprint)"
+    )
+    # Under the population objective a fingerprint rule is shown but does not decide.
+    view = decision_view(
+        [_result(POPULATION, population_cv=0.5), _result(POPULATION, distribution_se=0.5)]
+    )
+    assert view.endswith("Overall (population objective): stop")
+    with pytest.raises(ValueError, match="one objective"):
+        decision_view([mean, _result(POPULATION, population_cv=0.5)])
+
+
 def test_non_required_components_are_reported_but_do_not_decide():
     decision, components = _combined(POPULATION, population_cv=2.0, rare_miss=0.5)
     assert decision is Decision.CONTINUE

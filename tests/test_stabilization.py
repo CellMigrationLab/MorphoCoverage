@@ -108,21 +108,21 @@ def test_plateau_matches_an_independent_oracle(tolerance, window):
     fovs = scenario.fovs.rename(columns={ORDER_COL: "order"})
     strategy = DescriptorPlateauStrategy("area", tolerance, window, "order")
     results = _replay(objects, fovs, [strategy])
-    stop = next((r.step for r in results if r.result.decision == "stop"), None)
+    stop = next((r.step for r in results if r.result.rule_decision == "stop"), None)
     assert stop == _plateau_oracle(objects, fovs, tolerance, window)
 
 
 def test_plateau_waits_for_window_plus_one_fovs_with_objects():
     objects, fovs = _tables([[1.0, 3.0]] * 4)
     results = _replay(objects, fovs, [DescriptorPlateauStrategy("area", 10.0, 3, "order")])
-    assert [r.result.decision for r in results] == ["continue"] * 3 + ["stop"]
+    assert [r.result.rule_decision for r in results] == ["continue"] * 3 + ["stop"]
 
 
 def test_empty_fovs_do_not_create_a_plateau():
     # Three empty FOVs after two FOVs of cells: no new cells, so no new states.
     objects, fovs = _tables([[1.0, 3.0], [2.0, 6.0], [], [], []])
     results = _replay(objects, fovs, [DescriptorPlateauStrategy("area", 10.0, 2, "order")])
-    assert all(r.result.decision == "continue" for r in results)
+    assert all(r.result.rule_decision == "continue" for r in results)
 
 
 def test_plateau_uses_acquisition_order_not_table_order():
@@ -141,7 +141,7 @@ def test_plateau_uses_acquisition_order_not_table_order():
 def test_identical_values_have_zero_spread(unit):
     objects, fovs = _tables([[2.0, 2.0]] * 5)
     result = _evaluate(objects, fovs, _spread(0.01, unit))
-    assert _score(result) == 0.0 and result.decision == "stop"
+    assert _score(result) == 0.0 and result.rule_decision == "stop"
 
 
 def test_spread_shrinks_with_more_cells():
@@ -184,7 +184,7 @@ def test_fov_spread_counts_empty_fovs_as_sampled_units():
     # FOVs were dropped, only the 2 non-empty FOVs would be resampled.
     objects, fovs = _tables([[1.0, 1.0], [3.0, 3.0]] + [[]] * 8)
     result = _evaluate(objects, fovs, _spread(1.0, "fov"))
-    assert _score(result) == float("inf") and result.decision == "continue"
+    assert _score(result) == float("inf") and result.rule_decision == "continue"
 
 
 # --- Input rules -------------------------------------------------------------------
@@ -221,14 +221,19 @@ def test_evidence_states_its_meaning():
     spread = _evaluate(objects, fovs, _spread(0.1, "object"))
     for result, name in ((plateau, "max_descriptor_range"), (spread, "max_descriptor_spread")):
         quantity = result.evidence.quantities[name]
-        assert (quantity.direction, quantity.component) == ("lower_is_better", "population")
+        # The paper's four descriptors include SD and IQR: the distribution of phenotypes.
+        assert (quantity.direction, quantity.component) == ("lower_is_better", "distribution")
         assert quantity.units == "units of 'area'"
+    location_only = _evaluate(
+        objects, fovs, DescriptorSpreadStrategy("area", 0.1, "object", 10, 0, ("mean", "median"))
+    )
+    assert location_only.evidence.quantities["max_descriptor_spread"].component == "population"
     ranges = plateau.diagnostics["window_ranges"]
     assert plateau.evidence.value("max_descriptor_range") == max(ranges.values())
     # Too few FOVs with objects: insufficient data, so the rule continues.
     early = _evaluate(objects, fovs, DescriptorPlateauStrategy("area", 0.1, 5, "order"))
     assert early.evidence.quantities["max_descriptor_range"].availability == "insufficient_data"
-    assert early.decision == "continue"
+    assert early.rule_decision == "continue"
 
 
 def test_names_and_parameters_record_the_variant():
@@ -261,7 +266,9 @@ def test_current_practice_rules_stop_before_a_late_clustered_rare_state():
     results = _replay(scenario.objects, scenario.fovs, strategies, ORDER_COL, FEATURE_COLS)
     for strategy in strategies:
         stop = next(
-            r for r in results if r.result.strategy == strategy.name and r.result.decision == "stop"
+            r
+            for r in results
+            if r.result.strategy == strategy.name and r.result.rule_decision == "stop"
         )
         assert stop.step < scenario.truth["first_rare_step"]
         seen = {fov[-1] for fov in stop.acquired_fovs}
@@ -297,8 +304,8 @@ def test_current_practice_rules_are_unsupported_for_rare_discovery():
         objective=rare,
     )
     assert {r.result.decision for r in results} == {"unsupported"}
-    # The population verdict is still reported, for comparison.
-    assert "stop" in {r.result.component_decisions["population"] for r in results}
+    # Each rule's own verdict is still reported, for comparison.
+    assert "stop" in {r.result.rule_decision for r in results}
 
 
 @pytest.mark.parametrize(
@@ -313,7 +320,7 @@ def test_descriptor_rules_do_not_silently_drop_missing_values(strategy):
     result = _evaluate(objects, fovs, strategy)
     [quantity] = result.evidence.quantities.values()
     assert quantity.availability == "not_applicable"
-    assert result.decision is None
+    assert result.rule_decision is None
     assert "missing values" in quantity.reason
 
 
@@ -337,7 +344,7 @@ def test_cell_stabilization_rules_are_not_applicable_to_slice_observations(strat
     [quantity] = result.evidence.quantities.values()
     assert quantity.availability == "not_applicable"
     assert "'slice'" in quantity.reason
-    assert result.decision is None
+    assert result.rule_decision is None
 
 
 def test_fov_spread_variant_applies_to_any_observation_unit():
@@ -354,5 +361,5 @@ def test_fov_spread_variant_applies_to_any_observation_unit():
         )[0]
         for unit in ("slice", "cell")
     ]
-    assert [r.decision for r in results] == ["stop", "stop"]
+    assert [r.rule_decision for r in results] == ["stop", "stop"]
     assert results[0].evidence == results[1].evidence

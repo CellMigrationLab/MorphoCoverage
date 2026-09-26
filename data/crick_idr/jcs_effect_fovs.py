@@ -19,7 +19,9 @@ on the paper's wells:
 - **whole FOVs:** fields in random order until ``n`` objects, with a random
   part of the last field (the ``n`` objects a microscope would have).
 
-For each ``n`` it reports the effect-size median and IQR band, whether the
+The sampling and the effect size are ``morphocoverage.statistics``, shared
+with ``sampling_unit.condition_contrast``. For each ``n`` it reports the
+effect-size median and IQR band, whether the
 bands of the two treatments the paper compares overlap, how often a sample
 ranks the two treatments as the full wells do, and how many fields the
 ``n`` objects took. 1000 samples per size (the paper uses 100) keep the bands
@@ -44,6 +46,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from datasets import RESULTS, load
+
+from morphocoverage.statistics import field_sample, fields_holding, jcs_effect_size
 
 SEED = 0
 DRAWS = 1000
@@ -83,38 +87,10 @@ def _paper_wells(name: str) -> tuple[list[np.ndarray], dict[str, list[np.ndarray
     return fields(control), {c: fields(w) for c, w in treated.items()}
 
 
-def _field_sample(fields: list[np.ndarray], n: int, rng: np.random.Generator) -> np.ndarray:
-    """Whole fields in random order until ``n`` objects, with a random part of the last one."""
-    taken, count = [], 0
-    for i in rng.permutation(len(fields)):
-        need = n - count
-        field = fields[i]
-        if len(field) >= need:
-            taken.append(rng.choice(field, size=need, replace=False))
-            break
-        taken.append(field)
-        count += len(field)
-    return np.concatenate(taken)
-
-
 def _sample(fields: list[np.ndarray], n: int, how: str, rng: np.random.Generator):
     if how == "random objects":
         return rng.choice(np.concatenate(fields), size=n, replace=False)
-    return _field_sample(fields, n, rng)
-
-
-def _fields_holding(fields: list[np.ndarray], n: int, rng: np.random.Generator) -> float:
-    """Mean number of fields, in random order, whose objects reach ``n`` (the last one partly)."""
-    counts = []
-    for _ in range(200):
-        total, k = 0, 0
-        for i in rng.permutation(len(fields)):
-            k += 1
-            total += len(fields[i])
-            if total >= n:
-                break
-        counts.append(k)
-    return float(np.mean(counts))
+    return field_sample(fields, n, rng)
 
 
 def effects(name: str, rng: np.random.Generator) -> pd.DataFrame:
@@ -130,7 +106,7 @@ def effects(name: str, rng: np.random.Generator) -> pd.DataFrame:
                     # a fresh control sample per treatment, as in the companion code
                     ctrl = _sample(control, n, how, rng)
                     t = _sample(fields, n, how, rng)
-                    draws[c].append((t.mean() - ctrl.mean()) / ctrl.std(ddof=1))
+                    draws[c].append(jcs_effect_size(t, ctrl))
             for c, values in draws.items():
                 v = np.array(values)
                 rows.append(
@@ -142,7 +118,7 @@ def effects(name: str, rng: np.random.Generator) -> pd.DataFrame:
                         "median": float(np.median(v)),
                         "q25": float(np.percentile(v, 25)),
                         "q75": float(np.percentile(v, 75)),
-                        "fields_treated": _fields_holding(treated[c], n, rng),
+                        "fields_treated": fields_holding(treated[c], n, rng, draws=200),
                         "values": v,
                     }
                 )
@@ -153,10 +129,7 @@ def full_wells(name: str) -> dict[str, float]:
     """The effect sizes from every imaged object: the reference the samples should reproduce."""
     control, treated = _paper_wells(name)
     ctrl = np.concatenate(control)
-    return {
-        c: float((np.concatenate(f).mean() - ctrl.mean()) / ctrl.std(ddof=1))
-        for c, f in treated.items()
-    }
+    return {c: jcs_effect_size(np.concatenate(f), ctrl) for c, f in treated.items()}
 
 
 def compare(table: pd.DataFrame, name: str) -> pd.DataFrame:

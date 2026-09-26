@@ -47,6 +47,7 @@ OBJECTIVES = [
     POPULATION,
     ObjectiveConfig(SamplingObjective.RARE_DISCOVERY, rare=_RARE),
     ObjectiveConfig(SamplingObjective.BALANCED, rare=_RARE),
+    ObjectiveConfig(SamplingObjective.ALL, rare=_RARE),
 ]
 
 

@@ -27,6 +27,7 @@ setup = Setup(
     readout="YAPTAZ_Ratio",                  # the scalar you report
     features=features,                        # explicit columns; never inferred
     control={"condition": "MOCK"},            # negative-control groups
+    normalize="control_mean",                 # or None: divide by the repeat's control mean
     positive=PositiveControl({"condition": "YAP"}, fovs_seen=10, pair_cols=("repeat",)),
     novelty=default_novelty(features),        # the definition of "new"; None to skip
     tolerances=(0.05, 0.025),                 # the readout's mean within 5% and 2.5%
@@ -43,6 +44,60 @@ then says "Not assessed" and names what would be needed. The stopping rules
 default to the JCB rule (upper-95 SD, first tolerance), per object and per
 field; pass `rules=(...)` to assess others.
 
+### Normalising to the control
+
+`normalize="control_mean"` divides every declared column (the readout and
+the features) by the mean of the control condition's objects of the same
+repeat before any retrospective analysis, as the JCB rule and the lab's
+Plot&Stats notebook express values (`morphocoverage.normalize`). It needs
+`control` to name the condition column, every repeat must hold control
+objects (a repeat without them raises, since mixing scales inside one
+analysis would be worse than stopping), and the report's overview and the
+declaration say that the values are normalised. The live session runs on raw
+values, because it sees one group at a time and has not seen the control.
+
+### What must the acquisition preserve?
+
+The `Setup` also declares the target, the front door of
+[`questions.md`](questions.md): there is no "enough" without "enough for
+what". Three targets can be declared, and each becomes an outcome criterion
+that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
+
+- **a population summary**: the mean of `readout` within each of
+  `tolerances` (always declared);
+- **a phenotypic fingerprint**: `fingerprint=(OutcomeCriterion(...), ...)`,
+  distribution criteria on the declared features, for example
+
+  ```python
+  from morphocoverage.multivariate_outcomes import CovarianceError, QuantileError
+  from morphocoverage.retrospective import OutcomeCriterion
+
+  fingerprint = (
+      OutcomeCriterion(CovarianceError(features, True), 0.10, "lower_is_better",
+                       "the covariance of the features within 10%"),
+  )
+  ```
+
+  Their features must be in `features`. No tolerance here has a published
+  meaning: state yours, and read the reservoir ceiling the curve prints
+  (held-back fields are themselves a sample; a criterion they cannot pin
+  down says "cannot be read above" the ceiling rather than "more fields do
+  not help");
+- **a rare phenotype**: `rare=RareTarget(...)` (its definition, its object
+  prevalence and/or field incidence, the detection probability, the fields it
+  must be seen in) and, when an independent label exists, `rare_label`, the
+  object column (booleans or 0/1) that marks it. With the label, held-back
+  fields judge whether `k` fields showed the state; without it the target is
+  stated and planned for (the binomial field count at the declared incidence)
+  but not judged. Object prevalence is never converted to field incidence.
+
+Every document opens with the declaration (`setup.declaration()`), one
+sentence per target, and a target that is not declared says so, so that an
+answer about the mean is never read as an answer about the distribution or
+about rare states. A fourth target, the difference between conditions, is a
+retrospective benchmark outcome and not yet a declaration
+([`questions.md`](questions.md), open work).
+
 A declaration the workflows could not use raises instead of being skipped.
 A definition of new (`novelty`) needs `features`, and a positive control needs
 `novelty`. Group columns beyond condition and repeat (a `well`, say) are part of
@@ -55,9 +110,53 @@ on `features` only, never on the readout, and the report names those columns.
 from morphocoverage.workflows import report
 
 result = report(objects, fovs, setup)        # fovs lists every acquired field
-print(result.summary())                      # questions 1 to 4 and 7
+print(result.summary())                      # overview, declaration, Foundation, questions 1 to 3, 6, 9, limits
 result.results["sufficiency"]                # each analysis, for further use
 ```
+
+Every document opens with **what is in the dataset**: objects, acquired
+fields and empty fields, what one row is, the feature columns (the first 12
+names, then how many more), the conditions and repeats with a table of fields
+by condition and repeat, and whether the values are normalised. It closes
+with **what this dataset cannot tell me**: every question not assessed, with
+what it would need (a control, a positive control, stage coordinates, a
+hierarchy, a replay), and the notes to read the answers with. Missing
+columns never stop the report: without `condition` or `repeat` every field is
+one group and the sections that need them say so.
+
+## Plots: every object a point, the interval from fields
+
+```python
+from morphocoverage.workflows import plots
+
+figures = plots(objects, fovs, setup, folder="figures")   # the readout by default
+figures = plots(objects, fovs, setup, features=["YAPTAZ_Ratio", "Nuclei_Area"])
+```
+
+PlotsOfData-style figures (`morphocoverage.plots`), one per feature:
+within each condition the biological repeats (the `repeat` column) sit side
+by side, labelled above their cluster, so that a difference between
+conditions can be read against the spread between repeats. Every object is
+a jittered point coloured by technical repeat (`technical_col`, by default
+the group column below the repeat: a well is a technical repeat, never a
+biological one), and each biological repeat's median (or `summary="mean"`)
+carries its 95% interval from resampling that repeat's whole fields, not
+objects, so it reflects how the data were sampled. More than 12 conditions
+are split over several figures, more than 8 biological repeats are pooled
+into one cluster per condition and the title says so, more than 8
+technical repeats go uncoloured with a note, and more than 24 features
+raise so that you choose; all four are arguments (`max_conditions`,
+`max_repeats`, `max_technical`, `max_features`). The features must be
+declared in the setup, and the plots use the same normalised values as the
+report when `normalize` is set. With `folder`, each figure is saved as a PNG.
+
+When `control` names a condition and the FOV table holds other conditions,
+the report also answers question 9, "Do the conditions differ, and how
+confidently?": each condition against the control, per repeat, with Cohen's
+d and the JCS effect size computed on objects (the numbers of the lab's
+Plot&Stats notebook) and with the field as the unit, and a randomization test
+that shuffles condition labels over whole fields. It describes what these
+fields support; generalizing needs independent repeats.
 
 ## OPTIMISE / PLAN: what should the next experiment do?
 
@@ -65,14 +164,17 @@ result.results["sufficiency"]                # each analysis, for further use
 from morphocoverage.workflows import document, optimise
 
 plan = optimise(objects, fovs, setup, fov_counts=[2, 4, 8, 12], reservoir_fraction=0.35)
-print(plan.summary())                         # questions 5, 6, 8, 9 and the rule calibration
+print(plan.summary())                         # questions 4, 5, 7, 8 and the rule calibration
 print(document(result, plan).summary())       # one report with every question
 ```
 
 `reservoir_fraction` has no default. It sets the share of each group's fields
 held back as the reference that subsets are judged against, and that share is
 a design choice. Planning advice rests on what random subsets preserved in
-those held-back fields. It never rests on the best subset.
+those held-back fields. It never rests on the best subset. Every declared
+criterion gets its own curve: the mean within each tolerance, each fingerprint
+criterion, and the labelled rare state, so the answer to "how many fields?"
+is read per target, and a target the held-back fields cannot judge says so.
 
 ## BENCHMARK: which rule needs the fewest fields for the same risk?
 
@@ -95,7 +197,15 @@ dataset's role: keeping the two apart is up to you.
 ## ONLINE: continue or stop while the microscope acquires
 
 `live_session(setup)` returns an `OnlineSession` for the setup's rules
-([`online.md`](online.md)). It has two sources of fields: files on disk, or
+([`online.md`](online.md)), under the objective made of the declared targets
+(`setup.objective()`). Each update ends with one view per target: the
+population summary, the phenotypic fingerprint and the rare phenotype, each
+with the decision of the rules that decide it, then the overall decision. The
+default rules (the JCB rule per object and per field) decide the population
+summary only; declare a fingerprint or a rare target and the view says that
+no rule decides it until you pass `rules=(...)` with one that does (for
+example a `FOVBootstrapStrategy` on the covariance), and the overall decision
+stays unsupported rather than assuming the target adequate. It has two sources of fields: files on disk, or
 tables held in memory. Both give the same decisions as calling `add_fov`
 yourself with the same fields.
 

@@ -137,7 +137,7 @@ def sweep(
         decided = rows.drop(columns=["result"]).copy()
         decisions = []
         for result in rows["result"]:
-            outcome = redecide(result, [policy], name=name).decision
+            outcome = redecide(result, [policy], name=name).rule_decision
             decisions.append(None if outcome is None else outcome.value)
         decided["decision"] = decisions
         decided["family"] = name
@@ -159,7 +159,12 @@ def _statuses(replay: ReplayResult, criterion: str) -> dict[tuple, np.ndarray]:
     return table
 
 
-def _family_runs(decisions: pd.DataFrame, keys, statuses, streams) -> list[dict]:
+def _family_runs(
+    decisions: pd.DataFrame,
+    keys: list[str],
+    statuses: Mapping[tuple, Any],
+    streams: Mapping[tuple, tuple[int, str]],
+) -> list[dict]:
     """One row per run and setting: where the family stopped and the status there."""
     rows = []
     group_keys = [*keys, "family", "setting"]
@@ -186,7 +191,9 @@ def _family_runs(decisions: pd.DataFrame, keys, statuses, streams) -> list[dict]
     return rows
 
 
-def _baseline_runs(keys, statuses, streams) -> list[dict]:
+def _baseline_runs(
+    keys: list[str], statuses: Mapping[tuple, Any], streams: Mapping[tuple, tuple[int, str]]
+) -> list[dict]:
     """The fixed rule at every k from 1 to the longest stream, on every run."""
     longest = max(stream for stream, _ in streams.values())
     rows = []
@@ -265,7 +272,13 @@ def _unit_ids(runs: pd.DataFrame, unit_cols: Sequence[str]) -> pd.Series:
     return runs[list(unit_cols)].astype(str).agg(" / ".join, axis=1)
 
 
-def _bootstrap(runs, unit_cols, alphas, n_boot, rng) -> dict[tuple[str, float], np.ndarray]:
+def _bootstrap(
+    runs: pd.DataFrame,
+    unit_cols: Sequence[str],
+    alphas: Sequence[float],
+    n_boot: int,
+    rng: np.random.Generator,
+) -> dict[tuple[str, float], np.ndarray]:
     """Fields saved per family and alpha in each resample of independent units."""
     runs = runs.assign(
         unit=_unit_ids(runs, unit_cols),
@@ -315,7 +328,7 @@ def _bootstrap(runs, unit_cols, alphas, n_boot, rng) -> dict[tuple[str, float], 
     return saved
 
 
-def _adaptivity(runs: pd.DataFrame, realized: pd.DataFrame, keys) -> float | None:
+def _adaptivity(runs: pd.DataFrame, realized: pd.DataFrame, keys: list[str]) -> float | None:
     """Spearman correlation of the stop with sustained realized adequacy, over runs."""
     merged = runs.merge(realized, on=keys, how="inner")
     if len(merged) < 3 or merged["effort"].nunique() < 2 or merged["needed"].nunique() < 2:

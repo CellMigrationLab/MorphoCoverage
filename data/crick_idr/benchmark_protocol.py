@@ -19,6 +19,12 @@ Versions:
   cell" became "JCB per object" and "JCS spread per object", and the rare
   question's ``planted_cells`` became ``planted_objects``, when the package
   renamed cells to objects. Every setting, grid and seed is that of version 1.
+  (2026-09-26, no new version: ``benchmark.py`` runs the "novelty bound"
+  family under the distribution objective instead of the population
+  objective, since novelty became distribution evidence when that component
+  was added; the objective is not part of the protocol digest, and the
+  frontier reads each rule's own verdict (``StrategyResult.rule_decision``),
+  so the scores are unchanged.)
 
 Questions scored (codes of ``docs/questions.md``):
 

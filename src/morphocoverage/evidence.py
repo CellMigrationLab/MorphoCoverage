@@ -23,9 +23,17 @@ RESERVED_QUANTITY_NAMES = frozenset({"n_fovs", "n_objects"})
 
 
 class Component(str, Enum):
-    """The part of a sampling objective that a quantity is evidence about."""
+    """The part of a sampling objective that a quantity is evidence about.
+
+    ``POPULATION``: a summary of the population (a mean, a centroid, an
+    averaging error). ``DISTRIBUTION``: the phenotypic fingerprint, the
+    distribution of phenotypes beyond its summary (covariance, quantiles, the
+    PCA spectrum, the presence of states no other field supports, the
+    completeness of labelled states). ``RARE``: a declared ``RareTarget``.
+    """
 
     POPULATION = "population"
+    DISTRIBUTION = "distribution"
     RARE = "rare"
 
 

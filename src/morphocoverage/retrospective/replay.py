@@ -23,7 +23,7 @@ so adding a group or a split never changes another's orders.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -61,8 +61,9 @@ class ReplayResult:
     """Decisions and outcomes after every prefix of every replayed acquisition.
 
     - ``decisions``: one row per group, split, order, strategy and prefix
-      length (``fovs``); ``decision`` is ``"stop"``, ``"continue"``,
-      ``"unsupported"`` or ``None`` (undefined).
+      length (``fovs``); ``decision`` is the rule's own verdict
+      (``StrategyResult.rule_decision``): ``"stop"``, ``"continue"`` or
+      ``None`` (undefined).
     - ``outcomes``: one row per group, split, order, prefix length and
       criterion, with the metric ``value`` and ``status`` (``preserved``,
       ``not_preserved``, ``undefined``) against that split's reservoir.
@@ -132,7 +133,12 @@ def order_id(order: AcquisitionOrder) -> str:
 
 
 def _ordered_stream(
-    group, stream: ValidatedInput, order, order_col, split, stage_cols
+    group: Mapping[str, Any],
+    stream: ValidatedInput,
+    order: AcquisitionOrder,
+    order_col: str | None,
+    split: int,
+    stage_cols: Sequence[str] | None,
 ) -> pd.DataFrame:
     """The stream's FOV rows in the order to replay."""
     if order.kind == "recorded":
@@ -149,15 +155,15 @@ def _ordered_stream(
 
 
 def _check(
-    strategies,
-    criteria,
-    orders,
-    acquisition_order_col,
-    n_splits,
-    random_state,
-    min_fovs,
-    stage_cols,
-):
+    strategies: Sequence[SamplingStrategy],
+    criteria: Sequence[OutcomeCriterion],
+    orders: Sequence[AcquisitionOrder],
+    acquisition_order_col: str | None,
+    n_splits: int,
+    random_state: int,
+    min_fovs: int,
+    stage_cols: Sequence[str] | None,
+) -> tuple[list[SamplingStrategy], list[OutcomeCriterion], list[AcquisitionOrder]]:
     strategies = list(strategies)
     if not strategies or not all(isinstance(s, SamplingStrategy) for s in strategies):
         raise TypeError("strategies must be a non-empty sequence of SamplingStrategy")
@@ -185,7 +191,14 @@ def _check(
     return strategies, criteria, orders
 
 
-def _runs(group, group_data, orders, split_settings, acquisition_order_col, stage_cols):
+def _runs(
+    group: Mapping[str, Any],
+    group_data: ValidatedInput,
+    orders: Sequence[AcquisitionOrder],
+    split_settings: tuple[float, str | None, int, int],
+    acquisition_order_col: str | None,
+    stage_cols: Sequence[str] | None,
+) -> Iterator[tuple[dict[str, Any], ValidatedInput, pd.DataFrame, ValidatedInput]]:
     """Every replayed acquisition of one group: its label, stream order and reservoir.
 
     Reservoirs and orders are fixed here, before any run is handed out, so a
@@ -210,8 +223,15 @@ def _runs(group, group_data, orders, split_settings, acquisition_order_col, stag
 
 
 def _decide(
-    where, group, acquisition, strategies, objective, min_fovs, incremental, keep_results=False
-):
+    where: Mapping[str, Any],
+    group: Mapping[str, Any],
+    acquisition: _Acquisition | tuple,
+    strategies: Sequence[SamplingStrategy],
+    objective: ObjectiveConfig,
+    min_fovs: int,
+    incremental: bool,
+    keep_results: bool = False,
+) -> list[tuple[int, dict[str, Any]]]:
     """``(step, row)`` of every strategy's decision after every prefix of one run.
 
     With ``keep_results`` each row also holds the ``StrategyResult`` (without
@@ -228,7 +248,8 @@ def _decide(
         min_fovs=min_fovs,
         incremental=incremental,
     ):
-        decision = None if result.decision is None else result.decision.value
+        # What the rule itself said (its own components), not the objective's verdict.
+        decision = None if result.rule_decision is None else result.rule_decision.value
         row = {
             **where,
             "strategy": result.strategy,
@@ -242,7 +263,13 @@ def _decide(
     return rows
 
 
-def _score(where, acquisition, reservoir, criteria, stage_cols):
+def _score(
+    where: Mapping[str, Any],
+    acquisition: _Acquisition | tuple,
+    reservoir: ValidatedInput,
+    criteria: Sequence[OutcomeCriterion],
+    stage_cols: Sequence[str] | None,
+) -> tuple[list[dict], list[dict], list[dict]]:
     """Outcomes, stream sizes and stage path of one run; independent of every strategy."""
     if not isinstance(acquisition, _Acquisition):
         acquisition = _Acquisition(*acquisition)
@@ -271,19 +298,19 @@ def _score(where, acquisition, reservoir, criteria, stage_cols):
 
 
 def _replay_group(
-    group,
-    group_data,
-    orders,
-    split_settings,
-    acquisition_order_col,
-    stage_cols,
-    strategies,
-    criteria,
-    objective,
-    min_fovs,
-    incremental,
-    keep_results=False,
-):
+    group: Mapping[str, Any],
+    group_data: ValidatedInput,
+    orders: Sequence[AcquisitionOrder],
+    split_settings: tuple[float, str | None, int, int],
+    acquisition_order_col: str | None,
+    stage_cols: Sequence[str] | None,
+    strategies: Sequence[SamplingStrategy],
+    criteria: Sequence[OutcomeCriterion],
+    objective: ObjectiveConfig,
+    min_fovs: int,
+    incremental: bool,
+    keep_results: bool = False,
+) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     """Decisions, outcomes, streams and stage paths of every run of one analysis group."""
     decisions, outcomes, streams, paths = [], [], [], []
     for where, stream, ordered, reservoir in _runs(
@@ -301,7 +328,7 @@ def _replay_group(
     return decisions, outcomes, streams, paths
 
 
-def _run_unit(kind, *args):
+def _run_unit(kind: str, *args: Any) -> Any:
     units = {"group": _replay_group, "decide": _decide, "score": _score}
     return units[kind](*args)
 

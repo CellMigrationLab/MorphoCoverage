@@ -108,7 +108,15 @@ AGGREGATES = ("max", "rms")
 DEGENERATE_TOLERANCE = 0.05
 
 
-def _check(summary, n_resamples, random_state, min_fovs, quantiles, transform, n_components):
+def _check(
+    summary: str,
+    n_resamples: int,
+    random_state: int,
+    min_fovs: int,
+    quantiles: Sequence[float] | None,
+    transform: FeatureTransform | None,
+    n_components: int | None,
+) -> None:
     """Validate the settings shared by the estimator and the strategy."""
     if summary not in SUMMARIES:
         raise ValueError(f"summary must be one of {SUMMARIES}")
@@ -201,12 +209,17 @@ def subspace_angles_to(covariances: np.ndarray, reference: np.ndarray, r: int) -
     return np.array([linalg.subspace_angles(v, target).max() for v in vectors])
 
 
-def _meta(units: str) -> dict[str, Any]:
-    """Direction, units and component of the reported standard error."""
+def _meta(units: str, summary: str) -> dict[str, Any]:
+    """Direction, units and component of the reported standard error.
+
+    The centroid is a population summary; the covariance, the quantiles and
+    the PCA summaries describe the distribution of phenotypes, so their
+    uncertainty is distribution evidence (the phenotypic fingerprint).
+    """
     return {
         "direction": Direction.LOWER_IS_BETTER,
         "units": units,
-        "component": Component.POPULATION,
+        "component": Component.POPULATION if summary == "centroid" else Component.DISTRIBUTION,
     }
 
 
@@ -235,8 +248,9 @@ def _pca_reason(estimator: FOVBootstrapEstimator, values: np.ndarray) -> str | N
 class FOVBootstrapEstimator(Estimator):
     """Root-mean-square FOV-bootstrap standard error of a multivariate summary.
 
-    Reports ``fov_bootstrap_<summary>_se`` (population, lower is better), in
-    the units of the transformed features. See the module docstring for the
+    Reports ``fov_bootstrap_<summary>_se`` (lower is better; population
+    evidence for the centroid, distribution evidence for the other summaries),
+    in the units of the transformed features. See the module docstring for the
     summaries, their limits and missing-data behaviour.
     """
 
@@ -372,7 +386,9 @@ class FOVBootstrapEstimator(Estimator):
         name = self.quantity
         if np.isnan(data.feature_matrix()).any():
             reason = "missing values in the selected features"
-            quantity = Quantity.not_applicable(reason, **_meta("units of the selected features"))
+            quantity = Quantity.not_applicable(
+                reason, **_meta("units of the selected features", self.summary)
+            )
             return Evidence(self._every(quantity), {"undefined_reason": reason})
         positions = fov_positions(data, data.fovs)
         with_observations = len(np.unique(positions))
@@ -391,13 +407,16 @@ class FOVBootstrapEstimator(Estimator):
             reason = f"the transform could not be fitted: {diagnostics['transform']['reason']}"
         elif self.summary in ("eigenspectrum", "subspace") and _pca_reason(self, values):
             reason = _pca_reason(self, values)
-            quantity = Quantity.not_applicable(reason, **_meta(units))
+            quantity = Quantity.not_applicable(reason, **_meta(units, self.summary))
             return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": reason})
         else:
             reason = None
         if reason is not None:
             diagnostics["undefined_reason"] = reason
-            return Evidence(self._every(Quantity.insufficient(reason, **_meta(units))), diagnostics)
+            return Evidence(
+                self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
+                diagnostics,
+            )
 
         components, degenerate = self._resampled(values, positions, self._weights(data))
         defined = ~np.isnan(components).any(axis=1)
@@ -417,16 +436,24 @@ class FOVBootstrapEstimator(Estimator):
                 f"{DEGENERATE_TOLERANCE:.0%}) have too little spread to define the PCA summary"
             )
             diagnostics["undefined_reason"] = reason
-            return Evidence(self._every(Quantity.insufficient(reason, **_meta(units))), diagnostics)
+            return Evidence(
+                self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
+                diagnostics,
+            )
         if defined.sum() < 2:
             reason = "fewer than 2 resamples with a defined summary"
             diagnostics["undefined_reason"] = reason
-            return Evidence(self._every(Quantity.insufficient(reason, **_meta(units))), diagnostics)
+            return Evidence(
+                self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
+                diagnostics,
+            )
         if self.summary == "subspace":
             angles = components[defined, 0]
             diagnostics["max_angle"] = float(angles.max())
             value = float(np.sqrt(np.mean(angles**2)))
-            return Evidence({name: Quantity.available(value, **_meta("radians"))}, diagnostics)
+            return Evidence(
+                {name: Quantity.available(value, **_meta("radians", self.summary))}, diagnostics
+            )
         if self.summary == "eigenspectrum":
             units = "fraction of total variance"
         se = np.std(components[defined], axis=0, ddof=1)
@@ -434,8 +461,8 @@ class FOVBootstrapEstimator(Estimator):
         diagnostics["max_component_se"] = float(se.max())
         diagnostics["max_component"] = int(se.argmax())
         quantities = {
-            name: Quantity.available(value, **_meta(units)),
-            self.max_quantity: Quantity.available(float(se.max()), **_meta(units)),
+            name: Quantity.available(value, **_meta(units, self.summary)),
+            self.max_quantity: Quantity.available(float(se.max()), **_meta(units, self.summary)),
         }
         return Evidence(quantities, diagnostics)
 
