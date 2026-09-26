@@ -57,13 +57,13 @@ from morphocoverage import (
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
-    dataset_overview,
     OutcomeCriterion,
     ReliabilityResult,
     RepresentationControl,
     SamplingHierarchy,
     Summary,
     adequacy_points,
+    dataset_overview,
     effort_projection,
     inspect_fovs,
     microscopist_report,

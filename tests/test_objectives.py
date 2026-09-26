@@ -40,7 +40,7 @@ def test_population_objective_rejects_rare_targets():
 
 
 def test_distribution_phenotype_and_all_name_their_components():
-    components = lambda config: {c.value for c in config.required_components}  # noqa: E731
+    components = lambda config: {c.value for c in config.required_components}
     assert components(ObjectiveConfig(SamplingObjective.DISTRIBUTION)) == {"distribution"}
     assert components(ObjectiveConfig(SamplingObjective.PHENOTYPE)) == {
         "population",

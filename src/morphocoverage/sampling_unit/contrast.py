@@ -45,8 +45,8 @@ import numpy as np
 import pandas as pd
 
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
-from ..schema import ValidatedInput
 from ..retrospective._text import group_identity, unit_plural
+from ..schema import ValidatedInput
 from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import check_count, check_seed, fov_values, groups, validated
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS

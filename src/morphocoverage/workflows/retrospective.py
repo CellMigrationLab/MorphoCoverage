@@ -30,23 +30,22 @@ plan into the full microscopist's report.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from matplotlib.figure import Figure
 
 from ..benchmark import AcquisitionOrder
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
-from matplotlib.figure import Figure
-
 from ..plots import plots_of_data
 from ..retrospective import (
     MicroscopistReport,
     RepresentationControl,
-    dataset_overview,
     Summary,
     adequacy_points,
+    dataset_overview,
     effort_projection,
     inspect_fovs,
     microscopist_report,
@@ -187,16 +186,16 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
                 c for c in (setup.group_cols or ()) if c not in MORPHOBRICKS_GROUP_COLUMNS
             ],
         )
-    if setup.control is not None and CONDITION in setup.control and CONDITION in fovs.columns:
-        if fovs[CONDITION].nunique() > 1:
-            results["contrast"] = condition_contrast(
-                objects,
-                fovs,
-                feature=readout,
-                control=setup.control,
-                random_state=setup.random_state,
-                **common,
-            )
+    contrasted = setup.control is not None and CONDITION in setup.control
+    if contrasted and CONDITION in fovs.columns and fovs[CONDITION].nunique() > 1:
+        results["contrast"] = condition_contrast(
+            objects,
+            fovs,
+            feature=readout,
+            control=setup.control,
+            random_state=setup.random_state,
+            **common,
+        )
     novelty_features = list(setup.features) if setup.novelty is not None else []
     results["sufficiency"] = sufficiency_report(
         objects,

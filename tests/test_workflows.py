@@ -16,8 +16,8 @@ from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.results import Decision
 from morphocoverage.retrospective import OutcomeCriterion
 from morphocoverage.retrospective.report import DECLARATION_TITLE
-from morphocoverage.strategies.rare_planning import fovs_to_detect
 from morphocoverage.strategies import FixedFOVStrategy
+from morphocoverage.strategies.rare_planning import fovs_to_detect
 from morphocoverage.workflows import (
     LiveFolder,
     LiveTables,

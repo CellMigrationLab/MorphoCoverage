@@ -38,7 +38,6 @@ spread, in the feature's units, plus a ``ThresholdPolicy`` at ``tolerance``.
 from __future__ import annotations
 
 from collections.abc import Sequence
-
 from dataclasses import dataclass
 from typing import Any
 

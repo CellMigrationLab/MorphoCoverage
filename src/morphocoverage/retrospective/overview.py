@@ -57,10 +57,14 @@ class DatasetOverview:
         declared = "" if self.settings["observation_unit_declared"] else " (assumed, not declared)"
         empty = f", {c['empty_fields']} of them without {words}" if c["empty_fields"] else ""
         lines = [
-            f"{c['objects']} {words}{declared} in {c['fields']} acquired fields{empty}; a field is "
-            f"identified by {', '.join(self.settings['fov_key'])}.",
-            f"{c['features']} feature column{'s' if c['features'] != 1 else ''}: "
-            f"{_listed(self.features, max_features_listed)}.",
+            (
+                f"{c['objects']} {words}{declared} in {c['fields']} acquired fields{empty}; "
+                f"a field is identified by {', '.join(self.settings['fov_key'])}."
+            ),
+            (
+                f"{c['features']} feature column{'s' if c['features'] != 1 else ''}: "
+                f"{_listed(self.features, max_features_listed)}."
+            ),
         ]
         condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]
         if condition_col is None and repeat_col is None:
@@ -150,8 +154,8 @@ def dataset_overview(
     else:
         layout = pd.DataFrame(columns=["fields", "empty_fields", "objects"])
     counts = {
-        "objects": int(len(data.objects)),
-        "fields": int(len(data.fovs)),
+        "objects": len(data.objects),
+        "fields": len(data.fovs),
         "empty_fields": int(table["empty_fields"].sum()),
         "features": len(data.feature_cols),
         "conditions": int(table[condition_col].nunique(dropna=False)) if condition_col else 0,

@@ -28,16 +28,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from ..evidence import Component
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..normalize import METHODS as NORMALIZATIONS
 from ..normalize import normalize_to_control
+from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from ..outcomes import RareStateDetected, RelativeMeanError
-from ..retrospective.overview import normalized_sentence
 from ..results import COMPONENT_WORDS
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
+from ..retrospective.overview import normalized_sentence
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator
 from ..strategies.base import SamplingStrategy
 from ..strategies.rare_planning import fovs_to_detect
@@ -314,8 +314,10 @@ class Setup:
         """
         tolerances = " and ".join(f"{t:.1%}" for t in self.tolerances)
         lines = [
-            f"Population summary: the mean of {self.readout} over all objects, within "
-            f"{tolerances} of its value on held-back fields."
+            (
+                f"Population summary: the mean of {self.readout} over all objects, within "
+                f"{tolerances} of its value on held-back fields."
+            )
         ]
         if self.fingerprint:
             named = "; ".join(c.description or c.name for c in self.fingerprint)
