@@ -3,7 +3,7 @@
 Declare the dataset once with a ``Setup``, then:
 
 - ``report(objects, fovs, setup)``: REPORT, what the finished acquisition can
-  be trusted for (the Foundation and R1 to R6 of ``docs/questions.md``);
+  be trusted for (the Foundation and R1 to R7 of ``docs/questions.md``);
 - ``optimise(objects, fovs, setup, fov_counts=..., reservoir_fraction=...)``:
   OPTIMISE / PLAN, what the next experiment should do;
 - ``live_session(setup)`` with ``LiveFolder(folder, session).watch()`` (files
@@ -12,9 +12,10 @@ Declare the dataset once with a ``Setup``, then:
   at a time;
 - ``benchmark(objects, fovs, setup, reservoir_fraction=...)``: BENCHMARK,
   which rule needs the fewest fields for the same risk;
-- ``plots(objects, fovs, setup, ranking=result.ranking, folder=...)``: PlotsOfData-style figures of
-  the readout, every object a point coloured by repeat, the median with its
-  interval from resampling whole fields.
+- ``plots(objects, fovs, setup, ranking=result.ranking, folder=...)``: PlotsOfData-style
+  figures of the readout, the biological repeats side by side, every object a
+  point coloured by technical repeat, the median with its interval from
+  resampling technical repeats, then their whole fields.
 
 Each returns its results with a ``summary()`` in sentences. The workflows add
 no scientific choice of their own; see ``docs/workflows.md``.

@@ -34,7 +34,7 @@ and the summary says so.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -304,6 +304,7 @@ def inspect_fovs(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    novelty_cols: Sequence[str] | None = None,
 ) -> InspectionResult:
     """The fields worth reopening, one row per FOV and reason, per analysis group.
 
@@ -313,7 +314,9 @@ def inspect_fovs(
     neighbour reason, on every feature in ``feature_cols``; ``count_ratio=None``
     turns the count reason off. Thresholds are provisional presets: a 10% relative
     change, a count 3 times the median (or a third of it), 3 SD from the 4
-    nearest fields.
+    nearest fields. ``novelty_cols`` are the columns new states are judged on
+    (default ``feature_cols``), so novelty can read the declared
+    representation while the other reasons read the readout.
     """
     summaries = _check(
         summaries,
@@ -327,10 +330,12 @@ def inspect_fovs(
     missing = [s.feature for s in summaries if s.feature not in feature_cols]
     if missing:
         raise ValueError(f"summary features must be among feature_cols: {missing}")
+    feature_cols = list(feature_cols)
+    novelty_cols = feature_cols if novelty_cols is None else list(novelty_cols)
     data = validate_input_tables(
         objects,
         fovs=fovs,
-        feature_cols=feature_cols,
+        feature_cols=list(dict.fromkeys([*feature_cols, *novelty_cols])),
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,
@@ -342,11 +347,13 @@ def inspect_fovs(
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
     rows, skipped, neighbours_skipped, novelty_skipped = [], {}, [], []
     n_fovs = 0
-    for group, group_data in iter_analysis_groups(data):
-        n_fovs += len(group_data.fovs)
+    for group, both in iter_analysis_groups(data):
+        n_fovs += len(both.fovs)
+        group_data = replace(both, feature_cols=tuple(feature_cols))
         found = []
         if novelty is not None:
-            found += _novel(group_data, novelty, where(group), novelty_skipped)
+            judged = replace(both, feature_cols=tuple(novelty_cols))
+            found += _novel(judged, novelty, where(group), novelty_skipped)
         if summaries:
             found += _influence(group_data, summaries, float(influence_threshold), skipped)
         if count_ratio is not None:
@@ -385,6 +392,7 @@ def inspect_fovs(
     settings = {
         "summaries": [{"feature": s.feature, "statistic": s.statistic} for s in summaries],
         "novelty": None if novelty is None else dict(novelty.parameters),
+        "novelty_cols": None if novelty is None else novelty_cols,
         "influence_threshold": float(influence_threshold),
         "count_ratio": None if count_ratio is None else float(count_ratio),
         "stage_cols": None if stage_cols is None else list(stage_cols),

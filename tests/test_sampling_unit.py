@@ -658,7 +658,7 @@ def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
     assert "Which features separate the conditions? Each of the 2 declared features" in text
     assert "1. x: |d|" in text and "passes in 2 of 2 contrasts" in text
     assert "No contrast passes the gate for 1 feature: y." in text
-    assert "Plotted by default: the readout and the 1 best-ranked" in text
+    assert "Plotted by default: the readout and up to 5 best-ranked other features" in text
     # Deterministic, and the same numbers as the contrast for the readout.
     again = feature_ranking(
         objects, fovs, features=["y", "x"], control={"condition": "control"}, n_permutations=400

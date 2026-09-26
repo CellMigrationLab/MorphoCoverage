@@ -112,6 +112,12 @@ def effort_summary(result: EffortResult) -> str:
             lines.append(
                 f"  More fields or more {samples}s: cannot tell from these data ({reason})."
             )
+        normalized = result.settings.get("normalized")
+        if normalized:
+            lines.append(
+                f"  Values are normalised ({normalized}): variance shared by a whole repeat "
+                "is removed, so the between-repeat share is lower than in raw values."
+            )
         missing = int(rows["missing_values"].iloc[0])
         if missing:
             lines.append(f"  {missing} {observations} without a value were left out.")

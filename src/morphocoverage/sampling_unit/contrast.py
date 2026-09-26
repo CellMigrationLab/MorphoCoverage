@@ -155,6 +155,8 @@ class ConditionContrast:
                 f"labels): p = {row['p_value']:.3g} (Bonferroni over {n_contrasts} comparison"
                 f"{'s' if n_contrasts != 1 else ''}: {row['p_bonferroni']:.3g})."
             )
+            if self.effects.empty:
+                continue  # no object count fits the data: there are no draws to report
             # Without a repeat column the repeat is None, which == never matches.
             same_repeat = (
                 self.effects["repeat"].isna()

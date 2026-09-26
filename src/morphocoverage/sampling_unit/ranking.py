@@ -140,8 +140,8 @@ class FeatureRanking:
             )
         if not ranked.empty:
             lines.append(
-                f"  Plotted by default: the readout and the {min(TOP_FEATURES, len(ranked))} "
-                f"best-ranked features."
+                f"  Plotted by default: the readout and up to {TOP_FEATURES} best-ranked other "
+                "features."
             )
         return "\n".join(lines)
 

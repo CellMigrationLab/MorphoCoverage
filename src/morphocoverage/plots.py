@@ -17,8 +17,9 @@ field-to-field noise.
 Limits keep the figures legible and are arguments: at most ``max_conditions``
 conditions per figure (more are split over several figures), at most
 ``max_repeats`` biological repeats side by side (more are pooled into one
-cluster per condition, and the title says so), at most ``max_technical``
-colours (more technical repeats share one grey), at most ``max_features`` features per
+cluster per condition, and the title says so, each technical repeat staying
+within its biological repeat), at most ``max_technical`` colours (up to 8;
+more technical repeats of a biological repeat share one grey), at most ``max_features`` features per
 call (more raise, so the caller chooses). Figures are
 ``matplotlib.figure.Figure`` objects built without pyplot, so they display
 in a notebook and save with ``savefig`` without touching global state.
@@ -44,7 +45,8 @@ MAX_REPEATS = 8
 MAX_TECHNICAL = 8
 MAX_FEATURES = 24
 SUMMARIES: dict[str, Callable[[np.ndarray], float]] = {"median": np.median, "mean": np.mean}
-PALETTE = ("#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860", "#DA8BC3", "#8C8C8C")
+# No grey in the palette: grey marks the technical repeats beyond it.
+PALETTE = ("#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860", "#DA8BC3", "#64B5CD")
 GREY = "0.6"
 
 
@@ -138,15 +140,31 @@ def _draw_cluster(
     ``rows`` is the boolean mask of the cluster's observations.
     """
     table = data.objects
-    replicates = (
-        list(dict.fromkeys(table.loc[rows, layout.technical_col].tolist()))
+    # A technical repeat lies within its biological repeat: when repeats are pooled
+    # into one cluster, well "B02" of two repeats is two units, not one.
+    repeat_col = layout.repeat_col if layout.pooled_repeats else None
+    replicates: list[tuple[Any, Any]] = (
+        list(
+            dict.fromkeys(
+                zip(
+                    table.loc[rows, repeat_col] if repeat_col else [None] * int(rows.sum()),
+                    table.loc[rows, layout.technical_col],
+                    strict=True,
+                )
+            )
+        )
         if layout.technical_col
-        else [None]
+        else [(None, None)]
     )
     half = 0.4 * width
     units = []
-    for rank, replicate in enumerate(replicates):
-        in_unit = rows & _mask(table, layout.technical_col, replicate)
+    ranks: dict[Any, int] = {}
+    for repeat, replicate in replicates:
+        # Colours by rank within the biological repeat, as the legend says.
+        rank = ranks[repeat] = ranks.get(repeat, -1) + 1
+        in_unit = (
+            rows & _mask(table, repeat_col, repeat) & _mask(table, layout.technical_col, replicate)
+        )
         units.append(_fields_of(data, in_unit, values))
         y = values[in_unit]
         y = y[~np.isnan(y)]
@@ -206,8 +224,8 @@ def _legend(ax: Axes, layout: _Layout, colours: Sequence[str], n_technical: int)
         ax.text(
             0.01,
             0.99,
-            f"{n_technical} technical repeats ({layout.technical_col}): more than "
-            f"{len(colours)}, not coloured",
+            f"up to {n_technical} technical repeats ({layout.technical_col}) per biological "
+            f"repeat: the first {len(colours)} coloured in order, the others grey",
             transform=ax.transAxes,
             va="top",
             fontsize=8,
@@ -253,6 +271,7 @@ def plots_of_data(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    value_note: str | None = None,
 ) -> dict[str, list[Figure]]:
     """One or more figures per feature (see the module); keys are the feature names.
 
@@ -263,6 +282,8 @@ def plots_of_data(
     ``technical_repeat`` column, else the first analysis-group column below
     condition and repeat, or none. Without a condition column every object
     is one group; without a repeat column each condition is one cluster.
+    ``value_note`` is added to the value axis label, for example
+    ``"relative to control"`` for normalised values.
     """
     features = list(features)
     if not features:
@@ -282,6 +303,10 @@ def plots_of_data(
     ):
         if isinstance(value, bool) or not isinstance(value, int) or value < 1:
             raise ValueError(f"{name} must be a positive integer")
+    if max_technical > len(PALETTE):
+        raise ValueError(
+            f"max_technical can be at most {len(PALETTE)}, the colours that can be told apart"
+        )
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -347,7 +372,7 @@ def plots_of_data(
                     fontsize=7,
                     color="0.35",
                 )
-            ax.set_ylabel(feature)
+            ax.set_ylabel(feature if value_note is None else f"{feature} ({value_note})")
             part = (
                 f" (conditions {start + 1} to {start + len(chunk)} of {len(layout.conditions)})"
                 if len(layout.conditions) > max_conditions

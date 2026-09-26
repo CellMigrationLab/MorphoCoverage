@@ -218,7 +218,12 @@ class Setup:
 
     @property
     def columns(self) -> list[str]:
-        """Every feature column the workflows read: the readout, then the features."""
+        """Every feature column the workflows read: the readout, then the features.
+
+        The stopping rules see exactly these columns in ``report``, ``optimise``,
+        ``benchmark`` and ``live_session``, so one rule gives one verdict on the
+        same data whichever workflow runs it.
+        """
         return [self.readout, *(f for f in self.features if f != self.readout)]
 
     @property
@@ -234,8 +239,8 @@ class Setup:
 
     @property
     def judged_columns(self) -> list[str]:
-        """The readout plus every column a declared criterion reads: what the planning
-        analyses validate and carry."""
+        """The readout plus every column a declared criterion reads: what
+        ``sampling_reliability`` judges (the rules read ``columns``)."""
         return [self.readout, *(c for c in self.criterion_columns if c != self.readout)]
 
     def prepared(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
@@ -272,12 +277,17 @@ class Setup:
 
         With a ``technical_repeat`` column the field (``fov_col``, or the
         MorphoBricks identifier present) sits within the technical repeat,
-        within the repeat when there is one. ``None`` without either.
+        within the repeat when there is one. ``None`` without either, and when
+        ``group_cols`` leave the technical repeat out: the analyses then pool
+        the technical repeats, so there are no per-technical-repeat results to
+        compare (declare ``hierarchy`` to ask for it anyway).
         """
         if self.hierarchy is not None:
             return self.hierarchy
         technical = self.technical_col(fovs)
         if technical is None:
+            return None
+        if self.group_cols is not None and technical not in self.group_cols:
             return None
         explicit = [self.fov_col] if self.fov_col is not None else []
         objects, fovs = drop_empty_optional_columns(objects, fovs, explicit)
@@ -379,20 +389,25 @@ class Setup:
                 "Rare phenotype: not declared (no RareTarget in rare), so no answer below "
                 "says whether a rare state was sampled enough."
             )
-        if self.features:
-            features = f"{len(self.features)} declared feature columns"
-        else:
-            features = "the readout only"
         new = "not declared" if self.novelty is None else self.novelty.name
-        lines.append(
-            f"Representation: readout {self.readout}; {features} for unusual objects and new "
-            f"phenotypes; definition of new: {new}."
-        )
+        if self.features:
+            representation = (
+                f"{len(self.features)} declared feature columns for unusual objects and new "
+                f"phenotypes; definition of new: {new}"
+            )
+        else:
+            # Unusual objects and novelty read the declared features only (see report).
+            representation = (
+                "no feature columns declared, so unusual objects and new phenotypes are not "
+                "assessed"
+            )
+        lines.append(f"Representation: readout {self.readout}; {representation}.")
         if self.normalize is not None:
             lines.append(
                 "Values: every declared feature divided by the mean of the control "
-                f"{dict(self.control or {})} objects of the same repeat before every "
-                "retrospective analysis; the live decision runs on raw values."
+                f"{dict(self.control or {})} objects of the same repeat (of the whole table "
+                "without a repeat column) before every retrospective analysis; the live "
+                "decision runs on raw values."
             )
         objective = self.objective()
         targets = " and ".join(

@@ -72,6 +72,7 @@ from ..metadata import (
 )
 from ..online import OnlineSession
 from ..results import Decision, StrategyResult, decision_view
+from ..schema import unit_plural
 from ..strategies.base import SamplingStrategy
 from .setup import Setup
 
@@ -117,6 +118,8 @@ def write_fov(
     if OBJECTS_FILE in metadata:
         raise ValueError(f"{OBJECTS_FILE!r} is written by write_fov; do not pass it")
     header = _manifest_header(manifest)
+    if header is None and manifest.exists() and manifest.stat().st_size > 0:
+        raise ValueError(f"{manifest} has no complete header line; fix or remove it")
     count = _manifest_rows(manifest)
     stem = name if name is not None else f"fov_{count + 1:06d}"
     relative = f"{OBJECTS_DIR}/{stem}{suffix}"
@@ -136,13 +139,14 @@ def write_fov(
         raise ValueError("suffix must be .csv, .csv.gz or .parquet")
     os.replace(temporary, target)
     row = {**metadata, OBJECTS_FILE: relative}
+    new_manifest = header is None  # absent, or an empty file: the header comes first
     if header is None:
         header = list(row)
     elif set(header) != set(row):
         raise ValueError(f"manifest columns are {header}; this field has {list(row)}")
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=header, lineterminator="\n")
-    if count == 0 and not manifest.exists():
+    if new_manifest:
         writer.writeheader()
     writer.writerow(row)
     with open(manifest, "a", newline="") as handle:
@@ -176,11 +180,13 @@ class LiveUpdate:
     results: list[StrategyResult]
     read_seconds: float
     pending_objects: int = 0
+    observation_unit: str = "object"
 
     def summary(self) -> str:
         """One line per rule (the decision and why), then one view per target."""
         where = ", ".join(f"{k}={v}" for k, v in self.fov_metadata.items() if k != OBJECTS_FILE)
-        head = f"{where}: {self.n_objects} objects (read in {1000 * self.read_seconds:.0f} ms)"
+        words = unit_plural(self.observation_unit)
+        head = f"{where}: {self.n_objects} {words} (read in {1000 * self.read_seconds:.0f} ms)"
         lines = [head, *(f"  {r.explain()}" for r in self.results)]
         if self.results:
             lines.append(f"  {decision_view(self.results)}")
@@ -265,6 +271,14 @@ class LiveFolder:
             typed[key] = value if kind is None else kind(value)
         return typed
 
+    def _read(self, path: Path, row: Mapping[str, str]) -> pd.DataFrame:
+        """One object file; the default reader keeps metadata columns as text, like the manifest."""
+        if self.reader is not pd.read_csv:
+            return self.reader(path)
+        # "001" in the manifest and in the object file stay "001", not 1.
+        text = {k: str for k in row if k != OBJECTS_FILE and k not in self.metadata_dtypes}
+        return pd.read_csv(path, dtype=text)
+
     def poll(self) -> list[LiveUpdate]:
         """Add every field completed since the last poll; one update per field, in order."""
         updates = []
@@ -277,7 +291,7 @@ class LiveFolder:
                     f"empty {OBJECTS_FILE!r} entry or an empty file"
                 )
             if path is not None and path.stat().st_size > 0:
-                objects = self.reader(path)
+                objects = self._read(path, row)
             else:
                 objects = pd.DataFrame(columns=self.session.feature_cols)
             read = time.perf_counter() - started
@@ -292,7 +306,13 @@ class LiveFolder:
             # Move past the field only once the session has it: a field that raises is
             # read again on the next poll instead of being skipped.
             self._offset = offset
-            update = LiveUpdate(metadata, len(objects), results, read)
+            update = LiveUpdate(
+                metadata,
+                len(objects),
+                results,
+                read,
+                observation_unit=self.session.observation_unit,
+            )
             updates.append(update)
             self.updates.append(update)
         return updates
@@ -338,10 +358,11 @@ class LiveTables:
     Call ``update(objects, fovs)`` with the current tables whenever rows were
     appended; rows already read must stay in place (the tables only grow).
     ``key`` names the columns that tie an object row to its FOV row (default:
-    the session's FOV column and the condition/repeat columns present in both
-    tables). Objects of a field must be appended no later than its FOV row; an
-    object row for a field already added raises, since it would change a
-    field the rules have already judged.
+    the session's FOV column and its analysis-group columns present in both
+    tables: condition, repeat and, when it holds values, technical_repeat,
+    unless the session names its own ``group_cols``). Objects of a field must
+    be appended no later than its FOV row; an object row for a field already
+    added raises, since it would change a field the rules have already judged.
     """
 
     def __init__(self, session: OnlineSession, *, key: Sequence[str] | None = None) -> None:
@@ -425,9 +446,10 @@ class LiveTables:
             self._buffer = pd.concat(parts) if len(parts) > 1 else new_objects
         self._n_objects = len(objects)
         updates = []
-        for _, row in new_fovs.iterrows():
+        # Records keep each column's type; iterrows would turn integers into floats
+        # when every other column is numeric.
+        for metadata in new_fovs.to_dict("records"):
             started = time.perf_counter()
-            metadata = row.to_dict()
             fov_key = tuple(metadata[c] for c in key)
             if fov_key in self._added:
                 raise ValueError(f"field {fov_key} appears twice in the FOV table")
@@ -444,7 +466,14 @@ class LiveTables:
                 self._buffer = self._buffer.loc[[not m for m in mine]]
             self._added.add(fov_key)
             self._n_fovs += 1
-            update = LiveUpdate(metadata, len(selected), results, read, self.pending_objects)
+            update = LiveUpdate(
+                metadata,
+                len(selected),
+                results,
+                read,
+                self.pending_objects,
+                self.session.observation_unit,
+            )
             updates.append(update)
             self.updates.append(update)
         return updates
