@@ -61,6 +61,7 @@ held-out dataset (``BenchmarkRegistry``).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -70,12 +71,11 @@ import pandas as pd
 from scipy import stats
 
 from ..policies import ThresholdPolicy, redecide
-from ._text import percent
 from .adequacy import adequacy_points
 from .criteria import Preservation
+from .frontier_text import BASELINE, frontier_summary
 from .replay import ReplayResult
 
-BASELINE = "fixed fields"
 _RUN = ["split", "order_id"]
 FAMILY_COLUMNS = ("family", "setting")
 
@@ -84,12 +84,19 @@ def _run_keys(replay: ReplayResult) -> list[str]:
     return [*replay.group_cols, *_RUN]
 
 
+def _held_back(replay: ReplayResult) -> str:
+    """The settings that fix a replay's reservoirs and orders, so replays can be matched."""
+    names = ("reservoir_fraction", "block_col", "n_splits", "random_state", "orders")
+    return json.dumps({n: replay.settings.get(n) for n in names}, sort_keys=True, default=str)
+
+
 def _with_streams(replay: ReplayResult, decisions: pd.DataFrame) -> pd.DataFrame:
-    """Attach each run's stream and reservoir sizes, so replays can be matched later."""
+    """Attach each run's stream and reservoir sizes and how they were drawn, for matching."""
     keys = _run_keys(replay)
     streams = replay.streams[[*keys, "order", "stream_fovs", "reservoir_fovs"]]
     columns = [*keys, "fovs", "decision", *FAMILY_COLUMNS]
-    return decisions[columns].merge(streams, on=keys, how="left", validate="many_to_one")
+    merged = decisions[columns].merge(streams, on=keys, how="left", validate="many_to_one")
+    return merged.assign(held_back=_held_back(replay))
 
 
 def family(replay: ReplayResult, name: str, settings: Mapping[str, Any]) -> pd.DataFrame:
@@ -378,7 +385,8 @@ def frontier(
     ``replay``. ``unit_cols`` are the group columns of the independent unit
     (``[]`` treats all runs as one unit, so there is no interval). Families
     come from ``family`` or ``sweep`` on this replay, or on replays with the
-    same streams. ``label`` is the plain wording of the criterion.
+    same reservoirs and orders (the same ``random_state``, splits and order
+    seeds; others are refused). ``label`` is the plain wording of the criterion.
     """
     if not isinstance(replay, ReplayResult):
         raise TypeError("replay must be a ReplayResult")
@@ -400,6 +408,16 @@ def frontier(
     names = set()
     for decisions in families:
         own = decisions["family"].unique()
+        # Equal stream sizes do not make equal reservoirs: another seed, split or
+        # order draws other held-back fields, and its stops would be scored on these.
+        if (
+            "held_back" in decisions.columns
+            and (decisions["held_back"] != _held_back(replay)).any()
+        ):
+            raise ValueError(
+                f"family {sorted(own)} comes from a replay with other reservoirs or orders "
+                "(random_state, reservoir_fraction, block_col, n_splits or order seeds differ)"
+            )
         if BASELINE in own:
             raise ValueError(f"{BASELINE!r} is the baseline's name; name families otherwise")
         overlap = names & set(own)
@@ -499,97 +517,6 @@ def transfer(development: FrontierResult, held_out: FrontierResult, alpha: float
                 entry["held_out_judged"] = int(match["judged"].iloc[0])
         rows.append(entry)
     return pd.DataFrame(rows)
-
-
-def _fields(value: float) -> str:
-    value = round(float(value), 1)
-    if value == 1:
-        return "1 field"
-    return f"{value:.0f} fields" if value.is_integer() else f"{value:.1f} fields"
-
-
-def _number(value: float) -> str:
-    """One decimal, without a negative zero."""
-    value = round(float(value), 1)
-    return f"{0.0 if value == 0 else value:.1f}"
-
-
-def frontier_summary(result: FrontierResult) -> str:
-    """ "At most 5% too-early stops: a fixed count needs ..., this rule saves ..." in sentences."""
-    label = result.settings.get("label", result.settings.get("criterion"))
-    units = result.settings.get("units", 0)
-    blocks = []
-    for alpha, rows in result.scores.groupby("alpha", sort=True):
-        lines = [f"For {label}, stopping too early in at most {percent(alpha)} of acquisitions:"]
-        base = rows[rows["family"] == BASELINE].iloc[0]
-        if base["effort"] is None or pd.isna(base["effort"]):
-            lines.append(
-                "  a fixed number of fields never got there within the fields available, "
-                "so no rule can be scored against it at this level."
-            )
-            blocks.append("\n".join(lines))
-            continue
-        # Fields saved subtract mean efforts; when streams shorter than the fixed count
-        # stop early, the baseline's mean effort is below its setting, and the text says so.
-        mean_effort = (
-            ""
-            if abs(float(base["effort"]) - float(base["setting"])) < 0.05
-            else f", {_number(base['effort'])} on average as some acquisitions had fewer"
-        )
-        lines.append(
-            f"  a fixed number of fields needed {_fields(int(base['setting']))}{mean_effort} "
-            f"(risk {percent(base['risk'])})."
-        )
-        for row in rows[rows["family"] != BASELINE].itertuples(index=False):
-            if row.effort is None or pd.isna(row.effort):
-                lines.append(f"  {row.family}: never got there at any setting tried.")
-                continue
-            saved = row.fields_saved
-            verdict = (
-                f"saves {_number(saved)} fields"
-                if saved > 0.05
-                else f"costs {_number(-saved)} more fields"
-                if saved < -0.05
-                else "does as well as the fixed count, no better"
-            )
-            # The interval reads in the verdict's direction: fields saved, or fields it costs.
-            if row.saved_low is None or pd.isna(row.saved_low):
-                interval = ""
-            elif saved < -0.05:
-                interval = (
-                    f", {percent(0.95)} interval {_number(-row.saved_high)} to "
-                    f"{_number(-row.saved_low)}"
-                )
-            else:
-                of = "" if saved > 0.05 else " of the fields saved"
-                interval = (
-                    f", {percent(0.95)} interval{of} {_number(row.saved_low)} to "
-                    f"{_number(row.saved_high)}"
-                )
-            reached = getattr(row, "saved_reached", None)
-            if interval and reached is not None and not pd.isna(reached) and reached < 1:
-                interval += (
-                    f" (from the {percent(reached)} of the resamples in which both reached "
-                    "this risk)"
-                )
-            adaptive = (
-                ""
-                if row.adaptivity is None or pd.isna(row.adaptivity)
-                else f"; its stops follow the fields each acquisition needed with Spearman "
-                f"{row.adaptivity:.2f}"
-            )
-            lines.append(
-                f"  {row.family} at {row.setting:g}: {_fields(row.effort)} on average "
-                f"(risk {percent(row.risk)}); it {verdict}{interval}{adaptive}."
-            )
-        unit_cols = result.settings.get("unit_cols") or []
-        named = f" ({', '.join(unit_cols)})" if unit_cols else ""
-        lines.append(
-            f"  Intervals resample the {units} units{named}, treated as independent; hold-outs "
-            "and orders are not independent experiments. Risk is judged on held-back fields."
-        )
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
 
 
 __all__ = [

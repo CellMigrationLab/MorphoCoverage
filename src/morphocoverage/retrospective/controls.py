@@ -335,6 +335,21 @@ def representation_control(
     return ControlResult(table, pooled, status, tuple(pair_cols), settings)
 
 
+def _unjudged(row: Any) -> str:
+    """``; 6 could not be judged (...)`` when some candidate fields could not be judged."""
+    count = int(row["not_judged"])
+    if not count:
+        return ""
+    return f"; {count} could not be judged (missing feature values or too few fields)"
+
+
+def _rate(value: float, checks: int) -> str:
+    """``100% of 120 checks``, or ``no check could be made`` when nothing was judged."""
+    if pd.isna(value) or not checks:
+        return "no check could be made"
+    return f"{percent(value)} of {checks} checks"
+
+
 def control_summary(result: ControlResult) -> str:
     """ "Can these features see the declared phenotype?" in sentences."""
     skipped = result.settings.get("skipped_strata", [])
@@ -360,20 +375,22 @@ def control_summary(result: ControlResult) -> str:
     positive = rates.loc["positive"]
     lines.append(
         f"  Fields of the declared positive control were recognized as different in "
-        f"{percent(positive['rate'])} of {int(positive['candidates'])} checks."
+        f"{_rate(positive['rate'], int(positive['candidates']))}{_unjudged(positive)}."
     )
     if "planted" in rates.index:
         planted = rates.loc["planted"]
         planted_n = result.settings["control"]["planted_objects"]
         lines.append(
             f"  Ordinary reference fields with {planted_n} positive-control {cells} added were "
-            f"recognized in {percent(planted['rate'])} of {int(planted['candidates'])} checks."
+            f"recognized in {_rate(planted['rate'], int(planted['candidates']))}"
+            f"{_unjudged(planted)}."
         )
     if "reference" in rates.index and rates.loc["reference", "candidates"] > 0:
         reference = rates.loc["reference"]
         lines.append(
-            f"  Reference fields were called different in {percent(reference['rate'])} of "
-            f"{int(reference['candidates'])} checks (false alarms)."
+            f"  Reference fields were called different in "
+            f"{_rate(reference['rate'], int(reference['candidates']))} (false alarms)"
+            f"{_unjudged(reference)}."
         )
     elif result.status == "positive only" and "reference" in rates.index:
         lines.append("  False-alarm rate: not assessed (no reference field could be judged).")
@@ -385,7 +402,10 @@ def control_summary(result: ControlResult) -> str:
             "  Positive control per "
             + "/".join(result.pair_cols)
             + ": "
-            + ", ".join(f"{r.stratum}: {percent(r.rate)}" for r in by.itertuples())
+            + ", ".join(
+                f"{r.stratum}: {'not judged' if pd.isna(r.rate) else percent(r.rate)}"
+                for r in by.itertuples()
+            )
             + "."
         )
     if skipped:

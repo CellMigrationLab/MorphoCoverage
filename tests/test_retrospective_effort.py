@@ -80,7 +80,7 @@ def test_projected_standard_errors_match_simulated_designs():
             _simulate(rng, TRUTH, 2, samples // 2, fovs, 15)[0]["x"].mean() for _ in range(300)
         ]
         # 2 repeats of samples // 2 samples each, 15 cells per FOV.
-        design = {"has_repeat": True, "repeats": 2, "yield": 1.0, "per_fov": 15}
+        design = {"has_repeat": True, "repeats": 2, "yield": 1.0, "per_fov": 15, "cluster_size": 15}
         expected = _se(components, design, samples, fovs)
         assert np.std(means, ddof=1) == pytest.approx(expected, rel=0.15)
 
@@ -162,13 +162,15 @@ def test_empty_fields_do_not_shrink_the_projected_error_or_design_effect():
     assert se_thin > se_full  # fewer fields with observations: a less precise mean
 
 
-def test_one_observation_per_field_is_refused_clearly():
+def test_one_observation_per_field_is_reported_clearly():
     rng = np.random.default_rng(13)
     objects, fovs = _simulate(rng, TRUTH, 1, 4, 5, 1)
-    with pytest.raises(ValueError, match="single observation"):
-        effort_projection(
-            objects, fovs, feature="x", hierarchy=SamplingHierarchy("image_file", "well"), strata=[]
-        )
+    result = effort_projection(
+        objects, fovs, feature="x", hierarchy=SamplingHierarchy("image_file", "well"), strata=[]
+    )
+    assert result.components.empty
+    assert "single observation" in result.skipped["reason"].iloc[0]
+    assert "Not estimable: every FOV holds a single observation" in result.summary()
 
 
 def test_invalid_declarations_are_refused():

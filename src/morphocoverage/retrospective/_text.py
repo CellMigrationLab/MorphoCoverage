@@ -9,6 +9,7 @@ from typing import Any
 
 import pandas as pd
 
+from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..schema import unit_plural  # noqa: F401  (re-exported for the summaries)
 
 
@@ -37,3 +38,17 @@ def rows_of(frame: pd.DataFrame, group: Mapping[str, Any]) -> pd.DataFrame:
     for column, value in group.items():
         frame = frame[frame[column] == value]
     return frame
+
+
+def sample_word(hierarchy: Mapping[str, Any]) -> str:
+    """What a sample is called: a technical repeat when it is the MorphoBricks column."""
+    return "technical repeat" if hierarchy.get("sample") == TECHNICAL_REPEAT_COLUMN else "sample"
+
+
+def unit_word(hierarchy: Mapping[str, Any], unit: str) -> str:
+    """The word for an independent unit named by its column."""
+    if unit == hierarchy.get("sample"):
+        return sample_word(hierarchy)
+    if unit == hierarchy.get("biological_repeat"):
+        return "repeat"
+    return unit

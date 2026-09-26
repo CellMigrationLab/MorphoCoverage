@@ -37,7 +37,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._text import fields, group_identity, percent, rows_of
+from ._text import fields, group_identity, percent, rows_of, sample_word
 from .hierarchy import SamplingHierarchy
 from .reliability import ReliabilityResult
 
@@ -334,7 +334,10 @@ def _plural(count: int, word: str) -> str:
 def protocol_summary(result: ProtocolResult) -> str:
     """ "For experiments like this one" in sentences."""
     labels = result.settings.get("labels", {})
-    unit_word = result.settings.get("independent_unit", "unit")
+    hierarchy = result.settings.get("hierarchy", {})
+    # The column's own name, readable: "plate", "technical repeat".
+    unit = str(result.settings.get("independent_unit", "unit")).replace("_", " ")
+    sample = sample_word(hierarchy)
     threshold = percent(result.settings.get("threshold", 0.9))
     blocks = []
     keys = [*result.strata, "criterion"]
@@ -347,15 +350,15 @@ def protocol_summary(result: ProtocolResult) -> str:
         n_units = int(rows["all_units"].max())
         lines = [
             (
-                f"{stratum}: fields per sample for {criterion} "
-                f"({_plural(n_samples, 'sample')} in {_plural(n_units, unit_word)}; a sample "
+                f"{stratum}: fields per {sample} for {criterion} "
+                f"({_plural(n_samples, sample)} in {_plural(n_units, unit)}; a {sample} "
                 f"counts when {threshold} of random acquisitions were enough)"
             )
         ]
         units = rows_of(result.per_unit, where)
         for row in rows.sort_values("fovs").itertuples(index=False):
             if row.eligible == 0:
-                lines.append(f"  {fields(row.fovs)}: no sample had that many fields to judge")
+                lines.append(f"  {fields(row.fovs)}: no {sample} had that many fields to judge")
                 continue
             per = units[units["fovs"] == row.fovs]
             by_unit = ", ".join(f"{u.adequate} of {u.eligible}" for u in per.itertuples())
@@ -376,8 +379,8 @@ def protocol_summary(result: ProtocolResult) -> str:
                 else f"; plausible range {percent(row.share_low)}–{percent(row.share_high)}"
             )
             lines.append(
-                f"  {fields(row.fovs)}: enough for {row.adequate} of {row.eligible} samples "
-                f"({unit_word}s: {by_unit}{interval}){missing}"
+                f"  {fields(row.fovs)}: enough for {row.adequate} of {row.eligible} {sample}s "
+                f"({unit}s: {by_unit}{interval}){missing}"
             )
         hard = rows_of(result.difficulty, where)
         never = hard[hard["max_fovs"].isna()]
@@ -388,8 +391,10 @@ def protocol_summary(result: ProtocolResult) -> str:
         if len(hard):
             known = hard["fields_needed"].dropna().astype(int)
             if len(known):
+                median = float(np.median(known))
+                shown = f"{median:.0f}" if median.is_integer() else f"{median:.1f}"
                 lines.append(
-                    f"  Fields needed per sample: median {int(np.median(known))}, "
+                    f"  Fields needed per {sample}: median {shown}, "
                     f"range {known.min()}–{known.max()}."
                 )
             short = needs_more[~capped.loc[needs_more.index]]
@@ -409,7 +414,7 @@ def protocol_summary(result: ProtocolResult) -> str:
                 )
                 lines.append(
                     f"  The held-back fields could not judge this for {len(reference_capped)} "
-                    f"of {len(hard)} samples, even with every available field, so these are "
+                    f"of {len(hard)} {sample}s, even with every available field, so these are "
                     f"not counted as needing more fields: {named}."
                 )
             if len(never):
@@ -424,18 +429,23 @@ def protocol_summary(result: ProtocolResult) -> str:
                 served = int(chosen["adequate"].sum())
                 total = int(chosen["eligible"].sum())
                 lines.append(
-                    f"  Choosing the number on the other {unit_word}s and checking it on the one "
-                    f"left out: enough for {served} of {total} samples."
+                    f"  Choosing the number on the other {unit}s and checking it on the one "
+                    f"left out: enough for {served} of {total} {sample}s."
                 )
             unchosen = len(check) - len(chosen)
-            if unchosen:
+            if unchosen and n_units < 2:
                 lines.append(
-                    f"  For {_plural(unchosen, unit_word)}, the others reached no number that "
+                    f"  With a single {unit}, no number can be chosen on other {unit}s and "
+                    "checked on it."
+                )
+            elif unchosen:
+                lines.append(
+                    f"  For {_plural(unchosen, unit)}, the others reached no number that "
                     "served enough samples, so nothing was checked there."
                 )
         if n_units < FEW_UNITS:
             lines.append(
-                f"  Uncertainty is large with only {_plural(n_units, unit_word)}: add more "
+                f"  Uncertainty is large with only {_plural(n_units, unit)}: add more "
                 "before fixing a protocol."
             )
         blocks.append("\n".join(lines))
