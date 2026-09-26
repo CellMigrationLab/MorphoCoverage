@@ -7,17 +7,24 @@ type). The FOV is the sampling unit: with ``T`` visible FOVs (acquired FOVs
 without observations included), ``Q_k`` states seen in exactly ``k`` FOVs and
 ``U = sum_k k Q_k`` incidences,
 
-- sample coverage (Chao and Jost 2012, incidence data), the estimated share
-  of incidence belonging to states already seen:
-
-      C = 1 - (Q_1 / U) * ((T - 1) Q_1 / ((T - 1) Q_1 + 2 Q_2));
-
 - Chao2 richness (Chao 1987), with the bias-corrected form when ``Q_2 = 0``:
 
-      S = S_obs + ((T - 1) / T) Q_1^2 / (2 Q_2)          if Q_2 > 0
-      S = S_obs + ((T - 1) / T) Q_1 (Q_1 - 1) / 2        otherwise,
+      S = S_obs + Q_0,  Q_0 = ((T - 1) / T) Q_1^2 / (2 Q_2)      if Q_2 > 0
+                        Q_0 = ((T - 1) / T) Q_1 (Q_1 - 1) / 2    otherwise,
 
   reported as completeness ``S_obs / S``;
+
+- sample coverage (Chao and Jost 2012, incidence data), the estimated share
+  of incidence belonging to states already seen, as iNEXT computes it
+  (``Chat.Sam``, Chao et al. 2014), with the same ``Q_0``:
+
+      C = 1 - (Q_1 / U) * A,  A = T Q_0 / (T Q_0 + Q_1)  (A = 1 when Q_1 = 0).
+
+  With ``Q_2 > 0``, ``A = (T - 1) Q_1 / ((T - 1) Q_1 + 2 Q_2)``, Chao and
+  Jost's own form. With ``Q_2 = 0`` their paper writes ``A = 1``; the
+  bias-corrected ``Q_0`` keeps coverage consistent with Chao2 and with the
+  expected new states below, ``E[new] = (U / T) (1 - C)`` (for 1, 1, 1 and 4
+  incidences in 5 FOVs: 0.657 rather than 0.571);
 
 - expected new states in the next FOV (Chao et al. 2014, incidence
   extrapolation, Good-Toulmin type), with ``Q_0 = S - S_obs``:
@@ -56,10 +63,11 @@ without observations included), ``Q_k`` states seen in exactly ``k`` FOVs and
   FOVs; the bound is not (0.78 for 0 of 2 at 95%) and is the quantity to stop
   on when few FOVs have been seen.
 
-The two can disagree: with one singleton and no doubletons, Chao2 adds
-``(T - 1) / T * 1 * 0 / 2 = 0`` unseen states (completeness exactly 1) while
-coverage is ``1 - 1 / U``. Both follow the published formulas; a stop on
-Chao2 alone would ignore the singleton.
+With one singleton and no doubletons, Chao2 adds ``(T - 1) / T * 1 * 0 / 2
+= 0`` unseen states, so completeness and coverage are exactly 1 and the
+expected new states 0, although a state seen once is evidence that more may
+exist; a stop on these alone would ignore the singleton, and the
+leave-one-FOV-out bound does not.
 
 Many objects of one state in one FOV are one incidence, so these count
 recurrence across positions, not objects. Assumptions and limits:
@@ -134,13 +142,17 @@ def incidence_frequencies(labels: np.ndarray, positions: np.ndarray) -> np.ndarr
 
 
 def incidence_coverage(incidences: np.ndarray, n_units: int) -> float:
-    """Chao and Jost (2012) sample coverage of incidence data from ``n_units`` sampling units."""
-    q1, q2 = int(np.sum(incidences == 1)), int(np.sum(incidences == 2))
-    total = int(np.sum(incidences))
+    """Chao and Jost (2012) sample coverage of incidence data from ``n_units`` sampling units.
+
+    ``1 - (Q_1 / U) A`` with ``A = T Q_0 / (T Q_0 + Q_1)`` and the Chao2 ``Q_0``
+    (bias-corrected when ``Q_2 = 0``), as iNEXT's ``Chat.Sam``.
+    """
+    q1 = int(np.sum(incidences == 1))
     if q1 == 0:
         return 1.0
-    shrink = (n_units - 1) * q1 / ((n_units - 1) * q1 + 2 * q2)
-    return 1.0 - q1 / total * shrink
+    unseen = chao2(incidences, n_units) - len(incidences)
+    shrink = n_units * unseen / (n_units * unseen + q1)
+    return 1.0 - q1 / int(np.sum(incidences)) * shrink
 
 
 def chao2(incidences: np.ndarray, n_units: int) -> float:

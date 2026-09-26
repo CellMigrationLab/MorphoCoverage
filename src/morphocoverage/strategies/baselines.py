@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -175,6 +176,12 @@ class FixedObservationStrategy(SamplingStrategy):
 _AREA = "imaged_area"
 
 
+def _check_area_col(area_col: object) -> None:
+    """The name of the FOV table's area column."""
+    if not isinstance(area_col, str) or not area_col:
+        raise TypeError("area_col must be the FOV table's area column")
+
+
 @dataclass(frozen=True)
 class ImagedAreaEstimator(Estimator):
     """Total physical area of the visible FOVs, from the FOV-table column ``area_col``.
@@ -193,8 +200,7 @@ class ImagedAreaEstimator(Estimator):
     name: str = "imaged_area"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.area_col, str) or not self.area_col:
-            raise TypeError("area_col must be the FOV table's area column")
+        _check_area_col(self.area_col)
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -207,7 +213,13 @@ class ImagedAreaEstimator(Estimator):
             raise ValueError(f"area_col {self.area_col!r} is not a column of the FOV table")
         if self.area_col in data.feature_cols:
             raise ValueError(f"area_col {self.area_col!r} is metadata, not a phenotype feature")
-        areas = data.fovs[self.area_col].to_numpy(dtype=float)
+        column = data.fovs[self.area_col]
+        if not pd.api.types.is_numeric_dtype(column) or pd.api.types.is_bool_dtype(column):
+            raise ValueError(
+                f"area_col {self.area_col!r} holds {column.dtype} values, not numbers; "
+                "convert it to numeric areas first"
+            )
+        areas = column.to_numpy(dtype=float)
         meta = {
             "direction": Direction.HIGHER_IS_BETTER,
             "units": f"units of {self.area_col!r}",
@@ -229,6 +241,7 @@ class FixedAreaStrategy(SamplingStrategy):
     name: str = "fixed_area"
 
     def __post_init__(self) -> None:
+        _check_area_col(self.area_col)
         if isinstance(self.target_area, bool) or not (
             self.target_area > 0 and math.isfinite(self.target_area)
         ):

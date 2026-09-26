@@ -26,6 +26,8 @@ import numpy as np
 from scipy import linalg, stats
 from scipy.spatial import distance
 
+from .statistics import RELATIVE_TOLERANCE
+
 
 def _pair(x: np.ndarray, y: np.ndarray, minimum: int) -> tuple[np.ndarray, np.ndarray]:
     """Two float matrices with matching feature counts and at least ``minimum`` rows each."""
@@ -48,7 +50,8 @@ def frechet_distance(x: np.ndarray, y: np.ndarray) -> float:
 
     ``sqrt(|mu_x - mu_y|^2 + Tr(S_x + S_y - 2 (S_x^1/2 S_y S_x^1/2)^1/2))``, with
     sample covariances (``ddof=1``). It ignores structure beyond the second
-    moment.
+    moment. A squared distance below ``RELATIVE_TOLERANCE`` of
+    ``tr(S_x) + tr(S_y) + |mu_x|^2 + |mu_y|^2`` is rounding noise and gives 0.
     """
     x, y = _pair(x, y, 2)
     cov_x = np.atleast_2d(np.cov(x, rowvar=False))
@@ -56,11 +59,14 @@ def frechet_distance(x: np.ndarray, y: np.ndarray) -> float:
     root_x = linalg.sqrtm(cov_x)
     cross = linalg.sqrtm(root_x @ cov_y @ root_x)
     trace = np.trace(cov_x + cov_y - 2 * np.real(cross))
-    squared = float(np.sum((x.mean(axis=0) - y.mean(axis=0)) ** 2) + trace)
-    # sqrtm rounding leaves a residual of order 1e-15 * scale for identical
-    # samples, which the square root would magnify; treat it as zero.
-    scale = float(np.trace(cov_x) + np.trace(cov_y)) + 1.0
-    return float(np.sqrt(squared)) if squared > 1e-12 * scale else 0.0
+    mean_x, mean_y = x.mean(axis=0), y.mean(axis=0)
+    squared = float(np.sum((mean_x - mean_y) ** 2) + trace)
+    # sqrtm rounding leaves a residual of order 1e-15 of the samples' scale for
+    # identical samples, which the square root would magnify; treat it as zero.
+    # The tolerance is relative only, so the distance is the same in any units
+    # (areas in m^2 are as far apart as in um^2, scaled).
+    scale = float(np.trace(cov_x) + np.trace(cov_y) + mean_x @ mean_x + mean_y @ mean_y)
+    return float(np.sqrt(squared)) if squared > RELATIVE_TOLERANCE * scale else 0.0
 
 
 def energy_distance(x: np.ndarray, y: np.ndarray) -> float:

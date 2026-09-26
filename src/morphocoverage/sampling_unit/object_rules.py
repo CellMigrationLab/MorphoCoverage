@@ -58,7 +58,12 @@ from .._seeds import group_identity
 from .._wording import fields as fields_text
 from .._wording import where
 from ..schema import ValidatedInput, unit_plural
-from ..statistics import field_sample, jcb_required_objects, sd_upper_bound_factor
+from ..statistics import (
+    field_sample,
+    field_weighted_mean_se,
+    jcb_required_objects,
+    sd_upper_bound_factor,
+)
 from ..strategies.stabilization import describe
 from ._common import check_count, check_seed, fov_values, groups, matching_groups, validated
 
@@ -207,8 +212,12 @@ def object_rule_check(
             means, obtained, used = _fovs_until(sizes, sums / reference, n, n_draws, rng)
             real = float(means.std(ddof=1))
             predicted = float(np.mean(sd / np.sqrt(obtained)))
-            fov_sd = float(np.std([v.mean() for v in filled], ddof=1)) / reference
-            upper = fov_sd * sd_upper_bound_factor(len(filled) - 1)
+            # The JCB rule with the field as the unit: the SD of one field's mean, from the
+            # unweighted mean of field means (statistics.field_weighted_mean_se), not the
+            # object-weighted ratio estimator of ScalarPrecisionStrategy(resampling_unit="fov").
+            _, fov_se, n_filled = field_weighted_mean_se(np.array([v.mean() for v in filled]))
+            fov_sd = fov_se * math.sqrt(n_filled) / reference
+            upper = fov_sd * sd_upper_bound_factor(n_filled - 1)
             rows.append(
                 {
                     **base,

@@ -350,6 +350,69 @@ def srs_relative_rmse(variance: float, mean: float, n: float, total: float) -> f
     return math.sqrt(variance / n * (1 - n / total)) / abs(mean)
 
 
+# The JCB rule with the field as the unit can estimate two different means. Both are
+# kept, under distinct names, because they answer different questions; they agree
+# when every field holds as many objects, and differ most when field size and the
+# phenotype are related (a few crowded fields of one state, many sparse ones of another).
+
+
+def object_weighted_mean_se(sums: np.ndarray, counts: np.ndarray) -> tuple[float, float, int]:
+    """The object-weighted mean of the acquired fields and its standard error, fields as the unit.
+
+    Estimand: the mean over the objects of the sampled area, every object
+    weighing the same (a crowded field weighs more), which is the mean a
+    pooled analysis of the objects reports. Estimate: the ratio
+    ``m = sum(T_j) / sum(N_j)`` of the per-field sums ``T_j`` and object
+    counts ``N_j``, with the ratio-estimator (cluster sampling) variance
+
+        Var(m) = k' / (k' - 1) * sum((T_j - m N_j) ** 2) / sum(N) ** 2
+
+    over the ``k'`` fields holding objects. A field without objects has a
+    residual of exactly 0 and no between-field information, so it enters
+    neither the ``k' / (k' - 1)`` factor nor the ``k' - 1`` degrees of freedom
+    of a bound on this SE (counting empty fields there made a nominal 95%
+    upper bound cover 37% of the time with 90% of fields empty). It is still
+    acquisition effort: the SE of this mean over ``K`` acquired fields like
+    these is about ``se * sqrt(k / K)`` with ``k`` every acquired field.
+
+    The variance is a first-order (linearization) approximation. When field
+    size and field mean are related it can be several times smaller than the
+    spread of ``m`` over resampled whole fields (0.013 against 0.051 on 8
+    fields of 2 to 150 objects whose crowded fields hold a different state).
+
+    Returns ``(m, se, k')``. Needs two fields with objects.
+    """
+    sums, counts = np.asarray(sums, dtype=float), np.asarray(counts, dtype=float)
+    filled = counts > 0
+    k = int(filled.sum())
+    if k < 2:
+        raise ValueError("the SE of a mean over fields needs at least 2 fields with objects")
+    total = float(counts.sum())
+    mean = float(sums.sum()) / total
+    residual = float(np.sum((sums[filled] - mean * counts[filled]) ** 2))
+    return mean, math.sqrt(k / (k - 1) * residual) / total, k
+
+
+def field_weighted_mean_se(field_means: np.ndarray) -> tuple[float, float, int]:
+    """The unweighted mean of the field means and its standard error, fields as the unit.
+
+    Estimand: the mean of a field's average, every field with objects weighing
+    the same whatever its object count, which is what an analysis with the
+    field as the unit (one value per field) compares. Estimate: the mean of
+    the ``k'`` field means and its SE, ``SD(field means, ddof=1) / sqrt(k')``,
+    with ``k' - 1`` degrees of freedom. Fields without objects have no mean
+    and are left out, so the number of fields this SE projects to counts
+    fields with objects: the SD of one field's mean is ``se * sqrt(k')``.
+
+    Returns ``(mean, se, k')``. Needs two field means.
+    """
+    means = np.asarray(field_means, dtype=float)
+    k = len(means)
+    if k < 2:
+        raise ValueError("the SE of a mean over fields needs at least 2 fields with objects")
+    return float(means.mean()), float(means.std(ddof=1)) / math.sqrt(k), k
+
+
 __all__ = [
     "RELATIVE_TOLERANCE",
     "benjamini_hochberg",
@@ -359,6 +422,7 @@ __all__ = [
     "cohen_d",
     "design_effect",
     "field_sample",
+    "field_weighted_mean_se",
     "fields_holding",
     "first_detection_fovs",
     "fovs_to_detect",
@@ -366,6 +430,7 @@ __all__ = [
     "jcs_effect_size",
     "mean_is_zero",
     "nested_variance_components",
+    "object_weighted_mean_se",
     "sd_upper_bound_factor",
     "spread_is_zero",
     "srs_relative_rmse",

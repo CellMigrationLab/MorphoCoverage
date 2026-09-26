@@ -77,7 +77,7 @@ import numpy as np
 from . import distances
 from .outcomes import OutcomeMetric
 from .schema import ValidatedInput
-from .transforms import constant_columns
+from .transforms import Standardize
 
 
 def _feature_tuple(features: Sequence[str]) -> tuple[str, ...]:
@@ -106,10 +106,15 @@ def _samples(
     if np.isnan(reference).any() or np.isnan(sample).any():
         return None
     if metric.standardize:
-        centre, scale = reference.mean(axis=0), reference.std(axis=0, ddof=1)
-        if constant_columns(reference).any():
+        # The package's Standardize, fitted on the reference (the full acquisition):
+        # its mean and SD, refused for a feature without spread.
+        standardize = Standardize()
+        fitted = standardize.fit_matrix(reference, metric.features)
+        if isinstance(fitted, str):
             return None
-        reference, sample = (reference - centre) / scale, (sample - centre) / scale
+        state = fitted[0]
+        reference = standardize.apply_matrix(state, reference)
+        sample = standardize.apply_matrix(state, sample)
     return sample, reference
 
 

@@ -12,6 +12,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+import pandas as pd
+
+from .._wording import count
 from ..evidence import Evidence
 from ..objectives import ObjectiveConfig
 from ..policies import DecisionPolicy, describe, strategy_config_id
@@ -174,3 +177,20 @@ def unsupported_observation_unit(
         f"{method} assumes observation rows are individual objects "
         f"(observation_unit in {allowed_units}), got {data.observation_unit!r}"
     )
+
+
+def check_order_col(fovs: pd.DataFrame, order_col: str, purpose: str) -> None:
+    """Refuse an order column that is not in the FOV table or has missing values.
+
+    A field with no order value has no place in the order: sorting would put it
+    last without saying so, and the full and the incremental evaluation could
+    place it differently. ``purpose`` names what needs the order, for the message.
+    """
+    if order_col not in fovs.columns:
+        raise ValueError(f"order_col {order_col!r} is not a column of the FOV table")
+    missing = int(fovs[order_col].isna().sum())
+    if missing:
+        raise ValueError(
+            f"order_col {order_col!r} has missing values; {purpose} needs an order value for "
+            f"every FOV ({count(missing, 'FOV row')} without one)"
+        )
