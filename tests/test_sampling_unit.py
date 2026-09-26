@@ -365,9 +365,9 @@ def idr0139():
 def test_idr0139_fovs_are_not_random_objects(idr0139):
     """Regression of docs/preliminary_findings.md entry 9 on the committed wells."""
     objects, fovs, ratio = idr0139
-    groups = ["condition", "repeat", "well"]
+    groups = ["condition", "repeat", "technical_repeat"]
     variability = fov_variability(objects, fovs, feature=ratio, group_cols=groups).groups.set_index(
-        "well"
+        "technical_repeat"
     )
     assert variability.loc["J05", "design_effect"] > 5
     check = object_rule_check(
@@ -378,7 +378,7 @@ def test_idr0139_fovs_are_not_random_objects(idr0139):
         control={"condition": "Untreated"},
         n_draws=1000,
         group_cols=groups,
-    ).table.set_index("well")
+    ).table.set_index("technical_repeat")
     assert check.loc["J05", "fovs_used"] == pytest.approx(1.0)
     assert 0.03 < check.loc["J05", "real_error"] < 0.055
     assert not check.loc["J05", "meets_target"]
@@ -441,13 +441,18 @@ def test_the_report_states_the_design_effect_once():
 # -- condition contrast ------------------------------------------------------------------
 
 
-def _two_conditions(shift: float, field_sd: float, seed: int = 3, n_fields: int = 12):
-    """Control and treated wells in two repeats; ``shift`` moves the treated condition."""
+def _two_conditions(
+    shift: float, field_sd: float, seed: int = 3, n_fields: int = 12, n_wells: int = 2
+):
+    """Control and treated wells in two repeats; ``shift`` moves the treated condition's ``x``.
+
+    ``y`` never differs between the conditions.
+    """
     rng = np.random.default_rng(seed)
     objects, fovs = [], []
     for repeat in ("R1", "R2"):
         for condition, well_shift in (("control", 0.0), ("treated", shift)):
-            for well in ("w1", "w2"):
+            for well in [f"w{i + 1}" for i in range(n_wells)]:
                 for j in range(n_fields):
                     name = f"{repeat}_{condition}_{well}_f{j}"
                     fovs.append(
@@ -462,6 +467,7 @@ def _two_conditions(shift: float, field_sd: float, seed: int = 3, n_fields: int 
                                 "well": well,
                                 "image_file": name,
                                 "x": 10 + offset + rng.normal(),
+                                "y": rng.normal(),
                             }
                         )
     return pd.DataFrame(objects), pd.DataFrame(fovs)
@@ -578,3 +584,114 @@ def test_the_report_places_the_contrast_last():
     assert text.index("8. Could I have sampled") < text.index("9. Do the conditions differ")
     assert "generalizing it needs independent biological repeats" in text
     assert "Not assessed" in microscopist_report().sections["conditions"]
+
+
+def _technical(objects, fovs):
+    """The same tables with the well named as the MorphoBricks technical repeat."""
+    rename = {"well": "technical_repeat"}
+    return objects.rename(columns=rename), fovs.rename(columns=rename)
+
+
+def test_technical_repeats_are_the_unit_when_each_side_holds_two():
+    objects, fovs = _technical(*_two_conditions(shift=2.0, field_sd=0.3))
+    result = condition_contrast(
+        objects,
+        fovs,
+        feature="x",
+        control={"condition": "control"},
+        n_permutations=300,
+        n_draws=10,
+        object_counts=(50,),
+    )
+    table = result.table
+    assert (table["permutation_unit"] == "technical_repeat").all()
+    assert (table["technical"] == 2).all() and (table["control_technical"] == 2).all()
+    assert (table["distinct_assignments"] == 6).all()
+    assert np.isfinite(table["d_technical"]).all() and (table["d_technical"] > 1).all()
+    # Two wells a side: the observed split and its mirror are always as extreme.
+    assert (table["p_value"] > 0.2).all()
+    text = result.summary()
+    assert "with the technical repeat (technical_repeat) as the unit" in text
+    assert "in 2 and 2 technical repeats" in text and "on technical-repeat means" in text
+    assert "whole technical repeats (technical_repeat; only 6 distinct assignments exist)" in text
+    # Without the column among the groups, fields stay the unit.
+    pooled = condition_contrast(
+        objects,
+        fovs,
+        feature="x",
+        control={"condition": "control"},
+        group_cols=["condition", "repeat"],
+        n_permutations=100,
+        n_draws=5,
+        object_counts=(50,),
+    )
+    assert (pooled.table["permutation_unit"] == "field").all()
+    assert np.isnan(pooled.table["d_technical"]).all()
+    assert "Randomization test over whole fields" in pooled.summary()
+
+
+def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
+    from morphocoverage.sampling_unit import feature_ranking
+
+    objects, fovs = _technical(
+        *_two_conditions(shift=2.0, field_sd=0.3, seed=7, n_wells=4, n_fields=6)
+    )
+    result = feature_ranking(
+        objects,
+        fovs,
+        features=["y", "x"],
+        control={"condition": "control"},
+        n_permutations=400,
+    )
+    tests = result.tests
+    assert len(tests) == 4  # two features, two repeats
+    assert (tests["permutation_unit"] == "technical_repeat").all()
+    assert (tests["distinct_assignments"] == 70).all()
+    x_rows, y_rows = tests[tests["feature"] == "x"], tests[tests["feature"] == "y"]
+    assert x_rows["passes_gate"].all() and not y_rows["passes_gate"].any()
+    assert (tests["q_value"] >= tests["p_value"]).all()
+    ranking = result.ranking
+    assert ranking["feature"].tolist() == ["x", "y"]
+    assert ranking.loc[0, "score"] > 1 and np.isnan(ranking.loc[1, "score"])
+    assert result.top() == ["x"] and result.top(0) == []
+    text = result.summary()
+    assert "Which features separate the conditions? Each of the 2 declared features" in text
+    assert "1. x: |d|" in text and "passes in 2 of 2 contrasts" in text
+    assert "No contrast passes the gate for 1 feature: y." in text
+    assert "Plotted by default: the readout and the 1 best-ranked" in text
+    # Deterministic, and the same numbers as the contrast for the readout.
+    again = feature_ranking(
+        objects, fovs, features=["y", "x"], control={"condition": "control"}, n_permutations=400
+    )
+    pd.testing.assert_frame_equal(result.tests, again.tests)
+    contrast = condition_contrast(
+        objects,
+        fovs,
+        feature="x",
+        control={"condition": "control"},
+        n_permutations=400,
+        n_draws=5,
+        object_counts=(50,),
+    )
+    assert x_rows["d_fields"].tolist() == pytest.approx(contrast.table["d_fields"].tolist())
+
+
+def test_feature_ranking_says_when_few_technical_repeats_cannot_pass_the_gate():
+    from morphocoverage.sampling_unit import feature_ranking
+
+    objects, fovs = _technical(*_two_conditions(shift=3.0, field_sd=0.3))
+    result = feature_ranking(
+        objects, fovs, features=["x"], control={"condition": "control"}, n_permutations=100
+    )
+    assert not result.tests["passes_gate"].any() and result.top() == []
+    text = result.summary()
+    assert "No contrast passes the gate for 1 feature: x." in text
+    assert "with as few as 6 distinct assignments a p-value cannot fall below 0.17" in text
+    with pytest.raises(ValueError, match="alpha"):
+        feature_ranking(objects, fovs, features=["x"], control={"condition": "control"}, alpha=1)
+    with pytest.raises(ValueError, match="at least one"):
+        feature_ranking(objects, fovs, features=[], control={"condition": "control"})
+    only = fovs[fovs["condition"] == "control"]
+    controls = objects[objects["condition"] == "control"]
+    alone = feature_ranking(controls, only, features=["x"], control={"condition": "control"})
+    assert alone.tests.empty and "no other condition to compare" in alone.summary()

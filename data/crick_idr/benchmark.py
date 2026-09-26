@@ -53,7 +53,7 @@ from morphocoverage.strategies import (
 from morphocoverage.transforms import Standardize
 
 LOCK = Path(__file__).resolve().parent / "benchmark_protocol.lock"
-GROUPS = ["condition", "repeat", "well"]
+GROUPS = ["condition", "repeat", "technical_repeat"]
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 READOUT = {"idr0028_screenB": YAPTAZ_RATIO, "idr0139": FASCIN_RATIO}
 
@@ -198,8 +198,9 @@ def _planted_tables(question: dict):
     rng = np.random.default_rng(PROTOCOL["random_state"])
     object_parts, fov_parts = [], []
     for plate, host, donor in question["design"]:
-        host_fovs = fovs[(fovs["repeat"] == plate) & (fovs["well"] == host)].reset_index(drop=True)
-        donor_cells = objects[(objects["repeat"] == plate) & (objects["well"] == donor)]
+        in_host = (fovs["repeat"] == plate) & (fovs["technical_repeat"] == host)
+        host_fovs = fovs[in_host].reset_index(drop=True)
+        donor_cells = objects[(objects["repeat"] == plate) & (objects["technical_repeat"] == donor)]
         donor_blocks = [block for _, block in donor_cells.groupby("image_file")]
         usable = [b for b in donor_blocks if len(b) >= question["planted_objects"]]
         xy = host_fovs[["stage_x_um", "stage_y_um"]].to_numpy(float)

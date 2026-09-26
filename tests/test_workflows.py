@@ -482,3 +482,56 @@ def test_positive_control_keeps_the_declared_fov_identity():
         stage_cols=None,
     )
     assert "controls" in report(objects, fovs, setup).results
+
+
+def _with_technical_repeats(objects, fovs):
+    """Two wells per condition and repeat, fields alternating between them."""
+    fovs = fovs.copy()
+    fovs["technical_repeat"] = [f"w{i % 2}" for i in range(len(fovs))]
+    objects = objects.merge(
+        fovs[["condition", "repeat", "image_file", "technical_repeat"]],
+        on=["condition", "repeat", "image_file"],
+    )
+    return objects, fovs
+
+
+def test_a_technical_repeat_column_derives_the_hierarchy_and_ranks_the_features():
+    from morphocoverage.retrospective import SamplingHierarchy
+    from morphocoverage.workflows import plots
+
+    objects, fovs = _with_technical_repeats(*_acquisition())
+    setup = _setup()
+    hierarchy = setup.resolved_hierarchy(objects, fovs)
+    assert hierarchy == SamplingHierarchy("image_file", "technical_repeat", "repeat")
+    assert setup.resolved_effort_strata(fovs) == ["condition"]
+    declared = _setup(hierarchy=SamplingHierarchy("image_file", "technical_repeat"))
+    assert declared.resolved_hierarchy(objects, fovs) == declared.hierarchy
+    assert declared.resolved_effort_strata(fovs) == []  # a declared hierarchy pools as asked
+    assert _setup().resolved_hierarchy(*_acquisition()) is None
+    result = report(objects, fovs, setup)
+    assert result.ranking is not None and set(result.ranking.tests["feature"]) == set(FEATURE_COLS)
+    assert (result.ranking.tests["permutation_unit"] == "technical_repeat").all()
+    text = result.summary()
+    assert "technical repeats (technical_repeat, a well or a dish" in text
+    assert "Which features separate the conditions?" in text
+    figures = plots(objects, fovs, setup, ranking=result.ranking, n_boot=10)
+    expected = [READOUT, *[f for f in result.ranking.top() if f != READOUT]]
+    assert list(figures) == expected
+    with pytest.raises(TypeError, match="ranking"):
+        plots(objects, fovs, setup, ranking="x", n_boot=10)
+    plan = optimise(
+        objects,
+        fovs,
+        setup,
+        fov_counts=[2, 4],
+        reservoir_fraction=0.25,
+        n_splits=2,
+        draws=5,
+        permuted_orders=1,
+        dispersed_orders=1,
+    )
+    assert "effort" in plan.results and "protocol" in plan.results
+    effort = plan.results["effort"]
+    assert set(effort.components["stratum"]) == {"condition=control", "condition=drug"}
+    assert "more fields or more technical repeats, for the mean" in plan.summary()
+    assert "7. More fields or more samples?" in plan.summary()

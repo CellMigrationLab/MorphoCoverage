@@ -21,7 +21,8 @@ foundation every other answer rests on, then answers the questions in order:
 7. More fields or more samples? (``effort_projection``)
 8. Could the same positions have been visited in a better order?
    (``order_efficiency``, ``redundancy_distance``)
-9. Do the conditions differ, and how confidently? (``sampling_unit.condition_contrast``:
+9. Do the conditions differ, and how confidently? (``sampling_unit.condition_contrast``
+   and, with several features, ``sampling_unit.feature_ranking``:
    each condition against the control, with objects and with fields as the unit)
 
 The report opens with what the tables hold (``dataset_overview``: objects,
@@ -56,7 +57,8 @@ from ._text import unit_plural
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
 from .controls import ControlResult
-from .effort import EffortResult, design_effect, share_caveat
+from .effort import EffortResult, design_effect
+from .effort_text import level_words, share_caveat, unit_word
 from .inspection import InspectionResult
 from .overview import DatasetOverview
 from .protocol import ProtocolResult
@@ -67,6 +69,7 @@ if TYPE_CHECKING:  # sampling_unit imports retrospective helpers, so it is impor
     from ..sampling_unit import (
         ConditionContrast,
         DescriptorSpreadCheck,
+        FeatureRanking,
         FOVClustering,
         FOVVariability,
         ObjectRuleCheck,
@@ -99,7 +102,8 @@ _NEEDS = {
     "next_time": "run sampling_reliability, then protocol_reliability across samples",
     "bought": "run adequacy_points on a replay",
     "inspect": "run inspect_fovs",
-    "effort": "declare a sampling hierarchy and run effort_projection",
+    "effort": "give the FOV table a technical_repeat column (a well, a dish) or declare a "
+    "sampling hierarchy, and run optimise (effort_projection)",
     "order": "give stage coordinates and run order_efficiency on a replay with dispersed orders",
     "conditions": "declare a control condition and run condition_contrast on data with more "
     "than one condition",
@@ -298,12 +302,7 @@ def _profile(
                 )
     if effort is not None:
         hierarchy = effort.settings.get("hierarchy", {})
-        level_words = {
-            hierarchy.get("fov"): "between fields within a sample",
-            hierarchy.get("sample"): "between samples",
-            hierarchy.get("biological_repeat"): "between repeats",
-            "observation": f"between {observations} within a field",
-        }
+        words = level_words(hierarchy, observations)
         for stratum, block in effort.components.groupby("stratum", sort=False):
             effect = design_effect(effort, stratum)
             # fov_variability, when given, states the design effect per group already
@@ -323,9 +322,9 @@ def _profile(
             top = block.dropna(subset=["share"]).sort_values("share", ascending=False)
             if len(top):
                 first = top.iloc[0]
-                unit = effort.settings.get("independent_unit", "unit")
-                unit = "sample" if unit == hierarchy.get("sample") else unit
-                caveat = share_caveat(first, int(first["units"]), unit)
+                caveat = share_caveat(
+                    first, int(first["units"]), unit_word(hierarchy, str(first["unit"]))
+                )
                 rows.append(
                     {
                         "item": "largest source of uncertainty of the mean",
@@ -333,7 +332,7 @@ def _profile(
                         "value": float(first["share"]),
                         "statement": (
                             f"{100 * first['share']:.0f}% of the variance of the mean is "
-                            f"{level_words.get(first['level'], first['level'])}{caveat}"
+                            f"{words.get(first['level'], first['level'])}{caveat}"
                         ),
                         "source": "effort_projection",
                     }
@@ -428,6 +427,7 @@ def microscopist_report(
     unusual: UnusualObjects | None = None,
     clustering: FOVClustering | None = None,
     contrast: ConditionContrast | None = None,
+    ranking: FeatureRanking | None = None,
     overview: DatasetOverview | None = None,
     minimum_detection: float = 0.9,
     declaration: Sequence[str] = (),
@@ -446,6 +446,7 @@ def microscopist_report(
     from ..sampling_unit import (
         ConditionContrast,
         DescriptorSpreadCheck,
+        FeatureRanking,
         FOVClustering,
         FOVVariability,
         ObjectRuleCheck,
@@ -473,6 +474,7 @@ def microscopist_report(
         (unusual, UnusualObjects, "unusual"),
         (clustering, FOVClustering, "clustering"),
         (contrast, ConditionContrast, "contrast"),
+        (ranking, FeatureRanking, "ranking"),
         (overview, DatasetOverview, "overview"),
     ):
         _check(value, kind, name)
@@ -517,6 +519,8 @@ def microscopist_report(
             "This describes what these fields support about a difference under this feature; "
             "generalizing it needs independent biological repeats, which is the user's inference."
         )
+    if ranking is not None:
+        parts["conditions"].append(ranking.summary())
     if efficiency is not None or redundancy is not None:
         parts["order"].append(
             "Whether these were the right positions needs every candidate position from an "

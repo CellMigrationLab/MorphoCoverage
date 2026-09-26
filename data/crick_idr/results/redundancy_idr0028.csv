@@ -1,4 +1,4 @@
-condition,repeat,well,redundancy_distance,smallest_lag,largest_lag,fov_mean_variance,share,unit
+condition,repeat,technical_repeat,redundancy_distance,smallest_lag,largest_lag,fov_mean_variance,share,unit
 MOCK,1A,B6,779.772,336,2036.96,9.21646e-05,0.9,µm
 LATS1,1A,I23,336,336,2036.96,0.000187843,0.9,µm
 LATS1,1A,J23,336,336,2036.96,0.000234687,0.9,µm

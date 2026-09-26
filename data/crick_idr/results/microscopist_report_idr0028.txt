@@ -1,59 +1,60 @@
 What is in the dataset
-  9550 nuclei in 336 acquired fields; a field is identified by condition, repeat, well, image_file.
+  9550 nuclei in 336 acquired fields; a field is identified by condition, repeat, technical_repeat, image_file.
   31 feature columns: YAPTAZ_Ratio, Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ, Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ, Nuclei_Intensity_MADIntensity_YAPTAZ, Nuclei_Intensity_MassDisplacement_YAPTAZ, Nuclei_Intensity_MaxIntensityEdge_YAPTAZ, Nuclei_Intensity_MaxIntensity_YAPTAZ, Nuclei_Intensity_MeanIntensityEdge_YAPTAZ, Nuclei_Intensity_MeanIntensity_YAPTAZ, Nuclei_Intensity_MedianIntensity_YAPTAZ, Nuclei_Intensity_MinIntensityEdge_YAPTAZ and 19 more.
+  12 technical repeats (technical_repeat, a well or a dish within a repeat, 1 to 2 per condition and repeat).
   4 conditions (condition: MOCK, LATS1, YAP, ARAP2); 3 repeats (repeat: 1A, 2A, 2B).
-    condition  repeat  fields  empty  nuclei
-    MOCK  1A  28  0  966
-    LATS1  1A  56  0  1365
-    YAP  1A  56  0  1258
-    ARAP2  2A  28  0  797
-    LATS1  2A  28  0  736
-    MOCK  2A  28  0  953
-    YAP  2A  28  0  557
-    ARAP2  2B  56  0  1955
-    MOCK  2B  28  0  963
+    condition  repeat  fields  empty  nuclei  technical repeats
+    MOCK  1A  28  0  966  1
+    LATS1  1A  56  0  1365  2
+    YAP  1A  56  0  1258  2
+    ARAP2  2A  28  0  797  1
+    LATS1  2A  28  0  736  1
+    MOCK  2A  28  0  953  1
+    YAP  2A  28  0  557  1
+    ARAP2  2B  56  0  1955  2
+    MOCK  2B  28  0  963  1
   Values: as given (not normalised).
 
 Foundation: why count fields, and not only objects?
   How variable are the fields? Feature YAPTAZ_Ratio.
-  condition=MOCK, repeat=1A, well=B6: 28 fields, 966 nuclei (34 per field). 2% of the variance lies between fields. A mean from whole fields has 1.7 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.3-fold. 14% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=LATS1, repeat=1A, well=I23: 28 fields, 718 nuclei (26 per field). 4% of the variance lies between fields. A mean from whole fields has 2.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 11% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=LATS1, repeat=1A, well=J23: 28 fields, 647 nuclei (23 per field). 4% of the variance lies between fields. A mean from whole fields has 1.9 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 11% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=YAP, repeat=1A, well=M23: 28 fields, 651 nuclei (23 per field). 4% of the variance lies between fields. A mean from whole fields has 2.1 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 18% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=YAP, repeat=1A, well=N23: 28 fields, 607 nuclei (22 per field). 0% of the variance lies between fields. A mean from whole fields has 1.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.0-fold. 4% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=ARAP2, repeat=2A, well=C13: 28 fields, 797 nuclei (28 per field). 0% of the variance lies between fields. A mean from whole fields has 1.1 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.0-fold. 4% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=LATS1, repeat=2A, well=J23: 28 fields, 736 nuclei (26 per field). 4% of the variance lies between fields. A mean from whole fields has 2.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 14% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=MOCK, repeat=2A, well=K16: 28 fields, 953 nuclei (34 per field). 4% of the variance lies between fields. A mean from whole fields has 2.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.5-fold. 21% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=YAP, repeat=2A, well=N23: 28 fields, 557 nuclei (20 per field). 6% of the variance lies between fields. A mean from whole fields has 2.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.5-fold. 18% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=ARAP2, repeat=2B, well=C13: 28 fields, 999 nuclei (36 per field). 5% of the variance lies between fields. A mean from whole fields has 2.8 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.7-fold. 21% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=ARAP2, repeat=2B, well=C17: 28 fields, 956 nuclei (34 per field). 7% of the variance lies between fields. A mean from whole fields has 3.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.8-fold. 36% of fields differ more than random nuclei would let them (about 5% expected).
-  condition=MOCK, repeat=2B, well=P13: 28 fields, 963 nuclei (34 per field). 5% of the variance lies between fields. A mean from whole fields has 2.8 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.7-fold. 29% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=MOCK, repeat=1A, technical_repeat=B6: 28 fields, 966 nuclei (34 per field). 2% of the variance lies between fields. A mean from whole fields has 1.7 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.3-fold. 14% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=LATS1, repeat=1A, technical_repeat=I23: 28 fields, 718 nuclei (26 per field). 4% of the variance lies between fields. A mean from whole fields has 2.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 11% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=LATS1, repeat=1A, technical_repeat=J23: 28 fields, 647 nuclei (23 per field). 4% of the variance lies between fields. A mean from whole fields has 1.9 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 11% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=YAP, repeat=1A, technical_repeat=M23: 28 fields, 651 nuclei (23 per field). 4% of the variance lies between fields. A mean from whole fields has 2.1 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 18% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=YAP, repeat=1A, technical_repeat=N23: 28 fields, 607 nuclei (22 per field). 0% of the variance lies between fields. A mean from whole fields has 1.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.0-fold. 4% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=ARAP2, repeat=2A, technical_repeat=C13: 28 fields, 797 nuclei (28 per field). 0% of the variance lies between fields. A mean from whole fields has 1.1 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.0-fold. 4% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=LATS1, repeat=2A, technical_repeat=J23: 28 fields, 736 nuclei (26 per field). 4% of the variance lies between fields. A mean from whole fields has 2.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 14% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=MOCK, repeat=2A, technical_repeat=K16: 28 fields, 953 nuclei (34 per field). 4% of the variance lies between fields. A mean from whole fields has 2.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.5-fold. 21% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=YAP, repeat=2A, technical_repeat=N23: 28 fields, 557 nuclei (20 per field). 6% of the variance lies between fields. A mean from whole fields has 2.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.5-fold. 18% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=ARAP2, repeat=2B, technical_repeat=C13: 28 fields, 999 nuclei (36 per field). 5% of the variance lies between fields. A mean from whole fields has 2.8 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.7-fold. 21% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=ARAP2, repeat=2B, technical_repeat=C17: 28 fields, 956 nuclei (34 per field). 7% of the variance lies between fields. A mean from whole fields has 3.4 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.8-fold. 36% of fields differ more than random nuclei would let them (about 5% expected).
+  condition=MOCK, repeat=2B, technical_repeat=P13: 28 fields, 963 nuclei (34 per field). 5% of the variance lies between fields. A mean from whole fields has 2.8 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.7-fold. 29% of fields differ more than random nuclei would let them (about 5% expected).
 
   Would the JCB object-count rule hold with whole fields? Feature YAPTAZ_Ratio; reference mean: mean of all objects of 3 control group(s) {'condition': 'MOCK'}.
-  condition=MOCK, repeat=1A, well=B6, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.3% (1.2 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=MOCK, repeat=1A, well=B6, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.3% (1.2 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=LATS1, repeat=1A, well=I23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.8% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=LATS1, repeat=1A, well=I23, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.8% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
-  condition=LATS1, repeat=1A, well=J23, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.6%; the real error of that mean is 2.1% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=LATS1, repeat=1A, well=J23, target 2.5%: the rule asks for 10 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.6%; the real error of that mean is 2.1% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
-  condition=YAP, repeat=1A, well=M23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=YAP, repeat=1A, well=M23, target 2.5%: the rule asks for 6 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
-  condition=YAP, repeat=1A, well=N23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.3% (0.9 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=YAP, repeat=1A, well=N23, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.3% (0.9 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=ARAP2, repeat=2A, well=C13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.3% (1.0 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=ARAP2, repeat=2A, well=C13, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.3% (1.1 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=LATS1, repeat=2A, well=J23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=LATS1, repeat=2A, well=J23, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
-  condition=MOCK, repeat=2A, well=K16, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.3%; the real error of that mean is 2.0% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=MOCK, repeat=2A, well=K16, target 2.5%: the rule asks for 9 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.3%; the real error of that mean is 1.9% (1.5 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
-  condition=YAP, repeat=2A, well=N23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.0% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=YAP, repeat=2A, well=N23, target 2.5%: the rule asks for 6 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.0% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
-  condition=ARAP2, repeat=2B, well=C13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=ARAP2, repeat=2B, well=C13, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=ARAP2, repeat=2B, well=C17, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.5% (1.8 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=ARAP2, repeat=2B, well=C17, target 2.5%: the rule asks for 10 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.4% (1.8 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
-  condition=MOCK, repeat=2B, well=P13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.9% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
-  condition=MOCK, repeat=2B, well=P13, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=1A, technical_repeat=B6, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.3% (1.2 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=1A, technical_repeat=B6, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.3% (1.2 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=1A, technical_repeat=I23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=1A, technical_repeat=I23, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.3%; the real error of that mean is 1.7% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=1A, technical_repeat=J23, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.6%; the real error of that mean is 2.1% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=1A, technical_repeat=J23, target 2.5%: the rule asks for 10 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.6%; the real error of that mean is 2.1% (1.3 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=1A, technical_repeat=M23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=1A, technical_repeat=M23, target 2.5%: the rule asks for 6 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.3%; the real error of that mean is 1.9% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=1A, technical_repeat=N23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.3% (0.9 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=1A, technical_repeat=N23, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 1.2% (0.9 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2A, technical_repeat=C13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.3% (1.1 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2A, technical_repeat=C13, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.3% (1.1 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=2A, technical_repeat=J23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.0% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=LATS1, repeat=2A, technical_repeat=J23, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.0% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=2A, technical_repeat=K16, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.3%; the real error of that mean is 2.0% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=2A, technical_repeat=K16, target 2.5%: the rule asks for 9 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.3%; the real error of that mean is 2.0% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=2A, technical_repeat=N23, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.5%; the real error of that mean is 2.0% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=YAP, repeat=2A, technical_repeat=N23, target 2.5%: the rule asks for 6 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.0% (1.4 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2B, technical_repeat=C13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.1%; the real error of that mean is 1.8% (1.5 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2B, technical_repeat=C13, target 2.5%: the rule asks for 8 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2B, technical_repeat=C17, target 5.0%: the rule asks for 3 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.5% (1.8 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=ARAP2, repeat=2B, technical_repeat=C17, target 2.5%: the rule asks for 10 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.4%; the real error of that mean is 2.5% (1.8 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=2B, technical_repeat=P13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
+  condition=MOCK, repeat=2B, technical_repeat=P13, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
 
 1. Can these features detect what I care about?
   Can these features see the declared phenotype? (after 10 reference fields)
@@ -65,7 +66,7 @@ Foundation: why count fields, and not only objects?
     This holds for this definition of new and these features, on these controls; a phenotype unlike the control may be seen better or worse.
 
 2. Did I image enough?
-  condition=MOCK, repeat=1A, well=B6:
+  condition=MOCK, repeat=1A, technical_repeat=B6:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -79,7 +80,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=LATS1, repeat=1A, well=I23:
+  condition=LATS1, repeat=1A, technical_repeat=I23:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -93,7 +94,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=LATS1, repeat=1A, well=J23:
+  condition=LATS1, repeat=1A, technical_repeat=J23:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -106,7 +107,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=YAP, repeat=1A, well=M23:
+  condition=YAP, repeat=1A, technical_repeat=M23:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -119,7 +120,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=YAP, repeat=1A, well=N23:
+  condition=YAP, repeat=1A, technical_repeat=N23:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -133,7 +134,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 65 more FOVs if none shows anything new; 573 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=ARAP2, repeat=2A, well=C13:
+  condition=ARAP2, repeat=2A, technical_repeat=C13:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -146,7 +147,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=LATS1, repeat=2A, well=J23:
+  condition=LATS1, repeat=2A, technical_repeat=J23:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -160,7 +161,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 96 more FOVs if none shows anything new; never at the current rate of new FOVs.
 
-  condition=MOCK, repeat=2A, well=K16:
+  condition=MOCK, repeat=2A, technical_repeat=K16:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -174,7 +175,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=YAP, repeat=2A, well=N23:
+  condition=YAP, repeat=2A, technical_repeat=N23:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-2) over 6 orders.
@@ -187,7 +188,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=ARAP2, repeat=2B, well=C13:
+  condition=ARAP2, repeat=2B, technical_repeat=C13:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -201,7 +202,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 65 more FOVs if none shows anything new; 573 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=ARAP2, repeat=2B, well=C17:
+  condition=ARAP2, repeat=2B, technical_repeat=C17:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -214,7 +215,7 @@ Foundation: why count fields, and not only objects?
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  condition=MOCK, repeat=2B, well=P13:
+  condition=MOCK, repeat=2B, technical_repeat=P13:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
     - scalar_precision_object_upper95 (averaging_cv <= 0.05): yes, its threshold was met by the 28 acquired FOVs (treats observations as independent draws: assumes a spatially uniform sample); first met after 1 FOVs (10-90%: 1-1) over 6 orders.
@@ -231,20 +232,20 @@ Foundation: why count fields, and not only objects?
   'New' means a cluster of at least 3 similar observations (linked within the distance) with fewer than 1 other FOV within distance 5.47723 (standardize), on 30 features (Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ, Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ and 27 more).
 
   Adjusted for the declared control's detection rate (100% of its fields recognized): a phenotype seen as well as the control, and shown by no FOV yet, could still be in
-    condition=MOCK, repeat=1A, well=B6: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=LATS1, repeat=1A, well=I23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=LATS1, repeat=1A, well=J23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=YAP, repeat=1A, well=M23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=YAP, repeat=1A, well=N23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=ARAP2, repeat=2A, well=C13: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=LATS1, repeat=2A, well=J23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=MOCK, repeat=2A, well=K16: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=YAP, repeat=2A, well=N23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=ARAP2, repeat=2B, well=C13: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=ARAP2, repeat=2B, well=C17: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
-    condition=MOCK, repeat=2B, well=P13: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=MOCK, repeat=1A, technical_repeat=B6: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=LATS1, repeat=1A, technical_repeat=I23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=LATS1, repeat=1A, technical_repeat=J23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=YAP, repeat=1A, technical_repeat=M23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=YAP, repeat=1A, technical_repeat=N23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=ARAP2, repeat=2A, technical_repeat=C13: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=LATS1, repeat=2A, technical_repeat=J23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=MOCK, repeat=2A, technical_repeat=K16: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=YAP, repeat=2A, technical_repeat=N23: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=ARAP2, repeat=2B, technical_repeat=C13: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=ARAP2, repeat=2B, technical_repeat=C17: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
+    condition=MOCK, repeat=2B, technical_repeat=P13: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.
 
-  condition=MOCK, repeat=1A, well=B6: if you had let fixed_fov (target_fovs=8) stop the acquisition
+  condition=MOCK, repeat=1A, technical_repeat=B6: if you had let fixed_fov (target_fovs=8) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
@@ -253,25 +254,25 @@ Foundation: why count fields, and not only objects?
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=MOCK, repeat=1A, well=B6: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+  condition=MOCK, repeat=1A, technical_repeat=B6: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
+      for the well mean within 2.5%: 12% of acquisitions stopped too early, 88% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+      for the well mean within 2.5%: 16% of acquisitions stopped too early, 84% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=MOCK, repeat=1A, well=B6: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+  condition=MOCK, repeat=1A, technical_repeat=B6: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=LATS1, repeat=1A, well=I23: if you had let fixed_fov (target_fovs=8) stop the acquisition
+  condition=LATS1, repeat=1A, technical_repeat=I23: if you had let fixed_fov (target_fovs=8) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
@@ -280,25 +281,25 @@ Foundation: why count fields, and not only objects?
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=LATS1, repeat=1A, well=I23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+  condition=LATS1, repeat=1A, technical_repeat=I23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 16% of acquisitions stopped too early, 84% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=LATS1, repeat=1A, well=I23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+  condition=LATS1, repeat=1A, technical_repeat=I23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=LATS1, repeat=1A, well=J23: if you had let fixed_fov (target_fovs=8) stop the acquisition
+  condition=LATS1, repeat=1A, technical_repeat=J23: if you had let fixed_fov (target_fovs=8) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
@@ -307,187 +308,79 @@ Foundation: why count fields, and not only objects?
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=LATS1, repeat=1A, well=J23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+  condition=LATS1, repeat=1A, technical_repeat=J23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 60% of acquisitions stopped too early, 40% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 32% of acquisitions stopped too early, 68% stopped with it preserved.
+      for the well mean within 2.5%: 16% of acquisitions stopped too early, 84% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 40% of acquisitions stopped too early, 60% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=LATS1, repeat=1A, technical_repeat=J23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=YAP, repeat=1A, technical_repeat=M23: if you had let fixed_fov (target_fovs=8) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=YAP, repeat=1A, technical_repeat=M23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 60% of acquisitions stopped too early, 40% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 52% of acquisitions stopped too early, 48% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 36% of acquisitions stopped too early, 64% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=LATS1, repeat=1A, well=J23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 16% of acquisitions stopped too early, 84% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=YAP, repeat=1A, well=M23: if you had let fixed_fov (target_fovs=8) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=YAP, repeat=1A, well=M23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 12% of acquisitions stopped too early, 88% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 16% of acquisitions stopped too early, 84% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=YAP, repeat=1A, well=M23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+  condition=YAP, repeat=1A, technical_repeat=M23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 40% of acquisitions stopped too early, 60% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=YAP, repeat=1A, well=N23: if you had let fixed_fov (target_fovs=8) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=YAP, repeat=1A, well=N23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 12% of acquisitions stopped too early, 88% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=YAP, repeat=1A, well=N23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=ARAP2, repeat=2A, well=C13: if you had let fixed_fov (target_fovs=8) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=ARAP2, repeat=2A, well=C13: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 16% of acquisitions stopped too early, 84% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=ARAP2, repeat=2A, well=C13: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 2 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=LATS1, repeat=2A, well=J23: if you had let fixed_fov (target_fovs=8) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=LATS1, repeat=2A, well=J23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 24% of acquisitions stopped too early, 76% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 60% of acquisitions stopped too early, 40% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=LATS1, repeat=2A, well=J23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=MOCK, repeat=2A, well=K16: if you had let fixed_fov (target_fovs=8) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=MOCK, repeat=2A, well=K16: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 60% of acquisitions stopped too early, 40% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 24% of acquisitions stopped too early, 76% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 40% of acquisitions stopped too early, 60% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=MOCK, repeat=2A, well=K16: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=YAP, repeat=2A, well=N23: if you had let fixed_fov (target_fovs=8) stop the acquisition
+  condition=YAP, repeat=1A, technical_repeat=N23: if you had let fixed_fov (target_fovs=8) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
-      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=YAP, repeat=2A, well=N23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 2 fields.
-      for the well mean within 2.5%: 40% of acquisitions stopped too early, 60% stopped with it preserved.
+  condition=YAP, repeat=1A, technical_repeat=N23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 24% of acquisitions stopped too early, 76% stopped with it preserved.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 24% of acquisitions stopped too early, 76% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=YAP, repeat=2A, well=N23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+  condition=YAP, repeat=1A, technical_repeat=N23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=ARAP2, repeat=2B, well=C13: if you had let fixed_fov (target_fovs=8) stop the acquisition
+  condition=ARAP2, repeat=2A, technical_repeat=C13: if you had let fixed_fov (target_fovs=8) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
@@ -496,25 +389,79 @@ Foundation: why count fields, and not only objects?
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=ARAP2, repeat=2B, well=C13: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+  condition=ARAP2, repeat=2A, technical_repeat=C13: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=ARAP2, repeat=2A, technical_repeat=C13: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=LATS1, repeat=2A, technical_repeat=J23: if you had let fixed_fov (target_fovs=8) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=LATS1, repeat=2A, technical_repeat=J23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 32% of acquisitions stopped too early, 68% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 48% of acquisitions stopped too early, 52% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=ARAP2, repeat=2B, well=C13: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+  condition=LATS1, repeat=2A, technical_repeat=J23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=MOCK, repeat=2A, technical_repeat=K16: if you had let fixed_fov (target_fovs=8) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=ARAP2, repeat=2B, well=C17: if you had let fixed_fov (target_fovs=8) stop the acquisition
+  condition=MOCK, repeat=2A, technical_repeat=K16: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 60% of acquisitions stopped too early, 40% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 36% of acquisitions stopped too early, 64% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=MOCK, repeat=2A, technical_repeat=K16: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=YAP, repeat=2A, technical_repeat=N23: if you had let fixed_fov (target_fovs=8) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
@@ -523,25 +470,25 @@ Foundation: why count fields, and not only objects?
       for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=ARAP2, repeat=2B, well=C17: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 60% of acquisitions stopped too early, 40% stopped with it preserved.
+  condition=YAP, repeat=2A, technical_repeat=N23: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 2 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 28% of acquisitions stopped too early, 72% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 28% of acquisitions stopped too early, 72% stopped with it preserved.
-    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
-
-  condition=ARAP2, repeat=2B, well=C17: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
-    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 40% of acquisitions stopped too early, 60% stopped with it preserved.
-    in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
       for the well mean within 2.5%: 12% of acquisitions stopped too early, 88% stopped with it preserved.
-    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 16% of acquisitions stopped too early, 84% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 44% of acquisitions stopped too early, 56% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=MOCK, repeat=2B, well=P13: if you had let fixed_fov (target_fovs=8) stop the acquisition
+  condition=YAP, repeat=2A, technical_repeat=N23: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=ARAP2, repeat=2B, technical_repeat=C13: if you had let fixed_fov (target_fovs=8) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
@@ -550,22 +497,76 @@ Foundation: why count fields, and not only objects?
       for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=MOCK, repeat=2B, well=P13: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+  condition=ARAP2, repeat=2B, technical_repeat=C13: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 40% of acquisitions stopped too early, 60% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+      for the well mean within 2.5%: 24% of acquisitions stopped too early, 76% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
       for the well mean within 2.5%: 24% of acquisitions stopped too early, 76% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-  condition=MOCK, repeat=2B, well=P13: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+  condition=ARAP2, repeat=2B, technical_repeat=C13: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
     in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
-      for the well mean within 2.5%: 12% of acquisitions stopped too early, 88% stopped with it preserved.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=ARAP2, repeat=2B, technical_repeat=C17: if you had let fixed_fov (target_fovs=8) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=ARAP2, repeat=2B, technical_repeat=C17: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 60% of acquisitions stopped too early, 40% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 28% of acquisitions stopped too early, 72% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 44% of acquisitions stopped too early, 56% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=ARAP2, repeat=2B, technical_repeat=C17: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
     spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
-      for the well mean within 2.5%: 12% of acquisitions stopped too early, 88% stopped with it preserved.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=MOCK, repeat=2B, technical_repeat=P13: if you had let fixed_fov (target_fovs=8) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 8 fields.
+      for the well mean within 2.5%: 0% of acquisitions stopped too early, 100% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=MOCK, repeat=2B, technical_repeat=P13: if you had let scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 20% of acquisitions stopped too early, 80% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 16% of acquisitions stopped too early, 84% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 1 fields.
+      for the well mean within 2.5%: 24% of acquisitions stopped too early, 76% stopped with it preserved.
+    Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
+
+  condition=MOCK, repeat=2B, technical_repeat=P13: if you had let scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) stop the acquisition
+    in the recorded order: it stopped in 100% of 5 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 40% of acquisitions stopped too early, 60% stopped with it preserved.
+    in random orders: it stopped in 100% of 25 acquisitions, after a median of 3 fields.
+      for the well mean within 2.5%: 4% of acquisitions stopped too early, 96% stopped with it preserved.
+    spreading the same positions out: it stopped in 100% of 25 acquisitions, after a median of 4 fields.
+      for the well mean within 2.5%: 8% of acquisitions stopped too early, 92% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
 3. What is limiting my sampling?
@@ -582,35 +583,35 @@ Foundation: why count fields, and not only objects?
   new states come from 4 fields (about 6 of 336 expected by chance at the 2% false-alarm rate of the declared reference) [all groups; inspect_fovs]
 
   Unusual nuclei: farther from the reference {'condition': 'MOCK'} than all but 1.0% of reference nuclei are from other reference fields (30 standardized features, 5 nearest neighbours).
-  condition=MOCK, repeat=1A, well=B6: 14 of 966 nuclei unusual (1.4%). Refits with other reference samples agree on 100% of them.
-  condition=LATS1, repeat=1A, well=I23: 12 of 718 nuclei unusual (1.7%). Refits with other reference samples agree on 100% of them.
-  condition=LATS1, repeat=1A, well=J23: 7 of 647 nuclei unusual (1.1%). Refits with other reference samples agree on 100% of them.
-  condition=YAP, repeat=1A, well=M23: 1 of 651 nuclei unusual (0.2%). Refits with other reference samples agree on 100% of them.
-  condition=YAP, repeat=1A, well=N23: 2 of 607 nuclei unusual (0.3%). Refits with other reference samples agree on 100% of them.
-  condition=ARAP2, repeat=2A, well=C13: 5 of 797 nuclei unusual (0.6%). Refits with other reference samples agree on 100% of them.
-  condition=LATS1, repeat=2A, well=J23: 0 of 736 nuclei unusual (0.0%). Refits with other reference samples agree on 100% of them.
-  condition=MOCK, repeat=2A, well=K16: 11 of 953 nuclei unusual (1.2%). Refits with other reference samples agree on 100% of them.
-  condition=YAP, repeat=2A, well=N23: 7 of 557 nuclei unusual (1.3%). Refits with other reference samples agree on 100% of them.
-  condition=ARAP2, repeat=2B, well=C13: 25 of 999 nuclei unusual (2.5%). Refits with other reference samples agree on 100% of them.
-  condition=ARAP2, repeat=2B, well=C17: 19 of 956 nuclei unusual (2.0%). Refits with other reference samples agree on 100% of them.
-  condition=MOCK, repeat=2B, well=P13: 6 of 963 nuclei unusual (0.6%). Refits with other reference samples agree on 100% of them.
+  condition=MOCK, repeat=1A, technical_repeat=B6: 14 of 966 nuclei unusual (1.4%). Refits with other reference samples agree on 100% of them.
+  condition=LATS1, repeat=1A, technical_repeat=I23: 12 of 718 nuclei unusual (1.7%). Refits with other reference samples agree on 100% of them.
+  condition=LATS1, repeat=1A, technical_repeat=J23: 7 of 647 nuclei unusual (1.1%). Refits with other reference samples agree on 100% of them.
+  condition=YAP, repeat=1A, technical_repeat=M23: 1 of 651 nuclei unusual (0.2%). Refits with other reference samples agree on 100% of them.
+  condition=YAP, repeat=1A, technical_repeat=N23: 2 of 607 nuclei unusual (0.3%). Refits with other reference samples agree on 100% of them.
+  condition=ARAP2, repeat=2A, technical_repeat=C13: 5 of 797 nuclei unusual (0.6%). Refits with other reference samples agree on 100% of them.
+  condition=LATS1, repeat=2A, technical_repeat=J23: 0 of 736 nuclei unusual (0.0%). Refits with other reference samples agree on 100% of them.
+  condition=MOCK, repeat=2A, technical_repeat=K16: 11 of 953 nuclei unusual (1.2%). Refits with other reference samples agree on 100% of them.
+  condition=YAP, repeat=2A, technical_repeat=N23: 7 of 557 nuclei unusual (1.3%). Refits with other reference samples agree on 100% of them.
+  condition=ARAP2, repeat=2B, technical_repeat=C13: 25 of 999 nuclei unusual (2.5%). Refits with other reference samples agree on 100% of them.
+  condition=ARAP2, repeat=2B, technical_repeat=C17: 19 of 956 nuclei unusual (2.0%). Refits with other reference samples agree on 100% of them.
+  condition=MOCK, repeat=2B, technical_repeat=P13: 6 of 963 nuclei unusual (0.6%). Refits with other reference samples agree on 100% of them.
 
   Are the states spread over the fields? Labels unusual.
-  condition=MOCK, repeat=1A, well=B6, unusual: 14 nuclei (1.4%) in 8 of 28 fields; random nuclei would fill 11.1 (clustering ratio 1.4, p = 0.015). To see it with 95% chance: 9 fields (up to 19) from its field incidence, against 6 fields if the nuclei were random.
-  condition=LATS1, repeat=1A, well=I23, unusual: 12 nuclei (1.7%) in 6 of 28 fields; random nuclei would fill 9.7 (clustering ratio 1.6, p = 0.004). To see it with 95% chance: 13 fields (up to 30) from its field incidence, against 7 fields if the nuclei were random.
-  condition=LATS1, repeat=1A, well=J23, unusual: 7 nuclei (1.1%) in 7 of 28 fields; random nuclei would fill 6.3 (clustering ratio 0.9, p = 1). To see it with 95% chance: 11 fields (up to 23) from its field incidence, against 12 fields if the nuclei were random.
-  condition=YAP, repeat=1A, well=M23, unusual: 1 nuclei (0.2%) in 1 of 28 fields; random nuclei would fill 1.0 (clustering ratio 1.0, p = 1). To see it with 95% chance: 83 fields (up to 1636) from its field incidence, against 84 fields if the nuclei were random.
-  condition=YAP, repeat=1A, well=N23, unusual: 2 nuclei (0.3%) in 2 of 28 fields; random nuclei would fill 2.0 (clustering ratio 1.0, p = 1). To see it with 95% chance: 41 fields (up to 232) from its field incidence, against 42 fields if the nuclei were random.
-  condition=ARAP2, repeat=2A, well=C13, unusual: 5 nuclei (0.6%) in 4 of 28 fields; random nuclei would fill 4.6 (clustering ratio 1.2, p = 0.33). To see it with 95% chance: 20 fields (up to 59) from its field incidence, against 17 fields if the nuclei were random.
-  condition=LATS1, repeat=2A, well=J23, unusual: not seen in 28 fields.
-  condition=MOCK, repeat=2A, well=K16, unusual: 11 nuclei (1.2%) in 6 of 28 fields; random nuclei would fill 9.2 (clustering ratio 1.5, p = 0.007). To see it with 95% chance: 13 fields (up to 30) from its field incidence, against 8 fields if the nuclei were random.
-  condition=YAP, repeat=2A, well=N23, unusual: 7 nuclei (1.3%) in 3 of 28 fields; random nuclei would fill 6.2 (clustering ratio 2.1, p = 0.002). To see it with 95% chance: 27 fields (up to 99) from its field incidence, against 12 fields if the nuclei were random.
-  condition=ARAP2, repeat=2B, well=C13, unusual: 25 nuclei (2.5%) in 9 of 28 fields; random nuclei would fill 16.6 (clustering ratio 1.8, p = 0.001). To see it with 95% chance: 8 fields (up to 16) from its field incidence, against 4 fields if the nuclei were random.
-  condition=ARAP2, repeat=2B, well=C17, unusual: 19 nuclei (2.0%) in 12 of 28 fields; random nuclei would fill 13.9 (clustering ratio 1.2, p = 0.2). To see it with 95% chance: 6 fields (up to 10) from its field incidence, against 5 fields if the nuclei were random.
-  condition=MOCK, repeat=2B, well=P13, unusual: 6 nuclei (0.6%) in 5 of 28 fields; random nuclei would fill 5.5 (clustering ratio 1.1, p = 0.47). To see it with 95% chance: 16 fields (up to 40) from its field incidence, against 14 fields if the nuclei were random.
+  condition=MOCK, repeat=1A, technical_repeat=B6, unusual: 14 nuclei (1.4%) in 8 of 28 fields; random nuclei would fill 11.1 (clustering ratio 1.4, p = 0.021). To see it with 95% chance: 9 fields (up to 19) from its field incidence, against 6 fields if the nuclei were random.
+  condition=LATS1, repeat=1A, technical_repeat=I23, unusual: 12 nuclei (1.7%) in 6 of 28 fields; random nuclei would fill 9.7 (clustering ratio 1.6, p = 0.003). To see it with 95% chance: 13 fields (up to 30) from its field incidence, against 7 fields if the nuclei were random.
+  condition=LATS1, repeat=1A, technical_repeat=J23, unusual: 7 nuclei (1.1%) in 7 of 28 fields; random nuclei would fill 6.3 (clustering ratio 0.9, p = 1). To see it with 95% chance: 11 fields (up to 23) from its field incidence, against 12 fields if the nuclei were random.
+  condition=YAP, repeat=1A, technical_repeat=M23, unusual: 1 nuclei (0.2%) in 1 of 28 fields; random nuclei would fill 1.0 (clustering ratio 1.0, p = 1). To see it with 95% chance: 83 fields (up to 1636) from its field incidence, against 84 fields if the nuclei were random.
+  condition=YAP, repeat=1A, technical_repeat=N23, unusual: 2 nuclei (0.3%) in 2 of 28 fields; random nuclei would fill 2.0 (clustering ratio 1.0, p = 1). To see it with 95% chance: 41 fields (up to 232) from its field incidence, against 42 fields if the nuclei were random.
+  condition=ARAP2, repeat=2A, technical_repeat=C13, unusual: 5 nuclei (0.6%) in 4 of 28 fields; random nuclei would fill 4.6 (clustering ratio 1.2, p = 0.35). To see it with 95% chance: 20 fields (up to 59) from its field incidence, against 17 fields if the nuclei were random.
+  condition=LATS1, repeat=2A, technical_repeat=J23, unusual: not seen in 28 fields.
+  condition=MOCK, repeat=2A, technical_repeat=K16, unusual: 11 nuclei (1.2%) in 6 of 28 fields; random nuclei would fill 9.2 (clustering ratio 1.5, p = 0.009). To see it with 95% chance: 13 fields (up to 30) from its field incidence, against 8 fields if the nuclei were random.
+  condition=YAP, repeat=2A, technical_repeat=N23, unusual: 7 nuclei (1.3%) in 3 of 28 fields; random nuclei would fill 6.2 (clustering ratio 2.1, p = 0.002). To see it with 95% chance: 27 fields (up to 99) from its field incidence, against 12 fields if the nuclei were random.
+  condition=ARAP2, repeat=2B, technical_repeat=C13, unusual: 25 nuclei (2.5%) in 9 of 28 fields; random nuclei would fill 16.6 (clustering ratio 1.8, p = 0.001). To see it with 95% chance: 8 fields (up to 16) from its field incidence, against 4 fields if the nuclei were random.
+  condition=ARAP2, repeat=2B, technical_repeat=C17, unusual: 19 nuclei (2.0%) in 12 of 28 fields; random nuclei would fill 13.9 (clustering ratio 1.2, p = 0.16). To see it with 95% chance: 6 fields (up to 10) from its field incidence, against 5 fields if the nuclei were random.
+  condition=MOCK, repeat=2B, technical_repeat=P13, unusual: 6 nuclei (0.6%) in 5 of 28 fields; random nuclei would fill 5.5 (clustering ratio 1.1, p = 0.44). To see it with 95% chance: 16 fields (up to 40) from its field incidence, against 14 fields if the nuclei were random.
 
 4. How many fields should I image next time?
-  condition=MOCK, repeat=1A, well=B6: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=MOCK, repeat=1A, technical_repeat=B6: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -621,7 +622,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=MOCK, repeat=1A, well=B6: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=MOCK, repeat=1A, technical_repeat=B6: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 100% of random acquisitions (±0.8% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -632,7 +633,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=MOCK, repeat=1A, well=B6: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=MOCK, repeat=1A, technical_repeat=B6: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 27% of random acquisitions (±7% across hold-outs)
     4 fields: enough in 41% of random acquisitions (±9% across hold-outs)
     6 fields: enough in 41% of random acquisitions (±12% across hold-outs)
@@ -643,7 +644,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 30% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=1A, well=I23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=LATS1, repeat=1A, technical_repeat=I23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -654,7 +655,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=1A, well=I23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=LATS1, repeat=1A, technical_repeat=I23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 90% of random acquisitions (±5% across hold-outs)
     4 fields: enough in 98% of random acquisitions (±3% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -665,7 +666,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=1A, well=I23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=LATS1, repeat=1A, technical_repeat=I23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 15% of random acquisitions (±7% across hold-outs)
     4 fields: enough in 26% of random acquisitions (±8% across hold-outs)
     6 fields: enough in 32% of random acquisitions (±13% across hold-outs)
@@ -676,7 +677,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 50% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=1A, well=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=LATS1, repeat=1A, technical_repeat=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -687,7 +688,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=1A, well=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=LATS1, repeat=1A, technical_repeat=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 87% of random acquisitions (±12% across hold-outs)
     4 fields: enough in 96% of random acquisitions (±9% across hold-outs)
     6 fields: enough in 96% of random acquisitions (±11% across hold-outs)
@@ -698,7 +699,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=1A, well=J23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=LATS1, repeat=1A, technical_repeat=J23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 18% of random acquisitions (±9% across hold-outs)
     4 fields: enough in 19% of random acquisitions (±14% across hold-outs)
     6 fields: enough in 18% of random acquisitions (±15% across hold-outs)
@@ -709,7 +710,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 20% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=1A, well=M23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=YAP, repeat=1A, technical_repeat=M23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -720,7 +721,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=1A, well=M23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=YAP, repeat=1A, technical_repeat=M23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 91% of random acquisitions (±6% across hold-outs)
     4 fields: enough in 97% of random acquisitions (±5% across hold-outs)
     6 fields: enough in 98% of random acquisitions (±5% across hold-outs)
@@ -731,7 +732,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=1A, well=M23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=YAP, repeat=1A, technical_repeat=M23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 14% of random acquisitions (±6% across hold-outs)
     4 fields: enough in 29% of random acquisitions (±15% across hold-outs)
     6 fields: enough in 31% of random acquisitions (±17% across hold-outs)
@@ -742,7 +743,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 70% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=1A, well=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=YAP, repeat=1A, technical_repeat=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -753,7 +754,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=1A, well=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=YAP, repeat=1A, technical_repeat=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 100% of random acquisitions (±0.6% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -764,7 +765,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=1A, well=N23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=YAP, repeat=1A, technical_repeat=N23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 23% of random acquisitions (±8% across hold-outs)
     4 fields: enough in 30% of random acquisitions (±14% across hold-outs)
     6 fields: enough in 32% of random acquisitions (±16% across hold-outs)
@@ -775,7 +776,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 30% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2A, well=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=ARAP2, repeat=2A, technical_repeat=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -786,7 +787,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2A, well=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=ARAP2, repeat=2A, technical_repeat=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 98% of random acquisitions (±3% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0.6% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -797,7 +798,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2A, well=C13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=ARAP2, repeat=2A, technical_repeat=C13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 21% of random acquisitions (±5% across hold-outs)
     4 fields: enough in 26% of random acquisitions (±11% across hold-outs)
     6 fields: enough in 30% of random acquisitions (±19% across hold-outs)
@@ -808,7 +809,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 60% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=2A, well=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=LATS1, repeat=2A, technical_repeat=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -819,7 +820,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=2A, well=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=LATS1, repeat=2A, technical_repeat=J23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 90% of random acquisitions (±8% across hold-outs)
     4 fields: enough in 98% of random acquisitions (±4% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0.6% across hold-outs)
@@ -830,7 +831,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=LATS1, repeat=2A, well=J23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=LATS1, repeat=2A, technical_repeat=J23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 15% of random acquisitions (±7% across hold-outs)
     4 fields: enough in 25% of random acquisitions (±14% across hold-outs)
     6 fields: enough in 24% of random acquisitions (±16% across hold-outs)
@@ -841,7 +842,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 30% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=MOCK, repeat=2A, well=K16: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=MOCK, repeat=2A, technical_repeat=K16: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -852,7 +853,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=MOCK, repeat=2A, well=K16: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=MOCK, repeat=2A, technical_repeat=K16: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 87% of random acquisitions (±13% across hold-outs)
     4 fields: enough in 97% of random acquisitions (±5% across hold-outs)
     6 fields: enough in 97% of random acquisitions (±6% across hold-outs)
@@ -863,7 +864,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=MOCK, repeat=2A, well=K16: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=MOCK, repeat=2A, technical_repeat=K16: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 29% of random acquisitions (±9% across hold-outs)
     4 fields: enough in 42% of random acquisitions (±11% across hold-outs)
     6 fields: enough in 46% of random acquisitions (±19% across hold-outs)
@@ -874,7 +875,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 80% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=2A, well=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=YAP, repeat=2A, technical_repeat=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 98% of random acquisitions (±2% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0.6% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -885,7 +886,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=2A, well=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=YAP, repeat=2A, technical_repeat=N23: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 83% of random acquisitions (±10% across hold-outs)
     4 fields: enough in 91% of random acquisitions (±7% across hold-outs)
     6 fields: enough in 96% of random acquisitions (±5% across hold-outs)
@@ -896,7 +897,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=YAP, repeat=2A, well=N23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=YAP, repeat=2A, technical_repeat=N23: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 15% of random acquisitions (±8% across hold-outs)
     4 fields: enough in 16% of random acquisitions (±9% across hold-outs)
     6 fields: enough in 20% of random acquisitions (±17% across hold-outs)
@@ -907,7 +908,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 10% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2B, well=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=ARAP2, repeat=2B, technical_repeat=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -918,7 +919,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2B, well=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=ARAP2, repeat=2B, technical_repeat=C13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 93% of random acquisitions (±6% across hold-outs)
     4 fields: enough in 99% of random acquisitions (±2% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -929,7 +930,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2B, well=C13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=ARAP2, repeat=2B, technical_repeat=C13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 22% of random acquisitions (±11% across hold-outs)
     4 fields: enough in 22% of random acquisitions (±12% across hold-outs)
     6 fields: enough in 27% of random acquisitions (±15% across hold-outs)
@@ -940,7 +941,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 30% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2B, well=C17: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=ARAP2, repeat=2B, technical_repeat=C17: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0.6% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -951,7 +952,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2B, well=C17: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=ARAP2, repeat=2B, technical_repeat=C17: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 85% of random acquisitions (±7% across hold-outs)
     4 fields: enough in 94% of random acquisitions (±8% across hold-outs)
     6 fields: enough in 96% of random acquisitions (±10% across hold-outs)
@@ -962,7 +963,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=ARAP2, repeat=2B, well=C17: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=ARAP2, repeat=2B, technical_repeat=C17: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 20% of random acquisitions (±13% across hold-outs)
     4 fields: enough in 21% of random acquisitions (±10% across hold-outs)
     6 fields: enough in 23% of random acquisitions (±14% across hold-outs)
@@ -973,7 +974,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 50% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=MOCK, repeat=2B, well=P13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
+  condition=MOCK, repeat=2B, technical_repeat=P13: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     6 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -984,7 +985,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=MOCK, repeat=2B, well=P13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
+  condition=MOCK, repeat=2B, technical_repeat=P13: how many fields do you need for the well mean of YAP/TAZ ratio within 2.5%?
     2 fields: enough in 85% of random acquisitions (±14% across hold-outs)
     4 fields: enough in 96% of random acquisitions (±10% across hold-outs)
     6 fields: enough in 97% of random acquisitions (±7% across hold-outs)
@@ -995,7 +996,7 @@ Foundation: why count fields, and not only objects?
     All 18 available fields together were enough in 100% of hold-outs: the held-back fields are themselves a sample, so the curve cannot be read above this.
     Judged on 10 or more held-back fields over 10 hold-outs; nothing is said beyond 18 fields, and fields are treated as random draws.
 
-  condition=MOCK, repeat=2B, well=P13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
+  condition=MOCK, repeat=2B, technical_repeat=P13: how many fields do you need for the variance of YAP/TAZ ratio within 10%?
     2 fields: enough in 28% of random acquisitions (±13% across hold-outs)
     4 fields: enough in 41% of random acquisitions (±14% across hold-outs)
     6 fields: enough in 42% of random acquisitions (±19% across hold-outs)
@@ -1043,12 +1044,12 @@ Foundation: why count fields, and not only objects?
     Uncertainty is large with only 3 repeats: add more before fixing a protocol.
 
 5. What did the extra fields buy?
-  condition=MOCK, repeat=1A, well=B6: when was it enough? (medians over hold-outs and orders)
+  condition=MOCK, repeat=1A, technical_repeat=B6: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 4.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
+    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -1058,53 +1059,53 @@ Foundation: why count fields, and not only objects?
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-  condition=LATS1, repeat=1A, well=I23: when was it enough? (medians over hold-outs and orders)
-    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
+  condition=LATS1, repeat=1A, technical_repeat=I23: when was it enough? (medians over hold-outs and orders)
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
+    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-  condition=LATS1, repeat=1A, well=J23: when was it enough? (medians over hold-outs and orders)
-    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 5 in 90% of runs).
+  condition=LATS1, repeat=1A, technical_repeat=J23: when was it enough? (medians over hold-outs and orders)
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 4 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2 (medians; by field 3 in 90% of runs).
+    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-  condition=YAP, repeat=1A, well=M23: when was it enough? (medians over hold-outs and orders)
+  condition=YAP, repeat=1A, technical_repeat=M23: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 4.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
+    In random orders: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2 (medians; by field 3 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 4 in 90% of runs).
+    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 5 (medians; by field 6 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-  condition=YAP, repeat=1A, well=N23: when was it enough? (medians over hold-outs and orders)
-    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
+  condition=YAP, repeat=1A, technical_repeat=N23: when was it enough? (medians over hold-outs and orders)
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -1118,23 +1119,23 @@ Foundation: why count fields, and not only objects?
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-  condition=ARAP2, repeat=2A, well=C13: when was it enough? (medians over hold-outs and orders)
+  condition=ARAP2, repeat=2A, technical_repeat=C13: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
+    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 2, and kept saying stop from field 2.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-  condition=LATS1, repeat=2A, well=J23: when was it enough? (medians over hold-outs and orders)
-    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2 (medians; by field 3 in 90% of runs).
+  condition=LATS1, repeat=2A, technical_repeat=J23: when was it enough? (medians over hold-outs and orders)
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 2 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -1148,38 +1149,8 @@ Foundation: why count fields, and not only objects?
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-  condition=MOCK, repeat=2A, well=K16: when was it enough? (medians over hold-outs and orders)
+  condition=MOCK, repeat=2A, technical_repeat=K16: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 4 in 90% of runs).
-      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
-      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 6 in 90% of runs).
-      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
-      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2 (medians; by field 8 in 90% of runs).
-      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
-      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
-
-  condition=YAP, repeat=2A, well=N23: when was it enough? (medians over hold-outs and orders)
-    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 4 in 90% of runs).
-      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
-      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
-      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 4.
-      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 4 (medians; by field 5 in 90% of runs).
-      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 2, and kept saying stop from field 2.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
-      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
-
-  condition=ARAP2, repeat=2B, well=C13: when was it enough? (medians over hold-outs and orders)
-    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
@@ -1187,53 +1158,83 @@ Foundation: why count fields, and not only objects?
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 4 in 90% of runs).
-      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
-      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
-
-  condition=ARAP2, repeat=2B, well=C17: when was it enough? (medians over hold-outs and orders)
-    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 9 in 90% of runs).
+    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 6 in 90% of runs).
+    'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
+
+  condition=YAP, repeat=2A, technical_repeat=N23: when was it enough? (medians over hold-outs and orders)
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 2 (medians; by field 5 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2 (medians; by field 9 in 90% of runs).
+    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 4 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 4.
+      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
+    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
+      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 2, and kept saying stop from field 2.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-  condition=MOCK, repeat=2B, well=P13: when was it enough? (medians over hold-outs and orders)
-    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 4 in 90% of runs).
+  condition=ARAP2, repeat=2B, technical_repeat=C13: when was it enough? (medians over hold-outs and orders)
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
-      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
-    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
+    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 1 in 90% of runs).
+      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 3.
+      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
+    'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
+
+  condition=ARAP2, repeat=2B, technical_repeat=C17: when was it enough? (medians over hold-outs and orders)
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
+      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
+      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
+    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
+      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
+      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
+    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 2 and reliably from field 2 (medians; by field 4 in 90% of runs).
+      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
+      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
+    'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
+
+  condition=MOCK, repeat=2B, technical_repeat=P13: when was it enough? (medians over hold-outs and orders)
+    Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
+      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
+      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
+    In random orders: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
       scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 3, and kept saying stop from field 4.
+      fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
+    In the recorded order: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 3 in 90% of runs).
+      scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
+      scalar_precision_fov_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95) would have first said stop at field 4, and kept saying stop from field 4.
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
 6. Which fields should I look at?
-  condition=YAP, repeat=1A, well=N23: fields to reopen before trusting the result
+  condition=YAP, repeat=1A, technical_repeat=N23: fields to reopen before trusting the result
     014023-15.tif: 3 objects of a state no other field shows.
     None of these is called an error: look at the images to see whether it is biology, technique or simply a large field.
 
-  condition=LATS1, repeat=2A, well=J23: fields to reopen before trusting the result
+  condition=LATS1, repeat=2A, technical_repeat=J23: fields to reopen before trusting the result
     010023-3.tif: 3 objects of a state no other field shows.
     010023-5.tif: 3 objects of a state no other field shows.
     None of these is called an error: look at the images to see whether it is biology, technique or simply a large field.
 
-  condition=ARAP2, repeat=2B, well=C13: fields to reopen before trusting the result
+  condition=ARAP2, repeat=2B, technical_repeat=C13: fields to reopen before trusting the result
     003013-26.tif: 3 objects of a state no other field shows.
     None of these is called an error: look at the images to see whether it is biology, technique or simply a large field.
 
@@ -1255,83 +1256,83 @@ Foundation: why count fields, and not only objects?
     More fields or more samples: cannot tell from these data (only 3 samples).
 
 8. Could I have sampled more efficiently?
-  condition=MOCK, repeat=1A, well=B6: could the same positions have been visited in a better order?
+  condition=MOCK, repeat=1A, technical_repeat=B6: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 1 field and 0 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
     spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
     The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
     Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
 
-  condition=LATS1, repeat=1A, well=I23: could the same positions have been visited in a better order?
+  condition=LATS1, repeat=1A, technical_repeat=I23: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 1 field and 0 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
     spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
     The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
     Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
 
-  condition=LATS1, repeat=1A, well=J23: could the same positions have been visited in a better order?
+  condition=LATS1, repeat=1A, technical_repeat=J23: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 2 fields and 805 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
     spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
     The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
     Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
 
-  condition=YAP, repeat=1A, well=M23: could the same positions have been visited in a better order?
+  condition=YAP, repeat=1A, technical_repeat=M23: could the same positions have been visited in a better order?
+    your recorded order: reliably enough after 5 fields and 2.0 mm of stage travel.
+    random orders: reliably enough after 2 fields and 557 µm of stage travel.
+    spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
+    Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
+
+  condition=YAP, repeat=1A, technical_repeat=N23: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 1 field and 0 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
     spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
     The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
     Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
 
-  condition=YAP, repeat=1A, well=N23: could the same positions have been visited in a better order?
+  condition=ARAP2, repeat=2A, technical_repeat=C13: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 1 field and 0 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
     spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
     The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
     Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
 
-  condition=ARAP2, repeat=2A, well=C13: could the same positions have been visited in a better order?
+  condition=LATS1, repeat=2A, technical_repeat=J23: could the same positions have been visited in a better order?
+    your recorded order: reliably enough after 1 field and 0 µm of stage travel.
+    random orders: reliably enough after 1 field and 0 µm of stage travel.
+    spreading the same positions out: reliably enough after 2 fields and 1.9 mm of stage travel.
+    The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
+    Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
+
+  condition=MOCK, repeat=2A, technical_repeat=K16: could the same positions have been visited in a better order?
+    your recorded order: reliably enough after 2 fields and 805 µm of stage travel.
+    random orders: reliably enough after 1 field and 0 µm of stage travel.
+    spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
+    The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
+    Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
+
+  condition=YAP, repeat=2A, technical_repeat=N23: could the same positions have been visited in a better order?
+    your recorded order: reliably enough after 1 field and 0 µm of stage travel.
+    random orders: reliably enough after 1 field and 0 µm of stage travel.
+    spreading the same positions out: reliably enough after 2 fields and 1.6 mm of stage travel.
+    The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
+    Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
+
+  condition=ARAP2, repeat=2B, technical_repeat=C13: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 1 field and 0 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
     spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
     The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
     Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
 
-  condition=LATS1, repeat=2A, well=J23: could the same positions have been visited in a better order?
-    your recorded order: reliably enough after 1 field and 0 µm of stage travel.
-    random orders: reliably enough after 1 field and 0 µm of stage travel.
-    spreading the same positions out: reliably enough after 2 fields and 2.0 mm of stage travel.
-    The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
-    Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
-
-  condition=MOCK, repeat=2A, well=K16: could the same positions have been visited in a better order?
+  condition=ARAP2, repeat=2B, technical_repeat=C17: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 2 fields and 1.1 mm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
     spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
     The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
     Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
 
-  condition=YAP, repeat=2A, well=N23: could the same positions have been visited in a better order?
-    your recorded order: reliably enough after 4 fields and 2.0 mm of stage travel.
-    random orders: reliably enough after 1 field and 0 µm of stage travel.
-    spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
-    Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
-
-  condition=ARAP2, repeat=2B, well=C13: could the same positions have been visited in a better order?
-    your recorded order: reliably enough after 1 field and 0 µm of stage travel.
-    random orders: reliably enough after 1 field and 0 µm of stage travel.
-    spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
-    The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
-    Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
-
-  condition=ARAP2, repeat=2B, well=C17: could the same positions have been visited in a better order?
-    your recorded order: reliably enough after 2 fields and 1.1 mm of stage travel.
-    random orders: reliably enough after 1 field and 0 µm of stage travel.
-    spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
-    The orders do not differ by more than one field for this criterion: a null result, not a preference for any order.
-    Medians over hold-outs and orders; stage travel is the straight-line path between successive fields.
-
-  condition=MOCK, repeat=2B, well=P13: could the same positions have been visited in a better order?
+  condition=MOCK, repeat=2B, technical_repeat=P13: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 1 field and 0 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
     spreading the same positions out: reliably enough after 1 field and 0 µm of stage travel.
@@ -1341,18 +1342,18 @@ Foundation: why count fields, and not only objects?
   Whether these were the right positions needs every candidate position from an overview (not available: sampling-frame bias is not assessed).
 
 9. Do the conditions differ, and how confidently?
-  Do the conditions differ, and how confidently? Feature YAPTAZ_Ratio, each condition against the control {'condition': 'MOCK'}, within each repeat. The fields of a condition's analysis groups are pooled for this comparison. Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with the field as the unit.
-  repeat=1A, LATS1 vs MOCK: 56 fields (1365 nuclei) against 28 control fields (966 nuclei). Cohen's d on nuclei 1.32; on field means 4.94. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+  Do the conditions differ, and how confidently? Feature YAPTAZ_Ratio, each condition against the control {'condition': 'MOCK'}, within each repeat. The fields of a condition's analysis groups are pooled for this comparison. Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with the field as the unit and, where each side has at least two, with the technical repeat (technical_repeat) as the unit.
+  repeat=1A, LATS1 vs MOCK: 56 fields (1365 nuclei) against 28 control fields (966 nuclei) in 2 and 1 technical repeats. Cohen's d on nuclei 1.32; on field means 4.94; on technical-repeat means undefined. Randomization test over whole fields (2000 shuffles of the condition labels): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
     JCS effect size (treated mean minus control mean, over the control SD) from every object: 1.42; from 50 nuclei: random objects median 1.45 (IQR 1.26 to 1.61), same sign in 100% of draws; whole FOVs median 1.42 (IQR 1.24 to 1.66), same sign in 100% of draws, about 3 fields. from 100 nuclei: random objects median 1.42 (IQR 1.32 to 1.56), same sign in 100% of draws; whole FOVs median 1.44 (IQR 1.31 to 1.56), same sign in 100% of draws, about 5 fields. from 200 nuclei: random objects median 1.42 (IQR 1.35 to 1.50), same sign in 100% of draws; whole FOVs median 1.43 (IQR 1.33 to 1.52), same sign in 100% of draws, about 9 fields. from 500 nuclei: random objects median 1.43 (IQR 1.38 to 1.46), same sign in 100% of draws; whole FOVs median 1.43 (IQR 1.38 to 1.48), same sign in 100% of draws, about 21 fields.
-  repeat=1A, YAP vs MOCK: 56 fields (1258 nuclei) against 28 control fields (966 nuclei). Cohen's d on nuclei -1.08; on field means -4.36. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+  repeat=1A, YAP vs MOCK: 56 fields (1258 nuclei) against 28 control fields (966 nuclei) in 2 and 1 technical repeats. Cohen's d on nuclei -1.08; on field means -4.36; on technical-repeat means undefined. Randomization test over whole fields (2000 shuffles of the condition labels): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
     JCS effect size (treated mean minus control mean, over the control SD) from every object: -1.07; from 50 nuclei: random objects median -1.06 (IQR -1.32 to -0.91), same sign in 100% of draws; whole FOVs median -1.09 (IQR -1.26 to -0.90), same sign in 100% of draws, about 3 fields. from 100 nuclei: random objects median -1.10 (IQR -1.24 to -0.97), same sign in 100% of draws; whole FOVs median -1.09 (IQR -1.24 to -0.95), same sign in 100% of draws, about 5 fields. from 200 nuclei: random objects median -1.07 (IQR -1.17 to -0.98), same sign in 100% of draws; whole FOVs median -1.09 (IQR -1.19 to -0.98), same sign in 100% of draws, about 9 fields. from 500 nuclei: random objects median -1.06 (IQR -1.12 to -1.02), same sign in 100% of draws; whole FOVs median -1.07 (IQR -1.12 to -1.02), same sign in 100% of draws, about 23 fields.
-  repeat=2A, ARAP2 vs MOCK: 28 fields (797 nuclei) against 28 control fields (953 nuclei). Cohen's d on nuclei 0.29; on field means 1.08. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+  repeat=2A, ARAP2 vs MOCK: 28 fields (797 nuclei) against 28 control fields (953 nuclei) in 1 and 1 technical repeats. Cohen's d on nuclei 0.29; on field means 1.08; on technical-repeat means undefined. Randomization test over whole fields (2000 shuffles of the condition labels): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
     JCS effect size (treated mean minus control mean, over the control SD) from every object: 0.28; from 50 nuclei: random objects median 0.27 (IQR 0.14 to 0.36), same sign in 93% of draws; whole FOVs median 0.26 (IQR 0.11 to 0.40), same sign in 90% of draws, about 2 fields. from 100 nuclei: random objects median 0.28 (IQR 0.19 to 0.37), same sign in 98% of draws; whole FOVs median 0.27 (IQR 0.19 to 0.37), same sign in 96% of draws, about 4 fields. from 200 nuclei: random objects median 0.28 (IQR 0.23 to 0.33), same sign in 100% of draws; whole FOVs median 0.26 (IQR 0.19 to 0.32), same sign in 100% of draws, about 7 fields. from 500 nuclei: random objects median 0.27 (IQR 0.25 to 0.30), same sign in 100% of draws; whole FOVs median 0.28 (IQR 0.25 to 0.30), same sign in 100% of draws, about 18 fields.
-  repeat=2A, LATS1 vs MOCK: 28 fields (736 nuclei) against 28 control fields (953 nuclei). Cohen's d on nuclei 0.69; on field means 2.45. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+  repeat=2A, LATS1 vs MOCK: 28 fields (736 nuclei) against 28 control fields (953 nuclei) in 1 and 1 technical repeats. Cohen's d on nuclei 0.69; on field means 2.45; on technical-repeat means undefined. Randomization test over whole fields (2000 shuffles of the condition labels): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
     JCS effect size (treated mean minus control mean, over the control SD) from every object: 0.67; from 50 nuclei: random objects median 0.66 (IQR 0.56 to 0.80), same sign in 100% of draws; whole FOVs median 0.67 (IQR 0.54 to 0.85), same sign in 100% of draws, about 2 fields. from 100 nuclei: random objects median 0.67 (IQR 0.60 to 0.76), same sign in 100% of draws; whole FOVs median 0.69 (IQR 0.58 to 0.78), same sign in 100% of draws, about 4 fields. from 200 nuclei: random objects median 0.68 (IQR 0.62 to 0.73), same sign in 100% of draws; whole FOVs median 0.66 (IQR 0.60 to 0.72), same sign in 100% of draws, about 8 fields. from 500 nuclei: random objects median 0.68 (IQR 0.66 to 0.70), same sign in 100% of draws; whole FOVs median 0.67 (IQR 0.65 to 0.70), same sign in 100% of draws, about 20 fields.
-  repeat=2A, YAP vs MOCK: 28 fields (557 nuclei) against 28 control fields (953 nuclei). Cohen's d on nuclei -1.63; on field means -5.29. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+  repeat=2A, YAP vs MOCK: 28 fields (557 nuclei) against 28 control fields (953 nuclei) in 1 and 1 technical repeats. Cohen's d on nuclei -1.63; on field means -5.29; on technical-repeat means undefined. Randomization test over whole fields (2000 shuffles of the condition labels): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
     JCS effect size (treated mean minus control mean, over the control SD) from every object: -1.52; from 50 nuclei: random objects median -1.53 (IQR -1.77 to -1.28), same sign in 100% of draws; whole FOVs median -1.57 (IQR -1.96 to -1.34), same sign in 100% of draws, about 3 fields. from 100 nuclei: random objects median -1.51 (IQR -1.67 to -1.34), same sign in 100% of draws; whole FOVs median -1.53 (IQR -1.74 to -1.36), same sign in 100% of draws, about 5 fields. from 200 nuclei: random objects median -1.52 (IQR -1.62 to -1.43), same sign in 100% of draws; whole FOVs median -1.53 (IQR -1.65 to -1.41), same sign in 100% of draws, about 11 fields. from 500 nuclei: random objects median -1.52 (IQR -1.56 to -1.47), same sign in 100% of draws; whole FOVs median -1.52 (IQR -1.59 to -1.47), same sign in 100% of draws, about 26 fields.
-  repeat=2B, ARAP2 vs MOCK: 56 fields (1955 nuclei) against 28 control fields (963 nuclei). Cohen's d on nuclei 0.35; on field means 1.19. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.001 (Bonferroni over 6 comparisons: 0.006).
+  repeat=2B, ARAP2 vs MOCK: 56 fields (1955 nuclei) against 28 control fields (963 nuclei) in 2 and 1 technical repeats. Cohen's d on nuclei 0.35; on field means 1.19; on technical-repeat means undefined. Randomization test over whole fields (2000 shuffles of the condition labels): p = 0.001 (Bonferroni over 6 comparisons: 0.006).
     JCS effect size (treated mean minus control mean, over the control SD) from every object: 0.37; from 50 nuclei: random objects median 0.38 (IQR 0.23 to 0.52), same sign in 98% of draws; whole FOVs median 0.37 (IQR 0.16 to 0.66), same sign in 86% of draws, about 2 fields. from 100 nuclei: random objects median 0.40 (IQR 0.31 to 0.49), same sign in 99% of draws; whole FOVs median 0.39 (IQR 0.22 to 0.54), same sign in 95% of draws, about 3 fields. from 200 nuclei: random objects median 0.40 (IQR 0.31 to 0.45), same sign in 100% of draws; whole FOVs median 0.39 (IQR 0.27 to 0.49), same sign in 100% of draws, about 6 fields. from 500 nuclei: random objects median 0.37 (IQR 0.34 to 0.41), same sign in 100% of draws; whole FOVs median 0.40 (IQR 0.33 to 0.45), same sign in 100% of draws, about 15 fields.
 
   This describes what these fields support about a difference under this feature; generalizing it needs independent biological repeats, which is the user's inference.

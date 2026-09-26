@@ -29,7 +29,13 @@ import numpy as np
 import pandas as pd
 
 from ..evidence import Component
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
+from ..metadata import (
+    CONDITION_COLUMN,
+    MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_COLUMN,
+    TECHNICAL_REPEAT_COLUMN,
+    resolve_fov_col,
+)
 from ..normalize import METHODS as NORMALIZATIONS
 from ..normalize import normalize_to_control
 from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
@@ -109,7 +115,11 @@ class Setup:
     - ``novelty``: the definition of "new" (``default_novelty(features)`` or
       your own); ``None`` leaves the novelty questions not assessed.
     - ``hierarchy`` and ``effort_strata``: FOV, sample and repeat columns for
-      "more fields or more samples?" and protocol reliability.
+      "more fields or more samples?" and protocol reliability. When the FOV
+      table has the MorphoBricks ``technical_repeat`` column (a well, a dish)
+      and no hierarchy is declared, one is derived: the field within the
+      technical repeat within the repeat, one stratum per condition
+      (``resolved_hierarchy``, ``resolved_effort_strata``).
     - ``acquisition_order_col``, ``stage_cols``: acquisition order and stage
       coordinates, when recorded.
     - ``fov_col``, ``group_cols``, ``observation_unit``: as for
@@ -247,8 +257,38 @@ class Setup:
 
     def repeat_col(self, fovs: pd.DataFrame) -> str | None:
         """The repeat column when the FOV table has one."""
-        column = MORPHOBRICKS_GROUP_COLUMNS[1]
-        return column if column in fovs.columns else None
+        return REPEAT_COLUMN if REPEAT_COLUMN in fovs.columns else None
+
+    def technical_col(self, fovs: pd.DataFrame) -> str | None:
+        """The technical-repeat column when the FOV table has one."""
+        return TECHNICAL_REPEAT_COLUMN if TECHNICAL_REPEAT_COLUMN in fovs.columns else None
+
+    def resolved_hierarchy(
+        self, objects: pd.DataFrame, fovs: pd.DataFrame
+    ) -> SamplingHierarchy | None:
+        """``hierarchy`` as declared, else derived from the MorphoBricks columns.
+
+        With a ``technical_repeat`` column the field (``fov_col``, or the
+        MorphoBricks identifier present) sits within the technical repeat,
+        within the repeat when there is one. ``None`` without either.
+        """
+        if self.hierarchy is not None:
+            return self.hierarchy
+        technical = self.technical_col(fovs)
+        if technical is None:
+            return None
+        fov_col = resolve_fov_col(objects, fovs, self.fov_col)
+        return SamplingHierarchy(fov_col, technical, self.repeat_col(fovs))
+
+    def resolved_effort_strata(self, fovs: pd.DataFrame) -> list[str]:
+        """``effort_strata`` as declared; with a derived hierarchy, one stratum per condition.
+
+        A declared hierarchy with no strata pools every sample, as asked; a
+        derived one never pools conditions silently.
+        """
+        if self.effort_strata or self.hierarchy is not None:
+            return list(self.effort_strata)
+        return [CONDITION_COLUMN] if CONDITION_COLUMN in fovs.columns else []
 
     def normalized_sentence(self, fovs: pd.DataFrame) -> str | None:
         """How the values are normalised, or ``None`` when they are not."""

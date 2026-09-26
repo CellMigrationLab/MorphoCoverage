@@ -31,15 +31,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from matplotlib.figure import Figure
 
 from ..benchmark import AcquisitionOrder
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
-from ..plots import plots_of_data
 from ..retrospective import (
     MicroscopistReport,
     RepresentationControl,
@@ -59,7 +56,9 @@ from ..retrospective import (
 )
 from ..retrospective.frontier import FrontierResult, frontier, sweep
 from ..sampling_unit import (
+    FeatureRanking,
     condition_contrast,
+    feature_ranking,
     fov_clustering,
     fov_variability,
     object_rule_check,
@@ -108,6 +107,11 @@ class Report:
         """The report questions, in sentences."""
         return self.document.summary(REPORT_QUESTIONS)
 
+    @property
+    def ranking(self) -> FeatureRanking | None:
+        """The gated feature ranking (question 9), when several features were declared."""
+        return self.results.get("ranking")
+
 
 def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     """REPORT on a finished acquisition: what can be trusted, and what cannot.
@@ -118,7 +122,9 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     setup's rules, with next-field novelty when ``novelty`` is set (R2, R3);
     ``unusual_objects`` and ``fov_clustering`` with a control and features
     (R4); ``inspect_fovs`` (R5); ``condition_contrast`` when the control is
-    declared by condition and the FOV table holds other conditions (R7).
+    declared by condition and the FOV table holds other conditions, and
+    with several declared features ``feature_ranking``, the gated ranking
+    that chooses what ``plots`` draws by default (R7).
     """
     _check_tables(objects, fovs, setup)
     common = setup.common
@@ -196,6 +202,15 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
             random_state=setup.random_state,
             **common,
         )
+        if len(setup.columns) > 1:
+            results["ranking"] = feature_ranking(
+                objects,
+                fovs,
+                features=setup.columns,
+                control=setup.control,
+                random_state=setup.random_state,
+                **common,
+            )
     novelty_features = list(setup.features) if setup.novelty is not None else []
     results["sufficiency"] = sufficiency_report(
         objects,
@@ -274,17 +289,20 @@ def optimise(
     ``[2, 4, 8, 12]``) and ``reservoir_fraction`` the share of each group's
     fields held back as the reference, a design choice with no default. Runs
     ``sampling_reliability`` for each tolerance (P1), ``protocol_reliability``
-    across samples when ``setup.hierarchy`` is set (P2), a replay of the
-    setup's rules against the same held-back fields for their calibration and
-    adequacy points (P3 to P6), ``order_efficiency`` and, with
-    ``redundancy_bins``, ``redundancy_distance`` when stage coordinates are
-    set (P7, P8), and ``effort_projection`` with a hierarchy (P10). A count
-    of fields is a recommendation only once it holds on samples it was not
-    chosen on.
+    across samples when a hierarchy is declared or derived from a
+    ``technical_repeat`` column (P2), a replay of the setup's rules against
+    the same held-back fields for their calibration and adequacy points (P3
+    to P6), ``order_efficiency`` and, with ``redundancy_bins``,
+    ``redundancy_distance`` when stage coordinates are set (P7, P8), and
+    ``effort_projection`` with that hierarchy (P10: more fields, or more
+    technical repeats?). A count of fields is a recommendation only once it
+    holds on samples it was not chosen on.
     """
     _check_tables(objects, fovs, setup)
     common = setup.common
     criteria = setup.criteria()
+    hierarchy = setup.resolved_hierarchy(objects, fovs)
+    strata = setup.resolved_effort_strata(fovs)
     objects = setup.prepared(objects, fovs)
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(
@@ -300,12 +318,9 @@ def optimise(
         n_jobs=setup.n_jobs,
         **common,
     )
-    if setup.hierarchy is not None:
+    if hierarchy is not None:
         results["protocol"] = protocol_reliability(
-            results["reliability"],
-            setup.hierarchy,
-            threshold=protocol_threshold,
-            strata=list(setup.effort_strata),
+            results["reliability"], hierarchy, threshold=protocol_threshold, strata=strata
         )
     replay = replay_acquisitions(
         objects,
@@ -337,13 +352,13 @@ def optimise(
                 bin_edges=list(redundancy_bins),
                 **common,
             )
-    if setup.hierarchy is not None:
+    if hierarchy is not None:
         results["effort"] = effort_projection(
             objects,
             fovs,
             feature=setup.readout,
-            hierarchy=setup.hierarchy,
-            strata=list(setup.effort_strata),
+            hierarchy=hierarchy,
+            strata=strata,
             random_state=setup.random_state,
             observation_unit=setup.observation_unit,
         )
@@ -535,45 +550,3 @@ __all__ = [
     "optimise",
     "report",
 ]
-
-
-def plots(
-    objects: pd.DataFrame,
-    fovs: pd.DataFrame,
-    setup: Setup,
-    *,
-    features: Sequence[str] | None = None,
-    folder: str | Path | None = None,
-    **settings: Any,
-) -> dict[str, list[Figure]]:
-    """PlotsOfData-style figures of the readout (or ``features``), on the prepared table.
-
-    Within each condition the biological repeats sit side by side; every
-    object is a point coloured by technical repeat (a well), with each
-    biological repeat's median and its
-    interval from resampling whole fields (``plots.plots_of_data``, which
-    also takes ``settings`` such as ``summary`` or ``max_conditions``).
-    With ``folder`` each figure is also saved there as
-    ``<feature>[_<part>].png``. Returns the figures by feature.
-    """
-    _check_tables(objects, fovs, setup)
-    chosen = [setup.readout] if features is None else list(features)
-    undeclared = sorted(set(chosen) - set(setup.columns))
-    if undeclared:
-        raise ValueError(f"features to plot must be declared in the setup: {undeclared}")
-    figures = plots_of_data(
-        setup.prepared(objects, fovs),
-        fovs,
-        features=chosen,
-        random_state=settings.pop("random_state", setup.random_state),
-        **settings,
-        **setup.common,
-    )
-    if folder is not None:
-        target = Path(folder)
-        target.mkdir(parents=True, exist_ok=True)
-        for feature, parts in figures.items():
-            for index, figure in enumerate(parts, start=1):
-                suffix = f"_{index}" if len(parts) > 1 else ""
-                figure.savefig(target / f"{feature}{suffix}.png", dpi=150)
-    return figures

@@ -12,7 +12,7 @@ Declare the dataset once with a ``Setup``, then:
   at a time;
 - ``benchmark(objects, fovs, setup, reservoir_fraction=...)``: BENCHMARK,
   which rule needs the fewest fields for the same risk;
-- ``plots(objects, fovs, setup, folder=...)``: PlotsOfData-style figures of
+- ``plots(objects, fovs, setup, ranking=result.ranking, folder=...)``: PlotsOfData-style figures of
   the readout, every object a point coloured by repeat, the median with its
   interval from resampling whole fields.
 
@@ -20,6 +20,7 @@ Each returns its results with a ``summary()`` in sentences. The workflows add
 no scientific choice of their own; see ``docs/workflows.md``.
 """
 
+from .figures import plots
 from .live import LiveFolder, LiveTables, LiveUpdate, live_session, write_fov
 from .retrospective import (
     Benchmark,
@@ -30,7 +31,6 @@ from .retrospective import (
     default_families,
     document,
     optimise,
-    plots,
     report,
 )
 from .setup import PositiveControl, Setup, default_novelty

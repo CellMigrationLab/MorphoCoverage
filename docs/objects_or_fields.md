@@ -125,7 +125,7 @@ from morphocoverage.sampling_unit import (
     unusual_objects,
 )
 
-groups = ["condition", "repeat", "well"]
+groups = ["condition", "repeat", "technical_repeat"]  # the well is the technical repeat
 
 # How different are my fields, and how much does an object count understate the error?
 print(fov_variability(objects, fovs, feature="ratio", group_cols=groups).summary())

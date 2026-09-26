@@ -35,7 +35,12 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
         for j in range(8):
             name = f"w{well}_f{j}"
             fields.append(
-                {"condition": condition, "repeat": "r1", "well": f"w{well}", "image_file": name}
+                {
+                    "condition": condition,
+                    "repeat": "r1",
+                    "technical_repeat": f"w{well}",
+                    "image_file": name,
+                }
             )
             offset = rng.normal(0, 0.3)
             for _ in range(30):
@@ -43,7 +48,7 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
                     {
                         "condition": condition,
                         "repeat": "r1",
-                        "well": f"w{well}",
+                        "technical_repeat": f"w{well}",
                         "image_file": name,
                         "ratio": 5 + offset + rng.normal(),
                         "b": rng.normal(),

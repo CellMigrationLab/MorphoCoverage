@@ -53,7 +53,7 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     # Per condition and repeat cluster: the interval bar, its caps and the median line.
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 12
     title = ax.get_title(loc="left")
-    assert "resampling whole fields" in title
+    assert "resampling technical repeats, then their whole fields" in title
     assert "biological repeats (repeat) side by side" in title
     # Repeats are labelled above their clusters; points are coloured by the well.
     assert sorted(t.get_text() for t in ax.texts) == ["r0", "r0", "r1", "r1"]
@@ -109,3 +109,20 @@ def test_workflow_plots_save_one_png_per_figure(tmp_path):
     bare_fovs = fovs.drop(columns=["condition", "repeat"])
     figures = plots_of_data(bare_objects, bare_fovs, features=["x"], n_boot=10, group_cols=["well"])
     assert [t.get_text() for t in figures["x"][0].axes[0].get_xticklabels()] == ["all fields"]
+
+
+def test_the_morphobricks_technical_repeat_is_the_default_colour_and_bootstrap_unit():
+    objects, fovs = _tables()
+    wells = {name: f"w{i % 2}" for i, name in enumerate(fovs["image_file"])}
+    objects["technical_repeat"] = objects["image_file"].map(wells)
+    fovs["technical_repeat"] = fovs["image_file"].map(wells)
+    # No group_cols: the MorphoBricks defaults find condition, repeat and technical_repeat.
+    bare = objects.drop(columns="well"), fovs.drop(columns="well")
+    figures = plots_of_data(*bare, features=["x"], n_boot=30)
+    ax = figures["x"][0].axes[0]
+    title = ax.get_title(loc="left")
+    assert "coloured by technical repeat (technical_repeat)" in title
+    legend = ax.get_legend()
+    assert legend.get_title().get_text().startswith("technical repeat (technical_repeat)")
+    labels = [t.get_text() for t in legend.get_texts()]
+    assert labels == ["1st technical_repeat", "2nd technical_repeat"]

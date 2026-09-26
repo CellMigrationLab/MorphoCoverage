@@ -72,7 +72,7 @@ PROTOCOL = {
             "n_splits": 5,
             "permuted_orders": 10,
             "recorded_order": True,
-            "unit_cols": ["repeat", "well"],
+            "unit_cols": ["repeat", "technical_repeat"],
         },
         "idr0139": {
             "role": "held_out",
@@ -80,7 +80,7 @@ PROTOCOL = {
             "n_splits": 6,
             "permuted_orders": 5,
             "recorded_order": True,
-            "unit_cols": ["repeat", "well"],
+            "unit_cols": ["repeat", "technical_repeat"],
         },
     },
     "questions": {

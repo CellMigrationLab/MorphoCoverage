@@ -85,7 +85,7 @@ from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.transforms import Standardize
 
-GROUPS = ["condition", "repeat", "well"]
+GROUPS = ["condition", "repeat", "technical_repeat"]
 STAGE = ("stage_x_um", "stage_y_um")
 LABELS = {
     "relative_mean_error:YAPTAZ_Ratio <= 0.05": "the well mean of YAP/TAZ ratio within 5%",
@@ -101,6 +101,12 @@ def _timed(label, run):
     return result
 
 
+def _stored(name: str) -> pd.DataFrame:
+    """A tracked result table; its ``well`` column is the loader's ``technical_repeat``."""
+    table = pd.read_csv(RESULTS / name, dtype={"repeat": str})
+    return table.rename(columns={"well": "technical_repeat"})
+
+
 def reliability_from_tables() -> ReliabilityResult:
     """The Step 1 curves and their ceilings, as ``reliability_idr0028.py`` wrote them.
 
@@ -108,8 +114,8 @@ def reliability_from_tables() -> ReliabilityResult:
     that a flat curve (the variance within 10%) is capped by the held-back
     fields rather than by the fields acquired.
     """
-    curve = pd.read_csv(RESULTS / "reliability_idr0028.csv", dtype={"repeat": str})
-    ceiling = pd.read_csv(RESULTS / "reliability_ceiling_idr0028.csv", dtype={"repeat": str})
+    curve = _stored("reliability_idr0028.csv")
+    ceiling = _stored("reliability_ceiling_idr0028.csv")
     settings = {"labels": LABELS, "n_splits": int(ceiling["splits"].max())}
     return ReliabilityResult(curve, pd.DataFrame(), tuple(GROUPS), settings, ceiling)
 
@@ -118,7 +124,7 @@ def protocol():
     per_sample = reliability_from_tables()
     return protocol_reliability(
         per_sample,
-        SamplingHierarchy("image_file", "well", "repeat"),
+        SamplingHierarchy("image_file", "technical_repeat", "repeat"),
         threshold=0.9,
         strata=[],
     )
@@ -165,7 +171,7 @@ def effort(objects, fovs):
     # every plate holds one well, so plate and well cannot be separated).
     ids = {
         "position_id": lambda t: t["repeat"] + "/" + t["image_file"],
-        "well_id": lambda t: t["repeat"] + "/" + t["well"],
+        "well_id": lambda t: t["repeat"] + "/" + t["technical_repeat"],
     }
     objects, fovs = objects.assign(**ids), fovs.assign(**ids)
     return effort_projection(

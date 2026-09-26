@@ -31,11 +31,21 @@ Allocations are compared at equal total FOVs. A difference is stated only when
 the bootstrap interval of the ratio of standard errors excludes 1 and there
 are at least ``FEW_UNITS`` independent units; otherwise the answer is "cannot
 tell from these data".
+
+**Units.** A unit is identified by its own value and every level outside it
+(``SamplingHierarchy.unit_key``), so well J23 of plate 1A and well J23 of
+plate 2A are two samples even when the plate is not a variance level. When
+every biological repeat of a stratum holds a single sample, the two levels
+cannot be separated there: the repeat is then left out of that stratum's
+components (its variance is counted with the sample's), the independent unit
+becomes the sample, and the summary says so. When the sample column is the
+MorphoBricks ``technical_repeat`` (a well, a dish), the sentences call it a
+technical repeat.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,11 +53,10 @@ import numpy as np
 import pandas as pd
 
 from ..schema import fov_positions, validate_input_tables
-from ._text import group_identity, unit_plural
+from ._text import group_identity
+from .effort_text import OBSERVATION, effort_summary
 from .hierarchy import SamplingHierarchy
 from .protocol import FEW_UNITS
-
-OBSERVATION = "observation"
 
 
 def _dense_codes(code: np.ndarray) -> np.ndarray:
@@ -107,7 +116,9 @@ class EffortResult:
     - ``components``: per stratum and level, the ``estimate``, a bootstrap
       interval (``low``, ``high``) and its ``share`` of the variance of the
       current design's mean, with the stratum's ``samples``, ``fovs`` and
-      ``observations_per_fov`` (over every acquired FOV).
+      ``observations_per_fov`` (over every acquired FOV), the level counted
+      as the independent ``unit`` and whether the repeat level was left out
+      there (``repeat_dropped``).
     - ``projections``: per stratum and allocation (``samples`` x
       ``fovs_per_sample``), the projected standard error and its interval.
     - ``comparisons``: per stratum, each allocation against the current one:
@@ -128,6 +139,30 @@ class EffortResult:
 def _levels(hierarchy: SamplingHierarchy) -> list[str]:
     """Declared levels above the FOV, coarsest first, then the FOV."""
     return list(reversed(hierarchy.levels))
+
+
+def _qualified(
+    cells: pd.DataFrame, hierarchy: SamplingHierarchy, levels: list[str]
+) -> pd.DataFrame:
+    """``value`` and each level as its full unit key, so units stay distinct across outer levels."""
+    table = cells[["value"]].copy()
+    for level in levels:
+        table[level] = cells[hierarchy.unit_key(level)].astype(str).agg("|".join, axis=1)
+    return table
+
+
+def _stratum_levels(
+    hierarchy: SamplingHierarchy, qualified: pd.DataFrame
+) -> tuple[list[str], bool]:
+    """The levels estimated in one stratum: the declared ones, without the repeat when every
+    repeat holds a single sample there (the two cannot be separated)."""
+    levels = _levels(hierarchy)
+    if hierarchy.biological_repeat is None:
+        return levels, False
+    n_repeats, n_samples = (qualified[level].nunique() for level in levels[:2])
+    if n_repeats == n_samples:
+        return levels[1:], True
+    return levels, False
 
 
 def _tree(frame: pd.DataFrame, columns: list[str]) -> np.ndarray | list:
@@ -230,8 +265,10 @@ def effort_projection(
     """Variance components of the mean of ``feature`` and projected standard errors.
 
     ``hierarchy`` declares the FOV, sample and optional biological-repeat
-    columns of the FOV table (technical levels are not supported yet).
-    ``strata`` are FOV-table columns analysed separately, for example
+    columns of the FOV table (technical levels are not supported yet); in a
+    stratum where every repeat holds a single sample the repeat is left out
+    of the components (see the module). ``strata`` are FOV-table columns
+    analysed separately, for example
     ``["condition"]``; ``[]`` pools every sample and must be asked for.
     ``allocations`` are ``(samples, fovs_per_sample)`` pairs to compare with
     the acquired design; by default, from half to twice the acquired number of
@@ -250,7 +287,9 @@ def effort_projection(
     if isinstance(random_state, bool) or not isinstance(random_state, int):
         raise TypeError("random_state must be an integer seed")
     strata = list(strata)
-    hierarchy.validate(fovs)
+    missing_levels = [c for c in hierarchy.levels if c not in fovs.columns]
+    if missing_levels:
+        raise ValueError(f"hierarchy columns missing from the FOV table: {missing_levels}")
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -262,9 +301,6 @@ def effort_projection(
     missing = [c for c in strata if c not in data.fovs.columns]
     if missing:
         raise ValueError(f"strata missing from the FOV table: {missing}")
-    has_repeat = hierarchy.biological_repeat is not None
-    levels = _levels(hierarchy)  # e.g. [repeat, sample, fov]
-    names = [*levels, OBSERVATION]
     positions = fov_positions(data, data.fovs)
     values = data.feature_values(feature)
     component_rows, projection_rows, comparison_rows = [], [], []
@@ -273,14 +309,18 @@ def effort_projection(
         for column, value in stratum.items():
             inside &= data.fovs[column].to_numpy() == value
         stratum_fovs = data.fovs[inside]
+        # Strata are analysed apart, so a field name reused across them (the same
+        # image name in two conditions) is not a duplicate; within one it is.
+        hierarchy.validate(stratum_fovs)
         keep = inside[positions] & ~np.isnan(values)
-        cells = data.fovs.iloc[positions[keep]][levels].reset_index(drop=True)
+        cells = data.fovs.iloc[positions[keep]][list(hierarchy.levels)].reset_index(drop=True)
         cells["value"] = values[keep]
         n_missing = int((inside[positions] & np.isnan(values)).sum())
-        codes = [
-            cells[hierarchy.unit_key(level)].astype(str).agg("|".join, axis=1).factorize()[0]
-            for level in levels
-        ]
+        qualified = _qualified(cells, hierarchy, _levels(hierarchy))
+        levels, repeat_dropped = _stratum_levels(hierarchy, qualified)  # e.g. [repeat, sample, fov]
+        has_repeat = hierarchy.biological_repeat is not None and not repeat_dropped
+        names = [*levels, OBSERVATION]
+        codes = [qualified[level].factorize()[0] for level in levels]
         _check_separable(codes, levels, len(cells))
         estimate = nested_variance_components(cells["value"].to_numpy(), codes)
         # One generator per stratum, so adding a stratum never changes another's interval.
@@ -301,8 +341,9 @@ def effort_projection(
         samples, total_fovs = design["samples"], design["total_fovs"]
         current = (samples, total_fovs / samples)
         chosen = _allocations(design, allocations)
-        units = hierarchy.count(stratum_fovs, hierarchy.independent_unit)
-        tree = _tree(cells.assign(**{c: cells[c].astype(str) for c in levels}), levels)
+        unit = hierarchy.independent_unit if has_repeat else hierarchy.sample
+        units = hierarchy.count(stratum_fovs, unit)
+        tree = _tree(qualified, levels)
         boots = []
         for _ in range(n_boot):
             sample_values, sample_codes = _flatten(_resample(tree, rng), len(levels))
@@ -324,6 +365,8 @@ def effort_projection(
                     "high": None if high is None else float(high),
                     "share": contributions[index],
                     "units": units,
+                    "unit": unit,
+                    "repeat_dropped": repeat_dropped,
                     "samples": samples,
                     "fovs": total_fovs,
                     "fovs_with_observations": len(per_field),
@@ -373,6 +416,7 @@ def effort_projection(
                     "current_samples": current[0],
                     "current_fovs_per_sample": current[1],
                     "units": units,
+                    "unit": unit,
                 }
             )
     settings = {
@@ -436,85 +480,6 @@ def _contributions(estimate: np.ndarray, design: dict[str, Any]) -> list[float |
     parts = comp / np.array(divisors, dtype=float)
     total = parts.sum()
     return [float(p / total) if total > 0 else None for p in parts]
-
-
-def share_caveat(component: Mapping[str, Any], units: int, unit_word: str) -> str:
-    """Why the largest variance share is not established, or an empty string.
-
-    A share is a point estimate from the truncated components. With fewer
-    than ``FEW_UNITS`` independent units, or when the bootstrap interval of
-    the largest component includes zero, the same data are consistent with
-    that level contributing nothing (a null simulation with 3 samples and no
-    between-sample variance attributed most of the variance to the samples
-    in 4 of 20 runs), so the sentence says so.
-    """
-    low = component.get("low")
-    includes_zero = low is not None and not pd.isna(low) and float(low) <= 0
-    if units >= FEW_UNITS and not includes_zero:
-        return ""
-    reasons = []
-    if units < FEW_UNITS:
-        reasons.append(f"only {units} {unit_word}{'s' if units != 1 else ''}")
-    if includes_zero:
-        reasons.append("its interval includes zero")
-    return f"; not established: {', '.join(reasons)}"
-
-
-def effort_summary(result: EffortResult) -> str:
-    """ "More fields or more samples?" in sentences, per stratum."""
-    feature = result.settings.get("feature", "the measurement")
-    hierarchy = result.settings.get("hierarchy", {})
-    unit = result.settings.get("independent_unit", "unit")
-    unit = "sample" if unit == hierarchy.get("sample") else unit
-    observations = unit_plural(result.settings.get("observation_unit", "object"))
-    words = {
-        hierarchy.get("fov"): "between fields within a sample",
-        hierarchy.get("sample"): "between samples",
-        hierarchy.get("biological_repeat"): "between repeats",
-        OBSERVATION: f"between {observations} within fields",
-    }
-    blocks = []
-    for stratum, rows in result.components.groupby("stratum", sort=False):
-        lines = [f"{stratum}: more fields or more samples, for the mean {feature}?"]
-        shares = rows.dropna(subset=["share"]).sort_values("share", ascending=False)
-        units = int(rows["units"].iloc[0])
-        if len(shares):
-            top = shares.iloc[0]
-            lines.append(
-                f"  Most of the uncertainty of the mean is {words.get(top['level'], top['level'])} "
-                f"({100 * top['share']:.0f}% of its variance with the acquired design"
-                f"{share_caveat(top, units, unit)})."
-            )
-        compared = result.comparisons[result.comparisons["stratum"] == stratum]
-        resolved = compared[compared["resolved"]]
-        if len(compared) and len(resolved):
-            best = resolved.sort_values("ratio").iloc[0]
-            change = 1 - best["ratio"]
-            direction = "smaller" if change > 0 else "larger"
-            lines.append(
-                f"  At the same total number of fields, {best['samples']} samples of about "
-                f"{best['fovs_per_sample']:.3g} fields would give a {100 * abs(change):.0f}% "
-                f"{direction} standard error than the acquired {best['current_samples']} "
-                f"samples of about {best['current_fovs_per_sample']:.3g}."
-            )
-        else:
-            reason = (
-                f"only {units} {unit}s"
-                if units < FEW_UNITS
-                else "the intervals of the alternatives overlap"
-            )
-            lines.append(f"  More fields or more samples: cannot tell from these data ({reason}).")
-        missing = int(rows["missing_values"].iloc[0])
-        if missing:
-            lines.append(f"  {missing} {observations} without a value were left out.")
-        empty = int(rows["fovs"].iloc[0]) - int(rows["fovs_with_observations"].iloc[0])
-        if empty:
-            lines.append(
-                f"  {empty} of {int(rows['fovs'].iloc[0])} acquired fields had no "
-                f"{observations}; projections assume the same share would again."
-            )
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
 
 
 __all__ = [

@@ -19,8 +19,11 @@ report, before its questions (``docs/questions.md``):
 - ``condition_contrast``: each condition against the declared control, per
   repeat, with Cohen's d and the JCS effect size computed on objects (as the
   lab's Plot&Stats notebook does) and with the field as the unit, and a
-  randomization test that shuffles condition labels over whole fields
-  (REPORT, R7).
+  randomization test that shuffles condition labels over whole technical
+  repeats or fields (REPORT, R7);
+- ``feature_ranking``: the same tests for every declared feature, gated by
+  Benjamini-Hochberg q-values and ranked by |d| as fiberfeatures scores a
+  feature set, to choose which features the report plots (REPORT, R7).
 
 All are retrospective (they use every acquired FOV) and group-local: each
 analysis group is assessed on its own data, except that ``object_rule_check``
@@ -42,6 +45,7 @@ from .object_rules import (
     descriptor_spread_check,
     object_rule_check,
 )
+from .ranking import FeatureRanking, feature_ranking
 from .variability import FOVVariability, fov_variability
 
 __all__ = [
@@ -52,10 +56,12 @@ __all__ = [
     "DescriptorSpreadCheck",
     "FOVClustering",
     "FOVVariability",
+    "FeatureRanking",
     "ObjectRuleCheck",
     "UnusualObjects",
     "condition_contrast",
     "descriptor_spread_check",
+    "feature_ranking",
     "fov_clustering",
     "fov_variability",
     "object_rule_check",
