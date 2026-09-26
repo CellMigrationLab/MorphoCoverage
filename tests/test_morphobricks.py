@@ -253,3 +253,59 @@ def test_technical_repeat_is_a_default_group_and_part_of_fov_identity_when_prese
             fovs=fovs.rename(columns={"technical_repeat": "Technical_Repeat"}),
             feature_cols=["area"],
         )
+
+
+def test_an_all_empty_technical_repeat_column_is_read_as_absent():
+    """CellPatcher writes every column, so a run without wells leaves technical_repeat empty."""
+    import numpy as np
+
+    objects, fovs = _morphobricks_tables()
+    for empty in (None, np.nan, ""):
+        data = validate_input_tables(
+            objects.assign(technical_repeat=empty),
+            fovs=fovs.assign(technical_repeat=empty),
+            feature_cols=["area"],
+        )
+        assert data.group_cols == ("condition", "repeat")
+        assert "technical_repeat" not in data.fov_key
+        assert "technical_repeat" not in data.objects.columns
+    # Empty in the object table only (a feature table that kept the column).
+    only_objects = validate_input_tables(
+        objects.assign(technical_repeat=None), fovs=fovs, feature_cols=["area"]
+    )
+    assert only_objects.group_cols == ("condition", "repeat")
+    # Partly empty is ambiguous and still refused.
+    partial = ["w1", None, "w1", "w2"]
+    with pytest.raises(ValueError, match="missing group values"):
+        validate_input_tables(
+            objects.assign(technical_repeat=partial),
+            fovs=fovs.assign(technical_repeat=partial),
+            feature_cols=["area"],
+        )
+    # Named explicitly, an empty column is kept and refused.
+    with pytest.raises(ValueError, match="missing group values"):
+        validate_input_tables(
+            objects.assign(technical_repeat=None),
+            fovs=fovs.assign(technical_repeat=None),
+            feature_cols=["area"],
+            group_cols=["condition", "repeat", "technical_repeat"],
+        )
+
+
+def test_an_all_empty_position_id_falls_back_to_image_file():
+    """CellPatcher writes position_id empty when one file is one field."""
+    objects, fovs = _morphobricks_tables()
+    data = validate_input_tables(objects.assign(position_id=None), fovs=fovs, feature_cols=["area"])
+    assert data.fov_col == "image_file"
+    both = validate_input_tables(
+        objects.assign(position_id=""), fovs=fovs.assign(position_id=""), feature_cols=["area"]
+    )
+    assert both.fov_col == "image_file" and "position_id" not in both.objects.columns
+    # Named as the FOV column, an empty position_id is kept and refused.
+    with pytest.raises(ValueError):
+        validate_input_tables(
+            objects.assign(position_id=None),
+            fovs=fovs.assign(position_id=None),
+            feature_cols=["area"],
+            fov_col="position_id",
+        )

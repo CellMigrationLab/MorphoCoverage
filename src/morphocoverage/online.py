@@ -15,7 +15,13 @@ from typing import Any
 import pandas as pd
 
 from .evaluator import IncrementalReplay
-from .metadata import MORPHOBRICKS_FOV_CANDIDATES, MORPHOBRICKS_GROUP_COLUMNS
+from .metadata import (
+    EMPTY_MEANS_ABSENT,
+    MORPHOBRICKS_FOV_CANDIDATES,
+    MORPHOBRICKS_GROUP_COLUMNS,
+    OPTIONAL_GROUP_COLUMNS,
+    column_has_values,
+)
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
 from .schema import ValidatedInput, resolve_observation_unit, validate_input_tables
@@ -148,9 +154,14 @@ class OnlineSession:
 
     @staticmethod
     def _detect_fov_col(fov: pd.DataFrame) -> str:
-        """The first MorphoBricks FOV identifier present, in order of preference."""
+        """The first MorphoBricks FOV identifier present, in order of preference.
+
+        An empty ``position_id`` (a producer that writes every column) is skipped.
+        """
         for column in MORPHOBRICKS_FOV_CANDIDATES:
-            if column in fov.columns:
+            if column in fov.columns and (
+                column not in EMPTY_MEANS_ABSENT or column_has_values(fov, column)
+            ):
                 return column
         raise ValueError(
             "could not resolve the spatial FOV identifier from fov_metadata; "
@@ -159,8 +170,13 @@ class OnlineSession:
 
     @staticmethod
     def _default_group_cols(fov: pd.DataFrame) -> tuple[str, ...]:
-        """The canonical condition/repeat columns present."""
-        return tuple(column for column in MORPHOBRICKS_GROUP_COLUMNS if column in fov.columns)
+        """The canonical group columns present; an optional one only when it holds a value."""
+        return tuple(
+            column
+            for column in MORPHOBRICKS_GROUP_COLUMNS
+            if column in fov.columns
+            and (column not in OPTIONAL_GROUP_COLUMNS or column_has_values(fov, column))
+        )
 
     def _check_contract_drift(self, fov: pd.DataFrame) -> None:
         """Later FOVs may not silently change the identity or grouping the first one fixed."""

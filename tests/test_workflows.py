@@ -535,3 +535,20 @@ def test_a_technical_repeat_column_derives_the_hierarchy_and_ranks_the_features(
     assert set(effort.components["stratum"]) == {"condition=control", "condition=drug"}
     assert "more fields or more technical repeats, for the mean" in plan.summary()
     assert "7. More fields or more samples?" in plan.summary()
+
+
+def test_an_empty_technical_repeat_column_derives_no_hierarchy_and_reports_none():
+    objects, fovs = _acquisition()
+    objects, fovs = objects.assign(technical_repeat=None), fovs.assign(technical_repeat=None)
+    setup = _setup()
+    assert setup.technical_col(fovs) is None
+    assert setup.resolved_hierarchy(objects, fovs) is None
+    result = report(objects, fovs, setup)
+    assert "technical repeat" not in result.results["overview"].summary()
+    assert (result.results["contrast"].table["permutation_unit"] == "field").all()
+    session = live_session(setup)
+    tables = LiveTables(session)
+    first = fovs.iloc[[0]]
+    update = tables.update(objects[objects["image_file"] == first["image_file"].iloc[0]], first)
+    assert "technical_repeat" not in tables.key
+    assert update is not None

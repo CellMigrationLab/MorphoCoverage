@@ -34,6 +34,8 @@ from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     REPEAT_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
+    column_has_values,
+    drop_empty_optional_columns,
     resolve_fov_col,
 )
 from ..normalize import METHODS as NORMALIZATIONS
@@ -260,8 +262,8 @@ class Setup:
         return REPEAT_COLUMN if REPEAT_COLUMN in fovs.columns else None
 
     def technical_col(self, fovs: pd.DataFrame) -> str | None:
-        """The technical-repeat column when the FOV table has one."""
-        return TECHNICAL_REPEAT_COLUMN if TECHNICAL_REPEAT_COLUMN in fovs.columns else None
+        """The technical-repeat column when the FOV table has one with values in it."""
+        return TECHNICAL_REPEAT_COLUMN if column_has_values(fovs, TECHNICAL_REPEAT_COLUMN) else None
 
     def resolved_hierarchy(
         self, objects: pd.DataFrame, fovs: pd.DataFrame
@@ -277,6 +279,8 @@ class Setup:
         technical = self.technical_col(fovs)
         if technical is None:
             return None
+        explicit = [self.fov_col] if self.fov_col is not None else []
+        objects, fovs = drop_empty_optional_columns(objects, fovs, explicit)
         fov_col = resolve_fov_col(objects, fovs, self.fov_col)
         return SamplingHierarchy(fov_col, technical, self.repeat_col(fovs))
 

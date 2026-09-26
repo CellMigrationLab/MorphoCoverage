@@ -71,3 +71,28 @@ def test_objects_or_fields_example_runs(tmp_path, capsys):
     printed = capsys.readouterr().out
     assert "How variable are the fields?" in printed
     assert "Are the states spread over the fields?" in printed
+
+
+def test_data_format_example_runs_and_prints_what_it_says(tmp_path, capsys):
+    """The minimal example of docs/data_format.md runs and its comments are true."""
+    text = (ROOT / "docs" / "data_format.md").read_text()
+    section = re.search(r"## Minimal example.*?```python\n(.*?)```", text, flags=re.DOTALL)
+    assert section, "docs/data_format.md example not found"
+    script = tmp_path / "data_format_example.py"
+    script.write_text(section.group(1))
+    runpy.run_path(str(script))
+    printed = capsys.readouterr().out.splitlines()
+    assert printed == [
+        "('condition', 'repeat', 'technical_repeat')",
+        "('condition', 'repeat', 'technical_repeat', 'image_file')",
+        "6 fields, 5 cells",
+    ]
+
+
+def test_data_format_lists_every_shared_column():
+    """Every MorphoBricks shared column is documented in docs/data_format.md."""
+    from morphocoverage.metadata import MORPHOBRICKS_SHARED_COLUMNS
+
+    text = (ROOT / "docs" / "data_format.md").read_text()
+    for column in MORPHOBRICKS_SHARED_COLUMNS:
+        assert f"`{column}`" in text, column

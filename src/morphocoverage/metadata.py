@@ -21,6 +21,13 @@ MORPHOBRICKS_SHARED_COLUMNS = (
 # when its column exists in the linked tables.
 MORPHOBRICKS_GROUP_COLUMNS = ("condition", "repeat", "technical_repeat")
 CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN = MORPHOBRICKS_GROUP_COLUMNS
+# Group columns the shared contract makes optional.
+OPTIONAL_GROUP_COLUMNS = (TECHNICAL_REPEAT_COLUMN,)
+# Optional shared columns that a producer writing every column (CellPatcher
+# does) leaves empty when it has no value: position_id when one file is one
+# field, technical_repeat when there are no wells. An entirely empty one is
+# read as absent; a partly empty one is still refused as ambiguous.
+EMPTY_MEANS_ABSENT = (TECHNICAL_REPEAT_COLUMN, "position_id")
 
 # Scientific FOV identity is the independently selected spatial acquisition
 # position. position_id is preferred when storage layout and position do not
@@ -31,6 +38,38 @@ MORPHOBRICKS_FOV_CANDIDATES = ("position_id", "image_file", "fov_id")
 # Coordinates/dimensions nested inside one spatial position. These are
 # acquisition metadata, never phenotype features in MorphoCoverage.
 WITHIN_FOV_METADATA_COLUMNS = ("z", "z0", "z1", "c", "t")
+
+
+def _empty(values: pd.Series) -> pd.Series:
+    """Which entries hold no value: missing, or text that is blank."""
+    blank = values.astype(str).str.strip() == ""
+    return values.isna() | (blank & values.map(lambda v: isinstance(v, str)))
+
+
+def column_has_values(table: pd.DataFrame, column: str) -> bool:
+    """Whether ``table`` has ``column`` with at least one value in it."""
+    return column in table.columns and not bool(_empty(table[column]).all())
+
+
+def drop_empty_optional_columns(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    explicit_columns: Sequence[str],
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    """The tables without the ``EMPTY_MEANS_ABSENT`` columns that hold no value in any of them.
+
+    A column named explicitly (``group_cols``, ``fov_col``) is kept, so an
+    empty column the caller asked for is still refused downstream.
+    """
+    for column in EMPTY_MEANS_ABSENT:
+        if column in explicit_columns:
+            continue
+        present = [t for t in (objects, fovs) if t is not None and column in t.columns]
+        if present and not any(column_has_values(t, column) for t in present):
+            objects = objects.drop(columns=column)
+            if fovs is not None and column in fovs.columns:
+                fovs = fovs.drop(columns=column)
+    return objects, fovs
 
 
 def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str, pd.DataFrame]]:
