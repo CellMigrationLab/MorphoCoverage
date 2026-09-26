@@ -211,7 +211,7 @@
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  'New' means a cluster of at least 3 similar observations (linked within the distance) with fewer than 1 other FOV within distance 5.47723 (standardize).
+  'New' means a cluster of at least 3 similar observations (linked within the distance) with fewer than 1 other FOV within distance 5.47723 (standardize), on 31 features (Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ, Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ and 28 more).
 
   Adjusted for the declared control's detection rate (100% of its fields recognized): a phenotype seen as well as the control, and shown by no FOV yet, could still be in
     condition=MOCK, repeat=1A, well=B6: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.

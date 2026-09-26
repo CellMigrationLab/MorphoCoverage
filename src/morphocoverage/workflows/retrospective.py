@@ -29,6 +29,7 @@ from typing import Any
 import pandas as pd
 
 from ..benchmark import AcquisitionOrder
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..objectives import ObjectiveConfig, SamplingObjective
 from ..outcomes import RelativeMeanError
 from ..retrospective import (
@@ -144,7 +145,7 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
                 random_state=setup.random_state,
                 **common,
             )
-    if setup.positive is not None and setup.features and setup.novelty is not None:
+    if setup.positive is not None:  # Setup guarantees features and novelty with it
         positive = setup.positive
         results["controls"] = representation_control(
             objects,
@@ -163,6 +164,10 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
             fov_col=setup.fov_col,
             observation_unit=setup.observation_unit,
             n_jobs=setup.n_jobs,
+            # Group columns beyond condition and repeat (a well, say) still name the FOV.
+            identity_cols=[
+                c for c in (setup.group_cols or ()) if c not in MORPHOBRICKS_GROUP_COLUMNS
+            ],
         )
     novelty_features = list(setup.features) if setup.novelty is not None else []
     results["sufficiency"] = sufficiency_report(
@@ -176,6 +181,9 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
         novelty_target=setup.novelty_target if setup.novelty is not None else None,
         few_fovs=3 if setup.novelty is not None else None,
         acquisition_order_col=setup.acquisition_order_col,
+        # "New" is judged on the declared features only, as in the controls and the
+        # inspection; the rules read the readout.
+        novelty_cols=list(setup.features) if setup.novelty is not None else None,
         **common,
     )
     if setup.novelty is not None and setup.features:

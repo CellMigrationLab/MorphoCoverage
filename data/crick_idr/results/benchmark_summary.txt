@@ -1,6 +1,6 @@
 Benchmark, protocol version 2 (f586f431031a)
 
-== mean, idr0028_screenB (development; replay 55 s) ==
+== mean, idr0028_screenB (development; replay 53 s) ==
 
 For the well mean within 5%, stopping too early in at most 5% of acquisitions:
   a fixed number of fields needed 1 field (risk 1%).
@@ -9,7 +9,7 @@ For the well mean within 5%, stopping too early in at most 5% of acquisitions:
   JCB per object at 0.2: 1 field on average (risk 1%); it does as well as the fixed count, no better, 95% interval of the fields saved 0.0 to 0.0.
   JCS spread per field at 0.08: 2 fields on average (risk 0.3%); it costs 1.0 more fields, 95% interval 1.0 to 1.0.
   JCS spread per object at 0.16: 1 field on average (risk 1%); it does as well as the fixed count, no better, 95% interval of the fields saved -0.1 to 0.0; its stops follow the fields each acquisition needed with Spearman 0.04.
-  Intervals resample the 12 independent units; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
+  Intervals resample the 12 units (repeat, well), treated as independent; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
 
 For the well mean within 5%, stopping too early in at most 10% of acquisitions:
   a fixed number of fields needed 1 field (risk 1%).
@@ -18,7 +18,7 @@ For the well mean within 5%, stopping too early in at most 10% of acquisitions:
   JCB per object at 0.2: 1 field on average (risk 1%); it does as well as the fixed count, no better, 95% interval of the fields saved 0.0 to 0.0.
   JCS spread per field at 0.08: 2 fields on average (risk 0.3%); it costs 1.0 more fields, 95% interval 1.0 to 1.0.
   JCS spread per object at 0.16: 1 field on average (risk 1%); it does as well as the fixed count, no better, 95% interval of the fields saved -0.1 to 0.0; its stops follow the fields each acquisition needed with Spearman 0.04.
-  Intervals resample the 12 independent units; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
+  Intervals resample the 12 units (repeat, well), treated as independent; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
 
 For the well mean within 2.5%, stopping too early in at most 5% of acquisitions:
   a fixed number of fields needed 4 fields (risk 4%).
@@ -27,7 +27,7 @@ For the well mean within 2.5%, stopping too early in at most 5% of acquisitions:
   JCB per object at 0.005: 8.2 fields on average (risk 2%); it costs 4.2 more fields, 95% interval -1.3 to 4.9; its stops follow the fields each acquisition needed with Spearman 0.13.
   JCS spread per field at 0.02: 10.2 fields on average (risk 3%); it costs 6.2 more fields, 95% interval 3.9 to 7.7; its stops follow the fields each acquisition needed with Spearman 0.20.
   JCS spread per object at 0.04: 4.1 fields on average (risk 4%); it costs 0.1 more fields, 95% interval -1.1 to 7.6; its stops follow the fields each acquisition needed with Spearman 0.15.
-  Intervals resample the 12 independent units; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
+  Intervals resample the 12 units (repeat, well), treated as independent; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
 
 For the well mean within 2.5%, stopping too early in at most 10% of acquisitions:
   a fixed number of fields needed 2 fields (risk 9%).
@@ -36,9 +36,9 @@ For the well mean within 2.5%, stopping too early in at most 10% of acquisitions
   JCB per object at 0.01: 2.8 fields on average (risk 5%); it costs 0.8 more fields, 95% interval -0.4 to 1.1; its stops follow the fields each acquisition needed with Spearman 0.19.
   JCS spread per field at 0.08: 2 fields on average (risk 9%); it does as well as the fixed count, no better, 95% interval of the fields saved -8.0 to 0.5.
   JCS spread per object at 0.04: 4.1 fields on average (risk 4%); it costs 2.1 more fields, 95% interval 0.8 to 2.5; its stops follow the fields each acquisition needed with Spearman 0.15.
-  Intervals resample the 12 independent units; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
+  Intervals resample the 12 units (repeat, well), treated as independent; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
 
-== mean, idr0139 (held_out; replay 4 s) ==
+== mean, idr0139 (held_out; replay 5 s) ==
 
 For the well mean within 5%, stopping too early in at most 5% of acquisitions:
   a fixed number of fields never got there within the fields available, so no rule can be scored against it at this level.
@@ -80,16 +80,16 @@ FOV bootstrap of the mean   0.10    0.032          0.089394            2.000000 
      JCS spread per field   0.10    0.080          0.089394            2.000000       0.583333              2.0            360.0 the well mean within 2.5%
     JCS spread per object   0.10    0.040          0.037879            4.131818       0.583333              2.0            360.0 the well mean within 2.5%
 
-== rare, planted states in idr0028 (semi-synthetic; replays 40 s) ==
+== rare, planted states in idr0028 (semi-synthetic; replays 39 s) ==
 
 For the planted state seen, when the held-back fields show it, stopping too early in at most 5% of acquisitions:
   a fixed number of fields needed 15 fields (risk 5%).
-  novelty bound at 0.1: 18 fields on average (risk 3%); it costs 3.0 more fields, 95% interval 2.4 to 3.0.
-  rare incidence (labels) at 0.2: 6.7 fields on average (risk 5%); it saves 8.3 fields, 95% interval 6.8 to 8.3; its stops follow the fields each acquisition needed with Spearman 0.72.
-  Intervals resample the 2 independent units; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
+  novelty bound at 0.1: 18 fields on average (risk 3%); it costs 3.0 more fields, 95% interval 2.4 to 3.0 (from the 77% of the resamples in which both reached this risk).
+  rare incidence (labels) at 0.2: 6.7 fields on average (risk 5%); it saves 8.3 fields, 95% interval 6.8 to 8.3 (from the 77% of the resamples in which both reached this risk); its stops follow the fields each acquisition needed with Spearman 0.72.
+  Intervals resample the 2 units (plate), treated as independent; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
 
 For the planted state seen, when the held-back fields show it, stopping too early in at most 10% of acquisitions:
   a fixed number of fields needed 12 fields (risk 9%).
   novelty bound at 0.2: 15 fields on average (risk 5%); it costs 3.0 more fields, 95% interval 0.5 to 4.4; its stops follow the fields each acquisition needed with Spearman 0.05.
   rare incidence (labels) at 0.2: 6.7 fields on average (risk 5%); it saves 5.3 fields, 95% interval 5.3 to 6.9; its stops follow the fields each acquisition needed with Spearman 0.72.
-  Intervals resample the 2 independent units; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.
+  Intervals resample the 2 units (plate), treated as independent; hold-outs and orders are not independent experiments. Risk is judged on held-back fields.

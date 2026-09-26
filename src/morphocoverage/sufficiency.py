@@ -290,8 +290,11 @@ def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str
     return pd.DataFrame(rows)
 
 
-def novelty_definition(novelty: SupportNoveltyEstimator) -> str:
-    """What counts as a FOV showing something new, in words."""
+def novelty_definition(
+    novelty: SupportNoveltyEstimator, feature_cols: Sequence[str] | None = None
+) -> str:
+    """What counts as a FOV showing something new, in words; with ``feature_cols``,
+    also the columns it is judged on (the phenotype geometry's provenance)."""
     m, others = novelty.min_novel_observations, novelty.min_other_fovs
     space = "raw feature units" if novelty.transform is None else novelty.transform.name
     cells = (
@@ -299,10 +302,15 @@ def novelty_definition(novelty: SupportNoveltyEstimator) -> str:
         if m == 1
         else f"a cluster of at least {m} similar observations (linked within the distance)"
     )
-    return (
+    text = (
         f"{cells} with fewer than {others} other FOV{'s' if others > 1 else ''} "
         f"within distance {novelty.epsilon:g} ({space})"
     )
+    if feature_cols:
+        names = list(feature_cols)
+        shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
+        text += f", on {len(names)} feature{'s' if len(names) > 1 else ''} ({shown})"
+    return text
 
 
 def _percent(value: float) -> str:
@@ -545,6 +553,7 @@ def sufficiency_report(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    novelty_cols: Sequence[str] | None = None,
 ) -> SufficiencyReport:
     """Did we sample enough, and would one more FOV show something new? Per analysis group.
 
@@ -567,10 +576,23 @@ def sufficiency_report(
     needed before the chance of something new can be claimed below the target,
     and adds that claim as a criterion for "enough" (a ``SupportNoveltyStrategy``
     on the upper bound). ``calibration`` checks the prediction on this
-    dataset by shuffling. Other arguments are those of ``run_strategies``.
+    dataset by shuffling. ``novelty_cols`` (a subset of ``feature_cols``) are
+    the columns "new" is judged on, when they differ from the columns the
+    rules read: for example the rules on a readout, novelty on the features it
+    was defined for. By default novelty uses every column of ``feature_cols``.
+    Other arguments are those of ``run_strategies``.
     """
     strategies, orders = list(strategies), list(orders)
     _check_report_inputs(strategies, orders, novelty, novelty_target, calibration)
+    if novelty_cols is not None:
+        if isinstance(novelty_cols, str) or not novelty_cols:
+            raise TypeError("novelty_cols must be a non-empty sequence of column names")
+        outside = [c for c in novelty_cols if c not in list(feature_cols)]
+        if outside or novelty is None:
+            raise ValueError(
+                "novelty_cols must be columns of feature_cols, with a novelty definition; "
+                f"not in feature_cols: {outside}"
+            )
     if few_fovs is not None:
         if novelty is None:
             raise ValueError("few_fovs needs a novelty definition")
@@ -578,8 +600,9 @@ def sufficiency_report(
             raise TypeError("few_fovs must be an integer number of FOVs")
         if few_fovs <= novelty.min_other_fovs:
             raise ValueError("few_fovs must exceed the novelty definition's min_other_fovs")
+    novelty_rules: list[SamplingStrategy] = []
     if novelty is not None and novelty_target is not None:
-        strategies.append(
+        novelty_rules.append(
             SupportNoveltyStrategy(
                 novelty.epsilon,
                 novelty_target,
@@ -608,24 +631,46 @@ def sufficiency_report(
     }
     data = validate_input_tables(objects, fovs=fovs, **columns)
     resolved_groups = list(data.group_cols)
+    # Novelty reads only its own columns; the rules read all of feature_cols.
+    novelty_columns = (
+        columns if novelty_cols is None else {**columns, "feature_cols": list(novelty_cols)}
+    )
+    novelty_data = (
+        data
+        if novelty_cols is None
+        else validate_input_tables(objects, fovs=fovs, **novelty_columns)
+    )
+    if novelty_cols is None:
+        strategies += novelty_rules
+        runs = [(strategies, columns)]
+    else:
+        runs = [(strategies, columns), (novelty_rules, novelty_columns)]
 
     final, stops, enough = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    if strategies:
-        final, stops = _criteria_tables(
+    parts = [
+        _criteria_tables(
             objects,
             fovs,
-            strategies,
+            rules,
             objective,
             orders,
             acquisition_order_col,
-            columns,
+            run_columns,
             resolved_groups,
         )
+        for rules, run_columns in runs
+        if rules
+    ]
+    if parts:
+        final = pd.concat([part[0] for part in parts], ignore_index=True)
+        stops = pd.concat([part[1] for part in parts], ignore_index=True)
         enough = _enough_table(final, stops, resolved_groups)
 
     next_fov, new_observations, calibrated = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     if novelty is not None:
-        next_fov, new_observations = _next_fov_tables(data, novelty, novelty_target, few_fovs)
+        next_fov, new_observations = _next_fov_tables(
+            novelty_data, novelty, novelty_target, few_fovs
+        )
         if calibration is not None:
             calibrated = calibrate_next_fov_novelty(
                 objects,
@@ -634,7 +679,7 @@ def sufficiency_report(
                 fov_counts=calibration.fov_counts,
                 draws=calibration.draws,
                 random_state=calibration.random_state,
-                **columns,
+                **novelty_columns,
             )
         next_fov["answer"] = [
             _next_fov_answer(
@@ -650,7 +695,11 @@ def sufficiency_report(
         final=final,
         stops=stops,
         group_cols=tuple(resolved_groups),
-        novelty_definition=None if novelty is None else novelty_definition(novelty),
+        novelty_definition=(
+            None
+            if novelty is None
+            else novelty_definition(novelty, novelty_columns["feature_cols"])
+        ),
     )
 
 

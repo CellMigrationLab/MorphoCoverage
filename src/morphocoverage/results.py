@@ -107,10 +107,11 @@ class StrategyResult:
     def explain(self) -> str:
         """One line: the decision, each policy's rule with its evidence, and the effort.
 
-        For example ``stop: lofo_novel_fov_upper = 0.24 <= 0.25 (population); after
-        11 FOVs, 1100 objects``. A rule's own threshold is not a held-out check:
-        the line names the quantity so the reader can see when a stop rests
-        on the number of FOVs alone.
+        For example ``stop: lofo_novel_fov_upper = 0.24 (stop at <= 0.25, population);
+        after 11 FOVs, 1100 objects``: the value, then the rule it is compared with,
+        so a ``continue`` never reads as a false inequality. A rule's own threshold
+        is not a held-out check: the line names the quantity so the reader can see
+        when a stop rests on the number of FOVs alone.
         """
         decision = "undefined" if self.decision is None else self.decision.value
         parts = []
@@ -124,14 +125,14 @@ class StrategyResult:
                     parts.append(f"{name} unavailable ({quantity.reason})")
                 else:
                     parts.append(
-                        f"{name} = {quantity.value:.3g} {better} {parameters['threshold']:g} "
-                        f"({quantity.component.value})"
+                        f"{name} = {quantity.value:.3g} (stop at {better} "
+                        f"{parameters['threshold']:g}, {quantity.component.value})"
                     )
             elif "effort" in parameters and "target" in parameters:
                 current = getattr(self, parameters["effort"], None)
                 parts.append(
-                    f"{parameters['effort']} = {current} >= {parameters['target']} "
-                    f"({parameters.get('component', 'population')})"
+                    f"{parameters['effort']} = {current} (stop at >= {parameters['target']}, "
+                    f"{parameters.get('component', 'population')})"
                 )
             else:
                 parts.append(policy.get("name", "policy"))

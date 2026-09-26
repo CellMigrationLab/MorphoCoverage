@@ -99,8 +99,8 @@ Contract tests require incremental replay to agree with full recomputation.
 
 Every `StrategyResult` has `explain()`: one line with the decision, each
 policy's rule beside its evidence, and the effort, for example
-`stop: lofo_novel_fov_upper = 0.24 <= 0.25 (population); after 11 FOVs, 1100
-cells`. Read the quantity, not only the word: with nothing new among `k`
+`stop: lofo_novel_fov_upper = 0.24 (stop at <= 0.25, population); after 11
+FOVs, 1100 cells`. Read the quantity, not only the word: with nothing new among `k`
 FOVs the novelty bound is `1 - 0.05 ** (1 / k)` whatever the data, so a stop
 on it after 11 FOVs is a statement about the next field, not about rare
 states (`docs/preliminary_findings.md`, entry 3). A rule's threshold is its
