@@ -1,4 +1,17 @@
-"""Sequential evaluation on deeply sampled real acquisitions."""
+"""Sequential evaluation on deeply sampled real acquisitions.
+
+Every prefix lists its observations in acquisition order (the FOVs in the
+order they were revealed, table order within each FOV), which is the order in
+which a live ``OnlineSession`` receives them; estimators that draw objects by
+row position therefore see the same rows in a replay and at the microscope.
+
+Shared-private helpers: ``_evaluate_prefixes``, ``_check_order_values``,
+``_in_acquisition_order``, ``_Acquisition``, ``_replay_strategies``,
+``_strategy_units`` and ``_interleave`` are also used by ``benchmark`` and
+``retrospective.replay``, so that every replay reveals FOVs the same way.
+They are private to the package (not part of its public API) and may change
+with it.
+"""
 
 from __future__ import annotations
 
@@ -216,8 +229,26 @@ def _check_order_column(
         raise ValueError(f"fovs is missing required columns: {[order_col]}")
     if order_col in feature_cols:
         raise ValueError("acquisition order cannot also be a phenotype feature")
-    if fovs[order_col].isna().any():
+    _check_order_values(fovs, order_col)
+
+
+def _check_order_values(fovs: pd.DataFrame, order_col: str) -> None:
+    """The acquisition order is complete and numeric, a date-time or a duration.
+
+    Text is refused rather than sorted as text, where ``"10"`` comes before
+    ``"2"`` and the replayed history would silently differ from the recorded one.
+    """
+    values = fovs[order_col]
+    if values.isna().any():
         raise ValueError("acquisition order contains missing values")
+    dtype, types = values.dtype, pd.api.types
+    numeric = types.is_numeric_dtype(dtype) and not types.is_bool_dtype(dtype)
+    if not (numeric or types.is_datetime64_any_dtype(dtype) or types.is_timedelta64_dtype(dtype)):
+        raise ValueError(
+            f"acquisition order column {order_col!r} holds {dtype} values, not numbers or "
+            "date-times; text would sort '10' before '2'. Convert it first, for example "
+            f"fovs[{order_col!r}] = pd.to_numeric(fovs[{order_col!r}]) or pd.to_datetime(...)."
+        )
 
 
 def _check_min_fovs(groups: list[tuple[dict, ValidatedInput]], min_fovs: int) -> None:
@@ -246,9 +277,10 @@ def _in_acquisition_order(group: dict, group_data: ValidatedInput, order_col: st
 class _Acquisition:
     """One analysis group in acquisition order, sliced into prefixes and new FOVs.
 
-    Each observation's acquisition rank is computed once, so building a prefix
-    is a boolean mask rather than a new key match. Observations keep their
-    original table order within every prefix.
+    Each observation's acquisition rank is computed once and the observations
+    are sorted by it, so a prefix and a newly revealed FOV are both slices.
+    Observations are in acquisition order: FOV by FOV as revealed, table order
+    within each FOV, exactly as a live session joins them.
     """
 
     def __init__(self, group_data: ValidatedInput, ordered: pd.DataFrame) -> None:
@@ -266,14 +298,11 @@ class _Acquisition:
         self._by_rank = group_data.objects.iloc[by_rank]
         self._bounds = np.searchsorted(self.rank[by_rank], np.arange(self.n_fovs + 1))
 
-    def _select(self, first: int, last: int) -> ValidatedInput:
-        """FOVs ranked ``first`` to ``last - 1`` in acquisition order, with their observations."""
-        mask = (self.rank >= first) & (self.rank < last)
-        return restrict_input(self.data, self.data.objects.loc[mask], self.ordered.iloc[first:last])
-
     def prefix(self, step: int) -> ValidatedInput:
-        """The first ``step`` FOVs and their observations, as a visible input."""
-        return self._select(0, step)
+        """The first ``step`` FOVs and their observations, in acquisition order."""
+        return restrict_input(
+            self.data, self._by_rank.iloc[: self._bounds[step]], self.ordered.iloc[:step]
+        )
 
     def new_fov(self, step: int) -> ValidatedInput:
         """Only the FOV revealed at ``step`` and its observations."""

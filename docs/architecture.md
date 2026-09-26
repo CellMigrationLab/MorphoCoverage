@@ -342,7 +342,7 @@ cell-count method.
 
 How the slow analyses are made fast without changing what they compute. `docs/optimization_log.md` has every change tried, with timings and the identity checks.
 
-- **Subsets and prefixes.** `evaluator.FovSubsets` looks up each observation's FOV once, so a subset of FOVs is one vectorized mask. Replay prefixes are slices of rank-sorted observations, returned in table order, so they are the same tables a mask would give.
+- **Subsets and prefixes.** `evaluator.FovSubsets` looks up each observation's FOV once, so a subset of FOVs is one vectorized mask. Replay prefixes are slices of rank-sorted observations, in acquisition order (table order within each FOV), so they are the tables a live session joins FOV by FOV.
 - **Support novelty.** `_supporting_fovs` picks the fastest exact counting method (pairwise distances for small problems or eight or more dimensions, one tree over all references, or one tree per reference FOV in dense neighbourhoods). Every path decides distances near `epsilon` with one definition, `<= epsilon`, which a test checks at exact ties.
 - **Repeated reads.** `ValidatedInput` caches its feature matrix and the FOV positions of its own FOV table (each read returns a copy; copies made with `dataclasses.replace` start empty). Code that edits a table in place and reads it again calls `clear_cache()`.
 - **Worker processes.** `run_strategies`, `evaluate_acquisition_prefixes`, `run_benchmark`, `replay_acquisitions`, `sampling_reliability` and `representation_control` take `n_jobs` (`-1`: every CPU).

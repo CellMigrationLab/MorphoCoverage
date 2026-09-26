@@ -17,8 +17,16 @@ Decisions use only the visible prefix (the prospective path); outcomes use the
 hidden reservoir (retrospective scoring). The two tables are kept apart so
 that "the rule said enough" and "it was enough" are never mixed.
 
-Permutations are drawn per group and split, reproducibly from the order's seed,
-so adding a group or a split never changes another's orders.
+Permutations are drawn per group and split with ``benchmark.permuted_fovs``
+(the benchmark's permutation), seeded from ``random_state``, the group's
+identity, the order's seed and the split, so adding a group or a split never
+changes another's orders, and neither does the row order of the tables.
+Every prefix lists its observations in acquisition order (table order within
+each FOV), as a live session receives them.
+
+A group too small to hold out a reservoir and keep a stream (a single FOV,
+or a single block with ``block_col``) is skipped, and listed with the reason
+in ``ReplayResult.skipped``; the other groups are replayed as usual.
 """
 
 from __future__ import annotations
@@ -27,25 +35,25 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from .._parallel import check_n_jobs, map_units
-from ..benchmark import AcquisitionOrder
+from .._seeds import group_identity
+from ..benchmark import AcquisitionOrder, permuted_fovs
 from ..data_check import validate_input_tables
-from ..evaluator import iter_analysis_groups, restrict_input
+from ..evaluator import iter_analysis_groups
 from ..objectives import ObjectiveConfig
 from ..reservoir import ReservoirSplit
 from ..schema import ValidatedInput
 from ..sequential import (
     _Acquisition,
+    _check_order_values,
     _in_acquisition_order,
     _interleave,
     _replay_strategies,
     _strategy_units,
 )
 from ..strategies.base import SamplingStrategy
-from ._text import group_identity
 from .criteria import OutcomeCriterion
 from .stage import dispersed_order, stage_travel
 
@@ -73,6 +81,8 @@ class ReplayResult:
 
     - ``paths`` (with ``stage_cols``): one row per group, split, order and
       prefix length, with the cumulative stage ``travel`` from the first FOV.
+    - ``skipped``: one row per analysis group that was not replayed, with the
+      ``reason`` (too few FOVs or blocks to hold out a reservoir).
 
     One replayed acquisition is identified by the group, ``split`` and
     ``order_id``; ``order`` and ``order_seed`` give the order's kind and seed.
@@ -84,32 +94,7 @@ class ReplayResult:
     group_cols: tuple[str, ...]
     settings: Mapping[str, Any] = field(default_factory=dict)
     paths: pd.DataFrame = field(default_factory=pd.DataFrame)
-
-
-class _SortedPrefixes:
-    """Prefixes for scoring outcomes, without masking the whole stream every time.
-
-    ``_Acquisition.prefix`` masks the whole stream for every prefix. Outcomes
-    are scored on every prefix of every order, so observations are sorted once
-    by the rank of their FOV and each prefix takes the first rows of that
-    order, back in table order. The prefix is therefore the same table as the
-    masked one: outcome metrics that subsample rows by position (energy, MMD)
-    see the same rows.
-    """
-
-    def __init__(self, acquisition: _Acquisition) -> None:
-        rank = acquisition.rank
-        order = np.argsort(rank, kind="stable")
-        self.order = order[rank[order] >= 0]
-        self.data = acquisition.data
-        self.ordered = acquisition.ordered
-        # Number of observations in the first ``step`` FOVs.
-        self.ends = np.searchsorted(rank[self.order], np.arange(1, acquisition.n_fovs + 1))
-
-    def prefix(self, step: int) -> ValidatedInput:
-        """The first ``step`` FOVs and their observations, in table order."""
-        rows = np.sort(self.order[: self.ends[step - 1]])
-        return restrict_input(self.data, self.data.objects.iloc[rows], self.ordered.iloc[:step])
+    skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
 def default_orders(acquisition_order_col: str | None) -> list[AcquisitionOrder]:
@@ -140,6 +125,7 @@ def _ordered_stream(
     order_col: str | None,
     split: int,
     stage_cols: Sequence[str] | None,
+    random_state: int,
 ) -> pd.DataFrame:
     """The stream's FOV rows in the order to replay."""
     if order.kind == "recorded":
@@ -151,8 +137,7 @@ def _ordered_stream(
         xy = stream.fovs[list(stage_cols)].to_numpy(dtype=float)
         start = (order.seed + group_identity(group) + split) % len(xy)
         return stream.fovs.iloc[dispersed_order(xy, start)]
-    rng = np.random.default_rng([order.seed, group_identity(group), split])
-    return stream.fovs.iloc[rng.permutation(len(stream.fovs))]
+    return permuted_fovs(stream.fovs, stream.fov_key, random_state, group, order.seed, split)
 
 
 def _check(
@@ -215,7 +200,7 @@ def _runs(
         stream, reservoir = splitter.split(group, group_data)
         for order in orders:
             ordered = _ordered_stream(
-                group, stream, order, acquisition_order_col, split, stage_cols
+                group, stream, order, acquisition_order_col, split, stage_cols, random_state
             )
             where = {
                 **group,
@@ -279,7 +264,6 @@ def _score(
     if not isinstance(acquisition, _Acquisition):
         acquisition = _Acquisition(*acquisition)
     ordered = acquisition.ordered
-    prefixes = _SortedPrefixes(acquisition)
     streams = [{**where, "stream_fovs": acquisition.n_fovs, "reservoir_fovs": len(reservoir.fovs)}]
     paths = []
     if stage_cols is not None:
@@ -287,7 +271,7 @@ def _score(
         paths = [{**where, "fovs": i + 1, "travel": float(t)} for i, t in enumerate(travel)]
     outcomes = []
     for step in range(1, acquisition.n_fovs + 1):
-        prefix = prefixes.prefix(step)
+        prefix = acquisition.prefix(step)
         for criterion in criteria:
             status, value = criterion.assess(reservoir, prefix)
             outcomes.append(
@@ -367,11 +351,15 @@ def replay_acquisitions(
     ``reservoir_fraction`` is the share of each group's FOVs (or blocks) held
     back per split, a design choice with no default. ``orders`` defaults to
     the recorded order (when ``acquisition_order_col`` is given) plus
-    ``DEFAULT_PERMUTATIONS`` random orders. ``n_splits``, ``random_state``
-    and ``incremental`` are computational settings; decisions are the same
-    with or without ``incremental``. ``keep_results`` stores each
-    ``StrategyResult`` in a ``result`` column of the decisions, for threshold
-    sweeps (``morphocoverage.retrospective.frontier.sweep``). Strategies are evaluated from
+    ``DEFAULT_PERMUTATIONS`` random orders; a permuted order is seeded from
+    ``random_state``, the group, its own seed and the split, so another
+    ``random_state`` gives other random orders as well as other reservoirs.
+    ``n_splits``, ``random_state`` and ``incremental`` are computational
+    settings; decisions are the same with or without ``incremental``. A group
+    too small to split is skipped and listed in ``skipped`` with its reason.
+    ``keep_results`` stores each ``StrategyResult`` in a ``result`` column of
+    the decisions, for threshold sweeps
+    (``morphocoverage.retrospective.frontier.sweep``). Strategies are evaluated from
     ``min_fovs`` FOVs on; outcomes from the first FOV. ``fovs`` lists every
     acquired FOV, including FOVs without observations. ``stage_cols`` (x, y
     columns of the FOV table, in ``stage_unit``) enables dispersed orders and
@@ -405,8 +393,7 @@ def replay_acquisitions(
     if acquisition_order_col is not None:
         if acquisition_order_col not in data.fovs.columns:
             raise ValueError(f"fovs is missing required columns: {[acquisition_order_col]}")
-        if data.fovs[acquisition_order_col].isna().any():
-            raise ValueError("acquisition order contains missing values")
+        _check_order_values(data.fovs, acquisition_order_col)
     if stage_cols is not None:
         if len(stage_cols) != 2:
             raise TypeError("stage_cols must be two column names (x, y)")
@@ -424,7 +411,7 @@ def replay_acquisitions(
     # fewer than workers too, every strategy apart. Decisions of strategies
     # replayed apart are put back in the order of one joint replay, so the
     # tables are identical for every n_jobs.
-    groups = list(iter_analysis_groups(data))
+    groups, skipped = _replayable(data, float(reservoir_fraction), block_col)
     settings_of_run = (orders, split_settings, acquisition_order_col, stage_cols)
     replay_settings = (objective, min_fovs, incremental, keep_results)
     decisions, outcomes, streams, paths = [], [], [], []
@@ -480,7 +467,43 @@ def replay_acquisitions(
         group_cols=tuple(keys),
         settings=settings,
         paths=pd.DataFrame(paths, columns=[*keys, *_RUN, "fovs", "travel"]),
+        skipped=pd.DataFrame(skipped, columns=[*keys, "fovs", "reason"]),
     )
+
+
+def _replayable(
+    data: ValidatedInput, reservoir_fraction: float, block_col: str | None
+) -> tuple[list[tuple[dict[str, Any], ValidatedInput]], list[dict[str, Any]]]:
+    """The groups that can hold out a reservoir and keep a stream, and the others with why.
+
+    A group with a single FOV (or block) cannot be split. It is skipped with
+    its reason rather than failing every other group; with no group left the
+    replay raises, since there would be nothing to report.
+    """
+    splitter = ReservoirSplit(reservoir_fraction, 0, block_col)
+    groups, skipped = [], []
+    for group, group_data in iter_analysis_groups(data):
+        blocks = splitter.n_blocks(group_data)
+        if blocks >= 2:
+            groups.append((group, group_data))
+            continue
+        unit = "FOV" if block_col is None else f"block of {block_col!r}"
+        skipped.append(
+            {
+                **group,
+                "fovs": len(group_data.fovs),
+                "reason": (
+                    f"only {blocks} {unit}, so no reservoir can be held out beside a stream; "
+                    "this group was not replayed"
+                ),
+            }
+        )
+    if not groups:
+        raise ValueError(
+            f"no analysis group has two or more {'FOVs' if block_col is None else 'blocks'} "
+            f"to hold out a reservoir and keep a stream: {skipped[:3]}"
+        )
+    return groups, skipped
 
 
 __all__ = [
