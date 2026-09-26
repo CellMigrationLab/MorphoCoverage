@@ -44,10 +44,10 @@ whole FOVs have the error that random-cell reasoning predicts?
 | idr0139, 308 wells, 4 FOVs/well | 1 | 329 | 4.2% | 1.3% | 3.2 [2.0–4.2] | 87% |
 | | 2 | 657 | 2.4% | 0.74% | 3.2 [2.0–4.3] | 87% |
 | | 3 | 987 | 1.3% | 0.42% | 3.1 [2.0–4.3] | 87% |
-| idr0028 B, 1,144 wells, 28 FOVs/well | 1 | 33 | 1.8% | 1.2% | 1.5 [1.3–1.7] | 48% |
+| idr0028 B, 1,144 wells, 28 FOVs/well | 1 | 33 | 1.8% | 1.2% | 1.5 [1.3–1.7] | 49% |
 | | 4 | 132 | 0.82% | 0.54% | 1.5 [1.4–1.7] | 53% |
-| | 8 | 264 | 0.52% | 0.34% | 1.5 [1.4–1.7] | 53% |
-| | 14 | 462 | 0.33% | 0.22% | 1.5 [1.3–1.7] | 53% |
+| | 8 | 264 | 0.53% | 0.34% | 1.5 [1.3–1.7] | 53% |
+| | 14 | 462 | 0.33% | 0.22% | 1.5 [1.3–1.7] | 54% |
 
 Errors are relative RMSE of the well mean, as medians across wells. Every number in this entry is taken from the tracked outputs `data/crick_idr/results/fov_vs_objects_idr0139_fascin.csv` and `fov_vs_objects_idr0028_screenB_yaptaz.csv`, generated from Crick commit `a81d20c` with checksum-verified inputs. Since 2026-09-25 the complete plates are stored in the repository (`idr0139_plate`, `idr0028_screenB_plates`), and the rerun from them reproduces these numbers.
 
@@ -169,7 +169,7 @@ siYAP cells, was rerun: its tables are unchanged at the precision shown.
 - **Weak phenotypes are not distinguished.** siARAP2 fields sit close to the
   false-alarm rate, as expected for a 0.3–0.5 SD shift.
 - **The definition matters more than the statistics.** At `epsilon = 0.5 sqrt(30)`
-  or with `m = 1`, 22–100% of host FOVs count as new: everything looks new, so
+  or with `m = 1`, 24–100% of host FOVs count as new: everything looks new, so
   nothing is informative. `m = 3` at `epsilon = sqrt(30)` was the only setting
   tried with both a low false-alarm rate and full detection of siYAP.
 - **Seeing more FOVs lowers false alarms and also lowers detection of moderate
@@ -346,14 +346,16 @@ and `adequacy_idr0028.csv`.
 
 | rule | stop (FOVs) | premature, mean within 5% (random orders; median, max over wells) | premature, mean within 2.5% (random orders; median, max over wells) | premature, 2.5%, recorded order (max over wells, of 5) |
 |---|---|---|---|---|
-| JCB CV ≤ 5%, cells | 2 | 0%, 2% | 7%, 20% | 40% |
-| JCB CV ≤ 5%, FOVs | 2 | 0%, 2% | 7%, 20% | 40% |
-| fixed 4 FOVs | 4 | 0%, 0% | 1%, 4% | 60% |
-| fixed 8 FOVs | 8 | 0%, 0% | 0%, 4% | 0% |
+| JCB CV ≤ 5%, cells | 2 | 0%, 0% | 9%, 16% | 40% |
+| JCB CV ≤ 5%, FOVs | 2 | 0%, 0% | 9%, 16% | 40% |
+| fixed 4 FOVs | 4 | 0%, 0% | 2%, 12% | 60% |
+| fixed 8 FOVs | 8 | 0%, 0% | 0%, 2% | 0% |
 
 Judged on held-back fields, the mean was first within both tolerances at a
-median of 1 FOV (all 660 replayed acquisitions: 1–5), and lastingly from a
-median of 1 (1–11; 89% by 2 FOVs).
+median of 1 FOV (all 660 replayed acquisitions: 1–11), and lastingly from a
+median of 1 (1–11; 89% by 2 FOVs). The random orders are now drawn per well
+(B-4 of `docs/audit/function_audit_2_2026-09-26.md`), which moved the
+random-order shares above; the recorded order is unchanged.
 
 **What this shows**
 
@@ -361,9 +363,9 @@ median of 1 (1–11; 89% by 2 FOVs).
   every well.** With about a hundred nuclei per field, the averaging CV of the
   mean ratio is below 5% after two fields, whether cells or FOVs are the
   resampling unit. For the mean within 5%, which is the target the rule was
-  designed for, that stop was almost always right (at most 2% premature in
-  random orders; none of the recorded-order hold-outs). For the stricter
-  2.5%, it was premature in a median 7% of random acquisitions, up to 20% in
+  designed for, that stop was always right here (none of the random orders
+  and none of the recorded-order hold-outs was premature). For the stricter
+  2.5%, it was premature in a median 9% of random acquisitions, up to 16% in
   the worst well. A rule at 5% CV answers the 5% question; it is
   not a promise for 2.5%.
 - **The mean was never the hard part here.** Held-back fields confirmed it
@@ -372,9 +374,9 @@ median of 1 (1–11; 89% by 2 FOVs).
   ratio of a well in this screen, the cell-number guidance is sufficient, and
   FOV-aware sampling adds nothing for this readout.
 - **Fixed rules.** Four fields were enough for 5% in every run, and for 2.5% in
-  all but up to 4% of random acquisitions of the worst well; in the recorded
-  order of one well (YAP 1A M23) they were premature in 3 of 5 hold-outs.
-  Eight fields were premature in at most 4%.
+  all but up to 12% of random acquisitions of the worst well (LATS1 1A J23);
+  in the recorded order of one well (YAP 1A M23) they were premature in 3 of
+  5 hold-outs. Eight fields were premature in at most 2%.
 
 **What this does not show**
 
@@ -419,7 +421,11 @@ development dataset.
     neighbours, and one siARAP2 field 3.1 SD above. The SD is now that of the
     other fields, not including the field itself (audit fix).
   - Four fields hold a small new state: 3 nuclei no other field of the well
-    shows, in 30 standardized features.
+    shows, in 30 standardized features. Judged as the inspection judges a
+    field, against every other field of the well, none of 56 MOCK reference
+    fields was called new, so the report now expects about 0 of 336 by
+    chance, not 6 (G-13 of `docs/audit/function_audit_2_2026-09-26.md`: the
+    rate is measured leave one field out, not after 10 fields).
   - No field moved the well mean or 95th percentile of the ratio by 10% or
     more when left out, as expected with 28 fields per well.
 - **Representation control (Step 6).** Measured after 10 MOCK fields on the
@@ -429,7 +435,7 @@ development dataset.
   - the other MOCK fields were called different in 2% of 720 (false alarms).
 
   This matches the tracked positive control (entry 2: 100% for siYAP, about
-  2% false alarms at 10 fields) computed by independent code.
+  3% false alarms at 10 fields) computed by independent code.
 - **More fields or more wells (Step 7).** For the mean ratio of a condition:
   - in MOCK, 54% of the variance of the mean is between fields within a well;
   - in the knockdowns, 79–99% is between wells, which are on different plates;
@@ -443,8 +449,11 @@ development dataset.
 - **Order (Step 8).** For the well mean within 2.5%, recorded, random and
   dispersed orders all reached it after a median of 1 field. The recorded
   serpentine raster needed 2 fields (805–1114 µm of travel) in 3 wells and 5
-  fields (2.0 mm) in YAP 1A M23, where random orders needed 2 and dispersed
-  orders 1; dispersed orders needed 2 fields in 2 wells. Outside YAP 1A M23
+  fields (2.0 mm) in YAP 1A M23, where random and dispersed orders needed 1;
+  random orders needed 2 fields (444–558 µm) in 2 other wells, and dispersed
+  orders 2 fields in 2 wells. The random orders are now drawn per well (B-4
+  of the second function audit), which moved YAP 1A M23 from 2 fields to 1
+  and two wells from 1 to 2. Outside YAP 1A M23
   the orders differ by at most one field, the null result the roadmap
   allows: the mean is too easy here to tell orders apart. One well where
   the raster is 4 fields slower is not a pattern across 12.
@@ -483,7 +492,9 @@ development dataset.
   established (3 wells; the well component's interval includes zero). The
   audit also found that a rare state seen in two neighbouring fields is
   invisible to the next-FOV novelty with `min_other_fovs=1`, that the four
-  "new state" fields above are at the 0.8–2% false-alarm level, and that
+  "new state" fields above are at the 0.8–2% false-alarm level (a rate
+  measured after 10 fields; the inspection's own leave-one-field-out rate is
+  0 of 56 reference fields, see Step 5), and that
   the object-unit JCB verdict was printed without its independence
   assumption; see the audit for the ranked list.
 
@@ -522,10 +533,13 @@ recorded and 5 random orders.
 
 | rule | stop | premature, mean within 5% (median; max over wells) | premature, 2.5% |
 |---|---|---|---|
-| JCB CV ≤ 5% or ≤ 2.5%, cells | 1 field | 33%; 87% | 55–57%; 100% |
+| JCB CV ≤ 5% or ≤ 2.5%, cells | 1 field | 32%; 90% | 47%; 100% |
 | fixed 2 fields | 2 fields | 0%; 83% | 50%; 100% |
 
-Premature shares are over the random orders, as before.
+Premature shares are over the random orders, as before. These orders are now
+drawn per well (B-4 of `docs/audit/function_audit_2_2026-09-26.md`), which
+moved the JCB shares (they were 33%; 87% and 55–57%); the reliability
+table and the recorded order are unchanged.
 
 **What this shows**
 
@@ -533,7 +547,7 @@ Premature shares are over the random orders, as before.
   2 fields were enough for the mean within 5% in 12 of 12 wells; on idr0139,
   2 fields are enough in 6 of 10 wells, and 1 field (where the JCB rule stops,
   since one field holds about 330 nuclei) in 2 of 10. The JCB stop is premature
-  at 5% in a median 33% of replayed acquisitions and up to 87% in the worst
+  at 5% in a median 32% of replayed acquisitions and up to 90% in the worst
   well. This is the held-out counterpart of entry 1's observation that with
   the actual single field 35% of wells miss 5%.
 - **What transfers is the regime, not the count.** idr0139 has about 3 times
@@ -699,7 +713,7 @@ JCB, medians over wells (`results/objects_vs_fields_jcb.csv`):
 | | idr0139, paper's 10 wells | idr0139, all 308 wells | idr0028, paper's 12 wells | idr0028, all 1,144 wells |
 |---|---|---|---|---|
 | object SD, % of the control mean | 25.8% | 26.4% | 6.6% | 6.6% |
-| JCB objects at 5% / 2.5% | 28 / 107 | 28 / 112 | 2 / 8 | 2 / 7 |
+| JCB objects at 5% / 2.5% | 28 / 108 | 28 / 112 | 2 / 8 | 2 / 7 |
 | fields that holds | 1 | 1 | 1 | 1 |
 | real / predicted error for the objects obtained | 2.2 (0.7–3.9) | 2.8 (0.3–6.6) | 1.4 (0.9–1.8) | 1.5 (0.8–14.4) |
 | real error of that average | 3.1% | 4.1% | 1.9% | 1.7% |
@@ -844,7 +858,9 @@ On idr0028, the clustered wells are MOCK 1A B6, LATS1 1A I23, MOCK 2A K16,
 YAP siRNA 2A N23 and ARAP2 2B C13. In YAP siRNA 2A N23, 7 unusual objects sit
 in 3 of 28 fields (71% in one field), where random objects would fill 6.
 Seeing them with 95% chance takes 27 fields from their field incidence (up to
-99 at the 95% bound), against 12 if the objects were random.
+131 at the 95% bound, the low end of the two-sided interval since J-9 of
+`docs/audit/function_audit_2_2026-09-26.md`; it was 99), against 12 if the
+objects were random.
 
 **What this shows**
 
