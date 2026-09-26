@@ -9,7 +9,9 @@ its results with a `summary()` written in sentences.
 A worked example of all four, with plots, is the notebook
 [`notebooks/MorphoCoverage_Workflows_Example`](../notebooks/MorphoCoverage_Workflows_Example/MorphoCoverage_Workflows_Example.ipynb).
 It runs on the bundled idr0028 dataset or on your own CSV files, locally or on
-Google Colab (its plots need `matplotlib`).
+Google Colab. It follows the lab's LabConstrictor portability guide: settings
+are ipywidgets (not Colab forms), and Colab-only setup sits behind a Colab check.
+Locally it needs `ipywidgets` and, for the plots, `matplotlib`.
 
 The workflows make no scientific choice of their own. Every choice is either a
 `Setup` field or an argument without a default. The analyses they call are

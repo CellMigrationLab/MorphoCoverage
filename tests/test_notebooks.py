@@ -23,9 +23,11 @@ def _code_cells(path: Path) -> list[str]:
 
 
 def _python(source: str) -> str:
-    # Shell escapes (``!pip install ...``) are IPython syntax, not Python.
+    # Shell escapes and magics (``!git ...``, ``%pip ...``) are IPython syntax, not Python.
     return "\n".join(
-        line[: len(line) - len(line.lstrip())] + "pass" if line.lstrip().startswith("!") else line
+        line[: len(line) - len(line.lstrip())] + "pass"
+        if line.lstrip().startswith(("!", "%"))
+        else line
         for line in source.splitlines()
     )
 
@@ -59,3 +61,16 @@ def test_no_outputs_are_committed(path):
     for cell in notebook["cells"]:
         if cell["cell_type"] == "code":
             assert not cell.get("outputs") and cell.get("execution_count") is None
+
+
+@pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.stem)
+def test_notebooks_run_in_both_colab_and_jupyterlab(path):
+    # LabConstrictor's portability guide: no Colab forms (they do nothing in JupyterLab),
+    # and Colab-only code and paths only behind the ``'google.colab' in sys.modules`` guard.
+    for source in _code_cells(path):
+        assert "@param" not in source, "use ipywidgets, not Colab forms"
+        guarded = "'google.colab' in sys.modules" in source
+        for line in source.splitlines():
+            stripped = line.lstrip()
+            if "/content" in line or "from google.colab" in line or stripped.startswith(("!", "%")):
+                assert guarded, line
