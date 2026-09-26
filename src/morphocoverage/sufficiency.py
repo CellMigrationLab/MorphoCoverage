@@ -74,7 +74,7 @@ from .calibration import calibrate_next_fov_novelty
 from .evaluator import iter_analysis_groups
 from .evidence import Availability
 from .objectives import ObjectiveConfig, SamplingObjective
-from .schema import ValidatedInput, validate_input_tables
+from .schema import ValidatedInput, fov_positions, validate_input_tables
 from .strategies.base import SamplingStrategy
 from .strategies.rare_planning import fovs_to_detect
 from .strategies.support_novelty import (
@@ -179,7 +179,14 @@ def _seen_in_few(
         return {"few_fovs": few_fovs, "fovs_with_state_in_few": None, "few_reason": quantity.reason}
     seen = int(evidence.diagnostics["novel_fovs"])
     k = len(group_data.fovs)
-    row = {"few_fovs": few_fovs, "fovs_with_state_in_few": seen, "few_reason": None}
+    # The fewest FOVs a state can be in and still count as recurrent (not new).
+    fewest = novelty.min_other_fovs + 1
+    row = {
+        "few_fovs": few_fovs,
+        "fovs_with_state_in_few": seen,
+        "few_reason": None,
+        "fewest_recurrent_fovs": fewest,
+    }
     if seen:
         # Planning for a state seen in ``seen`` of ``k`` independent, representative
         # FOVs: its incidence with a two-sided Clopper-Pearson interval, and the
@@ -199,6 +206,11 @@ def _seen_in_few(
                 if seen < k
                 else 1,
                 "fovs_to_see_again_low_end": fovs_to_detect(low, novelty.confidence, 1),
+                # These FOVs may hold several different states, each rarer than all of
+                # them together; one seen in only ``fewest`` FOVs needs this many.
+                "fovs_to_see_fewest": fovs_to_detect(min(fewest, k) / k, novelty.confidence, 1)
+                if fewest < k
+                else 1,
             }
         )
     return row
@@ -217,7 +229,13 @@ def _next_fov_tables(
         evidence = novelty.estimate(group_data, objective=_POPULATION)
         chance, upper = evidence.quantities[FOV_QUANTITY], evidence.quantities[UPPER_QUANTITY]
         k = len(group_data.fovs)
-        with_observations = int(evidence.diagnostics.get("fovs_with_observations", k))
+        # The estimator's own count when it ran; otherwise counted here, so fields
+        # without observations are reported even when novelty is not estimable.
+        with_observations = evidence.diagnostics.get("fovs_with_observations")
+        if with_observations is None:
+            positions = fov_positions(group_data, group_data.fovs)
+            with_observations = len(np.unique(positions[positions >= 0]))
+        with_observations = int(with_observations)
         row = {
             **group,
             "fovs_imaged": k,
@@ -256,8 +274,9 @@ def _next_fov_tables(
                 )
             )
         # A state absent from all k FOVs has a per-FOV frequency below the
-        # zero-success bound 1 - (1 - confidence) ** (1 / k), about 3 / k at
-        # 95%, whatever else was new (rule of three).
+        # zero-success bound 1 - (1 - confidence) ** (1 / k), about
+        # -ln(1 - confidence) / k (3 / k at 95%, the rule of three), whatever
+        # else was new.
         row["unseen_state_max_frequency"] = upper_bound(0, k, novelty.confidence)
         row["extra_fovs_to_rule_out_target"] = (
             None

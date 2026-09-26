@@ -35,7 +35,7 @@ import pandas as pd
 
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
 from ._text import percent, where
-from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy
+from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy, run_decisions
 from .criteria import Preservation
 from .replay import ReplayResult
 
@@ -111,15 +111,10 @@ def stopping_calibration(replay: ReplayResult) -> StoppingCalibration:
         key if isinstance(key, tuple) else (key,): _statuses(rows)
         for key, rows in replay.outcomes.groupby(runs_key, sort=False, dropna=False)
     }
-    streams = {tuple(row[k] for k in runs_key): row for _, row in replay.streams.iterrows()}
     rows = []
-    for key, decisions in replay.decisions.groupby(
-        [*runs_key, "strategy", "config_id"], sort=False, dropna=False
-    ):
-        values = dict(zip([*runs_key, "strategy", "config_id"], key, strict=True))
+    # A run too short for the rule to decide (fewer than min_fovs FOVs) never stopped.
+    for values, stream, decisions in run_decisions(replay):
         run = tuple(values[k] for k in runs_key)
-        stream = streams[run]
-        decisions = decisions.sort_values("fovs")
         stop = first_apparent_adequacy(decisions["fovs"].tolist(), decisions["decision"].tolist())
         end = int(stream["stream_fovs"])
         for criterion, status in outcome_runs[run].items():
@@ -173,6 +168,11 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=[*groups, *SUMMARY_COLUMNS])
 
 
+def _fields(value: float) -> str:
+    """A median number of fields: ``6`` or ``6.5``, never rounded to a count no run stopped at."""
+    return f"{value:.0f}" if float(value).is_integer() else f"{value:.1f}"
+
+
 _ORDER_WORDS = {
     "recorded": "in the recorded order",
     "permuted": "in random orders",
@@ -194,15 +194,22 @@ def calibration_summary(result: StoppingCalibration) -> str:
         for order, own in rows.groupby("order", sort=False):
             first = own.iloc[0]
             if first["stopped"] == 0:
+                short = ""
+                if first["stream_fovs"] < result.settings.get("min_fovs", 1):
+                    short = (
+                        f"; fewer than the {result.settings['min_fovs']} fields it waits for "
+                        "before deciding"
+                    )
                 lines.append(
                     f"  {_ORDER_WORDS.get(order, order)}: it never stopped within the "
-                    f"{first['stream_fovs']} fields available ({first['runs']} acquisitions)."
+                    f"{first['stream_fovs']} fields available ({first['runs']} acquisitions"
+                    f"{short})."
                 )
             else:
                 lines.append(
                     f"  {_ORDER_WORDS.get(order, order)}: it stopped in "
                     f"{percent(first['stopped'])} of {first['runs']} acquisitions, after a "
-                    f"median of {first['median_stop_fovs']:.0f} fields."
+                    f"median of {_fields(first['median_stop_fovs'])} fields."
                 )
             several = own["criterion"].nunique() > 2
             for row in own.itertuples(index=False):

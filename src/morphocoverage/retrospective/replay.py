@@ -157,13 +157,17 @@ def _ordered_stream(
 def _check(
     strategies: Sequence[SamplingStrategy],
     criteria: Sequence[OutcomeCriterion],
-    orders: Sequence[AcquisitionOrder],
+    orders: Sequence[AcquisitionOrder] | None,
     acquisition_order_col: str | None,
     n_splits: int,
     random_state: int,
     min_fovs: int,
     stage_cols: Sequence[str] | None,
 ) -> tuple[list[SamplingStrategy], list[OutcomeCriterion], list[AcquisitionOrder]]:
+    """The strategies, criteria and orders as lists, after refusing any invalid argument.
+
+    ``orders=None`` becomes ``default_orders(acquisition_order_col)``.
+    """
     strategies = list(strategies)
     if not strategies or not all(isinstance(s, SamplingStrategy) for s in strategies):
         raise TypeError("strategies must be a non-empty sequence of SamplingStrategy")
@@ -453,6 +457,7 @@ def replay_acquisitions(
         "labels": {c.name: c.label for c in criteria},
         "strategies": {s.config_id: s.configuration for s in strategies},
         "strategy_names": {s.config_id: strategy_label(s) for s in strategies},
+        "strategy_kinds": {s.config_id: s.name for s in strategies},
         "objective": objective.objective.value,
         "orders": [{"kind": o.kind, "seed": o.seed} for o in orders],
         "reservoir_fraction": float(reservoir_fraction),

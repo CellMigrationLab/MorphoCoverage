@@ -47,6 +47,7 @@ _RUN_KEYS = ("split", "order_id")
 
 
 def _checked(steps: Sequence[int], values: Sequence[Any]) -> list[tuple[int, Any]]:
+    """``(step, value)`` pairs, refusing unequal lengths and steps that do not strictly increase."""
     if len(steps) != len(values):
         raise ValueError("steps and values must have the same length")
     pairs = list(zip(steps, values, strict=True))
@@ -133,6 +134,40 @@ def _keyed(frame: pd.DataFrame, keys: list[str]) -> pd.core.groupby.DataFrameGro
     return frame.groupby(keys, sort=False, dropna=False)
 
 
+def replayed_strategies(replay: ReplayResult) -> list[tuple[str, str]]:
+    """``(strategy, config_id)`` of every replayed strategy, decided anywhere or not."""
+    pairs = dict.fromkeys(
+        zip(replay.decisions["strategy"], replay.decisions["config_id"], strict=True)
+    )
+    for config_id, kind in replay.settings.get("strategy_kinds", {}).items():
+        pairs.setdefault((kind, config_id))
+    return list(pairs)
+
+
+def run_decisions(
+    replay: ReplayResult,
+) -> list[tuple[dict[str, Any], dict[str, Any], pd.DataFrame]]:
+    """``(run, stream, decisions)`` for every replayed acquisition and strategy.
+
+    ``run`` holds the group, split, order and strategy; ``stream`` the row of
+    ``replay.streams``; ``decisions`` the strategy's rows in prefix order, empty
+    when the stream was shorter than ``min_fovs`` and the rule never decided,
+    so such a run counts as one that never stopped instead of vanishing.
+    """
+    runs = [*replay.group_cols, *_RUN_KEYS]
+    decided = {
+        key: rows.sort_values("fovs")
+        for key, rows in _keyed(replay.decisions, [*runs, "strategy", "config_id"])
+    }
+    empty = replay.decisions.iloc[:0]
+    found = []
+    for _, stream in replay.streams.iterrows():
+        for strategy, config_id in replayed_strategies(replay):
+            run = {**{k: stream[k] for k in runs}, "strategy": strategy, "config_id": config_id}
+            found.append((run, stream, decided.get(tuple(run.values()), empty)))
+    return found
+
+
 def adequacy_points(replay: ReplayResult) -> AdequacyResult:
     """The four adequacy points of every replayed acquisition in ``replay``."""
     if not isinstance(replay, ReplayResult):
@@ -144,18 +179,15 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
         for _, row in replay.streams.iterrows()
     }
     apparent = []
-    for key, rows in _keyed(replay.decisions, [*runs, "strategy", "config_id"]):
-        rows = rows.sort_values("fovs")
+    for values, stream, rows in run_decisions(replay):
         steps, decisions = rows["fovs"].tolist(), rows["decision"].tolist()
-        values = dict(zip([*runs, "strategy", "config_id"], key, strict=True))
-        stream, order = streams[tuple(values[k] for k in runs)]
         apparent.append(
             {
                 **values,
-                "order": order,
+                "order": stream["order"],
                 "first_apparent": first_apparent_adequacy(steps, decisions),
                 "sustained_apparent": sustained_apparent_adequacy(steps, decisions),
-                "stream_fovs": stream,
+                "stream_fovs": int(stream["stream_fovs"]),
             }
         )
     realized = []
@@ -199,23 +231,31 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
 
 def _median_point(values: pd.Series, streams: pd.Series) -> str:
     """The median over runs as "field 12"; a run that never reached it counts as beyond its own
-    stream, so the median is "not reached" when more than half of the runs never reached it.
+    stream, so the median is "not reached" when half or more of the runs never reached it.
     """
     filled = values.astype("Float64").to_numpy(dtype=float, na_value=np.inf)
     median = float(np.median(filled))
     if not np.isfinite(median):
-        return f"not within the fields available (up to {int(streams.max())}) in most runs"
+        return (
+            f"not within the fields available (up to {int(streams.max())}) in half or more of runs"
+        )
     return f"field {median:.0f}" if median.is_integer() else f"field {median:.1f}"
 
 
 def _tail_point(values: pd.Series, streams: pd.Series) -> str:
-    """The 90th percentile over runs, the number a protocol has to serve."""
+    """The 90th percentile over runs, the number a protocol has to serve.
+
+    Taken as an observed field count (the smallest one reached by at least
+    90% of runs), never interpolated between runs, so "by field k in 90% of
+    runs" is true of the runs; a run that never reached it counts as beyond
+    its stream.
+    """
     filled = values.astype("Float64").to_numpy(dtype=float, na_value=np.inf)
-    tail = float(np.quantile(filled, 0.9))
+    tail = float(np.quantile(filled, 0.9, method="inverted_cdf"))
     if not np.isfinite(tail):
         limit = int(streams.max())
-        return f"not within the fields available (up to {limit}) in 10% or more of runs"
-    return f"by field {tail:.0f} in 90% of runs"
+        return f"not within the fields available (up to {limit}) in more than 10% of runs"
+    return f"by field {int(tail)} in 90% of runs"
 
 
 def _at(point: str) -> str:
