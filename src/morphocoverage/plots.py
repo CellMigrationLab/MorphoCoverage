@@ -4,12 +4,15 @@ Postma and Goedhart's PlotsOfData shows every value as a point beside a
 summary and its 95% confidence interval; SuperPlots keep the biological
 repeats apart. These plots do the same for one feature per figure: within
 each condition the biological repeats (the repeat column) sit side by side,
-every object is a jittered point coloured by technical repeat (a well, a
-dish: the group column below the repeat, never a biological repeat), and
-each biological repeat's summary (median by default, or
-mean) carries its interval from resampling that repeat's whole fields
-(``statistics.bootstrap_fields``), not objects, so the interval reflects how
-the data were sampled.
+every object is a jittered point coloured by technical repeat (the
+MorphoBricks ``technical_repeat`` column, a well or a dish, else the group
+column below the repeat; never a biological repeat), and each biological
+repeat's summary (median by default, or mean) carries its interval from
+resampling that repeat's technical repeats and then their whole fields
+(``statistics.bootstrap_nested``; whole fields alone when there is one
+technical repeat), never objects, so the interval reflects how the data were
+sampled: a well-to-well shift widens it instead of passing for
+field-to-field noise.
 
 Limits keep the figures legible and are arguments: at most ``max_conditions``
 conditions per figure (more are split over several figures), at most
@@ -32,9 +35,9 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from .metadata import MORPHOBRICKS_GROUP_COLUMNS
+from .metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from .schema import ValidatedInput, fov_positions, validate_input_tables
-from .statistics import bootstrap_fields
+from .statistics import bootstrap_nested
 
 MAX_CONDITIONS = 12
 MAX_REPEATS = 8
@@ -81,9 +84,13 @@ def _layout(
     table = data.objects
     condition_col, repeat_col = _present(table, condition_col), _present(table, repeat_col)
     if technical_col is None:
-        # The first analysis-group column below condition and repeat (a well, say).
+        # The MorphoBricks technical repeat, else the first analysis-group column
+        # below condition and repeat (a well, say).
         below = [c for c in data.group_cols if c not in (condition_col, repeat_col)]
-        technical_col = below[0] if below else None
+        if TECHNICAL_REPEAT_COLUMN in table.columns:
+            technical_col = TECHNICAL_REPEAT_COLUMN
+        else:
+            technical_col = below[0] if below else None
     technical_col = _present(table, technical_col)
     conditions = list(dict.fromkeys(table[condition_col].tolist())) if condition_col else [None]
     repeats = list(dict.fromkeys(table[repeat_col].tolist())) if repeat_col else [None]
@@ -137,16 +144,19 @@ def _draw_cluster(
         else [None]
     )
     half = 0.4 * width
+    units = []
     for rank, replicate in enumerate(replicates):
-        y = values[rows & _mask(table, layout.technical_col, replicate)]
+        in_unit = rows & _mask(table, layout.technical_col, replicate)
+        units.append(_fields_of(data, in_unit, values))
+        y = values[in_unit]
         y = y[~np.isnan(y)]
         if not len(y):
             continue
         colour = colours[rank] if rank < len(colours) else GREY
         jitter = rng.uniform(-half, half, size=len(y))
         ax.scatter(x + jitter, y, s=6, alpha=0.35, color=colour, linewidths=0, rasterized=True)
-    point, low, high = bootstrap_fields(
-        _fields_of(data, rows, values), statistic, n_boot=n_boot, rng=rng, confidence=confidence
+    point, low, high = bootstrap_nested(
+        units, statistic, n_boot=n_boot, rng=rng, confidence=confidence
     )
     if np.isfinite(low) and np.isfinite(high):
         # A thick bar with caps behind the summary line, so a narrow interval stays visible.
@@ -214,12 +224,13 @@ def _title(feature: str, part: str, layout: _Layout, unit: str, summary: str, le
         )
     elif layout.repeat_col:
         repeats = f"; biological repeats ({layout.repeat_col}) side by side"
-    coloured = ""
+    coloured, resampled = "", "whole fields"
     if layout.technical_col:
         coloured = f", coloured by technical repeat ({layout.technical_col})"
+        resampled = "technical repeats, then their whole fields"
     return (
         f"{feature}{part}{repeats}\nevery {unit} a point{coloured}\n"
-        f"{summary} with its {level:.0%} interval from resampling whole fields"
+        f"{summary} with its {level:.0%} interval from resampling {resampled}"
     )
 
 
@@ -248,10 +259,10 @@ def plots_of_data(
     ``features`` must be columns of the tables and at most ``max_features``.
     ``repeat_col`` holds the biological repeats, drawn side by side.
     ``technical_col`` names the technical-repeat column (a well, a dish;
-    never a biological repeat); by default the first analysis-group column
-    below condition and repeat, or none. Without a condition column every
-    object is one group; without a repeat column each condition is one
-    cluster.
+    never a biological repeat); by default the MorphoBricks
+    ``technical_repeat`` column, else the first analysis-group column below
+    condition and repeat, or none. Without a condition column every object
+    is one group; without a repeat column each condition is one cluster.
     """
     features = list(features)
     if not features:

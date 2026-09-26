@@ -1,7 +1,7 @@
-repeat,condition,control_condition,fields,observations,control_fields,control_observations,d_objects,d_fields,p_value,p_bonferroni,effect_full,status
-1A,LATS1,MOCK,56,1365,28,966,1.317,4.94,0.0004998,0.002999,1.418,ok
-1A,YAP,MOCK,56,1258,28,966,-1.079,-4.358,0.0004998,0.002999,-1.07,ok
-2A,ARAP2,MOCK,28,797,28,953,0.2888,1.084,0.0004998,0.002999,0.2758,ok
-2A,LATS1,MOCK,28,736,28,953,0.6896,2.446,0.0004998,0.002999,0.6746,ok
-2A,YAP,MOCK,28,557,28,953,-1.627,-5.289,0.0004998,0.002999,-1.52,ok
-2B,ARAP2,MOCK,56,1955,28,963,0.3485,1.19,0.0009995,0.005997,0.3744,ok
+repeat,condition,control_condition,fields,observations,control_fields,control_observations,technical,control_technical,d_objects,d_fields,d_technical,permutation_unit,distinct_assignments,p_value,p_bonferroni,effect_full,status
+1A,LATS1,MOCK,56,1365,28,966,2,1,1.317,4.94,,field,,0.0004998,0.002999,1.418,ok
+1A,YAP,MOCK,56,1258,28,966,2,1,-1.079,-4.358,,field,,0.0004998,0.002999,-1.07,ok
+2A,ARAP2,MOCK,28,797,28,953,1,1,0.2888,1.084,,field,,0.0004998,0.002999,0.2758,ok
+2A,LATS1,MOCK,28,736,28,953,1,1,0.6896,2.446,,field,,0.0004998,0.002999,0.6746,ok
+2A,YAP,MOCK,28,557,28,953,1,1,-1.627,-5.289,,field,,0.0004998,0.002999,-1.52,ok
+2B,ARAP2,MOCK,56,1955,28,963,2,1,0.3485,1.19,,field,,0.0009995,0.005997,0.3744,ok

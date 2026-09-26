@@ -192,13 +192,21 @@ def test_invalid_declarations_are_refused():
         )
     with pytest.raises(ValueError):
         nested_variance_components(np.array([1.0]), [np.array([0])])
-    # One sample per repeat: sample and repeat variance cannot be told apart.
+    # One sample per repeat: sample and repeat variance cannot be told apart, so
+    # the repeat is left out of that stratum's components and the summary says so.
     single, single_fovs = _simulate(rng, TRUTH, 3, 1, 4, 5)
-    with pytest.raises(ValueError, match="cannot be separated"):
-        effort_projection(
-            single,
-            single_fovs,
-            feature="x",
-            hierarchy=SamplingHierarchy("image_file", "well", "repeat"),
-            strata=[],
-        )
+    result = effort_projection(
+        single,
+        single_fovs,
+        feature="x",
+        hierarchy=SamplingHierarchy("image_file", "well", "repeat"),
+        strata=[],
+        n_boot=20,
+    )
+    assert list(result.components["level"]) == ["well", "image_file", "observation"]
+    assert result.components["repeat_dropped"].all()
+    assert (result.components["unit"] == "well").all()
+    assert result.components["units"].iloc[0] == 3  # W0 of R0, R1 and R2 are three samples
+    text = result.summary()
+    assert "Every repeat holds a single sample here" in text
+    assert "cannot tell from these data (only 3 samples)" in text

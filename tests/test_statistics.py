@@ -55,3 +55,30 @@ def test_bootstrap_fields_brackets_the_point_and_needs_two_fields():
     assert np.isfinite(one) and np.isnan(low_one) and np.isnan(high_one)
     with pytest.raises(ValueError, match="confidence"):
         bootstrap_fields(fields, np.median, n_boot=10, rng=rng, confidence=1.5)
+
+
+def test_bootstrap_nested_widens_for_a_unit_shift_and_equals_fields_for_one_unit():
+    from morphocoverage.statistics import bootstrap_fields, bootstrap_nested
+
+    rng = np.random.default_rng(0)
+    low = [rng.normal(0, 0.1, 20) for _ in range(6)]
+    high = [rng.normal(1, 0.1, 20) for _ in range(6)]
+    point, a, b = bootstrap_nested([low, high], np.mean, n_boot=300, rng=np.random.default_rng(1))
+    _, c, d = bootstrap_fields([*low, *high], np.mean, n_boot=300, rng=np.random.default_rng(1))
+    assert point == pytest.approx(np.mean(np.concatenate([*low, *high])))
+    assert a < point < b and (b - a) > 1.5 * (d - c)  # the well-to-well shift widens it
+    one = bootstrap_nested([low], np.mean, n_boot=100, rng=np.random.default_rng(2))
+    assert one == bootstrap_fields(low, np.mean, n_boot=100, rng=np.random.default_rng(2))
+    assert np.isnan(bootstrap_nested([[low[0]]], np.mean, n_boot=10, rng=rng)[1])
+    with pytest.raises(ValueError, match="confidence"):
+        bootstrap_nested([low, high], np.mean, n_boot=10, rng=rng, confidence=1.5)
+
+
+def test_benjamini_hochberg_adjusts_in_rank_order_and_keeps_nan():
+    from morphocoverage.statistics import benjamini_hochberg
+
+    q = benjamini_hochberg(np.array([0.01, 0.04, 0.03, np.nan]))
+    assert q[:3].tolist() == pytest.approx([0.03, 0.04, 0.04]) and np.isnan(q[3])
+    assert benjamini_hochberg(np.array([0.5])).tolist() == [0.5]
+    assert np.isnan(benjamini_hochberg(np.array([np.nan]))).all()
+    assert benjamini_hochberg(np.array([0.9, 0.95])).max() <= 1.0

@@ -3,8 +3,9 @@
 Before any question is answered the report says what it was given: how many
 objects and acquired fields (and how many fields hold no object), what one
 row is, which feature columns are the phenotype representation, which
-conditions and repeats exist and how the fields fall across them, and whether
-the values were normalised to the control. Long feature lists are cut after
+conditions and repeats exist, how many technical repeats (wells, dishes:
+the ``technical_repeat`` column) each holds, how the fields fall across them,
+and whether the values were normalised to the control. Long feature lists are cut after
 ``max_features_listed`` names. Everything here is counted from the validated
 tables; nothing is estimated.
 """
@@ -17,7 +18,7 @@ from typing import Any
 
 import pandas as pd
 
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import fov_positions, unit_plural, validate_input_tables
 
 MAX_FEATURES_LISTED = 12
@@ -36,12 +37,15 @@ def _listed(names: Sequence[Any], limit: int) -> str:
 class DatasetOverview:
     """Counts of the validated tables and the layout of fields by condition and repeat.
 
-    - ``counts``: objects, fields, empty fields, features, conditions, repeats.
+    - ``counts``: objects, fields, empty fields, features, conditions,
+      repeats, technical repeats (distinct within their condition and repeat).
     - ``layout``: one row per condition and repeat with its fields, empty
-      fields and objects (empty when neither column exists).
+      fields, objects and, when the column exists, technical repeats (empty
+      when neither the condition nor the repeat column exists).
     - ``features``: the feature column names, in order.
     - ``settings``: the observation unit and whether it was declared, the
-      condition and repeat columns, and the normalisation applied.
+      condition, repeat and technical-repeat columns, and the normalisation
+      applied.
     """
 
     counts: dict[str, int]
@@ -67,6 +71,19 @@ class DatasetOverview:
             ),
         ]
         condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]
+        technical_col = self.settings["technical_col"]
+        if technical_col is not None:
+            per = self.layout["technical_repeats"] if len(self.layout) else pd.Series(dtype=int)
+            spread = (
+                f", {int(per.min())} to {int(per.max())} per condition and repeat"
+                if len(per) and per.min() != per.max()
+                else (f", {int(per.iloc[0])} per condition and repeat" if len(per) else "")
+            )
+            lines.append(
+                f"{c['technical_repeats']} technical repeat"
+                f"{'s' if c['technical_repeats'] != 1 else ''} ({technical_col}, a well or a "
+                f"dish within a repeat{spread})."
+            )
         if condition_col is None and repeat_col is None:
             lines.append(
                 "No condition or repeat column: every field is one group (all fields pooled)."
@@ -93,11 +110,15 @@ class DatasetOverview:
             table = self.layout.copy()
             if len(table) <= 40:
                 header = [col for col in (condition_col, repeat_col) if col is not None]
-                lines.append("  " + "  ".join([*header, "fields", "empty", words]))
+                columns = ["fields", "empty", words]
+                keys = ["fields", "empty_fields", "objects"]
+                if technical_col is not None:
+                    columns.append("technical repeats")
+                    keys.append("technical_repeats")
+                lines.append("  " + "  ".join([*header, *columns]))
                 for row in table.itertuples(index=False):
                     row = row._asdict()
-                    cells = [str(row[col]) for col in header]
-                    cells += [str(row["fields"]), str(row["empty_fields"]), str(row["objects"])]
+                    cells = [str(row[col]) for col in header] + [str(row[key]) for key in keys]
                     lines.append("  " + "  ".join(cells))
             else:
                 lines.append(
@@ -118,12 +139,18 @@ def dataset_overview(
     feature_cols: Sequence[str],
     condition_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[0],
     repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
+    technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
     normalized: str | None = None,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
 ) -> DatasetOverview:
-    """Count what the tables hold (see the module). ``normalized`` is a sentence to print."""
+    """Count what the tables hold (see the module). ``normalized`` is a sentence to print.
+
+    Each column argument is used when the FOV table has it; a technical
+    repeat is counted within its condition and repeat (well J23 of two
+    plates is two technical repeats).
+    """
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -134,25 +161,29 @@ def dataset_overview(
     )
     condition_col = condition_col if condition_col in data.fovs.columns else None
     repeat_col = repeat_col if repeat_col in data.fovs.columns else None
+    technical_col = technical_col if technical_col in data.fovs.columns else None
     positions = fov_positions(data, data.fovs)
     per_field = pd.Series(positions[positions >= 0]).value_counts()
     table = data.fovs.copy()
     table["objects"] = [int(per_field.get(i, 0)) for i in range(len(table))]
     table["empty_fields"] = table["objects"] == 0
     keys = [col for col in (condition_col, repeat_col) if col is not None]
+    aggregations = {
+        "fields": ("objects", "size"),
+        "empty_fields": ("empty_fields", "sum"),
+        "objects": ("objects", "sum"),
+    }
+    if technical_col is not None:
+        aggregations["technical_repeats"] = (technical_col, "nunique")
     if keys:
-        layout = (
-            table.groupby(keys, sort=False, dropna=False)
-            .agg(
-                fields=("objects", "size"),
-                empty_fields=("empty_fields", "sum"),
-                objects=("objects", "sum"),
-            )
-            .reset_index()
-        )
+        layout = table.groupby(keys, sort=False, dropna=False).agg(**aggregations).reset_index()
         layout["empty_fields"] = layout["empty_fields"].astype(int)
     else:
-        layout = pd.DataFrame(columns=["fields", "empty_fields", "objects"])
+        layout = pd.DataFrame(columns=list(aggregations))
+    if technical_col is None:
+        technical_repeats = 0
+    else:
+        technical_repeats = len(table[[*keys, technical_col]].drop_duplicates())
     counts = {
         "objects": len(data.objects),
         "fields": len(data.fovs),
@@ -160,6 +191,7 @@ def dataset_overview(
         "features": len(data.feature_cols),
         "conditions": int(table[condition_col].nunique(dropna=False)) if condition_col else 0,
         "repeats": int(table[repeat_col].nunique(dropna=False)) if repeat_col else 0,
+        "technical_repeats": technical_repeats,
     }
     settings: dict[str, Any] = {
         "observation_unit": data.observation_unit,
@@ -167,6 +199,7 @@ def dataset_overview(
         "fov_key": list(data.fov_key),
         "condition_col": condition_col,
         "repeat_col": repeat_col,
+        "technical_col": technical_col,
         "normalized": normalized,
     }
     return DatasetOverview(counts, layout, tuple(data.feature_cols), settings)

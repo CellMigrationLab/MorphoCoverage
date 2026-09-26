@@ -66,6 +66,25 @@ def fields_holding(
     return float(np.mean(counts))
 
 
+def benjamini_hochberg(p_values: np.ndarray) -> np.ndarray:
+    """Benjamini-Hochberg adjusted p-values (q-values); NaN entries are ignored and kept NaN.
+
+    ``q_i = min over j >= i of (m p_(j) / j)`` over the ``m`` finite p-values in
+    increasing order, capped at 1, as fiberfeatures corrects its per-feature
+    randomization tests before gating them.
+    """
+    p = np.asarray(p_values, dtype=float)
+    q = np.full(p.shape, np.nan)
+    finite = np.flatnonzero(np.isfinite(p))
+    if not len(finite):
+        return q
+    order = finite[np.argsort(p[finite], kind="stable")]
+    m = len(order)
+    ranked = p[order] * m / np.arange(1, m + 1)
+    q[order] = np.minimum(1.0, np.minimum.accumulate(ranked[::-1])[::-1])
+    return q
+
+
 def bootstrap_fields(
     fields: Sequence[np.ndarray],
     statistic: Callable[[np.ndarray], float],
@@ -103,4 +122,56 @@ def bootstrap_fields(
     return point, float(low), float(high)
 
 
-__all__ = ["bootstrap_fields", "cohen_d", "field_sample", "fields_holding", "jcs_effect_size"]
+def bootstrap_nested(
+    units: Sequence[Sequence[np.ndarray]],
+    statistic: Callable[[np.ndarray], float],
+    *,
+    n_boot: int,
+    rng: np.random.Generator,
+    confidence: float = 0.95,
+) -> tuple[float, float, float]:
+    """``statistic`` of all objects, and its interval from resampling units, then their fields.
+
+    ``units`` are the technical repeats (a well, a dish) of one cluster, each a
+    list of its fields' values. Each resample draws as many units as there
+    are, with replacement, then within each drawn unit as many of its fields
+    as it has, with replacement, and pools the objects: a well-to-well shift
+    widens the interval instead of passing for field-to-field noise. With a
+    single unit this is ``bootstrap_fields`` on its fields. NaN bounds when
+    fewer than two fields hold objects.
+    """
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
+    groups = [[np.asarray(f, dtype=float) for f in unit] for unit in units if len(unit)]
+    if len(groups) == 1:
+        return bootstrap_fields(groups[0], statistic, n_boot=n_boot, rng=rng, confidence=confidence)
+    fields = [f for unit in groups for f in unit]
+    pooled = np.concatenate(fields) if fields else np.array([])
+    point = float(statistic(pooled)) if len(pooled) else float("nan")
+    if sum(len(f) > 0 for f in fields) < 2:
+        return point, float("nan"), float("nan")
+    draws = np.empty(n_boot)
+    for b in range(n_boot):
+        parts = []
+        for i in rng.integers(0, len(groups), size=len(groups)):
+            unit = groups[i]
+            parts += [unit[j] for j in rng.integers(0, len(unit), size=len(unit))]
+        sample = np.concatenate(parts)
+        draws[b] = statistic(sample) if len(sample) else np.nan
+    defined = draws[np.isfinite(draws)]
+    if len(defined) < 2:
+        return point, float("nan"), float("nan")
+    tail = 100 * (1 - confidence) / 2
+    low, high = np.percentile(defined, [tail, 100 - tail])
+    return point, float(low), float(high)
+
+
+__all__ = [
+    "benjamini_hochberg",
+    "bootstrap_fields",
+    "bootstrap_nested",
+    "cohen_d",
+    "field_sample",
+    "fields_holding",
+    "jcs_effect_size",
+]

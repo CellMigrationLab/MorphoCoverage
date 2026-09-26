@@ -103,8 +103,11 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
 )
 
+# The stored tables name the well; the MorphoBricks column for it is technical_repeat.
+well = {"well": "technical_repeat"}
 fovs = pd.read_csv("data/crick_idr/idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
 objects = pd.read_csv("data/crick_idr/idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
+fovs, objects = fovs.rename(columns=well), objects.rename(columns=well)
 feature = "Nuclei_Intensity_MeanIntensity_YAPTAZ"
 
 results = evaluate_acquisition_prefixes(
@@ -117,7 +120,7 @@ results = evaluate_acquisition_prefixes(
     feature_cols=[feature],
     acquisition_order_col="acquisition_order",
     objective=ObjectiveConfig(SamplingObjective.POPULATION),
-    group_cols=["condition", "repeat", "well"],
+    group_cols=["condition", "repeat", "technical_repeat"],
 )
 ```
 

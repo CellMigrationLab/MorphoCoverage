@@ -39,7 +39,7 @@ MIN_OBJECTS = 50
 def compare(objects: pd.DataFrame, fovs: pd.DataFrame, metric: str, ks, rng) -> pd.DataFrame:
     """Relative RMSE of the well mean from k random FOVs against the same number of objects."""
     rows = []
-    key = ["repeat", "well"]
+    key = ["repeat", "technical_repeat"]
     grouped = objects.groupby(["repeat", "image_file"])[metric]
     sums_all, counts_all = grouped.sum(), grouped.count()
     variances = objects.groupby(key)[metric].var()

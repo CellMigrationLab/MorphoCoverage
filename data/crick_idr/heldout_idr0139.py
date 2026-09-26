@@ -83,7 +83,10 @@ def main() -> None:
     print(reliability.summary(), "\n")
 
     protocol = protocol_reliability(
-        reliability, SamplingHierarchy("image_file", "well", "repeat"), threshold=0.9, strata=[]
+        reliability,
+        SamplingHierarchy("image_file", "technical_repeat", "repeat"),
+        threshold=0.9,
+        strata=[],
     )
     protocol.table.to_csv(
         RESULTS / "heldout_protocol_idr0139.csv", index=False, float_format="%.4f"

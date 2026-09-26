@@ -9,12 +9,18 @@ import pandas as pd
 MORPHOBRICKS_SHARED_COLUMNS = (
     "condition",
     "repeat",
+    "technical_repeat",
     "position_id",
     "image_file",
     "mask_file",
     "patch_file",
 )
-MORPHOBRICKS_GROUP_COLUMNS = ("condition", "repeat")
+# Default analysis groups and FOV identity, outermost first: the condition, the
+# biological repeat and, when present, the technical repeat (a well, a dish, a
+# coverslip within a repeat; optional in the shared contract). Each is used
+# when its column exists in the linked tables.
+MORPHOBRICKS_GROUP_COLUMNS = ("condition", "repeat", "technical_repeat")
+CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN = MORPHOBRICKS_GROUP_COLUMNS
 
 # Scientific FOV identity is the independently selected spatial acquisition
 # position. position_id is preferred when storage layout and position do not

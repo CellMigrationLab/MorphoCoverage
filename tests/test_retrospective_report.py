@@ -180,3 +180,25 @@ def test_fields_alike_at_every_distance_are_the_strongest_redundancy_not_none():
     profile = microscopist_report(redundancy=redundancy).sections["profile"]
     assert "in 1 of 2 groups, fields are more alike than random pairs at every distance" in profile
     assert "no group shows" not in profile
+
+
+def test_the_overview_counts_technical_repeats_within_their_condition_and_repeat():
+    from morphocoverage.retrospective import dataset_overview
+
+    built = SCENARIOS["condition_repeat_groups"]()
+    fovs = built.fovs.copy()
+    # Two wells per condition and repeat, named alike everywhere: still distinct units.
+    fovs["technical_repeat"] = ["w1" if i % 2 else "w2" for i in range(len(fovs))]
+    objects = built.objects.merge(
+        fovs[["condition", "repeat", "image_file", "technical_repeat"]],
+        on=["condition", "repeat", "image_file"],
+    )
+    overview = dataset_overview(objects, fovs, feature_cols=list(FEATURE_COLS))
+    groups = fovs.groupby(["condition", "repeat"]).size()
+    assert overview.counts["technical_repeats"] == 2 * len(groups)
+    assert (overview.layout["technical_repeats"] == 2).all()
+    text = overview.summary()
+    assert f"{2 * len(groups)} technical repeats (technical_repeat, a well or a dish" in text
+    assert "2 per condition and repeat" in text and "technical repeats" in text.split("\n")[4]
+    plain = dataset_overview(built.objects, built.fovs, feature_cols=list(FEATURE_COLS))
+    assert plain.counts["technical_repeats"] == 0 and "technical" not in plain.summary()

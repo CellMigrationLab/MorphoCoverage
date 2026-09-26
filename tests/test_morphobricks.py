@@ -232,3 +232,24 @@ def test_multi_file_check_applies_to_any_fov_column_name():
     )
     with pytest.raises(ValueError, match="multiple image_file values"):
         validate_input_tables(objects, feature_cols=["area"], fov_col="pos")
+
+
+def test_technical_repeat_is_a_default_group_and_part_of_fov_identity_when_present():
+    objects, fovs = _morphobricks_tables()
+    objects["technical_repeat"] = ["w1", "w1", "w1", "w2"]
+    fovs["technical_repeat"] = ["w1", "w1", "w1", "w2"]
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+    assert data.group_cols == ("condition", "repeat", "technical_repeat")
+    assert data.fov_key == ("condition", "repeat", "technical_repeat", "image_file")
+    # Named explicitly, groups may leave it out; it still names the FOV.
+    pooled = validate_input_tables(
+        objects, fovs=fovs, feature_cols=["area"], group_cols=["condition", "repeat"]
+    )
+    assert pooled.group_cols == ("condition", "repeat")
+    assert "technical_repeat" in pooled.fov_key
+    with pytest.raises(ValueError, match="non-canonical spelling"):
+        validate_input_tables(
+            objects.rename(columns={"technical_repeat": "Technical_Repeat"}),
+            fovs=fovs.rename(columns={"technical_repeat": "Technical_Repeat"}),
+            feature_cols=["area"],
+        )

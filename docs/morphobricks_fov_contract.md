@@ -35,6 +35,7 @@ Sequential replay reveals an entire spatial position atomically. It must never r
 ### Column names
 
 - `condition` and `repeat` are lowercase, exact, string-valued, and present in every table that leaves a tool, including per-image tables. A condition without repeats uses `repeat="single"` (CellPatcher's `SINGLE_REPEAT_LABEL`).
+- `technical_repeat` (optional) names the technical repeat within a biological repeat: a well, a dish, a coverslip. It is never a biological repeat, which stays in `repeat`. Every row of one technical repeat carries the same value, and the value is identified together with `condition` and `repeat` (well `J23` of two plates is two technical repeats). MorphoCoverage uses it as a default analysis group, as part of FOV identity, and as the level it resamples or shuffles before fields.
 - Other spellings (`Repeat`, `Condition`) are not accepted by MorphoCoverage's defaults. They raise, so they cannot silently bypass repeat separation.
 - `label_id` identifies an object within an image, as both CellPatcher and fiberfeatures already use.
 
@@ -45,6 +46,7 @@ An observation table cannot represent a spatial position in which nothing was me
 | Column | Required | Notes |
 | --- | --- | --- |
 | `condition`, `repeat` | yes | analysis grouping / identity context |
+| `technical_repeat` | optional | the well, dish or coverslip within the repeat; a technical repeat, never a biological one |
 | `position_id` | preferred | explicit spatial acquisition-position identity; required when file != position |
 | `image_file` | yes | storage provenance; may identify FOV only when one file = one position |
 | `status` | yes | `processed`, or `failed`/`skipped` with a `reason` |

@@ -33,7 +33,7 @@ setup = Setup(
     tolerances=(0.05, 0.025),                 # the readout's mean within 5% and 2.5%
     acquisition_order_col="acquisition_order",
     stage_cols=("stage_x_um", "stage_y_um"),
-    group_cols=("condition", "repeat", "well"),
+    group_cols=("condition", "repeat", "technical_repeat"),  # the well: a technical repeat
     observation_unit="nucleus",
     n_jobs=-1,
 )
@@ -100,7 +100,7 @@ retrospective benchmark outcome and not yet a declaration
 
 A declaration the workflows could not use raises instead of being skipped.
 A definition of new (`novelty`) needs `features`, and a positive control needs
-`novelty`. Group columns beyond condition and repeat (a `well`, say) are part of
+`novelty`. Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
 a field's identity everywhere, including in the control check. "New" is judged
 on `features` only, never on the readout, and the report names those columns.
 
@@ -117,7 +117,8 @@ result.results["sufficiency"]                # each analysis, for further use
 Every document opens with **what is in the dataset**: objects, acquired
 fields and empty fields, what one row is, the feature columns (the first 12
 names, then how many more), the conditions and repeats with a table of fields
-by condition and repeat, and whether the values are normalised. It closes
+by condition and repeat (and of technical repeats, when the column exists),
+and whether the values are normalised. It closes
 with **what this dataset cannot tell me**: every question not assessed, with
 what it would need (a control, a positive control, stage coordinates, a
 hierarchy, a replay), and the notes to read the answers with. Missing
@@ -138,10 +139,13 @@ within each condition the biological repeats (the `repeat` column) sit side
 by side, labelled above their cluster, so that a difference between
 conditions can be read against the spread between repeats. Every object is
 a jittered point coloured by technical repeat (`technical_col`, by default
-the group column below the repeat: a well is a technical repeat, never a
-biological one), and each biological repeat's median (or `summary="mean"`)
-carries its 95% interval from resampling that repeat's whole fields, not
-objects, so it reflects how the data were sampled. More than 12 conditions
+the MorphoBricks `technical_repeat` column, else the group column below the
+repeat: a well is a technical repeat, never a biological one), and each
+biological repeat's median (or `summary="mean"`) carries its 95% interval
+from resampling that repeat's technical repeats and then their whole fields
+(whole fields alone when there is one technical repeat), never objects, so
+it reflects how the data were sampled: a well-to-well shift widens the
+interval instead of passing for field-to-field noise. More than 12 conditions
 are split over several figures, more than 8 biological repeats are pooled
 into one cluster per condition and the title says so, more than 8
 technical repeats go uncoloured with a note, and more than 24 features
@@ -149,14 +153,26 @@ raise so that you choose; all four are arguments (`max_conditions`,
 `max_repeats`, `max_technical`, `max_features`). The features must be
 declared in the setup, and the plots use the same normalised values as the
 report when `normalize` is set. With `folder`, each figure is saved as a PNG.
+Without `features`, the readout is plotted and, given the report's ranking
+(`plots(objects, fovs, setup, ranking=result.ranking)`), the five
+best-ranked other features (`top=`): those that separate the conditions
+beyond chance, as question 9 describes below.
 
 When `control` names a condition and the FOV table holds other conditions,
 the report also answers question 9, "Do the conditions differ, and how
 confidently?": each condition against the control, per repeat, with Cohen's
 d and the JCS effect size computed on objects (the numbers of the lab's
 Plot&Stats notebook) and with the field as the unit, and a randomization test
-that shuffles condition labels over whole fields. It describes what these
-fields support; generalizing needs independent repeats.
+that shuffles condition labels over whole technical repeats when each side
+has at least two (a `technical_repeat` column among the group columns), else
+over whole fields. It describes what these fields support; generalizing
+needs independent repeats. With several declared features the section also
+ranks them (`sampling_unit.feature_ranking`), as fiberfeatures scores a
+feature set: the same test for every feature and contrast, Benjamini-Hochberg
+corrected together, a gate at q <= 0.05, and the passing features ordered by
+the largest |d| on field means. The ranking says which features are worth
+plotting; with two technical repeats a side no test can pass the gate, and
+the section says so.
 
 ## OPTIMISE / PLAN: what should the next experiment do?
 
@@ -167,6 +183,15 @@ plan = optimise(objects, fovs, setup, fov_counts=[2, 4, 8, 12], reservoir_fracti
 print(plan.summary())                         # questions 4, 5, 7, 8 and the rule calibration
 print(document(result, plan).summary())       # one report with every question
 ```
+
+When the FOV table has a `technical_repeat` column and no `hierarchy` is
+declared, `optimise` derives one (the field within the technical repeat
+within the repeat, one stratum per condition) and answers question 7, "more
+fields or more technical repeats?", from the variance between technical
+repeats and between fields at equal total fields; where every repeat holds a
+single technical repeat the repeat cannot be a variance level and the answer
+says so. On idr0028, with 28 fields per well, most of the uncertainty of a
+condition's mean sits between wells wherever there are two to see it.
 
 `reservoir_fraction` has no default. It sets the share of each group's fields
 held back as the reference that subsets are judged against, and that share is

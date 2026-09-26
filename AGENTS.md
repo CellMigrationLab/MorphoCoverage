@@ -45,7 +45,7 @@ These rules override implementation convenience.
 
 MorphoBricks ecosystem rules (shared with the other MorphoBricks repositories):
 
-- **Never rename shared CSV columns** (`condition`, `repeat`, `position_id`, `image_file`, `mask_file`, `patch_file`). Other repos depend on them. MorphoCoverage rejects near-miss spellings such as `Repeat` rather than renaming them.
+- **Never rename shared CSV columns** (`condition`, `repeat`, `technical_repeat`, `position_id`, `image_file`, `mask_file`, `patch_file`). Other repos depend on them. MorphoCoverage rejects near-miss spellings such as `Repeat` rather than renaming them.
 - **Never hard-code machine-specific paths.** Use function arguments, config or environment variables; tests locate repository data relative to the test file.
 - **Never break public interfaces** (anything in `morphocoverage.__all__`) without explicit user approval.
 - **Keep public functionality usable as an imported dependency and from notebooks.** A CLI is deliberately deferred: the project owner asked to avoid premature CLI work until the scientific core stabilizes (see section 18). Add one only when asked.
@@ -116,7 +116,7 @@ Required:
 - caller-specified spatial-position/FOV identifier column. Prefer `position_id` when storage layout does not map one file to one position; `image_file` is a fallback only when one file equals one position.
 
 Optional:
-- condition, repeat, sample, well, batch;
+- condition, repeat, technical_repeat (a well, a dish, a coverslip within a repeat), batch;
 - acquisition order;
 - stage coordinates;
 - FOV dimensions or physical imaged area;
@@ -146,6 +146,7 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 | --- | --- | --- |
 | `condition` | string, always | Default analysis group; always part of FOV identity. |
 | `repeat` | string, always (`YYYY_MM_DD`, or `single`) | Default analysis group; always part of FOV identity. Any label is accepted; the format is not enforced. |
+| `technical_repeat` | string, optional | The technical repeat within a biological repeat (a well, a dish, a coverslip); never a biological repeat. When present: a default analysis group and part of FOV identity, counted in the report's overview, the colour of the plots' points and the unit their intervals and the condition contrast resample or shuffle first, and the sample level of the hierarchy `Setup` derives for "more fields or more technical repeats?". Identified with its `condition` and `repeat`, so well `J23` of two plates is two technical repeats. |
 | `image_file` | string, always | Storage provenance; fallback FOV identifier only when one file = one spatial position. |
 | `position_id` | string, when needed | Preferred explicit spatial-position identifier when files/planes/scenes do not map 1:1 to FOVs. |
 | `mask_file` | string, if used | Preserved as metadata, never a feature. |
@@ -212,19 +213,23 @@ src/morphocoverage/
         inspection.py      # inspect-these-fields: one traceable reason per FOV and line
         controls.py        # representation controls: detection and false-alarm rates
         effort.py          # nested variance components and projected SE at equal FOVs
+        effort_text.py     # the effort projection in words (technical repeats, samples, caveats)
         stage.py           # dispersed (farthest-point) orders and stage travel
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
-        overview.py        # what is in the dataset: counts, features, conditions and repeats
+        overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
         _text.py           # private: shared wording and group seeding for summaries
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
-        contrast.py        # each condition against the control, on objects and with the field as unit
+        contrast.py        # each condition against the control: objects, fields and technical repeats as units
+        ranking.py         # which features separate the conditions: BH-gated |d| ranking (as fiberfeatures)
+        _units.py          # private: sides, units and the randomization test shared by contrast and ranking
         clustering.py      # unusual (out-of-distribution) objects; state clustering by FOV
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         setup.py           # Setup: every scientific choice of the workflows, declared once
         retrospective.py   # report, optimise, benchmark: the analyses in question order
+        figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
@@ -454,7 +459,8 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | Term | Definition |
 | --- | --- |
 | Condition | An experimental group, e.g. `treated`, `control` (MorphoBricks shared column). |
-| Repeat | A biological or technical replicate, identified by date in MorphoBricks (shared column). |
+| Repeat | A biological repeat, identified by date in MorphoBricks (shared column `repeat`). |
+| Technical repeat | A well, dish or coverslip within a biological repeat (shared optional column `technical_repeat`): objects of one technical repeat share its preparation, so it is the unit resampled or shuffled before fields, and the sample level of the derived hierarchy. |
 | FOV / spatial position | One independently selected XY acquisition position. A file, z-plane, channel or timepoint is not automatically a separate FOV. |
 | FOV key | The columns that jointly identify one FOV: group columns, condition/repeat, then the FOV column. |
 | Observation | One row of phenotype information nested in an FOV; may be a cell, nucleus, patch, slice, FOV summary, embedding, or another declared unit. |
