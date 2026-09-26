@@ -36,7 +36,7 @@ MorphoCoverage is used in four modes. The first three are the moments of use of 
 | **ONLINE** | I am imaging now. Should I acquire another field? | only the FOVs acquired so far | `OnlineSession.add_fov`, with any `SamplingStrategy`; the same estimators and policies as replay |
 | **BENCHMARK** | Which stopping rule needs the fewest fields for the same risk of stopping too early? | development datasets for tuning, held-out datasets for scoring | `morphocoverage.retrospective.frontier` (fields saved at matched risk), `replay_acquisitions`, `morphocoverage.benchmark`; the locked protocol in `data/crick_idr/benchmark.py`; [`docs/benchmarking.md`](docs/benchmarking.md) |
 
-To run a new dataset through the four modes, declare it once in a `morphocoverage.workflows.Setup` and call `report`, `optimise`, `live_session` with `LiveFolder` (files on disk) or `LiveTables` (tables in memory), or `benchmark`. Each returns a `summary()` in sentences ([`docs/workflows.md`](docs/workflows.md)).
+To run a new dataset through the four modes, declare it once in a `morphocoverage.workflows.Setup` and call `report`, `optimise`, `live_session` with `LiveFolder` (files on disk) or `LiveTables` (tables in memory), or `benchmark`. Each returns a `summary()` in sentences ([`docs/workflows.md`](docs/workflows.md)). The notebook [`notebooks/MorphoCoverage_Workflows_Example`](notebooks/MorphoCoverage_Workflows_Example/MorphoCoverage_Workflows_Example.ipynb) runs all four on the example dataset or your own tables, locally or on Google Colab.
 
 The report opens with the premise every other answer rests on: a microscope samples fields, not random objects (plain-language results: [`docs/objects_or_fields.md`](docs/objects_or_fields.md)). Everything except ONLINE is retrospective.
 

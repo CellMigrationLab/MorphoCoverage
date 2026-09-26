@@ -118,6 +118,17 @@ class Setup:
             raise TypeError("positive must be a PositiveControl")
         if self.positive is not None and self.control is None:
             raise ValueError("a positive control is checked against the control: declare both")
+        # A declaration the workflows could not use is refused, never silently skipped.
+        if self.novelty is not None and not self.features:
+            raise ValueError(
+                "novelty is computed on the feature columns: declare features (the readout "
+                "alone is not the representation the definition of new was made for)"
+            )
+        if self.positive is not None and self.novelty is None:
+            raise ValueError(
+                "a positive control is judged with the definition of new: declare novelty "
+                "(and features), or leave the positive control out"
+            )
 
     @property
     def columns(self) -> list[str]:

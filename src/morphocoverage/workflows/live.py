@@ -24,6 +24,12 @@ the rows appended since the last call. As on disk, the FOV row is the signal
 that a field is complete: its objects must be appended before (or with) it,
 and wait in a buffer until it arrives.
 
+**A field that fails is retried, never skipped.** Each source moves past a
+field only once the session has accepted it. If a field raises (an infinite
+value, a missing object file), the updates so far are kept, and the next poll
+or update raises on the same field again, so no later field is added past it
+and acquisition effort is never under-counted.
+
 ``write_fov`` does both steps for the acquisition side. ``LiveFolder.poll()``
 reads only the manifest lines added since the last poll (it keeps its byte
 offset and ignores a last line that is not yet terminated), reads each new
@@ -96,7 +102,8 @@ def write_fov(
     ``name`` is the object file's stem (default: the field's position in the
     manifest, ``fov_000001``). The manifest's columns are fixed by its first
     line; a later field with other metadata keys raises. Returns the object
-    file's path (written even when ``objects`` is empty, with its header).
+    file's path (written even when ``objects`` is empty: with its header, or as
+    an empty file when it has no columns either).
     """
     folder = Path(folder)
     (folder / OBJECTS_DIR).mkdir(parents=True, exist_ok=True)
@@ -112,7 +119,9 @@ def write_fov(
     if target.exists():
         raise FileExistsError(f"{target} exists; every field needs its own object file")
     temporary = target.with_name(f".{target.name}.tmp")
-    if suffix in (".csv", ".csv.gz"):
+    if objects.shape[1] == 0:
+        temporary.write_bytes(b"")  # a field without objects: an empty file, read as zero rows
+    elif suffix in (".csv", ".csv.gz"):
         objects.to_csv(
             temporary, index=False, compression="gzip" if suffix.endswith(".gz") else None
         )
@@ -161,12 +170,29 @@ class LiveUpdate:
     n_objects: int
     results: list[StrategyResult]
     read_seconds: float
+    pending_objects: int = 0
 
     def summary(self) -> str:
         """One line per rule: the decision and why."""
         where = ", ".join(f"{k}={v}" for k, v in self.fov_metadata.items() if k != OBJECTS_FILE)
         head = f"{where}: {self.n_objects} objects (read in {1000 * self.read_seconds:.0f} ms)"
-        return "\n".join([head, *(f"  {r.explain()}" for r in self.results)])
+        lines = [head, *(f"  {r.explain()}" for r in self.results)]
+        if self.pending_objects:
+            waiting = (
+                "1 object row waits for its FOV row"
+                if self.pending_objects == 1
+                else f"{self.pending_objects} object rows wait for their FOV rows"
+            )
+            lines.append(f"  {waiting} (not yet counted in any field)")
+        return "\n".join(lines)
+
+
+def _value_kind(values: pd.Series) -> str:
+    """``number``, ``text`` or ``other``: what the non-missing values of a key column are."""
+    kind = pd.api.types.infer_dtype(values, skipna=True)
+    if kind in ("integer", "floating", "mixed-integer-float", "decimal"):
+        return "number"
+    return "text" if kind == "string" else "other"
 
 
 def print_update(update: LiveUpdate) -> None:
@@ -201,7 +227,8 @@ class LiveFolder:
         self._header: list[str] | None = None
         self.updates: list[LiveUpdate] = []
 
-    def _new_rows(self) -> list[dict[str, str]]:
+    def _new_rows(self) -> list[tuple[dict[str, str], int]]:
+        """The complete manifest lines after the offset, each with the offset past it."""
         manifest = self.folder / MANIFEST
         if not manifest.exists():
             return []
@@ -209,15 +236,18 @@ class LiveFolder:
             handle.seek(self._offset)
             data = handle.read()
         complete = data[: data.rfind(b"\n") + 1]  # a line still being written waits
-        if not complete:
-            return []
-        self._offset += len(complete)
-        lines = complete.decode("utf-8").splitlines()
-        if self._header is None:
-            self._header, lines = next(csv.reader([lines[0]])), lines[1:]
-            if OBJECTS_FILE not in self._header:
-                raise ValueError(f"{manifest} has no {OBJECTS_FILE!r} column")
-        return [dict(zip(self._header, row, strict=True)) for row in csv.reader(lines)]
+        rows, offset = [], self._offset
+        for raw in complete.splitlines(keepends=True):
+            offset += len(raw)
+            fields = next(csv.reader([raw.decode("utf-8")]), None)
+            if self._header is None:
+                if OBJECTS_FILE not in (fields or []):
+                    raise ValueError(f"{manifest} has no {OBJECTS_FILE!r} column")
+                self._header, self._offset = fields, offset
+                continue
+            if fields:
+                rows.append((dict(zip(self._header, fields, strict=True)), offset))
+        return rows
 
     def _typed(self, row: dict[str, str]) -> dict[str, Any]:
         typed: dict[str, Any] = {}
@@ -231,10 +261,15 @@ class LiveFolder:
     def poll(self) -> list[LiveUpdate]:
         """Add every field completed since the last poll; one update per field, in order."""
         updates = []
-        for row in self._new_rows():
+        for row, offset in self._new_rows():
             started = time.perf_counter()
             path = self.folder / row[OBJECTS_FILE] if row.get(OBJECTS_FILE) else None
-            if path is not None and path.exists() and path.stat().st_size > 0:
+            if path is not None and not path.exists():
+                raise FileNotFoundError(
+                    f"the manifest names {path}, which does not exist; an empty field has an "
+                    f"empty {OBJECTS_FILE!r} entry or an empty file"
+                )
+            if path is not None and path.stat().st_size > 0:
                 objects = self.reader(path)
             else:
                 objects = pd.DataFrame(columns=self.session.feature_cols)
@@ -247,8 +282,12 @@ class LiveFolder:
                 if key in objects.columns and isinstance(value, str):
                     objects[key] = objects[key].astype(str)
             results = self.session.add_fov(objects, metadata)
-            updates.append(LiveUpdate(metadata, len(objects), results, read))
-        self.updates.extend(updates)
+            # Move past the field only once the session has it: a field that raises is
+            # read again on the next poll instead of being skipped.
+            self._offset = offset
+            update = LiveUpdate(metadata, len(objects), results, read)
+            updates.append(update)
+            self.updates.append(update)
         return updates
 
     def watch(
@@ -328,6 +367,18 @@ class LiveTables:
         return self.key
 
     @staticmethod
+    def _check_key_types(objects: pd.DataFrame, fovs: pd.DataFrame, key: tuple[str, ...]) -> None:
+        # 1 and "1" never compare equal: the field would be counted as empty and its
+        # objects would wait forever. Refuse numbers against text instead.
+        for column in key:
+            kinds = {_value_kind(objects[column]), _value_kind(fovs[column])}
+            if kinds == {"number", "text"}:
+                raise TypeError(
+                    f"key column {column!r} holds numbers in one table and text in the other; "
+                    "give it the same type in both (for example .astype(str))"
+                )
+
+    @staticmethod
     def _keys(table: pd.DataFrame, key: tuple[str, ...]) -> list[tuple]:
         return list(zip(*(table[c].tolist() for c in key), strict=True))
 
@@ -342,7 +393,7 @@ class LiveTables:
         if new_fovs.empty and new_objects.empty:
             return []
         key = self._resolve_key(objects, fovs)
-        self._n_objects, self._n_fovs = len(objects), len(fovs)
+        self._check_key_types(new_objects if len(new_objects) else objects, fovs, key)
         if not new_objects.empty:
             late = [k for k in self._keys(new_objects, key) if k in self._added]
             if late:
@@ -352,6 +403,7 @@ class LiveTables:
                 )
             parts = [p for p in (self._buffer, new_objects) if p is not None]
             self._buffer = pd.concat(parts) if len(parts) > 1 else new_objects
+        self._n_objects = len(objects)
         updates = []
         for _, row in new_fovs.iterrows():
             started = time.perf_counter()
@@ -362,14 +414,19 @@ class LiveTables:
             if self._buffer is not None and len(self._buffer):
                 mine = [k == fov_key for k in self._keys(self._buffer, key)]
                 selected = self._buffer.loc[mine] if any(mine) else self._buffer.iloc[:0]
-                self._buffer = self._buffer.loc[[not m for m in mine]]
             else:
-                selected = objects.iloc[:0]
+                mine, selected = [], objects.iloc[:0]
             read = time.perf_counter() - started
             results = self.session.add_fov(selected.reset_index(drop=True), metadata)
+            # Consume the row and its objects only once the session has the field: a field
+            # that raises stays in place and is tried again on the next update.
+            if any(mine):
+                self._buffer = self._buffer.loc[[not m for m in mine]]
             self._added.add(fov_key)
-            updates.append(LiveUpdate(metadata, len(selected), results, read))
-        self.updates.extend(updates)
+            self._n_fovs += 1
+            update = LiveUpdate(metadata, len(selected), results, read, self.pending_objects)
+            updates.append(update)
+            self.updates.append(update)
         return updates
 
     @property

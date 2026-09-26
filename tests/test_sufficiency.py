@@ -229,3 +229,66 @@ def test_the_report_states_what_the_fovs_rule_out():
     plain = _novelty_report()
     assert pd.isna(plain.next_fov["extra_fovs_to_rule_out_target"].iloc[0])
     assert "Not yet seen:" in plain.summary() and "To rule out" not in plain.summary()
+
+
+def test_novelty_cols_keep_the_definition_of_new_apart_from_the_readout():
+    # The rules read the readout; "new" is judged on the declared features only, and the
+    # definition names them. Without novelty_cols, novelty runs on every feature column.
+    built = SCENARIOS["condition_repeat_groups"]()
+    built.objects["readout"] = built.objects["feature_a"] * 3 + 40
+    novelty = SupportNoveltyEstimator(1.0, 1, None, 5, 1)
+    rule = ScalarPrecisionStrategy("readout", 0.05, "fov", "upper_95")
+    common = {
+        "objective": POPULATION,
+        "orders": PERMUTED,
+        "novelty": novelty,
+        "novelty_target": 0.2,
+    }
+    split = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=["readout", *FEATURE_COLS],
+        novelty_cols=list(FEATURE_COLS),
+        strategies=[rule],
+        **common,
+    )
+    novelty_only = sufficiency_report(
+        built.objects, built.fovs, feature_cols=list(FEATURE_COLS), strategies=[], **common
+    )
+    rule_only = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=["readout"],
+        strategies=[rule],
+        objective=POPULATION,
+        orders=PERMUTED,
+    )
+    pd.testing.assert_frame_equal(split.next_fov, novelty_only.next_fov)
+    pd.testing.assert_frame_equal(
+        split.stops[split.stops["strategy"] == rule.name].reset_index(drop=True),
+        rule_only.stops.reset_index(drop=True),
+    )
+    assert set(split.stops["strategy"]) == {rule.name, *novelty_only.stops["strategy"]}
+    # The same rows, order and dtypes as one run over the same rules would give.
+    combined = sufficiency_report(
+        built.objects,
+        built.fovs,
+        feature_cols=list(FEATURE_COLS),
+        strategies=[ScalarPrecisionStrategy("feature_a", 0.05, "fov", "upper_95")],
+        **common,
+    )
+    for table, name in (("final", "strategy"), ("stops", "strategy"), ("enough", "criterion")):
+        mine, reference = getattr(split, table), getattr(combined, table)
+        assert list(mine[name]) == list(reference[name]), table
+        assert list(mine["condition"]) == list(reference["condition"]), table
+        assert mine.dtypes.to_dict() == reference.dtypes.to_dict(), table
+    assert "feature_a, feature_b" in split.summary()
+    with pytest.raises(ValueError, match="novelty_cols"):
+        sufficiency_report(
+            built.objects,
+            built.fovs,
+            feature_cols=["readout"],
+            novelty_cols=["feature_a"],
+            strategies=[rule],
+            **common,
+        )

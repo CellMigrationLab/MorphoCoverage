@@ -20,6 +20,7 @@ from morphocoverage.policies import ThresholdPolicy
 from morphocoverage.retrospective import OutcomeCriterion, replay_acquisitions
 from morphocoverage.retrospective.frontier import (
     BASELINE,
+    FrontierResult,
     _bootstrap,
     family,
     frontier,
@@ -163,7 +164,7 @@ def test_an_adaptive_rule_saves_fields_and_its_stops_follow_the_need(mixed):
     assert score["baseline_risk_at_same_effort"] > score["risk"]
     text = result.summary()
     assert "a fixed number of fields needed" in text and "oracle at" in text
-    assert "saves" in text and "independent units" in text
+    assert "saves" in text and "treated as independent" in text
 
 
 def test_more_replays_of_the_same_units_do_not_narrow_the_interval(mixed):
@@ -269,3 +270,72 @@ def test_invalid_requests_are_refused(mixed):
     renamed = family(replay, BASELINE, {_oracle(2, 12).config_id: 12})
     with pytest.raises(ValueError, match="baseline's name"):
         frontier(replay, [renamed], criterion=MEAN.name, alphas=[0.1], unit_cols=[])
+
+
+def test_the_interval_reads_in_the_direction_of_the_verdict():
+    # fields_saved and its interval are negative when a rule costs fields; the sentence
+    # "costs 1.3 more fields" must not be followed by an interval of -1.3 to -1.2.
+    def row(family, effort, saved, low, high):
+        return {
+            "family": family,
+            "alpha": 0.05,
+            "setting": 1.0,
+            "effort": effort,
+            "risk": 0.0,
+            "fields_saved": saved,
+            "saved_low": low,
+            "saved_high": high,
+            "adaptivity": None,
+        }
+
+    scores = pd.DataFrame(
+        [
+            row(BASELINE, 1.0, 0.0, None, None),
+            row("costly", 2.3, -1.3, -1.3, -1.2),
+            row("thrifty", 0.5, 0.5, 0.2, 0.8),
+            row("level", 1.0, 0.0, -0.1, 0.0),
+        ]
+    )
+    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"label": "x"}).summary()
+    assert "costs 1.3 more fields, 95% interval 1.2 to 1.3" in text
+    assert "saves 0.5 fields, 95% interval 0.2 to 0.8" in text
+    assert "no better, 95% interval of the fields saved -0.1 to 0.0" in text
+
+
+def test_the_summary_states_the_efforts_it_subtracts():
+    # Fields saved are the baseline's mean effort minus the rule's. When some streams are
+    # shorter than the fixed count, that mean is below the setting, and the text says so,
+    # so "7 fields" and "saves 1.4" never contradict "5.1 on average".
+    scores = pd.DataFrame(
+        [
+            {
+                "family": BASELINE,
+                "alpha": 0.05,
+                "setting": 7.0,
+                "effort": 6.5,
+                "risk": 0.04,
+                "fields_saved": 0.0,
+                "saved_low": None,
+                "saved_high": None,
+                "adaptivity": None,
+                "saved_reached": None,
+            },
+            {
+                "family": "rule",
+                "alpha": 0.05,
+                "setting": 0.03,
+                "effort": 5.1,
+                "risk": 0.03,
+                "fields_saved": 1.4,
+                "saved_low": 0.2,
+                "saved_high": 2.0,
+                "adaptivity": None,
+                "saved_reached": 0.8,
+            },
+        ]
+    )
+    settings = {"label": "x", "units": 12, "unit_cols": ["condition", "repeat", "well"]}
+    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), settings).summary()
+    assert "needed 7 fields, 6.5 on average" in text
+    assert "80% of the resamples" in text
+    assert "12 units (condition, repeat, well)" in text

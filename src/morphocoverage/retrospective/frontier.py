@@ -516,8 +516,15 @@ def frontier_summary(result: FrontierResult) -> str:
             )
             blocks.append("\n".join(lines))
             continue
+        # Fields saved subtract mean efforts; when streams shorter than the fixed count
+        # stop early, the baseline's mean effort is below its setting, and the text says so.
+        mean_effort = (
+            ""
+            if abs(float(base["effort"]) - float(base["setting"])) < 0.05
+            else f", {_number(base['effort'])} on average as some acquisitions had fewer"
+        )
         lines.append(
-            f"  a fixed number of fields needed {_fields(int(base['setting']))} "
+            f"  a fixed number of fields needed {_fields(int(base['setting']))}{mean_effort} "
             f"(risk {percent(base['risk'])})."
         )
         for row in rows[rows["family"] != BASELINE].itertuples(index=False):
@@ -532,12 +539,26 @@ def frontier_summary(result: FrontierResult) -> str:
                 if saved < -0.05
                 else "does as well as the fixed count, no better"
             )
-            interval = (
-                ""
-                if row.saved_low is None or pd.isna(row.saved_low)
-                else f", {percent(0.95)} interval {_number(row.saved_low)} to "
-                f"{_number(row.saved_high)}"
-            )
+            # The interval reads in the verdict's direction: fields saved, or fields it costs.
+            if row.saved_low is None or pd.isna(row.saved_low):
+                interval = ""
+            elif saved < -0.05:
+                interval = (
+                    f", {percent(0.95)} interval {_number(-row.saved_high)} to "
+                    f"{_number(-row.saved_low)}"
+                )
+            else:
+                of = "" if saved > 0.05 else " of the fields saved"
+                interval = (
+                    f", {percent(0.95)} interval{of} {_number(row.saved_low)} to "
+                    f"{_number(row.saved_high)}"
+                )
+            reached = getattr(row, "saved_reached", None)
+            if interval and reached is not None and not pd.isna(reached) and reached < 1:
+                interval += (
+                    f" (from the {percent(reached)} of the resamples in which both reached "
+                    "this risk)"
+                )
             adaptive = (
                 ""
                 if row.adaptivity is None or pd.isna(row.adaptivity)
@@ -548,9 +569,11 @@ def frontier_summary(result: FrontierResult) -> str:
                 f"  {row.family} at {row.setting:g}: {_fields(row.effort)} on average "
                 f"(risk {percent(row.risk)}); it {verdict}{interval}{adaptive}."
             )
+        unit_cols = result.settings.get("unit_cols") or []
+        named = f" ({', '.join(unit_cols)})" if unit_cols else ""
         lines.append(
-            f"  Intervals resample the {units} independent units; hold-outs and orders are "
-            "not independent experiments. Risk is judged on held-back fields."
+            f"  Intervals resample the {units} units{named}, treated as independent; hold-outs "
+            "and orders are not independent experiments. Risk is judged on held-back fields."
         )
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)

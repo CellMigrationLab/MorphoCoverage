@@ -58,7 +58,8 @@
     Would one more FOV show something new?
     - Chance: 0% (nominal 95% upper bound 10%, approximate: the leave-one-FOV-out outcomes share their reference FOVs); 0 of 28 FOVs showed something the others did not.
     - Not yet seen: a state this definition detects but no FOV has shown is in at most 10% of FOVs (95% confidence, about 3 / 28), if FOVs are independent, representative draws. Rarer states can remain.
-    - Seen in few FOVs: 0 of 28 FOVs hold a state that fewer than 3 other FOVs show. A state seen in 2 FOVs is not new to the next FOV but is not established either; it counts as recurrent above, so look at those FOVs before calling the sample settled.
+    - Seen in few FOVs: 1 of 28 FOVs hold a state that fewer than 3 other FOVs show. A state seen in 2 FOVs is not new to the next FOV but is not established either; it counts as recurrent above, so look at those FOVs before calling the sample settled.
+    - Planning for such a state: seen in 4% of FOVs (95% interval 0.09%-18%); to see it at least once with 95% probability, image about 83 independent representative FOVs at the observed incidence, up to 3314 at the low end of the interval. Fields that cluster the state need more.
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
@@ -211,7 +212,7 @@
     - To rule out unseen states in more than 5% of FOVs: at least 31 more FOVs with nothing new.
     - To bring the nominal 95% bound for the next FOV below 5%: at least 31 more FOVs if none shows anything new; 31 more FOVs if new FOVs keep appearing at the current rate.
 
-  'New' means a cluster of at least 3 similar observations (linked within the distance) with fewer than 1 other FOV within distance 5.47723 (standardize).
+  'New' means a cluster of at least 3 similar observations (linked within the distance) with fewer than 1 other FOV within distance 5.47723 (standardize), on 30 features (Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ, Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ and 27 more).
 
   Adjusted for the declared control's detection rate (100% of its fields recognized): a phenotype seen as well as the control, and shown by no FOV yet, could still be in
     condition=MOCK, repeat=1A, well=B6: up to 10% of FOVs (the 10% bound above divided by 100%), if detection is independent between fields.

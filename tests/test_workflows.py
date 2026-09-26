@@ -242,3 +242,99 @@ def test_summary_questions_select_and_reject():
     assert "1. Can I count objects" in only and "4. What is limiting" not in only
     with pytest.raises((KeyError, ValueError)):
         result.document.summary(["not_a_question"])
+
+
+# --- Regressions from the adversarial review (docs/workflows.md, "Live sources") ---
+
+
+def _simple_session():
+    return live_session(Setup(readout=READOUT, fov_col="position_id", group_cols=()))
+
+
+def test_live_tables_refuses_key_columns_of_different_types():
+    # position_id 1 (number) in the objects and "1" (text) in the FOV table never match:
+    # the field would be counted as empty and its objects never used.
+    live = LiveTables(_simple_session())
+    fovs = pd.DataFrame({"position_id": ["1"]})
+    objects = pd.DataFrame({"position_id": [1, 1, 1], READOUT: [1.0, 2.0, 3.0]})
+    with pytest.raises(TypeError, match="position_id"):
+        live.update(objects, fovs)
+
+
+def test_live_tables_keeps_later_fields_when_one_field_fails():
+    live = LiveTables(_simple_session())
+    objects = pd.DataFrame(
+        {"position_id": ["P1", "P1", "P2", "P3", "P3"], READOUT: [1.0, 2.0, np.inf, 5.0, 6.0]}
+    )
+    fovs = pd.DataFrame({"position_id": ["P1", "P2", "P3"]})
+    with pytest.raises(ValueError):
+        live.update(objects, fovs)  # P2 holds an infinite value
+    assert [u.fov_metadata["position_id"] for u in live.updates] == ["P1"]
+    assert live.pending_objects == 3  # P2 and P3 wait; nothing is lost
+    with pytest.raises(ValueError):
+        live.update(objects, fovs)  # the broken field is retried, never skipped
+    assert len(live.updates) == 1  # P3 was not added past P2
+
+
+def test_live_folder_keeps_later_fields_when_one_field_fails(tmp_path):
+    live = LiveFolder(tmp_path, _simple_session())
+    write_fov(tmp_path, pd.DataFrame({READOUT: [1.0, 2.0]}), {"position_id": "P1"})
+    write_fov(tmp_path, pd.DataFrame({READOUT: [np.inf]}), {"position_id": "P2"})
+    write_fov(tmp_path, pd.DataFrame({READOUT: [5.0]}), {"position_id": "P3"})
+    with pytest.raises(ValueError):
+        live.poll()
+    assert [u.fov_metadata["position_id"] for u in live.updates] == ["P1"]
+    with pytest.raises(ValueError):
+        live.poll()  # the broken field is retried, never skipped
+
+
+def test_write_fov_of_a_frame_without_columns_is_a_zero_object_field(tmp_path):
+    live = LiveFolder(tmp_path, _simple_session())
+    write_fov(tmp_path, pd.DataFrame(), {"position_id": "P1"})
+    write_fov(tmp_path, pd.DataFrame({READOUT: [1.0]}), {"position_id": "P2"})
+    assert [u.n_objects for u in live.poll()] == [0, 1]
+
+
+def test_live_folder_refuses_a_missing_object_file(tmp_path):
+    live = LiveFolder(tmp_path, _simple_session())
+    write_fov(tmp_path, pd.DataFrame({READOUT: [1.0]}), {"position_id": "P1"}, name="f1")
+    manifest = tmp_path / MANIFEST
+    manifest.write_text(manifest.read_text().replace("objects/f1.csv", "objects/F1.csv"))
+    with pytest.raises(FileNotFoundError, match="F1.csv"):
+        live.poll()
+
+
+def test_live_update_shows_objects_still_waiting_for_their_field():
+    live = LiveTables(_simple_session())
+    objects = pd.DataFrame({"position_id": ["P1", "P9"], READOUT: [1.0, 2.0]})
+    (update,) = live.update(objects, pd.DataFrame({"position_id": ["P1"]}))
+    assert update.pending_objects == 1 and "1 object row waits" in update.summary()
+
+
+def test_setup_refuses_declarations_the_workflows_would_skip():
+    novelty = default_novelty(FEATURE_COLS)
+    positive = PositiveControl({"condition": "drug"}, fovs_seen=4)
+    control = {"condition": "control"}
+    with pytest.raises(ValueError, match="novelty"):
+        Setup(readout=READOUT, features=FEATURE_COLS, control=control, positive=positive)
+    with pytest.raises(ValueError, match="features"):
+        Setup(readout=READOUT, novelty=novelty)
+
+
+def test_positive_control_keeps_the_declared_fov_identity():
+    # Two wells per condition and repeat, each naming its positions s0..s3: the well is
+    # part of the FOV identity, as the setup's group columns say.
+    objects, fovs = _acquisition(n_fovs=8)
+    index = fovs.groupby(["condition", "repeat"]).cumcount()
+    fovs = fovs.assign(well=np.where(index < 4, "w1", "w2"), pos=[f"s{i % 4}" for i in index])
+    names = fovs.set_index(["condition", "repeat", "image_file"])[["well", "pos"]]
+    objects = objects.join(names, on=["condition", "repeat", "image_file"])
+    setup = _setup(
+        novelty=default_novelty(FEATURE_COLS),
+        positive=PositiveControl({"condition": "drug"}, fovs_seen=2, pair_cols=("repeat",)),
+        fov_col="pos",
+        group_cols=("condition", "repeat", "well"),
+        acquisition_order_col=None,
+        stage_cols=None,
+    )
+    assert "controls" in report(objects, fovs, setup).results

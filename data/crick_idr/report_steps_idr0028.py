@@ -188,6 +188,9 @@ def sufficiency(objects, fovs, features):
         objects,
         fovs,
         feature_cols=[*features, RATIO],
+        # "New" on the 30 features only, as the controls and the inspection judge it; the
+        # rules read the ratio.
+        novelty_cols=list(features),
         strategies=[
             FixedFOVStrategy(8),
             ScalarPrecisionStrategy(RATIO, 0.05, "object", "upper_95"),

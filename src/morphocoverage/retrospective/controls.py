@@ -187,11 +187,16 @@ def representation_control(
     fov_col: str | None = None,
     observation_unit: str | None = None,
     n_jobs: int = 1,
+    identity_cols: Sequence[str] = (),
 ) -> ControlResult:
     """Detection and false-alarm rates of ``novelty`` for the declared controls.
 
     ``fovs_seen`` is how many reference FOVs are "already imaged" in each draw,
     ``draws`` how many random draws per stratum. See the module docstring.
+    ``identity_cols`` are columns that, with condition, repeat and ``fov_col``,
+    identify one FOV (for example ``well`` when position names repeat in every
+    well). They only name FOVs: controls are still compared across them, within
+    ``pair_cols``.
     ``n_jobs`` runs the novelty checks of the draws in that many worker
     processes (``-1``: every CPU); results are identical for every value
     (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
@@ -226,7 +231,8 @@ def representation_control(
         fovs=fovs,
         feature_cols=feature_cols,
         fov_col=fov_col,
-        group_cols=[],
+        # Identity only: the strata come from pair_cols, never from these columns.
+        group_cols=list(identity_cols),
         observation_unit=observation_unit,
     )
     missing = [c for c in pair_cols if c not in data.fovs.columns]

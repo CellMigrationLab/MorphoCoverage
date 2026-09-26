@@ -373,9 +373,10 @@ def test_a_result_explains_its_decision_in_one_line():
         rows = built.objects[built.objects["image_file"] == fov["image_file"]]
         results = session.add_fov(rows.drop(columns=["condition", "repeat"]), fov.to_dict())
     fixed, novelty = results
-    assert fixed.explain() == "stop: n_fovs = 3 >= 3 (population); after 3 FOVs, 90 cells"
+    assert fixed.explain() == "stop: n_fovs = 3 (stop at >= 3, population); after 3 FOVs, 90 cells"
     line = novelty.explain()
-    assert line.startswith("continue: lofo_novel_fov_upper = 0.632 <= 0.25 (population)")
+    # The value, then the rule: a "continue" never reads as a false inequality.
+    assert line.startswith("continue: lofo_novel_fov_upper = 0.632 (stop at <= 0.25, population)")
     assert line.endswith("after 3 FOVs, 90 cells")
 
 

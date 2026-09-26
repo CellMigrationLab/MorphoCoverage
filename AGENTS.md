@@ -239,7 +239,11 @@ tests/
     test_<module>.py       # unit tests per module or strategy family
     test_crick_idr.py      # real-data integrity and end-to-end tests
     test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
+    test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
     conftest.py            # one BLAS thread per test process
+
+notebooks/                 # example notebooks, one folder each; they call the package API only
+    MorphoCoverage_Workflows_Example/  # report, optimise, benchmark and live on a dataset
 
 data/crick_idr/            # real datasets (CC BY 4.0), ready to use with datasets.load; analyses; README
 docs/                      # scientific aims, contracts, architecture, benchmarking, findings

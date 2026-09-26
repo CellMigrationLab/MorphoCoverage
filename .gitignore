@@ -10,3 +10,4 @@ dist/
 .ipynb_checkpoints/
 .DS_Store
 data/crick_idr/results/logs/
+morphocoverage_output/

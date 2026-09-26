@@ -6,6 +6,13 @@ You declare the dataset once, in a `Setup`. Each workflow then calls the
 package's analyses in the order of [`questions.md`](questions.md) and returns
 its results with a `summary()` written in sentences.
 
+A worked example of all four, with plots, is the notebook
+[`notebooks/MorphoCoverage_Workflows_Example`](../notebooks/MorphoCoverage_Workflows_Example/MorphoCoverage_Workflows_Example.ipynb).
+It runs on the bundled idr0028 dataset or on your own CSV files, locally or on
+Google Colab. It follows the lab's LabConstrictor portability guide: settings
+are ipywidgets (not Colab forms), and Colab-only setup sits behind a Colab check.
+Locally it needs `ipywidgets` and, for the plots, `matplotlib`.
+
 The workflows make no scientific choice of their own. Every choice is either a
 `Setup` field or an argument without a default. The analyses they call are
 the ones documented elsewhere, and their results stay available under
@@ -35,6 +42,12 @@ Every field left at `None` switches off the analyses that need it. The report
 then says "Not assessed" and names what would be needed. The stopping rules
 default to the JCB rule (upper-95 SD, first tolerance), per object and per
 field; pass `rules=(...)` to assess others.
+
+A declaration the workflows could not use raises instead of being skipped.
+A definition of new (`novelty`) needs `features`, and a positive control needs
+`novelty`. Group columns beyond condition and repeat (a `well`, say) are part of
+a field's identity everywhere, including in the control check. "New" is judged
+on `features` only, never on the readout, and the report names those columns.
 
 ## REPORT: what can the finished acquisition be trusted for?
 
@@ -114,7 +127,9 @@ only the new lines. A last line that is not yet terminated waits for the next
 poll.
 
 A field with no objects is either an empty object file or an empty
-`objects_file` entry. It still counts as acquisition effort.
+`objects_file` entry. It still counts as acquisition effort. An
+`objects_file` that names a missing file raises an error; it is never read as
+an empty field.
 
 Metadata are read as text by default, so an identifier such as `001` keeps
 its leading zeros. Pass `metadata_dtypes=` to cast a column to another type.
@@ -147,7 +162,15 @@ the FOV row signals that a field is complete:
 
 `key` names the columns that link an object row to its field. By default it
 is the session's FOV column plus the condition and repeat columns present in
-both tables.
+both tables. A key column holding numbers in one table and text in the other
+(`1` against `"1"`) raises an error, because those values never match. Objects
+still waiting for their FOV row are counted in each update's summary.
+
+**A field that fails is retried, never skipped** (both sources). A source
+moves past a field only once the session has accepted it. If a field raises
+(an infinite value, a missing file), the updates so far are kept, and the next
+poll or update raises on the same field again. No later field is added past it,
+so acquisition effort is never under-counted.
 
 ## File format and chunks
 
