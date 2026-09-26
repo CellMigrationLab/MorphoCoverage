@@ -4,9 +4,9 @@ rare-state clustering,all groups,5.0,"unusual: clustered in a few fields (p <= 0
 representation,pooled,1.0,100% of declared positive-control fields recognized as different,representation_control
 representation,pooled,1.0,100% of fields with planted positive-control nuclei recognized,representation_control
 representation,pooled,0.018055555555555554,2% of reference fields called different (false alarms),representation_control
-largest source of uncertainty of the mean,condition=MOCK,0.5354536150148903,54% of the variance of the mean is between fields within a sample; not established: only 3 samples,effort_projection
-largest source of uncertainty of the mean,condition=LATS1,0.9806622055075103,"98% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero",effort_projection
-largest source of uncertainty of the mean,condition=YAP,0.9854114872478801,"99% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero",effort_projection
-largest source of uncertainty of the mean,condition=ARAP2,0.789507476665036,"79% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero",effort_projection
+largest source of uncertainty of the mean,condition=MOCK,0.53545230782197,54% of the variance of the mean is between fields within a sample; not established: only 3 samples,effort_projection
+largest source of uncertainty of the mean,condition=LATS1,0.9807191155007915,"98% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero",effort_projection
+largest source of uncertainty of the mean,condition=YAP,0.9854691759778743,"99% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero",effort_projection
+largest source of uncertainty of the mean,condition=ARAP2,0.7909876701260329,"79% of the variance of the mean is between samples; not established: only 3 samples, its interval includes zero",effort_projection
 spatial correlation,all groups,5.0,"in 5 of 12 groups, fields closer than about 520 µm (median) are more alike than random pairs",redundancy_distance
-new states,all groups,4.0,new states come from 4 fields (about 6 of 336 expected by chance at the 2% false-alarm rate of the declared reference),inspect_fovs
+new states,all groups,4.0,"new states come from 4 fields (about 0 of 336 expected by chance at the 0% false-alarm rate of the declared reference, each field judged against every other)",inspect_fovs

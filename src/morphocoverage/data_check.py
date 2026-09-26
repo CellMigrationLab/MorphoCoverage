@@ -12,7 +12,8 @@ data were loaded. The format itself is described in ``docs/data_format.md``.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import warnings
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -36,8 +37,13 @@ from ._data_rules import (
     _resolve_groups,
     _tables,
 )
-from .metadata import EMPTY_MEANS_ABSENT, column_has_values, drop_empty_optional_columns
-from .schema import normalize_observation_unit
+from .metadata import (
+    EMPTY_MEANS_ABSENT,
+    column_has_values,
+    column_names,
+    drop_empty_optional_columns,
+)
+from .schema import ValidatedInput, _validate_input_tables, normalize_observation_unit
 
 FORMAT_DOC = "docs/data_format.md"
 
@@ -117,8 +123,6 @@ def check_tables(
     example ``{"condition": "MOCK"}``) also checks that the control exists in
     every repeat. Never raises for bad data: the problems are in the result.
     """
-    from .schema import _validate_input_tables  # the validator attaches this check to its errors
-
     c = Collector()
     if not isinstance(objects, pd.DataFrame):
         c.error(
@@ -134,14 +138,23 @@ def check_tables(
             "Pass a pandas DataFrame with one row per acquired field.",
         )
         return DataCheck(tuple(c.problems), tuple(c.understood))
-    if isinstance(feature_cols, str):
-        c.error(
-            "feature_cols is a single string, not a list of column names.",
-            f"feature_cols={feature_cols!r}.",
-            f"Pass a list: feature_cols=[{feature_cols!r}].",
-        )
-        feature_cols = [feature_cols]
-    feature_cols = list(feature_cols)
+    for name, table in (("observation table", objects), ("FOV table", fovs)):
+        repeated = [] if table is None else list(table.columns[table.columns.duplicated()].unique())
+        if repeated:
+            c.error(
+                f"The {name} has more than one column with the same name.",
+                f"{name}, columns {_names(repeated)}.",
+                "Give every column its own name (a table joined side by side, e.g. with "
+                "pd.concat(axis=1), can repeat one).",
+            )
+    if c.has_errors():
+        # Every other rule reads columns by name, which is ambiguous here.
+        return DataCheck(tuple(c.problems), tuple(c.understood))
+    # Read once (a generator is consumed by reading); None when absent or already reported.
+    features = _column_list(c, feature_cols, "feature_cols")
+    features_readable = features is not None or feature_cols is None
+    feature_cols = list(features or ())
+    group_cols = _column_list(c, group_cols, "group_cols")
     unit_given = observation_unit is not None
     if unit_given:
         try:
@@ -153,13 +166,6 @@ def check_tables(
                 "Say what one row is in words, e.g. observation_unit='cell', 'nucleus' or 'patch'.",
             )
             observation_unit = None
-    if isinstance(group_cols, str):
-        c.error(
-            "group_cols is a single string, not a list of column names.",
-            f"group_cols={group_cols!r}.",
-            f"Pass a list: group_cols=[{group_cols!r}].",
-        )
-        group_cols = [group_cols]
     explicit = [*(group_cols or ()), *([fov_col] if fov_col is not None else [])]
 
     for column in EMPTY_MEANS_ABSENT:
@@ -217,30 +223,47 @@ def check_tables(
         )
         objects = _attach(c, objects, fovs, resolved, identity)
         # After the group columns are attached, so the same label in two wells is not a copy.
-        _check_copies(c, objects)
+        _check_copies(c, objects, key)
         _check_key_values(c, objects, fovs, key)
         if fovs is not None:
             _check_fov_table(c, objects, fovs, key)
-    _check_features(c, objects, feature_cols, taken)
+    if features_readable:
+        _check_features(c, objects, feature_cols, taken)
     c.understood.append(
         f"{_count(len(feature_cols), 'feature column')}: {_names(feature_cols)}."
         if feature_cols
         else "No feature column."
     )
-    if control is not None and fovs is not None:
-        _check_control(c, fovs, control)
+    if control is not None:
+        # Without a FOV table, the fields seen in the observations are all that is known.
+        _check_control(c, objects if fovs is None else fovs, control, fovs is None)
     if not c.has_errors():
         # The remaining rules (planes, channels or frames counted as fields) run as the
-        # validator runs them.
+        # validator runs them; its warnings become warnings of this check.
         try:
-            _validate_input_tables(
-                objects,
-                feature_cols=feature_cols,
-                fov_col=fov_col,
-                fovs=fovs,
-                group_cols=group_cols,
-                observation_unit=observation_unit,
-            )
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                _validate_input_tables(
+                    objects,
+                    feature_cols=feature_cols,
+                    fov_col=fov_col,
+                    fovs=fovs,
+                    group_cols=group_cols,
+                    observation_unit=observation_unit,
+                )
+            for warning in caught:
+                if not issubclass(warning.category, UserWarning):
+                    warnings.warn(warning.message, warning.category, stacklevel=2)
+                    continue
+                # The validator's only warning: planes that may be counted as fields.
+                message = str(warning.message)
+                c.warning(
+                    message[0].upper() + message[1:],
+                    "the within-field coordinates (z, c, t) and the field identifier.",
+                    "Give every plane, channel or frame of one stage position the same "
+                    "'position_id'; if each row really is one stage position, pass fov_col "
+                    "explicitly.",
+                )
         except (ValueError, TypeError) as exc:
             message = str(exc).split("\n\n")[0].rstrip(".")
             planes = any(w in message for w in ("plane", "z/c/t", "channel"))
@@ -257,4 +280,62 @@ def check_tables(
     return DataCheck(tuple(c.problems), tuple(c.understood))
 
 
-__all__ = ["DataCheck", "Problem", "check_tables"]
+def _column_list(c: Collector, columns: object, name: str) -> list | None:
+    """``columns`` as a list of names, read once, or ``None`` (not given, or unreadable).
+
+    A single string is reported and then read as one name, so the other rules
+    still run; anything else that is not a collection of names is reported.
+    """
+    if isinstance(columns, str):
+        c.error(
+            f"{name} is a single string, not a list of column names.",
+            f"{name}={columns!r}.",
+            f"Pass a list: {name}=[{columns!r}].",
+        )
+        return [columns]
+    try:
+        names = column_names(columns, name)
+    except TypeError as error:
+        c.error(
+            f"{name} is not a list of column names.",
+            f"{name}={columns!r}: {error}.",
+            f"Pass a list of column names, e.g. {name}=['area'].",
+        )
+        return None
+    return None if names is None else list(names)
+
+
+def validate_input_tables(
+    objects: pd.DataFrame,
+    *,
+    feature_cols: Sequence[str],
+    fov_col: str | None = None,
+    fovs: pd.DataFrame | None = None,
+    group_cols: Sequence[str] | None = None,
+    observation_unit: str | None = None,
+) -> ValidatedInput:
+    """Validate linked observation/FOV tables using MorphoBricks conventions.
+
+    See ``schema._validate_input_tables`` for the rules. When the tables are refused,
+    the error (same type, first line unchanged) carries the full
+    ``check_tables`` report: every problem, where, and how to fix it.
+    """
+    arguments = {
+        # An iterator is read once here, so that the report sees the same names.
+        "feature_cols": tuple(feature_cols) if isinstance(feature_cols, Iterator) else feature_cols,
+        "fov_col": fov_col,
+        "fovs": fovs,
+        "group_cols": tuple(group_cols) if isinstance(group_cols, Iterator) else group_cols,
+        "observation_unit": observation_unit,
+    }
+    try:
+        return _validate_input_tables(objects, **arguments)
+    except (ValueError, TypeError) as exc:
+        try:
+            report = check_tables(objects, **arguments).summary()
+        except Exception:  # noqa: BLE001 -- the report is a courtesy; never hide the real error
+            raise exc from None
+        raise type(exc)(f"{exc}\n\n{report}") from exc
+
+
+__all__ = ["DataCheck", "Problem", "check_tables", "validate_input_tables"]

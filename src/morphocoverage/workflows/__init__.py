@@ -15,10 +15,13 @@ Declare the dataset once with a ``Setup``, then:
 - ``plots(objects, fovs, setup, ranking=result.ranking, folder=...)``: PlotsOfData-style
   figures of the readout, the biological repeats side by side, every object a
   point coloured by technical repeat, the median with its interval from
-  resampling technical repeats, then their whole fields.
+  resampling whole technical repeats with their fields as acquired (not
+  reliable with only 2-3 technical repeats, which the title says).
 
-Each returns its results with a ``summary()`` in sentences. The workflows add
-no scientific choice of their own; see ``docs/workflows.md``.
+Each returns its results with a ``summary()`` in sentences. Their scientific
+choices are the ``Setup``'s fields and explicit arguments; the few presets they
+default (``protocol_threshold``, ``alphas``) are printed in the summaries. See
+``docs/workflows.md``.
 """
 
 from .figures import plots

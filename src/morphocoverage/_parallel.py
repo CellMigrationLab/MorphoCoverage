@@ -44,6 +44,8 @@ from concurrent.futures.process import BrokenProcessPool
 from contextlib import contextmanager
 from typing import Any
 
+from ._checks import is_integer
+
 # Units handed to a worker at once, as a share of the units per worker: small
 # enough to balance units of unequal cost, large enough that sending the data
 # does not dominate many cheap units.
@@ -65,10 +67,13 @@ _BROKEN = (
 
 
 def check_n_jobs(n_jobs: int) -> int:
-    """The number of worker processes: a positive integer, or -1 for every CPU."""
-    if isinstance(n_jobs, bool) or not isinstance(n_jobs, int) or (n_jobs < 1 and n_jobs != -1):
+    """The number of worker processes: a positive integer, or -1 for every CPU.
+
+    Python and numpy integers are accepted alike; booleans are not.
+    """
+    if not is_integer(n_jobs) or (n_jobs < 1 and n_jobs != -1):
         raise ValueError("n_jobs must be a positive integer, or -1 for every CPU")
-    return (os.cpu_count() or 1) if n_jobs == -1 else n_jobs
+    return (os.cpu_count() or 1) if n_jobs == -1 else int(n_jobs)
 
 
 @contextmanager

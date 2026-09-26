@@ -41,7 +41,8 @@ def test_fields_holding_counts_the_fields_that_reach_n():
     rng = np.random.default_rng(0)
     fields = [np.zeros(10)] * 6
     assert fields_holding(fields, 25, rng) == 3.0
-    assert fields_holding(fields, 1000, rng) == 6.0  # never reached: every field
+    with pytest.raises(ValueError, match="asked for 1000 objects"):
+        fields_holding(fields, 1000, rng)  # never reached: refused, not every field
 
 
 def test_bootstrap_fields_brackets_the_point_and_needs_two_fields():

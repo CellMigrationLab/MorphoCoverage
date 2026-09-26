@@ -138,8 +138,8 @@ def test_fields_without_observations_count_as_acquired_effort():
     )
     # The same observations over more acquired FOVs: the acquired design's SE is
     # unchanged (empty FOVs average out nothing), and they are reported as effort.
-    se = plain.projections.set_index("current")["se"][True]
-    se_empty = empty.projections.set_index("current")["se"][True]
+    se = plain.projections.set_index("design")["se"]["acquired"]
+    se_empty = empty.projections.set_index("design")["se"]["acquired"]
     assert se_empty == pytest.approx(se)
     level = empty.components.iloc[0]
     assert level["fovs"] == 38 and level["fovs_with_observations"] == 36
@@ -157,8 +157,8 @@ def test_empty_fields_do_not_shrink_the_projected_error_or_design_effect():
     sparse = objects[objects["image_file"].isin(kept)]
     thin = effort_projection(sparse, fovs, feature="x", hierarchy=hierarchy, strata=[], n_boot=20)
     assert design_effect(thin, "all") == pytest.approx(design_effect(full, "all"), rel=0.4)
-    se_full = full.projections.set_index("current")["se"][True]
-    se_thin = thin.projections.set_index("current")["se"][True]
+    se_full = full.projections.set_index("design")["se"]["acquired"]
+    se_thin = thin.projections.set_index("design")["se"]["acquired"]
     assert se_thin > se_full  # fewer fields with observations: a less precise mean
 
 

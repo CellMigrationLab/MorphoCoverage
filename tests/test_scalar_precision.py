@@ -159,8 +159,10 @@ def test_fov_averaging_cv_matches_hand_calculation():
 
 
 def test_zero_object_fovs_are_sampled_units_in_the_fov_variant():
+    # An empty FOV has no residual and no between-FOV information: the k' / (k' - 1)
+    # factor counts the 2 FOVs with objects (audit 2, C-1), and the FOV is still effort.
     with_empty = fov_averaging_cv(np.array([2.0, 6.0, 0.0]), np.array([2.0, 2.0, 0.0]))
-    assert with_empty["cv_mean"] == pytest.approx(math.sqrt(3 / 2 * 8 / 16) / 2)
+    assert with_empty["cv_mean"] == pytest.approx(math.sqrt(2 / 1 * 8 / 16) / 2)
 
     objects, fovs = _tables([[1.0, 1.0], [3.0, 3.0], []])
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
@@ -188,7 +190,7 @@ def test_spatial_clustering_inflates_only_the_fov_variant():
     fov_clustered = _evaluate(*clustered, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
     assert cell_mixed == pytest.approx(cell_clustered)
     assert _cv(fov_clustered) > 2 * cell_clustered
-    assert fov_clustered.diagnostics["design_effect"] > 5
+    assert fov_clustered.diagnostics["ratio_design_effect"] > 5
     assert _cv(fov_mixed) == pytest.approx(0.0)
 
 
@@ -209,8 +211,8 @@ def test_neighbour_correlation_scenario_shows_design_effect():
         ScalarPrecisionStrategy("feature_a", 0.05, "fov", "point"),
         feature_cols=FEATURE_COLS,
     )
-    assert fov.diagnostics["design_effect"] > 10
-    assert 0.2 < fov_h.diagnostics["design_effect"] < 3
+    assert fov.diagnostics["ratio_design_effect"] > 10
+    assert 0.2 < fov_h.diagnostics["ratio_design_effect"] < 3
 
 
 # --- Pilot planning ------------------------------------------------------------

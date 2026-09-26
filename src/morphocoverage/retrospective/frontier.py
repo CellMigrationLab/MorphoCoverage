@@ -266,6 +266,25 @@ def _needed(curve: pd.DataFrame, alpha: float) -> pd.Series | None:
     return None if index is None else ordered.iloc[index]
 
 
+def _met_not_sustained(curve: pd.DataFrame, alpha: float) -> tuple[pd.Series, pd.Series] | None:
+    """The cheapest setting within ``alpha`` and the costliest after it above ``alpha``, or None.
+
+    For a family no setting of which keeps risk within ``alpha`` from there on:
+    it met ``alpha`` at a setting but not lastingly, which is not the same as
+    never getting there. None when no setting met ``alpha``.
+    """
+    ordered = curve.sort_values(["effort", "setting"], kind="stable")
+    risks = ordered["risk"].astype(float).to_numpy()
+    met = np.flatnonzero(risks <= alpha + 1e-12)
+    if not len(met):
+        return None
+    above = np.flatnonzero(risks > alpha + 1e-12)
+    above = above[above > met[0]]
+    if not len(above):
+        return None
+    return ordered.iloc[met[0]], ordered.iloc[above[-1]]
+
+
 def _interpolate_baseline(baseline: pd.DataFrame, effort: float) -> float | None:
     points = baseline.dropna(subset=["risk"]).sort_values("effort")
     if points.empty:
@@ -354,7 +373,11 @@ class FrontierResult:
       ``effort`` and ``risk``, the baseline's ``baseline_effort``, the
       ``fields_saved`` with ``saved_low`` / ``saved_high`` and
       ``saved_reached`` (the share of unit resamples in which both reached
-      ``alpha``), ``baseline_risk_at_same_effort`` and ``adaptivity``.
+      ``alpha``), ``baseline_risk_at_same_effort`` and ``adaptivity``. For a
+      family with no chosen setting that met ``alpha`` at some setting but not
+      from there on, ``met_setting`` / ``met_risk`` (the cheapest within
+      ``alpha``) and ``exceeded_setting`` / ``exceeded_risk`` (the costliest
+      after it above ``alpha``); otherwise these are None.
     - ``runs``: one row per run, family and setting.
     """
 
@@ -451,6 +474,11 @@ def frontier(
                 "baseline_setting": None if base is None else base["setting"],
                 "baseline_effort": None if base is None else float(base["effort"]),
             }
+            lapse = _met_not_sustained(own_curve, alpha) if chosen is None else None
+            row["met_setting"] = None if lapse is None else lapse[0]["setting"]
+            row["met_risk"] = None if lapse is None else float(lapse[0]["risk"])
+            row["exceeded_setting"] = None if lapse is None else lapse[1]["setting"]
+            row["exceeded_risk"] = None if lapse is None else float(lapse[1]["risk"])
             reached = chosen is not None and base is not None
             row["fields_saved"] = float(base["effort"] - chosen["effort"]) if reached else None
             draws = boot.get((name, alpha))

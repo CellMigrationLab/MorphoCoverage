@@ -60,97 +60,38 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2
 
 from .. import _deprecated
+from .._checks import is_integer
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
-from .base import Estimator, EstimatorState, SamplingStrategy, unsupported_observation_unit
+from ..statistics import RELATIVE_TOLERANCE, sd_upper_bound_factor  # noqa: F401  (re-exported)
+from ._averaging_cv import (  # noqa: F401  (the public names are re-exported)
+    _field_size_check,
+    _object_cv_from_moments,
+    fov_averaging_cv,
+    object_averaging_cv,
+    required_fovs,
+    required_objects,
+)
+from .base import (
+    Estimator,
+    EstimatorState,
+    SamplingStrategy,
+    check_order_col,
+    unsupported_observation_unit,
+)
 
 _UNITS = ("object", "fov")
 _SD_ESTIMATES = ("point", "upper_95")
 # The paper's advice: a pilot SD estimate above 50% CV calls for more data.
 _MAX_TRUSTED_CV = 0.5
-
-
-@lru_cache(maxsize=4096)
-def sd_upper_bound_factor(df: int, confidence: float = 0.95) -> float:
-    """Factor turning a sample SD into the upper bound of its confidence interval.
-
-    The chi-square bound ``sqrt(df / chi2.ppf((1 - confidence) / 2, df))``.
-    """
-    if df < 1:
-        raise ValueError("df must be at least 1")
-    return math.sqrt(df / chi2.ppf((1 - confidence) / 2, df))
-
-
-def object_averaging_cv(values: np.ndarray) -> dict[str, float]:
-    """Between-object CV and averaging CV of the mean, treating objects as independent."""
-    return _object_cv_from_moments(
-        len(values), float(np.mean(values)), float(np.std(values, ddof=1))
-    )
-
-
-def _object_cv_from_moments(n: int, mean: float, sd: float) -> dict[str, float]:
-    """Cell-level and averaging CVs, point and upper-95, from count, mean and SD."""
-    cv_objects = sd / mean
-    cv_objects_upper = cv_objects * sd_upper_bound_factor(n - 1)
-    return {
-        "mean": mean,
-        "cv_objects": cv_objects,
-        "cv_objects_upper_95": cv_objects_upper,
-        "cv_mean": cv_objects / math.sqrt(n),
-        "cv_mean_upper_95": cv_objects_upper / math.sqrt(n),
-    }
-
-
-def fov_averaging_cv(sums: np.ndarray, counts: np.ndarray) -> dict[str, float]:
-    """Averaging CV of the object-weighted mean with FOVs as the sampling unit.
-
-    Ratio-estimator variance for cluster sampling: with per-FOV sums ``T_j``,
-    object counts ``N_j``, ``k`` acquired FOVs and mean ``m = sum(T) / sum(N)``,
-
-        Var(m) = k / (k - 1) * sum((T_j - m * N_j) ** 2) / sum(N) ** 2.
-
-    Estimand: the per-object mean over the sampled area, with FOVs as the
-    sampling units (cluster sampling). Acquired FOVs with zero objects are
-    sampled units: they contribute ``T_j = N_j = 0`` and count towards ``k``,
-    as in the standard ratio-estimator variance. Their only effect on the
-    estimated variance is through the ``k / (k - 1)`` degrees-of-freedom
-    factor, which shrinks slightly as empty FOVs are added. They do matter for
-    ``required_fovs``, since future FOVs may be empty too. Excluding them would
-    give a slightly more conservative bound. The upper bound applies the same
-    chi-square bound as the object criterion with ``k - 1`` degrees of freedom;
-    it is an approximation that has not been validated empirically for this
-    estimator.
-    """
-    k = len(sums)
-    total = float(np.sum(counts))
-    mean = float(np.sum(sums)) / total
-    residual = float(np.sum((sums - mean * counts) ** 2))
-    cv_mean = math.sqrt(k / (k - 1) * residual / total**2) / mean
-    return {
-        "mean": mean,
-        "cv_mean": cv_mean,
-        "cv_mean_upper_95": cv_mean * sd_upper_bound_factor(k - 1),
-    }
-
-
-def required_objects(cv_objects: float, target_cv: float) -> int:
-    """The paper's number of objects to average: ``ceil((cv_objects / target_cv) ** 2)``."""
-    return math.ceil((cv_objects / target_cv) ** 2)
-
-
-def required_fovs(cv_mean: float, n_fovs: int, target_cv: float) -> int:
-    """FOVs needed for ``target_cv``, since Var(mean) scales as 1/k under FOV resampling."""
-    return math.ceil(n_fovs * (cv_mean / target_cv) ** 2)
 
 
 _CV_UNITS = "fraction of the mean (CV)"
@@ -180,8 +121,8 @@ def _check_configuration(
         raise ValueError(f"sd_estimate must be one of {_SD_ESTIMATES}")
     if (pilot_fovs is None) != (order_col is None):
         raise ValueError("pilot_fovs and order_col must be given together")
-    if pilot_fovs is not None and pilot_fovs < 2:
-        raise ValueError("pilot_fovs must be at least 2")
+    if pilot_fovs is not None and not (is_integer(pilot_fovs) and pilot_fovs >= 2):
+        raise ValueError("pilot_fovs must be an integer number of FOVs, at least 2")
 
 
 @dataclass(frozen=True)
@@ -197,14 +138,24 @@ class ScalarPrecisionEstimator(Estimator):
     - ``pilot_projected_averaging_cv`` (only with ``pilot_fovs``): the averaging
       CV that the pilot's estimate projects for the visible effort,
       ``cv_objects_pilot / sqrt(n_objects)`` (object unit) or
-      ``cv_mean_pilot * sqrt(k_pilot / k)`` (FOV unit). The pilot is the first
-      ``pilot_fovs`` visible FOVs by ``order_col``; with ``order_col`` the
-      acquisition order (as it should be), it is fixed once complete, as in the
-      paper's pilot procedure. ``order_col`` must hold no missing value.
+      ``cv_mean_pilot * sqrt(k_pilot / k)`` (FOV unit), with ``k`` every
+      acquired FOV, empty ones included. The pilot is the first ``pilot_fovs``
+      visible FOVs by ``order_col``, which must hold no missing value. Only
+      when ``order_col`` is the acquisition order is the pilot fixed once
+      complete, as in the paper's pilot procedure; with another order, a later
+      FOV that sorts before a pilot FOV takes its place, so the pilot and its
+      requirement can change as acquisition goes on.
 
-    Too few objects or FOVs give ``insufficient_data``. Negative values or a
-    non-positive mean make the CV undefined (``not_applicable``), as does a
-    completed pilot that cannot define the requirement. See
+    Too few objects or FOVs, or a zero mean so far (only zeros), give
+    ``insufficient_data``. Missing or negative values make the CV undefined
+    (``not_applicable``), as does a pilot that cannot define the requirement.
+
+    With the FOV unit the diagnostics also give ``ratio_design_effect``, the
+    FOV-unit variance of the mean over that of as many random objects (the
+    squared ratio of the two averaging CVs); it is not
+    ``sampling_unit.fov_variability``'s ``design_effect``, which comes from
+    variance components (``statistics.design_effect``). When FOV size and FOV
+    mean are related, ``field_size_warning`` says so. See
     ``ScalarPrecisionStrategy`` for the parameters.
     """
 
@@ -220,6 +171,8 @@ class ScalarPrecisionEstimator(Estimator):
         _check_configuration(
             self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
         )
+        if self.pilot_fovs is not None:
+            object.__setattr__(self, "pilot_fovs", int(self.pilot_fovs))
 
     @property
     def name(self) -> str:
@@ -300,9 +253,13 @@ class ScalarPrecisionEstimator(Estimator):
             estimate: dict[str, Any] = dict(object_cvs)
         else:
             estimate = fov_averaging_cv(sums, counts)
-            if object_cvs is not None and object_cvs["cv_mean"] > 0:
+            # Values are non-negative here, so a between-object CV at rounding level is a
+            # constant feature: its design effect would be rounding noise over noise.
+            if object_cvs is not None and object_cvs["cv_objects"] > RELATIVE_TOLERANCE:
                 # Variance inflation from treating FOVs, not objects, as the sampling unit.
-                estimate["design_effect"] = (estimate["cv_mean"] / object_cvs["cv_mean"]) ** 2
+                ratio = (estimate["cv_mean"] / object_cvs["cv_mean"]) ** 2
+                estimate["ratio_design_effect"] = ratio
+                estimate.update(_field_size_check(sums, counts))
         if object_cvs is not None and object_cvs["cv_objects"] > _MAX_TRUSTED_CV:
             estimate["warning"] = (
                 "between-cell SD exceeds 50% CV; the paper advises acquiring more data "
@@ -315,18 +272,20 @@ class ScalarPrecisionEstimator(Estimator):
         return estimate
 
     def _check_order_col(self, fovs: pd.DataFrame) -> None:
-        """With a pilot, the order column must be in the FOV table and complete.
+        """With a pilot, the order column must be in the FOV table, complete and not categorical.
 
-        A missing order value has no place in the order, and the full and the
-        incremental evaluation would place it differently.
+        A newly revealed FOV carries only its own category (the framework hides
+        the categories of FOVs not yet seen), so the category order cannot be
+        kept FOV by FOV and the incremental pilot would differ from the full one.
         """
         if self.pilot_fovs is None:
             return
-        if self.order_col not in fovs.columns:
-            raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
-        if fovs[self.order_col].isna().any():
-            raise ValueError(
-                f"order_col {self.order_col!r} has missing values; the pilot needs an order"
+        check_order_col(fovs, self.order_col, "the pilot")
+        if isinstance(fovs[self.order_col].dtype, pd.CategoricalDtype):
+            raise TypeError(
+                f"order_col {self.order_col!r} is categorical, and its category order is lost "
+                "when FOVs arrive one at a time; give the pilot order as numbers or times "
+                "(for an ordered categorical, its .cat.codes)"
             )
 
     def _unit_reason(self, data: ValidatedInput) -> str | None:
@@ -394,8 +353,12 @@ class ScalarPrecisionEstimator(Estimator):
             diagnostics["pilot_status"] = "pilot not yet complete"
             return _cv_quantity(None, "insufficient_data", "pilot not yet complete")
         if isinstance(pilot, tuple):
-            # The pilot is fixed once complete, so more acquisition cannot fix it.
-            reason = f"pilot: {pilot[1]}"
+            # With order_col the acquisition order the pilot is fixed, so more acquisition
+            # cannot fix it; with another order a later FOV can replace a pilot FOV.
+            reason = (
+                f"pilot (the first {self.pilot_fovs} FOVs by {self.order_col!r}): {pilot[1]}; "
+                "it changes only if a later FOV sorts before a pilot FOV"
+            )
             diagnostics["pilot_status"] = reason
             return _cv_quantity(None, "not_applicable", reason)
         diagnostics["pilot"] = pilot
@@ -424,7 +387,6 @@ class ScalarPrecisionEstimator(Estimator):
 class _FovSummary:
     """Sufficient statistics of one acquired FOV for the averaging-CV criterion."""
 
-    order: Any
     count: int
     total: float
     mean: float
@@ -457,6 +419,7 @@ class _ScalarPrecisionState(EstimatorState):
     def __init__(self, estimator: ScalarPrecisionEstimator) -> None:
         self.estimator = estimator
         self.fovs: list[_FovSummary] = []
+        self.order: pd.Series | None = None  # order_col of every FOV, in arrival order
 
     def _precision(self, fovs: list[_FovSummary]) -> dict[str, Any] | tuple[str, str]:
         """The estimate from per-FOV summaries, as the full path computes it from values."""
@@ -483,9 +446,6 @@ class _ScalarPrecisionState(EstimatorState):
             mean = float(members.mean()) if len(members) else 0.0
             self.fovs.append(
                 _FovSummary(
-                    order=None
-                    if estimator.order_col is None
-                    else new.fovs[estimator.order_col].iloc[j],
                     count=len(members),
                     total=float(members.sum()),
                     mean=mean,
@@ -493,12 +453,17 @@ class _ScalarPrecisionState(EstimatorState):
                     has_negative=bool((members < 0).any()),
                 )
             )
+        if estimator.pilot_fovs is not None:
+            arrived = new.fovs[estimator.order_col].reset_index(drop=True)
+            before = [] if self.order is None else [self.order]
+            self.order = pd.concat([*before, arrived], ignore_index=True)
         current = self._precision(self.fovs)
         pilot = None
         if estimator.pilot_fovs is not None and len(self.fovs) >= estimator.pilot_fovs:
-            # Same rule as full recomputation: stable sort by order, ties by arrival.
-            ordered = sorted(range(len(self.fovs)), key=lambda i: self.fovs[i].order)
-            pilot = self._precision([self.fovs[i] for i in ordered[: estimator.pilot_fovs]])
+            # The full recomputation's sort (pandas, stable: ties by arrival), so an ordered
+            # categorical sorts by its categories on both paths.
+            ordered = self.order.sort_values(kind="stable").index[: estimator.pilot_fovs]
+            pilot = self._precision([self.fovs[i] for i in ordered])
         n_objects = sum(fov.count for fov in self.fovs)
         return estimator._evidence(current, pilot, n_objects, len(self.fovs))
 
@@ -529,10 +494,12 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         which the paper recommends when few objects are available). No default.
     pilot_fovs, order_col:
         ``None`` (default) re-checks the criterion on all visible data after every
-        FOV, an adaptation for sequential stopping. With ``pilot_fovs=k`` the
-        requirement is planned once from the first ``k`` FOVs by ``order_col`` and
-        then held fixed, as in the paper's pilot procedure: a number of objects
-        (object unit) or of FOVs (fov unit).
+        FOV, an adaptation for sequential stopping. With ``pilot_fovs=k`` (an
+        integer) the requirement is planned from the first ``k`` FOVs by
+        ``order_col``: a number of objects (object unit) or of FOVs (fov unit).
+        With ``order_col`` the acquisition order, the plan is then held fixed, as
+        in the paper's pilot procedure; another order re-selects the pilot when a
+        later FOV sorts before a pilot FOV.
     """
 
     feature: str
@@ -550,6 +517,8 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         _check_configuration(
             self.resampling_unit, self.sd_estimate, self.pilot_fovs, self.order_col
         )
+        if self.pilot_fovs is not None:
+            object.__setattr__(self, "pilot_fovs", int(self.pilot_fovs))
 
     @property
     def name(self) -> str:

@@ -18,7 +18,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
+from .._checks import is_integer
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import DecisionPolicy, Effort, EffortPolicy, ThresholdPolicy
@@ -33,12 +35,13 @@ from .base import (
 )
 
 
-def _require_positive_int(value: object, name: str) -> None:
-    """Require an integer count of at least 1 (``bool`` is rejected)."""
-    if isinstance(value, bool) or not isinstance(value, int):
+def _require_positive_int(value: object, name: str) -> int:
+    """``value`` as a Python int of at least 1 (numpy integers too; ``bool`` is rejected)."""
+    if not is_integer(value):
         raise TypeError(f"{name} must be an integer count")
     if value < 1:
         raise ValueError(f"{name} must be at least 1")
+    return int(value)
 
 
 @dataclass(frozen=True)
@@ -49,7 +52,9 @@ class FixedFOVStrategy(SamplingStrategy):
     name: str = "fixed_fov"
 
     def __post_init__(self) -> None:
-        _require_positive_int(self.target_fovs, "target_fovs")
+        object.__setattr__(
+            self, "target_fovs", _require_positive_int(self.target_fovs, "target_fovs")
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -124,7 +129,9 @@ class FixedObjectStrategy(SamplingStrategy):
     name: str = "fixed_objects"
 
     def __post_init__(self) -> None:
-        _require_positive_int(self.target_objects, "target_objects")
+        object.__setattr__(
+            self, "target_objects", _require_positive_int(self.target_objects, "target_objects")
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -154,7 +161,11 @@ class FixedObservationStrategy(SamplingStrategy):
     name: str = "fixed_observations"
 
     def __post_init__(self) -> None:
-        _require_positive_int(self.target_observations, "target_observations")
+        object.__setattr__(
+            self,
+            "target_observations",
+            _require_positive_int(self.target_observations, "target_observations"),
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -175,6 +186,12 @@ class FixedObservationStrategy(SamplingStrategy):
 _AREA = "imaged_area"
 
 
+def _check_area_col(area_col: object) -> None:
+    """The name of the FOV table's area column."""
+    if not isinstance(area_col, str) or not area_col:
+        raise TypeError("area_col must be the FOV table's area column")
+
+
 @dataclass(frozen=True)
 class ImagedAreaEstimator(Estimator):
     """Total physical area of the visible FOVs, from the FOV-table column ``area_col``.
@@ -193,8 +210,7 @@ class ImagedAreaEstimator(Estimator):
     name: str = "imaged_area"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.area_col, str) or not self.area_col:
-            raise TypeError("area_col must be the FOV table's area column")
+        _check_area_col(self.area_col)
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -207,7 +223,13 @@ class ImagedAreaEstimator(Estimator):
             raise ValueError(f"area_col {self.area_col!r} is not a column of the FOV table")
         if self.area_col in data.feature_cols:
             raise ValueError(f"area_col {self.area_col!r} is metadata, not a phenotype feature")
-        areas = data.fovs[self.area_col].to_numpy(dtype=float)
+        column = data.fovs[self.area_col]
+        if not pd.api.types.is_numeric_dtype(column) or pd.api.types.is_bool_dtype(column):
+            raise ValueError(
+                f"area_col {self.area_col!r} holds {column.dtype} values, not numbers; "
+                "convert it to numeric areas first"
+            )
+        areas = column.to_numpy(dtype=float)
         meta = {
             "direction": Direction.HIGHER_IS_BETTER,
             "units": f"units of {self.area_col!r}",
@@ -229,6 +251,7 @@ class FixedAreaStrategy(SamplingStrategy):
     name: str = "fixed_area"
 
     def __post_init__(self) -> None:
+        _check_area_col(self.area_col)
         if isinstance(self.target_area, bool) or not (
             self.target_area > 0 and math.isfinite(self.target_area)
         ):

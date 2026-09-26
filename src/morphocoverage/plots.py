@@ -8,21 +8,34 @@ every object is a jittered point coloured by technical repeat (the
 MorphoBricks ``technical_repeat`` column, a well or a dish, else the group
 column below the repeat; never a biological repeat), and each biological
 repeat's summary (median by default, or mean) carries its interval from
-resampling that repeat's technical repeats and then their whole fields
-(``statistics.bootstrap_nested``; whole fields alone when there is one
-technical repeat), never objects, so the interval reflects how the data were
-sampled: a well-to-well shift widens it instead of passing for
-field-to-field noise.
+resampling that repeat's whole technical repeats, each with its fields as
+acquired (``statistics.bootstrap_nested``, Ren et al. 2010; whole fields
+alone when there is one technical repeat), never objects, so the interval
+reflects how the data were sampled: a well-to-well shift widens it instead of
+passing for field-to-field noise. Pooled biological repeats are resampled
+first, then each drawn repeat as above. Acquired fields without observations
+take part, as in ``statistics.bootstrap_fields``, when the FOV table places
+them in the cluster. The title says how many technical repeats a cluster
+has, and warns when one has only 2 or 3, which no resampling turns into a
+reliable interval.
 
 Limits keep the figures legible and are arguments: at most ``max_conditions``
 conditions per figure (more are split over several figures), at most
 ``max_repeats`` biological repeats side by side (more are pooled into one
 cluster per condition, and the title says so, each technical repeat staying
-within its biological repeat), at most ``max_technical`` colours (up to 8;
-more technical repeats of a biological repeat share one grey), at most ``max_features`` features per
-call (more raise, so the caller chooses). Figures are
-``matplotlib.figure.Figure`` objects built without pyplot, so they display
-in a notebook and save with ``savefig`` without touching global state.
+within its biological repeat; the interval then resamples the biological
+repeats first, and within each drawn repeat its technical repeats, then
+their fields, as ``bootstrap_nested`` does for one repeat), at most
+``max_technical`` colours (up to 8; more technical repeats of a biological
+repeat share one grey), at most ``max_features`` features per call (more
+raise, so the caller chooses). A column named explicitly that the tables do
+not hold raises; only the default ``condition`` and ``repeat`` columns may be
+absent. Every cluster draws its jitter and resamples from its own generator,
+seeded from ``random_state``, the feature, the condition and the repeat, so
+a figure does not change with the other features or conditions of the call.
+Figures are ``matplotlib.figure.Figure`` objects built without pyplot, so
+they display in a notebook and save with ``savefig`` without touching global
+state.
 """
 
 from __future__ import annotations
@@ -36,8 +49,11 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
+from ._seeds import group_rng
+from .data_check import validate_input_tables
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from .schema import ValidatedInput, fov_positions, validate_input_tables
+from .sampling_unit._common import fov_values
+from .schema import ValidatedInput, fov_positions
 from .statistics import bootstrap_nested
 
 MAX_CONDITIONS = 12
@@ -63,16 +79,35 @@ class _Layout:
     max_repeats: int
 
 
-def _fields_of(data: ValidatedInput, rows: np.ndarray, values: np.ndarray) -> list[np.ndarray]:
-    """The values of ``rows`` (a boolean mask over observations) split by acquired field."""
+def _field_metadata(data: ValidatedInput, columns: Sequence[str | None]) -> pd.DataFrame:
+    """The layout's columns for every acquired field, from the FOV table.
+
+    A column only the observations carry is taken from each field's first
+    observation; a field without observations then has no value there and
+    cannot be placed in a cluster.
+    """
+    fields = data.fovs.reset_index(drop=True)
     positions = fov_positions(data, data.fovs)
-    chosen = rows & ~np.isnan(values)
-    return [values[chosen & (positions == p)] for p in np.unique(positions[rows])]
+    meta = pd.DataFrame(index=fields.index)
+    for column in dict.fromkeys(c for c in columns if c is not None):
+        if column in fields.columns:
+            meta[column] = fields[column].to_numpy()
+        else:
+            first = pd.Series(data.objects[column].to_numpy()).groupby(positions).first()
+            meta[column] = first.reindex(meta.index).to_numpy()
+    return meta
 
 
-def _present(table: pd.DataFrame, column: str | None) -> str | None:
-    """``column`` when the table has it, else ``None``."""
-    return column if column is not None and column in table.columns else None
+def _column(table: pd.DataFrame, column: str | None, default: str | None, name: str) -> str | None:
+    """``column`` when the table has it, ``None`` when it is an absent default; else raise."""
+    if column is None or column in table.columns:
+        return column
+    if column == default:
+        return None
+    raise ValueError(
+        f"{name} {column!r} is not a column of the tables; name an existing column, or pass "
+        f"{name}=None"
+    )
 
 
 def _layout(
@@ -84,7 +119,8 @@ def _layout(
 ) -> _Layout:
     """Resolve the condition, repeat and technical columns and their values."""
     table = data.objects
-    condition_col, repeat_col = _present(table, condition_col), _present(table, repeat_col)
+    condition_col = _column(table, condition_col, MORPHOBRICKS_GROUP_COLUMNS[0], "condition_col")
+    repeat_col = _column(table, repeat_col, MORPHOBRICKS_GROUP_COLUMNS[1], "repeat_col")
     if technical_col is None:
         # The MorphoBricks technical repeat, else the first analysis-group column
         # below condition and repeat (a well, say).
@@ -93,7 +129,8 @@ def _layout(
             technical_col = TECHNICAL_REPEAT_COLUMN
         else:
             technical_col = below[0] if below else None
-    technical_col = _present(table, technical_col)
+    else:
+        technical_col = _column(table, technical_col, None, "technical_col")
     conditions = list(dict.fromkeys(table[condition_col].tolist())) if condition_col else [None]
     repeats = list(dict.fromkeys(table[repeat_col].tolist())) if repeat_col else [None]
     pooled = len(repeats) > max_repeats
@@ -128,6 +165,7 @@ def _draw_cluster(
     data: ValidatedInput,
     rows: np.ndarray,
     values: np.ndarray,
+    fields: tuple[pd.DataFrame, list[np.ndarray], np.ndarray],
     layout: _Layout,
     colours: Sequence[str],
     statistic: Callable[[np.ndarray], float],
@@ -137,35 +175,39 @@ def _draw_cluster(
 ) -> None:
     """One cluster (a condition and biological repeat): technical-repeat points, summary, interval.
 
-    ``rows`` is the boolean mask of the cluster's observations.
+    ``rows`` is the boolean mask of the cluster's observations; ``fields``
+    holds every acquired field's metadata and values, and the boolean mask of
+    the cluster's fields, empty ones included.
     """
     table = data.objects
+    meta, per_field, in_cluster = fields
     # A technical repeat lies within its biological repeat: when repeats are pooled
     # into one cluster, well "B02" of two repeats is two units, not one.
     repeat_col = layout.repeat_col if layout.pooled_repeats else None
-    replicates: list[tuple[Any, Any]] = (
-        list(
-            dict.fromkeys(
-                zip(
-                    table.loc[rows, repeat_col] if repeat_col else [None] * int(rows.sum()),
-                    table.loc[rows, layout.technical_col],
-                    strict=True,
-                )
+    technical_col = layout.technical_col
+
+    def keys(frame: pd.DataFrame, mask: np.ndarray) -> list[tuple[Any, Any]]:
+        n = int(mask.sum())
+        return list(
+            zip(
+                frame.loc[mask, repeat_col] if repeat_col else [None] * n,
+                frame.loc[mask, technical_col] if technical_col else [None] * n,
+                strict=True,
             )
         )
-        if layout.technical_col
-        else [(None, None)]
-    )
+
+    # Units in the order their observations come, then units whose fields are all empty.
+    replicates = list(dict.fromkeys([*keys(table, rows), *keys(meta, in_cluster)]))
     half = 0.4 * width
-    units = []
+    by_repeat: dict[Any, list[list[np.ndarray]]] = {}
     ranks: dict[Any, int] = {}
     for repeat, replicate in replicates:
         # Colours by rank within the biological repeat, as the legend says.
         rank = ranks[repeat] = ranks.get(repeat, -1) + 1
-        in_unit = (
-            rows & _mask(table, repeat_col, repeat) & _mask(table, layout.technical_col, replicate)
-        )
-        units.append(_fields_of(data, in_unit, values))
+        unit_fields = in_cluster & _mask(meta, repeat_col, repeat)
+        unit_fields &= _mask(meta, technical_col, replicate)
+        by_repeat.setdefault(repeat, []).append([per_field[i] for i in np.flatnonzero(unit_fields)])
+        in_unit = rows & _mask(table, repeat_col, repeat) & _mask(table, technical_col, replicate)
         y = values[in_unit]
         y = y[~np.isnan(y)]
         if not len(y):
@@ -173,9 +215,15 @@ def _draw_cluster(
         colour = colours[rank] if rank < len(colours) else GREY
         jitter = rng.uniform(-half, half, size=len(y))
         ax.scatter(x + jitter, y, s=6, alpha=0.35, color=colour, linewidths=0, rasterized=True)
-    point, low, high = bootstrap_nested(
-        units, statistic, n_boot=n_boot, rng=rng, confidence=confidence
-    )
+    repeats = list(by_repeat.values())
+    if len(repeats) > 1:
+        point, low, high = _bootstrap_repeats(
+            repeats, statistic, n_boot=n_boot, rng=rng, confidence=confidence
+        )
+    else:
+        point, low, high = bootstrap_nested(
+            repeats[0], statistic, n_boot=n_boot, rng=rng, confidence=confidence
+        )
     if np.isfinite(low) and np.isfinite(high):
         # A thick bar with caps behind the summary line, so a narrow interval stays visible.
         ax.vlines(x, low, high, color="black", lw=7, alpha=0.3, zorder=2)
@@ -184,16 +232,72 @@ def _draw_cluster(
         ax.hlines(point, x - half, x + half, color="black", lw=2, zorder=4)
 
 
+def _bootstrap_repeats(
+    repeats: Sequence[Sequence[Sequence[np.ndarray]]],
+    statistic: Callable[[np.ndarray], float],
+    *,
+    n_boot: int,
+    rng: np.random.Generator,
+    confidence: float,
+) -> tuple[float, float, float]:
+    """``statistic`` of pooled biological repeats, and its interval from resampling them first.
+
+    ``repeats`` holds, per biological repeat, its technical repeats, each a
+    list of its fields' values. Each resample draws as many repeats as there
+    are, with replacement, and within each drawn repeat does what
+    ``statistics.bootstrap_nested`` does for one: its technical repeats with
+    replacement, each keeping its fields, or its fields with replacement when
+    it has a single technical repeat. A repeat-to-repeat shift then widens the
+    interval instead of passing for field-to-field noise (resampling only the
+    fields of pooled repeats covered the mean 60% of the time for a nominal
+    95%). Resamples holding no object are left out of the percentiles; NaN
+    bounds when fewer than two fields hold objects.
+    """
+    levels = [
+        [[np.asarray(f, dtype=float) for f in unit] for unit in r if len(unit)] for r in repeats
+    ]
+    levels = [r for r in levels if r]
+    fields = [f for r in levels for unit in r for f in unit]
+    pooled = np.concatenate(fields) if fields else np.array([])
+    point = float(statistic(pooled)) if len(pooled) else float("nan")
+    if sum(len(f) > 0 for f in fields) < 2:
+        return point, float("nan"), float("nan")
+    draws = np.empty(n_boot)
+    for b in range(n_boot):
+        parts = []
+        for r in rng.integers(0, len(levels), size=len(levels)):
+            units = levels[r]
+            if len(units) == 1:
+                chosen = rng.integers(0, len(units[0]), size=len(units[0]))
+                parts += [units[0][i] for i in chosen]
+            else:
+                for u in rng.integers(0, len(units), size=len(units)):
+                    parts += units[u]
+        sample = np.concatenate(parts) if parts else np.array([])
+        draws[b] = statistic(sample) if len(sample) else np.nan
+    defined = draws[np.isfinite(draws)]
+    if len(defined) < 2:
+        return point, float("nan"), float("nan")
+    tail = 100 * (1 - confidence) / 2
+    low, high = np.percentile(defined, [tail, 100 - tail])
+    return point, float(low), float(high)
+
+
+def _technical_counts(table: pd.DataFrame, layout: _Layout) -> list[int]:
+    """The number of technical repeats in every condition-and-biological-repeat cluster."""
+    if layout.technical_col is None:
+        return [0]
+    # Counted per biological repeat, pooled or not: well names of different repeats are
+    # different wells, and a pooled interval resamples each drawn repeat's wells.
+    keys = [c for c in (layout.condition_col, layout.repeat_col) if c is not None]
+    if not keys:
+        return [int(table[layout.technical_col].nunique())]
+    return [int(n) for n in table.groupby(keys, sort=False)[layout.technical_col].nunique()]
+
+
 def _technical_count(table: pd.DataFrame, layout: _Layout) -> int:
     """The most technical repeats any condition-and-biological-repeat cluster holds."""
-    if layout.technical_col is None:
-        return 0
-    # Pooled repeats form one cluster per condition, so they do not split the count.
-    repeat_col = None if layout.pooled_repeats else layout.repeat_col
-    keys = [c for c in (layout.condition_col, repeat_col) if c is not None]
-    if not keys:
-        return int(table[layout.technical_col].nunique())
-    return int(table.groupby(keys, sort=False)[layout.technical_col].nunique().max())
+    return max(_technical_counts(table, layout))
 
 
 def _legend(ax: Axes, layout: _Layout, colours: Sequence[str], n_technical: int) -> None:
@@ -232,8 +336,21 @@ def _legend(ax: Axes, layout: _Layout, colours: Sequence[str], n_technical: int)
         )
 
 
-def _title(feature: str, part: str, layout: _Layout, unit: str, summary: str, level: float) -> str:
-    """Three lines: what is plotted and how it is split, what a point is, what the interval is."""
+def _title(
+    feature: str,
+    part: str,
+    layout: _Layout,
+    unit: str,
+    summary: str,
+    level: float,
+    technical: Sequence[int] = (),
+) -> str:
+    """Three lines: what is plotted and how it is split, what a point is, what the interval is.
+
+    ``technical`` holds the number of technical repeats of every cluster: the
+    interval line says how many there are, and a fourth line warns when a
+    cluster has only 2 or 3, which no resampling turns into a reliable interval.
+    """
     repeats = ""
     if layout.pooled_repeats:
         repeats = (
@@ -242,13 +359,24 @@ def _title(feature: str, part: str, layout: _Layout, unit: str, summary: str, le
         )
     elif layout.repeat_col:
         repeats = f"; biological repeats ({layout.repeat_col}) side by side"
-    coloured, resampled = "", "whole fields"
+    coloured, resampled, caveat = "", "whole fields", ""
     if layout.technical_col:
         coloured = f", coloured by technical repeat ({layout.technical_col})"
-        resampled = "technical repeats, then their whole fields"
+        fewest, most = (min(technical), max(technical)) if technical else (0, 0)
+        span = f"{most}" if fewest == most else f"{fewest} to {most}"
+        per = "per biological repeat" if layout.pooled_repeats else "per cluster"
+        resampled = (
+            f"whole technical repeats with their fields as acquired ({span} {per}; "
+            "whole fields where there is one)"
+        )
+        # Pooled repeats resample the repeats themselves, so few wells in each is no caveat.
+        if not layout.pooled_repeats and any(n in (2, 3) for n in technical):
+            caveat = "\nwith only 2-3 technical repeats a cluster's interval is not reliable"
+    if layout.pooled_repeats:
+        resampled = f"biological repeats, then their {resampled}"
     return (
         f"{feature}{part}{repeats}\nevery {unit} a point{coloured}\n"
-        f"{summary} with its {level:.0%} interval from resampling {resampled}"
+        f"{summary} with its {level:.0%} interval from resampling {resampled}{caveat}"
     )
 
 
@@ -282,6 +410,8 @@ def plots_of_data(
     ``technical_repeat`` column, else the first analysis-group column below
     condition and repeat, or none. Without a condition column every object
     is one group; without a repeat column each condition is one cluster.
+    ``condition_col`` and ``repeat_col`` may name absent columns only at
+    their defaults; any other absent column raises.
     ``value_note`` is added to the value axis label, for example
     ``"relative to control"`` for normalised values.
     """
@@ -318,14 +448,16 @@ def plots_of_data(
     table = data.objects
     layout = _layout(data, condition_col, repeat_col, technical_col, max_repeats)
     colours = PALETTE[: min(max_technical, len(PALETTE))]
-    n_technical = _technical_count(table, layout)
-    rng = np.random.default_rng(random_state)
+    technical = _technical_counts(table, layout)
+    n_technical = max(technical)
+    meta = _field_metadata(data, [layout.condition_col, layout.repeat_col, layout.technical_col])
     statistic = SUMMARIES[summary]
     n_repeats = len(layout.repeats)
     width = 0.8 / n_repeats
     figures: dict[str, list[Figure]] = {}
     for feature in features:
         values = data.feature_values(feature)
+        per_field = fov_values(data, values)  # every acquired field, empty ones included
         figures[feature] = []
         for start in range(0, len(layout.conditions), max_conditions):
             chunk = layout.conditions[start : start + max_conditions]
@@ -334,11 +466,18 @@ def plots_of_data(
             repeat_labels: list[tuple[float, str]] = []
             for index, condition in enumerate(chunk):
                 in_condition = _mask(table, layout.condition_col, condition)
+                fields_in_condition = _mask(meta, layout.condition_col, condition)
                 for j, repeat in enumerate(layout.repeats):
                     rows = in_condition & _mask(table, layout.repeat_col, repeat)
                     if not rows.any():
                         continue
+                    in_cluster = fields_in_condition & _mask(meta, layout.repeat_col, repeat)
                     x = index - 0.4 + width * (j + 0.5)
+                    # A generator per cluster: no figure depends on the others of the call.
+                    rng = group_rng(
+                        random_state,
+                        {"feature": feature, "condition": condition, "repeat": repeat},
+                    )
                     _draw_cluster(
                         ax,
                         x,
@@ -346,6 +485,7 @@ def plots_of_data(
                         data,
                         rows,
                         values,
+                        (meta, per_field, in_cluster),
                         layout,
                         colours,
                         statistic,
@@ -379,7 +519,9 @@ def plots_of_data(
                 else ""
             )
             ax.set_title(
-                _title(feature, part, layout, data.observation_unit, summary, confidence),
+                _title(
+                    feature, part, layout, data.observation_unit, summary, confidence, technical
+                ),
                 fontsize=9,
                 loc="left",
                 pad=14,

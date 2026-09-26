@@ -40,10 +40,13 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
+from ._checks import is_integer
+from ._seeds import group_rng
+from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .evidence import Availability
 from .objectives import ObjectiveConfig, SamplingObjective
-from .schema import ValidatedInput, validate_input_tables
+from .schema import ValidatedInput
 from .strategies.support_novelty import FOV_QUANTITY, UPPER_QUANTITY, SupportNoveltyEstimator
 
 _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -57,6 +60,7 @@ CALIBRATION_COLUMNS = (
     "actual",
     "bound",
     "bound_held",
+    "reason",
 )
 
 
@@ -70,15 +74,15 @@ def _check_settings(
     if not counts:
         raise ValueError("give at least one FOV count")
     for value, label in [*((c, "fov_counts") for c in counts), (draws, "draws")]:
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        if not is_integer(value) or value < 1:
             raise ValueError(f"{label} must hold positive integers")
     if min(counts) < novelty.min_fovs:
         raise ValueError(
             f"fov_counts must be at least the estimator's min_fovs ({novelty.min_fovs})"
         )
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
+    if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
-    return sorted(set(counts))
+    return sorted({int(count) for count in counts})
 
 
 def _draw(
@@ -125,11 +129,16 @@ def calibrate_next_fov_novelty(
     - ``predicted``: mean predicted chance; ``actual``: mean fraction of the
       remaining FOVs that did show something new;
     - ``bound``: mean upper bound; ``bound_held``: fraction of draws in which
-      the bound was at least the actual rate.
+      the bound was at least the actual rate;
+    - ``reason``: why a row has no draws, else ``None``.
 
-    Means are ``None`` when no draw was usable. FOV counts not smaller than a
-    group's FOV count are skipped for that group. ``fovs`` must list every
-    acquired FOV; FOVs without observations can be drawn and count as not new.
+    Means are ``None`` when no draw was usable. An FOV count not smaller than
+    a group's FOV count leaves no FOV to check against: its row is kept, with
+    no draws and the reason, so no group disappears from the table. ``fovs``
+    must list every acquired FOV; FOVs without observations can be drawn and
+    count as not new. Each group and FOV count draws from its own generator,
+    seeded from ``random_state``, the group's identity and ``k``, so its row
+    never depends on the other groups or on the other FOV counts requested.
     """
     counts = _check_settings(novelty, fov_counts, draws, random_state)
     data = validate_input_tables(
@@ -140,17 +149,20 @@ def calibrate_next_fov_novelty(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
-    rng = np.random.default_rng(random_state)
     rows = []
     for group, group_data in iter_analysis_groups(data):
         total = len(group_data.fovs)
-        for k in (c for c in counts if c < total):
+        for k in counts:
+            if k >= total:
+                rows.append(_skipped_row(group, k, total))
+                continue
+            rng = group_rng(int(random_state), group, k)
             results = []
             for _ in range(draws):
                 order = rng.permutation(total)
                 results.append(_draw(group_data, novelty, order[:k], order[k:]))
             usable = np.array([r for r in results if r is not None], dtype=float)
-            row = {**group, "fovs_imaged": k, "remaining_fovs": total - k}
+            row = {**group, "fovs_imaged": k, "remaining_fovs": total - k, "reason": None}
             row.update({"draws": len(usable), "unavailable_draws": draws - len(usable)})
             if len(usable):
                 predicted, bound, actual = usable.T
@@ -166,6 +178,22 @@ def calibrate_next_fov_novelty(
                 row.update(dict.fromkeys(("predicted", "actual", "bound", "bound_held")))
             rows.append(row)
     return pd.DataFrame(rows, columns=[*data.group_cols, *CALIBRATION_COLUMNS])
+
+
+def _skipped_row(group: dict, k: int, total: int) -> dict:
+    """The row of a group too small for ``k``: no draws, and why."""
+    return {
+        **group,
+        "fovs_imaged": k,
+        "remaining_fovs": 0,
+        "draws": 0,
+        "unavailable_draws": 0,
+        **dict.fromkeys(("predicted", "actual", "bound", "bound_held")),
+        "reason": (
+            f"the group has {total} FOVs, so predicting from {k} leaves none to check "
+            "the prediction against"
+        ),
+    }
 
 
 def pool_calibration(table: pd.DataFrame) -> pd.DataFrame:

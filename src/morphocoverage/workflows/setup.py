@@ -1,9 +1,12 @@
 """What a dataset is, declared once for every workflow (``report``, ``optimise``, ``live``,
 ``benchmark``).
 
-Every scientific choice the workflows make is a field here, visible and
-recorded; the workflows only add the computational settings (draws, splits,
-orders) and run the package's analyses in the order of ``docs/questions.md``.
+Every scientific choice the workflows make is a field here or an explicit
+argument of a workflow, visible and recorded; the workflows add the
+computational settings (draws, splits, orders) and two provisional presets that
+their summaries print (``optimise``'s ``protocol_threshold``, ``benchmark``'s
+``alphas``), and run the package's analyses in the order of
+``docs/questions.md``.
 A field left at ``None`` switches off the analyses that need it, and the
 report then says "Not assessed" with what it would need.
 
@@ -46,9 +49,10 @@ from ..results import COMPONENT_WORDS
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
 from ..retrospective.overview import normalized_sentence
+from ..schema import resolve_observation_unit, unit_plural
+from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator
 from ..strategies.base import SamplingStrategy
-from ..strategies.rare_planning import fovs_to_detect
 from ..transforms import Standardize
 
 
@@ -86,17 +90,22 @@ class Setup:
     """The declaration of a dataset shared by the four workflows.
 
     - ``readout``: the scalar the microscopist reports (one feature column).
-    - ``features``: the representation for unusual objects and novelty
+    - ``features``: the representation for unusual observations and novelty
       (explicit columns; never inferred). Empty means the readout only.
     - ``control``: the negative-control groups, for example
       ``{"condition": "MOCK"}``; it normalizes the JCB rule and is the
-      reference for unusual objects.
+      reference for unusual observations (without it they are not assessed).
     - ``normalize``: ``"control_mean"`` divides every feature (the readout
-      included) by the mean of the control condition's objects of the same
-      repeat before any retrospective analysis (``normalize_to_control``);
-      needs ``control`` to name the condition column. The live session runs
-      on raw values, since it sees one group at a time. ``None`` keeps the
-      values as given.
+      included) by the mean of the control condition's observations of the
+      same repeat (``normalize_to_control``); needs ``control`` to name the
+      condition column. The normalised values are used only where values are
+      compared across repeats: by the outcome criteria judged on held-back
+      fields, the condition contrast, the feature ranking and the plots. Every
+      stopping rule runs on the raw values, in the report, ``optimise`` and
+      ``benchmark`` exactly as in the live session (which sees one field at a
+      time and no control), so one rule gives one verdict whichever workflow
+      runs it; so do the other analyses (variability, controls, inspection,
+      effort projection). ``None`` keeps the values as given.
     - ``positive``: a ``PositiveControl``, for the detection check.
     - ``tolerances``: the readout's mean within these fractions, the outcomes
       judged on held-back FOVs and the JCB targets; default the paper's 5% and
@@ -109,26 +118,45 @@ class Setup:
       declared and the planning answers speak of the mean only.
     - ``rare`` and ``rare_label``: the rare-phenotype target, a ``RareTarget``
       (its definition, prevalence and/or field incidence, detection
-      probability, fields it must be seen in), and the object column that
-      labels it (booleans or 0/1) when an independent label exists. With the
-      label, held-back fields judge whether ``k`` fields showed the state
+      probability, fields it must be seen in), and the observation column
+      that labels it (booleans or 0/1) when an independent label exists. With
+      the label, held-back fields judge whether ``k`` fields showed the state
       (``RareStateDetected``); without it the target is stated and planned
       for, not judged.
     - ``novelty``: the definition of "new" (``default_novelty(features)`` or
       your own); ``None`` leaves the novelty questions not assessed.
+    - ``novelty_target``: with ``novelty``, the chance that one more field
+      shows something new that the report asks to rule out (default 5%). The
+      report then also judges a report-only rule, "the upper bound of that
+      chance is at most ``novelty_target``", beside ``rules``: it is not one of
+      ``rules``, so the live session does not run it and ``optimise`` and
+      ``benchmark`` do not calibrate it; the declaration says so.
+    - ``few_fovs``: with ``novelty``, the report also counts the fields holding
+      a state that fewer than ``few_fovs`` other fields show (seen, but not
+      established). It must exceed the definition's ``min_other_fovs``;
+      ``None`` means two more than it (3 for ``default_novelty``).
     - ``hierarchy`` and ``effort_strata``: FOV, sample and repeat columns for
       "more fields or more samples?" and protocol reliability. When the FOV
       table has the MorphoBricks ``technical_repeat`` column (a well, a dish)
       and no hierarchy is declared, one is derived: the field within the
-      technical repeat within the repeat, one stratum per condition
-      (``resolved_hierarchy``, ``resolved_effort_strata``).
+      technical repeat within the repeat (``resolved_hierarchy``).
+      ``effort_strata=None`` (the default) keeps one stratum per condition,
+      declared or derived hierarchy alike, so conditions are never pooled
+      silently; ``effort_strata=()`` pools every sample, as explicitly asked
+      (``resolved_effort_strata``).
     - ``acquisition_order_col``, ``stage_cols``: acquisition order and stage
       coordinates, when recorded.
     - ``fov_col``, ``group_cols``, ``observation_unit``: as for
       ``validate_input_tables`` (MorphoBricks defaults when ``None``).
     - ``rules``: the stopping rules to assess, calibrate and run live; by
-      default the JCB rule (upper-95 SD, first tolerance) per object and per
-      FOV.
+      default the JCB rule (upper-95 SD, first tolerance) per observation and
+      per FOV.
+    - ``random_state``: the seed of every random procedure the workflows run
+      (subset draws, hold-outs, replay orders, bootstraps and randomization
+      tests), so a run is reproducible; it is a computational setting, not a
+      scientific one.
+    - ``n_jobs``: worker processes for the analyses that can use them (``-1``:
+      every CPU); results are identical for every value.
     """
 
     readout: str
@@ -142,8 +170,9 @@ class Setup:
     rare_label: str | None = None
     novelty: SupportNoveltyEstimator | None = None
     novelty_target: float = 0.05
+    few_fovs: int | None = None
     hierarchy: SamplingHierarchy | None = None
-    effort_strata: tuple[str, ...] = ()
+    effort_strata: tuple[str, ...] | None = None
     acquisition_order_col: str | None = None
     stage_cols: tuple[str, str] | None = None
     fov_col: str | None = None
@@ -158,6 +187,8 @@ class Setup:
             raise TypeError("readout must be one column name")
         for name in ("features", "tolerances", "effort_strata"):
             value = getattr(self, name)
+            if value is None and name == "effort_strata":
+                continue  # one stratum per condition (resolved_effort_strata)
             if isinstance(value, str):
                 raise TypeError(f"{name} must be a sequence, not a string")
             object.__setattr__(self, name, tuple(value))
@@ -206,6 +237,7 @@ class Setup:
                 "a positive control is judged with the definition of new: declare novelty "
                 "(and features), or leave the positive control out"
             )
+        self._check_few_fovs()
         undeclared = sorted(set(self.criterion_columns) - set(self.columns))
         if undeclared:
             raise ValueError(
@@ -243,12 +275,35 @@ class Setup:
         ``sampling_reliability`` judges (the rules read ``columns``)."""
         return [self.readout, *(c for c in self.criterion_columns if c != self.readout)]
 
+    def _check_few_fovs(self) -> None:
+        if self.few_fovs is None:
+            return
+        if self.novelty is None:
+            raise ValueError("few_fovs counts states under the definition of new: declare novelty")
+        if isinstance(self.few_fovs, bool) or not isinstance(self.few_fovs, int):
+            raise TypeError("few_fovs must be an integer number of fields")
+        if self.few_fovs <= self.novelty.min_other_fovs:
+            raise ValueError(
+                f"few_fovs ({self.few_fovs}) must exceed the definition of new's min_other_fovs "
+                f"({self.novelty.min_other_fovs}): a state seen in that many other fields is "
+                "already not new"
+            )
+
+    @property
+    def resolved_few_fovs(self) -> int | None:
+        """``few_fovs``, or two more than the definition's ``min_other_fovs``; ``None``
+        without a definition of new."""
+        if self.novelty is None:
+            return None
+        return self.few_fovs if self.few_fovs is not None else self.novelty.min_other_fovs + 2
+
     def prepared(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
-        """The object table every retrospective analysis reads: normalised when asked.
+        """The observation table the outcome criteria, the contrast and the plots read.
 
         With ``normalize="control_mean"`` every declared column is divided by
         its repeat's control mean; otherwise ``objects`` is returned unchanged.
-        A repeat without a control raises (``normalize_to_control``).
+        A repeat without a control raises (``normalize_to_control``). The
+        stopping rules and the other analyses read the raw values, as live.
         """
         if self.normalize is None:
             return objects
@@ -295,21 +350,26 @@ class Setup:
         return SamplingHierarchy(fov_col, technical, self.repeat_col(fovs))
 
     def resolved_effort_strata(self, fovs: pd.DataFrame) -> list[str]:
-        """``effort_strata`` as declared; with a derived hierarchy, one stratum per condition.
+        """``effort_strata`` as declared; by default one stratum per condition.
 
-        A declared hierarchy with no strata pools every sample, as asked; a
-        derived one never pools conditions silently.
+        The default holds for a declared hierarchy as for a derived one, so
+        conditions are never pooled silently; ``effort_strata=()`` pools every
+        sample, as explicitly asked.
         """
-        if self.effort_strata or self.hierarchy is not None:
+        if self.effort_strata is not None:
             return list(self.effort_strata)
         return [CONDITION_COLUMN] if CONDITION_COLUMN in fovs.columns else []
 
     def normalized_sentence(self, fovs: pd.DataFrame) -> str | None:
-        """How the values are normalised, or ``None`` when they are not."""
+        """How the values are normalised and what reads them, or ``None`` when they are not."""
         if self.normalize is None:
             return None
         assert self.control is not None
-        return normalized_sentence(self.control, self.repeat_col(fovs))
+        return (
+            f"{normalized_sentence(self.control, self.repeat_col(fovs))}, for the outcomes "
+            "judged on held-back fields, the condition contrast, the feature ranking and the "
+            "plots; the stopping rules and the other analyses read the raw values"
+        )
 
     def objective(self) -> ObjectiveConfig:
         """The objective whose components are the declared targets.
@@ -367,9 +427,10 @@ class Setup:
         read for a target the microscopist did not name.
         """
         tolerances = " and ".join(f"{t:.1%}" for t in self.tolerances)
+        units = self.unit_words
         lines = [
             (
-                f"Population summary: the mean of {self.readout} over all objects, within "
+                f"Population summary: the mean of {self.readout} over all {units}, within "
                 f"{tolerances} of its value on held-back fields."
             )
         ]
@@ -389,25 +450,25 @@ class Setup:
                 "Rare phenotype: not declared (no RareTarget in rare), so no answer below "
                 "says whether a rare state was sampled enough."
             )
-        new = "not declared" if self.novelty is None else self.novelty.name
-        if self.features:
-            representation = (
-                f"{len(self.features)} declared feature columns for unusual objects and new "
-                f"phenotypes; definition of new: {new}"
+        lines.append(f"Representation: readout {self.readout}; {self._representation()}.")
+        if self.novelty is not None:
+            lines.append(
+                "Report-only rule: with this definition of new, 'Did I image enough?' also "
+                "judges whether the chance that one more field shows something new is at most "
+                f"{self.novelty_target:.1%} (its upper bound; novelty_target). It is not one of "
+                "the stopping rules (rules): the live decision does not run it, and optimise "
+                "and benchmark do not calibrate it. A state that fewer than "
+                f"{self.resolved_few_fovs} other fields show is counted as seen in few fields "
+                "(few_fovs)."
             )
-        else:
-            # Unusual objects and novelty read the declared features only (see report).
-            representation = (
-                "no feature columns declared, so unusual objects and new phenotypes are not "
-                "assessed"
-            )
-        lines.append(f"Representation: readout {self.readout}; {representation}.")
         if self.normalize is not None:
             lines.append(
                 "Values: every declared feature divided by the mean of the control "
-                f"{dict(self.control or {})} objects of the same repeat (of the whole table "
-                "without a repeat column) before every retrospective analysis; the live "
-                "decision runs on raw values."
+                f"{dict(self.control or {})} {units} of the same repeat (of the whole table "
+                "without a repeat column) for the outcomes judged on held-back fields, the "
+                "condition contrast, the feature ranking and the plots; every stopping rule "
+                "runs on the raw values, in the report, optimise and benchmark as in the live "
+                "decision, and so do the other analyses."
             )
         objective = self.objective()
         targets = " and ".join(
@@ -420,12 +481,37 @@ class Setup:
         )
         return tuple(lines)
 
+    @property
+    def unit_words(self) -> str:
+        """The observation unit in the plural, for sentences (``objects`` when undeclared)."""
+        return unit_plural(resolve_observation_unit(self.observation_unit)[0])
+
+    def _representation(self) -> str:
+        """What the declared features are used for; unusual observations need the control."""
+        units = self.unit_words
+        if not self.features:
+            # Unusual observations and novelty read the declared features only (see report).
+            return (
+                f"no feature columns declared, so unusual {units} and new phenotypes are not "
+                "assessed"
+            )
+        new = "not declared" if self.novelty is None else self.novelty.name
+        if self.control is None:
+            return (
+                f"{len(self.features)} declared feature columns for new phenotypes (definition "
+                f"of new: {new}); unusual {units} are not assessed without a control"
+            )
+        return (
+            f"{len(self.features)} declared feature columns for unusual {units} (against the "
+            f"control) and new phenotypes; definition of new: {new}"
+        )
+
     def _rare_declaration(self) -> str:
         target = self.rare
         assert target is not None
         parts = []
         if target.object_prevalence is not None:
-            parts.append(f"{target.object_prevalence:.1%} of objects")
+            parts.append(f"{target.object_prevalence:.1%} of {self.unit_words}")
         if target.fov_incidence is not None:
             parts.append(f"{target.fov_incidence:.1%} of fields")
         fields = target.min_fov_occurrences
@@ -461,7 +547,7 @@ class Setup:
         }
 
     def stopping_rules(self) -> tuple[SamplingStrategy, ...]:
-        """``rules``, or the JCB rule per object and per FOV at the first tolerance."""
+        """``rules``, or the JCB rule per observation and per FOV at the first tolerance."""
         if self.rules is not None:
             return self.rules
         target = self.tolerances[0]

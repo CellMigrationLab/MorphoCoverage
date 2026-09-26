@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 from scenarios import FEATURE_COLS, SCENARIOS
 
+from morphocoverage.bounds import interval
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
     OutcomeCriterion,
@@ -82,11 +83,12 @@ def test_per_unit_counts_and_the_named_difficult_sample():
 
 
 def test_interval_counts_units_not_draws():
-    # Duplicating a unit's samples adds samples, not units: the interval of a share
-    # that is the same in every unit stays at that share.
+    # Duplicating a unit's samples adds samples, not units: every sample adequate in
+    # 3 units gives the exact Clopper-Pearson interval of 3 of 3, not of 6 of 6
+    # (and not the zero-width 100%-100% a resample of units would give).
     same = {(p, w): {5: 0.95} for p in ("P1", "P2", "P3") for w in ("A1", "A2")}
     row = _protocol(same).table.iloc[0]
-    assert row["share_low"] == row["share_high"] == 1.0
+    assert (row["share_low"], row["share_high"]) == pytest.approx(interval(3, 3, 0.95))
     # One unit gives no interval at all, rather than a zero-width one that looks exact.
     one_unit = _protocol({k: v for k, v in PLATES.items() if k[0] == "P1"})
     assert one_unit.table["share_low"].isna().all()

@@ -2,7 +2,9 @@
 
 The session exposes the same estimator/policy machinery used by retrospective
 replay without requiring a completed acquisition or knowledge of future FOVs.
-One call to add_fov reveals exactly one spatial acquisition position.
+One call to add_fov reveals exactly one spatial acquisition position, and is
+atomic: an FOV that is refused (by validation or by any estimator) leaves the
+session exactly as it was, so the same FOV can be added again once corrected.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from typing import Any
 
 import pandas as pd
 
+from .data_check import validate_input_tables
 from .evaluator import IncrementalReplay
 from .metadata import (
     EMPTY_MEANS_ABSENT,
@@ -24,7 +27,12 @@ from .metadata import (
 )
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
-from .schema import ValidatedInput, resolve_observation_unit, validate_input_tables
+from .schema import (
+    ValidatedInput,
+    _check_within_fov_axes,
+    _within_fov_axes,
+    resolve_observation_unit,
+)
 from .strategies.base import SamplingStrategy
 
 
@@ -62,6 +70,26 @@ class _GroupSession:
         self._keys.add(key)
         self._parts.append(new)
         self._visible = None
+
+    def remove_last(self) -> None:
+        """Undo the last ``append`` and rebuild every strategy's state without that FOV.
+
+        An estimator may have updated its state before another one refused the
+        FOV, so the states are rebuilt from the FOVs accepted before it. Estimators
+        are pure functions of the FOVs they have seen (the incremental contract),
+        so the rebuilt states equal the ones before the refused FOV.
+        """
+        removed = self._parts.pop()
+        self._keys.discard(self._key_of(removed))
+        self._visible = None
+        first = self._parts[0]
+        self.replays = [
+            IncrementalReplay(r.strategy, first, objective=r.objective, group=r.group)
+            for r in self.replays
+        ]
+        for part in self._parts:
+            for replay in self.replays:
+                replay.step(part, self.visible, record=False, setup_seconds=0.0)
 
     def visible(self) -> tuple[ValidatedInput, float]:
         """All FOVs added so far, joined on first use after each append, and the join time."""
@@ -118,6 +146,10 @@ class OnlineSession:
         self._resolved_fov_col: str | None = None
         self._resolved_group_cols: tuple[str, ...] | None = None
         self._groups: dict[tuple[object, ...], _GroupSession] = {}
+        # With an automatically resolved file-level FOV identifier: the distinct
+        # z/c/t rows of every FOV so far, for the validator's plane-as-FOV rule,
+        # which needs every FOV at once.
+        self._plane_rows: pd.DataFrame | None = None
 
     @property
     def fov_col(self) -> str | None:
@@ -140,17 +172,43 @@ class OnlineSession:
         return pd.DataFrame([dict(fov_metadata)])
 
     def _resolve_columns(self, fov: pd.DataFrame) -> tuple[str, tuple[str, ...]]:
-        """The FOV and group columns: fixed by the first FOV, then only checked."""
+        """The FOV and group columns: fixed by the first accepted FOV, then only checked.
+
+        Nothing is stored here; ``add_fov`` keeps the resolution once the FOV is
+        accepted, so a refused first FOV does not fix the session's columns.
+        """
         if self._resolved_fov_col is None:
-            self._resolved_fov_col = self._requested_fov_col or self._detect_fov_col(fov)
-            self._resolved_group_cols = (
+            fov_col = self._requested_fov_col or self._detect_fov_col(fov)
+            group_cols = (
                 self._default_group_cols(fov)
                 if self._requested_group_cols is None
                 else self._requested_group_cols
             )
-        else:
-            self._check_contract_drift(fov)
+            return fov_col, tuple(group_cols)
+        self._check_contract_drift(fov)
         return self._resolved_fov_col, self._resolved_group_cols or ()
+
+    def _with_plane_rows(self, new: ValidatedInput) -> pd.DataFrame | None:
+        """The plane-check rows including the new FOV's, after the validator's plane rule.
+
+        ``validate_input_tables`` refuses a table in which an automatically
+        resolved ``image_file``/``fov_id`` holds a single ``z``/``c``/``t`` value
+        that varies across FOVs: each "FOV" may then be one plane of a position.
+        The session validates one FOV at a time, so it keeps each FOV's distinct
+        z/c/t rows (two copies when one value fills several rows, which is all
+        the rule reads of the row count) and applies the same rule to every FOV
+        so far. Returns ``None`` when the rule does not apply.
+        """
+        if self._requested_fov_col is not None or new.fov_col not in ("image_file", "fov_id"):
+            return None
+        axes = _within_fov_axes(new.objects, self.feature_cols)
+        rows = new.objects.loc[:, [*new.fov_key, *axes]].drop_duplicates()
+        if len(rows) == 1 and len(new.objects) > 1:
+            rows = pd.concat([rows, rows], ignore_index=True)
+        if self._plane_rows is not None:
+            rows = pd.concat([self._plane_rows, rows], ignore_index=True)
+        _check_within_fov_axes(rows, new.fov_key, self.feature_cols, fov_col_was_chosen=True)
+        return rows
 
     @staticmethod
     def _detect_fov_col(fov: pd.DataFrame) -> str:
@@ -251,7 +309,14 @@ class OnlineSession:
         """Add one new spatial position and return one result per strategy.
 
         ``observations`` holds the new position's phenotype rows (possibly
-        none) and ``fov_metadata`` its one metadata row.
+        none) and ``fov_metadata`` its one metadata row. The call is atomic:
+        when validation or any estimator refuses the FOV, the error is raised
+        and the session is left as it was before the call.
+
+        When the FOV identifier is resolved automatically to ``image_file`` or
+        ``fov_id``, the validator's plane-as-FOV rule is applied to all FOVs
+        added so far: FOVs that each hold a single, differing ``z``/``c``/``t``
+        value are refused, as ``validate_input_tables`` refuses that table.
         """
         started = perf_counter()
         observations = self._as_observations(observations)
@@ -267,6 +332,7 @@ class OnlineSession:
         )
         if len(new.fovs) != 1:
             raise ValueError("add_fov must resolve to exactly one spatial acquisition position")
+        plane_rows = self._with_plane_rows(new)
 
         group_values = tuple(new.fovs[column].iloc[0] for column in group_cols)
         group = dict(zip(group_cols, group_values, strict=True))
@@ -276,11 +342,22 @@ class OnlineSession:
                 IncrementalReplay(strategy, new, objective=self.objective, group=group)
                 for strategy in self.strategies
             ]
-            session = self._groups[group_values] = _GroupSession(new, replays)
+            added = _GroupSession(new, replays)
         else:
             session.append(new)
+            added = session
         setup_seconds = perf_counter() - started
-        return [
-            replay.step(new, session.visible, record=True, setup_seconds=setup_seconds)
-            for replay in session.replays
-        ]
+        try:
+            results = [
+                replay.step(new, added.visible, record=True, setup_seconds=setup_seconds)
+                for replay in added.replays
+            ]
+        except Exception:
+            if session is not None:
+                session.remove_last()
+            raise
+        # Accepted: only now does the FOV become part of the session.
+        self._groups[group_values] = added
+        self._resolved_fov_col, self._resolved_group_cols = fov_col, group_cols
+        self._plane_rows = plane_rows
+        return results

@@ -41,9 +41,11 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 
+from .._checks import is_number
+from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..objectives import ObjectiveConfig, SamplingObjective
-from ..schema import ValidatedInput, fov_positions, validate_input_tables
+from ..schema import ValidatedInput, fov_positions
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
 from ._text import unit_plural, where
 
@@ -119,30 +121,41 @@ def _weighted(values: np.ndarray, weights: np.ndarray, statistic: str) -> float 
 def _influence(
     data: ValidatedInput,
     summaries: Sequence[Summary],
-    threshold: float | None,
-    skipped: dict[str, Any],
-) -> list[dict]:
+    threshold: float,
+    group: str,
+    skipped: list[dict],
+) -> tuple[list[dict], bool]:
     """Relative change of each FOV-weighted summary when one FOV is left out.
 
     A relative change needs a positive scale: for a feature with negative
     values (standardized, PCA or embedding coordinates, centred near zero) it
-    explodes, so such summaries are skipped and reported in ``skipped``.
+    explodes, and for a summary that is zero (a percentile of a count most
+    objects do not have) it is undefined, so such summaries are skipped and
+    reported in ``skipped`` with the group they were skipped in. Also returns
+    whether any summary was checked in this group.
     """
     positions = fov_positions(data, data.fovs)
-    rows = []
+    rows, checked = [], False
     for summary in summaries:
         values = data.feature_values(summary.feature)
+        why = None
         if np.nanmin(values, initial=0.0) < 0:
-            skipped[summary.label] = "has negative values, so a relative change is undefined"
+            why = "has negative values, so a relative change is undefined"
+        else:
+            # Each FOV weighs 1 over its non-missing values, so missing values
+            # never make a FOV count less.
+            present = ~np.isnan(values)
+            counts = np.bincount(positions[present], minlength=len(data.fovs)).astype(float)
+            weights = np.where(present, 1.0 / np.maximum(counts[positions], 1.0), 0.0)
+            full = _weighted(values, weights, summary.statistic)
+            if full is None:
+                why = "has no value here"
+            elif full == 0:
+                why = "is 0 here, so a relative change is undefined"
+        if why is not None:
+            skipped.append({"group": group, "summary": summary.label, "reason": why})
             continue
-        # Each FOV weighs 1 over its non-missing values, so missing values
-        # never make a FOV count less.
-        present = ~np.isnan(values)
-        counts = np.bincount(positions[present], minlength=len(data.fovs)).astype(float)
-        weights = np.where(present, 1.0 / np.maximum(counts[positions], 1.0), 0.0)
-        full = _weighted(values, weights, summary.statistic)
-        if full is None or full == 0:
-            continue
+        checked = True
         for fov in np.unique(positions):
             keep = positions != fov
             without = _weighted(values[keep], weights[keep], summary.statistic)
@@ -162,7 +175,7 @@ def _influence(
                         ),
                     }
                 )
-    return rows
+    return rows, checked
 
 
 def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
@@ -266,7 +279,7 @@ def _novel(
 def _check(
     summaries: Sequence[Summary | tuple],
     novelty: SupportNoveltyEstimator | None,
-    influence_threshold: float | None,
+    influence_threshold: float,
     count_ratio: float | None,
     stage: Sequence[str] | None,
     neighbour_threshold: float | None,
@@ -275,12 +288,12 @@ def _check(
     summaries = [s if isinstance(s, Summary) else Summary(*s) for s in summaries]
     if novelty is not None and not isinstance(novelty, SupportNoveltyEstimator):
         raise TypeError("novelty must be a SupportNoveltyEstimator")
-    if influence_threshold is not None and not 0 < float(influence_threshold):
-        raise ValueError("influence_threshold must be positive")
-    if count_ratio is not None and not float(count_ratio) > 1:
+    if not is_number(influence_threshold) or not 0 < influence_threshold < np.inf:
+        raise ValueError("influence_threshold must be a positive number")
+    if count_ratio is not None and not (is_number(count_ratio) and 1 < count_ratio < np.inf):
         raise ValueError("count_ratio must be greater than 1, or None to skip the count reason")
-    if not float(neighbour_threshold) > 0:
-        raise ValueError("neighbour_threshold must be positive")
+    if not is_number(neighbour_threshold) or not 0 < neighbour_threshold < np.inf:
+        raise ValueError("neighbour_threshold must be a positive number")
     if isinstance(k, bool) or not isinstance(k, int) or k < 1:
         raise ValueError("n_neighbours must be a positive integer")
     if stage is not None and (len(stage) != 2 or not all(isinstance(c, str) for c in stage)):
@@ -345,7 +358,8 @@ def inspect_fovs(
         if absent:
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
-    rows, skipped, neighbours_skipped, novelty_skipped = [], {}, [], []
+    rows, skipped, neighbours_skipped, novelty_skipped = [], [], [], []
+    checked: set[str] = set()
     n_fovs = 0
     for group, both in iter_analysis_groups(data):
         n_fovs += len(both.fovs)
@@ -353,15 +367,26 @@ def inspect_fovs(
         found = []
         if novelty is not None:
             judged = replace(both, feature_cols=tuple(novelty_cols))
+            before = len(novelty_skipped)
             found += _novel(judged, novelty, where(group), novelty_skipped)
+            if len(novelty_skipped) == before:
+                checked.add("new state")
         if summaries:
-            found += _influence(group_data, summaries, float(influence_threshold), skipped)
+            influential, any_checked = _influence(
+                group_data, summaries, float(influence_threshold), where(group), skipped
+            )
+            found += influential
+            if any_checked:
+                checked.add("influence")
         if count_ratio is not None:
             found += _counts(group_data, float(count_ratio))
+            checked.add("count")
         if stage_cols is not None:
             why = _neighbours_skipped(group_data.fovs, *stage_cols, n_neighbours)
             if why is not None:
                 neighbours_skipped.append({"group": where(group), "reason": why})
+            else:
+                checked.add("neighbours")
             found += _neighbours(
                 group_data,
                 *stage_cols,
@@ -403,6 +428,8 @@ def inspect_fovs(
         "skipped_summaries": skipped,
         "skipped_neighbours": neighbours_skipped,
         "skipped_novelty": novelty_skipped,
+        # The reasons judged in at least one group, in the order of REASONS.
+        "checked": [reason for reason in REASONS if reason in checked],
         "n_fovs": n_fovs,
     }
     return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
@@ -411,11 +438,11 @@ def inspect_fovs(
 def inspection_summary(result: InspectionResult) -> str:
     """ "Fields to reopen" in sentences, per group."""
     keys = list(result.group_cols)
-    skipped = result.settings.get("skipped_summaries", {})
     note = (
         "".join(
-            f"\nThe influence on the {label} was not checked: it {why}."
-            for label, why in skipped.items()
+            f"\nThe influence on the {s['summary']} was not checked in {s['group']}: "
+            f"it {s['reason']}."
+            for s in result.settings.get("skipped_summaries", [])
         )
         + "".join(
             f"\nStage neighbours were not compared in {s['group']}: {s['reason']}."
@@ -427,7 +454,15 @@ def inspection_summary(result: InspectionResult) -> str:
         )
     )
     if result.fovs.empty:
-        return "No field stands out under the declared thresholds." + note
+        checked = result.settings.get("checked")
+        if checked is not None and not checked:
+            # Nothing was judged: saying that no field stands out would read as a clean bill.
+            return (
+                "No field was checked: no reason was turned on (summaries, novelty, "
+                "count_ratio or stage_cols), or none could be judged in any group."
+            ) + note
+        which = f" ({', '.join(checked)} checked)" if checked else ""
+        return f"No field stands out under the declared thresholds{which}." + note
     fov_key = [c for c in result.settings.get("fov_key", []) if c not in keys]
     trace = [c for c in result.settings.get("trace", []) if c not in fov_key]
     blocks = []

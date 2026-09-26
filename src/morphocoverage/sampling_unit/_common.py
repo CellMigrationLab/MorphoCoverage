@@ -8,8 +8,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
-from ..schema import ValidatedInput, fov_positions, validate_input_tables
+from ..schema import ValidatedInput, fov_positions
 
 
 def validated(

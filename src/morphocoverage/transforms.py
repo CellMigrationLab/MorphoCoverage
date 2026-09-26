@@ -24,6 +24,7 @@ than guess a scale.
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -33,9 +34,7 @@ import numpy as np
 
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput
-
-# Below this share of the scale a spread or a variance is rounding noise, not signal.
-RELATIVE_TOLERANCE = 1e-12
+from .statistics import RELATIVE_TOLERANCE  # rounding-noise share of the scale
 
 
 class FeatureTransform(ABC):
@@ -66,6 +65,15 @@ class FeatureTransform(ABC):
             "config_id": self.config_id,
             "parameters": dict(self.parameters),
         }
+
+    def output_width(self, n_inputs: int) -> int | None:
+        """How many columns the transform gives for ``n_inputs``, known without fitting.
+
+        Lets an estimator tell a summary these features can never define (a PCA
+        summary of one standardized feature) from one the transform cannot fit
+        yet. ``None`` when unknown, or when no fit can ever succeed.
+        """
+        return None
 
     @abstractmethod
     def fit_matrix(
@@ -161,6 +169,10 @@ class Standardize(FeatureTransform):
 
     name: str = "standardize"
 
+    def output_width(self, n_inputs: int) -> int:
+        """One output per feature."""
+        return n_inputs
+
     def fit_matrix(
         self, matrix: np.ndarray, names: tuple[str, ...]
     ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
@@ -205,7 +217,12 @@ class PCA(FeatureTransform):
     more observations than components, at least as many features as components,
     and the centred features span at least ``n_components`` dimensions (a
     component beyond their rank would be an arbitrary direction of rounding
-    noise).
+    noise). The rank is numerical, as ``numpy.linalg.matrix_rank`` counts it: a
+    singular value is rounding noise below ``max(n, d) * eps`` of the largest
+    one, or of the features' magnitude (centring a feature of mean ``mu``
+    leaves rounding of about ``eps * |mu|`` in every value). Features on very
+    different scales therefore keep their components; only a dimension at
+    floating-point rounding level is refused.
     The explained-variance ratios are recorded in the fitted state.
     """
 
@@ -227,6 +244,10 @@ class PCA(FeatureTransform):
         """The number of components."""
         return {"n_components": self.n_components}
 
+    def output_width(self, n_inputs: int) -> int | None:
+        """``n_components``, or ``None`` when fewer features can never give them."""
+        return self.n_components if n_inputs >= self.n_components else None
+
     def fit_matrix(
         self, matrix: np.ndarray, names: tuple[str, ...]
     ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
@@ -243,10 +264,13 @@ class PCA(FeatureTransform):
         total = float((singular**2).sum())
         if total == 0:
             return "the visible features have no variance"
-        if singular[self.n_components - 1] ** 2 <= RELATIVE_TOLERANCE * total:
+        magnitude = max(float(singular[0]), math.sqrt(n_observations) * float(np.abs(mean).max()))
+        rounding = max(n_observations, n_features) * np.finfo(float).eps * magnitude
+        if singular[self.n_components - 1] <= rounding:
             return (
                 f"the visible features span fewer than {self.n_components} dimensions "
-                "(collinear features); fewer components or other features are needed"
+                "(collinear features, up to floating-point rounding); fewer components or "
+                "other features are needed"
             )
         components = vt[: self.n_components]
         signs = np.sign(components[np.arange(self.n_components), np.abs(components).argmax(1)])
@@ -292,6 +316,15 @@ class Chain(FeatureTransform):
     def parameters(self) -> dict[str, Any]:
         """The steps, with their own ids."""
         return {"steps": [t.describe() for t in self.transforms]}
+
+    def output_width(self, n_inputs: int) -> int | None:
+        """The last step's width, each step taking the previous one's; ``None`` if any is."""
+        width: int | None = n_inputs
+        for transform in self.transforms:
+            width = transform.output_width(width)
+            if width is None:
+                return None
+        return width
 
     def fit_matrix(
         self, matrix: np.ndarray, names: tuple[str, ...]

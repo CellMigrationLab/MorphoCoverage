@@ -53,7 +53,7 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     # Per condition and repeat cluster: the interval bar, its caps and the median line.
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 12
     title = ax.get_title(loc="left")
-    assert "resampling technical repeats, then their whole fields" in title
+    assert "resampling whole technical repeats with their fields as acquired" in title
     assert "biological repeats (repeat) side by side" in title
     # Repeats are labelled above their clusters; points are coloured by the well.
     assert sorted(t.get_text() for t in ax.texts) == ["r0", "r0", "r1", "r1"]
@@ -72,7 +72,9 @@ def test_many_conditions_split_and_many_repeats_are_pooled():
     ax = figures["x"][0].axes[0]
     assert "biological repeats (repeat) pooled, more than the 8" in ax.get_title(loc="left")
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 3 and not ax.texts
-    # Too many technical replicates to colour: a note instead of a legend.
+    # Too many technical replicates of one biological repeat to colour: a note instead of a
+    # legend (well names are counted per repeat, so 9 fields a repeat, each its own well).
+    objects, fovs = _tables(n_conditions=1, n_repeats=9, n_fields=9)
     wells = {name: f"w{i % 9}" for i, name in enumerate(fovs["image_file"])}
     objects["well"], fovs["well"] = objects["image_file"].map(wells), fovs["image_file"].map(wells)
     figures = plots_of_data(objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS)
@@ -94,6 +96,8 @@ def test_limits_and_declarations_are_enforced():
 
 def test_workflow_plots_save_one_png_per_figure(tmp_path):
     objects, fovs = _tables()
+    # Normalising needs positive control means: values around zero are shifted up.
+    objects[["x", "y"]] += 10.0
     setup = Setup(
         readout="x",
         features=("x", "y"),

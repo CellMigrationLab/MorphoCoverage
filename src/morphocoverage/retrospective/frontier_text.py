@@ -6,20 +6,12 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from ._text import percent
+from ._text import fields, percent
 
 if TYPE_CHECKING:
     from .frontier import FrontierResult
 
 BASELINE = "fixed fields"
-
-
-def _fields(value: float) -> str:
-    """``1 field``, ``12 fields`` or ``12.5 fields`` (one decimal)."""
-    value = round(float(value), 1)
-    if value == 1:
-        return "1 field"
-    return f"{value:.0f} fields" if value.is_integer() else f"{value:.1f} fields"
 
 
 def _setting(value: object) -> str:
@@ -33,6 +25,18 @@ def _number(value: float) -> str:
     """One decimal, without a negative zero."""
     value = round(float(value), 1)
     return f"{0.0 if value == 0 else value:.1f}"
+
+
+def _not_chosen(row: object) -> str:
+    """A family with no safe setting: met the risk once but not from there on, or never."""
+    met = getattr(row, "met_setting", None)
+    if met is None or pd.isna(met):
+        return f"  {row.family}: never got there at any setting tried."
+    return (
+        f"  {row.family}: met this risk at {_setting(met)} (risk {percent(row.met_risk)}) but "
+        f"not from there on: at {_setting(row.exceeded_setting)}, with more fields, the risk "
+        f"was {percent(row.exceeded_risk)}, so no setting is taken as safe."
+    )
 
 
 def frontier_summary(result: FrontierResult) -> str:
@@ -58,12 +62,12 @@ def frontier_summary(result: FrontierResult) -> str:
             else f", {_number(base['effort'])} on average as some acquisitions had fewer"
         )
         lines.append(
-            f"  a fixed number of fields needed {_fields(int(base['setting']))}{mean_effort} "
+            f"  a fixed number of fields needed {fields(int(base['setting']))}{mean_effort} "
             f"(risk {percent(base['risk'])})."
         )
         for row in rows[rows["family"] != BASELINE].itertuples(index=False):
             if row.effort is None or pd.isna(row.effort):
-                lines.append(f"  {row.family}: never got there at any setting tried.")
+                lines.append(_not_chosen(row))
                 continue
             saved = row.fields_saved
             verdict = (
@@ -87,12 +91,17 @@ def frontier_summary(result: FrontierResult) -> str:
                     f", {percent(0.95)} interval{of} {_number(row.saved_low)} to "
                     f"{_number(row.saved_high)}"
                 )
+            notes = []
+            # A saving (or cost) whose interval includes no change is not resolved.
+            if interval and abs(saved) > 0.05 and row.saved_low <= 0 <= row.saved_high:
+                notes.append("not resolved")
             reached = getattr(row, "saved_reached", None)
             if interval and reached is not None and not pd.isna(reached) and reached < 1:
-                interval += (
-                    f" (from the {percent(reached)} of the resamples in which both reached "
-                    "this risk)"
+                notes.append(
+                    f"from the {percent(reached)} of the resamples in which both reached this risk"
                 )
+            if notes:
+                interval += f" ({'; '.join(notes)})"
             adaptive = (
                 ""
                 if row.adaptivity is None or pd.isna(row.adaptivity)
@@ -100,7 +109,7 @@ def frontier_summary(result: FrontierResult) -> str:
                 f"{row.adaptivity:.2f}"
             )
             lines.append(
-                f"  {row.family} at {_setting(row.setting)}: {_fields(row.effort)} on average "
+                f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
                 f"(risk {percent(row.risk)}); it {verdict}{interval}{adaptive}."
             )
         unit_cols = result.settings.get("unit_cols") or []

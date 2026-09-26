@@ -13,8 +13,12 @@ It is a retrospective preparation of the tables: it needs the control fields
 of every repeat, so a live session, which sees one group at a time, runs on
 raw values. A repeat without a control group raises, since normalising some
 repeats and not others would mix scales inside one analysis; so does a control
-mean of zero or one undefined by missing values, because dividing by it has
-no meaning.
+mean that is zero (up to rounding), negative or undefined by missing values:
+dividing by zero has no meaning, and dividing by a negative mean flips the
+sign of every value, so a treated mean above its control would read as below
+it (a signed feature such as a velocity or a log-ratio is compared raw). A
+repeat column named explicitly but absent from the tables raises too, rather
+than pooling the repeats; only the default ``"repeat"`` may be absent.
 """
 
 from __future__ import annotations
@@ -25,11 +29,51 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .data_check import validate_input_tables
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS
-from .schema import validate_input_tables
+from .statistics import mean_is_zero
 
 CONTROL_MEAN = "control_mean"
 METHODS = (CONTROL_MEAN,)
+
+
+class _DefaultRepeat(str):
+    """The default repeat column: the only name that may be absent from the tables."""
+
+
+# A str subclass, so the default still reads (and compares) as "repeat".
+_DEFAULT_REPEAT_COL = _DefaultRepeat(MORPHOBRICKS_GROUP_COLUMNS[1])
+
+
+def _repeat_column(repeat_col: str | None, columns: pd.Index) -> str | None:
+    """The repeat column to use: ``None`` for one implicit repeat.
+
+    The default name may be absent (the whole table is then one repeat); a
+    name given explicitly must be a column, since a misspelt one would
+    otherwise pool every repeat silently.
+    """
+    if repeat_col is None or repeat_col in columns:
+        return repeat_col
+    if isinstance(repeat_col, _DefaultRepeat):
+        return None
+    raise ValueError(
+        f"repeat_col {repeat_col!r} is not a column of the tables: name the column holding "
+        "the repeats, or pass repeat_col=None to treat the whole table as one repeat"
+    )
+
+
+def _refused_means(means: pd.Series, chosen: pd.DataFrame, feature_cols: Sequence[str]) -> list:
+    """(feature, reason) for every control mean that cannot divide the values."""
+    refused = []
+    for column in feature_cols:
+        mean = means[column]
+        if not np.isfinite(mean):
+            refused.append((column, "undefined"))
+        elif mean_is_zero(mean, chosen[column].to_numpy(dtype=float)):
+            refused.append((column, "zero"))
+        elif mean < 0:
+            refused.append((column, f"negative ({mean:.3g})"))
+    return refused
 
 
 def control_means(
@@ -39,7 +83,7 @@ def control_means(
     feature_cols: Sequence[str],
     control: Mapping[str, Any],
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
+    repeat_col: str | None = _DEFAULT_REPEAT_COL,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
@@ -48,8 +92,9 @@ def control_means(
 
     ``control`` names the control condition by FOV-table value, for example
     ``{"condition": "MOCK"}``. Without a repeat column (or ``repeat_col=None``)
-    the whole table is one repeat, labelled ``None``. Raises when a repeat has
-    no control objects or a control mean is zero or undefined.
+    the whole table is one repeat, labelled ``None``; a ``repeat_col`` named
+    explicitly must be a column. Raises when a repeat has no control objects
+    or a control mean is zero (up to rounding), negative or undefined.
     """
     if not isinstance(control, Mapping) or condition_col not in control:
         raise ValueError(f"control must name the condition column {condition_col!r}")
@@ -65,8 +110,7 @@ def control_means(
     for column in control:
         if column not in attached.columns:
             raise ValueError(f"control names a column absent from the tables: {column!r}")
-    if repeat_col is not None and repeat_col not in attached.columns:
-        repeat_col = None
+    repeat_col = _repeat_column(repeat_col, attached.columns)
     is_control = np.ones(len(attached), dtype=bool)
     for column, value in control.items():
         is_control &= attached[column].to_numpy() == value
@@ -82,11 +126,13 @@ def control_means(
                 "to be normalised; drop the repeat or turn normalisation off"
             )
         means = chosen.mean(axis=0, skipna=True)
-        bad = [c for c in feature_cols if not np.isfinite(means[c]) or means[c] == 0]
-        if bad:
+        refused = _refused_means(means, chosen, feature_cols)
+        if refused:
+            listed = ", ".join(f"{column!r} is {reason}" for column, reason in refused)
             raise ValueError(
-                f"the control mean of {bad} in {label} is zero or undefined: these features "
-                "cannot be divided by it"
+                f"the control mean in {label}: {listed}. Dividing by a zero or undefined mean "
+                "has no meaning and dividing by a negative one flips the sign of the effect: "
+                "leave these features out of normalisation (compare them raw)"
             )
         rows.append({"repeat": repeat, "control_objects": len(chosen), **means.to_dict()})
     return pd.DataFrame(rows)
@@ -99,7 +145,7 @@ def normalize_to_control(
     feature_cols: Sequence[str],
     control: Mapping[str, Any],
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
-    repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
+    repeat_col: str | None = _DEFAULT_REPEAT_COL,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
@@ -132,8 +178,7 @@ def normalize_to_control(
     attached = data.objects
     if len(attached) != len(objects):
         raise ValueError("validation changed the number of object rows; cannot align the values")
-    if repeat_col is not None and repeat_col not in attached.columns:
-        repeat_col = None
+    repeat_col = _repeat_column(repeat_col, attached.columns)
     normalized = objects.copy()
     if repeat_col is None:
         divisors = means.iloc[[0] * len(objects)][list(feature_cols)].to_numpy()

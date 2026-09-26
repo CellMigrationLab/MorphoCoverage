@@ -234,9 +234,8 @@ def _visible_blocks(data: ValidatedInput, block_col: str | None) -> int | None:
     return int(data.fovs[block_col].nunique())
 
 
-def _pca_reason(estimator: FOVBootstrapEstimator, values: np.ndarray) -> str | None:
-    """Why a PCA summary is undefined for these features, if it is."""
-    d = values.shape[1]
+def _pca_reason(estimator: FOVBootstrapEstimator, d: int) -> str | None:
+    """Why a PCA summary is undefined for ``d`` (transformed) features, if it is."""
     if d < 2:
         return "PCA summaries need at least 2 features"
     if estimator.summary == "subspace" and estimator.n_components >= d:
@@ -433,12 +432,15 @@ class FOVBootstrapEstimator(Estimator):
             sizes = data.fovs[self.block_col].value_counts()
             diagnostics["block_sizes"] = {"min": int(sizes.min()), "max": int(sizes.max())}
         # A PCA summary these features can never define is not_applicable from the
-        # first FOV on, not insufficient until min_fovs and then not_applicable.
-        shape_known = values if values is not None else None
-        if shape_known is None and self.transform is None:
-            shape_known = np.empty((0, len(data.feature_cols)))
-        if self.summary in ("eigenspectrum", "subspace") and shape_known is not None:
-            never = _pca_reason(self, shape_known)
+        # first FOV on, not insufficient until min_fovs and then not_applicable. The
+        # transform's output width is known before it can be fitted.
+        width = (
+            values.shape[1]
+            if values is not None
+            else self.transform.output_width(len(data.feature_cols))
+        )
+        if self.summary in ("eigenspectrum", "subspace") and width is not None:
+            never = _pca_reason(self, width)
             if never:
                 quantity = Quantity.not_applicable(never, **_meta(units, self.summary))
                 return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": never})

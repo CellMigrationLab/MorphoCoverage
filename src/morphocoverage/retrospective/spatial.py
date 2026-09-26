@@ -26,9 +26,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._wording import duration
+from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
-from ..schema import validate_input_tables
 from ..spatial import fov_means, fov_semivariogram
+from ._text import fields as fields_text
+from ._text import percent
 from .adequacy import ALL_CRITERIA, AdequacyResult, adequacy_points
 from .replay import ReplayResult
 from .stage import dispersed_order, stage_travel
@@ -75,9 +78,15 @@ def order_efficiency(
     """Fields and stage travel each order kind needed to be reliably enough.
 
     ``replay`` must come from ``replay_acquisitions(..., stage_cols=...)``.
-    ``adequacy`` defaults to ``adequacy_points(replay)``. The realized points
-    are for all criteria together. ``stage_speed`` is in stage units per
-    second.
+    ``adequacy`` defaults to ``adequacy_points(replay)``; one computed from
+    another replay (other settings, so other hold-outs and orders) is refused.
+    The realized points are for all criteria together. ``stage_speed`` is in
+    stage units per second.
+
+    ``median_fovs`` (and the travel and time medians) count a run that never
+    reached adequacy as beyond its own stream, so it is ``None`` when half or
+    more of the runs never got there; ``stream_fovs`` is the shortest stream
+    and ``longest_stream_fovs`` the longest, which differ with unequal blocks.
     """
     if not isinstance(replay, ReplayResult):
         raise TypeError("replay must be a ReplayResult")
@@ -91,6 +100,7 @@ def order_efficiency(
         if value is not None and not float(value) > 0:
             raise ValueError(f"{label} must be positive")
     adequacy = adequacy_points(replay) if adequacy is None else adequacy
+    _check_same_replay(replay, adequacy)
     groups = list(replay.group_cols)
     run_keys = [*groups, "split", "order_id"]
     realized = adequacy.realized[adequacy.realized["criterion"] == ALL_CRITERIA]
@@ -127,20 +137,21 @@ def order_efficiency(
     for key, block in runs.groupby([*groups, "order"], sort=False, dropna=False):
         key = key if isinstance(key, tuple) else (key,)
         needed = block["sustained_realized"].astype("Float64")
-        stream = int(block["stream_fovs"].min())
         table_rows.append(
             {
                 **dict(zip([*groups, "order"], key, strict=True)),
                 "runs": len(block),
                 "reached": float(needed.notna().mean()),
-                # Not reached counts as beyond the stream, so the median stays honest.
-                "median_fovs": float(needed.fillna(stream + 1).median()),
+                # Not reached counts as beyond the run's own stream, whatever its
+                # length, so the median stays honest with unequal streams too.
+                "median_fovs": _median_beyond(needed),
                 # Over the same runs as median_fovs: a run that never got there
                 # travelled and took longer than any that did.
                 "median_travel": _median_beyond(block["travel_to_sustained"]),
                 "median_travel_total": float(block["travel_total"].median()),
                 "median_time": _median_beyond(block["time_to_sustained"]),
-                "stream_fovs": stream,
+                "stream_fovs": int(block["stream_fovs"].min()),
+                "longest_stream_fovs": int(block["stream_fovs"].max()),
             }
         )
     settings = {
@@ -150,6 +161,20 @@ def order_efficiency(
         "stage_speed": stage_speed,
     }
     return EfficiencyResult(runs, pd.DataFrame(table_rows), tuple(groups), settings)
+
+
+def _check_same_replay(replay: ReplayResult, adequacy: AdequacyResult) -> None:
+    """Refuse adequacy points from another replay: its runs are other hold-outs and orders."""
+    if not isinstance(adequacy, AdequacyResult):
+        raise TypeError("adequacy must be an AdequacyResult (adequacy_points(replay))")
+    theirs, ours = dict(adequacy.settings), dict(replay.settings)
+    differ = sorted(k for k in {*theirs, *ours} if theirs.get(k) != ours.get(k))
+    if differ or tuple(adequacy.group_cols) != tuple(replay.group_cols):
+        raise ValueError(
+            "adequacy comes from another replay (settings differ: "
+            f"{', '.join(differ) or 'group_cols'}): its runs are other hold-outs and orders; "
+            "pass adequacy_points(replay) of this replay, or leave adequacy out"
+        )
 
 
 def _median_beyond(values: pd.Series) -> float | None:
@@ -177,10 +202,24 @@ def _distance(value: float, unit: str) -> str:
     return f"{value:.0f} {unit}"
 
 
+def _available(row: Any) -> str:
+    """``the 12 fields``, or ``the 12 to 24 fields`` when the streams differ in length."""
+    longest = getattr(row, "longest_stream_fovs", row.stream_fovs)
+    longest = row.stream_fovs if pd.isna(longest) else int(longest)
+    span = f"{row.stream_fovs}" if longest == row.stream_fovs else f"{row.stream_fovs} to {longest}"
+    return f"the {span} fields"
+
+
 def efficiency_summary(result: EfficiencyResult) -> str:
     """ "Your raster needed 28 fields and 7 mm; spreading them out ..." in sentences."""
     keys = list(result.group_cols)
     unit = result.settings.get("stage_unit", "µm")
+    # The realized points are for every criterion together.
+    judged = (
+        "for this criterion"
+        if len(result.settings.get("labels", {})) <= 1
+        else ("for all the criteria together")
+    )
     blocks = []
     for key, rows in (
         result.table.groupby(keys, sort=False, dropna=False) if keys else [((), result.table)]
@@ -190,33 +229,36 @@ def efficiency_summary(result: EfficiencyResult) -> str:
         lines = [f"{where}: could the same positions have been visited in a better order?"]
         for row in rows.itertuples(index=False):
             label = _ORDER_WORDS.get(row.order, row.order)
-            if row.median_fovs > row.stream_fovs:
+            if row.median_fovs is None or pd.isna(row.median_fovs):
                 lines.append(
-                    f"  {label}: not reliably enough within the {row.stream_fovs} fields "
-                    f"(in {100 * (1 - row.reached):.0f}% of runs)."
+                    f"  {label}: not reliably enough within {_available(row)} in half or more "
+                    f"of runs (never in {percent(1 - row.reached)} of runs)."
                 )
                 continue
             travel = (
-                "" if row.median_travel is None else f" and {_distance(row.median_travel, unit)}"
+                ""
+                if row.median_travel is None or pd.isna(row.median_travel)
+                else f" and {_distance(row.median_travel, unit)} of stage travel"
             )
-            time = "" if row.median_time is None else f" (about {row.median_time / 60:.0f} min)"
-            fields = "1 field" if row.median_fovs == 1 else f"{row.median_fovs:g} fields"
+            time = (
+                ""
+                if row.median_time is None or pd.isna(row.median_time)
+                else f" (about {duration(row.median_time)})"
+            )
+            fields = fields_text(row.median_fovs)
             # The median hides runs that never got there; a protocol must serve those too.
             missed = (
-                f" (never within the {row.stream_fovs} fields in "
-                f"{100 * (1 - row.reached):.0f}% of runs)"
+                f" (never within {_available(row)} in {percent(1 - row.reached)} of runs)"
                 if row.reached < 1
                 else ""
             )
-            lines.append(
-                f"  {label}: reliably enough after {fields}{travel} of stage travel{time}{missed}."
-            )
-        reached = rows[rows["median_fovs"] <= rows["stream_fovs"]]
+            lines.append(f"  {label}: reliably enough after {fields}{travel}{time}{missed}.")
+        reached = rows[rows["median_fovs"].notna()]
         if len(reached) == len(rows) and len(rows) > 1:
             spread = float(reached["median_fovs"].max() - reached["median_fovs"].min())
             if spread <= 1:
                 lines.append(
-                    "  The orders do not differ by more than one field for this criterion: "
+                    f"  The orders do not differ by more than one field {judged}: "
                     "a null result, not a preference for any order."
                 )
         lines.append(
@@ -244,10 +286,14 @@ def redundancy_distance(
 
     From the semivariogram of FOV means (``fov_semivariogram``): the smallest
     mean lag at which the semivariance reaches ``share`` of the variance of
-    the FOV means (``None`` when no bin reaches it: fields are then alike at
-    every distance measured, up to ``largest_lag``, the strongest redundancy).
-    Also reports the smallest lag measured, since nothing is said below it. With several
-    features, standardize them beforehand if their scales differ.
+    the FOV means (``None`` with no ``reason`` when no bin reaches it: fields
+    are then alike at every distance measured, up to ``largest_lag``, the
+    strongest redundancy). Also reports the smallest lag measured, since
+    nothing is said below it. A group with fewer than two fields with
+    observations, or with no pair of fields within the bins, has nothing
+    measured: its row holds ``None`` and says why in ``reason``, and the other
+    groups are still computed. With several features, standardize them
+    beforehand if their scales differ.
     """
     if not 0 < float(share) <= 1:
         raise ValueError("share must be in (0, 1]")
@@ -259,25 +305,46 @@ def redundancy_distance(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
+    for column in stage_cols:
+        if column not in data.fovs.columns:
+            raise ValueError(f"{column!r} is not a column of the FOV table")
     rows = []
     for group, group_data in iter_analysis_groups(data):
-        gamma = fov_semivariogram(group_data, *stage_cols, bin_edges)
+        row = {
+            **group,
+            "redundancy_distance": None,
+            "smallest_lag": None,
+            "largest_lag": None,
+            "fov_mean_variance": None,
+            "share": float(share),
+            "unit": stage_unit,
+            "reason": None,
+        }
+        rows.append(row)
         means, _ = fov_means(group_data)
-        variance = float(np.mean(np.var(means, axis=0, ddof=1))) if len(means) > 1 else None
-        reached = (
-            gamma[gamma["gamma"] >= float(share) * variance] if variance is not None else gamma[:0]
-        )
-        rows.append(
+        if len(means) < 2:
+            row["reason"] = (
+                f"only {fields_text(len(means))} with observations: the semivariogram needs "
+                "pairs of fields"
+            )
+            continue
+        gamma = fov_semivariogram(group_data, *stage_cols, bin_edges)
+        if gamma.empty:
+            row["reason"] = (
+                f"no pair of fields is between {bin_edges[0]:g} and {bin_edges[-1]:g} "
+                f"{stage_unit} apart: widen bin_edges"
+            )
+            continue
+        variance = float(np.mean(np.var(means, axis=0, ddof=1)))
+        reached = gamma[gamma["gamma"] >= float(share) * variance]
+        row.update(
             {
-                **group,
                 "redundancy_distance": (
                     float(reached["mean_lag"].iloc[0]) if len(reached) else None
                 ),
-                "smallest_lag": float(gamma["mean_lag"].iloc[0]) if len(gamma) else None,
-                "largest_lag": float(gamma["mean_lag"].iloc[-1]) if len(gamma) else None,
+                "smallest_lag": float(gamma["mean_lag"].iloc[0]),
+                "largest_lag": float(gamma["mean_lag"].iloc[-1]),
                 "fov_mean_variance": variance,
-                "share": float(share),
-                "unit": stage_unit,
             }
         )
     return pd.DataFrame(rows)

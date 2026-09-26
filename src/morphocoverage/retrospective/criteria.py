@@ -48,7 +48,8 @@ class OutcomeCriterion:
     ``value <= threshold``) or ``"higher_is_better"`` (for example
     ``RareStateDetected``: preserved when ``value >= threshold``). An undefined
     metric value (``None``) is never preserved; ``assess`` counts a subset with
-    no observations as not preserved. ``description`` is the plain
+    no observations as not preserved when the reference itself can be judged.
+    ``description`` is the plain
     wording reports use, for example "the well mean of YAP/TAZ ratio within
     5%"; without it they use ``name``.
     """
@@ -113,10 +114,15 @@ class OutcomeCriterion:
         FOVs without observations are acquired effort, not missing data: a
         subset with no observations at all cannot preserve a reference that
         has some, so when the metric is undefined for that reason the answer
-        is not preserved rather than undefined.
+        is not preserved rather than undefined. When the reference itself
+        makes the metric undefined (a missing value in it, a rare state it
+        does not show), no subset could have been judged, so the answer stays
+        undefined: the metric of the reference against itself decides which.
         """
         value = self.metric.evaluate(reference, subset)
         if value is None and len(subset.objects) == 0 and len(reference.objects) > 0:
+            if self.metric.evaluate(reference, reference) is None:
+                return Preservation.UNDEFINED, None
             return Preservation.NOT_PRESERVED, None
         return self.judge(value), value
 

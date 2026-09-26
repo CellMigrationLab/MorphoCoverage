@@ -23,6 +23,21 @@ from __future__ import annotations
 import numpy as np
 from scipy import stats
 
+from ._checks import is_integer
+
+
+def _check_counts(successes: int, trials: int, confidence: float) -> tuple[int, int]:
+    """Validated binomial counts (numpy integers accepted) as Python ints."""
+    if not is_integer(trials) or trials < 1:
+        raise ValueError("trials must be a positive integer")
+    if not is_integer(successes):
+        raise TypeError("successes must be an integer")
+    if not 0 <= successes <= trials:
+        raise ValueError("successes must be between 0 and trials")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
+    return int(successes), int(trials)
+
 
 def upper_bound(successes: int, trials: int, confidence: float) -> float:
     """One-sided Clopper-Pearson upper bound on a binomial probability.
@@ -30,17 +45,34 @@ def upper_bound(successes: int, trials: int, confidence: float) -> float:
     ``stats.beta.ppf(confidence, successes + 1, trials - successes)``; 1 when
     every trial succeeded. ``trials`` must be positive.
     """
-    if isinstance(trials, bool) or not isinstance(trials, int) or trials < 1:
-        raise ValueError("trials must be a positive integer")
-    if isinstance(successes, bool) or not isinstance(successes, int):
-        raise TypeError("successes must be an integer")
-    if not 0 <= successes <= trials:
-        raise ValueError("successes must be between 0 and trials")
-    if not 0 < confidence < 1:
-        raise ValueError("confidence must be between 0 and 1")
+    successes, trials = _check_counts(successes, trials, confidence)
     if successes == trials:
         return 1.0
     return float(stats.beta.ppf(confidence, successes + 1, trials - successes))
+
+
+def lower_bound(successes: int, trials: int, confidence: float) -> float:
+    """One-sided Clopper-Pearson lower bound on a binomial probability.
+
+    ``stats.beta.ppf(1 - confidence, successes, trials - successes + 1)``; 0
+    when no trial succeeded (the mirror of ``upper_bound``).
+    """
+    successes, trials = _check_counts(successes, trials, confidence)
+    if successes == 0:
+        return 0.0
+    return float(stats.beta.ppf(1 - confidence, successes, trials - successes + 1))
+
+
+def interval(successes: int, trials: int, confidence: float) -> tuple[float, float]:
+    """Two-sided Clopper-Pearson interval: each end a one-sided bound at ``(1 + confidence) / 2``.
+
+    Exact, and conservative, for independent trials; at 0 or ``trials``
+    successes the closed end is 0 or 1 and the other end keeps half the
+    error rate, as the equal-tailed interval does.
+    """
+    _check_counts(successes, trials, confidence)
+    level = (1 + confidence) / 2
+    return lower_bound(successes, trials, level), upper_bound(successes, trials, level)
 
 
 def extra_trials_for_bound(
@@ -61,21 +93,30 @@ def extra_trials_for_bound(
     ``target``, and ``None`` is returned, as it is when ``limit`` further
     trials are not enough.
     """
-    upper_bound(successes, trials, confidence)  # validates the counts and confidence
+    successes, trials = _check_counts(successes, trials, confidence)
+    if not is_integer(limit) or limit < 0:
+        raise ValueError("limit must be a non-negative integer")
     if not 0 < target < 1:
         raise ValueError("target must be a probability between 0 and 1")
     rate = successes / trials
     if keep_rate and rate >= target:
         return None
-    total = trials + np.arange(limit + 1)
-    hits = np.round(rate * total) if keep_rate else np.full(len(total), successes, dtype=float)
+    total = trials + np.arange(int(limit) + 1)
+    if keep_rate:
+        # The further trials keep the rate: the successes are the observed ones plus
+        # the rate's share of the new trials, rounded half up so they never decrease.
+        hits = successes + np.floor(rate * (total - trials) + 0.5)
+    else:
+        hits = np.full(len(total), successes, dtype=float)
     hits = np.minimum(hits, total - 1)  # all-success prefixes have bound 1 anyway
     bounds = stats.beta.ppf(confidence, hits + 1, total - hits)
-    bounds[hits >= total] = 1.0
     if successes == trials:
         bounds[0] = 1.0
-    met = np.flatnonzero(bounds <= target)
-    return int(met[0]) if len(met) else None
+    # A bound can wobble with the rounding of ``hits``; the answer is a number of
+    # trials after which it stays at most ``target``, so every later bound must be too.
+    above = np.flatnonzero(bounds > target)
+    first = 0 if not len(above) else int(above[-1]) + 1
+    return first if first <= limit else None
 
 
 def check_confidence(confidence: object) -> float:
@@ -87,4 +128,4 @@ def check_confidence(confidence: object) -> float:
     return float(confidence)
 
 
-__all__ = ["check_confidence", "extra_trials_for_bound", "upper_bound"]
+__all__ = ["check_confidence", "extra_trials_for_bound", "interval", "lower_bound", "upper_bound"]

@@ -41,6 +41,11 @@ class SamplingHierarchy:
     technical_levels: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        if isinstance(self.technical_levels, str):
+            # tuple("plate") would be five one-letter columns.
+            raise TypeError(
+                "technical_levels must be a sequence of column names, for example ('plate',)"
+            )
         object.__setattr__(self, "technical_levels", tuple(self.technical_levels))
         names = [self.fov, self.sample, *self.technical_levels]
         if self.biological_repeat is not None:

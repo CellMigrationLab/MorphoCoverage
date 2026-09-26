@@ -15,6 +15,7 @@ from scenarios import FEATURE_COLS
 from test_workflows import READOUT, _acquisition, _setup
 
 import morphocoverage.plots as plots_module
+import morphocoverage.workflows._shared as shared_module
 import morphocoverage.workflows.figures as figures_module
 import morphocoverage.workflows.retrospective as workflow_module
 from morphocoverage import ObjectiveConfig, SamplingObjective
@@ -60,15 +61,16 @@ def _pooled_wells():
 
 def test_h1_pooled_repeats_keep_each_well_within_its_repeat(monkeypatch):
     captured = []
-    original = plots_module.bootstrap_nested
+    original = plots_module._bootstrap_repeats
 
-    def spy(units, *args, **kwargs):
-        captured.append([len(unit) for unit in units])
-        return original(units, *args, **kwargs)
+    def spy(repeats, *args, **kwargs):
+        captured.append([[len(unit) for unit in repeat] for repeat in repeats])
+        return original(repeats, *args, **kwargs)
 
-    monkeypatch.setattr(plots_module, "bootstrap_nested", spy)
+    monkeypatch.setattr(plots_module, "_bootstrap_repeats", spy)
     plots_of_data(*_pooled_wells(), features=["x"], n_boot=50)
-    assert captured == [[3] * 18]  # 9 repeats x 2 wells of 3 fields, not 2 wells of 27
+    # 9 repeats of 2 wells of 3 fields (resampled repeat first: H-10), not 2 wells of 27
+    assert captured == [[[3, 3]] * 9]
 
 
 def test_h5_the_palette_note_and_limit_say_what_is_drawn():
@@ -82,7 +84,7 @@ def test_h5_the_palette_note_and_limit_say_what_is_drawn():
 
 def test_h2_every_workflow_gives_the_rules_the_same_columns(monkeypatch):
     seen = {}
-    replay, sufficiency = workflow_module.replay_acquisitions, workflow_module.sufficiency_report
+    replay, sufficiency = shared_module.replay_acquisitions, workflow_module.sufficiency_report
 
     def replay_spy(*args, feature_cols, **kwargs):
         seen.setdefault("replay", []).append(list(feature_cols))
@@ -92,7 +94,7 @@ def test_h2_every_workflow_gives_the_rules_the_same_columns(monkeypatch):
         seen["sufficiency"] = list(feature_cols)
         return sufficiency(*args, feature_cols=feature_cols, **kwargs)
 
-    monkeypatch.setattr(workflow_module, "replay_acquisitions", replay_spy)
+    monkeypatch.setattr(shared_module, "replay_acquisitions", replay_spy)
     monkeypatch.setattr(workflow_module, "sufficiency_report", sufficiency_spy)
     objects, fovs = _acquisition(n_fovs=8, n_objects=6)
     setup = _setup(stage_cols=None)
@@ -241,17 +243,21 @@ def test_df1_optimise_runs_when_group_cols_leave_the_technical_repeat_out():
     assert "protocol" not in plan.results and "effort" not in plan.results
 
 
-def test_df3_question_7_says_the_values_were_normalised():
+def test_df3_question_7_reads_the_raw_values_with_their_variance_between_repeats():
+    # Second audit, I-1: normalised values only for outcomes, contrast, ranking and
+    # plots; the effort projection keeps the variance between repeats of the raw values.
     objects, fovs = _wells(*_acquisition(n_fovs=8, n_objects=6))
-    plan = optimise(
-        objects,
-        fovs,
-        _setup(normalize="control_mean", stage_cols=None),
-        fov_counts=[2],
-        reservoir_fraction=0.25,
-        n_splits=1,
-        draws=3,
-        permuted_orders=1,
-        dispersed_orders=0,
+    settings = {
+        "fov_counts": [2],
+        "reservoir_fraction": 0.25,
+        "n_splits": 1,
+        "draws": 3,
+        "permuted_orders": 1,
+        "dispersed_orders": 0,
+    }
+    plan = optimise(objects, fovs, _setup(normalize="control_mean", stage_cols=None), **settings)
+    raw = optimise(objects, fovs, _setup(stage_cols=None), **settings)
+    assert "Values are normalised" not in plan.results["effort"].summary()
+    pd.testing.assert_frame_equal(
+        plan.results["effort"].components, raw.results["effort"].components
     )
-    assert "Values are normalised (every feature divided by" in plan.results["effort"].summary()

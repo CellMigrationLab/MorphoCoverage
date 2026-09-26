@@ -47,7 +47,7 @@ from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
-from .base import Estimator, SamplingStrategy, unsupported_observation_unit
+from .base import Estimator, SamplingStrategy, check_order_col, unsupported_observation_unit
 
 PAPER_DESCRIPTORS = ("mean", "median", "sd", "iqr")
 _UNITS = ("object", "fov")
@@ -148,6 +148,11 @@ def _describe_fov_resamples(
         "iqr": lambda: quantile(0.75) - quantile(0.25),
     }
     return {name: np.where(defined, available[name](), np.nan) for name in descriptors}
+
+
+def _chunk_sizes(total: int, chunk: int) -> list[int]:
+    """``total`` split into consecutive parts of at most ``chunk``."""
+    return [min(chunk, total - start) for start in range(0, total, chunk)]
 
 
 def _check_tolerance(tolerance: float) -> None:
@@ -278,8 +283,7 @@ class DescriptorPlateauEstimator(Estimator):
             reason = "missing values in the selected feature"
         if reason is not None:
             return _not_applicable("max_descriptor_range", self.feature, self.descriptors, reason)
-        if self.order_col not in data.fovs.columns:
-            raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
+        check_order_col(data.fovs, self.order_col, "the descriptor-plateau rule")
 
         ordered = data.fovs.sort_values(self.order_col, kind="stable")
         positions = fov_positions(data, ordered)
@@ -360,8 +364,17 @@ class DescriptorSpreadEstimator(Estimator):
         if self.resampling_unit == "object":
             if len(values) < 2:
                 return "fewer than 2 objects"
-            draws = rng.integers(0, len(values), size=(self.n_resamples, len(values)))
-            return _describe_many(values[draws], self.descriptors)
+            # Bound memory as for whole FOVs: each chunk holds its resamples' values at once.
+            # Drawing chunk by chunk from one generator gives the same draws as all at once.
+            chunk = max(1, int(_MAX_RESAMPLED_VALUES // len(values)))
+            parts = [
+                _describe_many(
+                    values[rng.integers(0, len(values), size=(size, len(values)))],
+                    self.descriptors,
+                )
+                for size in _chunk_sizes(self.n_resamples, chunk)
+            ]
+            return {name: np.concatenate([p[name] for p in parts]) for name in self.descriptors}
 
         k = len(data.fovs)
         if k < 2 or len(values) == 0:

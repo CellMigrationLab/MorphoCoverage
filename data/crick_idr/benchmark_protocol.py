@@ -25,6 +25,17 @@ Versions:
   was added; the objective is not part of the protocol digest, and the
   frontier reads each rule's own verdict (``StrategyResult.rule_decision``),
   so the scores are unchanged.)
+- 3 (2026-09-26, second audit, ``docs/audit/function_audit_2_2026-09-26.md``): the
+  replay changed under the settings, not the settings. Permuted orders are
+  drawn per analysis group, from the group's FOVs in key order, seeded from
+  ``random_state``, the group identity, the order and the split
+  (``benchmark.permuted_fovs``); version 2 permuted the whole table, so a
+  group's order depended on the other groups and on row order. Replay
+  prefixes are in acquisition order (field by field, table order within a
+  field), as a live session receives them. The key ``unit_cols`` names the
+  well ``technical_repeat`` (the column's new name; version 2's digest was
+  taken when it was ``well``, which is why version 2 no longer matched its
+  lock). Every threshold, grid, split count and seed is that of version 2.
 
 Questions scored (codes of ``docs/questions.md``):
 
@@ -61,7 +72,9 @@ import hashlib
 import json
 
 PROTOCOL = {
-    "version": 2,
+    "version": 3,
+    "order_permutation": "per analysis group, FOVs in key order, seeded from random_state",
+    "prefix_order": "acquisition order",
     "alphas": [0.05, 0.10],
     "n_boot": 2000,
     "random_state": 0,

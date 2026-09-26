@@ -22,6 +22,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
+from ._checks import is_integer
 from .evidence import Availability, Component, Direction, Evidence
 from .objectives import ObjectiveConfig
 from .provenance import class_identity, config_hash
@@ -159,10 +160,11 @@ class EffortPolicy(DecisionPolicy):
         if self.effort == "n_objects":
             # Legacy spelling of the same count: one rule, one config_id.
             object.__setattr__(self, "effort", "n_observations")
-        if isinstance(self.target, bool) or not isinstance(self.target, int):
+        if not is_integer(self.target):  # numpy integers too, stored as a Python int
             raise TypeError("target must be an integer count")
         if self.target < 1:
             raise ValueError("target must be at least 1")
+        object.__setattr__(self, "target", int(self.target))
         object.__setattr__(self, "component", Component(self.component))
 
     @property

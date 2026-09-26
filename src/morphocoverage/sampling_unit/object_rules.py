@@ -27,7 +27,11 @@ variance. The rule's own prediction for the objects obtained is
 ``SD / sqrt(n)``; random objects meet the target by construction. The same
 formula with the FOV as the unit (the SD of FOV means) gives the number of
 FOVs the rule would ask for, as a point estimate and from the paper's
-upper-95 SD bound, which it advises when the pilot is small.
+upper-95 SD bound, which it advises when the pilot is small. The rule's
+error is relative to the mean, which depends on where zero lies unless the
+feature is a non-negative measurement: a group whose values, or whose control
+values, include negative ones is reported as not applicable, with the reason
+(as ``ScalarPrecisionStrategy`` refuses them).
 
 **``descriptor_spread_check``** (JCS Fig. 2A). For each sample size ``n``:
 ``n_draws`` samples of ``n`` objects, and the max - min over samples of the
@@ -54,15 +58,27 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..retrospective._text import fields as fields_text
-from ..retrospective._text import group_identity, unit_plural, where
-from ..schema import ValidatedInput
-from ..strategies.scalar_precision import sd_upper_bound_factor
+from .._seeds import group_identity
+from .._wording import fields as fields_text
+from .._wording import where
+from ..schema import ValidatedInput, unit_plural
+from ..statistics import (
+    field_sample,
+    field_weighted_mean_se,
+    jcb_required_objects,
+    sd_upper_bound_factor,
+)
+from ..strategies.stabilization import describe
 from ._common import check_count, check_seed, fov_values, groups, matching_groups, validated
 
 DESCRIPTORS = ("mean", "median", "SD", "IQR")
 RANDOM_OBJECTS = "random objects"
 WHOLE_FOVS = "whole FOVs"
+_NEGATIVE = (
+    "not applicable: the feature takes negative values here or in the control, and an error "
+    "relative to the mean depends on where zero lies; the JCB rule applies to non-negative "
+    "measurements"
+)
 
 
 @dataclass(frozen=True)
@@ -115,10 +131,11 @@ def _reference_means(
     all_groups: list[tuple[dict[str, Any], ValidatedInput]],
     feature: str,
     control: Mapping[str, Any] | None,
-) -> tuple[dict[int, float | None], str]:
-    """The mean that normalizes each group: its own, or the mean of all control objects.
+) -> tuple[dict[int, float | None], str, bool]:
+    """The mean that normalizes each group, its label, and whether the control has negatives.
 
-    As in the JCB supplementary spreadsheet and R code, the control mean pools
+    The mean is each group's own, or the mean of all control objects: as in
+    the JCB supplementary spreadsheet and R code, the control mean pools
     every control object, so control groups weigh by their object counts.
     """
     values_by_group = {}
@@ -127,14 +144,14 @@ def _reference_means(
         values_by_group[group_identity(group)] = values[~np.isnan(values)]
     if control is None:
         means = {k: float(v.mean()) if len(v) else None for k, v in values_by_group.items()}
-        return means, "each group's own mean"
+        return means, "each group's own mean", False
     chosen = matching_groups(all_groups, control, "control")
     pooled = np.concatenate([values_by_group[group_identity(g)] for g in chosen])
     if not len(pooled):
         raise ValueError("the control groups have no observations of the feature")
     reference = float(pooled.mean())
     label = f"mean of all objects of {len(chosen)} control group(s) {dict(control)}"
-    return dict.fromkeys(values_by_group, reference), label
+    return dict.fromkeys(values_by_group, reference), label, bool((pooled < 0).any())
 
 
 def _fovs_until(
@@ -186,7 +203,7 @@ def object_rule_check(
     check_seed(random_state)
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
     all_groups = groups(data)
-    references, label = _reference_means(all_groups, feature, control)
+    references, label, negative_control = _reference_means(all_groups, feature, control)
     rows = []
     for group, group_data in all_groups:
         per_fov = fov_values(group_data, group_data.feature_values(feature))
@@ -195,18 +212,26 @@ def object_rule_check(
         filled = [v for v in per_fov if len(v)]
         reference = references[group_identity(group)]
         base = {**group, "fovs": len(per_fov), "observations": int(sizes.sum())}
+        negative = negative_control or any(bool((v < 0).any()) for v in filled)
         for target in targets:
+            if negative:
+                rows.append({**base, "target": target, "status": _NEGATIVE})
+                continue
             if len(filled) < 2 or not reference:
                 rows.append({**base, "target": target, "status": "too few FOVs or objects"})
                 continue
             sd = float(np.std(np.concatenate(filled) / reference, ddof=1))
-            n = max(1, math.ceil((sd / target) ** 2))
+            n = max(1, jcb_required_objects(sd, target))
             rng = np.random.default_rng([random_state, group_identity(group), int(target * 1e6)])
             means, obtained, used = _fovs_until(sizes, sums / reference, n, n_draws, rng)
             real = float(means.std(ddof=1))
             predicted = float(np.mean(sd / np.sqrt(obtained)))
-            fov_sd = float(np.std([v.mean() for v in filled], ddof=1)) / reference
-            upper = fov_sd * sd_upper_bound_factor(len(filled) - 1)
+            # The JCB rule with the field as the unit: the SD of one field's mean, from the
+            # unweighted mean of field means (statistics.field_weighted_mean_se), not the
+            # object-weighted ratio estimator of ScalarPrecisionStrategy(resampling_unit="fov").
+            _, fov_se, n_filled = field_weighted_mean_se(np.array([v.mean() for v in filled]))
+            fov_sd = fov_se * math.sqrt(n_filled) / reference
+            upper = fov_sd * sd_upper_bound_factor(n_filled - 1)
             rows.append(
                 {
                     **base,
@@ -221,8 +246,8 @@ def object_rule_check(
                     "real_error": real,
                     "error_ratio": real / predicted if predicted > 0 else None,
                     "meets_target": bool(real <= target),
-                    "fov_rule_fovs": max(1, math.ceil((fov_sd / target) ** 2)),
-                    "fov_rule_fovs_upper95": max(1, math.ceil((upper / target) ** 2)),
+                    "fov_rule_fovs": max(1, jcb_required_objects(fov_sd, target)),
+                    "fov_rule_fovs_upper95": max(1, jcb_required_objects(upper, target)),
                 }
             )
     settings = {
@@ -296,24 +321,6 @@ class DescriptorSpreadCheck:
         return "\n".join(lines)
 
 
-def _descriptors(values: np.ndarray) -> np.ndarray:
-    q1, median, q3 = np.percentile(values, [25, 50, 75])
-    return np.array([values.mean(), median, values.std(ddof=1), q3 - q1])
-
-
-def _fov_sample(per_fov: list[np.ndarray], n: int, rng: np.random.Generator) -> np.ndarray:
-    """Whole FOVs in random order until ``n`` objects, with a random part of the last one."""
-    taken, count = [], 0
-    for i in rng.permutation(len(per_fov)):
-        values = per_fov[i]
-        if count + len(values) >= n:
-            taken.append(rng.choice(values, size=n - count, replace=False))
-            break
-        taken.append(values)
-        count += len(values)
-    return np.concatenate(taken)
-
-
 def descriptor_spread_check(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -354,8 +361,8 @@ def descriptor_spread_check(
                 if how == RANDOM_OBJECTS:
                     samples = [rng.choice(pooled, size=n, replace=False) for _ in range(n_draws)]
                 else:
-                    samples = [_fov_sample(per_fov, n, rng) for _ in range(n_draws)]
-                values = np.array([_descriptors(s) for s in samples])
+                    samples = [field_sample(per_fov, n, rng) for _ in range(n_draws)]
+                values = np.array([list(describe(s).values()) for s in samples])
                 spread = values.max(axis=0) - values.min(axis=0)
                 spreads[(how, n)] = spread
                 rows.append(

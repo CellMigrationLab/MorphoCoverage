@@ -1,14 +1,14 @@
 """MorphoCoverage: FOV-aware phenotypic sampling analysis."""
 
 from . import _deprecated
-from .data_check import DataCheck, check_tables
+from .data_check import DataCheck, check_tables, validate_input_tables
 from .evidence import Availability, Component, Direction, Evidence, Quantity
 from .framework import run_strategies
 from .objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from .online import OnlineSession
 from .policies import DecisionPolicy, Effort, EffortPolicy, ThresholdPolicy, redecide
 from .results import Decision, StrategyResult
-from .schema import ValidatedInput, validate_input_tables
+from .schema import ValidatedInput
 from .sequential import SequentialResult, evaluate_acquisition_prefixes
 from .strategies import (
     DescriptorPlateauEstimator,

@@ -48,20 +48,22 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import numpy as np
 import pandas as pd
 
 from ..sufficiency import SufficiencyReport
-from ._text import unit_plural
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
 from .controls import ControlResult
-from .effort import EffortResult, design_effect
-from .effort_text import level_words, share_caveat, unit_word
+from .effort import EffortResult
 from .inspection import InspectionResult
 from .overview import DatasetOverview
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
+from .report_profile import (  # noqa: F401  (private helpers re-exported for callers)
+    _detection_adjusted_bounds,
+    _false_alarm_rate,
+    sampling_profile,
+)
 from .spatial import EfficiencyResult
 
 if TYPE_CHECKING:  # sampling_unit imports retrospective helpers, so it is imported late
@@ -102,11 +104,11 @@ _NEEDS = {
     "next_time": "run sampling_reliability, then protocol_reliability across samples",
     "bought": "run adequacy_points on a replay",
     "inspect": "run inspect_fovs",
-    "effort": "give the FOV table a technical_repeat column (a well, a dish) or declare a "
-    "sampling hierarchy, and run optimise (effort_projection)",
+    "effort": "declare a sampling hierarchy, or give the FOV table a technical_repeat column "
+    "(a well, a dish) kept among the group columns, and run optimise (effort_projection)",
     "order": "give stage coordinates and run order_efficiency on a replay with dispersed orders",
     "conditions": "declare a control condition and run condition_contrast on data with more "
-    "than one condition",
+    "than one condition, with analysis groups that keep conditions and repeats apart",
 }
 
 
@@ -163,250 +165,6 @@ class MicroscopistReport:
 
 def _indent(text: str) -> str:
     return "\n".join(f"  {line}" if line else line for line in text.splitlines())
-
-
-def _false_alarm_rate(controls: ControlResult | None) -> float | None:
-    """The declared reference's false-alarm rate, when it was measured."""
-    if controls is None or controls.status != "assessed":
-        return None
-    rates = controls.pooled.set_index("candidate")["rate"]
-    if "reference" not in rates.index or pd.isna(rates["reference"]):
-        return None
-    return float(rates["reference"])
-
-
-def _detection_adjusted_bounds(
-    sufficiency: SufficiencyReport, controls: ControlResult | None
-) -> str | None:
-    """The unseen-state bound divided by the declared control's detection rate.
-
-    The rule-of-three bound holds for states this definition would detect in
-    every FOV that has them. A phenotype recognized like the declared
-    positive control, in a share ``d`` of the fields that show it, is seen
-    with probability ``d * f`` per FOV when present in a share ``f``, so the
-    same run of FOVs with nothing new bounds ``f`` at ``bound / d`` (at most 1),
-    assuming detection is independent between fields.
-    """
-    if controls is None or controls.status != "assessed" or sufficiency.next_fov.empty:
-        return None
-    rates = controls.pooled.set_index("candidate")["rate"]
-    if "positive" not in rates.index or pd.isna(rates["positive"]) or rates["positive"] <= 0:
-        return None
-    detection = float(rates["positive"])
-    keys = list(sufficiency.group_cols)
-    heading = (
-        f"Adjusted for the declared control's detection rate ({100 * detection:.0f}% of its "
-        "fields recognized): a phenotype seen as well as the control, and shown by no FOV yet,"
-        " could still be in"
-    )
-    lines = [heading]
-    for row in sufficiency.next_fov.itertuples(index=False):
-        bound = row.unseen_state_max_frequency
-        if bound is None or pd.isna(bound):
-            continue
-        adjusted = min(1.0, float(bound) / detection)
-        label = ", ".join(f"{k}={getattr(row, k)}" for k in keys) or "all FOVs (pooled)"
-        lines.append(
-            f"  {label}: up to {100 * adjusted:.0f}% of FOVs (the {100 * float(bound):.0f}% "
-            f"bound above divided by {100 * detection:.0f}%), if detection is independent "
-            "between fields."
-        )
-    return "\n".join(lines) if len(lines) > 1 else None
-
-
-def _unit_rows(
-    variability: FOVVariability | None, clustering: FOVClustering | None, observations: str
-) -> list[dict]:
-    """Profile rows from the sampling-unit checks: FOVs against random objects, clustering."""
-    rows = []
-    if variability is not None:
-        ok = variability.groups[variability.groups["status"] == "ok"]
-        if len(ok):
-            effect = ok["design_effect"]
-            shares = pd.to_numeric(ok["unusual_fov_share"], errors="coerce").dropna()
-            unusual = (
-                f"; {100 * shares.median():.0f}% of fields differ more than random "
-                f"{observations} would (5% expected)"
-                if len(shares)
-                else ""
-            )
-            where = f"median of {len(ok)} groups" if len(ok) > 1 else "1 group"
-            rows.append(
-                {
-                    "item": "fields against random objects",
-                    "where": where,
-                    "value": float(effect.median()),
-                    "statement": (
-                        f"a mean from whole fields varies {effect.median():.1f} times as much as "
-                        f"one from as many random {observations} (design effect, range "
-                        f"{effect.min():.1f}-{effect.max():.1f}){unusual}"
-                    ),
-                    "source": "fov_variability",
-                }
-            )
-    if clustering is not None:
-        table = clustering.table
-        for state, block in table.groupby("state", sort=False):
-            seen = block[block["state_objects"] > 0]
-            if not len(seen):
-                continue
-            clustered = seen[seen["p_clustered"] <= 0.05]
-            statement = (
-                f"{clustering.state_name(state)}: clustered in a few fields (p <= 0.05) in "
-                f"{len(clustered)} of the {len(seen)} groups where it was seen"
-            )
-            if len(clustered):
-                factor = clustered["fovs_needed"] / clustered["fovs_needed_if_random"]
-                statement += (
-                    f"; there, seeing it takes about {factor.median():.1f} times the fields "
-                    f"that a count of {observations} predicts"
-                )
-            rows.append(
-                {
-                    "item": "rare-state clustering",
-                    "where": "all groups",
-                    "value": float(len(clustered)),
-                    "statement": statement,
-                    "source": "fov_clustering",
-                }
-            )
-    return rows
-
-
-def _profile(
-    controls: ControlResult | None,
-    effort: EffortResult | None,
-    redundancy: pd.DataFrame | None,
-    inspection: InspectionResult | None,
-    variability: FOVVariability | None = None,
-    clustering: FOVClustering | None = None,
-) -> pd.DataFrame:
-    units = [
-        r.settings.get("observation_unit")
-        for r in (variability, clustering, controls, effort)
-        if r is not None and r.settings.get("observation_unit")
-    ]
-    observations = unit_plural(units[0] if units else "object")
-    rows = _unit_rows(variability, clustering, observations)
-    if controls is not None and controls.status != "not assessed":
-        rates = controls.pooled.set_index("candidate")["rate"]
-        for kind, words in (
-            ("positive", "declared positive-control fields recognized as different"),
-            ("planted", f"fields with planted positive-control {observations} recognized"),
-            ("reference", "reference fields called different (false alarms)"),
-        ):
-            if kind in rates.index and pd.notna(rates[kind]):
-                rows.append(
-                    {
-                        "item": "representation",
-                        "where": "pooled",
-                        "value": float(rates[kind]),
-                        "statement": f"{100 * rates[kind]:.0f}% of {words}",
-                        "source": "representation_control",
-                    }
-                )
-    if effort is not None:
-        hierarchy = effort.settings.get("hierarchy", {})
-        words = level_words(hierarchy, observations)
-        for stratum, block in effort.components.groupby("stratum", sort=False):
-            effect = design_effect(effort, stratum)
-            # fov_variability, when given, states the design effect per group already
-            if effect is not None and variability is None:
-                rows.append(
-                    {
-                        "item": "field-to-field heterogeneity",
-                        "where": stratum,
-                        "value": effect,
-                        "statement": (
-                            f"a mean from whole fields varies {effect:.1f} times as much as one "
-                            f"from the same number of random {observations} (design effect)"
-                        ),
-                        "source": "effort_projection",
-                    }
-                )
-            top = block.dropna(subset=["share"]).sort_values("share", ascending=False)
-            if len(top):
-                first = top.iloc[0]
-                caveat = share_caveat(
-                    first, int(first["units"]), unit_word(hierarchy, str(first["unit"]))
-                )
-                rows.append(
-                    {
-                        "item": "largest source of uncertainty of the mean",
-                        "where": stratum,
-                        "value": float(first["share"]),
-                        "statement": (
-                            f"{100 * first['share']:.0f}% of the variance of the mean is "
-                            f"{words.get(first['level'], first['level'])}{caveat}"
-                        ),
-                        "source": "effort_projection",
-                    }
-                )
-    if redundancy is not None and len(redundancy):
-        measured = redundancy.dropna(subset=["smallest_lag"])
-        always = measured[measured["redundancy_distance"].isna()]
-        found = measured.dropna(subset=["redundancy_distance"])
-        alike = found[found["redundancy_distance"] > found["smallest_lag"]]
-        smallest = float(measured["smallest_lag"].min()) if len(measured) else None
-        unit = str(redundancy["unit"].iloc[0]) if "unit" in redundancy.columns else "stage units"
-        parts = []
-        if len(alike):
-            parts.append(
-                f"in {len(alike)} of {len(redundancy)} groups, fields closer than about "
-                f"{np.median(alike['redundancy_distance']):.0f} {unit} (median) are more "
-                "alike than random pairs"
-            )
-        if len(always):
-            largest = float(always["largest_lag"].max()) if "largest_lag" in always else None
-            reach = f" (up to {largest:.0f} {unit})" if largest is not None else ""
-            parts.append(
-                f"in {len(always)} of {len(redundancy)} groups, fields are more alike than "
-                f"random pairs at every distance measured{reach}"
-            )
-        if parts:
-            statement = "; ".join(parts)
-        elif smallest is not None:
-            statement = (
-                f"no group shows neighbouring fields more alike than random pairs, down to the "
-                f"closest spacing measured ({smallest:.0f} {unit})"
-            )
-        else:
-            statement = None
-        if statement is not None:
-            rows.append(
-                {
-                    "item": "spatial correlation",
-                    "where": "all groups",
-                    "value": float(len(alike)),
-                    "statement": statement,
-                    "source": "redundancy_distance",
-                }
-            )
-    if inspection is not None and len(inspection.fovs):
-        new = inspection.fovs[inspection.fovs["reason"] == "new state"]
-        keys = [c for c in inspection.settings.get("fov_key", []) if c in new.columns]
-        if len(new):
-            count = new[keys].drop_duplicates().shape[0]
-            statement = f"new states come from {count} fields"
-            false_alarms = _false_alarm_rate(controls)
-            n_fovs = inspection.settings.get("n_fovs")
-            if false_alarms is not None and n_fovs:
-                # The same definition called that share of reference fields new.
-                expected = false_alarms * n_fovs
-                statement += (
-                    f" (about {expected:.0f} of {n_fovs} expected by chance at the "
-                    f"{100 * false_alarms:.0f}% false-alarm rate of the declared reference)"
-                )
-            rows.append(
-                {
-                    "item": "new states",
-                    "where": "all groups",
-                    "value": float(count),
-                    "statement": statement,
-                    "source": "inspect_fovs",
-                }
-            )
-    return pd.DataFrame(rows, columns=["item", "where", "value", "statement", "source"])
 
 
 def _check(value: object, kind: type, name: str) -> None:
@@ -508,7 +266,7 @@ def microscopist_report(
         parts["effort"].append(effort.summary())
     if efficiency is not None:
         parts["order"].append(efficiency.summary())
-    profile = _profile(controls, effort, redundancy, inspection, variability, clustering)
+    profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
     if len(profile):
         parts["profile"].append(
             "\n".join(
@@ -531,10 +289,6 @@ def microscopist_report(
         "Whether these were the right positions needs every candidate position from an "
         "overview (not available: sampling-frame bias is not assessed)."
     )
-    if efficiency is not None:
-        parts["order"].append(frame)
-    elif redundancy is not None:
-        parts["profile"].append(frame)
     notes = [
         "Every answer holds for the stated features, tolerances and definition of new.",
         (
@@ -568,6 +322,14 @@ def microscopist_report(
         "Technical drift between repeats, batches or plates is not assessed: groups are "
         "analysed apart, and a shift shared by all fields of a group is not new within it."
     )
+    if efficiency is not None:
+        parts["order"].append(frame)
+    elif redundancy is not None and parts["profile"]:
+        parts["profile"].append(frame)
+    elif redundancy is not None:
+        # A caveat alone does not assess question 3: it stays "not assessed", and
+        # the caveat is kept with the notes.
+        notes.append(frame)
     sections = {
         key: _indent("\n\n".join(texts)) if texts else f"  Not assessed: {_NEEDS[key]}."
         for key, texts in parts.items()

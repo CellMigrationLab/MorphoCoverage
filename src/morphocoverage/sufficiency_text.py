@@ -16,17 +16,10 @@ from typing import Any
 
 import pandas as pd
 
+from ._wording import count, percent, rows_of
 from .evidence import Direction
 from .results import StrategyResult
 from .strategies.support_novelty import SupportNoveltyEstimator
-
-
-def _rows_of(table: pd.DataFrame, group: Mapping[str, object]) -> pd.DataFrame:
-    """The rows of ``table`` belonging to one analysis group."""
-    mask = pd.Series(True, index=table.index)
-    for column, value in group.items():
-        mask &= table[column].eq(value)
-    return table.loc[mask]
 
 
 def _policy_text(policy: Mapping[str, Any], result: StrategyResult) -> str:
@@ -64,10 +57,11 @@ def _enough_answer(final: Mapping[str, Any], stops: Mapping[str, Any]) -> str:
     if final.get("assumes_spatial_uniformity"):
         head += " (treats observations as independent draws: assumes a spatially uniform sample)"
     if pd.isna(stops["stop_fov_median"]):
-        return f"{head}; not met at any point in {orders} replayed orders."
+        return f"{head}; not met at any point in {count(orders, 'replayed order')}."
     first = (
         f"first met after {stops['stop_fov_median']:g} FOVs "
-        f"(10-90%: {stops['stop_fov_p10']:g}-{stops['stop_fov_p90']:g}) over {orders} orders"
+        f"(10-90%: {stops['stop_fov_p10']:g}-{stops['stop_fov_p90']:g}) over "
+        f"{count(orders, 'order')}"
     )
     never = stops["never_stopped"]
     missing = f", never in {never}" if never else ""
@@ -100,11 +94,6 @@ def novelty_definition(
     return text
 
 
-def _percent(value: float) -> str:
-    """A probability as a short percentage."""
-    return f"{100 * value:.0f}%" if value >= 0.01 or value == 0 else f"{100 * value:.1g}%"
-
-
 def _more_fovs(count: int) -> str:
     """``1 more FOV``, ``3 more FOVs``."""
     return f"{count} more FOV" if count == 1 else f"{count} more FOVs"
@@ -126,10 +115,10 @@ def _next_fov_answer(
     """Question 2 for one group, as lines of text."""
     if pd.isna(row["chance_new"]):
         return f"Not estimable: {row['reason']}."
-    confidence = _percent(row["confidence"])
+    confidence = percent(row["confidence"])
     chance = (
-        f"Chance: {_percent(row['chance_new'])} (nominal {confidence} upper bound "
-        f"{_percent(row['chance_new_at_most'])}, approximate: the leave-one-FOV-out outcomes "
+        f"Chance: {percent(row['chance_new'])} (nominal {confidence} upper bound "
+        f"{percent(row['chance_new_at_most'])}, approximate: the leave-one-FOV-out outcomes "
         f"share their reference FOVs); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
         "showed something the others did not."
     )
@@ -144,7 +133,7 @@ def _next_fov_answer(
     successes = -math.log(1 - row["confidence"])
     unseen = (
         f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
-        f"{_percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
+        f"{percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
         f"{successes:.2g} / {row['fovs_imaged']}), if FOVs are independent, representative "
         f"draws. Rarer states can remain.{counted}"
     )
@@ -159,16 +148,17 @@ def _next_fov_answer(
             span = f"{fewest} FOVs" if fewest == int(few) else f"{fewest} to {int(few)} FOVs"
             lines.append(
                 f"Seen in few FOVs: {int(seen_in_few)} of {row['fovs_imaged']} FOVs hold a "
-                f"state that fewer than {int(few)} other FOVs show. A state seen in {span} "
+                f"state that other FOVs show too, but fewer than {int(few)} of them (a state "
+                f"seen in {span}; FOVs counted as new above are not included). Such a state "
                 "is not new to the next FOV but is not established either; it counts as "
                 "recurrent above, so look at those FOVs before calling the sample settled."
             )
             if int(seen_in_few):
                 lines.append(
                     f"Planning for such a state: these FOVs together are "
-                    f"{_percent(row['few_state_incidence'])} of FOVs ({confidence} interval "
-                    f"{_percent(row['few_state_incidence_low'])}-"
-                    f"{_percent(row['few_state_incidence_high'])}); to see a state that "
+                    f"{percent(row['few_state_incidence'])} of FOVs ({confidence} interval "
+                    f"{percent(row['few_state_incidence_low'])}-"
+                    f"{percent(row['few_state_incidence_high'])}); to see a state that "
                     f"common at least once with {confidence} probability, image about "
                     f"{int(row['fovs_to_see_again'])} independent representative FOVs, up "
                     f"to {int(row['fovs_to_see_again_low_end'])} at the low end of the "
@@ -177,14 +167,14 @@ def _next_fov_answer(
                 )
     if target is not None:
         extra = row["extra_fovs_to_rule_out_target"]
-        rule_out = f"To rule out unseen states in more than {_percent(target)} of FOVs"
+        rule_out = f"To rule out unseen states in more than {percent(target)} of FOVs"
         lines.append(
             f"{rule_out}: already reached."
             if extra == 0
             else f"{rule_out}: at least {_more_fovs(extra)} with nothing new."
         )
     if target is not None:
-        goal = f"To bring the nominal {confidence} bound for the next FOV below {_percent(target)}"
+        goal = f"To bring the nominal {confidence} bound for the next FOV below {percent(target)}"
         if row["chance_new_at_most"] <= target:
             lines.append(f"{goal}: already reached.")
         else:
@@ -199,8 +189,8 @@ def _next_fov_answer(
                 f"{goal}: at least {_more_fovs(best)} if none shows anything new; {at_rate}."
             )
     if calibrated is not None:
-        predicted, actual = _percent(calibrated["predicted"]), _percent(calibrated["actual"])
-        held = _percent(calibrated["bound_held"])
+        predicted, actual = percent(calibrated["predicted"]), percent(calibrated["actual"])
+        held = percent(calibrated["bound_held"])
         lines.append(
             f"Check on this dataset: predicting from {int(calibrated['fovs_imaged'])} random FOVs, "
             f"predicted {predicted}, actual {actual}; "
@@ -227,13 +217,13 @@ def report_summary(
         label = ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
         lines = [f"{label}:"]
         # A question that was not asked has an empty table without the group columns.
-        criteria = _rows_of(enough, group) if not enough.empty else enough
+        criteria = rows_of(enough, group) if not enough.empty else enough
         if len(criteria):
             lines.append(
                 "  Did each criterion say enough? (its own threshold, not a held-out check)"
             )
             lines += [f"  - {answer}" for answer in criteria["answer"]]
-        outlook = _rows_of(next_fov, group) if not next_fov.empty else next_fov
+        outlook = rows_of(next_fov, group) if not next_fov.empty else next_fov
         if len(outlook):
             lines.append("  Would one more FOV show something new?")
             lines += [f"  - {line}" for line in outlook["answer"].iloc[0].split("\n")]

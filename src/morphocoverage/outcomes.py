@@ -17,7 +17,6 @@ a relative error of a zero mean); never NaN.
 
 from __future__ import annotations
 
-import math
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -29,6 +28,7 @@ import pandas as pd
 from . import _deprecated
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput, fov_positions
+from .statistics import mean_is_zero, srs_relative_rmse
 
 
 class OutcomeMetric(ABC):
@@ -57,16 +57,6 @@ class OutcomeMetric(ABC):
         raise NotImplementedError
 
 
-def srs_relative_rmse(variance: float, mean: float, n: float, total: float) -> float:
-    """Expected relative RMSE of the mean of ``n`` objects drawn at random from ``total``.
-
-    Simple random sampling without replacement, with finite-population
-    correction: ``sqrt(variance / n * (1 - n / total)) / |mean|``. This is the
-    error object-number rules assume, used by ``data/crick_idr/fov_vs_objects.py``.
-    """
-    return math.sqrt(variance / n * (1 - n / total)) / abs(mean)
-
-
 def _feature(feature: object) -> str:
     """Require a single column name."""
     if not isinstance(feature, str):
@@ -80,7 +70,8 @@ class RelativeMeanError(OutcomeMetric):
 
     The realized error of the population summary at the stop. ``None`` when
     the stop prefix has no observations, either acquisition contains missing
-    values for the selected feature, or the full mean is zero. With FOVs as the
+    values for the selected feature, or the full mean is zero (up to rounding: a
+    mean of 1e-17 from values of about 0.1 is a zero one). With FOVs as the
     acquisition unit this is the quantity whose spread across acquisition
     orders gives the whole-FOV error of ``fov_vs_objects.py``.
     """
@@ -109,7 +100,7 @@ class RelativeMeanError(OutcomeMetric):
         if np.isnan(values).any() or np.isnan(reference).any():
             return None
         target = float(reference.mean())
-        if target == 0:
+        if mean_is_zero(target, reference):
             return None
         return abs(float(values.mean()) - target) / abs(target)
 
@@ -124,7 +115,7 @@ class RandomObjectRelativeError(OutcomeMetric):
     Averaged over acquisition orders, the ratio of ``RelativeMeanError``'s RMSE
     to this value is the error inflation from acquiring whole FOVs. ``None``
     with fewer than 2 objects in the full group or none at the stop, or a zero
-    full mean.
+    full mean (up to rounding).
     """
 
     feature: str
@@ -151,7 +142,7 @@ class RandomObjectRelativeError(OutcomeMetric):
         if np.isnan(reference).any():
             return None
         mean = float(reference.mean())
-        if mean == 0:
+        if mean_is_zero(mean, reference):
             return None
         return srs_relative_rmse(float(reference.var(ddof=1)), mean, n, len(reference))
 

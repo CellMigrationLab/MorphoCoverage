@@ -49,16 +49,19 @@ import numpy as np
 import pandas as pd
 
 from .. import _deprecated
+from ..data_check import validate_input_tables
 from ..evidence import Availability, Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import DecisionPolicy, Effort
 from ..results import Decision
-from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, validate_input_tables
+from ..schema import OBJECT_LIKE_UNITS, ValidatedInput
+from ..statistics import sd_upper_bound_factor, spread_is_zero
 from .base import Estimator, SamplingStrategy, unsupported_observation_unit
-from .scalar_precision import required_objects, sd_upper_bound_factor
+from .scalar_precision import required_objects
 
 _SD_ESTIMATES = ("point", "upper_95")
 _REQUIRED = "planned_required_objects"
+_MEASURED = "measured_objects"
 
 
 @dataclass(frozen=True)
@@ -125,6 +128,12 @@ def _pilot_values(
     missing = [column for column in sample_cols if column not in data.objects.columns]
     if missing:
         raise ValueError(f"sample_cols {missing} are not columns of the pilot observations")
+    blank = [column for column in sample_cols if data.objects[column].isna().any()]
+    if blank:
+        raise ValueError(
+            f"sample_cols {blank} have missing values: every pilot object must belong to a "
+            "sample; fill them in or leave those objects out of the pilot"
+        )
     values = data.feature_values(feature)
     if np.isnan(values).any():
         raise ValueError(f"pilot values of {feature!r} contain missing values")
@@ -191,8 +200,19 @@ def plan_objects_to_average(
             "sample the within-sample SD is undefined"
         )
     centred = values - table.groupby(list(sample_cols))["_value"].transform("mean").to_numpy()
-    cv = float(np.std(centred, ddof=1)) / control_mean
+    sd = float(np.std(centred, ddof=1))
+    cv = sd / control_mean
     cv_upper = cv * sd_upper_bound_factor(len(values) - 1)
+    required = required_objects(cv if sd_estimate == "point" else cv_upper, target_cv)
+    if spread_is_zero(sd, values) or required < 1:
+        # A plan of 0 objects would stop every evaluated group at its first FOV, even
+        # an empty one: a constant feature within samples says nothing about averaging.
+        raise ValueError(
+            f"the within-sample SD of {feature!r} in the pilot is zero (every sample is "
+            "constant), or so small that the plan would need no object, so no number of "
+            "objects to average can be planned from it; use a feature that varies between "
+            "the objects of a sample, or a larger pilot"
+        )
     return ObjectCountPlan(
         feature=feature,
         target_cv=float(target_cv),
@@ -209,7 +229,7 @@ def plan_objects_to_average(
         control_mean=control_mean,
         cv=cv,
         cv_upper_95=cv_upper,
-        required_objects=required_objects(cv if sd_estimate == "point" else cv_upper, target_cv),
+        required_objects=required,
     )
 
 
@@ -225,6 +245,12 @@ def _samples_seen(data: ValidatedInput, sample_cols: tuple[str, ...]) -> set[tup
 @dataclass(frozen=True)
 class PlannedObjectCountEstimator(Estimator):
     """Reports a plan's required object count as evidence, if the plan applies to the group.
+
+    Quantities: ``planned_required_objects``, the plan's count, and
+    ``measured_objects``, the visible objects with a measured (non-missing)
+    value of the planned feature. The plan counts measured objects, so an
+    object without a value does not bring the group closer to it. The planned
+    feature must be one of the evaluated feature columns.
 
     The plan does not apply (``not_applicable``, with the reason) when the rows
     are not objects, when the group's samples cannot be identified, or when the
@@ -246,6 +272,7 @@ class PlannedObjectCountEstimator(Estimator):
         No incremental state: whether the group holds a pilot sample is read
         from its visible rows, so each prefix is a cheap full recomputation.
         """
+        values = data.feature_values(self.plan.feature)  # fails early on a non-feature column
         reason = unsupported_observation_unit(data, OBJECT_LIKE_UNITS, method="a JCB cell plan")
         if reason is None:
             seen = _samples_seen(data, self.plan.sample_cols)
@@ -256,28 +283,38 @@ class PlannedObjectCountEstimator(Estimator):
                 )
             elif seen & set(self.plan.pilot_samples):
                 reason = "the evaluated group contains pilot samples used to make the plan"
-        meta = {"direction": Direction.LOWER_IS_BETTER, "units": "objects"}
+        meta = {"units": "objects", "component": Component.POPULATION}
+        lower, higher = Direction.LOWER_IS_BETTER, Direction.HIGHER_IS_BETTER
         if reason is not None:
-            quantity = Quantity.not_applicable(reason, component=Component.POPULATION, **meta)
-            return Evidence({_REQUIRED: quantity}, {"undefined_reason": reason})
-        value = Quantity.available(
-            self.plan.required_objects, component=Component.POPULATION, **meta
+            return Evidence(
+                {
+                    _REQUIRED: Quantity.not_applicable(reason, direction=lower, **meta),
+                    _MEASURED: Quantity.not_applicable(reason, direction=higher, **meta),
+                },
+                {"undefined_reason": reason},
+            )
+        measured = int(np.count_nonzero(~np.isnan(values)))
+        return Evidence(
+            {
+                _REQUIRED: Quantity.available(self.plan.required_objects, direction=lower, **meta),
+                _MEASURED: Quantity.available(measured, direction=higher, **meta),
+            },
+            {"plan": self.plan.parameters, "objects_without_value": len(values) - measured},
         )
-        return Evidence({_REQUIRED: value}, {"plan": self.plan.parameters})
 
 
 @dataclass(frozen=True)
 class _PlannedCountPolicy(DecisionPolicy):
-    """Stop once the acquired objects reach the planned requirement."""
+    """Stop once the objects measured for the planned feature reach the planned requirement."""
 
     name: str = "planned_count"
 
     def decide(self, evidence: Evidence, effort: Effort) -> tuple[Component, Decision | None]:
         """Undefined if the plan does not apply; else stop at the planned count."""
-        quantity = evidence.quantities[_REQUIRED]
+        quantity, measured = evidence.quantities[_REQUIRED], evidence.quantities[_MEASURED]
         if quantity.availability is not Availability.AVAILABLE:
             return Component.POPULATION, None
-        reached = effort.n_observations >= quantity.value
+        reached = measured.value >= quantity.value
         return Component.POPULATION, Decision.STOP if reached else Decision.CONTINUE
 
 
@@ -285,7 +322,8 @@ class _PlannedCountPolicy(DecisionPolicy):
 class PlannedObjectCountStrategy(SamplingStrategy):
     """Stop each group once it has the number of objects a JCB pilot plan requires.
 
-    The multi-sample counterpart of ``ScalarPrecisionStrategy``: the
+    Objects count once they have a measured value of the planned feature. The
+    multi-sample counterpart of ``ScalarPrecisionStrategy``: the
     requirement is fixed before evaluation, from pilot samples, instead of
     being re-estimated from each group's visible objects.
     """
@@ -296,6 +334,10 @@ class PlannedObjectCountStrategy(SamplingStrategy):
     def __post_init__(self) -> None:
         if not isinstance(self.plan, ObjectCountPlan):
             raise TypeError("plan must be an ObjectCountPlan from plan_objects_to_average")
+        if not self.plan.required_objects >= 1:
+            raise ValueError(
+                "the plan requires no object; plan_objects_to_average refuses such a pilot"
+            )
 
     @property
     def parameters(self) -> dict[str, Any]:

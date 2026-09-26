@@ -191,10 +191,11 @@ class LiveUpdate:
         if self.results:
             lines.append(f"  {decision_view(self.results)}")
         if self.pending_objects:
+            unit = self.observation_unit
             waiting = (
-                "1 object row waits for its FOV row"
+                f"1 {unit} row waits for its FOV row"
                 if self.pending_objects == 1
-                else f"{self.pending_objects} object rows wait for their FOV rows"
+                else f"{self.pending_objects} {unit} rows wait for their FOV rows"
             )
             lines.append(f"  {waiting} (not yet counted in any field)")
         return "\n".join(lines)
@@ -329,6 +330,11 @@ class LiveFolder:
         """Poll every ``interval`` seconds until ``timeout``, ``max_fovs`` or, with
         ``until_stop``, until every rule says stop in the latest field's group.
 
+        "Says stop" is each rule's own verdict (``StrategyResult.rule_decision``),
+        as in the replays: a rule that has no evidence about a declared target
+        still stops when its own criterion is met, and the decision view of each
+        update says which targets no rule decides.
+
         Stop with Ctrl-C at any time; the updates so far are kept in ``updates``.
         """
         if interval <= 0:
@@ -341,7 +347,8 @@ class LiveFolder:
                     seen.append(update)
                     if on_update is not None:
                         on_update(update)
-                    if until_stop and all(r.decision == Decision.STOP for r in update.results):
+                    stopped = [r.rule_decision == Decision.STOP for r in update.results]
+                    if until_stop and stopped and all(stopped):
                         return seen
                     if max_fovs is not None and len(seen) >= max_fovs:
                         return seen
@@ -358,9 +365,11 @@ class LiveTables:
     Call ``update(objects, fovs)`` with the current tables whenever rows were
     appended; rows already read must stay in place (the tables only grow).
     ``key`` names the columns that tie an object row to its FOV row (default:
-    the session's FOV column and its analysis-group columns present in both
-    tables: condition, repeat and, when it holds values, technical_repeat,
-    unless the session names its own ``group_cols``). Objects of a field must
+    the FOV identity, resolved as ``validate_input_tables`` resolves it: the
+    session's analysis-group columns, then every MorphoBricks group column
+    (condition, repeat and, when it holds values, technical_repeat), each when
+    the object table has it too, then the FOV column; so a well ``B02`` of two
+    repeats is two fields even when ``group_cols`` pool the repeats). Objects of a field must
     be appended no later than its FOV row; an object row for a field already
     added raises, since it would change a field the rules have already judged.
     """
@@ -393,15 +402,26 @@ class LiveTables:
                 )
             if fov_col is None:
                 raise ValueError("could not find the FOV column; pass fov_col to the session")
-            groups = self.session.group_cols or self.session._requested_group_cols
+            groups = self.session.group_cols
             if groups is None:
-                # An optional group column counts only when it holds a value.
-                groups = tuple(
-                    g
-                    for g in MORPHOBRICKS_GROUP_COLUMNS
-                    if g not in OPTIONAL_GROUP_COLUMNS or column_has_values(fovs, g)
-                )
-            self.key = (*(g for g in groups if g in fovs and g in objects), fov_col)
+                groups = self.session._requested_group_cols
+            # The FOV identity of the validator (metadata.resolve_identity_cols): the
+            # analysis groups, then every MorphoBricks group column present, since
+            # condition and repeat (and a technical repeat with values) always name
+            # a field, whatever the grouping. An optional column counts only when it
+            # holds a value, as the validator reads an empty one as absent.
+            present = tuple(
+                g
+                for g in MORPHOBRICKS_GROUP_COLUMNS
+                if g in fovs.columns
+                and (g not in OPTIONAL_GROUP_COLUMNS or column_has_values(fovs, g))
+            )
+            identity = [*(present if groups is None else groups)]
+            identity += [g for g in present if g not in identity and g != fov_col]
+            # A column only the FOV table holds is attached by the validator when the
+            # FOV identifier maps to one value; here a reused identifier then reads as
+            # a field appearing twice, which raises.
+            self.key = (*(g for g in identity if g in objects.columns), fov_col)
         missing = [c for c in self.key if c not in objects.columns or c not in fovs.columns]
         if missing:
             raise ValueError(f"key columns {missing} must be in both the object and FOV tables")

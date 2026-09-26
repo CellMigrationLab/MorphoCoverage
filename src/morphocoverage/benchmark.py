@@ -12,14 +12,17 @@ success:
   Claims of performance belong to held-out or out-of-sample runs.
   ``leave_one_dataset_out`` gives folds when data are scarce.
 - **Acquisition order.** The recorded order, or a random permutation of whole
-  FOVs with its seed. A permutation treats the FOVs of a group as
-  exchangeable, which the recorded order need not be (stage drift,
+  FOVs with its seed, drawn per analysis group (``permuted_fovs``), so a
+  group's order depends on its own FOVs only. A permutation treats the FOVs of
+  a group as exchangeable, which the recorded order need not be (stage drift,
   neighbouring fields); both are recorded so the difference stays visible.
 - **Stop.** A strategy stops at the first prefix whose decision is ``stop``
   (with ``stop_on="rule"``, whose ``rule_decision`` is ``stop``: the rule's own
-  verdict, whatever the objective's other components say).
-  A run that never stops is recorded with ``stopped=False``, its final
-  decision, and outcomes and effort at the full acquisition.
+  verdict, whatever the objective's other components say). The record keeps
+  ``stop_on``, and ``final_decision`` is the decision it read, so a stopped
+  run's final decision is ``stop``. A run that never stops is recorded with
+  ``stopped=False``, its final decision, and outcomes and effort at the full
+  acquisition.
 - **Reference.** Outcomes compare the stop with the full group by default.
   That reference contains the prefix, so errors shrink to zero as the prefix
   grows. With ``reservoir=ReservoirSplit(...)`` each group is split first:
@@ -44,14 +47,17 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._checks import is_integer
 from ._parallel import worker_pool
-from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
+from ._seeds import group_seed
+from .data_check import validate_input_tables
+from .evaluator import iter_analysis_groups
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
 from .reservoir import ReservoirSplit
 from .results import Decision, StrategyResult
-from .schema import ValidatedInput, normalize_observation_unit, validate_input_tables
-from .sequential import SequentialResult, _evaluate_prefixes
+from .schema import ValidatedInput, normalize_observation_unit
+from .sequential import SequentialResult, _Acquisition, _evaluate_prefixes
 from .strategies.base import SamplingStrategy
 
 _PERMUTED_ORDER_COL = "_benchmark_order"
@@ -177,8 +183,9 @@ class AcquisitionOrder:
             if self.seed is not None:
                 raise ValueError("the recorded order takes no seed")
         elif self.kind in ("permuted", "dispersed"):
-            if isinstance(self.seed, bool) or not isinstance(self.seed, int):
+            if not is_integer(self.seed):
                 raise TypeError(f"a {self.kind} order needs an integer seed")
+            object.__setattr__(self, "seed", int(self.seed))
         else:
             raise ValueError("kind must be 'recorded', 'permuted' or 'dispersed'")
 
@@ -197,23 +204,57 @@ class AcquisitionOrder:
         """Greedy farthest-point order on stage coordinates from a start chosen by ``seed``."""
         return cls("dispersed", seed)
 
-    def apply(self, fovs: pd.DataFrame, order_col: str) -> tuple[pd.DataFrame, str]:
-        """The FOV table with the order to replay, and the name of its order column.
+    def apply(
+        self, groups: Iterable[tuple[Mapping[str, Any], ValidatedInput]], order_col: str
+    ) -> tuple[pd.DataFrame, str]:
+        """The FOV rows of the analysis ``groups`` with the order to replay, and its column.
 
-        A permutation of all FOVs restricted to one analysis group is a uniform
-        permutation of that group, so groups need not be resolved here.
+        A permuted order is drawn group by group with ``permuted_fovs`` (seeded
+        from the order's seed and the group's identity), so a group's order
+        never depends on the other groups or on the row order of the table. The
+        recorded order keeps ``order_col``.
         """
-        if self.kind == "recorded":
-            return fovs, order_col
         if self.kind == "dispersed":
             raise ValueError(
                 "a dispersed order needs stage coordinates; replay it with "
                 "morphocoverage.retrospective.replay_acquisitions(stage_cols=...)"
             )
-        if _PERMUTED_ORDER_COL in fovs.columns:
+        groups = list(groups)
+        tables = [group_data.fovs for _, group_data in groups]
+        if self.kind == "recorded":
+            return pd.concat(tables, ignore_index=True), order_col
+        if any(_PERMUTED_ORDER_COL in table.columns for table in tables):
             raise ValueError(f"the FOV table already has a column {_PERMUTED_ORDER_COL!r}")
-        rank = np.random.default_rng(self.seed).permutation(len(fovs))
-        return fovs.assign(**{_PERMUTED_ORDER_COL: rank}), _PERMUTED_ORDER_COL
+        permuted = [
+            permuted_fovs(group_data.fovs, group_data.fov_key, self.seed, group).assign(
+                **{_PERMUTED_ORDER_COL: np.arange(len(group_data.fovs))}
+            )
+            for group, group_data in groups
+        ]
+        return pd.concat(permuted, ignore_index=True), _PERMUTED_ORDER_COL
+
+
+def permuted_fovs(
+    fovs: pd.DataFrame,
+    fov_key: Sequence[str],
+    random_state: int,
+    group: Mapping[str, Any],
+    *more: int,
+) -> pd.DataFrame:
+    """One analysis group's FOV rows in a seeded uniformly random order of whole FOVs.
+
+    The one permutation behind every permuted acquisition order: the benchmark's
+    (``AcquisitionOrder.apply``, seeded from the order's seed) and the
+    retrospective replay's (seeded from its ``random_state``, the order's seed
+    and the split). The rows are put in FOV-key order first and the generator
+    is seeded with ``group_seed(random_state, group, *more)``, so the order
+    depends only on which FOVs the group holds, never on other groups or on the
+    table's row order. Shared-private: used by ``retrospective.replay``, not
+    part of the public API.
+    """
+    canonical = fovs.sort_values(list(fov_key), kind="stable")
+    rng = np.random.default_rng(group_seed(random_state, group, *more))
+    return canonical.iloc[rng.permutation(len(canonical))]
 
 
 @dataclass(frozen=True)
@@ -253,6 +294,7 @@ class BenchmarkRecord:
     reference: str = "full"
     reservoir_fovs: int | None = None
     reservoir: Mapping[str, Any] | None = None
+    stop_on: str = "decision"
 
     @property
     def n_objects(self) -> int:
@@ -278,6 +320,7 @@ class BenchmarkRecord:
             "config_id": self.config_id,
             "estimator_ids": ",".join(self.estimator_ids),
             "policy_ids": ",".join(self.policy_ids),
+            "stop_on": self.stop_on,
             "stopped": self.stopped,
             "stop_step": self.stop_step,
             "final_decision": None if self.final_decision is None else self.final_decision.value,
@@ -321,7 +364,9 @@ def _area(data: ValidatedInput, area_col: str | None) -> float | None:
     """Total imaged area of the FOVs, or ``None`` when the dataset declares no area column.
 
     A field with no recorded area raises: summing it as zero would understate
-    the effort at the stop.
+    the effort at the stop. Areas must be numbers (text such as ``"100"``
+    would be concatenated, not added) and positive and finite, as an imaged
+    area is; anything else raises rather than entering the effort.
     """
     if area_col is None:
         return None
@@ -329,7 +374,20 @@ def _area(data: ValidatedInput, area_col: str | None) -> float | None:
     if areas.isna().any():
         missing = data.fovs.loc[areas.isna(), list(data.fov_key)].head(3).to_dict("records")
         raise ValueError(f"area_col {area_col!r} is missing for some fields, e.g. {missing}")
-    return float(areas.sum())
+    if not pd.api.types.is_numeric_dtype(areas) or pd.api.types.is_bool_dtype(areas):
+        raise ValueError(
+            f"area_col {area_col!r} holds {areas.dtype} values, not numbers; convert it "
+            f"first, for example with pd.to_numeric(fovs[{area_col!r}])"
+        )
+    values = areas.to_numpy(dtype=float)
+    invalid = ~np.isfinite(values) | (values <= 0)
+    if invalid.any():
+        where = data.fovs.loc[invalid, list(data.fov_key)].head(3).to_dict("records")
+        raise ValueError(
+            f"area_col {area_col!r} has infinite, zero or negative areas for some fields, "
+            f"e.g. {where}; an imaged area is a positive, finite number"
+        )
+    return float(values.sum())
 
 
 def _record_run(
@@ -344,21 +402,30 @@ def _record_run(
     """Find the stop in one strategy's history on one group and score it against ``scored_against``.
 
     ``full`` is everything the replay could reveal (the group, or its stream).
-    ``stop_on`` is ``"decision"`` or ``"rule"`` (see ``run_benchmark``).
+    ``stop_on`` is ``"decision"`` or ``"rule"`` (see ``run_benchmark``); the
+    recorded ``final_decision`` is the decision it reads. The stop prefix is
+    scored in acquisition order, as the replay revealed it.
     """
 
-    def stops(result: StrategyResult) -> bool:
-        decision = result.decision if stop_on == "decision" else result.rule_decision
-        return decision is Decision.STOP
+    def read(result: StrategyResult) -> Decision | None:
+        return result.decision if stop_on == "decision" else result.rule_decision
 
-    stop_index = next((i for i, item in enumerate(history) if stops(item.result)), None)
+    stop_index = next(
+        (i for i, item in enumerate(history) if read(item.result) is Decision.STOP), None
+    )
     last_index = len(history) - 1 if stop_index is None else stop_index
     last = history[last_index]
-    key = list(full.fov_key)
-    acquired = set(last.acquired_fovs)
-    mask = [row in acquired for row in full.fovs.loc[:, key].itertuples(index=False, name=None)]
-    stop_fovs = full.fovs.loc[mask]
-    stopped = restrict_input(full, objects_in_fovs(full, stop_fovs), stop_fovs)
+    rank = {fov: i for i, fov in enumerate(last.acquired_fovs)}
+    fov_rank = np.array(
+        [
+            rank.get(row, -1)
+            for row in full.fovs.loc[:, list(full.fov_key)].itertuples(index=False, name=None)
+        ],
+        dtype=np.int64,
+    )
+    acquired = np.flatnonzero(fov_rank >= 0)
+    stop_fovs = full.fovs.iloc[acquired[np.argsort(fov_rank[acquired], kind="stable")]]
+    stopped = _Acquisition(full, stop_fovs).prefix(len(stop_fovs))
     times = [item.result.compute_seconds for item in history]
     decisions = [item.result.timing.total_decision_seconds for item in history]
     used_times = times[: last_index + 1]
@@ -375,7 +442,8 @@ def _record_run(
         policy_ids=tuple(p["config_id"] for p in configuration["policies"]),
         stopped=stop_index is not None,
         stop_step=None if stop_index is None else last.step,
-        final_decision=last.result.decision,
+        final_decision=read(last.result),
+        stop_on=stop_on,
         n_fovs=len(stopped.fovs),
         n_observations=len(stopped.objects),
         observation_unit=stopped.observation_unit,
@@ -426,7 +494,8 @@ def run_benchmark(
     each, so they are not the time a live decision would take. ``stop_on``
     is ``"decision"`` (the objective's decision, the default) or ``"rule"``
     (the rule's own verdict, ``StrategyResult.rule_decision``), so a table of
-    rule verdicts and its stop points use the same decision.
+    rule verdicts and its stop points use the same decision; each record keeps
+    ``stop_on``, and its ``final_decision`` is the decision ``stop_on`` reads.
     """
     if stop_on not in ("decision", "rule"):
         raise ValueError(f"stop_on must be 'decision' or 'rule', not {stop_on!r}")
@@ -450,6 +519,7 @@ def run_benchmark(
     data = validate_input_tables(objects, fovs=fovs, **columns)
     if dataset.area_col is not None and dataset.area_col not in data.fovs.columns:
         raise ValueError(f"area_col {dataset.area_col!r} is not a column of the FOV table")
+    _area(data, dataset.area_col)  # refuses unusable areas before any replay
     full_groups = {
         _group_key(group): group_data for group, group_data in iter_analysis_groups(data)
     }
@@ -479,7 +549,14 @@ def run_benchmark(
     # One pool for every order and strategy, so workers start once.
     with worker_pool(n_jobs) as pool:
         for order in orders:
-            ordered_fovs, order_col = order.apply(replay_tables[1], dataset.acquisition_order_col)
+            if order.kind == "recorded":
+                # The loaded tables (or the streams) are replayed as they are.
+                ordered_fovs, order_col = replay_tables[1], dataset.acquisition_order_col
+            else:
+                ordered_fovs, order_col = order.apply(
+                    [(dict(key), group) for key, group in full_groups.items()],
+                    dataset.acquisition_order_col,
+                )
             for strategy in strategy_list:
                 replay = _evaluate_prefixes(
                     replay_tables[0],
