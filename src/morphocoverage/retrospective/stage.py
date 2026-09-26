@@ -5,6 +5,14 @@ from __future__ import annotations
 import numpy as np
 
 
+def _check_finite(xy: np.ndarray) -> None:
+    """Refuse missing or infinite coordinates: neither has a distance to the other FOVs."""
+    if np.isnan(xy).any():
+        raise ValueError("stage coordinates must not be missing")
+    if np.isinf(xy).any():
+        raise ValueError("stage coordinates must be finite: correct or drop the infinite ones")
+
+
 def dispersed_order(xy: np.ndarray, start: int) -> np.ndarray:
     """Indices of ``xy`` in greedy farthest-point order from ``start`` (ties: lower index)."""
     xy = np.asarray(xy, dtype=float)
@@ -13,8 +21,7 @@ def dispersed_order(xy: np.ndarray, start: int) -> np.ndarray:
         return np.array([], dtype=int)
     if not 0 <= start < n:
         raise ValueError("start must index a row of xy")
-    if np.isnan(xy).any():
-        raise ValueError("stage coordinates must not be missing")
+    _check_finite(xy)
     order = [int(start)]
     nearest = np.linalg.norm(xy - xy[start], axis=1)
     nearest[start] = -np.inf
@@ -31,6 +38,7 @@ def stage_travel(xy_in_order: np.ndarray) -> np.ndarray:
     xy = np.asarray(xy_in_order, dtype=float)
     if len(xy) == 0:
         return np.array([])
+    _check_finite(xy)
     steps = np.linalg.norm(np.diff(xy, axis=0), axis=1)
     return np.concatenate([[0.0], np.cumsum(steps)])
 

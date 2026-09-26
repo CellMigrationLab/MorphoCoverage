@@ -53,7 +53,7 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     # Per condition and repeat cluster: the interval bar, its caps and the median line.
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 12
     title = ax.get_title(loc="left")
-    assert "resampling technical repeats, then their whole fields" in title
+    assert "resampling whole technical repeats with their fields as acquired" in title
     assert "biological repeats (repeat) side by side" in title
     # Repeats are labelled above their clusters; points are coloured by the well.
     assert sorted(t.get_text() for t in ax.texts) == ["r0", "r0", "r1", "r1"]
@@ -94,6 +94,8 @@ def test_limits_and_declarations_are_enforced():
 
 def test_workflow_plots_save_one_png_per_figure(tmp_path):
     objects, fovs = _tables()
+    # Normalising needs positive control means: values around zero are shifted up.
+    objects[["x", "y"]] += 10.0
     setup = Setup(
         readout="x",
         features=("x", "y"),

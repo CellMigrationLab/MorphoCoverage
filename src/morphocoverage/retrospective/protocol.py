@@ -24,8 +24,11 @@ explicit choice), criterion and ``k``:
 estimate each sample's own behaviour; they are not replicates. The interval on
 each share comes from resampling the declared independent units with
 replacement (``n`` equal to the number of units), so it does not narrow when
-more draws or splits are run for the same samples. With few units the interval
-is wide, and the summary says so.
+more draws or splits are run for the same samples. When every sample (or
+none) is adequate, resampling can only return that share again, so the
+interval is instead the exact Clopper-Pearson interval over the units (5 of 5
+units is compatible with a true share of about 48%). With few units the
+interval is wide, and the summary says so.
 """
 
 from __future__ import annotations
@@ -37,8 +40,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._seeds import group_rng
 from .._wording import count
-from ._text import fields, group_identity, percent, rows_of, sample_word
+from ..bounds import interval
+from ..statistics import bootstrap_fields
+from ._text import fields, percent, plural, rows_of, sample_word
 from .hierarchy import SamplingHierarchy
 from .reliability import ReliabilityResult
 
@@ -94,6 +100,9 @@ def _check(
         raise ValueError("n_boot must be a positive integer")
     if isinstance(random_state, bool) or not isinstance(random_state, int):
         raise TypeError("random_state must be an integer seed")
+    if isinstance(strata, str):
+        # A bare name would be iterated letter by letter.
+        raise TypeError("strata must be a sequence of column names, for example ['condition']")
     groups = set(per_sample.group_cols)
     sample_cols = hierarchy.unit_key(hierarchy.sample)
     unit_cols = hierarchy.unit_key(hierarchy.independent_unit)
@@ -140,17 +149,24 @@ def _unit_ids(frame: pd.DataFrame, unit_cols: list[str]) -> pd.Series:
 def _bootstrap(
     block: pd.DataFrame, n_boot: int, rng: np.random.Generator
 ) -> tuple[float | None, float | None]:
-    """Percentile interval of the pooled share of adequate samples, resampling units."""
-    per_unit = block.groupby("unit")["adequate"].agg(["sum", "count"])
-    units = len(per_unit)
-    if units < 2:
+    """95% interval of the pooled share of adequate samples, resampling whole units.
+
+    The percentile interval of ``statistics.bootstrap_fields`` over the units
+    (each unit's samples as one field). At a share of 0 or 1 every resample
+    returns that share, a zero-width interval that would look exact, so the
+    exact Clopper-Pearson interval over the units is given instead. One unit
+    gives no interval.
+    """
+    adequacy = block.groupby("unit")["adequate"]
+    units = [own.to_numpy(dtype=float) for _, own in adequacy]
+    if len(units) < 2:
         # One unit gives a zero-width interval that would look exact.
         return None, None
-    picks = rng.integers(0, units, size=(n_boot, units))
-    adequate = per_unit["sum"].to_numpy(float)[picks].sum(axis=1)
-    eligible = per_unit["count"].to_numpy(float)[picks].sum(axis=1)
-    shares = adequate / eligible
-    return float(np.quantile(shares, 0.025)), float(np.quantile(shares, 0.975))
+    share = float(block["adequate"].mean())
+    if share in (0.0, 1.0):
+        return interval(int(share) * len(units), len(units), 0.95)
+    _, low, high = bootstrap_fields(units, np.mean, n_boot=n_boot, rng=rng, confidence=0.95)
+    return (None, None) if np.isnan(low) else (low, high)
 
 
 def _fields_needed(rows: pd.DataFrame) -> int | None:
@@ -210,7 +226,7 @@ def protocol_reliability(
         key = key if isinstance(key, tuple) else (key,)
         where = dict(zip(stratum_keys, key, strict=True))
         # One generator per stratum, so adding a stratum never changes another's interval.
-        rng = np.random.default_rng([random_state, group_identity(where)])
+        rng = group_rng(random_state, where)
         n_samples = block[sample_cols].drop_duplicates().shape[0]
         n_units = int(block["unit"].nunique())
         for k, rows in block.groupby("fovs", sort=True):
@@ -334,7 +350,8 @@ def protocol_summary(result: ProtocolResult) -> str:
     hierarchy = result.settings.get("hierarchy", {})
     # The column's own name, readable: "plate", "technical repeat".
     unit = str(result.settings.get("independent_unit", "unit")).replace("_", " ")
-    sample = sample_word(hierarchy)
+    units_word, sample = plural(unit), sample_word(hierarchy)
+    samples_word = plural(sample)
     threshold = percent(result.settings.get("threshold", 0.9))
     blocks = []
     keys = [*result.strata, "criterion"]
@@ -348,7 +365,8 @@ def protocol_summary(result: ProtocolResult) -> str:
         lines = [
             (
                 f"{stratum}: fields per {sample} for {criterion} "
-                f"({count(n_samples, sample)} in {count(n_units, unit)}; a {sample} "
+                f"({count(n_samples, sample, samples_word)} in "
+                f"{count(n_units, unit, units_word)}; a {sample} "
                 f"counts when {threshold} of random acquisitions were enough)"
             )
         ]
@@ -376,8 +394,8 @@ def protocol_summary(result: ProtocolResult) -> str:
                 else f"; plausible range {percent(row.share_low)}–{percent(row.share_high)}"
             )
             lines.append(
-                f"  {fields(row.fovs)}: enough for {row.adequate} of {row.eligible} {sample}s "
-                f"({unit}s: {by_unit}{interval}){missing}"
+                f"  {fields(row.fovs)}: enough for {row.adequate} of {row.eligible} "
+                f"{samples_word} ({units_word}: {by_unit}{interval}){missing}"
             )
         hard = rows_of(result.difficulty, where)
         never = hard[hard["max_fovs"].isna()]
@@ -410,9 +428,11 @@ def protocol_summary(result: ProtocolResult) -> str:
                     for _, r in reference_capped.iterrows()
                 )
                 lines.append(
-                    f"  The held-back fields could not judge this for {len(reference_capped)} "
-                    f"of {len(hard)} {sample}s, even with every available field, so these are "
-                    f"not counted as needing more fields: {named}."
+                    f"  For {len(reference_capped)} of {len(hard)} {samples_word} even every "
+                    f"available field together was enough in fewer than {threshold} of "
+                    "hold-outs: the held-back fields are themselves a sample and cap what can "
+                    "be shown, so these are not counted as needing more fields: "
+                    f"{named}."
                 )
             if len(never):
                 named = "; ".join(
@@ -422,12 +442,26 @@ def protocol_summary(result: ProtocolResult) -> str:
         check = rows_of(result.validation, where)
         if len(check):
             chosen = check.dropna(subset=["chosen_fovs"])
-            if len(chosen):
-                served = int(chosen["adequate"].sum())
-                total = int(chosen["eligible"].sum())
+            # A left-out unit whose samples have fewer fields than the chosen number
+            # was not checked: it is named, never counted as "0 of 0".
+            unchecked = chosen[chosen["eligible"] == 0]
+            checked = chosen[chosen["eligible"] > 0]
+            if len(checked):
+                served = int(checked["adequate"].sum())
+                total = int(checked["eligible"].sum())
                 lines.append(
-                    f"  Choosing the number on the other {unit}s and checking it on the one "
-                    f"left out: enough for {served} of {total} {sample}s."
+                    f"  Choosing the number on the other {units_word} and checking it on the "
+                    f"one left out: enough for {served} of {total} {samples_word}."
+                )
+            if len(unchecked):
+                named = "; ".join(
+                    f"{r['left_out']} (chosen {int(r['chosen_fovs'])})"
+                    for _, r in unchecked.iterrows()
+                )
+                lines.append(
+                    f"  Not checked on {count(len(unchecked), unit, units_word)} whose "
+                    f"{samples_word} had fewer fields than the number chosen on the others: "
+                    f"{named}."
                 )
             unchosen = len(check) - len(chosen)
             if unchosen and n_units < 2:
@@ -437,13 +471,13 @@ def protocol_summary(result: ProtocolResult) -> str:
                 )
             elif unchosen:
                 lines.append(
-                    f"  For {count(unchosen, unit)}, the others reached no number that "
-                    "served enough samples, so nothing was checked there."
+                    f"  For {count(unchosen, unit, units_word)}, the others reached no number "
+                    f"that served enough {samples_word}, so nothing was checked there."
                 )
         if n_units < FEW_UNITS:
             lines.append(
-                f"  Uncertainty is large with only {count(n_units, unit)}: add more "
-                "before fixing a protocol."
+                f"  Uncertainty is large with only {count(n_units, unit, units_word)}: add "
+                "more before fixing a protocol."
             )
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)

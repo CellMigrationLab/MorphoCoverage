@@ -16,7 +16,7 @@ from typing import Any
 
 import pandas as pd
 
-from ._wording import percent, rows_of
+from ._wording import count, percent, rows_of
 from .evidence import Direction
 from .results import StrategyResult
 from .strategies.support_novelty import SupportNoveltyEstimator
@@ -57,10 +57,11 @@ def _enough_answer(final: Mapping[str, Any], stops: Mapping[str, Any]) -> str:
     if final.get("assumes_spatial_uniformity"):
         head += " (treats observations as independent draws: assumes a spatially uniform sample)"
     if pd.isna(stops["stop_fov_median"]):
-        return f"{head}; not met at any point in {orders} replayed orders."
+        return f"{head}; not met at any point in {count(orders, 'replayed order')}."
     first = (
         f"first met after {stops['stop_fov_median']:g} FOVs "
-        f"(10-90%: {stops['stop_fov_p10']:g}-{stops['stop_fov_p90']:g}) over {orders} orders"
+        f"(10-90%: {stops['stop_fov_p10']:g}-{stops['stop_fov_p90']:g}) over "
+        f"{count(orders, 'order')}"
     )
     never = stops["never_stopped"]
     missing = f", never in {never}" if never else ""
@@ -147,7 +148,8 @@ def _next_fov_answer(
             span = f"{fewest} FOVs" if fewest == int(few) else f"{fewest} to {int(few)} FOVs"
             lines.append(
                 f"Seen in few FOVs: {int(seen_in_few)} of {row['fovs_imaged']} FOVs hold a "
-                f"state that fewer than {int(few)} other FOVs show. A state seen in {span} "
+                f"state that other FOVs show too, but fewer than {int(few)} of them (a state "
+                f"seen in {span}; FOVs counted as new above are not included). Such a state "
                 "is not new to the next FOV but is not established either; it counts as "
                 "recurrent above, so look at those FOVs before calling the sample settled."
             )

@@ -35,9 +35,10 @@ def plots(
 
     Within each condition the biological repeats sit side by side; every
     object is a point coloured by technical repeat (a well), with each
-    biological repeat's median and its interval from resampling its technical
-    repeats, then their whole fields (``plots.plots_of_data``, which also
-    takes ``settings`` such as ``summary`` or ``max_conditions``). Normalised
+    biological repeat's median and its interval from resampling its whole
+    technical repeats with their fields as acquired, not reliable with only
+    2-3 technical repeats, which the title says (``plots.plots_of_data``, which
+    also takes ``settings`` such as ``summary`` or ``max_conditions``). Normalised
     values (``Setup.normalize``) say so on the value axis.
     With ``folder`` each figure is also saved there as
     ``<feature>[_<part>].png``. Returns the figures by feature.

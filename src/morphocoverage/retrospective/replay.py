@@ -415,6 +415,8 @@ def replay_acquisitions(
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
         if data.fovs[list(stage_cols)].isna().any().any():
             raise ValueError("stage coordinates contain missing values")
+        if np.isinf(data.fovs[list(stage_cols)].to_numpy(dtype=float)).any():
+            raise ValueError("stage coordinates must be finite: correct or drop the infinite ones")
         if any(c in feature_cols for c in stage_cols):
             raise ValueError("stage coordinates cannot also be phenotype features")
     split_settings = (float(reservoir_fraction), block_col, n_splits, random_state)

@@ -109,6 +109,10 @@ def test_e9_stop_counts_are_never_interpolated_or_rounded_away():
 
 def _few_report(confidence, min_other_fovs):
     objects, fovs = _novel_acquisition(n_fovs=40, state_fovs=(3, 4, 20, 21), outlier_fovs=())
+    # Two states, each shared by two neighbouring FOVs (3 and 4, 20 and 21): recurrent,
+    # not new, under min_other_fovs=1 (a state in one FOV only is new, not "seen in few").
+    shifted = objects["image_file"].isin(["f4", "f21"]) & (objects["a"] > 15)
+    objects.loc[shifted, ["a", "b"]] -= 5.0
     return sufficiency_report(
         objects,
         fovs,
@@ -127,13 +131,13 @@ def test_e3_e6_e7_rare_state_sentences_follow_the_settings():
     # E6: the zero-success bound at 80% is about 1.6 / k, not 3 / k.
     assert "about 1.6 / 41" in answer and "3 / 41" not in answer
     # E7: with min_other_fovs=1 a recurrent state is in 2 or more FOVs.
-    assert "A state seen in 2 to 3 FOVs is not new" in answer
+    assert "(a state seen in 2 to 3 FOVs;" in answer
     # E3: the pooled incidence is not the incidence of each state.
     assert row["fovs_to_see_fewest"] == fovs_to_detect(2 / 41, 0.8, 1)
     assert row["fovs_to_see_fewest"] > row["fovs_to_see_again"]
     assert f"one seen in only 2 FOVs needs about {row['fovs_to_see_fewest']}" in answer
     answer = _few_report(0.95, 2).next_fov["answer"].iloc[0]
-    assert "about 3 / 41" in answer and "A state seen in 3 FOVs is not new" in answer
+    assert "about 3 / 41" in answer and "(a state seen in 3 FOVs;" in answer
 
 
 def test_e8_fields_without_observations_are_counted_when_novelty_is_not_estimable():

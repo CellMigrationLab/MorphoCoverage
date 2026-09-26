@@ -8,11 +8,13 @@ every object is a jittered point coloured by technical repeat (the
 MorphoBricks ``technical_repeat`` column, a well or a dish, else the group
 column below the repeat; never a biological repeat), and each biological
 repeat's summary (median by default, or mean) carries its interval from
-resampling that repeat's technical repeats and then their whole fields
-(``statistics.bootstrap_nested``; whole fields alone when there is one
-technical repeat), never objects, so the interval reflects how the data were
-sampled: a well-to-well shift widens it instead of passing for
-field-to-field noise.
+resampling that repeat's whole technical repeats, each with its fields as
+acquired (``statistics.bootstrap_nested``, Ren et al. 2010; whole fields
+alone when there is one technical repeat), never objects, so the interval
+reflects how the data were sampled: a well-to-well shift widens it instead of
+passing for field-to-field noise. The title says how many technical repeats
+a cluster has, and warns when it has only 2 or 3, which no resampling turns
+into a reliable interval.
 
 Limits keep the figures legible and are arguments: at most ``max_conditions``
 conditions per figure (more are split over several figures), at most
@@ -185,16 +187,21 @@ def _draw_cluster(
         ax.hlines(point, x - half, x + half, color="black", lw=2, zorder=4)
 
 
-def _technical_count(table: pd.DataFrame, layout: _Layout) -> int:
-    """The most technical repeats any condition-and-biological-repeat cluster holds."""
+def _technical_counts(table: pd.DataFrame, layout: _Layout) -> list[int]:
+    """The number of technical repeats of every condition-and-biological-repeat cluster."""
     if layout.technical_col is None:
-        return 0
+        return [0]
     # Pooled repeats form one cluster per condition, so they do not split the count.
     repeat_col = None if layout.pooled_repeats else layout.repeat_col
     keys = [c for c in (layout.condition_col, repeat_col) if c is not None]
     if not keys:
-        return int(table[layout.technical_col].nunique())
-    return int(table.groupby(keys, sort=False)[layout.technical_col].nunique().max())
+        return [int(table[layout.technical_col].nunique())]
+    return [int(n) for n in table.groupby(keys, sort=False)[layout.technical_col].nunique()]
+
+
+def _technical_count(table: pd.DataFrame, layout: _Layout) -> int:
+    """The most technical repeats any condition-and-biological-repeat cluster holds."""
+    return max(_technical_counts(table, layout))
 
 
 def _legend(ax: Axes, layout: _Layout, colours: Sequence[str], n_technical: int) -> None:
@@ -233,8 +240,21 @@ def _legend(ax: Axes, layout: _Layout, colours: Sequence[str], n_technical: int)
         )
 
 
-def _title(feature: str, part: str, layout: _Layout, unit: str, summary: str, level: float) -> str:
-    """Three lines: what is plotted and how it is split, what a point is, what the interval is."""
+def _title(
+    feature: str,
+    part: str,
+    layout: _Layout,
+    unit: str,
+    summary: str,
+    level: float,
+    technical: Sequence[int] = (),
+) -> str:
+    """Three lines: what is plotted and how it is split, what a point is, what the interval is.
+
+    ``technical`` holds the number of technical repeats of every cluster: the
+    interval line says how many there are, and a fourth line warns when a
+    cluster has only 2 or 3, which no resampling turns into a reliable interval.
+    """
     repeats = ""
     if layout.pooled_repeats:
         repeats = (
@@ -243,13 +263,20 @@ def _title(feature: str, part: str, layout: _Layout, unit: str, summary: str, le
         )
     elif layout.repeat_col:
         repeats = f"; biological repeats ({layout.repeat_col}) side by side"
-    coloured, resampled = "", "whole fields"
+    coloured, resampled, caveat = "", "whole fields", ""
     if layout.technical_col:
         coloured = f", coloured by technical repeat ({layout.technical_col})"
-        resampled = "technical repeats, then their whole fields"
+        fewest, most = (min(technical), max(technical)) if technical else (0, 0)
+        span = f"{most}" if fewest == most else f"{fewest} to {most}"
+        resampled = (
+            f"whole technical repeats with their fields as acquired ({span} per cluster; "
+            "whole fields where there is one)"
+        )
+        if any(n in (2, 3) for n in technical):
+            caveat = "\nwith only 2-3 technical repeats a cluster's interval is not reliable"
     return (
         f"{feature}{part}{repeats}\nevery {unit} a point{coloured}\n"
-        f"{summary} with its {level:.0%} interval from resampling {resampled}"
+        f"{summary} with its {level:.0%} interval from resampling {resampled}{caveat}"
     )
 
 
@@ -319,7 +346,8 @@ def plots_of_data(
     table = data.objects
     layout = _layout(data, condition_col, repeat_col, technical_col, max_repeats)
     colours = PALETTE[: min(max_technical, len(PALETTE))]
-    n_technical = _technical_count(table, layout)
+    technical = _technical_counts(table, layout)
+    n_technical = max(technical)
     rng = np.random.default_rng(random_state)
     statistic = SUMMARIES[summary]
     n_repeats = len(layout.repeats)
@@ -380,7 +408,9 @@ def plots_of_data(
                 else ""
             )
             ax.set_title(
-                _title(feature, part, layout, data.observation_unit, summary, confidence),
+                _title(
+                    feature, part, layout, data.observation_unit, summary, confidence, technical
+                ),
                 fontsize=9,
                 loc="left",
                 pad=14,
