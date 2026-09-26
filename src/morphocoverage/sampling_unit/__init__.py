@@ -15,7 +15,12 @@ report, before its questions (``docs/questions.md``):
   (Foundation; OPTIMISE, P5);
 - ``unusual_objects`` and ``fov_clustering``: out-of-distribution objects
   against declared reference groups, and whether any labelled state, rare
-  ones included, is spread over the FOVs or clustered in a few (REPORT, R4).
+  ones included, is spread over the FOVs or clustered in a few (REPORT, R4);
+- ``condition_contrast``: each condition against the declared control, per
+  repeat, with Cohen's d and the JCS effect size computed on objects (as the
+  lab's Plot&Stats notebook does) and with the field as the unit, and a
+  randomization test that shuffles condition labels over whole fields
+  (REPORT, R7).
 
 All are retrospective (they use every acquired FOV) and group-local: each
 analysis group is assessed on its own data, except that ``object_rule_check``
@@ -27,6 +32,7 @@ The results on the committed data, in plain language, are in
 """
 
 from .clustering import FOVClustering, UnusualObjects, fov_clustering, unusual_objects
+from .contrast import ConditionContrast, cohen_d, condition_contrast
 from .object_rules import (
     DESCRIPTORS,
     RANDOM_OBJECTS,
@@ -42,11 +48,14 @@ __all__ = [
     "DESCRIPTORS",
     "RANDOM_OBJECTS",
     "WHOLE_FOVS",
+    "ConditionContrast",
     "DescriptorSpreadCheck",
     "FOVClustering",
     "FOVVariability",
     "ObjectRuleCheck",
     "UnusualObjects",
+    "cohen_d",
+    "condition_contrast",
     "descriptor_spread_check",
     "fov_clustering",
     "fov_variability",

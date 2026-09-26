@@ -18,6 +18,8 @@ import pytest
 from scipy import stats
 
 from morphocoverage.sampling_unit import (
+    cohen_d,
+    condition_contrast,
     descriptor_spread_check,
     fov_clustering,
     fov_variability,
@@ -435,3 +437,143 @@ def test_the_report_states_the_design_effect_once():
     assert "field-to-field heterogeneity" in set(alone["item"])
     assert "field-to-field heterogeneity" not in set(both["item"])
     assert "fields against random objects" in set(both["item"])
+
+
+# -- condition contrast ------------------------------------------------------------------
+
+
+def _two_conditions(shift: float, field_sd: float, seed: int = 3, n_fields: int = 12):
+    """Control and treated wells in two repeats; ``shift`` moves the treated condition."""
+    rng = np.random.default_rng(seed)
+    objects, fovs = [], []
+    for repeat in ("R1", "R2"):
+        for condition, well_shift in (("control", 0.0), ("treated", shift)):
+            for well in ("w1", "w2"):
+                for j in range(n_fields):
+                    name = f"{repeat}_{condition}_{well}_f{j}"
+                    fovs.append(
+                        {"condition": condition, "repeat": repeat, "well": well, "image_file": name}
+                    )
+                    offset = well_shift + rng.normal(0, field_sd)
+                    for _ in range(25):
+                        objects.append(
+                            {
+                                "condition": condition,
+                                "repeat": repeat,
+                                "well": well,
+                                "image_file": name,
+                                "x": 10 + offset + rng.normal(),
+                            }
+                        )
+    return pd.DataFrame(objects), pd.DataFrame(fovs)
+
+
+CONTRAST_GROUPS = ["condition", "repeat", "well"]
+
+
+def test_cohen_d_is_the_pooled_sd_effect_size():
+    a, b = np.array([1.0, 2.0, 3.0, 4.0]), np.array([3.0, 4.0, 5.0, 6.0])
+    assert cohen_d(b, a) == pytest.approx(2.0 / np.sqrt(5 / 3))
+    assert np.isnan(cohen_d(np.array([1.0]), a))
+    assert np.isnan(cohen_d(np.full(3, 2.0), np.full(3, 2.0)))
+
+
+def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
+    objects, fovs = _two_conditions(shift=2.0, field_sd=0.3)
+    result = condition_contrast(
+        objects,
+        fovs,
+        feature="x",
+        control={"condition": "control"},
+        group_cols=CONTRAST_GROUPS,
+        n_permutations=500,
+        n_draws=50,
+        object_counts=(50, 200, 10_000),
+    )
+    table = result.table
+    assert list(zip(table["repeat"], table["condition"])) == [("R1", "treated"), ("R2", "treated")]
+    assert (table["status"] == "ok").all()
+    # Both wells of a condition are pooled: 24 fields of 25 objects on each side.
+    assert (table["fields"] == 24).all() and (table["observations"] == 600).all()
+    assert (table["d_objects"] > 1).all() and (table["d_fields"] > 1).all()
+    assert table["p_value"].tolist() == pytest.approx([1 / 501] * 2)
+    assert table["p_bonferroni"].tolist() == pytest.approx([2 / 501] * 2)
+    effects = result.effects
+    # 10,000 objects exceed what a side holds and are left out; 50 and 200 are kept.
+    assert sorted(effects["n_objects"].unique()) == [50, 200]
+    assert set(effects["sampling"]) == {"random objects", "whole FOVs"}
+    assert (effects["same_sign"] == 1.0).all()
+    whole = effects[effects["sampling"] == "whole FOVs"]
+    assert (whole["fields_treated"] >= 2).all() and whole["fields_treated"].max() <= 9
+    text = result.summary()
+    assert "repeat=R1, treated vs control" in text
+    assert "Cohen's d on objects" in text and "on field means" in text
+    assert "Randomization test over whole fields" in text
+    assert "JCS effect size" in text and "whole FOVs median" in text
+
+
+def test_a_field_effect_alone_does_not_make_the_conditions_differ_by_fields():
+    # No condition difference, strong field-to-field variation: the field-unit
+    # randomization test does not call the conditions different.
+    objects, fovs = _two_conditions(shift=0.0, field_sd=1.0, seed=5)
+    result = condition_contrast(
+        objects,
+        fovs,
+        feature="x",
+        control={"condition": "control"},
+        group_cols=CONTRAST_GROUPS,
+        n_permutations=500,
+        n_draws=20,
+        object_counts=(100,),
+    )
+    assert (result.table["p_value"] > 0.05).all()
+
+
+def test_condition_contrast_is_deterministic_and_needs_a_control_and_other_conditions():
+    objects, fovs = _two_conditions(shift=1.0, field_sd=0.3)
+    common = {
+        "feature": "x",
+        "control": {"condition": "control"},
+        "group_cols": CONTRAST_GROUPS,
+        "n_permutations": 100,
+        "n_draws": 10,
+        "object_counts": (50,),
+    }
+    first, second = (condition_contrast(objects, fovs, **common) for _ in range(2))
+    pd.testing.assert_frame_equal(first.table, second.table)
+    pd.testing.assert_frame_equal(first.effects, second.effects)
+    with pytest.raises(ValueError, match="no analysis group matches"):
+        condition_contrast(objects, fovs, **{**common, "control": {"condition": "none"}})
+    with pytest.raises(ValueError, match="condition column"):
+        condition_contrast(objects, fovs, **{**common, "control": {"well": "w1"}})
+    only_control = fovs[fovs["condition"] == "control"]
+    alone = condition_contrast(objects[objects["condition"] == "control"], only_control, **common)
+    assert alone.table.empty and "no other condition to compare" in alone.summary()
+    # A repeat without a control group is reported, not compared.
+    fovs_missing = fovs[~((fovs["repeat"] == "R2") & (fovs["condition"] == "control"))]
+    objects_missing = objects[objects["image_file"].isin(fovs_missing["image_file"])]
+    partial = condition_contrast(objects_missing, fovs_missing, **common)
+    r2 = partial.table[partial.table["repeat"] == "R2"].iloc[0]
+    assert r2["status"] == "no control group in repeat=R2" and np.isnan(r2["p_value"])
+
+
+def test_the_report_places_the_contrast_last():
+    from morphocoverage.retrospective import microscopist_report
+
+    objects, fovs = _two_conditions(shift=1.0, field_sd=0.3)
+    contrast = condition_contrast(
+        objects,
+        fovs,
+        feature="x",
+        control={"condition": "control"},
+        group_cols=CONTRAST_GROUPS,
+        n_permutations=50,
+        n_draws=5,
+        object_counts=(50,),
+    )
+    report = microscopist_report(contrast=contrast)
+    text = report.summary()
+    assert "9. Do the conditions differ, and how confidently?" in text
+    assert text.index("8. Could I have sampled") < text.index("9. Do the conditions differ")
+    assert "generalizing it needs independent biological repeats" in text
+    assert "Not assessed" in microscopist_report().sections["conditions"]

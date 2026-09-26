@@ -182,6 +182,9 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     text = result.summary()
     assert "Foundation: why count fields" in text and "3. What is limiting" in text
     assert "4. How many fields" not in text  # a planning answer never enters the report
+    # A control condition and another condition: the contrast runs, per repeat.
+    assert "9. Do the conditions differ" in text and "drug vs control" in text
+    assert list(result.results["contrast"].table["repeat"]) == ["R1", "R2"]
     pd.testing.assert_frame_equal(objects, before[0])
     pd.testing.assert_frame_equal(fovs, before[1])
     assert report(objects, fovs, setup).summary() == text  # deterministic

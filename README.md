@@ -22,6 +22,7 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 | Which FOVs and cells should I inspect? | `inspect_fovs`: fields to reopen, each with its reason and numbers (new state, influence on a summary, observation count, difference from stage neighbours), image file and stage position |
 | More FOVs, or more biological samples? | `effort_projection`: nested variance components of a scalar mean and projected standard errors at equal total FOVs; "cannot tell" unless the intervals separate |
 | Could I have sampled more efficiently? | `order_efficiency`: recorded, random and dispersed orders of the same positions with stage travel; `redundancy_distance`; a comparison with all candidate positions is not implemented |
+| Do the conditions differ, and how confidently? | `morphocoverage.sampling_unit.condition_contrast`: each condition against the declared control, per repeat, with Cohen's d and the JCS effect size on objects (as the lab's Plot&Stats notebook computes them) and with the field as the unit, and a randomization test over whole fields |
 
 A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** `morphocoverage.retrospective.microscopist_report` assembles these answers question by question (`docs/proposals/microscopist_report.md`). Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
 
@@ -49,10 +50,10 @@ It does **not**:
 - read microscopy images or segmentation masks;
 - extract morphometric, texture, intensity, or deep-learning features;
 - depend on CellPatcher, Nyxus, DINO, Torch, or another feature extractor;
-- perform biological-condition hypothesis testing;
+- replace the user's biological inference across independent repeats;
 - control a microscope.
 
-Those concerns belong upstream or downstream. MorphoCoverage focuses on the statistical problem of **FOV-aware phenotypic sampling adequacy**. The mathematical solution is deliberately open: candidate estimators must be compared against simple baselines and unseen FOVs before any one approach becomes the default.
+It does report, when a control condition is declared, how the conditions differ in the acquired fields (effect sizes and a randomization test with the field as the unit, beside the object-level numbers of the lab's Plot&Stats notebook), and whether a stop at `k` fields would have preserved that difference is a retrospective benchmark outcome. Those other concerns belong upstream or downstream. MorphoCoverage focuses on the statistical problem of **FOV-aware phenotypic sampling adequacy**. The mathematical solution is deliberately open: candidate estimators must be compared against simple baselines and unseen FOVs before any one approach becomes the default.
 
 ## Why FOVs matter
 

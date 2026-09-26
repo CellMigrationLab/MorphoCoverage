@@ -21,6 +21,8 @@ foundation every other answer rests on, then answers the questions in order:
 7. More fields or more samples? (``effort_projection``)
 8. Could the same positions have been visited in a better order?
    (``order_efficiency``, ``redundancy_distance``)
+9. Do the conditions differ, and how confidently? (``sampling_unit.condition_contrast``:
+   each condition against the control, with objects and with fields as the unit)
 
 When the declaration of what the acquisition was asked to preserve is given
 (``workflows.Setup.declaration()``), it is printed before the Foundation, so
@@ -58,6 +60,7 @@ from .spatial import EfficiencyResult
 
 if TYPE_CHECKING:  # sampling_unit imports retrospective helpers, so it is imported late
     from ..sampling_unit import (
+        ConditionContrast,
         DescriptorSpreadCheck,
         FOVClustering,
         FOVVariability,
@@ -77,6 +80,7 @@ QUESTIONS = (
     ("inspect", "6. Which fields should I look at?"),
     ("effort", "7. More fields or more samples?"),
     ("order", "8. Could I have sampled more efficiently?"),
+    ("conditions", "9. Do the conditions differ, and how confidently?"),
 )
 
 _NEEDS = {
@@ -90,6 +94,8 @@ _NEEDS = {
     "inspect": "run inspect_fovs",
     "effort": "declare a sampling hierarchy and run effort_projection",
     "order": "give stage coordinates and run order_efficiency on a replay with dispersed orders",
+    "conditions": "declare a control condition and run condition_contrast on data with more "
+    "than one condition",
 }
 
 
@@ -389,6 +395,7 @@ def microscopist_report(
     descriptor_spread: DescriptorSpreadCheck | None = None,
     unusual: UnusualObjects | None = None,
     clustering: FOVClustering | None = None,
+    contrast: ConditionContrast | None = None,
     minimum_detection: float = 0.9,
     declaration: Sequence[str] = (),
 ) -> MicroscopistReport:
@@ -403,6 +410,7 @@ def microscopist_report(
     per target (``workflows.Setup.declaration()``); the report prints it first.
     """
     from ..sampling_unit import (
+        ConditionContrast,
         DescriptorSpreadCheck,
         FOVClustering,
         FOVVariability,
@@ -430,6 +438,7 @@ def microscopist_report(
         (descriptor_spread, DescriptorSpreadCheck, "descriptor_spread"),
         (unusual, UnusualObjects, "unusual"),
         (clustering, FOVClustering, "clustering"),
+        (contrast, ConditionContrast, "contrast"),
     ):
         _check(value, kind, name)
     parts: dict[str, list[str]] = {key: [] for key, _ in QUESTIONS}
@@ -467,6 +476,12 @@ def microscopist_report(
     for check in (unusual, clustering):
         if check is not None:
             parts["profile"].append(check.summary())
+    if contrast is not None:
+        parts["conditions"].append(contrast.summary())
+        parts["conditions"].append(
+            "This describes what these fields support about a difference under this feature; "
+            "generalizing it needs independent biological repeats, which is the user's inference."
+        )
     if efficiency is not None or redundancy is not None:
         parts["order"].append(
             "Whether these were the right positions needs every candidate position from an "

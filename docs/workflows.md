@@ -97,9 +97,17 @@ on `features` only, never on the readout, and the report names those columns.
 from morphocoverage.workflows import report
 
 result = report(objects, fovs, setup)        # fovs lists every acquired field
-print(result.summary())                      # the declaration, the Foundation, questions 1 to 3 and 6
+print(result.summary())                      # the declaration, the Foundation, questions 1 to 3, 6 and 9
 result.results["sufficiency"]                # each analysis, for further use
 ```
+
+When `control` names a condition and the FOV table holds other conditions,
+the report also answers question 9, "Do the conditions differ, and how
+confidently?": each condition against the control, per repeat, with Cohen's
+d and the JCS effect size computed on objects (the numbers of the lab's
+Plot&Stats notebook) and with the field as the unit, and a randomization test
+that shuffles condition labels over whole fields. It describes what these
+fields support; generalizing needs independent repeats.
 
 ## OPTIMISE / PLAN: what should the next experiment do?
 

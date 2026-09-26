@@ -5,9 +5,9 @@ and the observations) and a ``Setup``, runs the package's analyses in the
 order of ``docs/questions.md``, and returns every result with a ``summary()``
 in sentences:
 
-- ``report`` (REPORT: the Foundation, then R1 to R6): fields against objects, the representation
+- ``report`` (REPORT: the Foundation, then R1 to R7): fields against objects, the representation
   control, what each rule says, the sampling profile with rare-object
-  clustering, and the fields to inspect;
+  clustering, the fields to inspect, and each condition against the control;
 - ``optimise`` (OPTIMISE / PLAN): how often ``k`` random fields preserve the
   readout in held-back fields, across samples, what the extra fields bought,
   how reliable each stopping rule was, more fields or more samples, and the
@@ -50,13 +50,20 @@ from ..retrospective import (
     stopping_calibration,
 )
 from ..retrospective.frontier import FrontierResult, frontier, sweep
-from ..sampling_unit import fov_clustering, fov_variability, object_rule_check, unusual_objects
+from ..sampling_unit import (
+    condition_contrast,
+    fov_clustering,
+    fov_variability,
+    object_rule_check,
+    unusual_objects,
+)
 from ..strategies import DescriptorSpreadStrategy, FOVBootstrapStrategy, ScalarPrecisionStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import sufficiency_report
 from .setup import Setup
 
-REPORT_QUESTIONS = ("unit", "controls", "enough", "profile", "inspect")
+CONDITION = MORPHOBRICKS_GROUP_COLUMNS[0]
+REPORT_QUESTIONS = ("unit", "controls", "enough", "profile", "inspect", "conditions")
 PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
 _UNUSUAL = "morphocoverage_unusual"
 
@@ -102,7 +109,8 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     control and a definition of new (R1); ``sufficiency_report`` for the
     setup's rules, with next-field novelty when ``novelty`` is set (R2, R3);
     ``unusual_objects`` and ``fov_clustering`` with a control and features
-    (R4); ``inspect_fovs`` (R5).
+    (R4); ``inspect_fovs`` (R5); ``condition_contrast`` when the control is
+    declared by condition and the FOV table holds other conditions (R7).
     """
     _check_tables(objects, fovs, setup)
     common = setup.common
@@ -162,6 +170,16 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
                 c for c in (setup.group_cols or ()) if c not in MORPHOBRICKS_GROUP_COLUMNS
             ],
         )
+    if setup.control is not None and CONDITION in setup.control and CONDITION in fovs.columns:
+        if fovs[CONDITION].nunique() > 1:
+            results["contrast"] = condition_contrast(
+                objects,
+                fovs,
+                feature=readout,
+                control=setup.control,
+                random_state=setup.random_state,
+                **common,
+            )
     novelty_features = list(setup.features) if setup.novelty is not None else []
     results["sufficiency"] = sufficiency_report(
         objects,

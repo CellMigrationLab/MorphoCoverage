@@ -85,8 +85,10 @@ on held-back fields in OPTIMISE and BENCHMARK (`Setup.criteria()`), and every
 document opens with the declaration in sentences (`Setup.declaration()`); a
 target that is not declared is printed as not declared, so an answer about
 the mean is never read as an answer about the distribution or about rare
-states. A fourth target, the **difference between conditions**, is a
-retrospective benchmark outcome and not a declaration yet (open work item 2).
+states. A fourth target, the **difference between conditions**, is reported
+whenever a control condition is declared and others exist (R7); as a
+preservation outcome for OPTIMISE it waits on the multi-group outcome
+contract (open work item 2).
 The live decision runs under the objective made of the declared targets
 (`Setup.objective()`: `population`, `phenotype`, `balanced` or `all`), and
 `decision_view` shows each target's decision and the overall (O4).
@@ -117,6 +119,7 @@ measurements or diagnostics to report, not to rank.
 | R4 | **What is limiting my sampling?** Too few FOVs, strong FOV heterogeneity, spatial correlation, rare-state clustering, or a poor representation? | the sampling profile of `microscopist_report`: design effect, variance components, redundancy distance, control detection, fields with new states; rare-state clustering by field (`sampling_unit.fov_clustering`, on labels from `unusual_objects` or any other source): field incidence against random objects, and the fields needed to see the state | done; clustering is only as good as its labels |
 | R5 | **Which FOVs should I go back and inspect?** Unique states, strong influence, disagreement with neighbours, empty or unusual fields. | `inspect_fovs`, one reason per line, no combined score, no FOV called an artifact | done |
 | R6 | **What can this dataset not tell me?** For example: too shallow to assess a 1% state, no positive control, no stage coordinates, only one biological repeat. | "not assessed" lines, ceilings and notes spread across the report | partial: needs one section that lists every limit in one place |
+| R7 | **Do the conditions differ, and how confidently?** Each condition against the declared control, per repeat: the effect size on objects (as the lab's Plot&Stats notebook computes it) and on field means, a randomization test that shuffles condition labels over whole fields, and the JCS effect size from `n` objects drawn as random objects and as whole fields. | `sampling_unit.condition_contrast`; section 9 of `microscopist_report`; run by the `report` workflow whenever a control condition is declared and others exist | done, descriptive: what these fields support about a difference under this feature; generalizing needs independent repeats. Whether a stop at `k` fields preserves the contrast is an OPTIMISE outcome, pending the multi-group outcome contract (open work item 2) |
 
 ## 2. OPTIMISE / PLAN: "What should I do next time?"
 
@@ -164,7 +167,8 @@ extension, which changes the sampling distribution and needs its own design.
   through spatial fields. Does that difference matter for this dataset?
 - **REPORT: can I trust the experiment I already performed?** Can I detect
   the phenotype? Did I image enough? What am I still missing? What limited me?
-  Which images should I inspect? What can these data not tell me?
+  Which images should I inspect? What can these data not tell me? Do the
+  conditions differ, and how confidently?
 - **OPTIMISE: how should I design the next experiment?** How many FOVs? How
   reliable is that number across samples? What did extra imaging buy? Could
   simpler rules work? Is the stopping rule safe? Could spatial sampling be
