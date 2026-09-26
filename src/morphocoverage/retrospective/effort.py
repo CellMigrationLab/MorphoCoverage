@@ -19,32 +19,55 @@ truncated at zero only for projections.
 resampled with replacement, then the samples within each, then the FOVs
 within each sample; the observations of a FOV stay together. Resampling every
 level is known to overstate the lower-level components somewhat; the
-intervals are approximate, and with few independent units they are wide.
+intervals are approximate, and with few independent units they are wide. A
+resample whose levels cannot be separated (one that draws only single-field
+samples, say) is counted, never silently left out; when fewer than
+``MIN_BOOT_SUCCESS`` of the resamples can be estimated, the estimable ones
+are a selected subset rather than the bootstrap distribution, and no interval
+is given.
 
-**Projection.** The standard error of the mean for ``n`` samples of ``f`` FOVs
-each, with the observed share ``y`` of FOVs holding observations, their mean
-number of observations ``m``, their cluster size ``c = sum n_j^2 / N`` (``m``
-when all are equal) and the observed number of repeats ``R``, is
+**The acquired design.** Its standard error of the mean uses the acquired
+sizes:
+
+    sqrt(v_repeat sum N_r^2 / N^2 + v_sample sum N_s^2 / N^2
+         + v_fov sum n_j^2 / N^2 + v_obs / N),
+
+with ``N_r``, ``N_s`` and ``n_j`` the observations of each repeat, sample and
+FOV and ``N`` their total; the variance shares use these terms. A pooled mean
+weighs a large sample more, so samples of unequal size give a larger error
+than the same totals spread evenly.
+
+**Projection.** An allocation of ``n`` samples of ``f`` FOVs each is projected
+as balanced: with the observed share ``y`` of FOVs holding observations, their
+mean number of observations ``m``, their cluster size ``c = sum n_j^2 / N``
+(``m`` when all are equal) and the observed number of repeats ``R``,
 
     sqrt(v_repeat / R + v_sample / n + v_fov c / (n f y m) + v_obs / (n f y m)),
 
 with ``N = n f y m`` observations; empty FOVs are effort that averages out
 nothing.
 
-Allocations are compared at equal total FOVs. A difference is stated only when
-the bootstrap interval of the ratio of standard errors excludes 1 and there
-are at least ``FEW_UNITS`` independent units; otherwise the answer is "cannot
-tell from these data".
+Allocations are compared at equal total FOVs with the acquired allocation
+made balanced (the same samples, FOVs and observations, spread evenly), so a
+comparison is between allocations and never credits an alternative with
+removing the acquired imbalance; the cost of that imbalance (the acquired
+against the balanced standard error) is stated apart. A difference is stated
+only when the bootstrap interval of the ratio of standard errors excludes 1
+and there are at least ``FEW_UNITS`` independent units; otherwise the answer
+is "cannot tell from these data".
 
 **Units.** A unit is identified by its own value and every level outside it
 (``SamplingHierarchy.unit_key``), so well J23 of plate 1A and well J23 of
-plate 2A are two samples even when the plate is not a variance level. When
-every biological repeat of a stratum holds a single sample, the two levels
-cannot be separated there: the repeat is then left out of that stratum's
-components (its variance is counted with the sample's), the independent unit
-becomes the sample, and the summary says so. When the sample column is the
-MorphoBricks ``technical_repeat`` (a well, a dish), the sentences call it a
-technical repeat.
+plate 2A are two samples even when the plate is not a variance level.
+Samples, repeats and independent units are counted among those holding
+observations with a value: a well whose fields are all empty is acquired
+effort (its fields count), not a sample of the measurement. When a stratum
+has a single repeat with observations, or every repeat holds a single sample,
+the two levels cannot be separated there: the repeat is then left out of that
+stratum's components (its variance is counted with the sample's), the
+independent unit becomes the sample, and the summary says which case it is.
+When the sample column is the MorphoBricks ``technical_repeat`` (a well, a
+dish), the sentences call it a technical repeat.
 """
 
 from __future__ import annotations
@@ -57,12 +80,25 @@ import numpy as np
 import pandas as pd
 
 from .._seeds import group_identity
+from .._wording import rows_of
 from ..data_check import validate_input_tables
 from ..schema import fov_positions
+from ..statistics import design_effect as _design_effect
 from ..statistics import nested_variance_components
-from .effort_text import OBSERVATION, effort_summary
+from .effort_design import (  # noqa: F401  (_se, _acquired_se: re-exported for the tests)
+    _acquired_se,
+    _allocation_rows,
+    _check_allocations,
+    _contributions,
+    _design,
+    _interval,
+    _se,
+)
+from .effort_text import OBSERVATION, ONE_SAMPLE_PER_REPEAT, SINGLE_REPEAT, effort_summary
 from .hierarchy import SamplingHierarchy
-from .protocol import FEW_UNITS
+
+# Share of bootstrap resamples that must be estimable for an interval to be given.
+MIN_BOOT_SUCCESS = 0.9
 
 
 @dataclass(frozen=True)
@@ -71,17 +107,27 @@ class EffortResult:
 
     - ``components``: per stratum and level, the ``estimate``, a bootstrap
       interval (``low``, ``high``) and its ``share`` of the variance of the
-      current design's mean, with the stratum's ``samples``, ``fovs`` and
-      ``observations_per_fov`` (over every acquired FOV), the level counted
-      as the independent ``unit`` and whether the repeat level was left out
-      there (``repeat_dropped``).
-    - ``projections``: per stratum and allocation (``samples`` x
-      ``fovs_per_sample``), the projected standard error and its interval.
-    - ``comparisons``: per stratum, each allocation against the current one:
-      the ratio of standard errors, its interval, and whether it is resolved.
+      acquired design's mean (with the acquired, possibly unequal sizes), with
+      the stratum's ``samples`` and ``repeats`` holding observations (and the
+      ``samples_acquired`` / ``repeats_acquired`` of the FOV table), ``fovs``
+      and ``observations_per_fov`` (over every acquired FOV), the level
+      counted as the independent ``unit``, whether the repeat level was left
+      out there (``repeat_dropped``) and why (``repeat_dropped_reason``:
+      ``"single repeat"`` or ``"one sample per repeat"``), the weights
+      ``sum N_u^2 / N^2`` of the sample and repeat terms, and how many of
+      the ``n_boot`` resamples could not be estimated (``boot_failed``).
+    - ``projections``: per stratum, the acquired design (``design`` is
+      ``"acquired"``) and each allocation (``samples`` x ``fovs_per_sample``,
+      ``design`` ``"balanced"``), the standard error and its interval;
+      ``current`` marks the acquired allocation, as acquired and made balanced.
+    - ``comparisons``: per stratum, each allocation against the acquired one
+      made balanced: the ratio of standard errors, its interval and whether it
+      is resolved, with the ``balanced_se`` compared against and the
+      ``acquired_se``.
     - ``skipped``: per stratum whose components cannot be estimated (a single
-      sample, a single observation per field), the ``reason``; such a stratum
-      has no row in the other tables.
+      sample, a single observation per field, no observation with a value, a
+      missing stratum value), the ``reason``; such a stratum has no row in the
+      other tables.
     """
 
     components: pd.DataFrame
@@ -113,16 +159,21 @@ def _qualified(
 
 def _stratum_levels(
     hierarchy: SamplingHierarchy, qualified: pd.DataFrame
-) -> tuple[list[str], bool]:
-    """The levels estimated in one stratum: the declared ones, without the repeat when there
-    is a single repeat, or every repeat holds a single sample there (neither can be separated)."""
+) -> tuple[list[str], str | None]:
+    """The levels estimated in one stratum, and why the repeat was left out (None if kept).
+
+    The repeat is left out when a single repeat holds observations, or every
+    repeat holds a single sample with observations: neither can be separated.
+    """
     levels = _levels(hierarchy)
     if hierarchy.biological_repeat is None:
-        return levels, False
+        return levels, None
     n_repeats, n_samples = (qualified[level].nunique() for level in levels[:2])
-    if n_repeats == 1 or n_repeats == n_samples:
-        return levels[1:], True
-    return levels, False
+    if n_repeats == 1:
+        return levels[1:], SINGLE_REPEAT
+    if n_repeats == n_samples:
+        return levels[1:], ONE_SAMPLE_PER_REPEAT
+    return levels, None
 
 
 def _tree(frame: pd.DataFrame, columns: list[str]) -> np.ndarray | list:
@@ -166,52 +217,151 @@ def _flatten(tree: np.ndarray | list, depth: int) -> tuple[np.ndarray, list[np.n
     return np.concatenate(values), [np.repeat(table[:, d], lengths) for d in range(depth)]
 
 
-def _se(
-    components: np.ndarray, design: dict[str, Any], samples: float, fovs_per_sample: float
-) -> float:
-    """Projected SE of the mean for ``samples`` x ``fovs_per_sample`` acquired FOVs.
-
-    Only a share ``design["yield"]`` of acquired FOVs holds observations, with
-    ``design["per_fov"]`` observations each on average, as in the acquired
-    design; empty FOVs are effort that averages out nothing.
-    """
-    comp = np.maximum(components, 0.0)
-    if design["has_repeat"]:
-        v_rep, v_sample, v_fov, v_obs = comp
-        between = v_rep / design["repeats"]
-    else:
-        v_sample, v_fov, v_obs = comp
-        between = 0.0
-    fields_with = samples * fovs_per_sample * design["yield"]
-    observations = fields_with * design["per_fov"]
-    # Fields of unequal size weigh a pooled mean unequally: the field term is
-    # v_fov * sum n_j^2 / N^2 = v_fov * cluster_size / N, which is v_fov / fields
-    # only when every field holds as many observations.
-    return float(
-        np.sqrt(
-            between
-            + v_sample / samples
-            + v_fov * design["cluster_size"] / observations
-            + v_obs / observations
+def _inseparable(counts: list[int], levels: list[str], n_observations: int) -> str | None:
+    """Why two nested levels cannot be told apart (one unit inside every unit above), or None."""
+    if counts[0] < 2:
+        return (
+            f"a single {levels[0]!r} unit holds observations, so the variance at that level "
+            "cannot be estimated; at least 2 units are needed"
         )
+    if counts[-1] >= n_observations:
+        return (
+            "every FOV holds a single observation, so field-to-field and within-field "
+            "variance cannot be separated"
+        )
+    for outer, inner, n_outer, n_inner in zip(levels, levels[1:], counts, counts[1:]):
+        if n_outer == n_inner:
+            return (
+                f"every {outer} holds a single {inner} with observations, so their variance "
+                f"cannot be separated; it needs more than one {inner} per {outer}"
+            )
+    return None
+
+
+def _bootstrap(
+    tree: np.ndarray | list, levels: list[str], n_boot: int, rng: np.random.Generator
+) -> tuple[np.ndarray, int]:
+    """Components of the estimable resamples, and how many could not be estimated.
+
+    With fewer than ``MIN_BOOT_SUCCESS`` of the resamples estimable no draws
+    are returned: the estimable ones are then a selected subset, not the
+    bootstrap distribution, and an interval from them would look established.
+    """
+    depth = len(levels)
+    boots, failed = [], 0
+    for _ in range(n_boot):
+        values, codes = _flatten(_resample(tree, rng), depth)
+        # _flatten numbers units in the order met, so the last code + 1 counts them.
+        counts = [int(c[-1]) + 1 if len(c) else 0 for c in codes]
+        if _inseparable(counts, levels, len(values)) is not None:
+            failed += 1
+            continue
+        try:
+            boots.append(nested_variance_components(values, codes))
+        except (ValueError, np.linalg.LinAlgError):
+            failed += 1
+    if len(boots) < MIN_BOOT_SUCCESS * n_boot:
+        return np.empty((0, depth + 1)), failed
+    return np.array(boots), failed
+
+
+def _component_rows(
+    estimate: np.ndarray,
+    boots: np.ndarray,
+    names: list[str],
+    design: dict[str, Any],
+    fixed: dict[str, Any],
+) -> list[dict]:
+    """One row per level: the estimate, its interval and its share of the acquired variance."""
+    shares = _contributions(estimate, design)
+    rows = []
+    for index, name in enumerate(names):
+        low, high = _interval(boots[:, index])
+        rows.append(
+            {
+                **fixed["where"],
+                "level": name,
+                "estimate": float(estimate[index]),
+                "low": low,
+                "high": high,
+                "share": shares[index],
+                **{k: v for k, v in fixed.items() if k != "where"},
+            }
+        )
+    return rows
+
+
+def _stratum(
+    cells: pd.DataFrame,
+    stratum_fovs: pd.DataFrame,
+    hierarchy: SamplingHierarchy,
+    chosen: list[tuple[int, float]] | None,
+    n_boot: int,
+    rng: np.random.Generator,
+    where: dict[str, Any],
+) -> dict[str, list[dict]] | str:
+    """The component, projection and comparison rows of one stratum, or why it is skipped."""
+    qualified = _qualified(cells, hierarchy, _levels(hierarchy))
+    levels, dropped = _stratum_levels(hierarchy, qualified)  # e.g. [repeat, sample, fov]
+    has_repeat = hierarchy.biological_repeat is not None and dropped is None
+    codes = [qualified[level].factorize()[0] for level in levels]
+    reason = _inseparable([len(np.unique(c)) for c in codes], levels, len(cells))
+    if reason is not None:
+        return reason
+    try:
+        estimate = nested_variance_components(cells["value"].to_numpy(), codes)
+    except np.linalg.LinAlgError:
+        return "the components are not identifiable"
+    design = _design(qualified, levels, has_repeat, len(stratum_fovs), hierarchy)
+    unit = hierarchy.independent_unit if has_repeat else hierarchy.sample
+    units = int(qualified[unit].nunique())
+    repeat = hierarchy.biological_repeat
+    boots, failed = _bootstrap(_tree(qualified, levels), levels, n_boot, rng)
+    fixed = {
+        "where": where,
+        "units": units,
+        "unit": unit,
+        "repeat_dropped": dropped is not None,
+        "repeat_dropped_reason": dropped,
+        "repeats": int(qualified[repeat].nunique()) if repeat is not None else None,
+        "repeats_acquired": hierarchy.count(stratum_fovs, repeat) if repeat is not None else None,
+        "samples": design["samples"],
+        "samples_acquired": hierarchy.count(stratum_fovs, hierarchy.sample),
+        "fovs": design["total_fovs"],
+        "fovs_with_observations": design["fovs_with_observations"],
+        "observations_per_fov": design["per_fov"],
+        "cluster_size": design["cluster_size"],
+        "sample_weight": design["sample_weight"],
+        "repeat_weight": design["repeat_weight"],
+        "boot_failed": failed,
+        "n_boot": n_boot,
+    }
+    components = _component_rows(estimate, boots, [*levels, OBSERVATION], design, fixed)
+    projections, comparisons = _allocation_rows(estimate, boots, design, chosen, where, units, unit)
+    return {"components": components, "projections": projections, "comparisons": comparisons}
+
+
+def _check_arguments(hierarchy: SamplingHierarchy, n_boot: object, random_state: object) -> None:
+    if not isinstance(hierarchy, SamplingHierarchy):
+        raise TypeError("hierarchy must be a SamplingHierarchy")
+    if hierarchy.technical_levels:
+        raise ValueError("technical levels are not supported by the effort projection yet")
+    if isinstance(n_boot, bool) or not isinstance(n_boot, int) or n_boot < 2:
+        raise ValueError("n_boot must be an integer of at least 2")
+    if isinstance(random_state, bool) or not isinstance(random_state, int):
+        raise TypeError("random_state must be an integer seed")
+
+
+def _missing_stratum(data_fovs: pd.DataFrame, stratum: dict[str, Any]) -> str | None:
+    """Why a stratum with a missing value is not analysed, or None when it has none."""
+    absent = [column for column, value in stratum.items() if pd.isna(value)]
+    if not absent:
+        return None
+    count = len(rows_of(data_fovs, stratum))  # a missing value matches a missing one
+    return (
+        f"{', '.join(absent)} is missing for {count} fields, so they belong to no stratum; "
+        "give them a value or leave them out"
     )
-
-
-def _allocations(
-    design: dict[str, Any], allocations: Sequence[tuple[int, float]] | None
-) -> list[tuple[int, float]]:
-    """Allocations to compare, always including the acquired one (``samples``, total / samples)."""
-    samples, total = design["samples"], design["total_fovs"]
-    current = (samples, total / samples)
-    if allocations is not None:
-        chosen = [(int(s), float(f)) for s, f in allocations]
-    else:
-        # From half to twice the samples, at exactly the acquired total of FOVs,
-        # never fewer samples than there are repeats.
-        low = max(2, design["repeats"])
-        counts = {max(low, round(samples * f)) for f in (0.5, 0.75, 1.5, 2)} - {samples}
-        chosen = [(s, total / s) for s in sorted(counts)]
-    return [current, *[a for a in chosen if a != current]]
 
 
 def effort_projection(
@@ -221,7 +371,7 @@ def effort_projection(
     feature: str,
     hierarchy: SamplingHierarchy,
     strata: Sequence[str],
-    allocations: Sequence[tuple[int, int]] | None = None,
+    allocations: Sequence[tuple[int, float]] | None = None,
     n_boot: int = 500,
     random_state: int = 0,
     observation_unit: str | None = None,
@@ -230,28 +380,24 @@ def effort_projection(
 
     ``hierarchy`` declares the FOV, sample and optional biological-repeat
     columns of the FOV table (technical levels are not supported yet); in a
-    stratum where every repeat holds a single sample the repeat is left out
-    of the components (see the module). ``strata`` are FOV-table columns
-    analysed separately, for example
-    ``["condition"]``; ``[]`` pools every sample and must be asked for.
-    ``allocations`` are ``(samples, fovs_per_sample)`` pairs to compare with
-    the acquired design; by default, from half to twice the acquired number of
-    samples at exactly the acquired total of FOVs (FOVs per sample may then be
-    fractional, an average). Only allocations at the acquired total are
-    compared ("at equal total FOVs"); others are projected but never resolved.
-    Observations with a missing value of ``feature`` are left out and
-    reported. A stratum whose components cannot be estimated (a single
-    sample, a single observation per field) is listed in ``skipped`` with
-    the reason instead of stopping the others.
+    stratum with a single repeat, or where every repeat holds a single sample,
+    the repeat is left out of the components (see the module). ``strata`` are
+    FOV-table columns analysed separately, for example ``["condition"]``;
+    ``[]`` pools every sample and must be asked for. ``allocations`` are
+    ``(samples, fovs_per_sample)`` pairs to compare with the acquired design
+    (a positive whole number of samples, a positive number of fields); by
+    default, from half to twice the acquired number of samples at exactly the
+    acquired total of FOVs, never below one field per sample (FOVs per sample
+    may be fractional, an average). Only allocations at the acquired total are
+    compared ("at equal total FOVs"), with the acquired allocation made
+    balanced; others are projected but never resolved. Observations with a
+    missing value of ``feature`` are left out and reported. A stratum whose
+    components cannot be estimated (a single sample, a single observation per
+    field, no observation with a value, a missing stratum value) is listed in
+    ``skipped`` with the reason instead of stopping the others.
     """
-    if not isinstance(hierarchy, SamplingHierarchy):
-        raise TypeError("hierarchy must be a SamplingHierarchy")
-    if hierarchy.technical_levels:
-        raise ValueError("technical levels are not supported by the effort projection yet")
-    if isinstance(n_boot, bool) or not isinstance(n_boot, int) or n_boot < 2:
-        raise ValueError("n_boot must be an integer of at least 2")
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
-        raise TypeError("random_state must be an integer seed")
+    _check_arguments(hierarchy, n_boot, random_state)
+    chosen = _check_allocations(allocations)
     strata = list(strata)
     missing_levels = [c for c in hierarchy.levels if c not in fovs.columns]
     if missing_levels:
@@ -269,8 +415,14 @@ def effort_projection(
         raise ValueError(f"strata missing from the FOV table: {missing}")
     positions = fov_positions(data, data.fovs)
     values = data.feature_values(feature)
-    component_rows, projection_rows, comparison_rows, skipped_rows = [], [], [], []
+    tables: dict[str, list[dict]] = {"components": [], "projections": [], "comparisons": []}
+    skipped_rows = []
     for stratum in data.fovs[strata].drop_duplicates().to_dict("records") if strata else [{}]:
+        where = {**stratum, "stratum": ", ".join(f"{k}={v}" for k, v in stratum.items()) or "all"}
+        reason = _missing_stratum(data.fovs[strata], stratum)
+        if reason is not None:
+            skipped_rows.append({**where, "reason": reason})
+            continue
         inside = np.ones(len(data.fovs), dtype=bool)
         for column, value in stratum.items():
             inside &= data.fovs[column].to_numpy() == value
@@ -279,140 +431,41 @@ def effort_projection(
         # image name in two conditions) is not a duplicate; within one it is.
         hierarchy.validate(stratum_fovs)
         keep = inside[positions] & ~np.isnan(values)
-        cells = data.fovs.iloc[positions[keep]][list(hierarchy.levels)].reset_index(drop=True)
-        cells["value"] = values[keep]
-        n_missing = int((inside[positions] & np.isnan(values)).sum())
-        qualified = _qualified(cells, hierarchy, _levels(hierarchy))
-        levels, repeat_dropped = _stratum_levels(hierarchy, qualified)  # e.g. [repeat, sample, fov]
-        has_repeat = hierarchy.biological_repeat is not None and not repeat_dropped
-        names = [*levels, OBSERVATION]
-        codes = [qualified[level].factorize()[0] for level in levels]
-        where = {**stratum, "stratum": ", ".join(f"{k}={v}" for k, v in stratum.items()) or "all"}
-        try:
-            _check_separable(codes, levels, len(cells))
-            estimate = nested_variance_components(cells["value"].to_numpy(), codes)
-        except (ValueError, np.linalg.LinAlgError) as exc:
-            # Reported, so one inestimable stratum does not hide the others.
-            reason = (
-                str(exc) if isinstance(exc, ValueError) else "the components are not identifiable"
-            )
+        if not keep.any():
+            reason = f"no field holds an observation with a value of {feature}"
             skipped_rows.append({**where, "reason": reason})
             continue
+        cells = data.fovs.iloc[positions[keep]][list(hierarchy.levels)].reset_index(drop=True)
+        cells["value"] = values[keep]
         # One generator per stratum, so adding a stratum never changes another's interval.
         rng = np.random.default_rng([random_state, group_identity(stratum)])
-        per_field = np.bincount(codes[-1])
-        design = {
-            "has_repeat": has_repeat,
-            "repeats": (
-                hierarchy.count(stratum_fovs, hierarchy.biological_repeat) if has_repeat else 1
-            ),
-            "samples": hierarchy.count(stratum_fovs, hierarchy.sample),
-            "total_fovs": len(stratum_fovs),
-            "yield": len(per_field) / len(stratum_fovs),
-            "per_fov": len(cells) / len(per_field),
-            # Sum n_j^2 / N: the cluster size that sets the design effect of unequal FOVs.
-            "cluster_size": float(np.sum(per_field.astype(float) ** 2) / len(cells)),
-        }
-        samples, total_fovs = design["samples"], design["total_fovs"]
-        current = (samples, total_fovs / samples)
-        chosen = _allocations(design, allocations)
-        unit = hierarchy.independent_unit if has_repeat else hierarchy.sample
-        units = hierarchy.count(stratum_fovs, unit)
-        tree = _tree(qualified, levels)
-        boots = []
-        for _ in range(n_boot):
-            sample_values, sample_codes = _flatten(_resample(tree, rng), len(levels))
-            try:
-                boots.append(nested_variance_components(sample_values, sample_codes))
-            except (ValueError, np.linalg.LinAlgError):
-                continue
-        boots = np.array(boots)
-        contributions = _contributions(estimate, design)
-        for index, name in enumerate(names):
-            low, high = np.quantile(boots[:, index], [0.025, 0.975]) if len(boots) else (None, None)
-            component_rows.append(
-                {
-                    **where,
-                    "level": name,
-                    "estimate": float(estimate[index]),
-                    "low": None if low is None else float(low),
-                    "high": None if high is None else float(high),
-                    "share": contributions[index],
-                    "units": units,
-                    "unit": unit,
-                    "repeat_dropped": repeat_dropped,
-                    "repeats": (
-                        hierarchy.count(stratum_fovs, hierarchy.biological_repeat)
-                        if hierarchy.biological_repeat is not None
-                        else None
-                    ),
-                    "samples": samples,
-                    "fovs": total_fovs,
-                    "fovs_with_observations": len(per_field),
-                    "observations_per_fov": design["per_fov"],
-                    "cluster_size": design["cluster_size"],
-                    "missing_values": n_missing,
-                }
-            )
-        base = np.array([_se(b, design, *current) for b in boots])
-        current_se = _se(estimate, design, *current)
-        for s, f in chosen:
-            se = _se(estimate, design, s, f)
-            boot_se = np.array([_se(b, design, s, f) for b in boots])
-            same_total = abs(s * f - total_fovs) < 0.5
-            projection_rows.append(
-                {
-                    **where,
-                    "samples": s,
-                    "fovs_per_sample": f,
-                    "total_fovs": s * f,
-                    "same_total": same_total,
-                    "se": se,
-                    "se_low": float(np.quantile(boot_se, 0.025)) if len(boots) else None,
-                    "se_high": float(np.quantile(boot_se, 0.975)) if len(boots) else None,
-                    "current": (s, f) == current,
-                }
-            )
-            if (s, f) == current:
-                continue
-            ratio = boot_se / np.where(base > 0, base, np.nan)
-            low, high = (
-                np.nanquantile(ratio, [0.025, 0.975]) if np.isfinite(ratio).any() else (None, None)
-            )
-            resolved = (
-                same_total and low is not None and (high < 1 or low > 1) and units >= FEW_UNITS
-            )
-            comparison_rows.append(
-                {
-                    **where,
-                    "samples": s,
-                    "fovs_per_sample": f,
-                    "ratio": se / current_se if current_se > 0 else None,
-                    "ratio_low": None if low is None else float(low),
-                    "ratio_high": None if high is None else float(high),
-                    "same_total": same_total,
-                    "resolved": bool(resolved),
-                    "current_samples": current[0],
-                    "current_fovs_per_sample": current[1],
-                    "units": units,
-                    "unit": unit,
-                }
-            )
+        rows = _stratum(cells, stratum_fovs, hierarchy, chosen, n_boot, rng, where)
+        if isinstance(rows, str):
+            # Reported, so one inestimable stratum does not hide the others.
+            skipped_rows.append({**where, "reason": rows})
+            continue
+        n_missing = int((inside[positions] & np.isnan(values)).sum())
+        for row in rows["components"]:
+            row["missing_values"] = n_missing
+        for name, own in rows.items():
+            tables[name] += own
     settings = {
         "feature": feature,
         "hierarchy": hierarchy.parameters,
         "independent_unit": hierarchy.independent_unit,
         "strata": strata,
         "n_boot": n_boot,
+        "min_boot_success": MIN_BOOT_SUCCESS,
         "random_state": random_state,
-        "allocations": None if allocations is None else [list(a) for a in allocations],
+        "allocations": None if chosen is None else [list(a) for a in chosen],
         "observation_unit": data.observation_unit,
     }
     where_columns = [*strata, "stratum"]
+    frames = [
+        pd.DataFrame(rows, columns=None if rows else where_columns) for rows in tables.values()
+    ]
     return EffortResult(
-        pd.DataFrame(component_rows, columns=None if component_rows else where_columns),
-        pd.DataFrame(projection_rows, columns=None if projection_rows else where_columns),
-        pd.DataFrame(comparison_rows, columns=None if comparison_rows else where_columns),
+        *frames,
         tuple(strata),
         settings,
         pd.DataFrame(skipped_rows, columns=[*where_columns, "reason"]),
@@ -429,47 +482,15 @@ def design_effect(result: EffortResult, stratum: str) -> float | None:
     """
     rows = result.components[result.components["stratum"] == stratum].set_index("level")
     fov_level = result.settings["hierarchy"]["fov"]
-    v_fov = max(float(rows.loc[fov_level, "estimate"]), 0.0)
-    v_obs = max(float(rows.loc[OBSERVATION, "estimate"]), 0.0)
-    m = float(rows["cluster_size"].iloc[0])
-    return None if v_fov + v_obs == 0 else (m * v_fov + v_obs) / (v_fov + v_obs)
-
-
-def _check_separable(codes: list[np.ndarray], levels: list[str], n_observations: int) -> None:
-    """Raise when two nested levels cannot be told apart (one unit inside every unit above)."""
-    counts = [len(np.unique(c)) for c in codes]
-    if counts[0] < 2:
-        raise ValueError(
-            f"a single {levels[0]!r} unit holds observations, so the variance at that level "
-            "cannot be estimated; at least 2 units are needed"
-        )
-    if counts[-1] >= n_observations:
-        raise ValueError(
-            "every FOV holds a single observation, so field-to-field and within-field "
-            "variance cannot be separated"
-        )
-    for outer, inner, n_outer, n_inner in zip(levels, levels[1:], counts, counts[1:]):
-        if n_outer == n_inner:
-            raise ValueError(
-                f"every {outer} holds a single {inner} with observations, so their variance "
-                f"cannot be separated; it needs more than one {inner} per {outer}"
-            )
-
-
-def _contributions(estimate: np.ndarray, design: dict[str, Any]) -> list[float | None]:
-    """Share of each level in the variance of the acquired design's mean (components >= 0)."""
-    comp = np.maximum(estimate, 0.0)
-    observations = design["total_fovs"] * design["yield"] * design["per_fov"]
-    # The field term with unequal fields, as in ``_se``.
-    divisors = [design["samples"], observations / design["cluster_size"], observations]
-    if design["has_repeat"]:
-        divisors = [design["repeats"], *divisors]
-    parts = comp / np.array(divisors, dtype=float)
-    total = parts.sum()
-    return [float(p / total) if total > 0 else None for p in parts]
+    return _design_effect(
+        float(rows.loc[fov_level, "estimate"]),
+        float(rows.loc[OBSERVATION, "estimate"]),
+        float(rows["cluster_size"].iloc[0]),
+    )
 
 
 __all__ = [
+    "MIN_BOOT_SUCCESS",
     "OBSERVATION",
     "EffortResult",
     "design_effect",

@@ -552,7 +552,8 @@ def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
 
 def test_the_unseen_state_bound_is_divided_by_the_controls_detection_rate():
     controls, sufficiency = _weak_control_report()
-    detection = float(controls.pooled.set_index("candidate")["rate"]["positive"])
+    # The rate against every reference field, as the bound judges fields (audit 2, G-13).
+    detection = float(controls.pooled.set_index("candidate")["rate"]["positive_lofo"])
     bound = float(sufficiency.next_fov["unseen_state_max_frequency"].iloc[0])
     section = microscopist_report(controls=controls, sufficiency=sufficiency).sections["enough"]
     adjusted = min(1.0, bound / detection)

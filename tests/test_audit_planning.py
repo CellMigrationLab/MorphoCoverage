@@ -37,6 +37,7 @@ def test_f1_unequal_fields_weigh_the_field_term_by_their_cluster_size():
         "yield": 1.0,
         "per_fov": n / len(sizes),
         "cluster_size": cluster,
+        "sample_weight": 1.0,  # a single sample holds every observation
     }
     components = np.array([0.0, 1.0, 1.0])
     truth = np.sqrt(1.0 * np.sum(sizes**2) / n**2 + 1.0 / n)
