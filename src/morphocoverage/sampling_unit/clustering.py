@@ -21,15 +21,18 @@ features. Per analysis group and state it reports:
 - a permutation p-value: how often labels shuffled across the group's objects
   reach as few fields as observed;
 - the fields needed to see the state once with ``detection_probability``,
-  from the observed field incidence (``rare_planning.first_detection_fovs``),
+  from the observed field incidence (``statistics.first_detection_fovs``),
   with a bound from the low end of that incidence's two-sided Clopper-Pearson
   interval (the convention of ``sufficiency``), beside
-  the fields a random-object argument would ask for.
+  the fields a random-object argument would ask for (the same count, from
+  the object prevalence, spread over the observations per field).
 
 Fields without observations count as acquired fields that did not show the
-state. This is the retrospective, labelled counterpart of the rare-state
-planning of ``strategies.rare_planning``; a state is only as good as its
-labels.
+state. Fields whose observations carry no label at all were not looked at:
+they are left out of the fields assessed and counted (``fovs_unlabelled``),
+so annotating half the fields does not halve the field incidence. This is
+the retrospective, labelled counterpart of the rare-state planning of
+``strategies.rare_planning``; a state is only as good as its labels.
 
 **``unusual_objects``** labels out-of-distribution objects: objects farther from a
 declared reference population, in standardized feature space, than all but
@@ -53,12 +56,12 @@ reference field is never its own reference. And a group is never its own
 reference: a control group is scored against the other control groups, so
 labels never depend on how the tested group's objects sit in its fields. A
 control group with no other control group to compare with is not scored.
-Observations with a missing feature value are not scored.
+Observations with a missing feature value are not scored, and a group none of
+whose observations has every feature is reported as not assessed.
 """
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -109,22 +112,29 @@ class FOVClustering:
             head = f"{where({c: row[c] for c in self.group_cols})}, {self.state_name(row['state'])}"
             if not row["labelled"]:
                 lines.append(
-                    f"{head}: no {words.removesuffix('s')} of its "
-                    f"{fields_text(int(row['fovs']))} is labelled, so it was not looked for."
+                    f"{head}: none of the {words} of its "
+                    f"{fields_text(int(row['fovs_acquired']))} is labelled, so it was not "
+                    "looked for."
                 )
                 continue
+            unlabelled = int(row["fovs_unlabelled"])
+            left_out = (
+                f" ({fields_text(unlabelled)} whose {words} carry no label left out)"
+                if unlabelled
+                else ""
+            )
             if not row["state_objects"]:
                 lines.append(
                     f"{head}: not seen among {int(row['labelled'])} labelled {words} in "
-                    f"{fields_text(int(row['fovs']))}."
+                    f"{fields_text(int(row['fovs']))}{left_out}."
                 )
                 continue
             upper = row["fovs_needed_upper"]
             bound = "" if pd.isna(upper) else f" (up to {int(upper)})"
             lines.append(
                 f"{head}: {int(row['state_objects'])} {words} ({row['prevalence']:.1%}) in "
-                f"{int(row['fovs_with_state'])} of {fields_text(int(row['fovs']))}; random "
-                f"{words} would fill {row['expected_fovs_if_random']:.1f} (clustering ratio "
+                f"{int(row['fovs_with_state'])} of {fields_text(int(row['fovs']))}{left_out}; "
+                f"random {words} would fill {row['expected_fovs_if_random']:.1f} (clustering ratio "
                 f"{row['clustering_ratio']:.1f}, p = {row['p_clustered']:.2g}). To see it "
                 f"with {chance:.0%} chance: {fields_text(int(row['fovs_needed']))}{bound} from "
                 f"its field incidence, against {fields_text(int(row['fovs_needed_if_random']))} "
@@ -153,7 +163,9 @@ def fov_clustering(
     Missing labels mark observations that were not labelled; they are left
     out. Columns of the result's ``table``: the group, ``state``, the
     ``labelled`` observations, ``state_objects``, ``prevalence``, ``fovs``
-    (acquired), ``fovs_with_state``, ``fov_incidence``,
+    (the fields assessed: every acquired field except those whose
+    observations carry no label), ``fovs_acquired``, ``fovs_unlabelled``,
+    ``fovs_with_state``, ``fov_incidence``,
     ``expected_fovs_if_random``, ``clustering_ratio``, ``p_clustered``,
     ``largest_fov_share`` (the share of the state's objects in its fullest
     field), ``fovs_needed`` and ``fovs_needed_upper`` (from the observed field
@@ -181,10 +193,14 @@ def fov_clustering(
     for group, group_data in groups(data):
         code = group_data.feature_values(_LABEL_CODE)
         positions = fov_positions(group_data, group_data.fovs)
+        n_acquired = len(group_data.fovs)
+        observed_fields = np.bincount(positions, minlength=n_acquired) > 0
         keep = ~np.isnan(code)
         code, positions = code[keep].astype(int), positions[keep]
-        n_fovs = len(group_data.fovs)
-        sizes = np.bincount(positions, minlength=n_fovs)
+        sizes = np.bincount(positions, minlength=n_acquired)
+        # A field whose observations all lack a label was not looked at; a field
+        # without observations was, and did not show the state.
+        unlabelled = int(np.sum(observed_fields & (sizes == 0)))
         rng = np.random.default_rng([random_state, group_identity(group)])
         for index, state in enumerate(chosen):
             is_state = code == index
@@ -192,10 +208,13 @@ def fov_clustering(
                 {
                     **group,
                     "state": state,
+                    "fovs_acquired": n_acquired,
+                    "fovs_unlabelled": unlabelled,
                     **_state_row(
                         is_state,
                         positions,
                         sizes,
+                        n_acquired - unlabelled,
                         rng,
                         n_permutations,
                         detection_probability,
@@ -219,13 +238,15 @@ def _state_row(
     is_state: np.ndarray,
     positions: np.ndarray,
     sizes: np.ndarray,
+    n_fovs: int,
     rng: np.random.Generator,
     n_permutations: int,
     detection_probability: float,
     confidence: float,
 ) -> dict[str, Any]:
-    labelled, n_fovs, c = len(is_state), len(sizes), int(is_state.sum())
-    per_fov = np.bincount(positions[is_state], minlength=n_fovs)
+    """One state's row; ``n_fovs`` fields were assessed, ``sizes`` their labelled counts."""
+    labelled, c = len(is_state), int(is_state.sum())
+    per_fov = np.bincount(positions[is_state], minlength=len(sizes))
     observed = int((per_fov > 0).sum())
     row: dict[str, Any] = {
         "labelled": labelled,
@@ -253,12 +274,13 @@ def _state_row(
     null = np.empty(n_permutations)
     for i in range(n_permutations):
         shuffled = rng.permutation(is_state)
-        null[i] = np.count_nonzero(np.bincount(positions[shuffled], minlength=n_fovs))
+        null[i] = np.count_nonzero(np.bincount(positions[shuffled], minlength=len(sizes)))
     prevalence = c / labelled
-    per_acquired_fov = labelled / n_fovs
     if prevalence < 1:
-        objects_needed = math.ceil(math.log(1 - detection_probability) / math.log(1 - prevalence))
-        if_random = max(1, math.ceil(objects_needed / per_acquired_fov))
+        # The objects needed, spread over labelled / n_fovs per field (integer ceiling,
+        # so no rounding adds a field).
+        objects_needed = first_detection_fovs(prevalence, detection_probability)
+        if_random = max(1, -(-objects_needed * n_fovs // labelled))
     else:
         if_random = 1
     incidence = observed / n_fovs
@@ -448,6 +470,16 @@ def unusual_objects(
             rows.append({**row, "status": results[0]})
             continue
         scores, threshold, state = results[0]
+        if np.isnan(scores).all():
+            words = unit_plural(data.observation_unit)
+            rows.append(
+                {
+                    **row,
+                    "status": f"not assessed: none of its {len(scores)} {words} has a value of "
+                    "every feature",
+                }
+            )
+            continue
         flagged = scores > threshold
         distances[mine] = scores
         labels[mine] = np.where(np.isnan(scores), np.nan, flagged)

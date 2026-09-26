@@ -16,19 +16,25 @@ pooled within the repeat, and the summary says so):
 - **Cohen's d on objects** (Plot&Stats' number): the difference of means over
   the pooled standard deviation of all objects;
 - **Cohen's d on field means**: the same with one value per field with
-  observations, so a field-to-field effect counts once per field;
+  observations, so a field-to-field effect counts once per field; field
+  means that do not vary within either side but differ between them are a
+  perfect separation, an infinite d (as ``feature_ranking`` scores it);
 - **Cohen's d on technical-repeat means**, when the analysis groups are
   split by the MorphoBricks ``technical_repeat`` column (a well, a dish) and
   each side holds at least two: one value per technical repeat, the unit at
   which a well-to-well shift counts once;
 - **a randomization test over whole units**: condition labels are shuffled
   ``n_permutations`` times over the technical repeats of the repeat when
-  both sides hold at least two (each keeps its fields together), otherwise
-  over its whole fields; the statistic is the absolute Cohen's d on field
-  means, the p-value ``(extreme + 1) / (n + 1)`` as in Plot&Stats, with a
-  Bonferroni factor equal to the number of contrasts computed. With few
-  technical repeats only a few distinct assignments exist, and the summary
-  says how many;
+  both sides hold at least two (each keeps its fields together), otherwise,
+  without the technical-repeat column, over its whole fields; the statistic
+  is the absolute Cohen's d on field means, the p-value
+  ``(extreme + 1) / (n + 1)`` as in Plot&Stats, or exact when no more
+  distinct assignments exist than shuffles (every one is then enumerated),
+  with a Bonferroni factor equal to the number of contrasts computed. With
+  few technical repeats only a few distinct assignments exist, and the
+  summary says how many. A side holding a single technical repeat gets no
+  test: its fields cannot stand in for technical repeats, since a
+  well-to-well shift would then pass for a condition effect;
 - **the JCS effect size** (Marcotti et al. 2026, Eqn 2: the treated mean
   minus the control mean over the control SD) from every object, and from
   ``object_counts`` objects drawn as random objects (the paper's procedure)
@@ -64,9 +70,14 @@ from ._units import (
     describe_groups,
     field_means,
     permutation_p,
+    relabellings,
+    resolve_columns,
+    separation_d,
     side_units,
     sides,
+    technical_counts,
     unit_means,
+    untested_reason,
 )
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 
@@ -83,7 +94,8 @@ class ConditionContrast:
       ``d_fields``, ``d_technical``, the randomization ``p_value`` over whole
       units (``permutation_unit``: the technical-repeat column or ``field``,
       with the ``distinct_assignments`` that exist for technical repeats) and
-      its Bonferroni-corrected ``p_bonferroni``, the JCS effect size from
+      its Bonferroni-corrected ``p_bonferroni``, whether the p-value is exact
+      (``p_exact``: every assignment enumerated), the JCS effect size from
       every object (``effect_full``), and ``status``.
     - ``effects``: one row per repeat, condition, sampling and object count:
       the median and interquartile band of the JCS effect size over the draws,
@@ -149,12 +161,16 @@ class ConditionContrast:
                     f"whole technical repeats ({row['permutation_unit']}; only "
                     f"{int(row['distinct_assignments'])} distinct assignments exist)"
                 )
+            how = (
+                "every assignment of the condition labels enumerated, so p is exact"
+                if row["p_exact"]
+                else f"{self.settings['n_permutations']} shuffles of the condition labels"
+            )
             lines.append(
                 f"{where}: {counts} Cohen's d on {words} {_number(row['d_objects'])}; on field "
                 f"means {_number(row['d_fields'])}{technical_d}. Randomization test over "
-                f"{shuffled} ({self.settings['n_permutations']} shuffles of the condition "
-                f"labels): p = {row['p_value']:.3g} (Bonferroni over {n_contrasts} comparison"
-                f"{'s' if n_contrasts != 1 else ''}: {row['p_bonferroni']:.3g})."
+                f"{shuffled}, {how}: p = {row['p_value']:.3g} (Bonferroni over {n_contrasts} "
+                f"comparison{'s' if n_contrasts != 1 else ''}: {row['p_bonferroni']:.3g})."
             )
             if self.effects.empty:
                 continue  # no object count fits the data: there are no draws to report
@@ -192,8 +208,12 @@ class ConditionContrast:
 
 
 def _number(value: float) -> str:
-    """A statistic to two decimals, or ``undefined``."""
-    return f"{value:.2f}" if np.isfinite(value) else "undefined"
+    """A statistic to two decimals, ``undefined``, or infinite for a perfect separation."""
+    if np.isnan(value):
+        return "undefined"
+    if np.isinf(value):
+        return f"{'' if value > 0 else '-'}infinite (no variation within either side)"
+    return f"{value:.2f}"
 
 
 def condition_contrast(
@@ -238,12 +258,9 @@ def condition_contrast(
     check_seed(random_state)
     counts = sorted({check_count(n, "object_counts", 2) for n in object_counts})
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
-    if condition_col not in data.fovs.columns:
-        raise ValueError(f"condition_col {condition_col!r} is not a column of the FOV table")
-    if repeat_col is not None and repeat_col not in data.fovs.columns:
-        repeat_col = None  # one implicit repeat
-    if technical_col is not None and technical_col not in data.group_cols:
-        technical_col = None  # the groups are not split by technical repeat
+    repeat_col, technical_col = resolve_columns(
+        data, condition_col, repeat_col, technical_col, control
+    )
     all_groups = groups(data)
     described = describe_groups(all_groups, condition_col, repeat_col, control)
     settings = {
@@ -293,6 +310,7 @@ def condition_contrast(
                     "distinct_assignments": np.nan,
                     "p_value": np.nan,
                     "p_bonferroni": np.nan,
+                    "p_exact": False,
                     "effect_full": np.nan,
                     "status": f"no control group in {repeat_col}={repeat}",
                 }
@@ -307,9 +325,7 @@ def condition_contrast(
         t_means, c_means = field_means(t_units), field_means(c_units)
         # Groups are technical repeats only when split by that column; units
         # without observations do not count.
-        n_technical = (0, 0)
-        if technical_col:
-            n_technical = (len(unit_means(t_units)), len(unit_means(c_units)))
+        n_technical = technical_counts(t_units, c_units, technical_col)
         by_unit = min(n_technical) >= 2
         row = {
             **base,
@@ -320,27 +336,31 @@ def condition_contrast(
             "technical": n_technical[0],
             "control_technical": n_technical[1],
             "d_objects": cohen_d(t_objects, c_objects),
-            "d_fields": cohen_d(t_means, c_means),
+            # The measure feature_ranking scores: a perfect separation is an infinite d.
+            "d_fields": separation_d(t_means, c_means),
             "d_technical": (
-                cohen_d(unit_means(t_units), unit_means(c_units)) if by_unit else np.nan
+                separation_d(unit_means(t_units), unit_means(c_units)) if by_unit else np.nan
             ),
             "permutation_unit": technical_col if by_unit else FIELD,
             "distinct_assignments": comb(sum(n_technical), n_technical[0]) if by_unit else np.nan,
             "p_value": np.nan,
             "p_bonferroni": np.nan,
+            "p_exact": False,
             "effect_full": jcs_effect_size(t_objects, c_objects),
             "status": "ok",
         }
-        if len(t_means) < 2 or len(c_means) < 2:
-            row["status"] = "fewer than 2 fields with observations on one side"
+        reason = untested_reason((len(t_means), len(c_means)), n_technical, technical_col)
+        if reason is not None:
+            row["status"] = reason
             rows.append(row)
             continue
-        if not np.isfinite(row["d_fields"]):
-            # Every field mean equal on both sides: no field-level statistic to test.
+        if np.isnan(row["d_fields"]):
+            # Every field mean equal on both sides (up to rounding): nothing to test.
             row["status"] = "the field means do not vary, so the field-level test is undefined"
             rows.append(row)
             continue
         rng = np.random.default_rng([random_state, group_identity(base)])
+        row["p_exact"] = relabellings(t_units, c_units, by_unit) <= n_permutations
         row["p_value"] = permutation_p(
             t_units, c_units, by_unit, abs(row["d_fields"]), n_permutations, rng
         )

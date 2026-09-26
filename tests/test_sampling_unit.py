@@ -134,7 +134,8 @@ def test_the_rule_asks_for_the_papers_number_of_objects():
 
 
 def test_with_fovs_like_random_objects_the_rule_keeps_its_promise():
-    objects, fovs = acquisition(field_sd=0.0, per_field=10, n_fields=80, object_sd=3.0)
+    # A mean far from zero: the JCB rule applies to non-negative measurements.
+    objects, fovs = acquisition(field_sd=0.0, per_field=10, n_fields=80, object_sd=3.0, mean=30.0)
     row = object_rule_check(objects, fovs, feature="x", targets=[0.05], n_draws=3000)
     row = row.table.iloc[0]
     assert 0.8 < row["error_ratio"] < 1.25
@@ -267,8 +268,11 @@ def test_unlabelled_objects_are_left_out_and_empty_fovs_count():
     table = fov_clustering(objects, fovs, label_col="state").table.set_index("state")
     assert set(table.index) == {"common", "rare"}
     assert table.loc["rare", "labelled"] == 90
-    assert table.loc["rare", "fovs"] == 11
-    assert table.loc["rare", "fov_incidence"] == pytest.approx(1 / 11)
+    # f9 was not labelled at all, so it was not looked at; the empty FOV was.
+    assert table.loc["rare", "fovs_acquired"] == 11
+    assert table.loc["rare", "fovs_unlabelled"] == 1
+    assert table.loc["rare", "fovs"] == 10
+    assert table.loc["rare", "fov_incidence"] == pytest.approx(1 / 10)
 
 
 def test_fov_clustering_is_deterministic():
@@ -633,8 +637,10 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
 def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
     from morphocoverage.sampling_unit import feature_ranking
 
+    # Five wells a side: 252 assignments, a floor of 2/252 (four a side give 2/70,
+    # which two tests of the readout cannot pass after the correction over four).
     objects, fovs = _technical(
-        *_two_conditions(shift=2.0, field_sd=0.3, seed=7, n_wells=4, n_fields=6)
+        *_two_conditions(shift=2.0, field_sd=0.3, seed=7, n_wells=5, n_fields=6)
     )
     result = feature_ranking(
         objects,
@@ -646,7 +652,7 @@ def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
     tests = result.tests
     assert len(tests) == 4  # two features, two repeats
     assert (tests["permutation_unit"] == "technical_repeat").all()
-    assert (tests["distinct_assignments"] == 70).all()
+    assert (tests["distinct_assignments"] == 252).all() and tests["p_exact"].all()
     x_rows, y_rows = tests[tests["feature"] == "x"], tests[tests["feature"] == "y"]
     assert x_rows["passes_gate"].all() and not y_rows["passes_gate"].any()
     assert (tests["q_value"] >= tests["p_value"]).all()
@@ -686,7 +692,8 @@ def test_feature_ranking_says_when_few_technical_repeats_cannot_pass_the_gate():
     assert not result.tests["passes_gate"].any() and result.top() == []
     text = result.summary()
     assert "No contrast passes the gate for 1 feature: x." in text
-    assert "with as few as 6 distinct assignments a p-value cannot fall below 0.17" in text
+    # Two wells a side: the observed split and its mirror, 2 of 6 assignments.
+    assert "with as few as 6 distinct assignments a p-value cannot fall below 0.33" in text
     with pytest.raises(ValueError, match="alpha"):
         feature_ranking(objects, fovs, features=["x"], control={"condition": "control"}, alpha=1)
     with pytest.raises(ValueError, match="at least one"):

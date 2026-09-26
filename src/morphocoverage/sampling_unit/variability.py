@@ -25,7 +25,10 @@ This is a description of the acquired fields. It does not say why fields
 differ (biology, density, illumination, focus, edge effects) and does not
 make neighbouring fields independent: whole-field resampling can itself be
 optimistic when neighbours are correlated (AGENTS.md section 3).
-Observations with a missing value are left out and counted. Zero-observation
+Observations with a missing value are left out, counted (``missing_values``)
+and stated in the summary. A feature that does not vary beyond rounding (a
+constant such as 0.1 leaves components of about 1e-17) is reported as
+constant, with no intraclass correlation or design effect. Zero-observation
 FOVs are acquired fields: they count in ``fovs`` and in the observations per
 acquired field, but carry no mean.
 """
@@ -42,7 +45,7 @@ from scipy import stats
 
 from .._wording import where
 from ..schema import unit_plural
-from ..statistics import nested_variance_components
+from ..statistics import nested_variance_components, spread_is_zero
 from ._common import fov_values, groups, validated
 
 UNUSUAL_Z = 1.96
@@ -75,6 +78,9 @@ class FOVVariability:
                 f"{where(group)}: {int(row['fovs'])} fields, {int(row['observations'])} {words} "
                 f"({row['observations_per_fov']:.0f} per field)."
             )
+            missing = int(row.get("missing_values") or 0)
+            if missing:
+                head += f" {words.capitalize()} with no value, left out: {missing}."
             if row["status"] != "ok":
                 lines.append(f"{head} {row['status']}.")
                 continue
@@ -137,7 +143,12 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
         sum(((f - f.mean()) ** 2).sum() for f in filled) / (observations - len(filled))
     )
     mean = float(values.mean())
-    if within > 0:
+    # Spreads that are rounding noise of zero count as zero: a constant 0.1 is constant.
+    # Judged on the object SD, since the variance components of a constant carry the
+    # cancellation noise of their sums of squares (about 1e-17 in variance units).
+    constant = total <= 0 or spread_is_zero(float(values.std(ddof=1)), values)
+    varies_within = not constant and not spread_is_zero(float(within), values)
+    if varies_within:
         for fov_row, v in zip(fov_rows, per_fov, strict=True):
             if len(v):
                 spread = within * np.sqrt(1 / len(v) - 1 / observations)
@@ -147,7 +158,7 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
                 fov_row["z"] = z
                 fov_row["unusual"] = bool(abs(z) > UNUSUAL_Z)
     scored = [r["unusual"] for r in fov_rows if r["unusual"] is not None]
-    deff = (cluster * v_fov_kept + v_obs_kept) / total if total > 0 else None
+    deff = None if constant else (cluster * v_fov_kept + v_obs_kept) / total
     row.update(
         {
             "mean": mean,
@@ -155,13 +166,13 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
             "fov_mean_sd": float(np.std([f.mean() for f in filled], ddof=1)),
             "v_fov": float(v_fov),
             "v_obs": float(v_obs),
-            "icc": v_fov_kept / total if total > 0 else None,
+            "icc": None if constant else v_fov_kept / total,
             "cluster_size": cluster,
             "design_effect": deff,
             "error_ratio": float(np.sqrt(deff)) if deff is not None else None,
             "unusual_fov_share": float(np.mean(scored)) if scored else None,
-            "anova_p": float(stats.f_oneway(*filled).pvalue) if within > 0 else None,
-            "status": "ok" if total > 0 else "the feature is constant",
+            "anova_p": float(stats.f_oneway(*filled).pvalue) if varies_within else None,
+            "status": "the feature is constant" if constant else "ok",
         }
     )
     return row, fov_rows

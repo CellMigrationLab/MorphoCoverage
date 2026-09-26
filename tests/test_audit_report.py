@@ -83,7 +83,10 @@ def _constant_field_means():
 
 def test_g5_an_undefined_field_d_gets_no_p_value():
     objects, fovs = _constant_field_means()
-    objects["x"] = np.where(objects["x"] > 10.5, 11.0, 9.0)  # field means all 10
+    # Every field holds 9 and 11, so every field mean is 10 on both sides (a perfect
+    # separation, treated means 11 against 10, is an infinite d instead: H-6).
+    above = objects["x"] > objects.groupby("condition")["x"].transform("mean")
+    objects["x"] = np.where(above, 11.0, 9.0)
     result = condition_contrast(
         objects,
         fovs,
@@ -119,8 +122,8 @@ def test_g7_the_gate_sentence_follows_the_floor():
     text = feature_ranking(
         objects, fovs, features=["y", "x"], control={"condition": "control"}, n_permutations=400
     ).summary()
-    # 70 assignments give a floor of 0.014, below the 5% gate.
-    assert "cannot fall below 0.014." in text and "cannot pass the gate" not in text
+    # 70 assignments, 4 wells a side: the split and its mirror give a floor of 2/70.
+    assert "cannot fall below 0.029." in text and "cannot pass the gate" not in text
 
 
 def test_g8_a_group_without_labels_is_not_said_to_lack_the_state():
@@ -149,7 +152,7 @@ def test_g8_a_group_without_labels_is_not_said_to_lack_the_state():
         states=[True],
         group_cols=["condition"],
     ).summary()
-    assert "condition=MOCK, unusual: no object of its 8 fields is labelled" in text
+    assert "condition=MOCK, unusual: none of the objects of its 8 fields is labelled" in text
     assert "condition=KD, unusual: not seen among 240 labelled objects in 8 fields" in text
 
 
