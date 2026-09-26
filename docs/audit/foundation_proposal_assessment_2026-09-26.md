@@ -302,3 +302,218 @@ coherent change leaves them.
 - The full test suite was run on this branch after `pip install -e ".[dev]"`:
   2092 passed, 7 warnings, in about two minutes on every CPU. No code was
   changed for this assessment.
+
+---
+
+# Part 2: what to import from *Points of Significance*
+
+**Date:** 2026-09-26, same branch, after the step 1 wording change (the
+Foundation section, the renumbered report). **Scope:** the follow-up proposal
+that, with the Foundation separated out, lists ten principles from the
+*Points of Significance* series and seven roadmap items, and adds no
+estimator. Each item was checked against what the repository already does,
+where it says so, and what a change would touch.
+
+## Verdict in one paragraph
+
+The proposal's central conclusion is right for this repository and matches
+its own rules: be clear about the population, the estimand, the type of
+uncertainty, the sampling hierarchy and the validation target before adding
+statistical machinery (AGENTS.md sections 3 and 9; `docs/project_aim.md`
+sections 5 and 18). Of the seven roadmap items, four are wording or contract
+rules that cost one document each and should be adopted (uncertainty
+semantics, benchmark governance, the within-sample / generalization /
+inference separation, and the "clusters are hypotheses" rule). Two are small
+computations on results the package already produces (base-rate reporting
+for flagged fields, a "validated across" table for protocol advice). One is
+the same front door as Part 1 (the scientific target contract) and carries
+the same decisions. The representation-robustness check is a loop over
+representations of an analysis that exists, but its "fingerprint reliability"
+column depends on the distribution criterion that is not wired in. The
+condition-contrast outcomes are the one item that changes a contract:
+outcome metrics are group-local today, and a between-group outcome needs its
+own registry, as `docs/questions.md` already lists.
+
+## Item by item
+
+### 1. Scientific target contract
+
+Same as Part 1, section 1.4: designed, not built. Two additions the new
+proposal makes are worth taking with it. **Weighting / estimand:** the
+package already has both weightings and states them per function
+(`ScalarPrecisionStrategy` on the object-weighted mean; `inspect_fovs` on a
+FOV-weighted summary; `SupportNoveltyStrategy` reports object-weighted and
+FOV-weighted fractions), but nothing declares once which estimand the
+microscopist means, and `RelativeMeanError` judges one of them. A `Setup`
+field would make that explicit. **Required resolution / prevalence:**
+`RareTarget` already requires `phenotype` (the definition of the state) and
+prevalence or incidence, so the contract exists for the rare component and
+is what the front door should reuse rather than redefine.
+
+### 2. Uncertainty semantics
+
+Mostly present in the sentences, absent as a rule. The next-FOV bound is
+printed as "nominal 95% upper bound ... approximate: the leave-one-FOV-out
+outcomes share their reference FOVs" (`sufficiency.py`); reliability prints
+"± across hold-outs" (`reliability.py`); the rule-of-three line says "if FOVs
+are independent, representative draws"; calibration says how often a stop
+was premature "in held-back fields". The roadmap's rule 2 requires a unit on
+every number. What is missing is the one-line contract the proposal states,
+"every interval, bound or percentage says what it covers and at what unit",
+in AGENTS.md section 3, and a short table in `docs/scientific_contract.md`
+naming the five kinds (parameter confidence, next-field prediction,
+population tolerance, empirical calibration, protocol generalization) with
+the function that produces each. The **FOV-to-FOV tolerance diagnostic**
+("representative fields in this sample typically span X to Y") is one
+sentence from quantities `fov_variability` already computes (the per-field
+means in `fovs`, the SD of field means in `groups`); as a diagnostic it can
+join the Foundation without a threshold. It should not be a stopping
+criterion, as the proposal says.
+
+### 3. Base-rate-aware rare-state reporting
+
+The inputs exist and are already adjacent in the report: `representation_control`
+gives the positive-control detection rate and the reference false-alarm rate
+per field; `_detection_adjusted_bounds` divides the unseen-state bound by the
+detection rate; the profile line says how many "new" fields are expected by
+chance at the false-alarm rate (audit F12). The positive predictive value at
+a declared incidence is one formula on those three numbers, and the
+incidence is `RareTarget.fov_incidence`, which the workflows do not yet take.
+Recommended, with two cautions to print with it: the false-alarm rate is
+measured on declared reference fields with this definition of new, so the
+PPV holds for fields flagged by that definition, not for any rare biology;
+and it is a per-field statement, so it answers "how many flagged fields are
+the target" and not "how many target objects exist".
+
+### 4. Representation robustness
+
+`docs/project_aim.md` names it (scenario 14, "representation disagreement";
+success criterion 5), and every analysis takes explicit `feature_cols`, so
+the table the proposal sketches is a loop: `representation_control` per
+representation for the detection and false-alarm columns, `sampling_reliability`
+with a distribution criterion for the "fingerprint reliability" column
+(computable via `CovarianceError` and the other multivariate outcomes, but
+subject to the reservoir ceiling of Part 1, section 1.5). `transforms.PCA`
+exists for the PCA rows. The "sampling conclusion is robust between 10 and
+30 PCs" sentence is a comparison across rows and needs no new statistic. The
+rule "unsupervised clusters are hypotheses about phenotype structure, not
+biological states by default" fits AGENTS.md section 3 beside "do not equate
+low expected novelty with proof that no rare biology exists"; the package
+has no clustering method of its own (no scikit-learn by design), and
+`fov_clustering` takes labels from any source, so the rule governs how such
+labels are worded, which `docs/objects_or_fields.md` already does for the
+unusual-object proxy.
+
+### 5. Within-sample coverage versus generalization versus inference
+
+Already the repository's structure, stated in three places: the "Retrospective
+representability is not the prospective sampling requirement" distinction
+and the per-moment "may not use" column in `docs/questions.md`;
+`protocol_reliability` counting by independent unit with a
+leave-one-unit-out check; the project boundary that condition-level
+inference is downstream (AGENTS.md section 4; `docs/project_aim.md` section
+8). The proposal's three headings are a clearer statement of the same thing
+and belong in `docs/scientific_contract.md` as one short section, with the
+hierarchy diagram of Part 1.
+
+### 6. Transportability of protocol recommendations
+
+Partly present: `protocol_reliability` reports per stratum and per independent
+unit and validates leave-one-unit-out; the report's standing note says a
+field count "is not a protocol until it holds on samples it was not chosen
+on"; `docs/questions.md` P2 is marked partial for lack of five independent
+units. The "validated across" table is derivable from the declared
+`SamplingHierarchy` (fov, sample, technical levels, biological repeat) and
+the data: a level is "yes" when the protocol curve spans more than one unit
+of it, "not assessed" when the level is not declared. Days, preparations and
+microscopes are not columns in the MorphoBricks contract, so they would print
+"not assessed" until a user declares them as technical levels, which the
+hierarchy already allows. Cheap, and it turns P2's caveat into a visible
+scope statement. It also states, as the proposal says, what future benchmark
+datasets must vary.
+
+### 7. Benchmark governance
+
+The mechanism exists (`BenchmarkRegistry` roles, `tuned_on`, `check_tuning`
+refusing a run tuned on held-out data; `docs/benchmarking.md`). The rule the
+proposal adds, "a dataset ceases to be held out for a choice once its
+results influence that choice", is not written anywhere and cannot be
+enforced by code, since the registry cannot see why a setting was chosen.
+It belongs in AGENTS.md section 9 and `docs/benchmarking.md` as a process
+rule, with the consequence spelled out: idr0139 remains held out for the
+settings frozen from idr0028 before entry 7, and becomes development
+evidence for any epsilon, transform, estimator, representation or tolerance
+changed because of it. The audit's third pass records that no setting was
+chosen on idr0139, so the rule costs nothing today and protects the next
+dataset.
+
+### 8. Influence versus abnormality
+
+Already solved as the proposal says: `inspect_fovs` gives one reason per
+line with its numbers, no combined score, and never calls a field an
+artifact (`docs/questions.md` R5). The heading is "Which fields should I
+look at?", which is already the neutral wording; no rename is needed.
+
+### 9. Condition-contrast preservation outcomes
+
+The one item that changes a contract. `OutcomeMetric.evaluate(full, stopped)`
+scores a stop against the full acquisition **of the same analysis group**
+(`outcomes.py`), and every retrospective analysis is group-local by rule
+(AGENTS.md section 3, "never pool groups silently"). A "does the treatment
+difference survive `k` fields" outcome compares two groups, so it needs a
+multi-group outcome contract with its own registry of scenarios before it
+is packaged; `docs/questions.md` lists exactly this as open work item 2, and
+the analysis exists as `data/crick_idr/jcs_effect_fovs.py` (entry 9: the
+JCS ranking at 250 objects is right 81% of the time with random objects and
+55% with whole fields). The proposal's four levels (mean difference,
+distribution difference, state-frequency difference, treatment ranking) are
+the right target list; today the script covers the mean difference and the
+ranking. AGENTS.md section 4 already allows all four as **retrospective
+benchmark outcomes**, so the boundary question of Part 1 (decision 2) is
+settled in the proposal's favour as long as they stay out of REPORT and
+ONLINE.
+
+### 10. Repeated monitoring online
+
+The issue is known and half-worded. `docs/proposals/candidate_estimators_roadmap.md`
+section 11.2 states that repeated checking of fixed-sample intervals can
+invalidate nominal coverage and defers confidence sequences; `docs/online.md`
+says a novelty-bound stop after `k` quiet fields is `1 - 0.05 ** (1 / k)`
+whatever the data and that premature stops are the retrospective
+calibration's business; the sufficiency report prints "nominal". What is
+missing is the two-term rule the proposal gives, "nominal per-look bound"
+versus "empirically calibrated stopping risk", applied to every ONLINE
+sentence, and the calibration of the same `config_id` attached to the live
+result (`docs/questions.md` O6, partial). Agreed that confidence sequences
+should not move up the roadmap; the wording rule and O6 are what make the
+current semantics honest.
+
+## What to put on the roadmap, and in what form
+
+| Proposed item | Form | Touches | Needs a decision |
+|---|---|---|---|
+| 1. Scientific target contract | code: `Setup` fields for the estimand, a distribution criterion and a `RareTarget`; the report echoes the declaration | `workflows/setup.py`, `workflows/retrospective.py` | Part 1 decisions 1 and 3 |
+| 2. Uncertainty semantics | rule in AGENTS.md section 3; a five-kind table in `docs/scientific_contract.md`; one tolerance sentence in the Foundation | docs; `sampling_unit/variability.py` summary | no |
+| 3. Base-rate reporting | one PPV line in the report when a `RareTarget` incidence is declared | `retrospective/report.py`, `Setup` | no, once item 1 gives the incidence |
+| 4. Representation robustness | a workflow helper that runs the report's control check over several representations and tabulates | `workflows/` | no; the fingerprint column waits on item 1 and deeper data |
+| 5. Three-level separation | one section in `docs/scientific_contract.md` | docs | no |
+| 6. Transportability table | a "validated across" block in `protocol_reliability`'s summary from the declared hierarchy | `retrospective/protocol.py` | no |
+| 7. Benchmark governance | a process rule in AGENTS.md section 9 and `docs/benchmarking.md` | docs | no |
+| 9. Condition-contrast outcomes | a multi-group outcome contract and registry, then metrics for the four levels, then `jcs_effect_fovs.py` packaged against them | `outcomes.py`, `tests/contract_registry.py`, new module | yes: a new contract (AGENTS.md section 15) |
+| 10. Online wording | the two-term rule in `docs/online.md` and every ONLINE summary; O6 | `results.py`, `online.py`, docs | no |
+
+Items 2, 5, 7 and 10 are wording and could ride one documentation change.
+Items 3 and 6 are small computations on existing results. Item 4 is a
+helper. Items 1 and 9 are the real work, and item 1 is the same work as Part
+1's step 2.
+
+## The test the proposal ends with
+
+"Every proposed method should have to answer which microscopist question it
+improves that the existing simpler tools cannot answer reliably" is already
+the repository's rule in other words (AGENTS.md section 3, "permit null
+results"; `docs/project_aim.md` section 14, baselines every candidate must
+beat or justify exceeding; section 18, falsification criteria). Writing it
+as one sentence in AGENTS.md section 20 ("Adding or swapping a strategy"),
+next to the contract-test requirement, would make it the first question a
+contributor answers.
