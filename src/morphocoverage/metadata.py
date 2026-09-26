@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Hashable, Iterable, Sequence
 
+import numpy as np
 import pandas as pd
 
 MORPHOBRICKS_SHARED_COLUMNS = (
@@ -41,15 +42,50 @@ MORPHOBRICKS_FOV_CANDIDATES = ("position_id", "image_file", "fov_id")
 WITHIN_FOV_METADATA_COLUMNS = ("z", "z0", "z1", "c", "t")
 
 
+def column_names(columns: object, name: str) -> tuple | None:
+    """``columns`` read once, as a tuple of column names; ``None`` stays ``None``.
+
+    Any iterable of names works (a list, a generator, a ``pd.Index``, a numpy
+    array), and is read exactly once, so a generator is not consumed by a first
+    look and then seen as empty (which would pool every group). A single string
+    is refused rather than read letter by letter, as is anything that is not a
+    collection of hashable names.
+    """
+    if columns is None:
+        return None
+    if isinstance(columns, str):
+        raise TypeError(
+            f"{name} must be a sequence of column names, not a string; "
+            f"pass a list: {name}=[{columns!r}]"
+        )
+    if not isinstance(columns, Iterable):
+        raise TypeError(f"{name} must be a sequence of column names, not {type(columns).__name__}")
+    # numpy names (from an array) as Python ones, so group labels print as plain names.
+    names = tuple(n.item() if isinstance(n, np.generic) else n for n in columns)
+    unusable = [n for n in names if not isinstance(n, Hashable)]
+    if unusable:
+        raise TypeError(f"{name} must hold column names; {unusable[0]!r} cannot be one")
+    return names
+
+
 def empty_values(values: pd.Series) -> pd.Series:
     """Which entries hold no value: missing, or text that is blank (``""``, ``"  "``).
 
-    Vectorised, and only text columns are searched for blanks, since the
-    validator runs this on every identity column.
+    Vectorised where it can be, since the validator runs this on every identity
+    column. Blanks are searched for in text, object and categorical columns;
+    other values in an object column (numbers, dates, booleans) are never blank.
     """
     missing = values.isna()
+    if isinstance(values.dtype, pd.CategoricalDtype):
+        blank = [c for c in values.cat.categories if isinstance(c, str) and not c.strip()]
+        return missing | values.isin(blank) if blank else missing
     if values.dtype == object or pd.api.types.is_string_dtype(values.dtype):
-        blank = values.str.strip().eq("")  # NaN for entries that are not text
+        try:
+            blank = values.str.strip().eq("")  # NaN for entries that are not text
+        except AttributeError:
+            # An object column with no text at all (dates, Python ints, booleans):
+            # pandas refuses the text accessor, so the entries are tested one by one.
+            blank = values.map(lambda value: isinstance(value, str) and not value.strip())
         missing = missing | blank.fillna(False).astype(bool)
     return missing
 
@@ -89,19 +125,32 @@ def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str,
     return tables
 
 
+def _squashed(name: str) -> str:
+    """Lowercase, no separators, no plural ``s``: ``Position_IDs`` becomes ``positionid``."""
+    return re.sub(r"[\s_-]+", "", name.lower()).removesuffix("s")
+
+
+# The canonical names by their squashed form, for ``canonical_spelling``.
+_CANONICAL_BY_SQUASHED = {
+    _squashed(name): name for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
+}
+
+
 def canonical_spelling(column: object) -> str | None:
     """The MorphoBricks column that ``column`` misspells, or ``None``.
 
-    A near miss differs only in case, in spaces or hyphens for underscores, in
-    surrounding whitespace, or in a byte-order mark that a spreadsheet wrote
-    before the first header (``Repeat``, ``technical repeat``, ``condition ``,
-    ``\ufeffcondition``). The exact name is not a near miss.
+    A near miss differs only in case, in spaces, hyphens, camelCase or no
+    separator for underscores, in a plural ``s``, in surrounding whitespace,
+    or in a byte-order mark that a spreadsheet wrote before the first header
+    (``Repeat``, ``technical repeat``, ``technicalRepeat``, ``PositionID``,
+    ``Conditions``, ``condition ``, ``\ufeffcondition``). Such a column would
+    otherwise be ignored and its groups pooled without a word. The exact name
+    is not a near miss.
     """
     if not isinstance(column, str):
         return None
-    normalised = re.sub(r"[\s-]+", "_", column.replace("\ufeff", "").strip().lower())
-    canonical = {*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES}
-    return normalised if normalised in canonical and normalised != column else None
+    meant = _CANONICAL_BY_SQUASHED.get(_squashed(column.replace("\ufeff", "")))
+    return meant if meant is not None and meant != column else None
 
 
 def check_canonical_spellings(
@@ -184,9 +233,7 @@ def resolve_group_cols(
 ) -> tuple[str, ...]:
     """Resolve analysis groups using canonical MorphoBricks columns when implicit."""
     if group_cols is not None:
-        if isinstance(group_cols, str):
-            raise TypeError("group_cols must be a sequence of column names, not a string")
-        return tuple(group_cols)
+        return column_names(group_cols, "group_cols")
 
     return tuple(
         column
