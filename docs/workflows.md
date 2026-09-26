@@ -133,16 +133,22 @@ figures = plots(objects, fovs, setup, folder="figures")   # the readout by defau
 figures = plots(objects, fovs, setup, features=["YAPTAZ_Ratio", "Nuclei_Area"])
 ```
 
-PlotsOfData-style figures (`morphocoverage.plots`): per feature and
-condition, every object is a jittered point coloured by repeat, the median
-(or `summary="mean"`) is drawn per condition, and its 95% interval comes
-from resampling whole fields, not objects, so it reflects how the data were
-sampled. More than 12 conditions are split over several figures, more than 8
-repeats share one grey and the legend says so, and more than 24 features
-raise so that you choose; all three are arguments (`max_conditions`,
-`max_repeats`, `max_features`). The features must be declared in the setup,
-and the plots use the same normalised values as the report when
-`normalize` is set. With `folder`, each figure is saved as a PNG.
+PlotsOfData-style figures (`morphocoverage.plots`), one per feature:
+within each condition the biological repeats (the `repeat` column) sit side
+by side, labelled above their cluster, so that a difference between
+conditions can be read against the spread between repeats. Every object is
+a jittered point coloured by technical repeat (`technical_col`, by default
+the group column below the repeat: a well is a technical repeat, never a
+biological one), and each biological repeat's median (or `summary="mean"`)
+carries its 95% interval from resampling that repeat's whole fields, not
+objects, so it reflects how the data were sampled. More than 12 conditions
+are split over several figures, more than 8 biological repeats are pooled
+into one cluster per condition and the title says so, more than 8
+technical repeats go uncoloured with a note, and more than 24 features
+raise so that you choose; all four are arguments (`max_conditions`,
+`max_repeats`, `max_technical`, `max_features`). The features must be
+declared in the setup, and the plots use the same normalised values as the
+report when `normalize` is set. With `folder`, each figure is saved as a PNG.
 
 When `control` names a condition and the FOV table holds other conditions,
 the report also answers question 9, "Do the conditions differ, and how

@@ -7,6 +7,7 @@ matplotlib.use("Agg")
 import numpy as np
 import pandas as pd
 import pytest
+from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
 
 from morphocoverage.plots import plots_of_data
@@ -49,19 +50,35 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     ax = figure.axes[0]
     assert [t.get_text() for t in ax.get_xticklabels()] == ["c0", "c1"]
     assert len(ax.collections) >= 4  # points per condition and repeat, plus legend handles
-    assert len(ax.patches) == 2  # one interval box per condition
-    assert "resampling whole fields" in ax.get_title()
+    # Per condition and repeat cluster: the interval bar, its caps and the median line.
+    assert sum(isinstance(c, LineCollection) for c in ax.collections) == 12
+    title = ax.get_title(loc="left")
+    assert "resampling whole fields" in title
+    assert "biological repeats (repeat) side by side" in title
+    # Repeats are labelled above their clusters; points are coloured by the well.
+    assert sorted(t.get_text() for t in ax.texts) == ["r0", "r0", "r1", "r1"]
+    legend = ax.get_legend()
+    assert legend.get_title().get_text().startswith("technical repeat (well)")
+    assert [t.get_text() for t in legend.get_texts()] == ["1st well"]
 
 
-def test_many_conditions_split_and_many_repeats_lose_their_colours():
+def test_many_conditions_split_and_many_repeats_are_pooled():
     objects, fovs = _tables(n_conditions=14, n_repeats=1, n_fields=2)
     figures = plots_of_data(objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS)
     assert len(figures["x"]) == 2
-    assert "conditions 1 to 12 of 14" in figures["x"][0].axes[0].get_title()
+    assert "conditions 1 to 12 of 14" in figures["x"][0].axes[0].get_title(loc="left")
     objects, fovs = _tables(n_conditions=1, n_repeats=9, n_fields=2)
     figures = plots_of_data(objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS)
-    texts = [t.get_text() for t in figures["x"][0].axes[0].texts]
-    assert any("9 repeats (more than 8)" in t for t in texts)
+    ax = figures["x"][0].axes[0]
+    assert "biological repeats (repeat) pooled, more than the 8" in ax.get_title(loc="left")
+    assert sum(isinstance(c, LineCollection) for c in ax.collections) == 3 and not ax.texts
+    # Too many technical replicates to colour: a note instead of a legend.
+    wells = {name: f"w{i % 9}" for i, name in enumerate(fovs["image_file"])}
+    objects["well"], fovs["well"] = objects["image_file"].map(wells), fovs["image_file"].map(wells)
+    figures = plots_of_data(objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS)
+    ax = figures["x"][0].axes[0]
+    assert ax.get_legend() is None
+    assert any("9 technical repeats (well)" in t.get_text() for t in ax.texts)
 
 
 def test_limits_and_declarations_are_enforced():

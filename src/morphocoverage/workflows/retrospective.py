@@ -549,9 +549,11 @@ def plots(
 ) -> dict[str, list[Figure]]:
     """PlotsOfData-style figures of the readout (or ``features``), on the prepared table.
 
-    Every object is a point coloured by repeat, with the median per condition
-    and its interval from resampling whole fields (``plots.plots_of_data``,
-    which also takes ``settings`` such as ``summary`` or ``max_conditions``).
+    Within each condition the biological repeats sit side by side; every
+    object is a point coloured by technical repeat (a well), with each
+    biological repeat's median and its
+    interval from resampling whole fields (``plots.plots_of_data``, which
+    also takes ``settings`` such as ``summary`` or ``max_conditions``).
     With ``folder`` each figure is also saved there as
     ``<feature>[_<part>].png``. Returns the figures by feature.
     """
