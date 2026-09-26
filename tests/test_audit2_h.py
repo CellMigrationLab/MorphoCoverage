@@ -303,7 +303,7 @@ def test_h10_pooled_repeats_resample_the_repeats_first():
         .axes[0]
         .get_title(loc="left")
     )
-    assert "resampling biological repeats, then their technical repeats" in title
+    assert "resampling biological repeats, then their whole technical repeats" in title
 
 
 def test_h11_jcb_rules_on_negative_values_are_not_applicable():

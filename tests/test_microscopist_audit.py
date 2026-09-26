@@ -151,7 +151,7 @@ def test_protocol_names_samples_capped_by_their_reference_instead_of_needing_mor
     assert list(difficulty["ceiling_below_threshold"]) == [True, True, False]
     text = result.summary()
     assert "Needs more fields than could be judged: B1, P1 (more than 18)." in text
-    assert "The held-back fields could not judge this for 2 of 3 samples" in text
+    assert "For 2 of 3 samples even every available field together was enough in fewer" in text
     assert "A1, P1 (all fields enough in 30% of hold-outs); A2, P1" in text
     assert "A1, P1 (more than 18)" not in text
     assert "5 fields:" in text and "1 fields" not in text
@@ -255,7 +255,7 @@ def test_order_efficiency_states_the_runs_that_never_reached_adequacy(gradient_r
     table = result.table.set_index("order")
     text = result.summary()
     for order, row in table.iterrows():
-        if row["median_fovs"] > row["stream_fovs"] or row["reached"] == 1:
+        if pd.isna(row["median_fovs"]) or row["reached"] == 1:
             continue
         share = f"{100 * (1 - row['reached']):.0f}% of runs"
         assert f"never within the {row['stream_fovs']} fields in {share}" in text, order
@@ -340,7 +340,10 @@ def test_a_state_seen_in_two_neighbouring_fovs_is_reported_as_seen_in_few():
     row = report.next_fov.iloc[0]
     assert row["fovs_with_new"] == 0 and row["fovs_with_state_in_few"] == 2
     text = report.summary()
-    assert "Seen in few FOVs: 2 of 40 FOVs hold a state that fewer than 3 other FOVs show" in text
+    assert (
+        "Seen in few FOVs: 2 of 40 FOVs hold a state that other FOVs show too, but fewer "
+        "than 3 of them" in text
+    )
     with pytest.raises(ValueError, match="few_fovs must exceed"):
         sufficiency_report(
             built.objects,

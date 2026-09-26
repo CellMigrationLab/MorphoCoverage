@@ -145,8 +145,10 @@ a jittered point coloured by technical repeat (`technical_col`, by default
 the MorphoBricks `technical_repeat` column, else the group column below the
 repeat: a well is a technical repeat, never a biological one), and each
 biological repeat's median (or `summary="mean"`) carries its 95% interval
-from resampling that repeat's technical repeats and then their whole fields
-(whole fields alone when there is one technical repeat), never objects, so
+from resampling that repeat's whole technical repeats, each with its fields
+as acquired (Ren et al. 2010; whole fields alone when there is one technical
+repeat; with only 2 or 3 technical repeats no resampling gives a reliable
+interval, and the title says so), never objects, so
 it reflects how the data were sampled: a well-to-well shift widens the
 interval instead of passing for field-to-field noise. More than 12 conditions
 are split over several figures, more than 8 biological repeats are pooled

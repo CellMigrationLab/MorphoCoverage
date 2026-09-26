@@ -157,7 +157,9 @@ def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str
                 "enough_after_fovs": row["stop_fov_median"],
                 "enough_after_p10": row["stop_fov_p10"],
                 "enough_after_p90": row["stop_fov_p90"],
-                "fovs_beyond_enough": row["spare_fovs_median"],
+                # FOVs imaged beyond the point of enough exist only when the acquired
+                # FOVs are enough: a criterion met early and lost has none.
+                "fovs_beyond_enough": row["spare_fovs_median"] if enough == "yes" else np.nan,
                 "orders": row["orders"],
                 "orders_never_enough": row["never_stopped"],
                 "answer": _enough_answer(row, row),
@@ -169,7 +171,13 @@ def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str
 def _seen_in_few(
     novelty: SupportNoveltyEstimator, group_data: ValidatedInput, few_fovs: int | None
 ) -> dict[str, Any]:
-    """FOVs holding a state that fewer than ``few_fovs`` other FOVs show, or the reason not."""
+    """FOVs holding a state that some, but fewer than ``few_fovs``, other FOVs show; or why not.
+
+    Only states that are not new: an observation counts when it belongs to a
+    state new under ``min_other_fovs=few_fovs`` but is itself not new under the
+    novelty definition, so the FOVs already reported as new (a state in one
+    FOV) are not counted again here, nor pooled into the planning incidence.
+    """
     if few_fovs is None:
         return {}
     looser = replace(novelty, min_other_fovs=few_fovs)
@@ -177,7 +185,13 @@ def _seen_in_few(
     quantity = evidence.quantities[FOV_QUANTITY]
     if quantity.availability is not Availability.AVAILABLE:
         return {"few_fovs": few_fovs, "fovs_with_state_in_few": None, "few_reason": quantity.reason}
-    seen = int(evidence.diagnostics["novel_fovs"])
+    in_few = looser.novel_observation_flags(group_data, new_states_only=True)
+    new = novelty.novel_observation_flags(group_data)
+    if in_few is None or new is None:
+        reason = "the leave-one-FOV-out flags of the observations are not available"
+        return {"few_fovs": few_fovs, "fovs_with_state_in_few": None, "few_reason": reason}
+    positions = fov_positions(group_data, group_data.fovs)
+    seen = int(np.unique(positions[in_few & ~new]).size)
     k = len(group_data.fovs)
     # The fewest FOVs a state can be in and still count as recurrent (not new).
     fewest = novelty.min_other_fovs + 1
@@ -302,6 +316,24 @@ def _next_fov_tables(
     return table, new_observations
 
 
+def _check_distinct(strategies: Sequence[SamplingStrategy], added: bool) -> None:
+    """Refuse a criterion passed twice: its rows could not be told apart in the tables."""
+    seen: dict[tuple[str, str], int] = {}
+    for position, strategy in enumerate(strategies):
+        key = (strategy.name, strategy.config_id)
+        if key in seen:
+            automatic = added and position == len(strategies) - 1
+            raise ValueError(
+                f"the criterion {strategy.name!r} (config_id {strategy.config_id}) is "
+                + (
+                    "the one novelty_target adds: drop it from strategies, or drop novelty_target"
+                    if automatic
+                    else "passed twice in strategies: pass each criterion once"
+                )
+            )
+        seen[key] = position
+
+
 def _check_report_inputs(
     strategies: Sequence[SamplingStrategy],
     orders: Sequence[AcquisitionOrder],
@@ -357,7 +389,8 @@ def sufficiency_report(
     record.
 
     ``few_fovs`` (with ``novelty``) also reports how many FOVs hold a state
-    that fewer than ``few_fovs`` other FOVs show: a state recurring in two
+    that other FOVs show too, but fewer than ``few_fovs`` of them (FOVs
+    already counted as new are left out): a state recurring in two
     neighbouring FOVs is not new to the next FOV, yet is not established
     either, and would otherwise go unmentioned. It is the user's choice of
     "few" and has no default.
@@ -366,7 +399,8 @@ def sufficiency_report(
     With ``novelty_target``, the report also says how many more FOVs are
     needed before the chance of something new can be claimed below the target,
     and adds that claim as a criterion for "enough" (a ``SupportNoveltyStrategy``
-    on the upper bound). ``calibration`` checks the prediction on this
+    on the upper bound; a criterion passed twice, or equal to that one, is
+    refused). ``calibration`` checks the prediction on this
     dataset by shuffling. ``novelty_cols`` (a subset of ``feature_cols``) are
     the columns "new" is judged on, when they differ from the columns the
     rules read: for example the rules on a readout, novelty on the features it
@@ -405,6 +439,7 @@ def sufficiency_report(
                 novelty.confidence,
             )
         )
+    _check_distinct([*strategies, *novelty_rules], added=bool(novelty_rules))
     if acquisition_order_col is None:
         if any(order.kind == "recorded" for order in orders):
             raise ValueError("the recorded order needs acquisition_order_col")

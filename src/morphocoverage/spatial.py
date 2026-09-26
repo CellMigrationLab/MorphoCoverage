@@ -47,6 +47,12 @@ def empirical_semivariogram(
         raise ValueError("values and coords need the same number (at least 2) of rows")
     if np.isnan(values).any() or np.isnan(coords).any():
         raise ValueError("values and coords must not contain missing values")
+    # An infinite coordinate or value would drop its pairs from every bin without a word.
+    if np.isinf(values).any() or np.isinf(coords).any():
+        raise ValueError(
+            "values and coords must be finite: an infinite stage coordinate or value has no "
+            "distance to the other FOVs; correct or drop that FOV"
+        )
     if edges.ndim != 1 or len(edges) < 2 or np.any(np.diff(edges) <= 0) or edges[0] < 0:
         raise ValueError("bin_edges must be at least two increasing non-negative distances")
     lags = distance.pdist(coords)

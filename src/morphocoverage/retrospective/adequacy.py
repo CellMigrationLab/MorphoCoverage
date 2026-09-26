@@ -32,17 +32,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._text import rows_of, where
+from ._text import order_phrase, rows_of, where
 from .criteria import Preservation
 from .replay import ReplayResult
 
 ALL_CRITERIA = "all criteria"
 _STOP = "stop"
-_ORDER_WORDS = {
-    "recorded": "In the recorded order",
-    "permuted": "In random orders",
-    "dispersed": "Spreading the same positions out",
-}
 _RUN_KEYS = ("split", "order_id")
 
 
@@ -116,8 +111,10 @@ class AdequacyResult:
     ``apparent`` has one row per group, split, order and strategy
     (``first_apparent``, ``sustained_apparent``); ``realized`` one row per
     group, split, order and criterion, including ``ALL_CRITERIA``
-    (``first_realized``, ``sustained_realized``). Both carry ``stream_fovs``,
-    the most FOVs the replay could reveal.
+    (``first_realized``, ``sustained_realized``, and ``judged_fovs``, the
+    number of prefixes whose outcome was not undefined: 0 when the criterion
+    could never be judged, which is not the same as never being preserved).
+    Both carry ``stream_fovs``, the most FOVs the replay could reveal.
     """
 
     apparent: pd.DataFrame
@@ -207,6 +204,7 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
                     "criterion": criterion,
                     "first_realized": first_realized_adequacy(steps, statuses),
                     "sustained_realized": sustained_realized_adequacy(steps, statuses),
+                    "judged_fovs": sum(s != Preservation.UNDEFINED.value for s in statuses),
                     "stream_fovs": stream,
                 }
             )
@@ -218,7 +216,7 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
     realized_table = pd.DataFrame(
         realized,
         columns=[*runs, "order", "criterion", "first_realized", "sustained_realized"]
-        + ["stream_fovs"],
+        + ["judged_fovs", "stream_fovs"],
     )
     for table, columns in (
         (apparent_table, point_columns),
@@ -258,12 +256,47 @@ def _tail_point(values: pd.Series, streams: pd.Series) -> str:
     return f"by field {int(tail)} in 90% of runs"
 
 
-def _at(point: str) -> str:
-    return point if point.startswith("not") else f"at {point}"
+def _reached(point: str, reached: str, missed: str) -> str:
+    """``reached`` followed by the point, or ``missed`` in its place when it was not reached:
+    "first preserved at field 3", "not preserved within the fields available (up to 11) ..."."""
+    if point.startswith("not"):
+        return f"{missed} {point.removeprefix('not ')}"
+    return f"{reached} {point}"
 
 
-def _from(point: str) -> str:
-    return point if point.startswith("not") else f"from {point}"
+def _unjudged(rows: pd.DataFrame) -> pd.Series:
+    """Runs in which no prefix could be judged (every outcome undefined)."""
+    if "judged_fovs" not in rows.columns:
+        return pd.Series(False, index=rows.index)
+    return rows["judged_fovs"].fillna(0).astype(int).eq(0)
+
+
+def _realized_sentence(rows: pd.DataFrame) -> str:
+    """When everything wanted was first, and reliably, preserved over the judged runs."""
+    unjudged = _unjudged(rows)
+    if unjudged.all():
+        return (
+            "judged on held-back fields, what you wanted could not be judged at any field count "
+            "(the outcome was undefined in every run)."
+        )
+    rows = rows[~unjudged]
+    stream = rows["stream_fovs"]
+    first = _median_point(rows["first_realized"], stream)
+    lasting = _median_point(rows["sustained_realized"], stream)
+    tail = _tail_point(rows["sustained_realized"], stream)
+    if first.startswith("not"):
+        text = f"everything you wanted was not preserved {first.removeprefix('not ')}"
+    else:
+        text = (
+            f"everything you wanted was first preserved at {first} and "
+            f"{_reached(lasting, 'reliably from', 'not reliably')}"
+        )
+    skipped = (
+        f"; {int(unjudged.sum())} of {len(unjudged)} runs could not be judged and are left out"
+        if unjudged.any()
+        else ""
+    )
+    return f"judged on held-back fields, {text} (medians; {tail}{skipped})."
 
 
 def adequacy_summary(result: AdequacyResult) -> str:
@@ -279,31 +312,29 @@ def adequacy_summary(result: AdequacyResult) -> str:
         apparent, realized = rows_of(result.apparent, group), rows_of(result.realized, group)
         lines = [f"{where(group)}: when was it enough? (medians over hold-outs and orders)"]
         for order, rows in realized[realized["criterion"] == ALL_CRITERIA].groupby("order"):
-            stream = rows["stream_fovs"]
-            first = _at(_median_point(rows["first_realized"], stream))
-            lasting = _from(_median_point(rows["sustained_realized"], stream))
-            tail = _tail_point(rows["sustained_realized"], stream)
-            lines.append(
-                f"  {_ORDER_WORDS.get(order, order)}: judged on held-back fields, everything "
-                f"you wanted was first preserved {first} and reliably {lasting} (medians; "
-                f"{tail})."
-            )
+            lines.append(f"  {order_phrase(order, capital=True)}: {_realized_sentence(rows)}")
             if len(labels) > 1:
                 for criterion, own in realized[
                     (realized["order"] == order) & (realized["criterion"] != ALL_CRITERIA)
                 ].groupby("criterion", sort=False):
-                    lines.append(
-                        f"    {labels.get(criterion, criterion)}: reliably "
-                        f"{_from(_median_point(own['sustained_realized'], own['stream_fovs']))}."
-                    )
+                    label = labels.get(criterion, criterion)
+                    judged = own[~_unjudged(own)]
+                    if judged.empty:
+                        lines.append(f"    {label}: could not be judged in any run.")
+                        continue
+                    point = _median_point(judged["sustained_realized"], judged["stream_fovs"])
+                    reached = _reached(point, "reliably from", "not reliably")
+                    lines.append(f"    {label}: {reached}.")
             for config_id, own in apparent[apparent["order"] == order].groupby("config_id"):
                 name = names.get(config_id, own["strategy"].iloc[0])
-                first = _at(_median_point(own["first_apparent"], own["stream_fovs"]))
-                lasting = _from(_median_point(own["sustained_apparent"], own["stream_fovs"]))
-                lines.append(
-                    f"    {name} would have first said stop {first}, and kept saying stop "
-                    f"{lasting}."
-                )
+                first = _median_point(own["first_apparent"], own["stream_fovs"])
+                lasting = _median_point(own["sustained_apparent"], own["stream_fovs"])
+                said = _reached(first, "would have first said stop at", "would not have said stop")
+                if not first.startswith("not"):
+                    said += ", and " + _reached(
+                        lasting, "kept saying stop from", "not kept saying stop"
+                    )
+                lines.append(f"    {name} {said}.")
         lines.append(
             "  'Reliably' means every later field count, up to the last available field, also "
             "preserved it; each hold-out is a different set of held-back fields."

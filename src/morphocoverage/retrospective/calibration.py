@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
-from ._text import fields, percent, where
+from ._text import fields, order_phrase, percent, where
 from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy, run_decisions
 from .criteria import Preservation
 from .replay import ReplayResult
@@ -168,13 +168,6 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=[*groups, *SUMMARY_COLUMNS])
 
 
-_ORDER_WORDS = {
-    "recorded": "in the recorded order",
-    "permuted": "in random orders",
-    "dispersed": "spreading the same positions out",
-}
-
-
 def calibration_summary(result: StoppingCalibration) -> str:
     """ "If you had let this rule stop the acquisition" in sentences."""
     keys = list(result.group_cols)
@@ -196,13 +189,13 @@ def calibration_summary(result: StoppingCalibration) -> str:
                         "before deciding"
                     )
                 lines.append(
-                    f"  {_ORDER_WORDS.get(order, order)}: it never stopped within the "
+                    f"  {order_phrase(order)}: it never stopped within the "
                     f"{first['stream_fovs']} fields available ({first['runs']} acquisitions"
                     f"{short})."
                 )
             else:
                 lines.append(
-                    f"  {_ORDER_WORDS.get(order, order)}: it stopped in "
+                    f"  {order_phrase(order)}: it stopped in "
                     f"{percent(first['stopped'])} of {first['runs']} acquisitions, after a "
                     f"median of {fields(first['median_stop_fovs'])}."
                 )
