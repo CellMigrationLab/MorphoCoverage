@@ -1,5 +1,21 @@
 # Assessment: making "why FOVs matter" the foundation instead of question R0
 
+> **Status (2026-09-26, later the same day).** This is a dated record of the
+> assessment as written; the "what exists" statements describe the code
+> before the work it recommended. Since then, on the same branch: the
+> Foundation section and the softened wording (step 1); the front door in
+> `Setup` with the declaration printed first (step 2); the distribution
+> component, the objectives `distribution`, `phenotype` and `all`, the rule's
+> own verdict (`rule_decision`) and the per-target live view (step 3,
+> decisions 1 and 3 taken as recommended); the condition contrast as report
+> section 9 (decision 2, taken by the owner); the dataset overview and the
+> closing "what this dataset cannot tell me" section (R6); normalisation to
+> the control per repeat; PlotsOfData-style plots with field-bootstrap
+> intervals; and the shared `statistics` module. Part 2's items 1, 3 (in
+> part), 5 and 9 are therefore done; items 2, 4, 6, 7 and 10 remain as
+> described.
+
+
 **Date:** 2026-09-26. **Scope:** the proposal to move "Can I count objects, or
 must I count fields?" (R0 of `docs/questions.md`) out of the REPORT question
 list and into a FOUNDATION section that precedes REPORT, OPTIMISE and ONLINE;

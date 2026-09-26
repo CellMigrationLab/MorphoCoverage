@@ -43,7 +43,7 @@ import pandas as pd
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .evidence import Availability
 from .objectives import ObjectiveConfig, SamplingObjective
-from .schema import validate_input_tables
+from .schema import ValidatedInput, validate_input_tables
 from .strategies.support_novelty import FOV_QUANTITY, UPPER_QUANTITY, SupportNoveltyEstimator
 
 _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -60,7 +60,9 @@ CALIBRATION_COLUMNS = (
 )
 
 
-def _check_settings(novelty, fov_counts, draws, random_state) -> list[int]:
+def _check_settings(
+    novelty: SupportNoveltyEstimator, fov_counts: Sequence[int], draws: int, random_state: int
+) -> list[int]:
     """Validate the calibration settings; return the sorted distinct FOV counts."""
     if not isinstance(novelty, SupportNoveltyEstimator):
         raise TypeError("novelty must be a SupportNoveltyEstimator")
@@ -79,7 +81,9 @@ def _check_settings(novelty, fov_counts, draws, random_state) -> list[int]:
     return sorted(set(counts))
 
 
-def _draw(data, novelty, chosen, rest):
+def _draw(
+    data: ValidatedInput, novelty: SupportNoveltyEstimator, chosen: np.ndarray, rest: np.ndarray
+) -> tuple[float, float, float] | None:
     """Prediction, bound and actual novel rate for one random subset, or None."""
     visible_fovs, new_fovs = data.fovs.iloc[chosen], data.fovs.iloc[rest]
     visible = restrict_input(data, objects_in_fovs(data, visible_fovs), visible_fovs)

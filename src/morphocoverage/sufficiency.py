@@ -28,7 +28,9 @@ observation table and the FOV table of every acquired position:
    ``calibration`` (optional) checks the prediction against this dataset by
    shuffling (``morphocoverage.calibration``).
 
-``summary()`` puts both answers into sentences, one block per group.
+``summary()`` puts both answers into sentences, one block per group; the
+wording lives in ``sufficiency_text`` and the criteria tables in
+``sufficiency_tables``.
 
 Reading it:
 
@@ -56,9 +58,9 @@ Reading it:
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -66,19 +68,13 @@ from scipy import stats
 
 from .benchmark import (
     AcquisitionOrder,
-    BenchmarkDataset,
-    BenchmarkRegistry,
-    records_to_frame,
-    run_benchmark,
 )
 from .bounds import extra_trials_for_bound, upper_bound
 from .calibration import calibrate_next_fov_novelty
 from .evaluator import iter_analysis_groups
-from .evidence import Availability, Direction
-from .framework import run_strategies
+from .evidence import Availability
 from .objectives import ObjectiveConfig, SamplingObjective
-from .results import StrategyResult
-from .schema import validate_input_tables
+from .schema import ValidatedInput, validate_input_tables
 from .strategies.base import SamplingStrategy
 from .strategies.rare_planning import fovs_to_detect
 from .strategies.support_novelty import (
@@ -86,6 +82,14 @@ from .strategies.support_novelty import (
     UPPER_QUANTITY,
     SupportNoveltyEstimator,
     SupportNoveltyStrategy,
+)
+from .sufficiency_tables import criteria_tables, group_major
+from .sufficiency_text import (
+    _enough_answer,
+    _next_fov_answer,
+    _rows_of,
+    novelty_definition,
+    report_summary,
 )
 
 _ROW_ORDER = "_report_row_order"
@@ -131,139 +135,10 @@ class SufficiencyReport:
 
     def summary(self) -> str:
         """Both answers in plain sentences, one block per analysis group."""
-        blocks = []
-        keys = list(self.group_cols)
-        tables = [table[keys] for table in (self.enough, self.next_fov) if not table.empty]
-        groups = pd.concat(tables).drop_duplicates() if tables else pd.DataFrame()
-        # Without group columns there is one pooled group, which has no key.
-        rows = list(groups.itertuples(index=False, name=None)) if keys else [()] * bool(tables)
-        for values in rows:
-            group = dict(zip(keys, values, strict=True))
-            label = ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
-            lines = [f"{label}:"]
-            # A question that was not asked has an empty table without the group columns.
-            criteria = _rows_of(self.enough, group) if not self.enough.empty else self.enough
-            if len(criteria):
-                lines.append(
-                    "  Did each criterion say enough? (its own threshold, not a held-out check)"
-                )
-                lines += [f"  - {answer}" for answer in criteria["answer"]]
-            outlook = _rows_of(self.next_fov, group) if not self.next_fov.empty else self.next_fov
-            if len(outlook):
-                lines.append("  Would one more FOV show something new?")
-                lines += [f"  - {line}" for line in outlook["answer"].iloc[0].split("\n")]
-            blocks.append("\n".join(lines))
-        if self.novelty_definition:
-            blocks.append(f"'New' means {self.novelty_definition}.")
-        return "\n\n".join(blocks)
+        return report_summary(self.enough, self.next_fov, self.group_cols, self.novelty_definition)
 
 
-def _rows_of(table: pd.DataFrame, group: Mapping[str, object]) -> pd.DataFrame:
-    """The rows of ``table`` belonging to one analysis group."""
-    mask = pd.Series(True, index=table.index)
-    for column, value in group.items():
-        mask &= table[column].eq(value)
-    return table.loc[mask]
-
-
-def _policy_text(policy: Mapping, result: StrategyResult) -> str:
-    """One decision policy as a readable rule, such as ``averaging_cv <= 0.05``."""
-    parameters = policy["parameters"]
-    quantity = result.evidence.quantities.get(parameters.get("quantity"))
-    if quantity is not None and set(parameters) == {"quantity", "threshold"}:
-        better = "<=" if quantity.direction is Direction.LOWER_IS_BETTER else ">="
-        return f"{parameters['quantity']} {better} {parameters['threshold']:g}"
-    if {"effort", "target"} <= set(parameters):
-        return f"{parameters['effort']} >= {parameters['target']:g}"
-    return f"{policy['name']} {json.dumps(parameters, sort_keys=True)}"
-
-
-def _policies(result: StrategyResult) -> str:
-    """The decision policies and their settings, compactly."""
-    policies = result.configuration.get("policies", [])
-    return "; ".join(_policy_text(policy, result) for policy in policies)
-
-
-def _final_row(result: StrategyResult, group_cols: Sequence[str]) -> dict:
-    """One row of the full-acquisition table."""
-    row = {column: result.group.get(column) for column in group_cols}
-    row.update(
-        {
-            "strategy": result.strategy,
-            "config_id": result.config_id,
-            "policies": _policies(result),
-            "n_fovs": result.n_fovs,
-            "n_observations": result.n_observations,
-            # The rule's own verdict, by its own threshold, whatever the objective asks.
-            "verdict": None if result.rule_decision is None else result.rule_decision.value,
-            "undefined_reason": result.evidence.diagnostics.get("undefined_reason"),
-            # The object-unit JCB rule treats objects as independent draws; the
-            # sentence says so, since that is what makes a stop after one FOV possible.
-            "assumes_spatial_uniformity": bool(
-                result.evidence.diagnostics.get("assumes_spatial_uniformity", False)
-            ),
-        }
-    )
-    for name, quantity in result.evidence.quantities.items():
-        available = quantity.availability is Availability.AVAILABLE
-        row[f"q.{name}"] = quantity.value if available else None
-    return row
-
-
-def _stop_summary(records: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
-    """Stop-FOV distribution per group and configuration."""
-    rows = []
-    for key, runs in records.groupby(keys, sort=False, dropna=False):
-        stopped = runs[runs["stopped"]]
-        stop = stopped["n_fovs"].to_numpy(dtype=float)
-        spare = (stopped["total_fovs"] - stopped["n_fovs"]).to_numpy(dtype=float)
-        row = dict(zip(keys, key if isinstance(key, tuple) else (key,), strict=True))
-        row.update(
-            {
-                "acquired_fovs": int(runs["total_fovs"].iloc[0]),
-                "orders": len(runs),
-                "never_stopped": int((~runs["stopped"]).sum()),
-                "stop_fov_median": float(np.median(stop)) if len(stop) else None,
-                "stop_fov_p10": float(np.quantile(stop, 0.1)) if len(stop) else None,
-                "stop_fov_p90": float(np.quantile(stop, 0.9)) if len(stop) else None,
-                "spare_fovs_median": float(np.median(spare)) if len(spare) else None,
-            }
-        )
-        rows.append(row)
-    return pd.DataFrame(rows)
-
-
-def _enough_answer(final: Mapping, stops: Mapping) -> str:
-    """One criterion's answer to 'did we sample enough?' as a sentence."""
-    criterion = f"{final['strategy']} ({final['policies']})"
-    acquired, orders = final["n_fovs"], stops["orders"]
-    if pd.isna(final["verdict"]):
-        return f"{criterion}: undefined for these data ({final['undefined_reason']})."
-    # A fixed count says its target was reached, not that the sample was enough.
-    effort_rule = " >= " in str(final["policies"]) and str(final["policies"]).startswith("n_")
-    if final["verdict"] == "continue":
-        head = f"{criterion}: no, not met by the {acquired} acquired FOVs"
-    elif effort_rule:
-        head = f"{criterion}: its target was reached by the {acquired} acquired FOVs"
-    else:
-        head = f"{criterion}: yes, its threshold was met by the {acquired} acquired FOVs"
-    if final.get("assumes_spatial_uniformity"):
-        head += " (treats observations as independent draws: assumes a spatially uniform sample)"
-    if pd.isna(stops["stop_fov_median"]):
-        return f"{head}; not met at any point in {orders} replayed orders."
-    first = (
-        f"first met after {stops['stop_fov_median']:g} FOVs "
-        f"(10-90%: {stops['stop_fov_p10']:g}-{stops['stop_fov_p90']:g}) over {orders} orders"
-    )
-    never = stops["never_stopped"]
-    missing = f", never in {never}" if never else ""
-    lost = (
-        "; it was met and then lost as more FOVs arrived" if final["verdict"] == "continue" else ""
-    )
-    return f"{head}; {first}{missing}{lost}."
-
-
-def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str]):
+def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
     """Question 1, one row per group and criterion."""
     keys = [*group_cols, "config_id"]
     merged = final.merge(stops, on=[*keys, "strategy"], how="left", validate="one_to_one")
@@ -291,132 +166,9 @@ def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str
     return pd.DataFrame(rows)
 
 
-def novelty_definition(
-    novelty: SupportNoveltyEstimator, feature_cols: Sequence[str] | None = None
-) -> str:
-    """What counts as a FOV showing something new, in words; with ``feature_cols``,
-    also the columns it is judged on (the phenotype geometry's provenance)."""
-    m, others = novelty.min_novel_observations, novelty.min_other_fovs
-    space = "raw feature units" if novelty.transform is None else novelty.transform.name
-    cells = (
-        "at least 1 observation"
-        if m == 1
-        else f"a cluster of at least {m} similar observations (linked within the distance)"
-    )
-    text = (
-        f"{cells} with fewer than {others} other FOV{'s' if others > 1 else ''} "
-        f"within distance {novelty.epsilon:g} ({space})"
-    )
-    if feature_cols:
-        names = list(feature_cols)
-        shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
-        text += f", on {len(names)} feature{'s' if len(names) > 1 else ''} ({shown})"
-    return text
-
-
-def _group_major(table: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
-    """Rows group by group in first-seen order, keeping each group's row order."""
-    if not group_cols or table.empty:
-        return table
-    key = table[group_cols].astype(str).agg("\x1f".join, axis=1)
-    rank = {value: i for i, value in enumerate(dict.fromkeys(key))}
-    order = key.map(rank).sort_values(kind="stable").index
-    return table.loc[order].reset_index(drop=True)
-
-
-def _percent(value: float) -> str:
-    """A probability as a short percentage."""
-    return f"{100 * value:.0f}%" if value >= 0.01 or value == 0 else f"{100 * value:.1g}%"
-
-
-def _more_fovs(count: int) -> str:
-    """``1 more FOV``, ``3 more FOVs``."""
-    return f"{count} more FOV" if count == 1 else f"{count} more FOVs"
-
-
-def _next_fov_answer(row: Mapping, target: float | None, calibrated: Mapping | None) -> str:
-    """Question 2 for one group, as lines of text."""
-    if pd.isna(row["chance_new"]):
-        return f"Not estimable: {row['reason']}."
-    confidence = _percent(row["confidence"])
-    chance = (
-        f"Chance: {_percent(row['chance_new'])} (nominal {confidence} upper bound "
-        f"{_percent(row['chance_new_at_most'])}, approximate: the leave-one-FOV-out outcomes "
-        f"share their reference FOVs); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
-        "showed something the others did not."
-    )
-    empty = int(row.get("fovs_without_observations", 0) or 0)
-    counted = (
-        f" The count includes {empty} FOV{'s' if empty > 1 else ''} without observations, "
-        "which cannot show a state."
-        if empty
-        else ""
-    )
-    unseen = (
-        f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
-        f"{_percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
-        f"3 / {row['fovs_imaged']}), if FOVs are independent, representative draws. Rarer "
-        f"states can remain.{counted}"
-    )
-    lines = [chance, unseen]
-    few = row.get("few_fovs")
-    if few is not None and not pd.isna(few):
-        seen_in_few = row["fovs_with_state_in_few"]
-        if pd.isna(seen_in_few):
-            lines.append(f"Seen in few FOVs: not estimable ({row['few_reason']}).")
-        else:
-            lines.append(
-                f"Seen in few FOVs: {int(seen_in_few)} of {row['fovs_imaged']} FOVs hold a "
-                f"state that fewer than {int(few)} other FOVs show. A state seen in 2 FOVs "
-                "is not new to the next FOV but is not established either; it counts as "
-                "recurrent above, so look at those FOVs before calling the sample settled."
-            )
-            if int(seen_in_few):
-                lines.append(
-                    f"Planning for such a state: seen in {_percent(row['few_state_incidence'])} "
-                    f"of FOVs ({confidence} interval "
-                    f"{_percent(row['few_state_incidence_low'])}-"
-                    f"{_percent(row['few_state_incidence_high'])}); to see it at least once "
-                    f"with {confidence} probability, image about "
-                    f"{int(row['fovs_to_see_again'])} independent representative FOVs at the "
-                    f"observed incidence, up to {int(row['fovs_to_see_again_low_end'])} at "
-                    "the low end of the interval. Fields that cluster the state need more."
-                )
-    if target is not None:
-        extra = row["extra_fovs_to_rule_out_target"]
-        rule_out = f"To rule out unseen states in more than {_percent(target)} of FOVs"
-        lines.append(
-            f"{rule_out}: already reached."
-            if extra == 0
-            else f"{rule_out}: at least {_more_fovs(extra)} with nothing new."
-        )
-    if target is not None:
-        goal = f"To bring the nominal {confidence} bound for the next FOV below {_percent(target)}"
-        if row["chance_new_at_most"] <= target:
-            lines.append(f"{goal}: already reached.")
-        else:
-            best = row["extra_fovs_if_nothing_new"]
-            rate = row["extra_fovs_at_current_rate"]
-            at_rate = (
-                "never at the current rate of new FOVs"
-                if pd.isna(rate)
-                else f"{_more_fovs(rate)} if new FOVs keep appearing at the current rate"
-            )
-            lines.append(
-                f"{goal}: at least {_more_fovs(best)} if none shows anything new; {at_rate}."
-            )
-    if calibrated is not None:
-        predicted, actual = _percent(calibrated["predicted"]), _percent(calibrated["actual"])
-        held = _percent(calibrated["bound_held"])
-        lines.append(
-            f"Check on this dataset: predicting from {int(calibrated['fovs_imaged'])} random FOVs, "
-            f"predicted {predicted}, actual {actual}; "
-            f"the bound held in {held} of {int(calibrated['draws'])} draws."
-        )
-    return "\n".join(lines)
-
-
-def _seen_in_few(novelty, group_data, few_fovs):
+def _seen_in_few(
+    novelty: SupportNoveltyEstimator, group_data: ValidatedInput, few_fovs: int | None
+) -> dict[str, Any]:
     """FOVs holding a state that fewer than ``few_fovs`` other FOVs show, or the reason not."""
     if few_fovs is None:
         return {}
@@ -452,7 +204,12 @@ def _seen_in_few(novelty, group_data, few_fovs):
     return row
 
 
-def _next_fov_tables(data, novelty, target, few_fovs=None):
+def _next_fov_tables(
+    data: ValidatedInput,
+    novelty: SupportNoveltyEstimator,
+    target: float | None,
+    few_fovs: int | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Question 2 per group, and the observations counted as new."""
     rows, flagged = [], []
     features = set(data.feature_cols)
@@ -528,7 +285,13 @@ def _next_fov_tables(data, novelty, target, few_fovs=None):
     return table, new_observations
 
 
-def _check_report_inputs(strategies, orders, novelty, target, calibration):
+def _check_report_inputs(
+    strategies: Sequence[SamplingStrategy],
+    orders: Sequence[AcquisitionOrder],
+    novelty: SupportNoveltyEstimator | None,
+    target: float | None,
+    calibration: CalibrationSettings | None,
+) -> None:
     """Validate the combination of questions asked."""
     if not strategies and novelty is None:
         raise ValueError("give at least one strategy or a novelty definition")
@@ -659,7 +422,7 @@ def sufficiency_report(
 
     final, stops, enough = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     parts = [
-        _criteria_tables(
+        criteria_tables(
             objects,
             fovs,
             rules,
@@ -675,7 +438,7 @@ def sufficiency_report(
     if parts:
         # The order and dtypes of a single run: final group by group, stops strategy
         # by strategy (a block of undefined stops alone would read as objects).
-        final = _group_major(
+        final = group_major(
             pd.concat([part[0] for part in parts], ignore_index=True), resolved_groups
         ).infer_objects()
         stops = pd.concat([part[1] for part in parts], ignore_index=True).infer_objects()
@@ -718,47 +481,15 @@ def sufficiency_report(
     )
 
 
-def _largest_calibrated(calibrated: pd.DataFrame, row: Mapping, group_cols: list[str]):
+def _largest_calibrated(
+    calibrated: pd.DataFrame, row: Mapping[str, Any], group_cols: list[str]
+) -> pd.Series | None:
     """The group's calibration row with the most FOVs and usable draws, or None."""
     if calibrated.empty:
         return None
     rows = _rows_of(calibrated, {c: row[c] for c in group_cols})
     rows = rows[rows["draws"] > 0]
     return None if rows.empty else rows.sort_values("fovs_imaged").iloc[-1]
-
-
-def _criteria_tables(
-    objects, fovs, strategies, objective, orders, acquisition_order_col, columns, group_cols
-):
-    """Decisions on the full acquisition, and the stop-FOV distribution over orders."""
-    results = run_strategies(
-        objects, fovs=fovs, strategies=strategies, objective=objective, **columns
-    )
-    final = pd.DataFrame([_final_row(result, group_cols) for result in results])
-    dataset = BenchmarkDataset(
-        name="sufficiency_report",
-        role="development",
-        load=lambda: (objects, fovs),
-        feature_cols=tuple(columns["feature_cols"]),
-        acquisition_order_col=acquisition_order_col,
-        fov_col=columns["fov_col"],
-        group_cols=None if columns["group_cols"] is None else tuple(columns["group_cols"]),
-        observation_unit=columns["observation_unit"],
-    )
-    records = records_to_frame(
-        run_benchmark(
-            BenchmarkRegistry([dataset]),
-            dataset.name,
-            strategies=strategies,
-            metrics=[],
-            objective=objective,
-            orders=orders,
-        )
-    )
-    group_keys = [f"group.{column}" for column in group_cols]
-    stops = _stop_summary(records, [*group_keys, "strategy", "config_id"])
-    stops = stops.rename(columns={f"group.{c}": c for c in group_cols})
-    return final, stops
 
 
 __all__ = [

@@ -45,13 +45,13 @@ import numpy as np
 import pandas as pd
 
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
+from ..schema import ValidatedInput
 from ..retrospective._text import group_identity, unit_plural
 from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import check_count, check_seed, fov_values, groups, validated
+from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
-RANDOM_OBJECTS = "random objects"
-WHOLE_FOVS = "whole FOVs"
 
 
 @dataclass(frozen=True)
@@ -142,7 +142,9 @@ class ConditionContrast:
 
 
 def _side_fields(
-    all_groups, feature: str, chosen: list[dict[str, Any]]
+    all_groups: list[tuple[dict[str, Any], ValidatedInput]],
+    feature: str,
+    chosen: list[dict[str, Any]],
 ) -> tuple[list[np.ndarray], int]:
     """The fields (arrays of the feature, NaN dropped) of the chosen groups, and the field count."""
     by_identity = {group_identity(g): d for g, d in all_groups}
@@ -198,7 +200,7 @@ def condition_contrast(
         repeat_col = None  # one implicit repeat
     all_groups = groups(data)
 
-    def value_of(group_data, column):
+    def value_of(group_data: ValidatedInput, column: str) -> Any:
         values = group_data.fovs[column].drop_duplicates()
         if len(values) != 1:
             raise ValueError(

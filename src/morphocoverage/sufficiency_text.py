@@ -1,0 +1,230 @@
+"""The sentences of the sufficiency report: how each answer is worded.
+
+``sufficiency`` computes the tables; this module turns their rows into the
+plain sentences a microscopist reads, so the wording can be read and changed
+without touching the computation. Every sentence names the criterion, its
+threshold and the assumptions it rests on, and never calls a sample adequate
+for a target it did not measure.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+import pandas as pd
+
+from .evidence import Direction
+from .results import StrategyResult
+from .strategies.support_novelty import SupportNoveltyEstimator
+
+
+def _rows_of(table: pd.DataFrame, group: Mapping[str, object]) -> pd.DataFrame:
+    """The rows of ``table`` belonging to one analysis group."""
+    mask = pd.Series(True, index=table.index)
+    for column, value in group.items():
+        mask &= table[column].eq(value)
+    return table.loc[mask]
+
+
+def _policy_text(policy: Mapping[str, Any], result: StrategyResult) -> str:
+    """One decision policy as a readable rule, such as ``averaging_cv <= 0.05``."""
+    parameters = policy["parameters"]
+    quantity = result.evidence.quantities.get(parameters.get("quantity"))
+    if quantity is not None and set(parameters) == {"quantity", "threshold"}:
+        better = "<=" if quantity.direction is Direction.LOWER_IS_BETTER else ">="
+        return f"{parameters['quantity']} {better} {parameters['threshold']:g}"
+    if {"effort", "target"} <= set(parameters):
+        return f"{parameters['effort']} >= {parameters['target']:g}"
+    return f"{policy['name']} {json.dumps(parameters, sort_keys=True)}"
+
+
+def _policies(result: StrategyResult) -> str:
+    """The decision policies and their settings, compactly."""
+    policies = result.configuration.get("policies", [])
+    return "; ".join(_policy_text(policy, result) for policy in policies)
+
+
+def _enough_answer(final: Mapping[str, Any], stops: Mapping[str, Any]) -> str:
+    """One criterion's answer to 'did we sample enough?' as a sentence."""
+    criterion = f"{final['strategy']} ({final['policies']})"
+    acquired, orders = final["n_fovs"], stops["orders"]
+    if pd.isna(final["verdict"]):
+        return f"{criterion}: undefined for these data ({final['undefined_reason']})."
+    # A fixed count says its target was reached, not that the sample was enough.
+    effort_rule = " >= " in str(final["policies"]) and str(final["policies"]).startswith("n_")
+    if final["verdict"] == "continue":
+        head = f"{criterion}: no, not met by the {acquired} acquired FOVs"
+    elif effort_rule:
+        head = f"{criterion}: its target was reached by the {acquired} acquired FOVs"
+    else:
+        head = f"{criterion}: yes, its threshold was met by the {acquired} acquired FOVs"
+    if final.get("assumes_spatial_uniformity"):
+        head += " (treats observations as independent draws: assumes a spatially uniform sample)"
+    if pd.isna(stops["stop_fov_median"]):
+        return f"{head}; not met at any point in {orders} replayed orders."
+    first = (
+        f"first met after {stops['stop_fov_median']:g} FOVs "
+        f"(10-90%: {stops['stop_fov_p10']:g}-{stops['stop_fov_p90']:g}) over {orders} orders"
+    )
+    never = stops["never_stopped"]
+    missing = f", never in {never}" if never else ""
+    lost = (
+        "; it was met and then lost as more FOVs arrived" if final["verdict"] == "continue" else ""
+    )
+    return f"{head}; {first}{missing}{lost}."
+
+
+def novelty_definition(
+    novelty: SupportNoveltyEstimator, feature_cols: Sequence[str] | None = None
+) -> str:
+    """What counts as a FOV showing something new, in words; with ``feature_cols``,
+    also the columns it is judged on (the phenotype geometry's provenance)."""
+    m, others = novelty.min_novel_observations, novelty.min_other_fovs
+    space = "raw feature units" if novelty.transform is None else novelty.transform.name
+    cells = (
+        "at least 1 observation"
+        if m == 1
+        else f"a cluster of at least {m} similar observations (linked within the distance)"
+    )
+    text = (
+        f"{cells} with fewer than {others} other FOV{'s' if others > 1 else ''} "
+        f"within distance {novelty.epsilon:g} ({space})"
+    )
+    if feature_cols:
+        names = list(feature_cols)
+        shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
+        text += f", on {len(names)} feature{'s' if len(names) > 1 else ''} ({shown})"
+    return text
+
+
+def _percent(value: float) -> str:
+    """A probability as a short percentage."""
+    return f"{100 * value:.0f}%" if value >= 0.01 or value == 0 else f"{100 * value:.1g}%"
+
+
+def _more_fovs(count: int) -> str:
+    """``1 more FOV``, ``3 more FOVs``."""
+    return f"{count} more FOV" if count == 1 else f"{count} more FOVs"
+
+
+def _next_fov_answer(
+    row: Mapping[str, Any], target: float | None, calibrated: Mapping[str, Any] | None
+) -> str:
+    """Question 2 for one group, as lines of text."""
+    if pd.isna(row["chance_new"]):
+        return f"Not estimable: {row['reason']}."
+    confidence = _percent(row["confidence"])
+    chance = (
+        f"Chance: {_percent(row['chance_new'])} (nominal {confidence} upper bound "
+        f"{_percent(row['chance_new_at_most'])}, approximate: the leave-one-FOV-out outcomes "
+        f"share their reference FOVs); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
+        "showed something the others did not."
+    )
+    empty = int(row.get("fovs_without_observations", 0) or 0)
+    counted = (
+        f" The count includes {empty} FOV{'s' if empty > 1 else ''} without observations, "
+        "which cannot show a state."
+        if empty
+        else ""
+    )
+    unseen = (
+        f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
+        f"{_percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
+        f"3 / {row['fovs_imaged']}), if FOVs are independent, representative draws. Rarer "
+        f"states can remain.{counted}"
+    )
+    lines = [chance, unseen]
+    few = row.get("few_fovs")
+    if few is not None and not pd.isna(few):
+        seen_in_few = row["fovs_with_state_in_few"]
+        if pd.isna(seen_in_few):
+            lines.append(f"Seen in few FOVs: not estimable ({row['few_reason']}).")
+        else:
+            lines.append(
+                f"Seen in few FOVs: {int(seen_in_few)} of {row['fovs_imaged']} FOVs hold a "
+                f"state that fewer than {int(few)} other FOVs show. A state seen in 2 FOVs "
+                "is not new to the next FOV but is not established either; it counts as "
+                "recurrent above, so look at those FOVs before calling the sample settled."
+            )
+            if int(seen_in_few):
+                lines.append(
+                    f"Planning for such a state: seen in {_percent(row['few_state_incidence'])} "
+                    f"of FOVs ({confidence} interval "
+                    f"{_percent(row['few_state_incidence_low'])}-"
+                    f"{_percent(row['few_state_incidence_high'])}); to see it at least once "
+                    f"with {confidence} probability, image about "
+                    f"{int(row['fovs_to_see_again'])} independent representative FOVs at the "
+                    f"observed incidence, up to {int(row['fovs_to_see_again_low_end'])} at "
+                    "the low end of the interval. Fields that cluster the state need more."
+                )
+    if target is not None:
+        extra = row["extra_fovs_to_rule_out_target"]
+        rule_out = f"To rule out unseen states in more than {_percent(target)} of FOVs"
+        lines.append(
+            f"{rule_out}: already reached."
+            if extra == 0
+            else f"{rule_out}: at least {_more_fovs(extra)} with nothing new."
+        )
+    if target is not None:
+        goal = f"To bring the nominal {confidence} bound for the next FOV below {_percent(target)}"
+        if row["chance_new_at_most"] <= target:
+            lines.append(f"{goal}: already reached.")
+        else:
+            best = row["extra_fovs_if_nothing_new"]
+            rate = row["extra_fovs_at_current_rate"]
+            at_rate = (
+                "never at the current rate of new FOVs"
+                if pd.isna(rate)
+                else f"{_more_fovs(rate)} if new FOVs keep appearing at the current rate"
+            )
+            lines.append(
+                f"{goal}: at least {_more_fovs(best)} if none shows anything new; {at_rate}."
+            )
+    if calibrated is not None:
+        predicted, actual = _percent(calibrated["predicted"]), _percent(calibrated["actual"])
+        held = _percent(calibrated["bound_held"])
+        lines.append(
+            f"Check on this dataset: predicting from {int(calibrated['fovs_imaged'])} random FOVs, "
+            f"predicted {predicted}, actual {actual}; "
+            f"the bound held in {held} of {int(calibrated['draws'])} draws."
+        )
+    return "\n".join(lines)
+
+
+def report_summary(
+    enough: pd.DataFrame,
+    next_fov: pd.DataFrame,
+    group_cols: Sequence[str],
+    novelty_definition: str | None,
+) -> str:
+    """Both answers in plain sentences, one block per analysis group."""
+    blocks = []
+    keys = list(group_cols)
+    tables = [table[keys] for table in (enough, next_fov) if not table.empty]
+    groups = pd.concat(tables).drop_duplicates() if tables else pd.DataFrame()
+    # Without group columns there is one pooled group, which has no key.
+    rows = list(groups.itertuples(index=False, name=None)) if keys else [()] * bool(tables)
+    for values in rows:
+        group = dict(zip(keys, values, strict=True))
+        label = ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
+        lines = [f"{label}:"]
+        # A question that was not asked has an empty table without the group columns.
+        criteria = _rows_of(enough, group) if not enough.empty else enough
+        if len(criteria):
+            lines.append(
+                "  Did each criterion say enough? (its own threshold, not a held-out check)"
+            )
+            lines += [f"  - {answer}" for answer in criteria["answer"]]
+        outlook = _rows_of(next_fov, group) if not next_fov.empty else next_fov
+        if len(outlook):
+            lines.append("  Would one more FOV show something new?")
+            lines += [f"  - {line}" for line in outlook["answer"].iloc[0].split("\n")]
+        blocks.append("\n".join(lines))
+    if novelty_definition:
+        blocks.append(f"'New' means {novelty_definition}.")
+    return "\n\n".join(blocks)
+
+
+__all__ = ["novelty_definition", "report_summary"]

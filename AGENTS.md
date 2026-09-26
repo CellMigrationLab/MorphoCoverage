@@ -196,6 +196,8 @@ src/morphocoverage/
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
+    sufficiency_text.py    # the sentences of the sufficiency report
+    sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops
     statistics.py          # shared statistics: Cohen's d, JCS effect size, whole-field sampling and bootstrap
     normalize.py           # features divided by the control condition's mean, repeat by repeat
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
@@ -233,7 +235,8 @@ src/morphocoverage/
         fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
         rare_planning.py   # binomial FOV-incidence planning for a RareTarget
         rare_incidence.py  # beta-binomial rare-state incidence risk with recurrence
-        support_novelty.py # leave-one-FOV-out epsilon-support novelty
+        support_novelty.py # leave-one-FOV-out epsilon-support novelty: estimator and strategy
+        support_geometry.py  # its counting: which observations other FOVs support within epsilon
         incidence_coverage.py  # Chao-Jost incidence coverage and Chao2 on fixed labels
 
 tests/
@@ -345,8 +348,10 @@ If acquisition becomes targeted, do not treat targeted FOVs as an unbiased popul
 - PEP 8 style.
 - 4-space indentation.
 - Descriptive names.
-- Type hints on public functions.
+- Type hints on every function, private helpers included (decided 2026-09-26; modules written before then are being brought up to the rule).
 - Docstrings on public modules/functions/classes.
+- No module above 600 lines: split a growing module along its natural seam (computation and wording, geometry and decision), re-exporting the public names so callers do not change.
+- Statistics shared by several analyses live once, in `morphocoverage.statistics`, and are reused rather than re-derived.
 - Comments explain scientific assumptions or non-obvious reasoning.
 - Prefer specific exception types and actionable error messages.
 - Do not perform unrelated refactors, dependency upgrades, API renames, or formatting sweeps.
