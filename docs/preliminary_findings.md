@@ -4,15 +4,21 @@ These are exploratory, retrospective observations made while building the
 framework. They are not benchmark results and not publication claims. Each
 entry states what was run, what it shows, and what it does not show.
 
-**Regenerated 2026-09-26.** After the function audit
+**Regenerated 2026-09-26, twice.** After the first function audit
 (`docs/audit/function_audit_2026-09-26.md`), every tracked table except the
-benchmark was regenerated with `data/crick_idr/run_all.py`. The earlier
-tables predated the `well` to `technical_repeat` rename. Each group's random
-stream is seeded from its name, so draws, splits and orders changed, and the
-numbers of entries 4–7, 9 and 10 below are those of the regenerated tables.
-Entries 1–3 and 8 are unchanged: their tables came out identical, and the
-benchmark was not rerun (its locked protocol digest no longer matches; see
-the audit). No conclusion changed; where a number moved, the entry says so.
+benchmark was regenerated with `data/crick_idr/run_all.py`: the earlier
+tables predated the `well` to `technical_repeat` rename, which reseeds each
+group. After the second audit (`docs/audit/function_audit_2_2026-09-26.md`)
+every table was regenerated again, and the benchmark ran under protocol
+version 3, locked before the run. Where a number moved, the entry names the
+finding that moved it. The changed conclusions:
+
+- **Entry 5 is stronger:** no stop in a random order was premature at 5%.
+- **Entry 6:** the four "new state" fields are no longer at the chance
+  level. The inspection's own leave-one-field-out rate is 0 of 56 reference
+  fields.
+
+Every other conclusion holds.
 
 ## 1. Whole FOVs versus random cells in the JCS and JCB settings (2026-09-23)
 
@@ -585,9 +591,19 @@ P5 and P6), scored with `retrospective.frontier` (`docs/benchmarking.md`,
 
 **Method.** `data/crick_idr/benchmark.py` under protocol version 1
 (`benchmark_protocol.py`, locked by digest `8edc7dc0` before the first run).
-Version 2 (digest `f586f431`) renames the families "JCB per cell" and "JCS
-spread per cell" to "per object" and changes no setting; the rerun under it
-gives the numbers below.
+Version 2 (digest `f586f431`) renamed the families "JCB per cell" and "JCS
+spread per cell" to "per object" and changed no setting. Version 3 (digest
+`9cceed31`, locked 2026-09-26 before its run) keeps every setting and records
+what the second audit changed in the replay under them
+(`docs/audit/function_audit_2_2026-09-26.md`, B-2, B-4):
+
+- permuted orders are drawn per well from `random_state`, so one well's
+  order no longer depends on the others;
+- the rules see each prefix in acquisition order.
+
+The per-field precision rule also changed: C-1 counts only fields with
+objects in its variance factor and degrees of freedom. The numbers below are
+those of the version 3 run; where one moved from version 2, the text says so.
 Replays hold back 35% of each idr0028 well (5 splits, recorded and 10 random
 orders; 50% of each idr0139 well, 6 splits, recorded and 5 random orders).
 Each rule family is swept over a threshold grid fixed in the protocol; risk
@@ -602,22 +618,26 @@ Fields saved against a fixed count, idr0028 (negative: costs fields):
 
 | rule | mean within 5%, risk ≤ 5% | mean within 2.5%, risk ≤ 5% | mean within 2.5%, risk ≤ 10% |
 |---|---|---|---|
-| fixed count (fields needed) | 1 | 4 | 2 |
-| JCB per object | 0.0 | −4.2 | −0.8 |
-| JCB per field | −1.3 | −0.3 | −0.3 |
-| JCS spread per object | 0.0 | −0.1 | −2.1 |
-| JCS spread per field | −1.0 | −6.2 | 0.0 |
-| FOV bootstrap of the mean | −1.0 | −1.7 | 0.0 |
+| fixed count (fields needed) | 1 | 3 | 2 |
+| JCB per object | 0.0 | −5.4 | −0.9 |
+| JCB per field | −1.3 | −0.5 | −0.3 |
+| JCS spread per object | 0.0 | −1.1 | −2.1 |
+| JCS spread per field | −1.0 | −7.5 | 0.0 |
+| FOV bootstrap of the mean | −1.0 | −10.4 | 0.0 |
 
-The 95% intervals over the 12 wells are wide (for example −4.5 to 1.6 for
-JCB per field at 2.5%), and every adaptivity correlation is 0.3 or less.
+The 95% intervals over the 12 wells are wide. For example, JCB per field at
+2.5% has −0.6 to 0.7 fields saved. At the 2.5% criterion every cost's
+interval includes 0, so the summary marks each one "(not resolved)". Every
+adaptivity correlation is 0.35 or less. Under version 2 the fixed count
+needed 4 fields at 2.5% and 5% risk; with per-well orders it needs 3, and
+every rule's cost there is counted from 3.
 
 Settings chosen on idr0028 to meet 5% risk, scored on the held-out idr0139:
 
 | mean within 5% | stop on idr0139 | risk on idr0139 |
 |---|---|---|
 | fixed 1 field, JCB per object, JCS spread per object | 1 field | 35% |
-| JCB per field, JCS spread per field, FOV bootstrap | 2 fields (all available) | 27% |
+| JCB per field, JCS spread per field, FOV bootstrap | 2 fields (all available) | 22% |
 
 For the mean within 2.5%, every setting reaches 58% risk on idr0139.
 
@@ -627,8 +647,8 @@ fields of the MOCK wells of plates 1A and 2A, 48 acquisitions):
 | rule | risk ≤ 5% | risk ≤ 10% |
 |---|---|---|
 | fixed count (fields needed) | 15 | 12 |
-| novelty bound | −3.0 | −3.0 |
-| rare incidence, reading the planted label | +8.3 (Spearman 0.72) | +5.3 (Spearman 0.72) |
+| novelty bound | −3.0 | −2.9 |
+| rare incidence, reading the planted label | +8.5 (Spearman 0.66) | +5.5 (Spearman 0.66) |
 
 **What this shows**
 
@@ -638,14 +658,16 @@ fields of the MOCK wells of plates 1A and 2A, 48 acquisitions):
 - **Per cell against per field changes where each rule fails.** At 5% the
   per-object rules match a fixed single field, and the per-field rules cost one
   field because they need two fields to estimate field-to-field variance. At
-  2.5% it reverses: the per-object JCB rule (upper-95 SD) costs 4.2 fields,
-  JCB per field only 0.3, because object counts overstate what the fields add.
+  2.5% it reverses: the per-object JCB rule (upper-95 SD) costs 5.4 fields,
+  JCB per field only 0.5, because object counts overstate what the fields add.
+  Neither cost is resolved over 12 wells.
 - **No development setting transfers to the held-out wells.** At the setting
-  chosen for 5% risk on idr0028, idr0139 gives 27–35% risk. Part of that is
+  chosen for 5% risk on idr0028, idr0139 gives 22–35% risk. Part of that is
   idr0139 itself: its 2-field reference cannot confirm the mean within 5% in
-  about a quarter of hold-outs even with every field (entry 7). Stopping at one
-  field (fixed, JCB per object, JCS spread per object) is worse than that floor; stopping
-  at two is at it. Entry 7's conclusion holds: the count does not transfer.
+  22% of hold-outs even with every field (entry 7). Stopping at one field
+  (fixed, JCB per object, JCS spread per object) is worse than that floor;
+  stopping at two is exactly at it. Entry 7's conclusion holds: the count
+  does not transfer.
 - **For a rare state, the rule that sees the state saves fields; the novelty
   bound does not.** The label rule stops as soon as the state has appeared,
   so easy acquisitions stop early and its stops track the need. The novelty
