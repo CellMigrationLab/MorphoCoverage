@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 from ..plots import plots_of_data
 from ..sampling_unit import FeatureRanking
 from ..sampling_unit.ranking import TOP_FEATURES
-from .retrospective import _check_tables
+from ._shared import check_tables as _check_tables
 from .setup import Setup
 
 
