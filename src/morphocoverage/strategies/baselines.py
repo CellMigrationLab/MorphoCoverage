@@ -20,6 +20,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._checks import is_integer
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import DecisionPolicy, Effort, EffortPolicy, ThresholdPolicy
@@ -34,12 +35,13 @@ from .base import (
 )
 
 
-def _require_positive_int(value: object, name: str) -> None:
-    """Require an integer count of at least 1 (``bool`` is rejected)."""
-    if isinstance(value, bool) or not isinstance(value, int):
+def _require_positive_int(value: object, name: str) -> int:
+    """``value`` as a Python int of at least 1 (numpy integers too; ``bool`` is rejected)."""
+    if not is_integer(value):
         raise TypeError(f"{name} must be an integer count")
     if value < 1:
         raise ValueError(f"{name} must be at least 1")
+    return int(value)
 
 
 @dataclass(frozen=True)
@@ -50,7 +52,9 @@ class FixedFOVStrategy(SamplingStrategy):
     name: str = "fixed_fov"
 
     def __post_init__(self) -> None:
-        _require_positive_int(self.target_fovs, "target_fovs")
+        object.__setattr__(
+            self, "target_fovs", _require_positive_int(self.target_fovs, "target_fovs")
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -125,7 +129,9 @@ class FixedObjectStrategy(SamplingStrategy):
     name: str = "fixed_objects"
 
     def __post_init__(self) -> None:
-        _require_positive_int(self.target_objects, "target_objects")
+        object.__setattr__(
+            self, "target_objects", _require_positive_int(self.target_objects, "target_objects")
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -155,7 +161,11 @@ class FixedObservationStrategy(SamplingStrategy):
     name: str = "fixed_observations"
 
     def __post_init__(self) -> None:
-        _require_positive_int(self.target_observations, "target_observations")
+        object.__setattr__(
+            self,
+            "target_observations",
+            _require_positive_int(self.target_observations, "target_observations"),
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:

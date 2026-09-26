@@ -62,7 +62,7 @@ def test_every_problem_is_reported_at_once_with_where_and_how_to_fix():
     assert errors.count("'technical_repeat' is empty") == 1
     warnings = _titles(check, "warning")
     assert "1 field of the FOV table holds no observation." in warnings
-    assert "Feature 'area' is missing in 16.7% of observations." in warnings
+    assert "Feature 'area' is missing in 17% of observations." in warnings
     text = check.summary()
     assert (
         "Where: observation table, 2 rows: row 0 (intensity='12,5'); row 3 (intensity='n/a')"

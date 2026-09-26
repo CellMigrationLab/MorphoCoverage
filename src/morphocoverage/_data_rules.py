@@ -6,18 +6,20 @@ Each rule reads the tables, records problems on a ``Collector`` in plain words
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from ._wording import percent
 from .metadata import (
     EMPTY_MEANS_ABSENT,
     MORPHOBRICKS_FOV_CANDIDATES,
     MORPHOBRICKS_GROUP_COLUMNS,
     REPEAT_COLUMN,
+    WITHIN_FOV_METADATA_COLUMNS,
     canonical_spelling,
     empty_values,
 )
@@ -46,17 +48,24 @@ def _value(value: Any) -> str:
     """A cell as a person reads it: text quoted, numbers plain, missing as empty."""
     if isinstance(value, np.generic):
         value = value.item()
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if value is None or (pd.api.types.is_scalar(value) and pd.isna(value)):  # NaN, NA, NaT
         return "empty"
     return repr(value) if isinstance(value, str) else str(value)
 
 
 def _examples(table: pd.DataFrame, rows: pd.Series, columns: Sequence[str]) -> str:
-    """How many rows ``rows`` marks, and the values of ``columns`` in the first few."""
-    marked = table.index[rows.to_numpy()]
+    """How many rows ``rows`` marks, and the values of ``columns`` in the first few.
+
+    Rows are read by position, so an index that repeats a label still shows
+    each row's own values.
+    """
+    positions = np.flatnonzero(rows.to_numpy())
+    marked = table.index[positions]
     shown = []
-    for label in marked[:EXAMPLES]:
-        values = ", ".join(f"{c}={_value(table.at[label, c])}" for c in columns)
+    for position in positions[:EXAMPLES]:
+        values = ", ".join(f"{c}={_value(table[c].iloc[position])}" for c in columns)
+        label = table.index[position]
+        label = label.item() if isinstance(label, np.generic) else label
         shown.append(f"row {label!r} ({values})")
     more = f" and {len(marked) - EXAMPLES} more" if len(marked) > EXAMPLES else ""
     return f"{_count(len(marked), 'row')}: " + "; ".join(shown) + more
@@ -190,9 +199,8 @@ def _resolve_groups(
                 f"group_cols={list(group_cols or [])}.",
                 f"Add {column!r} to the FOV table, or leave it out of group_cols.",
             )
-        elif (
-            in_objects and fovs is not None and not in_fovs and column in MORPHOBRICKS_GROUP_COLUMNS
-        ):
+        elif in_objects and fovs is not None and not in_fovs:
+            # A named group column too: the validator requires every key column in the FOV table.
             c.error(
                 f"{column!r} is in the observation table but not in the FOV table.",
                 f"observation table, column {column!r}.",
@@ -255,18 +263,19 @@ def _check_features(
     if not feature_cols:
         c.error(
             "No feature column was named.",
-            "feature_cols is empty.",
+            "feature_cols names no column.",
             "Name the numeric phenotype columns, e.g. feature_cols=['area'] (or Setup.readout).",
         )
         return
-    duplicates = sorted({f for f in feature_cols if list(feature_cols).count(f) > 1})
+    # Sorted as text: column names may mix strings and numbers.
+    duplicates = sorted({f for f in feature_cols if list(feature_cols).count(f) > 1}, key=str)
     if duplicates:
         c.error(
             "A feature column is named twice.",
             f"feature_cols: {_names(duplicates)}.",
             "Name each feature once.",
         )
-    overlap = sorted(set(feature_cols) & taken)
+    overlap = sorted(set(feature_cols) & taken, key=str)
     if overlap:
         c.error(
             "A column is used both as a feature and as a group or field identifier.",
@@ -314,15 +323,20 @@ def _check_features(
         nan = pd.Series(np.isnan(numbers), index=objects.index)
         if nan.any():
             c.warning(
-                f"Feature {feature!r} is missing in {100 * nan.mean():.1f}% of observations.",
+                f"Feature {feature!r} is missing in {percent(nan.mean())} of observations.",
                 f"observation table, {_examples(objects, nan, [feature])}.",
                 "Missing values are kept and never imputed; check they are expected (for "
                 "example, a measurement that failed).",
             )
 
 
-def _close_column(name: str, columns: Sequence[Any]) -> Any | None:
-    """A column that differs from ``name`` only in case or surrounding whitespace."""
+def _close_column(name: Any, columns: Sequence[Any]) -> Any | None:
+    """A column that differs from ``name`` only in case or surrounding whitespace.
+
+    ``None`` for a name that is not text (``7``): only text has case or spaces.
+    """
+    if not isinstance(name, str):
+        return None
     target = name.strip().casefold()
     for column in columns:
         if isinstance(column, str) and column != name and column.strip().casefold() == target:
@@ -352,19 +366,46 @@ def _near_values(objects: pd.DataFrame, fovs: pd.DataFrame, key: Sequence[str]) 
         pairs = [(v, by_text[_loose(v)]) for v in absent if _loose(v) in by_text][:EXAMPLES]
         if pairs:
             shown = "; ".join(f"{_value(a)} against {_value(b)}" for a, b in pairs)
-            mixed = any(isinstance(a, str) != isinstance(b, str) for a, b in pairs)
-            why = (
-                "is text in one table and a number in the other"
-                if mixed
-                else "differs only in spaces or case"
-            )
+            why = " or ".join(dict.fromkeys(_why_different(a, b) for a, b in pairs))
             hints.append(f"'{column}' {why} ({shown})")
     return (" In these rows " + "; ".join(hints) + ".") if hints else ""
 
 
-def _check_copies(c: Collector, objects: pd.DataFrame) -> None:
-    """Rows that repeat another row exactly, or a ``label_id`` twice in one field."""
-    copies = objects.duplicated(keep="first")
+def _why_different(seen: Any, listed: Any) -> str:
+    """Why two values that ``_loose`` finds equal are not the same value."""
+    if isinstance(seen, str) != isinstance(listed, str):
+        return "is text in one table and a number in the other"
+    if str(seen).strip().casefold() == str(listed).strip().casefold():
+        return "differs only in spaces or case"
+    return "writes the same number differently"  # '1' against '1.0'
+
+
+def _comparable(objects: pd.DataFrame) -> pd.DataFrame:
+    """``objects`` with cells that cannot be compared as they are (lists, arrays) as their text.
+
+    An embedding stored as one list per row is valid (it is not a feature), but
+    ``DataFrame.duplicated`` cannot hash it.
+    """
+    comparable = objects.copy()
+    for column in objects.columns[(objects.dtypes == object).to_numpy()]:
+        values = objects[column]
+        if not values.map(lambda value: isinstance(value, Hashable)).all():
+            comparable[column] = values.map(repr)
+    return comparable
+
+
+def _check_copies(c: Collector, objects: pd.DataFrame, key: Sequence[str]) -> None:
+    """Rows that repeat another row exactly, or a ``label_id`` twice in one field.
+
+    The field is the one the validator uses (``key``: the group columns and the
+    resolved field identifier, even one named with ``fov_col``), so labels that
+    restart in each field, file or plane are fine.
+    """
+    try:
+        copies = objects.duplicated(keep="first")
+    except TypeError:  # a column of lists: compared by their text
+        objects = _comparable(objects)
+        copies = objects.duplicated(keep="first")
     if copies.any():
         c.warning(
             f"{_count(int(copies.sum()), 'observation')} {'is' if copies.sum() == 1 else 'are'} "
@@ -377,11 +418,9 @@ def _check_copies(c: Collector, objects: pd.DataFrame) -> None:
     if "label_id" not in objects.columns or c.has_errors():
         # A misspelt group column already breaks field identity; labels would repeat.
         return
-    field = [
-        col
-        for col in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
-        if col in objects.columns
-    ]
+    # A label names one object of one image: the field, and its file or plane when recorded.
+    image = [*key, *MORPHOBRICKS_FOV_CANDIDATES, *WITHIN_FOV_METADATA_COLUMNS]
+    field = [col for col in dict.fromkeys(image) if col in objects.columns]
     twice = objects.duplicated([*field, "label_id"], keep="first") & objects["label_id"].notna()
     if field and twice.any():
         c.warning(
@@ -419,8 +458,14 @@ def _check_key_values(
 def _check_fov_table(
     c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame, key: Sequence[str]
 ) -> None:
-    """One row per field, and every observation's field listed (rows with a complete key)."""
-    key = [k for k in key if k in objects.columns and k in fovs.columns]
+    """One row per field, and every observation's field listed (rows with a complete key).
+
+    Skipped when a key column is missing from the FOV table (already reported):
+    over the remaining columns, distinct fields would look like one listed twice.
+    """
+    if any(k not in fovs.columns for k in key):
+        return
+    key = [k for k in key if k in objects.columns]
     if not key:
         return
     objects = objects[objects[key].notna().all(axis=1)]
@@ -459,14 +504,28 @@ def _check_fov_table(
         )
 
 
-def _check_control(c: Collector, fovs: pd.DataFrame, control: Mapping[str, Any]) -> None:
-    """The declared control exists, and in every repeat."""
+def _check_control(
+    c: Collector, fovs: pd.DataFrame, control: Any, from_observations: bool = False
+) -> None:
+    """The declared control is a non-empty mapping, exists, and in every repeat.
+
+    ``fovs`` is the FOV table, or the observation table when there is none
+    (``from_observations``): the fields seen there are then all that is known.
+    """
+    table = "observation table" if from_observations else "FOV table"
+    if not isinstance(control, Mapping) or not control:
+        c.error(
+            "The control does not name a column and its value.",
+            f"control={control!r}.",
+            "Name the control by a column and its value, e.g. control={'condition': 'MOCK'}.",
+        )
+        return
     missing = [k for k in control if k not in fovs.columns]
     if missing:
         c.error(
-            "The control names a column that is not in the FOV table.",
+            f"The control names a column that is not in the {table}.",
             f"control={dict(control)}, missing: {_names(missing)}.",
-            "Name the control by FOV-table columns, e.g. control={'condition': 'MOCK'}.",
+            f"Name the control by {table} columns, e.g. control={{'condition': 'MOCK'}}.",
         )
         return
     is_control = np.ones(len(fovs), dtype=bool)

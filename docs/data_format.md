@@ -48,9 +48,12 @@ observations. It warns every time, because it cannot know about empty fields.
 - **Exact names.** Column names are lowercase and exact. A near miss raises,
   so a misspelt group cannot silently merge repeats: `Repeat`,
   `Technical_Repeat`, `technical repeat` (a space for the underscore),
+  `technicalRepeat` or `PositionID` (camelCase), `Conditions` (a plural),
   `condition ` (a trailing space), or a byte-order mark that a spreadsheet
   wrote before the first header. Name the column in `group_cols` or
   `fov_col` to use it anyway.
+- **Each column name once.** A table with two columns of the same name (as
+  `pd.concat(axis=1)` can make) raises before anything else.
 - **One row per field.** Every field appears once in the FOV table, and
   every observation's field must be listed there.
 - **Field identity.** A field is identified by its group columns together with
@@ -73,6 +76,12 @@ observations. It warns every time, because it cannot know about empty fields.
   result: the microscope looked and found nothing. Keep it in the FOV table.
   A failed image (unreadable, failed segmentation) is not an empty field. Mark
   it in its own column, or leave it out and say so.
+- **Planes are not fields.** When the field identifier is found automatically
+  as `image_file` or `fov_id`, and each field holds a single `z`, `c` or `t`
+  value (on the observations, or in the FOV table) that varies across fields,
+  each "field" may be one plane of a position: with several observations per
+  field this raises, with one row per field it is a warning. Supply
+  `position_id`, or pass `fov_col` if each file really is one position.
 - **Declare what a row is.** Pass `observation_unit` (`"cell"`, `"nucleus"`,
   `"patch"`, ...) when rows are not ordinary objects. Otherwise every sentence
   says "object" and records that the unit was assumed.
@@ -130,7 +139,10 @@ Warnings do not stop it but are often mistakes:
 - rows that are exact copies of another row (a file read twice), or a
   `label_id` twice in one field;
 - features with missing values;
-- repeats without the declared control.
+- repeats without the declared control (checked against the fields in the
+  observations when there is no FOV table);
+- one row per file with its own `z`, `c` or `t`, which may be planes counted
+  as fields.
 
 `data/synthetic` holds a small acquisition whose answers are known, and
 `tests/test_human_errors.py` breaks it in each of these ways; read the test

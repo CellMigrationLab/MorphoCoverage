@@ -19,6 +19,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any
 
+from ._wording import count
 from .evidence import Component, Evidence
 from .objectives import ObjectiveConfig
 from .schema import unit_plural
@@ -163,7 +164,13 @@ class StrategyResult:
             else:
                 parts.append(policy.get("name", "policy"))
         unit = self.observation_unit if self.observation_unit_declared else "observation"
-        effort = f"after {self.n_fovs} FOVs, {self.n_observations} {unit_plural(unit)}"
+        fovs = "an unknown number of FOVs" if self.n_fovs is None else count(self.n_fovs, "FOV")
+        observations = (
+            f"an unknown number of {unit_plural(unit)}"
+            if self.n_observations is None
+            else count(self.n_observations, unit, unit_plural(unit))
+        )
+        effort = f"after {fovs}, {observations}"
         rules = "; ".join(parts) if parts else "no decision policy"
         return f"{decision}: {rules}; {effort}"
 
@@ -199,7 +206,14 @@ class StrategyResult:
 
 
 def combine_decisions(decisions: Sequence[Decision | None]) -> Decision | None:
-    """Undefined if any decision is, stop if all stop, otherwise continue."""
+    """Undefined if any decision is, stop if all stop, otherwise continue.
+
+    At least one decision is needed: with none, "all stop" would hold vacuously
+    and nothing would read as ``STOP``.
+    """
+    decisions = list(decisions)
+    if not decisions:
+        raise ValueError("combine_decisions needs at least one decision; no decision is not a stop")
     if any(decision is None for decision in decisions):
         return None
     if all(decision is Decision.STOP for decision in decisions):

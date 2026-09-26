@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from ._checks import is_integer, is_number
 from .evidence import Component
 
 
@@ -39,14 +40,19 @@ REQUIRED_COMPONENTS: dict[SamplingObjective, frozenset[Component]] = {
 }
 
 
-def _probability(value: float | None, name: str) -> None:
-    """Allow ``None``; otherwise require a number strictly between 0 and 1."""
+def _probability(value: float | None, name: str) -> float | None:
+    """``None``, or ``value`` as a Python float strictly between 0 and 1.
+
+    numpy numbers are accepted like Python ones (``np.float32(0.01)``) and
+    returned as a Python float, so the target stays JSON-serializable.
+    """
     if value is None:
-        return
-    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    if not is_number(value):
         raise TypeError(f"{name} must be a number")
     if not 0 < value < 1:
         raise ValueError(f"{name} must be between 0 and 1")
+    return float(value)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -83,17 +89,20 @@ class RareTarget:
     def __post_init__(self) -> None:
         if self.object_prevalence is None and self.fov_incidence is None:
             raise ValueError("a rare target needs object_prevalence, fov_incidence or both")
-        _probability(self.object_prevalence, "object_prevalence")
-        _probability(self.fov_incidence, "fov_incidence")
+        for name in ("object_prevalence", "fov_incidence"):
+            object.__setattr__(self, name, _probability(getattr(self, name), name))
         if self.detection_probability is None:
             raise TypeError("detection_probability is required: the chance of seeing the state")
-        _probability(self.detection_probability, "detection_probability")
-        if isinstance(self.min_fov_occurrences, bool) or not isinstance(
-            self.min_fov_occurrences, int
-        ):
+        object.__setattr__(
+            self,
+            "detection_probability",
+            _probability(self.detection_probability, "detection_probability"),
+        )
+        if not is_integer(self.min_fov_occurrences):
             raise TypeError("min_fov_occurrences must be an integer count of FOVs")
         if self.min_fov_occurrences < 1:
             raise ValueError("min_fov_occurrences must be at least 1")
+        object.__setattr__(self, "min_fov_occurrences", int(self.min_fov_occurrences))
         if not isinstance(self.phenotype, str) or not self.phenotype.strip():
             raise ValueError(
                 "phenotype must declare how the rare state is defined: a labelled "

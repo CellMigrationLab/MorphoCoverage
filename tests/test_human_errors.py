@@ -274,7 +274,7 @@ MISTAKES = [
         "a feature missing everywhere",
         lambda o, f: (o.assign(eccentricity=np.nan), f),
         "warned",
-        ("Feature 'eccentricity' is missing in 100.0% of observations.",),
+        ("Feature 'eccentricity' is missing in 100% of observations.",),
     ),
     Mistake(
         "fields of another condition in the FOV table",
