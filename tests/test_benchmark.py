@@ -463,3 +463,19 @@ def test_worker_processes_give_identical_records_apart_from_latencies():
         return table.drop(columns=[c for c in table.columns if "seconds" in c])
 
     pd.testing.assert_frame_equal(rows(1), rows(2))
+
+
+def test_a_missing_field_area_is_refused_not_counted_as_zero():
+    scenario = SCENARIOS["unequal_fov_area"]()
+    fovs = scenario.fovs.copy()
+    fovs.loc[fovs.index[1], "area_um2"] = float("nan")
+    dataset = BenchmarkDataset(
+        "area",
+        "development",
+        lambda: (scenario.objects, fovs),
+        feature_cols=FEATURE_COLS,
+        acquisition_order_col=ORDER_COL,
+        area_col="area_um2",
+    )
+    with pytest.raises(ValueError, match="missing for some fields"):
+        _run(BenchmarkRegistry([dataset]), "area", strategies=[FixedFOVStrategy(3)])

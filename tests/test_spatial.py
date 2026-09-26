@@ -83,3 +83,30 @@ def test_fov_means_skip_empty_fovs_and_refuse_missing_values():
 def test_invalid_input_is_refused(values, coords, edges):
     with pytest.raises(ValueError):
         empirical_semivariogram(values, coords, edges)
+
+
+def test_fields_of_different_groups_are_never_paired():
+    """Two conditions share stage coordinates; pairing them would mix samples."""
+    fovs = pd.DataFrame(
+        {
+            "condition": ["a", "a", "b", "b"],
+            "image_file": ["f1", "f2", "f1", "f2"],
+            "x": [0.0, 10.0, 0.0, 10.0],
+            "y": [0.0, 0.0, 0.0, 0.0],
+        }
+    )
+    objects = fovs.loc[fovs.index.repeat(2), ["condition", "image_file"]].assign(
+        v=[0.0, 0.0, 1.0, 1.0, 10.0, 10.0, 11.0, 11.0]
+    )
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["v"])
+    with pytest.raises(ValueError, match="several analysis groups"):
+        fov_semivariogram(data, "x", "y", [0.0, 5.0, 20.0])
+    with pytest.raises(ValueError, match="several analysis groups"):
+        fov_means(data)
+    one = validate_input_tables(
+        objects[objects["condition"] == "a"],
+        fovs=fovs[fovs["condition"] == "a"],
+        feature_cols=["v"],
+    )
+    table = fov_semivariogram(one, "x", "y", [0.0, 5.0, 20.0])
+    assert table["n_pairs"].tolist() == [1] and table["gamma"].tolist() == [0.5]

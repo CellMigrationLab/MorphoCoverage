@@ -183,6 +183,13 @@ def plan_objects_to_average(
     if not control_mean > 0:
         raise ValueError("the control mean must be positive to express SD as a CV")
 
+    if len(values) <= len(sample_means):
+        # Centring each sample on its own mean leaves n_objects - n_samples degrees of
+        # freedom: with one object per sample every centred value is 0 and the SD is 0.
+        raise ValueError(
+            "planning needs at least one pilot sample with 2 or more cells: with one cell per "
+            "sample the within-sample SD is undefined"
+        )
     centred = values - table.groupby(list(sample_cols))["_value"].transform("mean").to_numpy()
     cv = float(np.std(centred, ddof=1)) / control_mean
     cv_upper = cv * sd_upper_bound_factor(len(values) - 1)

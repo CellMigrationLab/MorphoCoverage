@@ -15,6 +15,7 @@ from .metadata import (
     WITHIN_FOV_METADATA_COLUMNS,
     check_canonical_spellings,
     drop_empty_optional_columns,
+    empty_values,
     resolve_fov_col,
     resolve_group_cols,
     resolve_identity_cols,
@@ -44,7 +45,12 @@ _UNIT_ALIASES = {
 DEFAULT_OBSERVATION_UNIT = "object"
 
 
-_PLURALS = {"nucleus": "nuclei", "object": "objects", "fov_summary": "field summaries"}
+_PLURALS = {
+    "nucleus": "nuclei",
+    "object": "objects",
+    "patch": "patches",
+    "fov_summary": "field summaries",
+}
 
 
 def unit_plural(observation_unit: str) -> str:
@@ -292,9 +298,10 @@ def _check_column_roles(
 def _check_observation_values(
     objects: pd.DataFrame, fov_key: tuple[str, ...], feature_cols: tuple[str, ...]
 ) -> None:
-    """Identity columns are complete; features are numeric and never infinite (NaN is allowed)."""
+    """Identity columns are complete (no missing or blank value); features are numeric and never
+    infinite (NaN is allowed)."""
     for column in fov_key:
-        if objects[column].isna().any():
+        if empty_values(objects[column]).any():
             kind = "FOV identifiers" if column == fov_key[-1] else "group values"
             raise ValueError(f"objects[{column!r}] contains missing {kind}")
     # Column by column, the first problem wins, as a per-column loop would find
@@ -326,7 +333,7 @@ def _validated_fov_table(
         return objects.loc[:, key].drop_duplicates().reset_index(drop=True)
     _require_columns(fovs, key, "fovs")
     for column in key:
-        if fovs[column].isna().any():
+        if empty_values(fovs[column]).any():
             raise ValueError(f"fovs[{column!r}] contains missing values")
     if fovs.duplicated(key).any():
         raise ValueError(f"fovs must contain exactly one row per acquired FOV (key: {key})")

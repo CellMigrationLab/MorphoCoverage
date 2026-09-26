@@ -248,10 +248,14 @@ def _pca_reason(estimator: FOVBootstrapEstimator, values: np.ndarray) -> str | N
 class FOVBootstrapEstimator(Estimator):
     """Root-mean-square FOV-bootstrap standard error of a multivariate summary.
 
-    Reports ``fov_bootstrap_<summary>_se`` (lower is better; population
-    evidence for the centroid, distribution evidence for the other summaries),
-    in the units of the transformed features. See the module docstring for the
-    summaries, their limits and missing-data behaviour.
+    Reports ``fov_bootstrap_<summary>_se`` (the root-mean-square SE over the
+    summary's components) and ``fov_bootstrap_<summary>_max_se`` (the largest
+    component SE, the strategy's default stopping quantity), or, for the
+    subspace summary, ``fov_bootstrap_subspace_angle``; all are lower is
+    better, population evidence for the centroid and distribution evidence
+    for the other summaries, in the units of the transformed features. See
+    the module docstring for the summaries, their limits and missing-data
+    behaviour.
     """
 
     summary: str
@@ -399,16 +403,22 @@ class FOVBootstrapEstimator(Estimator):
             diagnostics["visible_blocks"] = blocks
             sizes = data.fovs[self.block_col].value_counts()
             diagnostics["block_sizes"] = {"min": int(sizes.min()), "max": int(sizes.max())}
+        # A PCA summary these features can never define is not_applicable from the
+        # first FOV on, not insufficient until min_fovs and then not_applicable.
+        shape_known = values if values is not None else None
+        if shape_known is None and self.transform is None:
+            shape_known = np.empty((0, len(data.feature_cols)))
+        if self.summary in ("eigenspectrum", "subspace") and shape_known is not None:
+            never = _pca_reason(self, shape_known)
+            if never:
+                quantity = Quantity.not_applicable(never, **_meta(units, self.summary))
+                return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": never})
         if with_observations < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
         elif blocks is not None and blocks < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible spatial blocks"
         elif values is None:
             reason = f"the transform could not be fitted: {diagnostics['transform']['reason']}"
-        elif self.summary in ("eigenspectrum", "subspace") and _pca_reason(self, values):
-            reason = _pca_reason(self, values)
-            quantity = Quantity.not_applicable(reason, **_meta(units, self.summary))
-            return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": reason})
         else:
             reason = None
         if reason is not None:

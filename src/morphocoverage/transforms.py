@@ -34,6 +34,9 @@ import numpy as np
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput
 
+# Below this share of the scale a spread or a variance is rounding noise, not signal.
+RELATIVE_TOLERANCE = 1e-12
+
 
 class FeatureTransform(ABC):
     """A feature-space transform fitted on visible data only.
@@ -168,7 +171,8 @@ class Standardize(FeatureTransform):
             return "fewer than 2 observations"
         mean = matrix.mean(axis=0)
         sd = matrix.std(axis=0, ddof=1)
-        constant = [name for name, value in zip(names, sd, strict=True) if not value > 0]
+        flags = constant_columns(matrix)
+        constant = [name for name, flag in zip(names, flags, strict=True) if flag]
         if constant:
             return f"zero SD on the visible data for {constant}"
         return {"mean": _floats(mean), "sd": _floats(sd)}, names
@@ -178,6 +182,19 @@ class Standardize(FeatureTransform):
         return (matrix - np.asarray(state["mean"])) / np.asarray(state["sd"])
 
 
+def constant_columns(matrix: np.ndarray) -> np.ndarray:
+    """Which columns do not vary: identical values, or a spread that is rounding noise.
+
+    A constant such as 0.1 gives an SD of about 1e-17 from rounding rather than 0,
+    so ``sd > 0`` alone would standardise by noise. A column counts as constant
+    when its range is 0 or its SD is below ``1e-12`` of its absolute mean.
+    """
+    spread = np.ptp(matrix, axis=0)
+    sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1])
+    scale = np.abs(matrix.mean(axis=0))
+    return (spread == 0) | (sd <= RELATIVE_TOLERANCE * scale)
+
+
 @dataclass(frozen=True)
 class PCA(FeatureTransform):
     """Project the centred visible features onto their first ``n_components`` principal axes.
@@ -185,7 +202,10 @@ class PCA(FeatureTransform):
     Components come from the SVD of the centred visible matrix. Each
     component's sign is fixed so that its largest-magnitude loading is
     positive, so the projection is deterministic. Not fitted unless there are
-    more observations than components and at least as many features as components.
+    more observations than components, at least as many features as components,
+    and the centred features span at least ``n_components`` dimensions (a
+    component beyond their rank would be an arbitrary direction of rounding
+    noise).
     The explained-variance ratios are recorded in the fitted state.
     """
 
@@ -223,6 +243,11 @@ class PCA(FeatureTransform):
         total = float((singular**2).sum())
         if total == 0:
             return "the visible features have no variance"
+        if singular[self.n_components - 1] ** 2 <= RELATIVE_TOLERANCE * total:
+            return (
+                f"the visible features span fewer than {self.n_components} dimensions "
+                "(collinear features); fewer components or other features are needed"
+            )
         components = vt[: self.n_components]
         signs = np.sign(components[np.arange(self.n_components), np.abs(components).argmax(1)])
         components = components * signs[:, None]

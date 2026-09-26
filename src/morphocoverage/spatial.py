@@ -68,13 +68,27 @@ def empirical_semivariogram(
     return pd.DataFrame(rows, columns=["lag_low", "lag_high", "mean_lag", "gamma", "n_pairs"])
 
 
+def _require_one_group(data: ValidatedInput) -> None:
+    """Raise when ``data`` spans several analysis groups (conditions, repeats, wells)."""
+    groups = list(data.group_cols)
+    if groups and len(data.fovs[groups].drop_duplicates()) > 1:
+        raise ValueError(
+            f"the tables hold several analysis groups ({', '.join(groups)}); pairing fields "
+            "across them by stage distance would mix samples: pass one group at a time "
+            "(evaluator.iter_analysis_groups)"
+        )
+
+
 def fov_means(data: ValidatedInput) -> tuple[np.ndarray, np.ndarray]:
     """Per-observation mean of every selected feature in each FOV with observations.
 
     Returns ``(means, fov_rows)``: ``means`` is ``(n_fovs_with_observations, d)``
     and ``fov_rows`` gives each mean's row in ``data.fovs``. Missing feature
-    values raise, since an FOV mean over them would be undefined.
+    values raise, since an FOV mean over them would be undefined. ``data``
+    must hold one analysis group (``evaluator.iter_analysis_groups``), since
+    fields of different samples are not neighbours on one stage.
     """
+    _require_one_group(data)
     matrix = data.feature_matrix()
     if np.isnan(matrix).any():
         raise ValueError("missing feature values; FOV means are undefined")
@@ -93,7 +107,8 @@ def fov_semivariogram(
 
     FOVs without observations have no mean and are left out. Standardize or
     select features beforehand if they are on different scales, since the
-    squared differences are averaged over features.
+    squared differences are averaged over features. ``data`` must hold one
+    analysis group (see ``fov_means``).
     """
     for column in (x_col, y_col):
         if column not in data.fovs.columns:

@@ -24,8 +24,13 @@ at least 95%; that is the binomial plan of ``rare_planning``. Choosing
 equal, and how far apart they are depends on the prior.
 
 With a uniform prior (``a = b = 1``) and no detections the risk is
-``(1 - p*) ** (k + 1)``, so the rule stops one FOV before the binomial plan of
-``rare_planning``; unlike that plan it stops as soon as the state recurs.
+``(1 - p*) ** (k + 1)``, so for ``min_fov_occurrences = 1`` the rule stops one
+FOV before the binomial plan of ``rare_planning``; unlike that plan it stops
+as soon as the state recurs. For ``min_fov_occurrences = r > 1`` the risk does
+not depend on ``r`` while fewer than ``r`` positives are seen, so with no
+detections the rule stops at the ``r = 1`` point, well before the plan for
+``r`` occurrences (with ``p* = 0.05`` and 5% risk: 58 FOVs, against 93 for
+``r = 2`` and 124 for ``r = 3``).
 Recurrence counts positions, not objects: many labelled objects in one FOV are one
 positive FOV.
 

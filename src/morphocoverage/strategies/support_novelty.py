@@ -97,10 +97,10 @@ Choices and limits:
   acquisition effort.
 
 The counting lives in ``support_geometry``. Cost: ``scipy.spatial.cKDTree``
-queries. With ``min_other_fovs=1``, counting
-ball queries (about 10 ms for a 1,000-object well); otherwise one bounded
-nearest-neighbour query of every observation per FOV (about 0.5 s for 6,700
-objects in 168 FOVs).
+queries. With ``min_other_fovs=1`` and ``min_novel_observations=1``, counting
+ball queries (about 10 ms for a 1,000-object well); otherwise a dense distance
+matrix for small groups, or bounded nearest-neighbour queries per FOV (about
+0.5 s for 6,700 objects in 168 FOVs).
 """
 
 from __future__ import annotations
@@ -272,9 +272,11 @@ class SupportNoveltyEstimator(Estimator):
         observations have fewer than ``min_other_fovs`` FOVs of ``visible``
         within ``epsilon`` and form one cluster at ``epsilon`` (a new state).
         The transform is fitted on ``visible`` only. FOVs
-        without observations are not novel. Returns ``None`` when the estimate
-        on ``visible`` would be unavailable (missing values, too few FOVs, a
-        transform that cannot be fitted) or ``new`` has missing values.
+        without observations are not novel. Returns ``None`` for missing values
+        in ``visible`` or ``new``, too few FOVs, or a transform that cannot be
+        fitted on ``visible``. It does not refit the leave-one-FOV-out folds, so
+        it can return flags where ``estimate`` on ``visible`` is insufficient
+        because one fold could not be fitted; callers check ``estimate`` first.
         """
         reference = visible.feature_matrix()
         queries = new.feature_matrix()

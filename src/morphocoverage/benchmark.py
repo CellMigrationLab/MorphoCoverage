@@ -316,10 +316,18 @@ def _group_key(group: Mapping[str, Any]) -> tuple:
 
 
 def _area(data: ValidatedInput, area_col: str | None) -> float | None:
-    """Total imaged area of the FOVs, or ``None`` when the dataset declares no area column."""
+    """Total imaged area of the FOVs, or ``None`` when the dataset declares no area column.
+
+    A field with no recorded area raises: summing it as zero would understate
+    the effort at the stop.
+    """
     if area_col is None:
         return None
-    return float(data.fovs[area_col].sum())
+    areas = data.fovs[area_col]
+    if areas.isna().any():
+        missing = data.fovs.loc[areas.isna(), list(data.fov_key)].head(3).to_dict("records")
+        raise ValueError(f"area_col {area_col!r} is missing for some fields, e.g. {missing}")
+    return float(areas.sum())
 
 
 def _record_run(

@@ -309,3 +309,34 @@ def test_an_all_empty_position_id_falls_back_to_image_file():
             feature_cols=["area"],
             fov_col="position_id",
         )
+
+
+def test_an_empty_optional_column_only_in_the_fov_table_is_dropped_without_error():
+    import numpy as np
+
+    from morphocoverage import check_tables
+
+    objects, fovs = _morphobricks_tables()
+    for column in ("technical_repeat", "position_id"):
+        f = fovs.assign(**{column: np.nan})
+        data = validate_input_tables(objects, fovs=f, feature_cols=["area"])
+        assert column not in data.fovs.columns
+        assert check_tables(objects, f, feature_cols=["area"], observation_unit="cell").ok
+
+
+def test_blank_text_is_a_missing_identity_value_for_the_validator_and_the_check():
+    from morphocoverage import check_tables
+
+    objects, fovs = _morphobricks_tables()
+    for blank in ("", "  "):
+        o = objects.assign(condition=["control", "control", blank, blank])
+        f = fovs.assign(condition=["control", "control", blank, blank])
+        with pytest.raises(ValueError, match="missing group values|contains missing values"):
+            validate_input_tables(o, fovs=f, feature_cols=["area"])
+        assert not check_tables(o, f, feature_cols=["area"], observation_unit="cell").ok
+
+
+def test_patch_is_pluralised_as_patches():
+    from morphocoverage.schema import unit_plural
+
+    assert unit_plural("patch") == "patches" and unit_plural("cell") == "cells"

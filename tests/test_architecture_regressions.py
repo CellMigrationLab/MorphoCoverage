@@ -486,3 +486,17 @@ def test_min_fovs_larger_than_a_group_raises_instead_of_dropping_it():
     fovs = pd.DataFrame({"fov_id": ["F1", "F2"], "order": [1, 2]})
     with pytest.raises(ValueError, match="min_fovs=5"):
         _run_prefixes(objects, fovs, FixedFOVStrategy(1), min_fovs=5)
+
+
+def test_estimators_cannot_report_framework_effort_under_any_name():
+    from morphocoverage.evidence import Evidence, Quantity
+
+    for name in ("n_fovs", "n_observations", "n_objects"):
+        with pytest.raises(ValueError):
+            Evidence(
+                {
+                    name: Quantity.available(
+                        5, direction="higher_is_better", units="count", component="population"
+                    )
+                }
+            )

@@ -40,15 +40,22 @@ MORPHOBRICKS_FOV_CANDIDATES = ("position_id", "image_file", "fov_id")
 WITHIN_FOV_METADATA_COLUMNS = ("z", "z0", "z1", "c", "t")
 
 
-def _empty(values: pd.Series) -> pd.Series:
-    """Which entries hold no value: missing, or text that is blank."""
-    blank = values.astype(str).str.strip() == ""
-    return values.isna() | (blank & values.map(lambda v: isinstance(v, str)))
+def empty_values(values: pd.Series) -> pd.Series:
+    """Which entries hold no value: missing, or text that is blank (``""``, ``"  "``).
+
+    Vectorised, and only text columns are searched for blanks, since the
+    validator runs this on every identity column.
+    """
+    missing = values.isna()
+    if values.dtype == object or pd.api.types.is_string_dtype(values.dtype):
+        blank = values.str.strip().eq("")  # NaN for entries that are not text
+        missing = missing | blank.fillna(False).astype(bool)
+    return missing
 
 
 def column_has_values(table: pd.DataFrame, column: str) -> bool:
     """Whether ``table`` has ``column`` with at least one value in it."""
-    return column in table.columns and not bool(_empty(table[column]).all())
+    return column in table.columns and not bool(empty_values(table[column]).all())
 
 
 def drop_empty_optional_columns(
@@ -66,7 +73,8 @@ def drop_empty_optional_columns(
             continue
         present = [t for t in (objects, fovs) if t is not None and column in t.columns]
         if present and not any(column_has_values(t, column) for t in present):
-            objects = objects.drop(columns=column)
+            if column in objects.columns:
+                objects = objects.drop(columns=column)
             if fovs is not None and column in fovs.columns:
                 fovs = fovs.drop(columns=column)
     return objects, fovs
