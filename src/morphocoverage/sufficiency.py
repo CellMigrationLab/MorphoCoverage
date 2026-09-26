@@ -313,6 +313,16 @@ def novelty_definition(
     return text
 
 
+def _group_major(table: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
+    """Rows group by group in first-seen order, keeping each group's row order."""
+    if not group_cols or table.empty:
+        return table
+    key = table[group_cols].astype(str).agg("\x1f".join, axis=1)
+    rank = {value: i for i, value in enumerate(dict.fromkeys(key))}
+    order = key.map(rank).sort_values(kind="stable").index
+    return table.loc[order].reset_index(drop=True)
+
+
 def _percent(value: float) -> str:
     """A probability as a short percentage."""
     return f"{100 * value:.0f}%" if value >= 0.01 or value == 0 else f"{100 * value:.1g}%"
@@ -662,8 +672,12 @@ def sufficiency_report(
         if rules
     ]
     if parts:
-        final = pd.concat([part[0] for part in parts], ignore_index=True)
-        stops = pd.concat([part[1] for part in parts], ignore_index=True)
+        # The order and dtypes of a single run: final group by group, stops strategy
+        # by strategy (a block of undefined stops alone would read as objects).
+        final = _group_major(
+            pd.concat([part[0] for part in parts], ignore_index=True), resolved_groups
+        ).infer_objects()
+        stops = pd.concat([part[1] for part in parts], ignore_index=True).infer_objects()
         enough = _enough_table(final, stops, resolved_groups)
 
     next_fov, new_observations, calibrated = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
