@@ -37,6 +37,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._wording import count
 from ._text import fields, group_identity, percent, rows_of, sample_word
 from .hierarchy import SamplingHierarchy
 from .reliability import ReliabilityResult
@@ -327,10 +328,6 @@ def _with_ceiling(
     return difficulty
 
 
-def _plural(count: int, word: str) -> str:
-    return f"{count} {word}" if count == 1 else f"{count} {word}s"
-
-
 def protocol_summary(result: ProtocolResult) -> str:
     """ "For experiments like this one" in sentences."""
     labels = result.settings.get("labels", {})
@@ -351,7 +348,7 @@ def protocol_summary(result: ProtocolResult) -> str:
         lines = [
             (
                 f"{stratum}: fields per {sample} for {criterion} "
-                f"({_plural(n_samples, sample)} in {_plural(n_units, unit)}; a {sample} "
+                f"({count(n_samples, sample)} in {count(n_units, unit)}; a {sample} "
                 f"counts when {threshold} of random acquisitions were enough)"
             )
         ]
@@ -440,12 +437,12 @@ def protocol_summary(result: ProtocolResult) -> str:
                 )
             elif unchosen:
                 lines.append(
-                    f"  For {_plural(unchosen, unit)}, the others reached no number that "
+                    f"  For {count(unchosen, unit)}, the others reached no number that "
                     "served enough samples, so nothing was checked there."
                 )
         if n_units < FEW_UNITS:
             lines.append(
-                f"  Uncertainty is large with only {_plural(n_units, unit)}: add more "
+                f"  Uncertainty is large with only {count(n_units, unit)}: add more "
                 "before fixing a protocol."
             )
         blocks.append("\n".join(lines))

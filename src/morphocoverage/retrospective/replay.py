@@ -32,10 +32,11 @@ import pandas as pd
 
 from .._parallel import check_n_jobs, map_units
 from ..benchmark import AcquisitionOrder
+from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups, restrict_input
 from ..objectives import ObjectiveConfig
 from ..reservoir import ReservoirSplit
-from ..schema import ValidatedInput, validate_input_tables
+from ..schema import ValidatedInput
 from ..sequential import (
     _Acquisition,
     _in_acquisition_order,

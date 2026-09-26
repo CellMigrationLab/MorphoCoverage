@@ -54,10 +54,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..retrospective._text import fields as fields_text
-from ..retrospective._text import group_identity, unit_plural, where
-from ..schema import ValidatedInput
-from ..strategies.scalar_precision import sd_upper_bound_factor
+from .._seeds import group_identity
+from .._wording import fields as fields_text
+from .._wording import where
+from ..schema import ValidatedInput, unit_plural
+from ..statistics import field_sample, jcb_required_objects, sd_upper_bound_factor
+from ..strategies.stabilization import describe
 from ._common import check_count, check_seed, fov_values, groups, matching_groups, validated
 
 DESCRIPTORS = ("mean", "median", "SD", "IQR")
@@ -200,7 +202,7 @@ def object_rule_check(
                 rows.append({**base, "target": target, "status": "too few FOVs or objects"})
                 continue
             sd = float(np.std(np.concatenate(filled) / reference, ddof=1))
-            n = max(1, math.ceil((sd / target) ** 2))
+            n = max(1, jcb_required_objects(sd, target))
             rng = np.random.default_rng([random_state, group_identity(group), int(target * 1e6)])
             means, obtained, used = _fovs_until(sizes, sums / reference, n, n_draws, rng)
             real = float(means.std(ddof=1))
@@ -221,8 +223,8 @@ def object_rule_check(
                     "real_error": real,
                     "error_ratio": real / predicted if predicted > 0 else None,
                     "meets_target": bool(real <= target),
-                    "fov_rule_fovs": max(1, math.ceil((fov_sd / target) ** 2)),
-                    "fov_rule_fovs_upper95": max(1, math.ceil((upper / target) ** 2)),
+                    "fov_rule_fovs": max(1, jcb_required_objects(fov_sd, target)),
+                    "fov_rule_fovs_upper95": max(1, jcb_required_objects(upper, target)),
                 }
             )
     settings = {
@@ -296,24 +298,6 @@ class DescriptorSpreadCheck:
         return "\n".join(lines)
 
 
-def _descriptors(values: np.ndarray) -> np.ndarray:
-    q1, median, q3 = np.percentile(values, [25, 50, 75])
-    return np.array([values.mean(), median, values.std(ddof=1), q3 - q1])
-
-
-def _fov_sample(per_fov: list[np.ndarray], n: int, rng: np.random.Generator) -> np.ndarray:
-    """Whole FOVs in random order until ``n`` objects, with a random part of the last one."""
-    taken, count = [], 0
-    for i in rng.permutation(len(per_fov)):
-        values = per_fov[i]
-        if count + len(values) >= n:
-            taken.append(rng.choice(values, size=n - count, replace=False))
-            break
-        taken.append(values)
-        count += len(values)
-    return np.concatenate(taken)
-
-
 def descriptor_spread_check(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -354,8 +338,8 @@ def descriptor_spread_check(
                 if how == RANDOM_OBJECTS:
                     samples = [rng.choice(pooled, size=n, replace=False) for _ in range(n_draws)]
                 else:
-                    samples = [_fov_sample(per_fov, n, rng) for _ in range(n_draws)]
-                values = np.array([_descriptors(s) for s in samples])
+                    samples = [field_sample(per_fov, n, rng) for _ in range(n_draws)]
+                values = np.array([list(describe(s).values()) for s in samples])
                 spread = values.max(axis=0) - values.min(axis=0)
                 spreads[(how, n)] = spread
                 rows.append(

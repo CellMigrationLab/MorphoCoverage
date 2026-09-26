@@ -51,9 +51,7 @@ should rest on several splits, never one.
 
 from __future__ import annotations
 
-import json
 import math
-import zlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -61,6 +59,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._seeds import group_seed
 from .evaluator import objects_in_fovs, restrict_input
 from .outcomes import OutcomeMetric
 from .schema import ValidatedInput
@@ -82,12 +81,6 @@ def spatial_blocks(fovs: pd.DataFrame, x_col: str, y_col: str, block_size: float
     x = np.floor(fovs[x_col].to_numpy(dtype=float) / block_size).astype(int)
     y = np.floor(fovs[y_col].to_numpy(dtype=float) / block_size).astype(int)
     return pd.Series([f"{i}_{j}" for i, j in zip(x, y, strict=True)], index=fovs.index)
-
-
-def _group_seed(seed: int, group: Mapping[str, Any]) -> list[int]:
-    """Seed material for one group: the split seed and a stable hash of the group identity."""
-    identity = json.dumps(sorted(group.items()), default=str).encode()
-    return [seed, zlib.crc32(identity)]
 
 
 def _subset(data: ValidatedInput, fovs: pd.DataFrame) -> ValidatedInput:
@@ -154,7 +147,7 @@ class ReservoirSplit:
         # block, so large blocks are not under-represented in the reservoir.
         # A size cap would skip large blocks and bias the reference.
         n_held = min(math.ceil(self.fraction * len(labels)), len(labels) - 1)
-        rng = np.random.default_rng(_group_seed(self.seed, group))
+        rng = np.random.default_rng(group_seed(self.seed, group))
         chosen = rng.choice(len(labels), size=n_held, replace=False)
         held_out = np.isin(block_of_fov, chosen)
         return _subset(data, fovs.loc[~held_out]), _subset(data, fovs.loc[held_out])

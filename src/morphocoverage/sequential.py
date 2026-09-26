@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from ._parallel import check_n_jobs, map_units
+from .data_check import validate_input_tables
 from .evaluator import (
     IncrementalReplay,
     evaluate_strategy,
@@ -19,7 +20,7 @@ from .evaluator import (
 )
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
-from .schema import ValidatedInput, fov_positions, validate_input_tables
+from .schema import ValidatedInput, fov_positions
 from .strategies.base import SamplingStrategy
 
 

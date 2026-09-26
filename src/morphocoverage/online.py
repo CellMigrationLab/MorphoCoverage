@@ -14,6 +14,7 @@ from typing import Any
 
 import pandas as pd
 
+from .data_check import validate_input_tables
 from .evaluator import IncrementalReplay
 from .metadata import (
     EMPTY_MEANS_ABSENT,
@@ -24,7 +25,7 @@ from .metadata import (
 )
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
-from .schema import ValidatedInput, resolve_observation_unit, validate_input_tables
+from .schema import ValidatedInput, resolve_observation_unit
 from .strategies.base import SamplingStrategy
 
 

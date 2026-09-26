@@ -6,20 +6,12 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from ._text import percent
+from ._text import fields, percent
 
 if TYPE_CHECKING:
     from .frontier import FrontierResult
 
 BASELINE = "fixed fields"
-
-
-def _fields(value: float) -> str:
-    """``1 field``, ``12 fields`` or ``12.5 fields`` (one decimal)."""
-    value = round(float(value), 1)
-    if value == 1:
-        return "1 field"
-    return f"{value:.0f} fields" if value.is_integer() else f"{value:.1f} fields"
 
 
 def _setting(value: object) -> str:
@@ -58,7 +50,7 @@ def frontier_summary(result: FrontierResult) -> str:
             else f", {_number(base['effort'])} on average as some acquisitions had fewer"
         )
         lines.append(
-            f"  a fixed number of fields needed {_fields(int(base['setting']))}{mean_effort} "
+            f"  a fixed number of fields needed {fields(int(base['setting']))}{mean_effort} "
             f"(risk {percent(base['risk'])})."
         )
         for row in rows[rows["family"] != BASELINE].itertuples(index=False):
@@ -100,7 +92,7 @@ def frontier_summary(result: FrontierResult) -> str:
                 f"{row.adaptivity:.2f}"
             )
             lines.append(
-                f"  {row.family} at {_setting(row.setting)}: {_fields(row.effort)} on average "
+                f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
                 f"(risk {percent(row.risk)}); it {verdict}{interval}{adaptive}."
             )
         unit_cols = result.settings.get("unit_cols") or []

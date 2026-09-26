@@ -26,9 +26,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._wording import duration
+from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
-from ..schema import validate_input_tables
 from ..spatial import fov_means, fov_semivariogram
+from ._text import fields as fields_text
+from ._text import percent
 from .adequacy import ALL_CRITERIA, AdequacyResult, adequacy_points
 from .replay import ReplayResult
 from .stage import dispersed_order, stage_travel
@@ -193,18 +196,18 @@ def efficiency_summary(result: EfficiencyResult) -> str:
             if row.median_fovs > row.stream_fovs:
                 lines.append(
                     f"  {label}: not reliably enough within the {row.stream_fovs} fields "
-                    f"(in {100 * (1 - row.reached):.0f}% of runs)."
+                    f"(in {percent(1 - row.reached)} of runs)."
                 )
                 continue
             travel = (
                 "" if row.median_travel is None else f" and {_distance(row.median_travel, unit)}"
             )
-            time = "" if row.median_time is None else f" (about {row.median_time / 60:.0f} min)"
-            fields = "1 field" if row.median_fovs == 1 else f"{row.median_fovs:g} fields"
+            time = "" if row.median_time is None else f" (about {duration(row.median_time)})"
+            fields = fields_text(row.median_fovs)
             # The median hides runs that never got there; a protocol must serve those too.
             missed = (
                 f" (never within the {row.stream_fovs} fields in "
-                f"{100 * (1 - row.reached):.0f}% of runs)"
+                f"{percent(1 - row.reached)} of runs)"
                 if row.reached < 1
                 else ""
             )

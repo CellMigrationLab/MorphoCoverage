@@ -9,10 +9,11 @@ import pandas as pd
 from test_sufficiency import _novel_acquisition
 
 from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
+from morphocoverage._wording import fields as fields_text
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective.adequacy import _median_point, _tail_point, adequacy_points
-from morphocoverage.retrospective.calibration import _fields, stopping_calibration
+from morphocoverage.retrospective.calibration import stopping_calibration
 from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.retrospective.replay import replay_acquisitions
 from morphocoverage.strategies import SupportNoveltyEstimator
@@ -103,7 +104,7 @@ def test_e4_e5_medians_and_tails_say_what_the_runs_did():
 def test_e9_stop_counts_are_never_interpolated_or_rounded_away():
     assert _quantile(np.array([2.0, 3.0]), 0.9) == 3.0
     assert _quantile(np.array([]), 0.9) is None
-    assert _fields(2.5) == "2.5" and _fields(6.0) == "6"
+    assert fields_text(2.5) == "2.5 fields" and fields_text(6.0) == "6 fields"
 
 
 def _few_report(confidence, min_other_fovs):

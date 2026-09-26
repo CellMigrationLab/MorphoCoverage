@@ -6,10 +6,10 @@ from collections.abc import Iterable, Sequence
 
 import pandas as pd
 
+from .data_check import validate_input_tables
 from .evaluator import evaluate_strategies
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
-from .schema import validate_input_tables
 from .strategies.base import SamplingStrategy
 
 

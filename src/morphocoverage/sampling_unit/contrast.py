@@ -53,8 +53,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._seeds import group_identity
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from ..retrospective._text import group_identity, unit_plural
+from ..schema import unit_plural
 from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import check_count, check_seed, groups, validated
 from ._units import (

@@ -22,7 +22,8 @@ features. Per analysis group and state it reports:
   reach as few fields as observed;
 - the fields needed to see the state once with ``detection_probability``,
   from the observed field incidence (``rare_planning.first_detection_fovs``),
-  with a Clopper-Pearson bound from the lower bound of that incidence, beside
+  with a bound from the low end of that incidence's two-sided Clopper-Pearson
+  interval (the convention of ``sufficiency``), beside
   the fields a random-object argument would ask for.
 
 Fields without observations count as acquired fields that did not show the
@@ -67,11 +68,12 @@ import pandas as pd
 from scipy import stats
 from scipy.spatial import cKDTree
 
-from ..bounds import upper_bound
-from ..retrospective._text import fields as fields_text
-from ..retrospective._text import group_identity, unit_plural, where
-from ..schema import ValidatedInput, fov_positions
-from ..strategies.rare_planning import first_detection_fovs
+from .._seeds import group_identity
+from .._wording import fields as fields_text
+from .._wording import where
+from ..bounds import interval
+from ..schema import ValidatedInput, fov_positions, unit_plural
+from ..statistics import first_detection_fovs
 from ..transforms import Standardize
 from ._common import check_count, check_seed, groups, matching_groups, validated
 
@@ -155,7 +157,8 @@ def fov_clustering(
     ``expected_fovs_if_random``, ``clustering_ratio``, ``p_clustered``,
     ``largest_fov_share`` (the share of the state's objects in its fullest
     field), ``fovs_needed`` and ``fovs_needed_upper`` (from the observed field
-    incidence and its lower ``confidence`` bound), and
+    incidence and the low end of its two-sided ``confidence`` Clopper-Pearson
+    interval), and
     ``fovs_needed_if_random`` (from the object prevalence and the mean
     observations per acquired field).
     """
@@ -259,7 +262,7 @@ def _state_row(
     else:
         if_random = 1
     incidence = observed / n_fovs
-    lower = 1 - upper_bound(n_fovs - observed, n_fovs, confidence)
+    lower = interval(observed, n_fovs, confidence)[0]
     row.update(
         {
             "expected_fovs_if_random": expected,

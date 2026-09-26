@@ -354,40 +354,6 @@ def _validated_fov_table(
     return fovs.copy()
 
 
-def validate_input_tables(
-    objects: pd.DataFrame,
-    *,
-    feature_cols: Sequence[str],
-    fov_col: str | None = None,
-    fovs: pd.DataFrame | None = None,
-    group_cols: Sequence[str] | None = None,
-    observation_unit: str | None = None,
-) -> ValidatedInput:
-    """Validate linked observation/FOV tables using MorphoBricks conventions.
-
-    See ``_validate_input_tables`` for the rules. When the tables are refused,
-    the error (same type, first line unchanged) carries the full
-    ``data_check.check_tables`` report: every problem, where, and how to fix it.
-    """
-    arguments = {
-        "feature_cols": feature_cols,
-        "fov_col": fov_col,
-        "fovs": fovs,
-        "group_cols": group_cols,
-        "observation_unit": observation_unit,
-    }
-    try:
-        return _validate_input_tables(objects, **arguments)
-    except (ValueError, TypeError) as exc:
-        from .data_check import check_tables
-
-        try:
-            report = check_tables(objects, **arguments).summary()
-        except Exception:  # noqa: BLE001 -- the report is a courtesy; never hide the real error
-            raise exc from None
-        raise type(exc)(f"{exc}\n\n{report}") from exc
-
-
 def _validate_input_tables(
     objects: pd.DataFrame,
     *,
@@ -500,3 +466,14 @@ def fov_table_from_observations(
         stacklevel=2,
     )
     return table
+
+
+def __getattr__(name: str) -> object:
+    """``validate_input_tables`` lives in ``data_check`` (it attaches that report to its
+    errors); it is still importable from here, loaded on first use so that ``schema``
+    never imports ``data_check`` while ``data_check`` imports ``schema``."""
+    if name == "validate_input_tables":
+        from .data_check import validate_input_tables
+
+        return validate_input_tables
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

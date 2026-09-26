@@ -31,8 +31,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._seeds import group_identity
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from ..retrospective._text import group_identity
 from ..statistics import benjamini_hochberg
 from ._common import check_count, check_seed, groups, validated
 from ._units import (

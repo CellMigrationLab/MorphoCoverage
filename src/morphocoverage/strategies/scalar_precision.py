@@ -60,35 +60,23 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2
 
 from .. import _deprecated
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
+from ..statistics import jcb_required_objects, sd_upper_bound_factor
 from .base import Estimator, EstimatorState, SamplingStrategy, unsupported_observation_unit
 
 _UNITS = ("object", "fov")
 _SD_ESTIMATES = ("point", "upper_95")
 # The paper's advice: a pilot SD estimate above 50% CV calls for more data.
 _MAX_TRUSTED_CV = 0.5
-
-
-@lru_cache(maxsize=4096)
-def sd_upper_bound_factor(df: int, confidence: float = 0.95) -> float:
-    """Factor turning a sample SD into the upper bound of its confidence interval.
-
-    The chi-square bound ``sqrt(df / chi2.ppf((1 - confidence) / 2, df))``.
-    """
-    if df < 1:
-        raise ValueError("df must be at least 1")
-    return math.sqrt(df / chi2.ppf((1 - confidence) / 2, df))
 
 
 def object_averaging_cv(values: np.ndarray) -> dict[str, float]:
@@ -144,8 +132,8 @@ def fov_averaging_cv(sums: np.ndarray, counts: np.ndarray) -> dict[str, float]:
 
 
 def required_objects(cv_objects: float, target_cv: float) -> int:
-    """The paper's number of objects to average: ``ceil((cv_objects / target_cv) ** 2)``."""
-    return math.ceil((cv_objects / target_cv) ** 2)
+    """The paper's number of objects to average (``statistics.jcb_required_objects``)."""
+    return jcb_required_objects(cv_objects, target_cv)
 
 
 def required_fovs(cv_mean: float, n_fovs: int, target_cv: float) -> int:

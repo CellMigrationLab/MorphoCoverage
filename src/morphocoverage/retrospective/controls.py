@@ -36,8 +36,9 @@ import numpy as np
 import pandas as pd
 
 from .._parallel import check_n_jobs, map_units, worker_pool
+from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets, restrict_input
-from ..schema import ValidatedInput, validate_input_tables
+from ..schema import ValidatedInput
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ._text import group_identity, percent, unit_plural, where
 

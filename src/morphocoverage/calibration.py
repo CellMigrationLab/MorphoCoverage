@@ -40,10 +40,11 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
+from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .evidence import Availability
 from .objectives import ObjectiveConfig, SamplingObjective
-from .schema import ValidatedInput, validate_input_tables
+from .schema import ValidatedInput
 from .strategies.support_novelty import FOV_QUANTITY, UPPER_QUANTITY, SupportNoveltyEstimator
 
 _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)

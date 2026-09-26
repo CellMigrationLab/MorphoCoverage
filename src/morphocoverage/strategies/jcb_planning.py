@@ -49,13 +49,15 @@ import numpy as np
 import pandas as pd
 
 from .. import _deprecated
+from ..data_check import validate_input_tables
 from ..evidence import Availability, Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import DecisionPolicy, Effort
 from ..results import Decision
-from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, validate_input_tables
+from ..schema import OBJECT_LIKE_UNITS, ValidatedInput
+from ..statistics import sd_upper_bound_factor
 from .base import Estimator, SamplingStrategy, unsupported_observation_unit
-from .scalar_precision import required_objects, sd_upper_bound_factor
+from .scalar_precision import required_objects
 
 _SD_ESTIMATES = ("point", "upper_95")
 _REQUIRED = "planned_required_objects"

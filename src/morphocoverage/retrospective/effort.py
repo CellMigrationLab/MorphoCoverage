@@ -56,61 +56,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..schema import fov_positions, validate_input_tables
-from ._text import group_identity
+from .._seeds import group_identity
+from ..data_check import validate_input_tables
+from ..schema import fov_positions
+from ..statistics import nested_variance_components
 from .effort_text import OBSERVATION, effort_summary
 from .hierarchy import SamplingHierarchy
 from .protocol import FEW_UNITS
-
-
-def _dense_codes(code: np.ndarray) -> np.ndarray:
-    """Codes renumbered 0..K-1 by value; returned as they are when they already are."""
-    # bincount allocates max + 1 entries, so only codes that could be dense qualify.
-    if code.dtype.kind in "iu" and len(code) and code.min() == 0 and code.max() < len(code):
-        present = np.bincount(code)
-        if present.all():
-            return code
-    return np.unique(code, return_inverse=True)[1]
-
-
-def nested_variance_components(values: np.ndarray, codes: Sequence[np.ndarray]) -> np.ndarray:
-    """Method-of-moments variance components of a nested random design.
-
-    ``codes`` gives, coarsest level first, the integer unit of each value at
-    each level (units must nest: every unit of a level lies inside one unit
-    of the level before it). Returns one component per level plus the
-    residual (observation) component, in the same order.
-    """
-    values = np.asarray(values, dtype=float)
-    n = len(values)
-    if n < 2 or np.isnan(values).any():
-        raise ValueError("need at least two non-missing values")
-    levels = [np.zeros(n, dtype=int), *[np.asarray(c) for c in codes], np.arange(n)]
-    sizes, totals = [], []
-    for code in levels:
-        inverse = _dense_codes(code)
-        counts = np.bincount(inverse)
-        sums = np.bincount(inverse, weights=values)
-        sizes.append((inverse, counts))
-        totals.append(float(np.sum(sums**2 / counts)))
-    depth = len(levels)
-
-    def coefficient(level: int, component: int) -> float:
-        # E[T_level] = N mu^2 + sum_k c[level, k] v_k, with T_level = sum_u n_u ybar_u^2.
-        if component <= level:
-            return float(n)
-        inverse, counts = sizes[level]
-        finer_inverse, finer_counts = sizes[component]
-        parent_of_finer = np.zeros(len(finer_counts), dtype=int)
-        parent_of_finer[finer_inverse] = inverse
-        squared = np.bincount(parent_of_finer, weights=finer_counts.astype(float) ** 2)
-        return float(np.sum(squared / counts))
-
-    rows, rhs = [], []
-    for level in range(1, depth):
-        rows.append([coefficient(level, k) - coefficient(level - 1, k) for k in range(1, depth)])
-        rhs.append(totals[level] - totals[level - 1])
-    return np.linalg.solve(np.array(rows), np.array(rhs))
 
 
 @dataclass(frozen=True)

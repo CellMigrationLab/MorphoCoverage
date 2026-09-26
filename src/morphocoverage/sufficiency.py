@@ -64,19 +64,20 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
+from ._wording import rows_of
 from .benchmark import (
     AcquisitionOrder,
 )
-from .bounds import extra_trials_for_bound, upper_bound
+from .bounds import extra_trials_for_bound, interval, upper_bound
 from .calibration import calibrate_next_fov_novelty
+from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups
 from .evidence import Availability
 from .objectives import ObjectiveConfig, SamplingObjective
-from .schema import ValidatedInput, fov_positions, validate_input_tables
+from .schema import ValidatedInput, fov_positions
+from .statistics import fovs_to_detect
 from .strategies.base import SamplingStrategy
-from .strategies.rare_planning import fovs_to_detect
 from .strategies.support_novelty import (
     FOV_QUANTITY,
     UPPER_QUANTITY,
@@ -87,7 +88,6 @@ from .sufficiency_tables import criteria_tables, group_major
 from .sufficiency_text import (
     _enough_answer,
     _next_fov_answer,
-    _rows_of,
     novelty_definition,
     report_summary,
 )
@@ -194,9 +194,7 @@ def _seen_in_few(
         # ``confidence`` at the observed incidence and at the interval's low end.
         # The model was checked against the planted-state control
         # (docs/preliminary_findings.md, entry 3; tests/test_crick_idr.py).
-        alpha = 1 - novelty.confidence
-        low = float(stats.beta.ppf(alpha / 2, seen, k - seen + 1))
-        high = 1.0 if seen == k else float(stats.beta.ppf(1 - alpha / 2, seen + 1, k - seen))
+        low, high = interval(seen, k, novelty.confidence)
         row.update(
             {
                 "few_state_incidence": seen / k,
@@ -506,7 +504,7 @@ def _largest_calibrated(
     """The group's calibration row with the most FOVs and usable draws, or None."""
     if calibrated.empty:
         return None
-    rows = _rows_of(calibrated, {c: row[c] for c in group_cols})
+    rows = rows_of(calibrated, {c: row[c] for c in group_cols})
     rows = rows[rows["draws"] > 0]
     return None if rows.empty else rows.sort_values("fovs_imaged").iloc[-1]
 

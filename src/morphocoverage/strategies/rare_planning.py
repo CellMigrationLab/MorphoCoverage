@@ -31,50 +31,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from scipy import stats
-
 from ..evidence import Availability, Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import DecisionPolicy, Effort
 from ..results import Decision
 from ..schema import ValidatedInput
+from ..statistics import first_detection_fovs, fovs_to_detect  # noqa: F401  (re-exported)
 from .base import ConstantState, Estimator, EstimatorState, SamplingStrategy
 
 _QUANTITY = "planned_fovs_for_rare_target"
-
-
-def fovs_to_detect(fov_incidence: float, detection_probability: float, occurrences: int) -> int:
-    """Smallest n with ``P(Binomial(n, fov_incidence) >= occurrences) >= detection_probability``.
-
-    Uses ``scipy.stats.binom.sf``, which is monotone increasing in ``n``;
-    the answer is found by doubling then bisection.
-    """
-    for value, label in ((fov_incidence, "fov_incidence"), (detection_probability, "detection")):
-        if not 0 < value < 1:
-            raise ValueError(f"{label} must be between 0 and 1")
-    if isinstance(occurrences, bool) or not isinstance(occurrences, int) or occurrences < 1:
-        raise ValueError("occurrences must be a positive integer")
-
-    def detected(n: int) -> bool:
-        return stats.binom.sf(occurrences - 1, n, fov_incidence) >= detection_probability
-
-    low, high = occurrences - 1, occurrences
-    while not detected(high):
-        low, high = high, 2 * high
-    while high - low > 1:
-        middle = (low + high) // 2
-        low, high = (low, middle) if detected(middle) else (middle, high)
-    return high
-
-
-def first_detection_fovs(fov_incidence: float, detection_probability: float) -> int:
-    """FOVs to see one occurrence: ``ceil(log(1 - beta) / log(1 - p))``, as ``fovs_to_detect``.
-
-    The closed form is computed from ``fovs_to_detect`` itself, since the
-    logarithms can round across an integer at an exact boundary (``p = 0.2``,
-    ``beta = 0.36`` gives 2.0000000000000004, which would ceil to 3).
-    """
-    return fovs_to_detect(fov_incidence, detection_probability, 1)
 
 
 def _plan_evidence(objective: ObjectiveConfig) -> Evidence:

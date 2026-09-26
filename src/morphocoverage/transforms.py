@@ -33,9 +33,7 @@ import numpy as np
 
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput
-
-# Below this share of the scale a spread or a variance is rounding noise, not signal.
-RELATIVE_TOLERANCE = 1e-12
+from .statistics import RELATIVE_TOLERANCE  # rounding-noise share of the scale
 
 
 class FeatureTransform(ABC):

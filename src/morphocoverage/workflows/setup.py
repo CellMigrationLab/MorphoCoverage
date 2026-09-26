@@ -46,9 +46,9 @@ from ..results import COMPONENT_WORDS
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
 from ..retrospective.overview import normalized_sentence
+from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator
 from ..strategies.base import SamplingStrategy
-from ..strategies.rare_planning import fovs_to_detect
 from ..transforms import Standardize
 
 

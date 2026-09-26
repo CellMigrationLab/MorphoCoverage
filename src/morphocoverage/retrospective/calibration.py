@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
-from ._text import percent, where
+from ._text import fields, percent, where
 from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy, run_decisions
 from .criteria import Preservation
 from .replay import ReplayResult
@@ -168,11 +168,6 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=[*groups, *SUMMARY_COLUMNS])
 
 
-def _fields(value: float) -> str:
-    """A median number of fields: ``6`` or ``6.5``, never rounded to a count no run stopped at."""
-    return f"{value:.0f}" if float(value).is_integer() else f"{value:.1f}"
-
-
 _ORDER_WORDS = {
     "recorded": "in the recorded order",
     "permuted": "in random orders",
@@ -209,7 +204,7 @@ def calibration_summary(result: StoppingCalibration) -> str:
                 lines.append(
                     f"  {_ORDER_WORDS.get(order, order)}: it stopped in "
                     f"{percent(first['stopped'])} of {first['runs']} acquisitions, after a "
-                    f"median of {_fields(first['median_stop_fovs'])} fields."
+                    f"median of {fields(first['median_stop_fovs'])}."
                 )
             several = own["criterion"].nunique() > 2
             for row in own.itertuples(index=False):

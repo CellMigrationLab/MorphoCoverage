@@ -37,7 +37,7 @@ from ._data_rules import (
     _tables,
 )
 from .metadata import EMPTY_MEANS_ABSENT, column_has_values, drop_empty_optional_columns
-from .schema import normalize_observation_unit
+from .schema import ValidatedInput, _validate_input_tables, normalize_observation_unit
 
 FORMAT_DOC = "docs/data_format.md"
 
@@ -117,8 +117,6 @@ def check_tables(
     example ``{"condition": "MOCK"}``) also checks that the control exists in
     every repeat. Never raises for bad data: the problems are in the result.
     """
-    from .schema import _validate_input_tables  # the validator attaches this check to its errors
-
     c = Collector()
     if not isinstance(objects, pd.DataFrame):
         c.error(
@@ -257,4 +255,36 @@ def check_tables(
     return DataCheck(tuple(c.problems), tuple(c.understood))
 
 
-__all__ = ["DataCheck", "Problem", "check_tables"]
+def validate_input_tables(
+    objects: pd.DataFrame,
+    *,
+    feature_cols: Sequence[str],
+    fov_col: str | None = None,
+    fovs: pd.DataFrame | None = None,
+    group_cols: Sequence[str] | None = None,
+    observation_unit: str | None = None,
+) -> ValidatedInput:
+    """Validate linked observation/FOV tables using MorphoBricks conventions.
+
+    See ``schema._validate_input_tables`` for the rules. When the tables are refused,
+    the error (same type, first line unchanged) carries the full
+    ``check_tables`` report: every problem, where, and how to fix it.
+    """
+    arguments = {
+        "feature_cols": feature_cols,
+        "fov_col": fov_col,
+        "fovs": fovs,
+        "group_cols": group_cols,
+        "observation_unit": observation_unit,
+    }
+    try:
+        return _validate_input_tables(objects, **arguments)
+    except (ValueError, TypeError) as exc:
+        try:
+            report = check_tables(objects, **arguments).summary()
+        except Exception:  # noqa: BLE001 -- the report is a courtesy; never hide the real error
+            raise exc from None
+        raise type(exc)(f"{exc}\n\n{report}") from exc
+
+
+__all__ = ["DataCheck", "Problem", "check_tables", "validate_input_tables"]

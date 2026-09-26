@@ -18,8 +18,9 @@ from typing import Any
 
 import pandas as pd
 
+from ..data_check import validate_input_tables
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from ..schema import fov_positions, unit_plural, validate_input_tables
+from ..schema import fov_positions, unit_plural
 
 MAX_FEATURES_LISTED = 12
 MAX_VALUES_LISTED = 12

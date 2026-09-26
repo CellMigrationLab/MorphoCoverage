@@ -50,9 +50,10 @@ import numpy as np
 import pandas as pd
 
 from .._parallel import check_n_jobs, map_units
+from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..reservoir import ReservoirSplit
-from ..schema import ValidatedInput, validate_input_tables
+from ..schema import ValidatedInput
 from ._text import fields, group_identity, percent, where
 from .criteria import OutcomeCriterion, Preservation
 

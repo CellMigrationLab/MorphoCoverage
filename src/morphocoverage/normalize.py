@@ -25,8 +25,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .data_check import validate_input_tables
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS
-from .schema import validate_input_tables
 
 CONTROL_MEAN = "control_mean"
 METHODS = (CONTROL_MEAN,)

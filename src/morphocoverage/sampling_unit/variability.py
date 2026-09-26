@@ -40,8 +40,9 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from ..retrospective._text import unit_plural, where
-from ..retrospective.effort import nested_variance_components
+from .._wording import where
+from ..schema import unit_plural
+from ..statistics import nested_variance_components
 from ._common import fov_values, groups, validated
 
 UNUSUAL_Z = 1.96

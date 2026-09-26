@@ -45,12 +45,13 @@ import numpy as np
 import pandas as pd
 
 from ._parallel import worker_pool
+from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
 from .reservoir import ReservoirSplit
 from .results import Decision, StrategyResult
-from .schema import ValidatedInput, normalize_observation_unit, validate_input_tables
+from .schema import ValidatedInput, normalize_observation_unit
 from .sequential import SequentialResult, _evaluate_prefixes
 from .strategies.base import SamplingStrategy
 

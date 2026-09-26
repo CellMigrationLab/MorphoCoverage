@@ -17,7 +17,6 @@ a relative error of a zero mean); never NaN.
 
 from __future__ import annotations
 
-import math
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -29,6 +28,7 @@ import pandas as pd
 from . import _deprecated
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput, fov_positions
+from .statistics import srs_relative_rmse
 
 
 class OutcomeMetric(ABC):
@@ -55,16 +55,6 @@ class OutcomeMetric(ABC):
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Outcome of stopping at ``stopped``, judged against ``full``; ``None`` if undefined."""
         raise NotImplementedError
-
-
-def srs_relative_rmse(variance: float, mean: float, n: float, total: float) -> float:
-    """Expected relative RMSE of the mean of ``n`` objects drawn at random from ``total``.
-
-    Simple random sampling without replacement, with finite-population
-    correction: ``sqrt(variance / n * (1 - n / total)) / |mean|``. This is the
-    error object-number rules assume, used by ``data/crick_idr/fov_vs_objects.py``.
-    """
-    return math.sqrt(variance / n * (1 - n / total)) / abs(mean)
 
 
 def _feature(feature: object) -> str:

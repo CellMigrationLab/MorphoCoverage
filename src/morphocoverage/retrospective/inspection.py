@@ -41,9 +41,10 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 
+from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..objectives import ObjectiveConfig, SamplingObjective
-from ..schema import ValidatedInput, fov_positions, validate_input_tables
+from ..schema import ValidatedInput, fov_positions
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
 from ._text import unit_plural, where
 

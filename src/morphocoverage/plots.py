@@ -36,8 +36,9 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
+from .data_check import validate_input_tables
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from .schema import ValidatedInput, fov_positions, validate_input_tables
+from .schema import ValidatedInput, fov_positions
 from .statistics import bootstrap_nested
 
 MAX_CONDITIONS = 12
