@@ -72,7 +72,9 @@ def test_many_conditions_split_and_many_repeats_are_pooled():
     ax = figures["x"][0].axes[0]
     assert "biological repeats (repeat) pooled, more than the 8" in ax.get_title(loc="left")
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 3 and not ax.texts
-    # Too many technical replicates to colour: a note instead of a legend.
+    # Too many technical replicates of one biological repeat to colour: a note instead of a
+    # legend (well names are counted per repeat, so 9 fields a repeat, each its own well).
+    objects, fovs = _tables(n_conditions=1, n_repeats=9, n_fields=9)
     wells = {name: f"w{i % 9}" for i, name in enumerate(fovs["image_file"])}
     objects["well"], fovs["well"] = objects["image_file"].map(wells), fovs["image_file"].map(wells)
     figures = plots_of_data(objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS)

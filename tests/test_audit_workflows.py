@@ -60,15 +60,16 @@ def _pooled_wells():
 
 def test_h1_pooled_repeats_keep_each_well_within_its_repeat(monkeypatch):
     captured = []
-    original = plots_module.bootstrap_nested
+    original = plots_module._bootstrap_repeats
 
-    def spy(units, *args, **kwargs):
-        captured.append([len(unit) for unit in units])
-        return original(units, *args, **kwargs)
+    def spy(repeats, *args, **kwargs):
+        captured.append([[len(unit) for unit in repeat] for repeat in repeats])
+        return original(repeats, *args, **kwargs)
 
-    monkeypatch.setattr(plots_module, "bootstrap_nested", spy)
+    monkeypatch.setattr(plots_module, "_bootstrap_repeats", spy)
     plots_of_data(*_pooled_wells(), features=["x"], n_boot=50)
-    assert captured == [[3] * 18]  # 9 repeats x 2 wells of 3 fields, not 2 wells of 27
+    # 9 repeats of 2 wells of 3 fields (resampled repeat first: H-10), not 2 wells of 27
+    assert captured == [[[3, 3]] * 9]
 
 
 def test_h5_the_palette_note_and_limit_say_what_is_drawn():

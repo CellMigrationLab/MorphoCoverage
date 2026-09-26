@@ -27,7 +27,11 @@ variance. The rule's own prediction for the objects obtained is
 ``SD / sqrt(n)``; random objects meet the target by construction. The same
 formula with the FOV as the unit (the SD of FOV means) gives the number of
 FOVs the rule would ask for, as a point estimate and from the paper's
-upper-95 SD bound, which it advises when the pilot is small.
+upper-95 SD bound, which it advises when the pilot is small. The rule's
+error is relative to the mean, which depends on where zero lies unless the
+feature is a non-negative measurement: a group whose values, or whose control
+values, include negative ones is reported as not applicable, with the reason
+(as ``ScalarPrecisionStrategy`` refuses them).
 
 **``descriptor_spread_check``** (JCS Fig. 2A). For each sample size ``n``:
 ``n_draws`` samples of ``n`` objects, and the max - min over samples of the
@@ -70,6 +74,11 @@ from ._common import check_count, check_seed, fov_values, groups, matching_group
 DESCRIPTORS = ("mean", "median", "SD", "IQR")
 RANDOM_OBJECTS = "random objects"
 WHOLE_FOVS = "whole FOVs"
+_NEGATIVE = (
+    "not applicable: the feature takes negative values here or in the control, and an error "
+    "relative to the mean depends on where zero lies; the JCB rule applies to non-negative "
+    "measurements"
+)
 
 
 @dataclass(frozen=True)
@@ -122,10 +131,11 @@ def _reference_means(
     all_groups: list[tuple[dict[str, Any], ValidatedInput]],
     feature: str,
     control: Mapping[str, Any] | None,
-) -> tuple[dict[int, float | None], str]:
-    """The mean that normalizes each group: its own, or the mean of all control objects.
+) -> tuple[dict[int, float | None], str, bool]:
+    """The mean that normalizes each group, its label, and whether the control has negatives.
 
-    As in the JCB supplementary spreadsheet and R code, the control mean pools
+    The mean is each group's own, or the mean of all control objects: as in
+    the JCB supplementary spreadsheet and R code, the control mean pools
     every control object, so control groups weigh by their object counts.
     """
     values_by_group = {}
@@ -134,14 +144,14 @@ def _reference_means(
         values_by_group[group_identity(group)] = values[~np.isnan(values)]
     if control is None:
         means = {k: float(v.mean()) if len(v) else None for k, v in values_by_group.items()}
-        return means, "each group's own mean"
+        return means, "each group's own mean", False
     chosen = matching_groups(all_groups, control, "control")
     pooled = np.concatenate([values_by_group[group_identity(g)] for g in chosen])
     if not len(pooled):
         raise ValueError("the control groups have no observations of the feature")
     reference = float(pooled.mean())
     label = f"mean of all objects of {len(chosen)} control group(s) {dict(control)}"
-    return dict.fromkeys(values_by_group, reference), label
+    return dict.fromkeys(values_by_group, reference), label, bool((pooled < 0).any())
 
 
 def _fovs_until(
@@ -193,7 +203,7 @@ def object_rule_check(
     check_seed(random_state)
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
     all_groups = groups(data)
-    references, label = _reference_means(all_groups, feature, control)
+    references, label, negative_control = _reference_means(all_groups, feature, control)
     rows = []
     for group, group_data in all_groups:
         per_fov = fov_values(group_data, group_data.feature_values(feature))
@@ -202,7 +212,11 @@ def object_rule_check(
         filled = [v for v in per_fov if len(v)]
         reference = references[group_identity(group)]
         base = {**group, "fovs": len(per_fov), "observations": int(sizes.sum())}
+        negative = negative_control or any(bool((v < 0).any()) for v in filled)
         for target in targets:
+            if negative:
+                rows.append({**base, "target": target, "status": _NEGATIVE})
+                continue
             if len(filled) < 2 or not reference:
                 rows.append({**base, "target": target, "status": "too few FOVs or objects"})
                 continue
