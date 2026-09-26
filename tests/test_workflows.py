@@ -76,8 +76,8 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     )
     result = report(objects, fovs, setup)
     text = result.summary()
-    assert "1. Can I count objects" in text and "4. What is limiting" in text
-    assert "5. How many fields" not in text  # a planning answer never enters the report
+    assert "Foundation: why count fields" in text and "3. What is limiting" in text
+    assert "4. How many fields" not in text  # a planning answer never enters the report
     pd.testing.assert_frame_equal(objects, before[0])
     pd.testing.assert_frame_equal(fovs, before[1])
     assert report(objects, fovs, setup).summary() == text  # deterministic
@@ -104,9 +104,9 @@ def test_optimise_and_document_merge_report_and_plan():
         dispersed_orders=1,
     )
     text = plan.summary()
-    assert "5. How many fields" in text and "1. Can I count objects" not in text
+    assert "4. How many fields" in text and "Foundation: why count fields" not in text
     merged = document(report(objects, fovs, setup), plan).summary()
-    assert "1. Can I count objects" in merged and "5. How many fields" in merged
+    assert "Foundation: why count fields" in merged and "4. How many fields" in merged
 
 
 def test_benchmark_runs_on_the_given_families():
@@ -239,7 +239,7 @@ def test_summary_questions_select_and_reject():
     validate_input_tables(objects, fovs=fovs, feature_cols=setup.columns)
     result = report(objects, fovs, setup)
     only = result.document.summary(["unit"])
-    assert "1. Can I count objects" in only and "4. What is limiting" not in only
+    assert "Foundation: why count fields" in only and "3. What is limiting" not in only
     with pytest.raises((KeyError, ValueError)):
         result.document.summary(["not_a_question"])
 

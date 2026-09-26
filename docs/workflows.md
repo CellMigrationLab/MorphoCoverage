@@ -55,7 +55,7 @@ on `features` only, never on the readout, and the report names those columns.
 from morphocoverage.workflows import report
 
 result = report(objects, fovs, setup)        # fovs lists every acquired field
-print(result.summary())                      # questions 1 to 4 and 7
+print(result.summary())                      # the Foundation, questions 1 to 3 and 6
 result.results["sufficiency"]                # each analysis, for further use
 ```
 
@@ -65,7 +65,7 @@ result.results["sufficiency"]                # each analysis, for further use
 from morphocoverage.workflows import document, optimise
 
 plan = optimise(objects, fovs, setup, fov_counts=[2, 4, 8, 12], reservoir_fraction=0.35)
-print(plan.summary())                         # questions 5, 6, 8, 9 and the rule calibration
+print(plan.summary())                         # questions 4, 5, 7, 8 and the rule calibration
 print(document(result, plan).summary())       # one report with every question
 ```
 

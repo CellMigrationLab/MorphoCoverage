@@ -3,7 +3,7 @@
 Declare the dataset once with a ``Setup``, then:
 
 - ``report(objects, fovs, setup)``: REPORT, what the finished acquisition can
-  be trusted for (R0 to R6 of ``docs/questions.md``);
+  be trusted for (the Foundation and R1 to R6 of ``docs/questions.md``);
 - ``optimise(objects, fovs, setup, fov_counts=..., reservoir_fraction=...)``:
   OPTIMISE / PLAN, what the next experiment should do;
 - ``live_session(setup)`` with ``LiveFolder(folder, session).watch()`` (files

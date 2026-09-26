@@ -211,7 +211,7 @@ src/morphocoverage/
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
         _text.py           # private: shared wording and group seeding for summaries
-    sampling_unit/         # objects or fields? report questions R0 and R4 of docs/questions.md
+    sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
         clustering.py      # unusual (out-of-distribution) objects; state clustering by FOV

@@ -5,7 +5,7 @@ and the observations) and a ``Setup``, runs the package's analyses in the
 order of ``docs/questions.md``, and returns every result with a ``summary()``
 in sentences:
 
-- ``report`` (REPORT, R0 to R6): objects or fields, the representation
+- ``report`` (REPORT: the Foundation, then R1 to R6): fields against objects, the representation
   control, what each rule says, the sampling profile with rare-object
   clustering, and the fields to inspect;
 - ``optimise`` (OPTIMISE / PLAN): how often ``k`` random fields preserve the
@@ -105,7 +105,7 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     """REPORT on a finished acquisition: what can be trusted, and what cannot.
 
     Runs, as the setup allows: ``fov_variability`` and, with a control,
-    ``object_rule_check`` (R0); ``representation_control`` with a positive
+    ``object_rule_check`` (the Foundation); ``representation_control`` with a positive
     control and a definition of new (R1); ``sufficiency_report`` for the
     setup's rules, with next-field novelty when ``novelty`` is set (R2, R3);
     ``unusual_objects`` and ``fov_clustering`` with a control and features

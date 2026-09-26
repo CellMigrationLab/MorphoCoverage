@@ -397,8 +397,8 @@ def test_the_report_opens_with_the_sampling_unit_and_profiles_clustering():
         clustering=fov_clustering(objects, fovs, label_col="state", states=["rare"]),
     )
     text = report.summary()
-    unit = text.split("2. Can these features")[0]
-    assert unit.startswith("1. Can I count objects, or must I count fields?")
+    unit = text.split("1. Can these features")[0]
+    assert unit.startswith("Foundation: why count fields, and not only objects?")
     assert "How variable are the fields?" in unit
     assert "Would the JCB object-count rule hold" in unit
     items = set(report.profile["item"])

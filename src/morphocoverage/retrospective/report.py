@@ -2,20 +2,24 @@
 
 Roadmap Step 10. ``microscopist_report`` takes the results a user has computed
 (each analysis stays a separate, inspectable call) and orders their plain
-sentences by the questions of ``docs/proposals/microscopist_report.md``:
+sentences by the questions of ``docs/questions.md``. It opens with the
+foundation every other answer rests on, then answers the questions in order:
 
-1. Can I count objects, or must I count fields? (``sampling_unit``:
-   ``fov_variability``, ``object_rule_check``, ``descriptor_spread_check``)
-2. Can these features detect what I care about? (``representation_control``)
-3. Did I image enough? (``sufficiency_report``, ``adequacy_points``,
+- Foundation: why count fields, and not only objects? (``sampling_unit``:
+  ``fov_variability``, ``object_rule_check``, ``descriptor_spread_check``)
+  How much do the acquired fields differ, and would an object-count rule have
+  held when its objects came as whole fields?
+
+1. Can these features detect what I care about? (``representation_control``)
+2. Did I image enough? (``sufficiency_report``, ``adequacy_points``,
    ``stopping_calibration``)
-4. What is limiting my sampling? (the sampling profile, below, and
+3. What is limiting my sampling? (the sampling profile, below, and
    ``sampling_unit.fov_clustering`` of rare or unusual objects)
-5. How many fields next time? (``sampling_reliability``, ``protocol_reliability``)
-6. What did the extra fields buy? (``adequacy_points``)
-7. Which fields should I inspect? (``inspect_fovs``)
-8. More fields or more samples? (``effort_projection``)
-9. Could the same positions have been visited in a better order?
+4. How many fields next time? (``sampling_reliability``, ``protocol_reliability``)
+5. What did the extra fields buy? (``adequacy_points``)
+6. Which fields should I inspect? (``inspect_fovs``)
+7. More fields or more samples? (``effort_projection``)
+8. Could the same positions have been visited in a better order?
    (``order_efficiency``, ``redundancy_distance``)
 
 A question without its analysis says "not assessed" and what it needs; nothing
@@ -59,15 +63,15 @@ if TYPE_CHECKING:  # sampling_unit imports retrospective helpers, so it is impor
     )
 
 QUESTIONS = (
-    ("unit", "1. Can I count objects, or must I count fields?"),
-    ("controls", "2. Can these features detect what I care about?"),
-    ("enough", "3. Did I image enough?"),
-    ("profile", "4. What is limiting my sampling?"),
-    ("next_time", "5. How many fields should I image next time?"),
-    ("bought", "6. What did the extra fields buy?"),
-    ("inspect", "7. Which fields should I look at?"),
-    ("effort", "8. More fields or more samples?"),
-    ("order", "9. Could I have sampled more efficiently?"),
+    ("unit", "Foundation: why count fields, and not only objects?"),
+    ("controls", "1. Can these features detect what I care about?"),
+    ("enough", "2. Did I image enough?"),
+    ("profile", "3. What is limiting my sampling?"),
+    ("next_time", "4. How many fields should I image next time?"),
+    ("bought", "5. What did the extra fields buy?"),
+    ("inspect", "6. Which fields should I look at?"),
+    ("effort", "7. More fields or more samples?"),
+    ("order", "8. Could I have sampled more efficiently?"),
 )
 
 _NEEDS = {

@@ -28,7 +28,7 @@ development dataset: nothing here is a protocol.
 - **Sufficiency** (``sufficiency_idr0028.csv``, ``next_fov_idr0028.csv``): what
   the fixed-8 and JCB rules say on the full wells, by their own thresholds, and
   the next-field novelty with states seen in fewer than 3 fields.
-- **Objects or fields** (R0, R4): ``fov_variability`` and ``object_rule_check``
+- **Objects or fields** (the Foundation, R4): ``fov_variability`` and ``object_rule_check``
   of the YAP/TAZ ratio, and the clustering by field of objects unusual against
   the MOCK wells (the full tables are written by ``objects_vs_fields.py``).
 - **Step 10, the report** (``microscopist_report_idr0028.txt``,
@@ -247,7 +247,7 @@ def order(objects, fovs):
 
 
 def sampling_unit(dataset) -> dict:
-    """R0 and R4: fields against random objects, and unusual objects clustered by field."""
+    """Foundation and R4: fields against random objects, and unusual objects clustered by field."""
     objects, fovs = dataset.tables
     common = {"group_cols": list(dataset.groups), "observation_unit": dataset.observation_unit}
     reference = {"condition": dataset.control}

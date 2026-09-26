@@ -1,4 +1,4 @@
-"""Would an object-count rule hold if its objects come as whole FOVs? (questions R0, P5)
+"""Would an object-count rule hold if its objects come as whole FOVs? (Foundation, P5)
 
 Both published object-count rules this package reproduces assume that the
 objects they count are a random sample of the well. Zweifach (2024, JCB)
