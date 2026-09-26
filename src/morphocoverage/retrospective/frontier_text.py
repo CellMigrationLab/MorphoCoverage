@@ -27,6 +27,18 @@ def _number(value: float) -> str:
     return f"{0.0 if value == 0 else value:.1f}"
 
 
+def _not_chosen(row: object) -> str:
+    """A family with no safe setting: met the risk once but not from there on, or never."""
+    met = getattr(row, "met_setting", None)
+    if met is None or pd.isna(met):
+        return f"  {row.family}: never got there at any setting tried."
+    return (
+        f"  {row.family}: met this risk at {_setting(met)} (risk {percent(row.met_risk)}) but "
+        f"not from there on: at {_setting(row.exceeded_setting)}, with more fields, the risk "
+        f"was {percent(row.exceeded_risk)}, so no setting is taken as safe."
+    )
+
+
 def frontier_summary(result: FrontierResult) -> str:
     """ "At most 5% too-early stops: a fixed count needs ..., this rule saves ..." in sentences."""
     label = result.settings.get("label", result.settings.get("criterion"))
@@ -55,7 +67,7 @@ def frontier_summary(result: FrontierResult) -> str:
         )
         for row in rows[rows["family"] != BASELINE].itertuples(index=False):
             if row.effort is None or pd.isna(row.effort):
-                lines.append(f"  {row.family}: never got there at any setting tried.")
+                lines.append(_not_chosen(row))
                 continue
             saved = row.fields_saved
             verdict = (
@@ -79,12 +91,17 @@ def frontier_summary(result: FrontierResult) -> str:
                     f", {percent(0.95)} interval{of} {_number(row.saved_low)} to "
                     f"{_number(row.saved_high)}"
                 )
+            notes = []
+            # A saving (or cost) whose interval includes no change is not resolved.
+            if interval and abs(saved) > 0.05 and row.saved_low <= 0 <= row.saved_high:
+                notes.append("not resolved")
             reached = getattr(row, "saved_reached", None)
             if interval and reached is not None and not pd.isna(reached) and reached < 1:
-                interval += (
-                    f" (from the {percent(reached)} of the resamples in which both reached "
-                    "this risk)"
+                notes.append(
+                    f"from the {percent(reached)} of the resamples in which both reached this risk"
                 )
+            if notes:
+                interval += f" ({'; '.join(notes)})"
             adaptive = (
                 ""
                 if row.adaptivity is None or pd.isna(row.adaptivity)

@@ -17,6 +17,17 @@ tests this on the dataset itself:
   false-alarm rate is "not assessed".
 - With neither, nothing can be said: "not assessed".
 
+**Leave one field out.** The rates above judge a field against ``fovs_seen``
+reference fields, as a stopping rule judges the next field. ``inspect_fovs``
+judges each field against every other field of its group, and the false-alarm
+rate depends strongly on how many fields were seen (41% after 3 fields, 0%
+after 29, on one plate). So the same definition is also measured that way,
+per stratum: each reference field against every other reference field
+(``reference_lofo``, the false-alarm rate of the inspection, which the report
+uses for its "expected by chance" clause) and each positive field against
+every reference field (``positive_lofo``, the detection rate after a whole
+acquisition, which the report uses to adjust the unseen-state bound).
+
 "New" is the ``SupportNoveltyEstimator`` definition the report uses
 (``novel_fovs_against``, transform fitted on the seen FOVs only). Reference and
 positive FOVs are paired within ``pair_cols`` (for example the plate), so a
@@ -38,11 +49,11 @@ import pandas as pd
 from .._parallel import check_n_jobs, map_units, worker_pool
 from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets, restrict_input
-from ..schema import ValidatedInput
+from ..schema import ValidatedInput, fov_positions
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ._text import group_identity, percent, unit_plural, where
 
-CANDIDATES = ("reference", "positive", "planted")
+CANDIDATES = ("reference", "positive", "planted", "reference_lofo", "positive_lofo")
 
 
 def _selector(value: Mapping[str, Any] | None, label: str) -> dict[str, tuple] | None:
@@ -115,10 +126,13 @@ class ControlResult:
 
     ``table`` has one row per stratum (``pair_cols`` values) and candidate
     (``reference``: false alarms; ``positive``: whole positive FOVs;
-    ``planted``: reference FOVs with planted positive objects), with
-    ``judged_new``, ``candidates`` and ``rate``; ``pooled`` the same over
-    strata. ``status`` is ``"assessed"``, ``"positive only"`` or
-    ``"not assessed"``.
+    ``planted``: reference FOVs with planted positive objects;
+    ``reference_lofo`` and ``positive_lofo``: judged leave one field out, see
+    the module), with ``judged_new``, ``candidates`` and ``rate``; ``pooled``
+    the same over strata. ``status`` is ``"assessed"``, ``"positive only"``
+    or ``"not assessed"`` (from the ``positive`` and ``reference`` rows).
+    ``settings["planted_skipped"]`` lists the strata where no objects could
+    be planted, with the reason.
     """
 
     table: pd.DataFrame
@@ -180,6 +194,43 @@ def _judge(
         else:
             counts[kind] = (int(np.sum(flags)), len(flags), 0)
     return counts
+
+
+def _leave_one_out(
+    novelty: SupportNoveltyEstimator,
+    reference: ValidatedInput,
+    positive: ValidatedInput,
+    with_reference: bool,
+) -> dict[str, tuple[int, int, int]]:
+    """Per kind: fields judged new, judged, not judged, each against every other reference field.
+
+    Reference fields are judged leave one field out, as ``inspect_fovs`` judges
+    a field (a field with a new state is new; empty fields count, as there);
+    positive fields against every reference field.
+    """
+    counts = {}
+    if with_reference:
+        members = novelty.novel_observation_flags(reference, new_states_only=True)
+        if members is None:
+            counts["reference_lofo"] = (0, 0, len(reference.fovs))
+        else:
+            positions = fov_positions(reference, reference.fovs)
+            new = len(np.unique(positions[members]))
+            counts["reference_lofo"] = (new, len(reference.fovs), 0)
+    flags = novelty.novel_fovs_against(reference, positive)
+    if flags is None:
+        counts["positive_lofo"] = (0, 0, len(positive.fovs))
+    else:
+        counts["positive_lofo"] = (int(np.sum(flags)), len(flags), 0)
+    return counts
+
+
+def _planting_skipped(donors: list[pd.DataFrame], size: int) -> str | None:
+    """Why no objects can be planted in this stratum (no donor field holds enough), or None."""
+    largest = max((len(cells) for cells in donors), default=0)
+    if largest >= size:
+        return None
+    return f"no positive-control field holds {size} objects to plant (the largest holds {largest})"
 
 
 def representation_control(
@@ -256,7 +307,7 @@ def representation_control(
         base_mask = ~positive_mask
     strata = data.fovs[pair_cols].drop_duplicates().to_dict("records") if pair_cols else [{}]
     subsets = FovSubsets(data)
-    rows, skipped = [], []
+    rows, skipped, planted_skipped = [], [], []
     # Every random choice is made here, in stratum and draw order; only the
     # novelty checks, which use none, go to worker processes. One stratum's
     # draws at a time keeps memory to one stratum.
@@ -280,6 +331,13 @@ def representation_control(
                 continue
             positive_input = subsets.take(positive)
             donors = [data.objects.loc[subsets.positions == row] for row in positive]
+            plant = control.planted_objects is not None
+            if plant:
+                why = _planting_skipped(donors, control.planted_objects)
+                if why is not None:
+                    # Said, not silently absent: the planted rate was declared.
+                    planted_skipped.append({**stratum, "stratum": label, "reason": why})
+                    plant = False
             jobs = []
             for _ in range(draws):
                 order = rng.permutation(len(base))
@@ -288,13 +346,15 @@ def representation_control(
                 candidates = {"positive": positive_input}
                 if control.reference is not None:
                     candidates["reference"] = subsets.take(rest)
-                if control.planted_objects is not None:
+                if plant:
                     planted = _planted(subsets, rest, donors, control.planted_objects, rng)
                     if planted is not None:
                         candidates["planted"] = planted
                 jobs.append((novelty, seen, candidates))
             counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
-            for draw in map_units(_judge, jobs, n_jobs, pool):
+            lofo = (novelty, subsets.take(base), positive_input, control.reference is not None)
+            judged = map_units(_judge, jobs, n_jobs, pool)
+            for draw in [*judged, _leave_one_out(*lofo)]:
                 for kind, (new, total, not_judged) in draw.items():
                     counts[kind][0] += new
                     counts[kind][1] += total
@@ -330,6 +390,7 @@ def representation_control(
     settings = {
         **settings,
         "skipped_strata": skipped,
+        "planted_skipped": planted_skipped,
         "reason": "unusable" if skipped else None,
         "observation_unit": data.observation_unit,
     }
@@ -349,6 +410,32 @@ def _rate(value: float, checks: int) -> str:
     if pd.isna(value) or not checks:
         return "no check could be made"
     return f"{percent(value)} of {checks} checks"
+
+
+def _fields_rate(row: Any) -> str:
+    """``3% of 60 fields``, or ``no field could be judged``."""
+    total = int(row["candidates"])
+    if pd.isna(row["rate"]) or not total:
+        return "no field could be judged"
+    return f"{percent(row['rate'])} of {total} fields"
+
+
+def _leave_one_out_line(rates: pd.DataFrame) -> str:
+    """The rates judged against every other reference field, or an empty string."""
+    parts = []
+    if "reference_lofo" in rates.index:
+        parts.append(
+            f"reference fields were called different in {_fields_rate(rates.loc['reference_lofo'])}"
+            " (the false-alarm rate of inspect_fovs)"
+        )
+    if "positive_lofo" in rates.index:
+        parts.append(f"positive-control fields in {_fields_rate(rates.loc['positive_lofo'])}")
+    if not parts:
+        return ""
+    return (
+        "  Against every other reference field of their stratum (as inspect_fovs judges a "
+        f"field): {', '.join(parts)}."
+    )
 
 
 def control_summary(result: ControlResult) -> str:
@@ -378,6 +465,11 @@ def control_summary(result: ControlResult) -> str:
         f"  Fields of the declared positive control were recognized as different in "
         f"{_rate(positive['rate'], int(positive['candidates']))}{_unjudged(positive)}."
     )
+    for gap in result.settings.get("planted_skipped", []):
+        lines.append(
+            f"  Planted {cells}: not measured in {gap['stratum']}: "
+            f"{gap['reason'].replace('objects', cells)}."
+        )
     if "planted" in rates.index:
         planted = rates.loc["planted"]
         planted_n = result.settings["control"]["planted_objects"]
@@ -397,6 +489,9 @@ def control_summary(result: ControlResult) -> str:
         lines.append("  False-alarm rate: not assessed (no reference field could be judged).")
     else:
         lines.append("  False-alarm rate: not assessed (no reference control was declared).")
+    lofo = _leave_one_out_line(rates)
+    if lofo:
+        lines.append(lofo)
     if len(result.table["stratum"].unique()) > 1:
         by = result.table[result.table["candidate"] == "positive"]
         lines.append(
