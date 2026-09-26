@@ -16,7 +16,7 @@ from morphocoverage.retrospective import (
     representation_control,
     sampling_reliability,
 )
-from morphocoverage.retrospective.report import QUESTIONS
+from morphocoverage.retrospective.report import DECLARATION_TITLE, QUESTIONS
 from morphocoverage.strategies import SupportNoveltyEstimator
 
 
@@ -28,6 +28,17 @@ def test_an_empty_report_says_what_each_question_needs():
     assert text.count("Not assessed:") == len(QUESTIONS)
     assert "No representation control" in text
     assert report.profile.empty
+
+
+def test_the_declaration_is_printed_first_only_when_given():
+    assert DECLARATION_TITLE not in microscopist_report().summary()
+    report = microscopist_report(declaration=["Population summary: the mean of x within 5%."])
+    text = report.summary()
+    assert text.startswith(f"{DECLARATION_TITLE}\n  - Population summary")
+    assert text.index(DECLARATION_TITLE) < text.index("Foundation: why count")
+    assert report.summary(["enough"]).startswith(DECLARATION_TITLE)
+    with pytest.raises(TypeError, match="declaration"):
+        microscopist_report(declaration="one string, not a sequence")
 
 
 def test_given_answers_are_placed_under_their_question():

@@ -11,8 +11,12 @@ import pandas as pd
 import pytest
 from scenarios import FEATURE_COLS, _fov_table, _objects_for
 
-from morphocoverage import validate_input_tables
+from morphocoverage import RareTarget, validate_input_tables
+from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.results import Decision
+from morphocoverage.retrospective import OutcomeCriterion
+from morphocoverage.retrospective.report import DECLARATION_TITLE
+from morphocoverage.strategies.rare_planning import fovs_to_detect
 from morphocoverage.strategies import FixedFOVStrategy
 from morphocoverage.workflows import (
     LiveFolder,
@@ -65,6 +69,101 @@ def test_setup_rejects_ambiguous_declarations():
     with pytest.raises(ValueError, match="declare both"):
         Setup(readout=READOUT, positive=PositiveControl({"condition": "drug"}, fovs_seen=4))
     assert Setup(readout=READOUT, features=FEATURE_COLS).columns == list(FEATURE_COLS)
+
+
+def _fingerprint(tolerance: float = 0.5) -> OutcomeCriterion:
+    return OutcomeCriterion(
+        CovarianceError(FEATURE_COLS, True),
+        tolerance,
+        "lower_is_better",
+        f"the covariance of the features within {tolerance:.0%}",
+    )
+
+
+def _rare() -> RareTarget:
+    return RareTarget(
+        fov_incidence=0.2, detection_probability=0.95, min_fov_occurrences=1, phenotype="planted"
+    )
+
+
+def test_setup_declares_what_to_preserve_and_refuses_undeclared_targets():
+    plain = Setup(readout=READOUT)
+    declared = plain.declaration()
+    assert declared[0].startswith(f"Population summary: the mean of {READOUT}")
+    assert "5.0% and 2.5%" in declared[0]
+    assert declared[1].startswith("Phenotypic fingerprint: not declared")
+    assert declared[2].startswith("Rare phenotype: not declared")
+    assert [c.name for c in plain.criteria()] == [
+        f"relative_mean_error:{READOUT} <= 0.05",
+        f"relative_mean_error:{READOUT} <= 0.025",
+    ]
+    assert plain.judged_columns == [READOUT]
+
+    full = _setup(fingerprint=(_fingerprint(),), rare=_rare(), rare_label="state")
+    declared = full.declaration()
+    assert "the covariance of the features within 50%" in declared[1]
+    needed = fovs_to_detect(0.2, 0.95, 1)
+    assert f"asks for {needed} independent representative fields" in declared[2]
+    assert "label column 'state'" in declared[2]
+    names = [c.name for c in full.criteria()]
+    assert names[2].startswith("covariance_error:")
+    assert names[3] == "rare_state_detected:state:1 >= 1"
+    assert full.judged_columns == [READOUT, *(f for f in FEATURE_COLS if f != READOUT)]
+
+    # A prevalence-only target is stated but never converted to a field count.
+    prevalence_only = RareTarget(
+        object_prevalence=0.01, detection_probability=0.95, min_fov_occurrences=1, phenotype="x"
+    )
+    line = _setup(rare=prevalence_only).declaration()[2]
+    assert "No field incidence was declared" in line and "not judged" in line
+
+    with pytest.raises(TypeError, match="fingerprint"):
+        Setup(readout=READOUT, fingerprint=_fingerprint())  # one criterion, not a sequence
+    with pytest.raises(TypeError, match="fingerprint"):
+        Setup(readout=READOUT, fingerprint=(CovarianceError(FEATURE_COLS, True),))
+    with pytest.raises(ValueError, match="not declared"):
+        Setup(readout=READOUT, fingerprint=(_fingerprint(),))  # features not declared
+    with pytest.raises(ValueError, match="distinct"):
+        _setup(fingerprint=(_fingerprint(0.5), _fingerprint(0.5)))
+    with pytest.raises(TypeError, match="RareTarget"):
+        Setup(readout=READOUT, rare={"fov_incidence": 0.2})
+    with pytest.raises(ValueError, match="declare rare"):
+        Setup(readout=READOUT, rare_label="state")
+
+
+def test_the_documents_open_with_the_declaration_and_judge_every_declared_criterion():
+    objects, fovs = _acquisition()
+    # A labelled state in two fields of every group: the rare criterion has something to judge.
+    objects["state"] = False
+    for _, group in objects.groupby(["condition", "repeat"]):
+        first_two = group["image_file"].drop_duplicates().iloc[:2]
+        objects.loc[group.index[group["image_file"].isin(first_two)], "state"] = True
+    setup = _setup(fingerprint=(_fingerprint(),), rare=_rare(), rare_label="state")
+    result = report(objects, fovs, setup)
+    text = result.summary()
+    assert text.startswith(DECLARATION_TITLE)
+    fingerprint_line = text.index("Phenotypic fingerprint: the covariance")
+    assert fingerprint_line < text.index("Foundation: why count")
+    plan = optimise(
+        objects,
+        fovs,
+        setup,
+        fov_counts=[2, 4],
+        reservoir_fraction=0.25,
+        n_splits=2,
+        draws=5,
+        permuted_orders=2,
+        dispersed_orders=1,
+    )
+    curve = plan.results["reliability"].curve
+    assert set(curve["criterion"]) == {c.name for c in setup.criteria()}
+    text = plan.summary()
+    assert text.startswith(DECLARATION_TITLE)
+    assert "how many fields do you need for the covariance of the features within 50%?" in text
+    assert "the rare phenotype (planted) seen in at least 1 field" in text
+    assert document(result, plan).summary().startswith(DECLARATION_TITLE)
+    with pytest.raises(ValueError, match="rare_label"):
+        report(objects.drop(columns="state"), fovs, setup)
 
 
 def test_report_answers_the_report_questions_and_leaves_the_rest_out():

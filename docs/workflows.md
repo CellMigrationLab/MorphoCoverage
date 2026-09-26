@@ -43,6 +43,48 @@ then says "Not assessed" and names what would be needed. The stopping rules
 default to the JCB rule (upper-95 SD, first tolerance), per object and per
 field; pass `rules=(...)` to assess others.
 
+### What must the acquisition preserve?
+
+The `Setup` also declares the target, the front door of
+[`questions.md`](questions.md): there is no "enough" without "enough for
+what". Three targets can be declared, and each becomes an outcome criterion
+that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
+
+- **a population summary**: the mean of `readout` within each of
+  `tolerances` (always declared);
+- **a phenotypic fingerprint**: `fingerprint=(OutcomeCriterion(...), ...)`,
+  distribution criteria on the declared features, for example
+
+  ```python
+  from morphocoverage.multivariate_outcomes import CovarianceError, QuantileError
+  from morphocoverage.retrospective import OutcomeCriterion
+
+  fingerprint = (
+      OutcomeCriterion(CovarianceError(features, True), 0.10, "lower_is_better",
+                       "the covariance of the features within 10%"),
+  )
+  ```
+
+  Their features must be in `features`. No tolerance here has a published
+  meaning: state yours, and read the reservoir ceiling the curve prints
+  (held-back fields are themselves a sample; a criterion they cannot pin
+  down says "cannot be read above" the ceiling rather than "more fields do
+  not help");
+- **a rare phenotype**: `rare=RareTarget(...)` (its definition, its object
+  prevalence and/or field incidence, the detection probability, the fields it
+  must be seen in) and, when an independent label exists, `rare_label`, the
+  object column (booleans or 0/1) that marks it. With the label, held-back
+  fields judge whether `k` fields showed the state; without it the target is
+  stated and planned for (the binomial field count at the declared incidence)
+  but not judged. Object prevalence is never converted to field incidence.
+
+Every document opens with the declaration (`setup.declaration()`), one
+sentence per target, and a target that is not declared says so, so that an
+answer about the mean is never read as an answer about the distribution or
+about rare states. A fourth target, the difference between conditions, is a
+retrospective benchmark outcome and not yet a declaration
+([`questions.md`](questions.md), open work).
+
 A declaration the workflows could not use raises instead of being skipped.
 A definition of new (`novelty`) needs `features`, and a positive control needs
 `novelty`. Group columns beyond condition and repeat (a `well`, say) are part of
@@ -55,7 +97,7 @@ on `features` only, never on the readout, and the report names those columns.
 from morphocoverage.workflows import report
 
 result = report(objects, fovs, setup)        # fovs lists every acquired field
-print(result.summary())                      # the Foundation, questions 1 to 3 and 6
+print(result.summary())                      # the declaration, the Foundation, questions 1 to 3 and 6
 result.results["sufficiency"]                # each analysis, for further use
 ```
 
@@ -72,7 +114,10 @@ print(document(result, plan).summary())       # one report with every question
 `reservoir_fraction` has no default. It sets the share of each group's fields
 held back as the reference that subsets are judged against, and that share is
 a design choice. Planning advice rests on what random subsets preserved in
-those held-back fields. It never rests on the best subset.
+those held-back fields. It never rests on the best subset. Every declared
+criterion gets its own curve: the mean within each tolerance, each fingerprint
+criterion, and the labelled rare state, so the answer to "how many fields?"
+is read per target, and a target the held-back fields cannot judge says so.
 
 ## BENCHMARK: which rule needs the fewest fields for the same risk?
 

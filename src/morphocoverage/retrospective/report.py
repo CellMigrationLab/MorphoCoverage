@@ -22,14 +22,17 @@ foundation every other answer rests on, then answers the questions in order:
 8. Could the same positions have been visited in a better order?
    (``order_efficiency``, ``redundancy_distance``)
 
-A question without its analysis says "not assessed" and what it needs; nothing
-is filled in. The **sampling profile** lists only measured quantities, each
-with its numbers and its source: how well a declared control is seen, the
-design effect of whole fields, where the variance of the mean sits, the
-distance over which neighbouring fields are alike, how many fields hold the
-new states, and whether labelled rare or unusual objects cluster in a few
-fields. It describes this acquisition under these features; it is not
-a biological conclusion. Where the sampling frame (candidate positions) would
+When the declaration of what the acquisition was asked to preserve is given
+(``workflows.Setup.declaration()``), it is printed before the Foundation, so
+every answer is read against a named target. A question without its analysis
+says "not assessed" and what it needs; nothing is filled in. The **sampling
+profile** lists only measured quantities, each with its numbers and its
+source: how well a declared control is seen, the design effect of whole
+fields, where the variance of the mean sits, the distance over which
+neighbouring fields are alike, how many fields hold the new states, and
+whether labelled rare or unusual objects cluster in a few fields. It
+describes this acquisition under these features; it is not a biological
+conclusion. Where the sampling frame (candidate positions) would
 be needed, the report says so (roadmap Step 9, not implemented).
 """
 
@@ -61,6 +64,8 @@ if TYPE_CHECKING:  # sampling_unit imports retrospective helpers, so it is impor
         ObjectRuleCheck,
         UnusualObjects,
     )
+
+DECLARATION_TITLE = "What this acquisition was asked to preserve"
 
 QUESTIONS = (
     ("unit", "Foundation: why count fields, and not only objects?"),
@@ -96,15 +101,24 @@ class MicroscopistReport:
     profile: pd.DataFrame
     notes: tuple[str, ...] = ()
     inputs: dict[str, str] = field(default_factory=dict)
+    declaration: tuple[str, ...] = ()
 
     def summary(self, questions: Sequence[str] | None = None) -> str:
-        """The whole report, question by question, or only the ``questions`` keys given."""
+        """The whole report, question by question, or only the ``questions`` keys given.
+
+        The declaration of what the acquisition was asked to preserve, when
+        given, comes first, whatever ``questions`` selects.
+        """
         keys = [key for key, _ in QUESTIONS]
         if questions is not None:
             unknown = sorted(set(questions) - set(keys))
             if unknown:
                 raise ValueError(f"unknown report questions {unknown}; choose from {keys}")
         blocks = []
+        if self.declaration:
+            blocks.append(
+                f"{DECLARATION_TITLE}\n" + "\n".join(f"  - {line}" for line in self.declaration)
+            )
         for key, title in QUESTIONS:
             if questions is not None and key not in questions:
                 continue
@@ -376,6 +390,7 @@ def microscopist_report(
     unusual: UnusualObjects | None = None,
     clustering: FOVClustering | None = None,
     minimum_detection: float = 0.9,
+    declaration: Sequence[str] = (),
 ) -> MicroscopistReport:
     """Assemble computed results into one report, question by question (see the module).
 
@@ -384,6 +399,8 @@ def microscopist_report(
     without a warning (provisional preset 0.9, as for the protocol threshold).
     Below it, every adequacy section is prefixed with the detection rate, since
     a "nothing new" answer cannot exclude a phenotype the features miss.
+    ``declaration`` is what the acquisition was asked to preserve, one sentence
+    per target (``workflows.Setup.declaration()``); the report prints it first.
     """
     from ..sampling_unit import (
         DescriptorSpreadCheck,
@@ -395,6 +412,8 @@ def microscopist_report(
 
     if isinstance(minimum_detection, bool) or not 0 < float(minimum_detection) <= 1:
         raise ValueError("minimum_detection must be a share in (0, 1]")
+    if isinstance(declaration, str) or any(not isinstance(d, str) for d in declaration):
+        raise TypeError("declaration must be a sequence of sentences")
     for value, kind, name in (
         (controls, ControlResult, "controls"),
         (sufficiency, SufficiencyReport, "sufficiency"),
@@ -491,7 +510,7 @@ def microscopist_report(
         for key, texts in parts.items()
     }
     inputs = {key: ("given" if parts[key] else "not assessed") for key, _ in QUESTIONS}
-    return MicroscopistReport(sections, profile, tuple(notes), inputs)
+    return MicroscopistReport(sections, profile, tuple(notes), inputs, tuple(declaration))
 
 
-__all__ = ["QUESTIONS", "MicroscopistReport", "microscopist_report"]
+__all__ = ["DECLARATION_TITLE", "QUESTIONS", "MicroscopistReport", "microscopist_report"]

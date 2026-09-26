@@ -16,8 +16,11 @@ in sentences:
   for rule families swept over threshold grids (``retrospective.frontier``).
 
 They add no scientific choice of their own: every one is in the ``Setup`` or
-an explicit argument. ``document`` merges a report and a plan into the full
-microscopist's report.
+an explicit argument. Each document opens with the setup's declaration of what
+the acquisition was asked to preserve, and ``optimise`` and ``benchmark`` judge
+every declared criterion (``Setup.criteria()``: the mean, the fingerprint, the
+labelled rare state) on held-back fields. ``document`` merges a report and a
+plan into the full microscopist's report.
 """
 
 from __future__ import annotations
@@ -31,9 +34,7 @@ import pandas as pd
 from ..benchmark import AcquisitionOrder
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..objectives import ObjectiveConfig, SamplingObjective
-from ..outcomes import RelativeMeanError
 from ..retrospective import (
-    OutcomeCriterion,
     RepresentationControl,
     Summary,
     adequacy_points,
@@ -61,18 +62,6 @@ PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
 _UNUSUAL = "morphocoverage_unusual"
 
 
-def _criteria(setup: Setup) -> list[OutcomeCriterion]:
-    return [
-        OutcomeCriterion(
-            RelativeMeanError(setup.readout),
-            tolerance,
-            "lower_is_better",
-            f"the mean of {setup.readout} within {tolerance:.1%}",
-        )
-        for tolerance in setup.tolerances
-    ]
-
-
 def _orders(setup: Setup, permuted: int, dispersed: int) -> list[AcquisitionOrder]:
     orders = [AcquisitionOrder.recorded()] if setup.acquisition_order_col else []
     orders += [AcquisitionOrder.permuted(seed) for seed in range(permuted)]
@@ -86,6 +75,11 @@ def _check_tables(objects: Any, fovs: Any, setup: Any) -> None:
         raise TypeError("objects and fovs must be pandas DataFrames (every acquired FOV in fovs)")
     if not isinstance(setup, Setup):
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
+    if setup.rare_label is not None and setup.rare_label not in objects.columns:
+        raise ValueError(
+            f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
+            "phenotype cannot be judged on held-back fields without its labels"
+        )
 
 
 @dataclass(frozen=True)
@@ -204,7 +198,7 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
             stage_cols=setup.stage_cols,
             **common,
         )
-    return Report(results, microscopist_report(**results), setup)
+    return Report(results, microscopist_report(**results, declaration=setup.declaration()), setup)
 
 
 @dataclass(frozen=True)
@@ -257,12 +251,12 @@ def optimise(
     """
     _check_tables(objects, fovs, setup)
     common = setup.common
-    criteria = _criteria(setup)
+    criteria = setup.criteria()
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(
         objects,
         fovs,
-        feature_cols=[setup.readout],
+        feature_cols=setup.judged_columns,
         criteria=criteria,
         fov_counts=fov_counts,
         reservoir_fraction=reservoir_fraction,
@@ -282,7 +276,7 @@ def optimise(
     replay = replay_acquisitions(
         objects,
         fovs,
-        feature_cols=[setup.readout],
+        feature_cols=setup.judged_columns,
         strategies=list(setup.stopping_rules()),
         criteria=criteria,
         objective=POPULATION,
@@ -319,7 +313,10 @@ def optimise(
             random_state=setup.random_state,
             observation_unit=setup.observation_unit,
         )
-    document = microscopist_report(**{k: v for k, v in results.items() if k != "calibration"})
+    document = microscopist_report(
+        **{k: v for k, v in results.items() if k != "calibration"},
+        declaration=setup.declaration(),
+    )
     return Plan(results, document, setup)
 
 
@@ -330,7 +327,8 @@ def document(*parts: Report | Plan):
         if not isinstance(part, Report | Plan):
             raise TypeError("document takes the results of report() and optimise()")
         merged.update(part.results)
-    return microscopist_report(**merged)
+    declaration = parts[0].setup.declaration() if parts else ()
+    return microscopist_report(**merged, declaration=declaration)
 
 
 @dataclass(frozen=True)
@@ -434,11 +432,11 @@ def benchmark(
     families = list(default_families(setup.readout) if families is None else families)
     if not families or any(not isinstance(f, Family) for f in families):
         raise TypeError("families must be a non-empty sequence of Family")
-    criteria = _criteria(setup)
+    criteria = setup.criteria()
     replay = replay_acquisitions(
         objects,
         fovs,
-        feature_cols=[setup.readout],
+        feature_cols=setup.judged_columns,
         strategies=[f.strategy for f in families],
         criteria=criteria,
         objective=POPULATION,

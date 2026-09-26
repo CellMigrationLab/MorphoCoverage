@@ -69,6 +69,28 @@ its objects came as whole fields. It is the first section of
 `microscopist_report`. The results on the committed data, in plain language,
 are in `docs/objects_or_fields.md`.
 
+## Declare the target: what must the acquisition preserve?
+
+Right after the Foundation, and before any question is answered, the
+microscopist declares what the acquisition must preserve, because there is
+no "enough" without "enough for what". Three targets are declared today
+(`morphocoverage.workflows.Setup`): a **population summary** (the mean of the
+readout within a tolerance: `readout`, `tolerances`), a **phenotypic
+fingerprint** (the distribution of phenotypes, as outcome criteria on the
+declared features: `fingerprint`), and a **rare phenotype** (a `RareTarget`
+with its definition, prevalence and/or field incidence, detection probability
+and the fields it must be seen in, plus the label column that marks it when
+one exists: `rare`, `rare_label`). Each becomes an outcome criterion judged
+on held-back fields in OPTIMISE and BENCHMARK (`Setup.criteria()`), and every
+document opens with the declaration in sentences (`Setup.declaration()`); a
+target that is not declared is printed as not declared, so an answer about
+the mean is never read as an answer about the distribution or about rare
+states. A fourth target, the **difference between conditions**, is a
+retrospective benchmark outcome and not a declaration yet (open work item 2).
+The ONLINE decision still runs under the population objective; a
+per-target decision needs a distribution component in the objective model
+(O4, open work).
+
 Two distinctions run through all three:
 
 - **What a rule says is not what the sample achieved.** A criterion's own
