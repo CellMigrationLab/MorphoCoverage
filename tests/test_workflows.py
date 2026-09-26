@@ -16,6 +16,7 @@ from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.results import Decision
 from morphocoverage.retrospective import OutcomeCriterion
 from morphocoverage.retrospective.report import DECLARATION_TITLE
+from morphocoverage.sampling_unit import condition_contrast, fov_variability
 from morphocoverage.strategies import FixedFOVStrategy
 from morphocoverage.strategies.rare_planning import fovs_to_detect
 from morphocoverage.workflows import (
@@ -194,12 +195,22 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     assert list(result.results["contrast"].table["repeat"]) == ["R1", "R2"]
     assert text.startswith("What is in the dataset") and "What this dataset cannot tell me" in text
     assert result.results["overview"].counts["fields"] == len(fovs)
-    # Normalised to the control: the control mean of the readout is 1 in every repeat.
-    normalised = report(objects, fovs, _setup(normalize="control_mean"))
+    # Normalised to the control: the contrast reads the normalised values (the control
+    # mean of the readout is 1 in every repeat); the other analyses the raw values.
+    normalised_setup = _setup(normalize="control_mean")
+    normalised = report(objects, fovs, normalised_setup)
     assert "Values: every feature divided by the mean of the control" in normalised.summary()
-    means = normalised.results["variability"].groups
-    control = means[means["condition"] == "control"]
-    assert control["mean"].tolist() == pytest.approx([1.0] * len(control))
+    prepared = normalised_setup.prepared(objects, fovs)
+    control = prepared[prepared["condition"] == "control"]
+    assert control.groupby("repeat")[READOUT].mean().tolist() == pytest.approx([1.0, 1.0])
+    expected = condition_contrast(
+        prepared, fovs, feature=READOUT, control={"condition": "control"}, random_state=0
+    )
+    pd.testing.assert_frame_equal(normalised.results["contrast"].table, expected.table)
+    pd.testing.assert_frame_equal(
+        normalised.results["variability"].groups,
+        fov_variability(objects, fovs, feature=READOUT).groups,
+    )
     pd.testing.assert_frame_equal(objects, before[0])
     pd.testing.assert_frame_equal(fovs, before[1])
     assert report(objects, fovs, setup).summary() == text  # deterministic
@@ -506,7 +517,11 @@ def test_a_technical_repeat_column_derives_the_hierarchy_and_ranks_the_features(
     assert setup.resolved_effort_strata(fovs) == ["condition"]
     declared = _setup(hierarchy=SamplingHierarchy("image_file", "technical_repeat"))
     assert declared.resolved_hierarchy(objects, fovs) == declared.hierarchy
-    assert declared.resolved_effort_strata(fovs) == []  # a declared hierarchy pools as asked
+    # A declared hierarchy keeps the conditions apart too (second audit, I-2), unless
+    # pooling is asked for explicitly.
+    assert declared.resolved_effort_strata(fovs) == ["condition"]
+    pooled = _setup(hierarchy=declared.hierarchy, effort_strata=())
+    assert pooled.resolved_effort_strata(fovs) == []
     assert _setup().resolved_hierarchy(*_acquisition()) is None
     result = report(objects, fovs, setup)
     assert result.ranking is not None and set(result.ranking.tests["feature"]) == set(FEATURE_COLS)

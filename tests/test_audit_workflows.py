@@ -15,6 +15,7 @@ from scenarios import FEATURE_COLS
 from test_workflows import READOUT, _acquisition, _setup
 
 import morphocoverage.plots as plots_module
+import morphocoverage.workflows._shared as shared_module
 import morphocoverage.workflows.figures as figures_module
 import morphocoverage.workflows.retrospective as workflow_module
 from morphocoverage import ObjectiveConfig, SamplingObjective
@@ -83,7 +84,7 @@ def test_h5_the_palette_note_and_limit_say_what_is_drawn():
 
 def test_h2_every_workflow_gives_the_rules_the_same_columns(monkeypatch):
     seen = {}
-    replay, sufficiency = workflow_module.replay_acquisitions, workflow_module.sufficiency_report
+    replay, sufficiency = shared_module.replay_acquisitions, workflow_module.sufficiency_report
 
     def replay_spy(*args, feature_cols, **kwargs):
         seen.setdefault("replay", []).append(list(feature_cols))
@@ -93,7 +94,7 @@ def test_h2_every_workflow_gives_the_rules_the_same_columns(monkeypatch):
         seen["sufficiency"] = list(feature_cols)
         return sufficiency(*args, feature_cols=feature_cols, **kwargs)
 
-    monkeypatch.setattr(workflow_module, "replay_acquisitions", replay_spy)
+    monkeypatch.setattr(shared_module, "replay_acquisitions", replay_spy)
     monkeypatch.setattr(workflow_module, "sufficiency_report", sufficiency_spy)
     objects, fovs = _acquisition(n_fovs=8, n_objects=6)
     setup = _setup(stage_cols=None)
@@ -242,17 +243,21 @@ def test_df1_optimise_runs_when_group_cols_leave_the_technical_repeat_out():
     assert "protocol" not in plan.results and "effort" not in plan.results
 
 
-def test_df3_question_7_says_the_values_were_normalised():
+def test_df3_question_7_reads_the_raw_values_with_their_variance_between_repeats():
+    # Second audit, I-1: normalised values only for outcomes, contrast, ranking and
+    # plots; the effort projection keeps the variance between repeats of the raw values.
     objects, fovs = _wells(*_acquisition(n_fovs=8, n_objects=6))
-    plan = optimise(
-        objects,
-        fovs,
-        _setup(normalize="control_mean", stage_cols=None),
-        fov_counts=[2],
-        reservoir_fraction=0.25,
-        n_splits=1,
-        draws=3,
-        permuted_orders=1,
-        dispersed_orders=0,
+    settings = {
+        "fov_counts": [2],
+        "reservoir_fraction": 0.25,
+        "n_splits": 1,
+        "draws": 3,
+        "permuted_orders": 1,
+        "dispersed_orders": 0,
+    }
+    plan = optimise(objects, fovs, _setup(normalize="control_mean", stage_cols=None), **settings)
+    raw = optimise(objects, fovs, _setup(stage_cols=None), **settings)
+    assert "Values are normalised" not in plan.results["effort"].summary()
+    pd.testing.assert_frame_equal(
+        plan.results["effort"].components, raw.results["effort"].components
     )
-    assert "Values are normalised (every feature divided by" in plan.results["effort"].summary()

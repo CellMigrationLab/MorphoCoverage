@@ -104,11 +104,11 @@ _NEEDS = {
     "next_time": "run sampling_reliability, then protocol_reliability across samples",
     "bought": "run adequacy_points on a replay",
     "inspect": "run inspect_fovs",
-    "effort": "give the FOV table a technical_repeat column (a well, a dish) or declare a "
-    "sampling hierarchy, and run optimise (effort_projection)",
+    "effort": "declare a sampling hierarchy, or give the FOV table a technical_repeat column "
+    "(a well, a dish) kept among the group columns, and run optimise (effort_projection)",
     "order": "give stage coordinates and run order_efficiency on a replay with dispersed orders",
     "conditions": "declare a control condition and run condition_contrast on data with more "
-    "than one condition",
+    "than one condition, with analysis groups that keep conditions and repeats apart",
 }
 
 

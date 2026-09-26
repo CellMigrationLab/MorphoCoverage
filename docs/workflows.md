@@ -13,10 +13,11 @@ Google Colab. It follows the lab's LabConstrictor portability guide: settings
 are ipywidgets (not Colab forms), and Colab-only setup sits behind a Colab check.
 Locally it needs `ipywidgets` and, for the plots, `matplotlib`.
 
-The workflows make no scientific choice of their own. Every choice is either a
-`Setup` field or an argument without a default. The analyses they call are
-the ones documented elsewhere, and their results stay available under
-`results`.
+The workflows' scientific choices are the `Setup` fields and explicit
+arguments. Two provisional presets have defaults, `optimise`'s
+`protocol_threshold=0.9` and `benchmark`'s `alphas=(0.05, 0.10)`, and the
+summaries print them. The analyses they call are the ones documented
+elsewhere, and their results stay available under `results`.
 
 ## Declare the dataset
 
@@ -53,8 +54,14 @@ Plot&Stats notebook express values (`morphocoverage.normalize`). It needs
 `control` to name the condition column, every repeat must hold control
 objects (a repeat without them raises, since mixing scales inside one
 analysis would be worse than stopping), and the report's overview and the
-declaration say that the values are normalised. The live session runs on raw
-values, because it sees one group at a time and has not seen the control.
+declaration say that the values are normalised. The normalised values are used
+only where values are compared across repeats: the outcome criteria judged on
+held-back fields, the condition contrast, the feature ranking and the plots.
+Every stopping rule runs on the raw values, in `report`, `optimise` and
+`benchmark` as in the live session (which sees one field at a time and has not
+seen the control), so a rule gives the same verdict everywhere; the other
+analyses (variability, controls, inspection, effort projection) read the raw
+values too.
 
 ### What must the acquisition preserve?
 
@@ -197,6 +204,12 @@ repeats and between fields at equal total fields; where every repeat holds a
 single technical repeat the repeat cannot be a variance level and the answer
 says so. On idr0028, with 28 fields per well, most of the uncertainty of a
 condition's mean sits between wells wherever there are two to see it.
+A declared `hierarchy` also keeps one stratum per condition unless
+`effort_strata` names others; `effort_strata=()` pools the conditions, as an
+explicit request. Protocol reliability across samples needs every sample and
+stratum to be an analysis group: when `group_cols` pool one (the repeat, the
+technical repeat, the condition), that part of question 4 says "not assessed"
+and why, as question 7 does when `group_cols` leave the technical repeat out.
 
 `reservoir_fraction` has no default. It sets the share of each group's fields
 held back as the reference that subsets are judged against, and that share is

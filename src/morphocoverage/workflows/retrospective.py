@@ -15,27 +15,32 @@ in sentences:
 - ``benchmark``: fields saved against a fixed field count at matched risk,
   for rule families swept over threshold grids (``retrospective.frontier``).
 
-They add no scientific choice of their own: every one is in the ``Setup`` or
-an explicit argument. When the setup asks for it, the object table is first
-normalised to the control condition's mean, repeat by repeat
-(``Setup.prepared``), and every document says so in its overview. Each
-document opens with the setup's declaration of what the acquisition was asked
-to preserve; every replay runs under the objective
-made of the declared targets (``Setup.objective()``), and ``optimise`` and
-``benchmark`` judge every declared criterion (``Setup.criteria()``: the mean,
-the fingerprint, the labelled rare state) on held-back fields. ``document`` merges a report and a
-plan into the full microscopist's report.
+Their scientific choices are the ``Setup``'s fields and the explicit
+arguments; the few defaults they carry (``protocol_threshold``, ``alphas``,
+the numbers of replayed orders) are printed in the summaries. When the setup
+asks for it, the observation table is normalised to the control condition's
+mean, repeat by repeat (``Setup.prepared``), for the outcome criteria judged
+on held-back fields, the condition contrast and the feature ranking; every
+stopping rule and every other analysis reads the raw values, so a rule gives
+the verdict here that it gives live. Each document opens with the setup's
+declaration of what the acquisition was asked to preserve; every replay runs
+under the objective made of the declared targets (``Setup.objective()``), and
+``optimise`` and ``benchmark`` judge every declared criterion
+(``Setup.criteria()``: the mean, the fingerprint, the labelled rare state) on
+held-back fields. An analysis the declared analysis groups cannot support
+(``group_cols`` that pool the repeats a comparison needs apart) says "not
+assessed" and why. ``document`` merges a report and a plan into the full
+microscopist's report.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
 
-from ..benchmark import AcquisitionOrder
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
     MicroscopistReport,
@@ -49,7 +54,6 @@ from ..retrospective import (
     order_efficiency,
     protocol_reliability,
     redundancy_distance,
-    replay_acquisitions,
     representation_control,
     sampling_reliability,
     stopping_calibration,
@@ -57,57 +61,40 @@ from ..retrospective import (
 from ..retrospective.frontier import FrontierResult, frontier, sweep
 from ..sampling_unit import (
     FeatureRanking,
-    condition_contrast,
-    feature_ranking,
-    fov_clustering,
     fov_variability,
-    object_rule_check,
-    unusual_objects,
 )
 from ..strategies import DescriptorSpreadStrategy, FOVBootstrapStrategy, ScalarPrecisionStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import sufficiency_report
+from ._shared import check_tables as _check_tables
+from ._shared import (
+    conditions,
+    control_checks,
+    no_hierarchy_reasons,
+    plan_settings,
+    protocol_reason,
+    replay_rules,
+    report_only,
+    with_reasons,
+)
+from ._shared import orders as _orders
 from .setup import Setup
 
-CONDITION = MORPHOBRICKS_GROUP_COLUMNS[0]
 REPORT_QUESTIONS = ("unit", "controls", "enough", "profile", "inspect", "conditions")
 PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
-_UNUSUAL = "morphocoverage_unusual"
-
-
-def _orders(setup: Setup, permuted: int, dispersed: int) -> list[AcquisitionOrder]:
-    orders = [AcquisitionOrder.recorded()] if setup.acquisition_order_col else []
-    orders += [AcquisitionOrder.permuted(seed) for seed in range(permuted)]
-    if setup.stage_cols is not None:
-        orders += [AcquisitionOrder.dispersed(seed) for seed in range(dispersed)]
-    return orders
-
-
-def _check_tables(objects: Any, fovs: Any, setup: Any) -> None:
-    if fovs is None:
-        raise TypeError(
-            "the workflows need the FOV table of every acquired field (fovs=None was given); "
-            "morphocoverage.schema.fov_table_from_observations rebuilds one, without the "
-            "fields that held no observation"
-        )
-    if not isinstance(objects, pd.DataFrame) or not isinstance(fovs, pd.DataFrame):
-        raise TypeError("objects and fovs must be pandas DataFrames (every acquired FOV in fovs)")
-    if not isinstance(setup, Setup):
-        raise TypeError("setup must be a morphocoverage.workflows.Setup")
-    if setup.rare_label is not None and setup.rare_label not in objects.columns:
-        raise ValueError(
-            f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
-            "phenotype cannot be judged on held-back fields without its labels"
-        )
 
 
 @dataclass(frozen=True)
 class Report:
-    """The REPORT answers: ``results`` by analysis, ``document`` the assembled report."""
+    """The REPORT answers: ``results`` by analysis, ``document`` the assembled report.
+
+    ``not_assessed`` holds, by question, why an analysis was not run.
+    """
 
     results: dict[str, Any]
     document: Any
     setup: Setup
+    not_assessed: dict[str, str] = field(default_factory=dict)
 
     def summary(self) -> str:
         """The report questions, in sentences."""
@@ -130,12 +117,17 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     (R4); ``inspect_fovs`` (R5); ``condition_contrast`` when the control is
     declared by condition and the FOV table holds other conditions, and
     with several declared features ``feature_ranking``, the gated ranking
-    that chooses what ``plots`` draws by default (R7).
+    that chooses what ``plots`` draws by default (R7). The contrast and the
+    ranking read the normalised values when ``normalize`` is set; every other
+    analysis, the stopping rules included, reads the raw values. The analyses
+    against the control need the control's columns (and, for the contrast, the
+    condition and the repeat) kept apart by the analysis groups; with
+    ``group_cols`` that pool them they are "not assessed", with the reason.
     """
     _check_tables(objects, fovs, setup)
     common = setup.common
     readout = setup.readout
-    objects = setup.prepared(objects, fovs)
+    reasons: dict[str, str] = {}
     results: dict[str, Any] = {
         "overview": dataset_overview(
             objects,
@@ -147,33 +139,7 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
         "variability": fov_variability(objects, fovs, feature=readout, **common),
     }
     if setup.control is not None:
-        results["object_rules"] = object_rule_check(
-            objects,
-            fovs,
-            feature=readout,
-            targets=setup.tolerances,
-            control=setup.control,
-            random_state=setup.random_state,
-            **common,
-        )
-        if setup.features:
-            unusual = unusual_objects(
-                objects,
-                fovs,
-                feature_cols=list(setup.features),
-                reference=setup.control,
-                random_state=setup.random_state,
-                **common,
-            )
-            results["unusual"] = unusual
-            results["clustering"] = fov_clustering(
-                objects.assign(**{_UNUSUAL: unusual.labels}),
-                fovs,
-                label_col=_UNUSUAL,
-                states=[True],
-                random_state=setup.random_state,
-                **common,
-            )
+        results.update(control_checks(objects, fovs, setup, reasons))
     if setup.positive is not None:  # Setup guarantees features and novelty with it
         positive = setup.positive
         results["controls"] = representation_control(
@@ -198,42 +164,26 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
                 c for c in (setup.group_cols or ()) if c not in MORPHOBRICKS_GROUP_COLUMNS
             ],
         )
-    contrasted = setup.control is not None and CONDITION in setup.control
-    if contrasted and CONDITION in fovs.columns and fovs[CONDITION].nunique() > 1:
-        results["contrast"] = condition_contrast(
-            objects,
-            fovs,
-            feature=readout,
-            control=setup.control,
-            random_state=setup.random_state,
-            **common,
-        )
-        if len(setup.columns) > 1:
-            results["ranking"] = feature_ranking(
-                objects,
-                fovs,
-                features=setup.columns,
-                control=setup.control,
-                random_state=setup.random_state,
-                **common,
-            )
-    results["sufficiency"] = sufficiency_report(
+    results.update(conditions(setup.prepared(objects, fovs), fovs, setup, reasons))
+    sufficiency = sufficiency_report(
         objects,
         fovs,
-        # The rules read the same columns in report, optimise, benchmark and live.
+        # The rules read the same columns, and the same raw values, in report,
+        # optimise, benchmark and live.
         feature_cols=setup.columns,
         strategies=list(setup.stopping_rules()),
         objective=setup.objective(),
         orders=_orders(setup, permuted=5, dispersed=0),
         novelty=setup.novelty,
         novelty_target=setup.novelty_target if setup.novelty is not None else None,
-        few_fovs=3 if setup.novelty is not None else None,
+        few_fovs=setup.resolved_few_fovs,
         acquisition_order_col=setup.acquisition_order_col,
         # "New" is judged on the declared features only, as in the controls and the
         # inspection; the rules read the readout.
         novelty_cols=list(setup.features) if setup.novelty is not None else None,
         **common,
     )
+    results["sufficiency"] = report_only(sufficiency, setup)
     # Every reason at once: new states on the declared features, influence, empty
     # or crowded fields and stage neighbours on the readout.
     novel = setup.novelty is not None and bool(setup.features)
@@ -247,16 +197,23 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
         stage_cols=setup.stage_cols,
         **common,
     )
-    return Report(results, microscopist_report(**results, declaration=setup.declaration()), setup)
+    document = microscopist_report(**results, declaration=setup.declaration())
+    return Report(results, with_reasons(document, reasons), setup, reasons)
 
 
 @dataclass(frozen=True)
 class Plan:
-    """The OPTIMISE answers: ``results`` by analysis, ``document`` the assembled report."""
+    """The OPTIMISE answers: ``results`` by analysis, ``document`` the assembled report.
+
+    ``not_assessed`` holds, by question, why an analysis was not run;
+    ``settings`` the computational settings and presets of the run.
+    """
 
     results: dict[str, Any]
     document: Any
     setup: Setup
+    not_assessed: dict[str, str] = field(default_factory=dict)
+    settings: dict[str, Any] = field(default_factory=dict)
 
     def summary(self) -> str:
         """The planning questions, with the calibration of each stopping rule, in sentences."""
@@ -267,6 +224,8 @@ class Plan:
                 "Would a simple rule have been sufficient, and how reliable is each stopping "
                 "rule? (P5, P6)\n" + calibration.summary()
             )
+        if self.settings:
+            parts.append(plan_settings(self.settings))
         return "\n\n".join(parts)
 
 
@@ -289,25 +248,33 @@ def optimise(
     ``fov_counts`` are the numbers of fields to judge (for example
     ``[2, 4, 8, 12]``) and ``reservoir_fraction`` the share of each group's
     fields held back as the reference, a design choice with no default. Runs
-    ``sampling_reliability`` with one criterion per tolerance (P1), ``protocol_reliability``
-    across samples when a hierarchy is declared or derived from a
-    ``technical_repeat`` column (P2), a replay of the setup's rules against
-    the same held-back fields for their calibration and adequacy points (P3
-    to P6), ``order_efficiency`` and, with ``redundancy_bins``,
+    ``sampling_reliability`` with one curve per declared criterion (each
+    tolerance of the readout's mean, each fingerprint criterion, the labelled
+    rare state) (P1), ``protocol_reliability`` across samples when a hierarchy
+    is declared or derived from a ``technical_repeat`` column and every sample
+    and stratum is an analysis group (P2), a replay of the setup's rules
+    against the same held-back fields for their calibration and adequacy points
+    (P3 to P6), ``order_efficiency`` and, with ``redundancy_bins``,
     ``redundancy_distance`` when stage coordinates are set (P7, P8), and
     ``effort_projection`` with that hierarchy (P10: more fields, or more
-    technical repeats?). A count of fields is a recommendation only once it
-    holds on samples it was not chosen on.
+    technical repeats?). The outcome criteria read the normalised values when
+    ``normalize`` is set; the rules, the effort projection and the redundancy
+    distance read the raw values. ``protocol_threshold`` (default 0.9, a
+    provisional preset) is the share of random acquisitions of ``k`` fields
+    that must preserve a criterion for a sample to count as adequately
+    represented; the summary prints it. A count of fields is a recommendation
+    only once it holds on samples it was not chosen on.
     """
     _check_tables(objects, fovs, setup)
     common = setup.common
     criteria = setup.criteria()
     hierarchy = setup.resolved_hierarchy(objects, fovs)
     strata = setup.resolved_effort_strata(fovs)
-    objects = setup.prepared(objects, fovs)
+    prepared = setup.prepared(objects, fovs)
+    reasons: dict[str, str] = {}
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(
-        objects,
+        prepared,
         fovs,
         feature_cols=setup.judged_columns,
         criteria=criteria,
@@ -319,18 +286,28 @@ def optimise(
         n_jobs=setup.n_jobs,
         **common,
     )
-    if hierarchy is not None:
-        results["protocol"] = protocol_reliability(
-            results["reliability"], hierarchy, threshold=protocol_threshold, strata=strata
-        )
-    replay = replay_acquisitions(
+    if hierarchy is None:
+        reasons.update(no_hierarchy_reasons(setup, fovs))
+    else:
+        groups = results["reliability"].group_cols
+        reason = protocol_reason(setup, hierarchy, strata, groups)
+        if reason is not None:
+            reasons["next_time"] = reason
+        else:
+            results["protocol"] = protocol_reliability(
+                results["reliability"],
+                hierarchy,
+                threshold=protocol_threshold,
+                strata=strata,
+                random_state=setup.random_state,
+            )
+    replay = replay_rules(
         objects,
+        prepared,
         fovs,
-        # The rules read the same columns in report, optimise, benchmark and live.
-        feature_cols=setup.columns,
+        setup,
         strategies=list(setup.stopping_rules()),
         criteria=criteria,
-        objective=setup.objective(),
         reservoir_fraction=reservoir_fraction,
         orders=_orders(setup, permuted_orders, dispersed_orders),
         acquisition_order_col=setup.acquisition_order_col,
@@ -339,7 +316,6 @@ def optimise(
         random_state=setup.random_state,
         incremental=True,
         n_jobs=setup.n_jobs,
-        **common,
     )
     results["calibration"] = stopping_calibration(replay)
     results["adequacy"] = adequacy_points(replay)
@@ -355,7 +331,7 @@ def optimise(
                 **common,
             )
     if hierarchy is not None:
-        effort = effort_projection(
+        results["effort"] = effort_projection(
             objects,
             fovs,
             feature=setup.readout,
@@ -364,28 +340,33 @@ def optimise(
             random_state=setup.random_state,
             observation_unit=setup.observation_unit,
         )
-        normalized = setup.normalized_sentence(fovs)
-        if normalized is not None:
-            # Normalising within each repeat removes the variance between repeats,
-            # so question 7 must say which values it describes.
-            effort = replace(effort, settings={**effort.settings, "normalized": normalized})
-        results["effort"] = effort
     document = microscopist_report(
         **{k: v for k, v in results.items() if k != "calibration"},
         declaration=setup.declaration(),
     )
-    return Plan(results, document, setup)
+    settings = {
+        "protocol_threshold": protocol_threshold,
+        "reservoir_fraction": reservoir_fraction,
+        "n_splits": n_splits,
+        "draws": draws,
+        "permuted_orders": permuted_orders,
+        "dispersed_orders": dispersed_orders if setup.stage_cols is not None else 0,
+        "random_state": setup.random_state,
+    }
+    return Plan(results, with_reasons(document, reasons), setup, reasons, settings)
 
 
 def document(*parts: Report | Plan) -> MicroscopistReport:
     """The full microscopist's report from a ``report`` and a ``plan`` of the same data."""
     merged: dict[str, Any] = {}
+    reasons: dict[str, str] = {}
     for part in parts:
         if not isinstance(part, Report | Plan):
             raise TypeError("document takes the results of report() and optimise()")
         merged.update(part.results)
+        reasons.update(part.not_assessed)
     declaration = parts[0].setup.declaration() if parts else ()
-    return microscopist_report(**merged, declaration=declaration)
+    return with_reasons(microscopist_report(**merged, declaration=declaration), reasons)
 
 
 @dataclass(frozen=True)
@@ -458,8 +439,19 @@ class Benchmark:
     settings: dict[str, Any] = field(default_factory=dict)
 
     def summary(self) -> str:
-        """Every criterion's scores, in sentences."""
-        return "\n\n".join(result.summary() for result in self.frontiers.values())
+        """Every criterion's scores, in sentences, then the risk levels and settings."""
+        blocks = [result.summary() for result in self.frontiers.values()]
+        if self.settings:
+            settings = self.settings
+            levels = " and ".join(f"{alpha:.0%}" for alpha in settings["alphas"])
+            units = ", ".join(settings["unit_cols"]) or "one pooled unit"
+            blocks.append(
+                f"Settings: risk levels {levels} of stopping too early (alphas, a preset); "
+                f"{settings['reservoir_fraction']:.0%} of each group's fields held back, "
+                f"{settings['n_splits']} hold-outs, {settings['permuted_orders']} random "
+                f"orders; intervals over {units}."
+            )
+        return "\n\n".join(blocks)
 
 
 def benchmark(
@@ -482,23 +474,26 @@ def benchmark(
     once against held-back fields and swept over its grid; at each risk level
     in ``alphas`` its cheapest setting from which the risk stays at or below
     the level is scored against a fixed field count, with intervals over the
-    independent units ``unit_cols`` (default: the analysis groups). Settings
-    chosen here describe these data; score them on data they were not chosen
-    on before using them (``retrospective.frontier.transfer``).
+    independent units ``unit_cols`` (default: the analysis groups). ``alphas``
+    (default 5% and 10%, a preset) are printed in the summary. The rules run on
+    the raw values, as live; the criteria judge the normalised values when
+    ``normalize`` is set. Settings chosen here describe these data; score them
+    on data they were not chosen on before using them
+    (``retrospective.frontier.transfer``).
     """
     _check_tables(objects, fovs, setup)
     families = list(default_families(setup.readout) if families is None else families)
     if not families or any(not isinstance(f, Family) for f in families):
         raise TypeError("families must be a non-empty sequence of Family")
     criteria = setup.criteria()
-    objects = setup.prepared(objects, fovs)
-    replay = replay_acquisitions(
+    # The rules on the raw values, as live; the criteria on the normalised ones.
+    replay = replay_rules(
         objects,
+        setup.prepared(objects, fovs),
         fovs,
-        feature_cols=setup.columns,
+        setup,
         strategies=[f.strategy for f in families],
         criteria=criteria,
-        objective=setup.objective(),
         reservoir_fraction=reservoir_fraction,
         orders=_orders(setup, permuted_orders, dispersed=0),
         acquisition_order_col=setup.acquisition_order_col,
@@ -507,7 +502,6 @@ def benchmark(
         min_fovs=min_fovs,
         keep_results=True,
         n_jobs=setup.n_jobs,
-        **setup.common,
     )
     swept = [
         sweep(
