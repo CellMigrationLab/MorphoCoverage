@@ -61,6 +61,12 @@ One call to `add_fov` is one independently selected XY acquisition position.
 All observations belonging to that position are supplied together. If features
 were computed slice-by-slice, channel-by-channel or frame-by-frame, the rows
 may carry z/c/t metadata but must share the same FOV/position identity.
+When the FOV column was chosen automatically as `image_file` or `fov_id`, the
+session keeps each field's z/c/t values and applies the validator's
+plane-as-field rule to every field so far, so z-planes sent as separate files
+raise instead of counting as fields. `add_fov` is atomic: a field refused by
+validation or by any estimator leaves the session as it was, and can be added
+again once corrected.
 
 A zero-observation position is valid. Pass an empty DataFrame that still has
 the declared feature columns.

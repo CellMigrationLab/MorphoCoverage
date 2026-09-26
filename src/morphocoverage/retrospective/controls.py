@@ -1,8 +1,8 @@
 """Representation controls: could these features recognize the phenotype I care about?
 
-Roadmap Step 6. A "nothing new" answer is only as good as the features it was
-computed on: a phenotype they cannot separate is never new. A declared control
-tests this on the dataset itself:
+Question R1 of ``docs/questions.md``. A "nothing new" answer is only as good as
+the features it was computed on: a phenotype they cannot separate is never new.
+A declared control tests this on the dataset itself:
 
 - **positive**: FOVs of a declared phenotype (for example a knockdown well),
   judged as candidate next FOVs against ``fovs_seen`` random FOVs of the

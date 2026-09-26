@@ -1,6 +1,6 @@
 """Beta-binomial evidence on a labelled rare state's FOV incidence, with recurrence.
 
-Roadmap 7.3-7.4 (docs/proposals/candidate_estimators_roadmap.md). The
+Described in ``docs/architecture.md``. The
 objective's ``RareTarget`` states the incidence ``p*`` (``fov_incidence``) at
 which a state must be detected in ``r`` (``min_fov_occurrences``) FOVs. With
 ``x`` of the ``k`` visible FOVs showing the labelled state (acquired FOVs
@@ -45,7 +45,7 @@ Assumptions and limits:
 - the prior is explicit and part of the result's provenance.
 
 A target without ``fov_incidence`` gives ``not_applicable``: object prevalence
-is never converted to FOV incidence (roadmap 7.2).
+is never converted to FOV incidence.
 """
 
 from __future__ import annotations

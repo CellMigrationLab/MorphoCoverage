@@ -1,6 +1,6 @@
 """The microscopist's report: every answer in one document, in the order of the questions.
 
-Roadmap Step 10. ``microscopist_report`` takes the results a user has computed
+``microscopist_report`` takes the results a user has computed
 (each analysis stays a separate, inspectable call) and orders their plain
 sentences by the questions of ``docs/questions.md``. It opens with the
 foundation every other answer rests on, then answers the questions in order:
@@ -39,7 +39,7 @@ neighbouring fields are alike, how many fields hold the new states, and
 whether labelled rare or unusual objects cluster in a few fields. It
 describes this acquisition under these features; it is not a biological
 conclusion. Where the sampling frame (candidate positions) would
-be needed, the report says so (roadmap Step 9, not implemented).
+be needed, the report says so (P9, not implemented).
 """
 
 from __future__ import annotations

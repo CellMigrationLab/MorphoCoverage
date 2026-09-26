@@ -27,7 +27,7 @@ The central questions are:
 
 > Is another representative FOV likely to provide enough useful new information to justify acquiring it?
 
-The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`, starting with the premise that the field, not the object, is the sampling unit (R0); new analyses should name the question they answer there.
+The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`, starting with the Foundation: whether the field, not only the object, must be counted as the sampling unit; new analyses should name the question they answer there.
 
 The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Feature observations such as cells, nuclei, patches, slice-level measurements, embeddings, channels and time points are nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
@@ -270,7 +270,8 @@ notebooks/                 # example notebooks, one folder each; they call the p
 
 data/crick_idr/            # real datasets (CC BY 4.0), ready to use with datasets.load; analyses; README
 docs/                      # scientific aims, contracts, architecture, benchmarking, findings
-docs/proposals/            # design proposals and roadmaps; each Status line says what is implemented
+docs/proposals/            # candidate_estimators_roadmap.md: candidates not yet built; its Status line says what is implemented
+docs/audit/README.md       # a short history of the audits; their full texts are in git history
 ```
 
 A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.

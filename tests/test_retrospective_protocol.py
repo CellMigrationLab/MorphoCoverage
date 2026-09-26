@@ -1,4 +1,4 @@
-"""Tests for protocol-level reliability across samples (roadmap Step 4)."""
+"""Tests for protocol-level reliability across samples (P2 of docs/questions.md)."""
 
 import pandas as pd
 import pytest

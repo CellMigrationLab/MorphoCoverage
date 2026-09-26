@@ -5,7 +5,8 @@ Retrospective, strategy-independent outcomes in the sense of ``outcomes.py``:
 those of the reference (the full group, or a held-out reservoir), never with
 a strategy's evidence. They are outcomes, not stopping rules: a two-sample
 distance between early and late FOVs measures stationarity, not
-completeness (docs/proposals/candidate_estimators_roadmap.md, section 6).
+completeness (docs/proposals/candidate_estimators_roadmap.md, "Stationarity is
+not completeness").
 
 Shared settings, explicit on every metric:
 

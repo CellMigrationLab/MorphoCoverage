@@ -1,27 +1,27 @@
-"""Roadmap Steps 4-8 and 10 on the committed idr0028 subset: protocol to the full report.
+"""The report's questions on the committed idr0028 subset: protocol to the full report.
 
 Each part answers one microscopist's question on the 12 wells (28 FOVs each)
 and prints its plain-language summary; tables go to ``results/``. idr0028 is a
 development dataset: nothing here is a protocol.
 
-- **Step 4, protocol** (``protocol_idr0028.csv``): from the Step 1 curves
+- **P2, protocol** (``protocol_idr0028.csv``): from the P1 curves
   (``results/reliability_idr0028.csv``, run ``reliability_idr0028.py`` first),
   how many wells are adequately represented at each number of fields, a well
   counting when at least 90% of random acquisitions preserved what was wanted.
   Wells of all conditions are pooled explicitly; the independent unit is the
   plate (``repeat``).
-- **Step 5, inspection** (``inspection_idr0028.csv``): fields to reopen per
+- **R5, inspection** (``inspection_idr0028.csv``): fields to reopen per
   well, for the mean and the 95th percentile of the YAP/TAZ ratio, new states
   (support novelty on all 30 standardized features, ``epsilon = sqrt(30)``,
   clusters of 3), observation counts and differences from stage neighbours.
-- **Step 6, controls** (``control_idr0028.csv``): siYAP wells as the declared
+- **R1, controls** (``control_idr0028.csv``): siYAP wells as the declared
   positive control, MOCK wells as the reference, paired by plate, after 10
   reference fields; also 5 siYAP cells planted into MOCK fields.
-- **Step 7, effort** (``effort_idr0028.csv``): variance components of the mean
+- **P10, effort** (``effort_idr0028.csv``): variance components of the mean
   YAP/TAZ ratio per condition (observation, field, well) and projected
   standard errors at the same total number of fields. Wells and plates are
   confounded here (one well per plate in MOCK), so the plate is not a level.
-- **Step 8, order** (``order_efficiency_idr0028.csv``): recorded (serpentine
+- **P7 and P8, order** (``order_efficiency_idr0028.csv``): recorded (serpentine
   raster), random and dispersed orders of the same positions, with the stage
   travel needed to preserve the well mean within 2.5% reliably, and the
   distance below which neighbouring fields are alike.
@@ -31,7 +31,7 @@ development dataset: nothing here is a protocol.
 - **Objects or fields** (the Foundation, R4): ``fov_variability`` and ``object_rule_check``
   of the YAP/TAZ ratio, and the clustering by field of objects unusual against
   the MOCK wells (the full tables are written by ``objects_vs_fields.py``).
-- **Step 10, the report** (``microscopist_report_idr0028.txt``,
+- **The report** (``microscopist_report_idr0028.txt``,
   ``sampling_profile_idr0028.csv``): all of the above, question by question.
 
 Usage::
@@ -108,7 +108,7 @@ def _stored(name: str) -> pd.DataFrame:
 
 
 def reliability_from_tables() -> ReliabilityResult:
-    """The Step 1 curves and their ceilings, as ``reliability_idr0028.py`` wrote them.
+    """The P1 curves and their ceilings, as ``reliability_idr0028.py`` wrote them.
 
     The ceiling table travels with the curve: without it the summary cannot say
     that a flat curve (the variance within 10%) is capped by the held-back
@@ -339,7 +339,7 @@ def main() -> None:
         RESULTS / "contrast_idr0028.csv", index=False, float_format="%.4g"
     )
 
-    # Step 10: every answer in one document (Step 1 curves reloaded from their tables).
+    # The report: every answer in one document (P1 curves reloaded from their tables).
     report = microscopist_report(
         **unit,
         controls=control_result,

@@ -8,7 +8,7 @@ the population component of an objective only.
 ``FixedAreaStrategy`` stops at a fixed physical imaged area, read from an
 FOV-table area column. Area is acquisition metadata rather than framework
 effort, so an estimator reports the visible total; it is more comparable than
-an FOV count when field size differs between acquisitions (roadmap 0.5).
+an FOV count when field size differs between acquisitions.
 """
 
 from __future__ import annotations

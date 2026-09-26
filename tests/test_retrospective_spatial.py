@@ -1,4 +1,4 @@
-"""Tests for acquisition-order efficiency (roadmap Step 8)."""
+"""Tests for acquisition-order efficiency (P8 of docs/questions.md)."""
 
 import numpy as np
 import pandas as pd

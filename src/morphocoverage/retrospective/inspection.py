@@ -1,12 +1,13 @@
 """Which fields should I go back and look at? A traceable list with one reason per line.
 
-Roadmap Step 5. ``inspect_fovs`` lists, per analysis group, the FOVs worth
-reopening, each with a plain reason and the numbers behind it, the image file
-and stage position when the FOV table has them, and its observation count
-beside the group median. Each reason is computed independently and reported
-only above its declared threshold; there is no combined score, and no FOV is
-called bad, an outlier or an artifact. An influential FOV may be biologically
-crucial, a technical artifact, or simply large, and only the image can tell.
+Question R5 of ``docs/questions.md``. ``inspect_fovs`` lists, per analysis
+group, the FOVs worth reopening, each with a plain reason and the numbers
+behind it, the image file and stage position when the FOV table has them, and
+its observation count beside the group median. Each reason is computed
+independently and reported only above its declared threshold; there is no
+combined score, and no FOV is called bad, an outlier or an artifact. An
+influential FOV may be biologically crucial, a technical artifact, or simply
+large, and only the image can tell.
 
 Reasons:
 

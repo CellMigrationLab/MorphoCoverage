@@ -385,7 +385,7 @@ class Family:
 
 
 def default_families(readout: str, n_resamples: int = 200) -> list[Family]:
-    """The rule families and grids of the locked benchmark (protocol version 2).
+    """The rule families and grids of the locked benchmark (protocol version 3).
 
     The JCB rule and the JCS descriptor spread, each per object and per FOV,
     and the FOV bootstrap of the mean, on ``readout``. The grids reach from a

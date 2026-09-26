@@ -1,4 +1,4 @@
-"""Regressions for the second audit (docs/audit/function_audit_2.md), one test per finding."""
+"""Regressions for the second function audit (docs/audit/README.md), one test per finding."""
 
 import subprocess
 import sys

@@ -1,6 +1,6 @@
 """FOV-bootstrap uncertainty of multivariate population summaries.
 
-Roadmap Phase 1 (docs/proposals/candidate_estimators_roadmap.md): how
+Described in ``docs/architecture.md``. How
 uncertain is the current estimate of simple population properties when the
 FOV, not the object, is the sampling unit? The visible FOVs are resampled with
 replacement (whole FOVs, including acquired FOVs with no observations), the
@@ -26,9 +26,9 @@ Summaries:
 - ``"covariance"``: every entry of the feature covariance matrix.
 - ``"quantiles"``: the given per-feature quantiles.
 - ``"eigenspectrum"``: the explained-variance fractions of the covariance
-  eigenvalues, largest first (roadmap 1.6).
-- ``"subspace"``: the leading ``n_components`` principal directions (roadmap
-  1.7). Directions have no sign or order within the subspace, so instead of a
+  eigenvalues, largest first.
+- ``"subspace"``: the leading ``n_components`` principal directions.
+  Directions have no sign or order within the subspace, so instead of a
   standard error the estimator reports the root-mean-square, over resamples,
   of the largest principal angle (``scipy.linalg.subspace_angles``, radians)
   between each resample's subspace and the subspace of all visible data.
@@ -36,7 +36,7 @@ Summaries:
   subspace is then genuinely undetermined.
 
 This is a MorphoCoverage method, not a published stopping rule. Its limits,
-stated in the roadmap and not removed by any setting here:
+which no setting here removes:
 
 - it resamples only what has been seen, so an entirely unseen rare component
   contributes zero variance: low uncertainty is not evidence that no unseen
@@ -47,8 +47,8 @@ stated in the roadmap and not removed by any setting here:
 - neighbouring FOVs that are spatially correlated make independent FOV
   resampling optimistic. ``block_col`` names an FOV-table column of spatial
   blocks (for example from ``reservoir.spatial_blocks``); whole blocks are then
-  resampled, so correlation within a block is kept (a spatial block bootstrap,
-  roadmap 8.4). Blocks should be at least as large as the correlation length;
+  resampled, so correlation within a block is kept (a spatial block bootstrap).
+  Blocks should be at least as large as the correlation length;
   correlation between blocks is still ignored, and ``min_fovs`` then also
   requires that many blocks;
 - the value depends on feature scale, so ``transform`` is explicit (``None``

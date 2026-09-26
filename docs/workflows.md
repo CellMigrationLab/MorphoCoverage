@@ -54,7 +54,10 @@ Plot&Stats notebook express values (`morphocoverage.normalize`). It needs
 `control` to name the condition column, every repeat must hold control
 objects (a repeat without them raises, since mixing scales inside one
 analysis would be worse than stopping), and the report's overview and the
-declaration say that the values are normalised. The normalised values are used
+declaration say that the values are normalised. A control mean that is zero
+(up to rounding), negative or undefined by missing values is refused, naming
+the feature and the repeat: dividing by it has no meaning or flips the sign of
+every effect, so compare a signed feature (a velocity, a log-ratio) raw. The normalised values are used
 only where values are compared across repeats: the outcome criteria judged on
 held-back fields, the condition contrast, the feature ranking and the plots.
 Every stopping rule runs on the raw values, in `report`, `optimise` and
@@ -105,9 +108,16 @@ about rare states. A fourth target, the difference between conditions, is a
 retrospective benchmark outcome and not yet a declaration
 ([`questions.md`](questions.md), open work).
 
-A declaration the workflows could not use raises instead of being skipped.
+A declaration the workflows could not use raises instead of being skipped,
+and so does a column named explicitly that the tables do not hold (a repeat
+or technical-repeat column, a control column, a plot column): only a column
+left at its MorphoBricks default may be absent, so a misspelt name never pools
+what it should keep apart.
 A definition of new (`novelty`) needs `features`, and a positive control needs
-`novelty`. Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
+`novelty`. With `novelty`, the report also counts the fields holding a state
+that fewer than `few_fovs` other fields show (seen, but not established);
+`few_fovs` must exceed the definition's `min_other_fovs` and defaults to two
+more than it. Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
 a field's identity everywhere, including in the control check. "New" is judged
 on `features` only, never on the readout, and the report names those columns.
 The stopping rules see the same columns (the readout, then `features`) in
@@ -162,9 +172,11 @@ are split over several figures, more than 8 biological repeats are pooled
 into one cluster per condition and the title says so, more than 8
 technical repeats go uncoloured with a note, and more than 24 features
 raise so that you choose; all four are arguments (`max_conditions`,
-`max_repeats`, `max_technical`, `max_features`). The features must be
+`max_repeats`, `max_technical`, `max_features`), and `max_technical` above 8,
+the colours that can be told apart, raises. The features must be
 declared in the setup, and the plots use the same normalised values as the
-report when `normalize` is set. With `folder`, each figure is saved as a PNG.
+report when `normalize` is set; the value axis then says "relative to
+control" (`plots_of_data(..., value_note=...)` adds any such note). With `folder`, each figure is saved as a PNG.
 Without `features`, the readout is plotted and, given the report's ranking
 (`plots(objects, fovs, setup, ranking=result.ranking)`), the five
 best-ranked other features (`top=`): those that separate the conditions
@@ -229,7 +241,7 @@ print(bench.summary())
 ```
 
 `default_families(setup.readout)` holds the rule families and threshold grids
-of the locked protocol (version 2): the JCB rule and the JCS descriptor
+of the locked protocol (version 3, whose grids are those of versions 1 and 2): the JCB rule and the JCS descriptor
 spread, each per object and per field, and the FOV bootstrap of the mean
 (on the readout only, whatever other features are declared).
 Pass `families=` to compare others.

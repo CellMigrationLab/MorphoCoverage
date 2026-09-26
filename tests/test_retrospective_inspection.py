@@ -1,4 +1,4 @@
-"""Tests for the inspect-these-fields report (roadmap Step 5)."""
+"""Tests for the inspect-these-fields report (R5 of docs/questions.md)."""
 
 import numpy as np
 import pandas as pd

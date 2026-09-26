@@ -1,10 +1,11 @@
 """Stopping-rule calibration: when this rule says stop, how often is that premature?
 
-Roadmap Step 2. Sequential, because a stopping rule can depend on the order in
-which FOVs arrive: a random set of 20 FOVs does not say whether the rule would
-already have stopped at 14. On each replayed acquisition of ``replay`` (a fixed
-held-back reservoir per split, several orders of the stream), the rule's first
-stop is found and the prefix at that stop is judged against the reservoir:
+Question P6 of ``docs/questions.md``. Sequential, because a stopping rule can
+depend on the order in which FOVs arrive: a random set of 20 FOVs does not say
+whether the rule would already have stopped at 14. On each replayed acquisition
+of ``replay`` (a fixed held-back reservoir per split, several orders of the
+stream), the rule's first stop is found and the prefix at that stop is judged
+against the reservoir:
 
 - **correct**: stopped, and what you wanted was preserved at the stop;
 - **premature**: stopped, and it was not preserved;

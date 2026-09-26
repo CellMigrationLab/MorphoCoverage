@@ -24,7 +24,7 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 | Could I have sampled more efficiently? | `order_efficiency`: recorded, random and dispersed orders of the same positions with stage travel; `redundancy_distance`; a comparison with all candidate positions is not implemented |
 | Do the conditions differ, and how confidently? | `morphocoverage.sampling_unit.condition_contrast`: each condition against the declared control, per repeat, with Cohen's d and the JCS effect size on objects (as the lab's Plot&Stats notebook computes them) and with the field as the unit, and a randomization test over whole fields |
 
-A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** `morphocoverage.retrospective.microscopist_report` assembles these answers question by question (`docs/proposals/microscopist_report.md`). Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
+A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** `morphocoverage.retrospective.microscopist_report` assembles these answers question by question (`docs/questions.md`). Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
 
 ## Modes
 
@@ -79,7 +79,7 @@ MorphoCoverage is a strategy-comparison framework. No default coverage estimator
   - a JCB/Zweifach-style scalar precision rule, re-estimated within each group or planned once from disjoint pilot samples (`plan_objects_to_average`, `PlannedObjectCountStrategy`);
   - Marcotti et al.-style descriptor stabilization.
 
-  Candidate MorphoCoverage estimators from the estimator roadmap proposal (`docs/proposals/candidate_estimators_roadmap.md`), all in `morphocoverage.strategies` and none selected as a default:
+  Candidate MorphoCoverage estimators (`docs/architecture.md`; those not yet built are in `docs/proposals/candidate_estimators_roadmap.md`), all in `morphocoverage.strategies` and none selected as a default:
   - `FOVBootstrapStrategy`: whole-FOV (or spatial-block) bootstrap uncertainty of the centroid, covariance, quantiles, PCA eigenspectrum or PCA subspace;
   - `SupportNoveltyStrategy`: leave-one-FOV-out fraction of observations outside the other FOVs' support at a declared resolution;
   - `IncidenceCoverageStrategy`: Chao–Jost incidence sample coverage and Chao2 completeness for externally fixed labels, with the FOV as the sampling unit;

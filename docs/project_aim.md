@@ -6,7 +6,7 @@ MorphoCoverage addresses a practical experimental-design problem in quantitative
 
 > **How can we determine whether an imaging experiment has sampled a biological sample sufficiently and efficiently under a declared phenotype representation, identify what information additional representative imaging would provide, and use completed acquisitions to guide how much and where to image in future experiments?**
 
-This broadens the original question (*has a sample been imaged sufficiently, and is another representative FOV likely to provide useful new phenotypic information?*) with two things a microscopist needs from a completed experiment: whether the imaging effort was spent efficiently, and what to do differently next time. It does not turn the project into general experimental design or biological hypothesis testing. A core distinction follows from it: **retrospective representability is not the prospective sampling requirement.** A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more to meet the same criterion reliably. The report that answers these questions is `morphocoverage.retrospective.microscopist_report`, designed in `docs/proposals/microscopist_report.md`. The questions themselves, grouped by moment of use (REPORT, OPTIMISE, ONLINE), are listed in `docs/questions.md`.
+This broadens the original question (*has a sample been imaged sufficiently, and is another representative FOV likely to provide useful new phenotypic information?*) with two things a microscopist needs from a completed experiment: whether the imaging effort was spent efficiently, and what to do differently next time. It does not turn the project into general experimental design or biological hypothesis testing. A core distinction follows from it: **retrospective representability is not the prospective sampling requirement.** A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more to meet the same criterion reliably. The report that answers these questions is `morphocoverage.retrospective.microscopist_report`. The questions themselves, grouped by moment of use (REPORT, OPTIMISE, ONLINE), are listed in `docs/questions.md`.
 
 The project starts from a simple observation: microscopes acquire **fields of view (FOVs)**, not independent cells. Cells are observations nested inside FOVs, and cells from the same or nearby FOVs may be correlated because they share local environment, density, tissue region, illumination, preparation, and other spatial or technical factors.
 
@@ -19,7 +19,7 @@ The project has two connected aims:
 
 The project deliberately does **not** assume in advance what mathematical method will solve these problems. Ecological coverage estimators, missing-mass methods, clustering, nearest-neighbour novelty, distributional distances, Bayesian approaches, information-theoretic quantities, and simple empirical stopping rules are candidate solutions to be compared, not assumptions built into the project definition.
 
-A proposed estimator roadmap, including benchmark prerequisites and unresolved scope decisions, is maintained in [`docs/proposals/candidate_estimators_roadmap.md`](proposals/candidate_estimators_roadmap.md).
+The candidate estimators not yet built, with the benchmark prerequisites they must meet, are listed in [`docs/proposals/candidate_estimators_roadmap.md`](proposals/candidate_estimators_roadmap.md).
 
 ## 1. Why this project is needed
 

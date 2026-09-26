@@ -1,6 +1,6 @@
 """Spatial diagnostics: how similar are FOVs as a function of stage distance?
 
-Roadmap 8.2 (docs/proposals/candidate_estimators_roadmap.md). The FOV is the
+Described in ``docs/architecture.md``. The FOV is the
 acquisition unit, not automatically an independent one. The empirical
 semivariogram
 

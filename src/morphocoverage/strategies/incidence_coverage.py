@@ -1,11 +1,11 @@
 """Incidence-based sample coverage and Chao2 richness for externally labelled states.
 
-Roadmap Phase 5 (docs/proposals/candidate_estimators_roadmap.md), restricted
-to the category source the roadmap accepts first: labels fixed independently
-of the evaluated acquisition (``label_col``, for example an annotated object
-type). The FOV is the sampling unit: with ``T`` visible FOVs (acquired FOVs
-without observations included), ``Q_k`` states seen in exactly ``k`` FOVs and
-``U = sum_k k Q_k`` incidences,
+Described in ``docs/architecture.md``. Restricted to the category source that
+the critical category rule (``docs/proposals/candidate_estimators_roadmap.md``)
+accepts first: labels fixed independently of the evaluated acquisition
+(``label_col``, for example an annotated object type). The FOV is the sampling
+unit: with ``T`` visible FOVs (acquired FOVs without observations included),
+``Q_k`` states seen in exactly ``k`` FOVs and ``U = sum_k k Q_k`` incidences,
 
 - Chao2 richness (Chao 1987), with the bias-corrected form when ``Q_2 = 0``:
 

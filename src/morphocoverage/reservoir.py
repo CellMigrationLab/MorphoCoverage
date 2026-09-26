@@ -5,7 +5,7 @@ reference contains the prefix, so every error goes to zero as the prefix
 grows, whatever a strategy does. A reservoir split instead sets aside part of
 each analysis group before replay. Strategies see only the stream; outcome
 metrics compare the stop with the reservoir, which does not grow with the
-prefix (docs/proposals/candidate_estimators_roadmap.md, section 4.2).
+prefix (``docs/benchmarking.md``, "Reference").
 
 Splitting rules:
 

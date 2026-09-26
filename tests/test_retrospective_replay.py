@@ -1,4 +1,4 @@
-"""Tests for replayed acquisitions: stopping calibration (Step 2) and adequacy points (Step 3)."""
+"""Tests for replayed acquisitions: stopping calibration (P6) and adequacy points (R2, P4)."""
 
 import numpy as np
 import pandas as pd
@@ -46,10 +46,10 @@ def _replay(scenario, strategies, criteria=(MEAN_A,), **kwargs):
     )
 
 
-# --- The adequacy points (the roadmap's examples) ----------------------------------
+# --- The adequacy points (the examples of docs/benchmarking.md) --------------------
 
 
-def test_apparent_points_follow_the_roadmap_example():
+def test_apparent_points_follow_the_documented_example():
     steps = list(range(10, 31))
     decisions = ["continue" if s < 16 or s == 24 else "stop" for s in steps]
     assert first_apparent_adequacy(steps, decisions) == 16
@@ -62,7 +62,7 @@ def test_apparent_points_follow_the_roadmap_example():
     assert first_apparent_adequacy(steps, ["continue"] * len(steps)) is None
 
 
-def test_realized_points_follow_the_roadmap_example():
+def test_realized_points_follow_the_documented_example():
     steps = list(range(8, 20))
     statuses = ["preserved" if s in (10, 11) or s >= 13 else "not_preserved" for s in steps]
     assert first_realized_adequacy(steps, statuses) == 10

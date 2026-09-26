@@ -1,8 +1,8 @@
 """Could the same positions have been visited in a better order? Acquisition-order efficiency.
 
-Roadmap Step 8. This asks about the order of the acquired positions, not about
-whether they were the right positions (that is sampling-frame bias, roadmap
-Step 9, not implemented):
+Questions P7 and P8 of ``docs/questions.md``. This asks about the order of the acquired
+positions, not about whether they were the right positions (that is
+sampling-frame bias, P9, not implemented):
 
 - ``dispersed_order``: greedy farthest-point order on stage coordinates, from
   a starting FOV; ``AcquisitionOrder.dispersed(seed)`` replays it with a start
@@ -11,7 +11,7 @@ Step 9, not implemented):
 - ``stage_travel``: the summed straight-line stage path between successive
   FOVs; with per-FOV and per-move times and a stage speed, an acquisition time.
 - ``order_efficiency``: per sample and order kind, the four adequacy points of
-  Step 3 with the stage travel needed to reach sustained realized adequacy.
+  ``adequacy_points`` with the stage travel needed to reach sustained realized adequacy.
 - ``redundancy_distance``: from the semivariogram of FOV means, the distance
   below which neighbouring fields are more alike than random pairs. It states
   a limitation of closely spaced fields; it is not an adequacy claim.

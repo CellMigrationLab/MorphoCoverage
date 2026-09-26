@@ -1,9 +1,7 @@
 # The questions MorphoCoverage answers, by moment of use
 
-This is the canonical list of the microscopist's questions. It supersedes the
-numbered list in `docs/proposals/microscopist_report.md`, which gave the
-reasons and the first designs. Every analysis, report section and benchmark
-should name the question it answers here.
+This is the canonical list of the microscopist's questions. Every analysis,
+report section and benchmark should name the question it answers here.
 
 The questions are grouped by the three moments of use. Each moment fixes
 what information may legitimately answer its questions. A fourth way of using
@@ -103,6 +101,22 @@ Two distinctions run through all three:
   FOVs, while a new experiment that samples FOVs at random needs more to meet
   the same criterion reliably.
 
+Every answer is written for the microscopist, and three rules keep it so:
+
+- **An answer, not only a table.** Each analysis prints the sentences of its
+  answer (`summary()`), with the decision they support, and every sentence
+  stays traceable to a table column.
+- **Plain words.** The sentences say "fields", "held-back fields", "what you
+  wanted to preserve" and "how often it would have worked"; reservoir,
+  criterion, prefix, outcome metric and `config_id` appear only in the
+  detailed tables. Every number comes with its unit (FOVs, % of acquisitions,
+  µm, minutes).
+- **Only scientific choices are asked.** What to preserve and how closely
+  (for example "the well mean within 5%") are declared in words, with
+  provisional presets that the summaries print; computational settings
+  (outer splits, draws, seeds) have documented defaults sized for a result in
+  minutes.
+
 Status: **done** (implemented and reported), **partial** (implemented, but
 part of the question is not answered or not reported), **gap** (not
 implemented). **Benchmark** marks the questions where methods compete and
@@ -191,6 +205,76 @@ extension, which changes the sampling distribution and needs its own design.
 3. P3 printed as increments.
 4. O5, a borderline state in the decision, and O6, the calibration of the
    same rule attached to the live session.
-5. Data: deeper held-out acquisitions (30 or more FOVs per sample, five or
-   more independent units) for P2, P10 and the distribution and rare rows of
-   R2; independent labels for rare states; an overview for P9.
+5. Data: deeper held-out acquisitions (30 or more FOVs per sample, ideally 60,
+   and five or more independent units) for P2, P10 and the distribution and
+   rare rows of R2: the one held-out dataset, idr0139, has 4 FOVs per well,
+   so it can refute a development conclusion but not set a number;
+   independent labels for rare states; an overview for P9.
+6. P9, sampling-frame bias: comparing the imaged positions with every
+   candidate position of an overview (with covariates such as density or
+   region) needs a new input contract (AGENTS.md section 15) and upstream
+   support in CellPatcher, so it is not started until the owner approves it.
+7. The owner's reading test: on a real dataset, the project owner reads each
+   report answer without the code and says what they would do differently;
+   not yet done for any section, nor for the whole report on a dataset it was
+   not built on.
+8. External audits of the stopping-rule calibration (P6) and the protocol
+   reliability (P2), each asked for a dataset on which the answer misleads
+   while every test passes (AGENTS.md section 14): planned, and run only as
+   part of the whole-report audit of 2026-09-25 (`docs/audit/README.md`).
+9. P10's intervals: the effort projection's bootstrap intervals covered the
+   true sample and field components in only 80–88% of simulated runs, not
+   95% (`docs/preliminary_findings.md`, entry 6), so a stated difference
+   between allocations also needs five or more independent units; a better
+   interval is open.
+10. A cost model for P10 (`C = n_samples * C_sample + n_FOV * C_FOV`, supplied
+    by the user): today allocations are compared at equal total FOVs, which
+    is not equal cost, since a sample costs preparation that a field does not.
+11. Excess FOVs beyond the adequacy points in benchmark records, and their
+    aggregation into a regime map (`docs/benchmarking.md`): the adequacy
+    points exist, the benchmark does not yet report what was imaged past
+    them.
+12. A diagnostic of technical drift between repeats, batches or plates: a
+    shift pooled across groups is invisible to the novelty definition (the
+    shifted fields support each other), and the report says "not assessed".
+13. Uncertainty semantics: a rule that every interval, bound or percentage
+    says what it covers and at what unit, a table in
+    `docs/scientific_contract.md` of the five kinds (parameter confidence,
+    next-field prediction, population tolerance, empirical calibration,
+    protocol generalization) with the function behind each, and one
+    field-to-field tolerance sentence in the Foundation ("representative
+    fields here span X to Y"). Most sentences already say it; the rule is not
+    written.
+14. The ONLINE wording rule: every live sentence names a bound as a nominal
+    per-look bound and a stopping risk as empirically calibrated, since
+    checking a fixed-sample bound after every field does not keep its nominal
+    coverage (with O6).
+15. The positive predictive value of a flagged field at a declared field
+    incidence (`Setup.rare`), from the control's detection and false-alarm
+    rates, printed with its two cautions: it holds for fields flagged by this
+    definition of new, and it counts fields, not objects.
+16. Representation robustness: a workflow helper that runs the control check,
+    and a fingerprint reliability once deeper data allow it, over several
+    representations (feature sets, PCA sizes) and tabulates them, with the
+    rule that unsupervised clusters are hypotheses about phenotype structure,
+    not biological states.
+17. A "validated across" block in the protocol summary: for each declared
+    level of the hierarchy (field, sample, technical level, repeat), whether
+    the protocol curve spans more than one unit of it, or "not assessed".
+18. Two process rules for AGENTS.md: a dataset stops being held out for a
+    choice once its results influence that choice (section 9 and
+    `docs/benchmarking.md`; no setting has yet been chosen on idr0139), and a
+    new method names the microscopist's question it improves that the simpler
+    tools cannot answer reliably (section 20).
+19. Smaller items left open by the 2026-09-25 audit: advice when missing
+    values make the novelty question not estimable (drop those observations
+    or those features, and say so); a cap on the support-novelty cost, which
+    grows about as `k · n²` per decision (5.9 s at 60 fields of 300 objects);
+    a warning in `sufficiency_report` when only per-object rules are given,
+    and the README example with both units; and a sentence that the
+    next-field calibration is noisy when few fields remain.
+20. The candidate estimators not yet built (learning curves, kNN and PRDC
+    support, abundance-based and diversity estimators, occupancy models,
+    spatial ICC, pMoSS, biological-fidelity outcomes, continual-monitoring
+    methods) and the benchmark they must pass:
+    `docs/proposals/candidate_estimators_roadmap.md`.

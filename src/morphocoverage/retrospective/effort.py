@@ -1,11 +1,11 @@
 """More fields or more samples? A scalar hierarchical effort projection.
 
-Roadmap Step 7. For one declared scalar measurement (the mean of a feature;
-a phenotype-state fraction is the mean of a 0/1 feature) and a declared
-``SamplingHierarchy`` (observation within FOV within sample, optionally within
-biological repeat), it asks where the sampling uncertainty of the mean comes
-from, and how it would change if the same total number of FOVs were spread
-over more or fewer samples.
+Question P10 of ``docs/questions.md``. For one declared scalar measurement (the
+mean of a feature; a phenotype-state fraction is the mean of a 0/1 feature) and
+a declared ``SamplingHierarchy`` (observation within FOV within sample,
+optionally within biological repeat), it asks where the sampling uncertainty of
+the mean comes from, and how it would change if the same total number of FOVs
+were spread over more or fewer samples.
 
 **Variance components** are estimated by the nested method of moments
 (Henderson's method I, the ANOVA estimators for unbalanced nested random

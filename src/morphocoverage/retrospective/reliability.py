@@ -1,7 +1,7 @@
 """Sampling reliability: if I acquire ``k`` representative FOVs, how often is that enough?
 
 The strategy-independent answer to "how many FOVs should I image next time?"
-(roadmap Step 1, ``docs/proposals/microscopist_report_roadmap.md``). No
+(P1 of ``docs/questions.md``). No
 stopping rule is involved; whether a rule stops at the right time is a
 separate, sequential question.
 
@@ -33,7 +33,7 @@ Limits, stated with every result:
   says so (``splits`` 0), so no sample disappears from later analyses; with
   unequal blocks, a ``k`` judged on only some splits says on how many.
 - Draws and splits estimate one sample's behaviour; they are not independent
-  replicates. Statements across samples count samples or repeats (Step 4).
+  replicates. Statements across samples count samples or repeats (P2).
 - Random draws treat FOVs as exchangeable, as random-position sampling does;
   recorded, spatially ordered acquisition is a different question.
 - With few blocks the splits repeat hold-outs (3 blocks give at most 3
