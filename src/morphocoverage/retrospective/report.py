@@ -11,8 +11,7 @@ foundation every other answer rests on, then answers the questions in order:
   held when its objects came as whole fields?
 
 1. Can these features detect what I care about? (``representation_control``)
-2. Did I image enough? (``sufficiency_report``, ``adequacy_points``,
-   ``stopping_calibration``)
+2. Did I image enough? (``sufficiency_report``, ``stopping_calibration``)
 3. What is limiting my sampling? (the sampling profile, below, and
    ``sampling_unit.fov_clustering`` of rare or unusual objects)
 4. How many fields next time? (``sampling_reliability``, ``protocol_reliability``)
@@ -97,8 +96,9 @@ _NEEDS = {
     "unit": "run fov_variability (and object_rule_check or descriptor_spread_check) "
     "from morphocoverage.sampling_unit",
     "controls": "declare a positive control (and a reference) with representation_control",
-    "enough": "run sufficiency_report, or adequacy_points and stopping_calibration on a replay",
-    "profile": "run any of the analyses below",
+    "enough": "run sufficiency_report, or stopping_calibration on a replay",
+    "profile": "run representation_control, fov_variability, fov_clustering, "
+    "effort_projection, redundancy_distance or inspect_fovs; the profile lists what they measured",
     "next_time": "run sampling_reliability, then protocol_reliability across samples",
     "bought": "run adequacy_points on a replay",
     "inspect": "run inspect_fovs",
@@ -223,6 +223,13 @@ def _unit_rows(
         ok = variability.groups[variability.groups["status"] == "ok"]
         if len(ok):
             effect = ok["design_effect"]
+            shares = pd.to_numeric(ok["unusual_fov_share"], errors="coerce").dropna()
+            unusual = (
+                f"; {100 * shares.median():.0f}% of fields differ more than random "
+                f"{observations} would (5% expected)"
+                if len(shares)
+                else ""
+            )
             where = f"median of {len(ok)} groups" if len(ok) > 1 else "1 group"
             rows.append(
                 {
@@ -232,9 +239,7 @@ def _unit_rows(
                     "statement": (
                         f"a mean from whole fields varies {effect.median():.1f} times as much as "
                         f"one from as many random {observations} (design effect, range "
-                        f"{effect.min():.1f}-{effect.max():.1f}); "
-                        f"{100 * ok['unusual_fov_share'].median():.0f}% of fields differ more "
-                        f"than random {observations} would (5% expected)"
+                        f"{effect.min():.1f}-{effect.max():.1f}){unusual}"
                     ),
                     "source": "fov_variability",
                 }
@@ -521,11 +526,15 @@ def microscopist_report(
         )
     if ranking is not None:
         parts["conditions"].append(ranking.summary())
-    if efficiency is not None or redundancy is not None:
-        parts["order"].append(
-            "Whether these were the right positions needs every candidate position from an "
-            "overview (not available: sampling-frame bias is not assessed)."
-        )
+    # Redundancy alone feeds the profile; question 8 is answered by an order replay.
+    frame = (
+        "Whether these were the right positions needs every candidate position from an "
+        "overview (not available: sampling-frame bias is not assessed)."
+    )
+    if efficiency is not None:
+        parts["order"].append(frame)
+    elif redundancy is not None:
+        parts["profile"].append(frame)
     notes = [
         "Every answer holds for the stated features, tolerances and definition of new.",
         (

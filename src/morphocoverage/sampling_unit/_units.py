@@ -110,6 +110,22 @@ def field_means(units: list[list[np.ndarray]]) -> np.ndarray:
     return np.array([f.mean() for u in units for f in u if len(f)])
 
 
+def separation_d(first: np.ndarray, second: np.ndarray) -> float:
+    """Cohen's d, with a perfect separation as an infinite d instead of undefined.
+
+    When each side holds at least two values, none varies and the means
+    differ, the pooled variance is zero and ``cohen_d`` is NaN, yet the sides
+    are as separated as they can be; this returns ``+inf`` or ``-inf`` then.
+    Equal means with no variation stay NaN.
+    """
+    d = cohen_d(first, second)
+    if np.isnan(d) and len(first) >= 2 and len(second) >= 2:
+        difference = float(first.mean() - second.mean())
+        if difference != 0:
+            return float(np.copysign(np.inf, difference))
+    return d
+
+
 def permutation_p(
     t_units: list[list[np.ndarray]],
     c_units: list[list[np.ndarray]],
@@ -119,6 +135,9 @@ def permutation_p(
     rng: np.random.Generator,
 ) -> float:
     """``(extreme + 1) / (n + 1)`` for the absolute Cohen's d on field means under shuffled labels.
+
+    The statistic is ``separation_d``, so a shuffle that separates the sides
+    perfectly counts as at least as extreme as a perfectly separated observation.
 
     ``by_unit`` shuffles whole technical repeats (each keeps its fields);
     otherwise the fields themselves are shuffled between the sides.
@@ -131,7 +150,7 @@ def permutation_p(
             order = rng.permutation(len(units))
             treated = [units[i] for i in order[:n_treated]]
             control = [units[i] for i in order[n_treated:]]
-            statistic = abs(cohen_d(field_means(treated), field_means(control)))
+            statistic = abs(separation_d(field_means(treated), field_means(control)))
             if np.isfinite(statistic) and statistic >= observed:
                 extreme += 1
         return (extreme + 1) / (n_permutations + 1)
@@ -139,7 +158,7 @@ def permutation_p(
     n_treated = len(field_means(t_units))
     for _ in range(n_permutations):
         shuffled = rng.permutation(pooled_means)
-        statistic = abs(cohen_d(shuffled[:n_treated], shuffled[n_treated:]))
+        statistic = abs(separation_d(shuffled[:n_treated], shuffled[n_treated:]))
         if np.isfinite(statistic) and statistic >= observed:
             extreme += 1
     return (extreme + 1) / (n_permutations + 1)

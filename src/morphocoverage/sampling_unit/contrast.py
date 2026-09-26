@@ -5,8 +5,9 @@ observations and a randomization test that shuffles condition labels over the
 observations, with a Bonferroni correction over the comparisons. That treats
 every object as an independent draw. The Foundation of the report says a
 microscope acquires objects through fields, and objects of one field enter
-together, so this check computes each number twice: as Plot&Stats does, on
-the objects, and with the field as the unit.
+together, so this check computes the effect size and the test both ways: as
+Plot&Stats does, on the objects, and with the field (or the technical repeat)
+as the unit.
 
 Per repeat, each condition is compared with the declared control condition
 (the fields of a condition's analysis groups, for example its wells, are
@@ -117,7 +118,8 @@ class ConditionContrast:
         if self.table.empty:
             lines.append(self.settings.get("reason", "No condition to compare with the control."))
             return "\n".join(lines)
-        n_contrasts = len(self.table)
+        # The Bonferroni factor counts the contrasts that were tested, as computed.
+        n_contrasts = int(self.table["p_value"].notna().sum())
         for row in self.table.to_dict("records"):
             where = (f"{repeat_col}={row['repeat']}, " if repeat_col else "") + (
                 f"{row['condition']} vs {row['control_condition']}"
@@ -153,10 +155,13 @@ class ConditionContrast:
                 f"labels): p = {row['p_value']:.3g} (Bonferroni over {n_contrasts} comparison"
                 f"{'s' if n_contrasts != 1 else ''}: {row['p_bonferroni']:.3g})."
             )
-            effects = self.effects[
-                (self.effects["repeat"] == row["repeat"])
-                & (self.effects["condition"] == row["condition"])
-            ]
+            # Without a repeat column the repeat is None, which == never matches.
+            same_repeat = (
+                self.effects["repeat"].isna()
+                if pd.isna(row["repeat"])
+                else self.effects["repeat"] == row["repeat"]
+            )
+            effects = self.effects[same_repeat & (self.effects["condition"] == row["condition"])]
             if effects.empty:
                 continue
             full = row["effect_full"]
@@ -325,6 +330,11 @@ def condition_contrast(
         }
         if len(t_means) < 2 or len(c_means) < 2:
             row["status"] = "fewer than 2 fields with observations on one side"
+            rows.append(row)
+            continue
+        if not np.isfinite(row["d_fields"]):
+            # Every field mean equal on both sides: no field-level statistic to test.
+            row["status"] = "the field means do not vary, so the field-level test is undefined"
             rows.append(row)
             continue
         rng = np.random.default_rng([random_state, group_identity(base)])

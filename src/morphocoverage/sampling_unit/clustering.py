@@ -105,8 +105,17 @@ class FOVClustering:
         lines = [f"Are the states spread over the fields? Labels {self.settings['label_col']}."]
         for row in self.table.to_dict("records"):
             head = f"{where({c: row[c] for c in self.group_cols})}, {self.state_name(row['state'])}"
+            if not row["labelled"]:
+                lines.append(
+                    f"{head}: no {words.removesuffix('s')} of its "
+                    f"{fields_text(int(row['fovs']))} is labelled, so it was not looked for."
+                )
+                continue
             if not row["state_objects"]:
-                lines.append(f"{head}: not seen in {fields_text(int(row['fovs']))}.")
+                lines.append(
+                    f"{head}: not seen among {int(row['labelled'])} labelled {words} in "
+                    f"{fields_text(int(row['fovs']))}."
+                )
                 continue
             upper = row["fovs_needed_upper"]
             bound = "" if pd.isna(upper) else f" (up to {int(upper)})"
