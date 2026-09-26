@@ -97,7 +97,10 @@ def bootstrap_fields(
 
     Each resample draws as many fields as were acquired, with replacement, and
     pools their objects; the interval is the ``confidence`` percentile range
-    of the statistic over ``n_boot`` resamples. Fields without objects take
+    of the statistic over the ``n_boot`` resamples on which it is defined. A
+    resample that drew only empty fields has no objects and is left out, so
+    with many empty fields the interval is conditional on a resample holding
+    at least one object. Fields without objects take
     part in the resampling (they were acquired) and contribute no value. NaN
     bounds when fewer than two fields hold objects.
     """
@@ -137,7 +140,8 @@ def bootstrap_nested(
     are, with replacement, then within each drawn unit as many of its fields
     as it has, with replacement, and pools the objects: a well-to-well shift
     widens the interval instead of passing for field-to-field noise. With a
-    single unit this is ``bootstrap_fields`` on its fields. NaN bounds when
+    single unit this is ``bootstrap_fields`` on its fields. As there, resamples
+    holding no object are left out of the percentiles. NaN bounds when
     fewer than two fields hold objects.
     """
     if not 0 < confidence < 1:

@@ -89,7 +89,7 @@ smallest and largest visible block.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -244,14 +244,33 @@ def _pca_reason(estimator: FOVBootstrapEstimator, values: np.ndarray) -> str | N
     return None
 
 
+def _feature_selection(features: Sequence[str] | None) -> tuple[str, ...] | None:
+    """``features`` as a tuple of distinct column names, or ``None`` for every feature column."""
+    if features is None:
+        return None
+    if isinstance(features, str):
+        raise TypeError("features must be a sequence of column names, not a string")
+    selected = tuple(features)
+    if not selected or any(not isinstance(f, str) or not f for f in selected):
+        raise ValueError("features must name at least one column")
+    if len(set(selected)) != len(selected):
+        raise ValueError("features must be distinct")
+    return selected
+
+
 @dataclass(frozen=True)
 class FOVBootstrapEstimator(Estimator):
     """Root-mean-square FOV-bootstrap standard error of a multivariate summary.
 
-    Reports ``fov_bootstrap_<summary>_se`` (lower is better; population
-    evidence for the centroid, distribution evidence for the other summaries),
-    in the units of the transformed features. See the module docstring for the
-    summaries, their limits and missing-data behaviour.
+    Reports ``fov_bootstrap_<summary>_se`` (the root-mean-square SE over the
+    summary's components) and ``fov_bootstrap_<summary>_max_se`` (the largest
+    component SE, the strategy's default stopping quantity), or, for the
+    subspace summary, ``fov_bootstrap_subspace_angle``; all are lower is
+    better, population evidence for the centroid and distribution evidence
+    for the other summaries, in the units of the transformed features. See
+    the module docstring for the summaries, their limits and missing-data
+    behaviour. ``features`` restricts the estimate to those feature columns
+    (``None``: every feature column of the data).
     """
 
     summary: str
@@ -262,12 +281,14 @@ class FOVBootstrapEstimator(Estimator):
     quantiles: tuple[float, ...] | None = None
     n_components: int | None = None
     block_col: str | None = None
+    features: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.quantiles is not None:
             object.__setattr__(self, "quantiles", tuple(float(q) for q in self.quantiles))
         if self.block_col is not None and not isinstance(self.block_col, str):
             raise TypeError("block_col must be an FOV-table column name or None")
+        object.__setattr__(self, "features", _feature_selection(self.features))
         _check(
             self.summary,
             self.n_resamples,
@@ -312,7 +333,18 @@ class FOVBootstrapEstimator(Estimator):
             "quantiles": None if self.quantiles is None else list(self.quantiles),
             "n_components": self.n_components,
             "block_col": self.block_col,
+            # Only when set, so the configurations of every earlier rule keep their ids.
+            **({} if self.features is None else {"features": list(self.features)}),
         }
+
+    def _selected(self, data: ValidatedInput) -> ValidatedInput:
+        """``data`` reduced to ``features`` when they are set (a copy, with its own cache)."""
+        if self.features is None:
+            return data
+        missing = [f for f in self.features if f not in data.feature_cols]
+        if missing:
+            raise ValueError(f"FOV bootstrap features {missing} are not feature columns")
+        return replace(data, feature_cols=self.features)
 
     def _values(self, data: ValidatedInput) -> tuple[np.ndarray | None, dict[str, Any], str]:
         """Feature values in the estimator's units, provenance, and those units' name."""
@@ -383,6 +415,7 @@ class FOVBootstrapEstimator(Estimator):
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """Bootstrap standard error of the summary under whole-FOV resampling."""
+        data = self._selected(data)
         name = self.quantity
         if np.isnan(data.feature_matrix()).any():
             reason = "missing values in the selected features"
@@ -399,16 +432,22 @@ class FOVBootstrapEstimator(Estimator):
             diagnostics["visible_blocks"] = blocks
             sizes = data.fovs[self.block_col].value_counts()
             diagnostics["block_sizes"] = {"min": int(sizes.min()), "max": int(sizes.max())}
+        # A PCA summary these features can never define is not_applicable from the
+        # first FOV on, not insufficient until min_fovs and then not_applicable.
+        shape_known = values if values is not None else None
+        if shape_known is None and self.transform is None:
+            shape_known = np.empty((0, len(data.feature_cols)))
+        if self.summary in ("eigenspectrum", "subspace") and shape_known is not None:
+            never = _pca_reason(self, shape_known)
+            if never:
+                quantity = Quantity.not_applicable(never, **_meta(units, self.summary))
+                return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": never})
         if with_observations < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
         elif blocks is not None and blocks < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible spatial blocks"
         elif values is None:
             reason = f"the transform could not be fitted: {diagnostics['transform']['reason']}"
-        elif self.summary in ("eigenspectrum", "subspace") and _pca_reason(self, values):
-            reason = _pca_reason(self, values)
-            quantity = Quantity.not_applicable(reason, **_meta(units, self.summary))
-            return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": reason})
         else:
             reason = None
         if reason is not None:
@@ -492,8 +531,10 @@ class FOVBootstrapStrategy(SamplingStrategy):
     n_components: int | None = None
     block_col: str | None = None
     aggregate: str = "max"
+    features: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "features", _feature_selection(self.features))
         if not (self.tolerance > 0 and np.isfinite(self.tolerance)):
             raise ValueError("tolerance must be positive and finite")
         if self.aggregate not in AGGREGATES:
@@ -537,6 +578,7 @@ class FOVBootstrapStrategy(SamplingStrategy):
                 self.quantiles,
                 self.n_components,
                 self.block_col,
+                self.features,
             ),
         )
 

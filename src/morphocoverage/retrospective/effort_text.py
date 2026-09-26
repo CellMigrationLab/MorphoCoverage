@@ -12,28 +12,13 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from ..metadata import TECHNICAL_REPEAT_COLUMN
-from ._text import unit_plural
+from ._text import sample_word, unit_plural, unit_word
 from .protocol import FEW_UNITS
 
 if TYPE_CHECKING:
     from .effort import EffortResult
 
 OBSERVATION = "observation"
-
-
-def sample_word(hierarchy: Mapping[str, Any]) -> str:
-    """What a sample is called: a technical repeat when it is the MorphoBricks column."""
-    return "technical repeat" if hierarchy.get("sample") == TECHNICAL_REPEAT_COLUMN else "sample"
-
-
-def unit_word(hierarchy: Mapping[str, Any], unit: str) -> str:
-    """The word for an independent unit named by its column."""
-    if unit == hierarchy.get("sample"):
-        return sample_word(hierarchy)
-    if unit == hierarchy.get("biological_repeat"):
-        return "repeat"
-    return unit
 
 
 def level_words(hierarchy: Mapping[str, Any], observations: str) -> dict[str | None, str]:
@@ -82,9 +67,16 @@ def effort_summary(result: EffortResult) -> str:
         shares = rows.dropna(subset=["share"]).sort_values("share", ascending=False)
         units = int(rows["units"].iloc[0])
         unit = unit_word(hierarchy, str(rows["unit"].iloc[0]))
-        if bool(rows["repeat_dropped"].iloc[0]):
+        repeat = hierarchy.get("biological_repeat")
+        if bool(rows["repeat_dropped"].iloc[0]) and rows["repeats"].iloc[0] == 1:
             lines.append(
-                f"  Every {hierarchy.get('biological_repeat')} holds a single {samples} here, so "
+                f"  There is a single {repeat} here, so the variance between repeats cannot be "
+                f"estimated: the components describe this {repeat} only, and the {samples} is "
+                "the independent unit."
+            )
+        elif bool(rows["repeat_dropped"].iloc[0]):
+            lines.append(
+                f"  Every {repeat} holds a single {samples} here, so "
                 f"the repeat is not a variance level in this stratum (its variance is counted "
                 f"with the {samples}'s) and the {samples} is the independent unit."
             )
@@ -108,13 +100,23 @@ def effort_summary(result: EffortResult) -> str:
                 f"{samples}s of about {best['current_fovs_per_sample']:.3g}."
             )
         else:
-            reason = (
-                f"only {units} {unit}s"
-                if units < FEW_UNITS
-                else "the intervals of the alternatives overlap"
-            )
+            if units < FEW_UNITS:
+                reason = f"only {units} {unit}s"
+            elif not len(compared):
+                reason = "no other allocation was compared"
+            elif not compared["same_total"].any():
+                reason = "no allocation compared has the acquired total of fields"
+            else:
+                reason = "the intervals of the alternatives at the same total include no change"
+
             lines.append(
                 f"  More fields or more {samples}s: cannot tell from these data ({reason})."
+            )
+        normalized = result.settings.get("normalized")
+        if normalized:
+            lines.append(
+                f"  Values are normalised ({normalized}): variance shared by a whole repeat "
+                "is removed, so the between-repeat share is lower than in raw values."
             )
         missing = int(rows["missing_values"].iloc[0])
         if missing:
@@ -126,6 +128,11 @@ def effort_summary(result: EffortResult) -> str:
                 f"{observations}; projections assume the same share would again."
             )
         blocks.append("\n".join(lines))
+    for row in result.skipped.itertuples(index=False):
+        blocks.append(
+            f"{row.stratum}: more fields or more {samples}s, for the mean {feature}? "
+            f"Not estimable: {row.reason}."
+        )
     return "\n\n".join(blocks)
 
 

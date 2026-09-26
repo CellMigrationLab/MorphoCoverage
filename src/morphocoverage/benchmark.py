@@ -15,7 +15,9 @@ success:
   FOVs with its seed. A permutation treats the FOVs of a group as
   exchangeable, which the recorded order need not be (stage drift,
   neighbouring fields); both are recorded so the difference stays visible.
-- **Stop.** A strategy stops at the first prefix whose decision is ``stop``.
+- **Stop.** A strategy stops at the first prefix whose decision is ``stop``
+  (with ``stop_on="rule"``, whose ``rule_decision`` is ``stop``: the rule's own
+  verdict, whatever the objective's other components say).
   A run that never stops is recorded with ``stopped=False``, its final
   decision, and outcomes and effort at the full acquisition.
 - **Reference.** Outcomes compare the stop with the full group by default.
@@ -47,7 +49,7 @@ from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
 from .reservoir import ReservoirSplit
-from .results import Decision
+from .results import Decision, StrategyResult
 from .schema import ValidatedInput, normalize_observation_unit, validate_input_tables
 from .sequential import SequentialResult, _evaluate_prefixes
 from .strategies.base import SamplingStrategy
@@ -316,10 +318,18 @@ def _group_key(group: Mapping[str, Any]) -> tuple:
 
 
 def _area(data: ValidatedInput, area_col: str | None) -> float | None:
-    """Total imaged area of the FOVs, or ``None`` when the dataset declares no area column."""
+    """Total imaged area of the FOVs, or ``None`` when the dataset declares no area column.
+
+    A field with no recorded area raises: summing it as zero would understate
+    the effort at the stop.
+    """
     if area_col is None:
         return None
-    return float(data.fovs[area_col].sum())
+    areas = data.fovs[area_col]
+    if areas.isna().any():
+        missing = data.fovs.loc[areas.isna(), list(data.fov_key)].head(3).to_dict("records")
+        raise ValueError(f"area_col {area_col!r} is missing for some fields, e.g. {missing}")
+    return float(areas.sum())
 
 
 def _record_run(
@@ -328,15 +338,20 @@ def _record_run(
     scored_against: ValidatedInput,
     metrics: Sequence[OutcomeMetric],
     dataset: BenchmarkDataset,
+    stop_on: str = "decision",
     **provenance: Any,
 ) -> BenchmarkRecord:
     """Find the stop in one strategy's history on one group and score it against ``scored_against``.
 
     ``full`` is everything the replay could reveal (the group, or its stream).
+    ``stop_on`` is ``"decision"`` or ``"rule"`` (see ``run_benchmark``).
     """
-    stop_index = next(
-        (i for i, item in enumerate(history) if item.result.decision is Decision.STOP), None
-    )
+
+    def stops(result: StrategyResult) -> bool:
+        decision = result.decision if stop_on == "decision" else result.rule_decision
+        return decision is Decision.STOP
+
+    stop_index = next((i for i, item in enumerate(history) if stops(item.result)), None)
     last_index = len(history) - 1 if stop_index is None else stop_index
     last = history[last_index]
     key = list(full.fov_key)
@@ -393,6 +408,7 @@ def run_benchmark(
     incremental: bool = False,
     reservoir: ReservoirSplit | None = None,
     n_jobs: int = 1,
+    stop_on: str = "decision",
 ) -> list[BenchmarkRecord]:
     """Replay every strategy on one registered dataset and record one run per group and order.
 
@@ -407,8 +423,13 @@ def run_benchmark(
     records are the same for every value (see ``morphocoverage._parallel`` on
     the BLAS thread count) apart from the recorded latencies. Latencies from
     ``n_jobs > 1`` are measured on workers sharing the CPUs, one BLAS thread
-    each, so they are not the time a live decision would take.
+    each, so they are not the time a live decision would take. ``stop_on``
+    is ``"decision"`` (the objective's decision, the default) or ``"rule"``
+    (the rule's own verdict, ``StrategyResult.rule_decision``), so a table of
+    rule verdicts and its stop points use the same decision.
     """
+    if stop_on not in ("decision", "rule"):
+        raise ValueError(f"stop_on must be 'decision' or 'rule', not {stop_on!r}")
     tuned = registry.check_tuning(tuned_on)
     dataset = registry[dataset_name]
     strategy_list = list(strategies)
@@ -483,6 +504,7 @@ def run_benchmark(
                             references[key],
                             metric_list,
                             dataset,
+                            stop_on,
                             in_sample=dataset.name in tuned,
                             tuned_on=tuned,
                             order=order,

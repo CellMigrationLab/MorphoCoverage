@@ -197,9 +197,10 @@ class ScalarPrecisionEstimator(Estimator):
     - ``pilot_projected_averaging_cv`` (only with ``pilot_fovs``): the averaging
       CV that the pilot's estimate projects for the visible effort,
       ``cv_objects_pilot / sqrt(n_objects)`` (object unit) or
-      ``cv_mean_pilot * sqrt(k_pilot / k)`` (FOV unit). The requirement is
-      planned once from the first ``pilot_fovs`` FOVs by ``order_col`` and then
-      held fixed, as in the paper's pilot procedure.
+      ``cv_mean_pilot * sqrt(k_pilot / k)`` (FOV unit). The pilot is the first
+      ``pilot_fovs`` visible FOVs by ``order_col``; with ``order_col`` the
+      acquisition order (as it should be), it is fixed once complete, as in the
+      paper's pilot procedure. ``order_col`` must hold no missing value.
 
     Too few objects or FOVs give ``insufficient_data``. Negative values or a
     non-positive mean make the CV undefined (``not_applicable``), as does a
@@ -270,23 +271,29 @@ class ScalarPrecisionEstimator(Estimator):
         has_negative: bool,
         cells: Callable[[], dict[str, float]],
     ) -> dict[str, Any] | tuple[str, str]:
-        """The estimate from per-FOV sums and counts; ``objects()`` gives the object-level CVs."""
+        """The estimate from per-FOV sums and counts; ``cells()`` gives the object-level CVs.
+
+        Conditions that no further FOV can change (missing or negative values)
+        are ``not_applicable`` whatever the effort so far; those more FOVs can
+        change are ``insufficient_data``. In the FOV unit, empty FOVs carry no
+        between-FOV information, so at least two FOVs must hold objects.
+        """
         if np.isnan(sums).any():
             return "not_applicable", "missing values in the selected scalar feature"
-        n_objects = int(counts.sum())
-        if self.resampling_unit == "object":
-            if n_objects < 2:
-                return "insufficient_data", "fewer than 2 objects"
-        elif len(sums) < 2 or n_objects == 0:
-            return "insufficient_data", "fewer than 2 acquired FOVs or no objects"
         if has_negative:
             return "not_applicable", (
                 "negative values; the CV criterion applies to non-negative whole-cell measurements"
             )
+        n_objects = int(counts.sum())
+        if self.resampling_unit == "object":
+            if n_objects < 2:
+                return "insufficient_data", "fewer than 2 objects"
+        elif int((counts > 0).sum()) < 2:
+            return "insufficient_data", "fewer than 2 acquired FOVs with objects"
         if sums.sum() <= 0:
-            return "not_applicable", (
-                "non-positive mean; CV is only defined for positive-valued measurements"
-            )
+            # Only zeros so far (negatives are refused above): a later FOV can give a
+            # positive mean, so this is not yet enough data rather than undefined.
+            return "insufficient_data", "zero mean so far; the CV needs a positive mean"
 
         object_cvs = cells() if n_objects >= 2 else None
         if self.resampling_unit == "object":
@@ -308,9 +315,19 @@ class ScalarPrecisionEstimator(Estimator):
         return estimate
 
     def _check_order_col(self, fovs: pd.DataFrame) -> None:
-        """With a pilot, the order column must be in the FOV table."""
-        if self.pilot_fovs is not None and self.order_col not in fovs.columns:
+        """With a pilot, the order column must be in the FOV table and complete.
+
+        A missing order value has no place in the order, and the full and the
+        incremental evaluation would place it differently.
+        """
+        if self.pilot_fovs is None:
+            return
+        if self.order_col not in fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
+        if fovs[self.order_col].isna().any():
+            raise ValueError(
+                f"order_col {self.order_col!r} has missing values; the pilot needs an order"
+            )
 
     def _unit_reason(self, data: ValidatedInput) -> str | None:
         """The published criterion averages objects; the FOV-unit variant any observation."""
@@ -458,6 +475,7 @@ class _ScalarPrecisionState(EstimatorState):
     def update(self, new: ValidatedInput) -> Evidence:
         """Summarize the new FOV(s) and recompute the estimate from the summaries."""
         estimator = self.estimator
+        estimator._check_order_col(new.fovs)
         values = new.feature_values(estimator.feature)
         positions = fov_positions(new, new.fovs)
         for j in range(len(new.fovs)):

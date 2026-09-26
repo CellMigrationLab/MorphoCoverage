@@ -10,6 +10,7 @@ for a target it did not measure.
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -109,6 +110,16 @@ def _more_fovs(count: int) -> str:
     return f"{count} more FOV" if count == 1 else f"{count} more FOVs"
 
 
+def _several_states(row: Mapping[str, Any], fewest: int) -> str:
+    """When the FOVs seen in few could hold two or more recurrent states, each one's need."""
+    if int(row["fovs_with_state_in_few"]) < 2 * fewest:
+        return ""
+    return (
+        " They may hold several different states, each rarer: one seen in only "
+        f"{fewest} FOVs needs about {int(row['fovs_to_see_fewest'])}."
+    )
+
+
 def _next_fov_answer(
     row: Mapping[str, Any], target: float | None, calibrated: Mapping[str, Any] | None
 ) -> str:
@@ -129,11 +140,13 @@ def _next_fov_answer(
         if empty
         else ""
     )
+    # The zero-success bound is about -ln(1 - confidence) / k: 3 / k at 95%.
+    successes = -math.log(1 - row["confidence"])
     unseen = (
         f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
         f"{_percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
-        f"3 / {row['fovs_imaged']}), if FOVs are independent, representative draws. Rarer "
-        f"states can remain.{counted}"
+        f"{successes:.2g} / {row['fovs_imaged']}), if FOVs are independent, representative "
+        f"draws. Rarer states can remain.{counted}"
     )
     lines = [chance, unseen]
     few = row.get("few_fovs")
@@ -142,22 +155,25 @@ def _next_fov_answer(
         if pd.isna(seen_in_few):
             lines.append(f"Seen in few FOVs: not estimable ({row['few_reason']}).")
         else:
+            fewest = int(row["fewest_recurrent_fovs"])
+            span = f"{fewest} FOVs" if fewest == int(few) else f"{fewest} to {int(few)} FOVs"
             lines.append(
                 f"Seen in few FOVs: {int(seen_in_few)} of {row['fovs_imaged']} FOVs hold a "
-                f"state that fewer than {int(few)} other FOVs show. A state seen in 2 FOVs "
+                f"state that fewer than {int(few)} other FOVs show. A state seen in {span} "
                 "is not new to the next FOV but is not established either; it counts as "
                 "recurrent above, so look at those FOVs before calling the sample settled."
             )
             if int(seen_in_few):
                 lines.append(
-                    f"Planning for such a state: seen in {_percent(row['few_state_incidence'])} "
-                    f"of FOVs ({confidence} interval "
+                    f"Planning for such a state: these FOVs together are "
+                    f"{_percent(row['few_state_incidence'])} of FOVs ({confidence} interval "
                     f"{_percent(row['few_state_incidence_low'])}-"
-                    f"{_percent(row['few_state_incidence_high'])}); to see it at least once "
-                    f"with {confidence} probability, image about "
-                    f"{int(row['fovs_to_see_again'])} independent representative FOVs at the "
-                    f"observed incidence, up to {int(row['fovs_to_see_again_low_end'])} at "
-                    "the low end of the interval. Fields that cluster the state need more."
+                    f"{_percent(row['few_state_incidence_high'])}); to see a state that "
+                    f"common at least once with {confidence} probability, image about "
+                    f"{int(row['fovs_to_see_again'])} independent representative FOVs, up "
+                    f"to {int(row['fovs_to_see_again_low_end'])} at the low end of the "
+                    f"interval.{_several_states(row, fewest)} Fields that cluster the state "
+                    "need more."
                 )
     if target is not None:
         extra = row["extra_fovs_to_rule_out_target"]

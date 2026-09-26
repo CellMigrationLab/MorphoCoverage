@@ -56,6 +56,11 @@ def _final_row(result: StrategyResult, group_cols: Sequence[str]) -> dict[str, A
     return row
 
 
+def _quantile(values: np.ndarray, q: float) -> float | None:
+    """The ``q`` quantile as one of the values (``inverted_cdf``), or ``None`` without values."""
+    return float(np.quantile(values, q, method="inverted_cdf")) if len(values) else None
+
+
 def _stop_summary(records: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
     """Stop-FOV distribution per group and configuration."""
     rows = []
@@ -70,8 +75,9 @@ def _stop_summary(records: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
                 "orders": len(runs),
                 "never_stopped": int((~runs["stopped"]).sum()),
                 "stop_fov_median": float(np.median(stop)) if len(stop) else None,
-                "stop_fov_p10": float(np.quantile(stop, 0.1)) if len(stop) else None,
-                "stop_fov_p90": float(np.quantile(stop, 0.9)) if len(stop) else None,
+                # Observed stop counts, never interpolated between runs.
+                "stop_fov_p10": _quantile(stop, 0.1),
+                "stop_fov_p90": _quantile(stop, 0.9),
                 "spare_fovs_median": float(np.median(spare)) if len(spare) else None,
             }
         )
@@ -122,6 +128,8 @@ def criteria_tables(
             metrics=[],
             objective=objective,
             orders=orders,
+            # The verdict above is the rule's own; its stop points must be too.
+            stop_on="rule",
         )
     )
     group_keys = [f"group.{column}" for column in group_cols]

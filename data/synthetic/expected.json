@@ -1,0 +1,66 @@
+{
+  "seed": 20260926,
+  "design": {
+    "conditions": [
+      "control",
+      "drug"
+    ],
+    "repeats": [
+      "2026_01_05",
+      "2026_01_12",
+      "2026_01_19"
+    ],
+    "wells_per_condition_and_repeat": 5,
+    "fields_per_well": 6
+  },
+  "counts": {
+    "fields": 180,
+    "empty_fields": 30,
+    "cells": 2421,
+    "technical_repeats": 30,
+    "analysis_groups": 30,
+    "rare_cells": 15,
+    "rare_fields": 3
+  },
+  "truth": {
+    "variance": {
+      "repeat": 9.0,
+      "well": 16.0,
+      "field": 25.0,
+      "cell": 100.0
+    },
+    "area_baseline": 100.0,
+    "drug_effect": 15.0,
+    "icc_within_well": 0.2,
+    "cluster_size": 17.716232961586122,
+    "design_effect_within_well": 4.343246592317224,
+    "unusual_fov_share": 0.38239781161342595,
+    "cohen_d_cells": 1.2632278815997784,
+    "null_features": [
+      "intensity",
+      "eccentricity"
+    ],
+    "rare": {
+      "repeat": "2026_01_05",
+      "well": "D02",
+      "fields": [
+        1,
+        2,
+        3
+      ],
+      "cells": 5
+    }
+  },
+  "answers": {
+    "check_tables": "no error; one warning: the 30 empty fields",
+    "fixed_8_fields": "a well of 6 fields never reaches 8: no",
+    "fixed_4_fields_live_stop": 4,
+    "ranking_top": "area",
+    "ranking_unranked": [
+      "intensity",
+      "eccentricity"
+    ],
+    "contrast_direction": "drug above control in every repeat",
+    "rare_state": "clustered in 3 of the 6 fields of one well"
+  }
+}

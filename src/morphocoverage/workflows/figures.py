@@ -35,9 +35,10 @@ def plots(
 
     Within each condition the biological repeats sit side by side; every
     object is a point coloured by technical repeat (a well), with each
-    biological repeat's median and its
-    interval from resampling whole fields (``plots.plots_of_data``, which
-    also takes ``settings`` such as ``summary`` or ``max_conditions``).
+    biological repeat's median and its interval from resampling its technical
+    repeats, then their whole fields (``plots.plots_of_data``, which also
+    takes ``settings`` such as ``summary`` or ``max_conditions``). Normalised
+    values (``Setup.normalize``) say so on the value axis.
     With ``folder`` each figure is also saved there as
     ``<feature>[_<part>].png``. Returns the figures by feature.
     """
@@ -47,7 +48,9 @@ def plots(
         if ranking is not None:
             if not isinstance(ranking, FeatureRanking):
                 raise TypeError("ranking must be the report's FeatureRanking")
-            chosen += [f for f in ranking.top(top) if f != setup.readout]
+            # The readout is always plotted, so it never takes one of the ``top`` places.
+            others = [f for f in ranking.top(len(ranking.ranking)) if f != setup.readout]
+            chosen += others[:top]
     else:
         chosen = list(features)
     undeclared = sorted(set(chosen) - set(setup.columns))
@@ -58,6 +61,9 @@ def plots(
         fovs,
         features=chosen,
         random_state=settings.pop("random_state", setup.random_state),
+        value_note=settings.pop(
+            "value_note", None if setup.normalize is None else "relative to control"
+        ),
         **settings,
         **setup.common,
     )

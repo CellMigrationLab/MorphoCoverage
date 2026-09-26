@@ -85,6 +85,8 @@ class RareTarget:
             raise ValueError("a rare target needs object_prevalence, fov_incidence or both")
         _probability(self.object_prevalence, "object_prevalence")
         _probability(self.fov_incidence, "fov_incidence")
+        if self.detection_probability is None:
+            raise TypeError("detection_probability is required: the chance of seeing the state")
         _probability(self.detection_probability, "detection_probability")
         if isinstance(self.min_fov_occurrences, bool) or not isinstance(
             self.min_fov_occurrences, int

@@ -111,3 +111,12 @@ def test_rare_target_fields_have_no_defaults(missing):
     del config[missing]
     with pytest.raises(TypeError):
         RareTarget(**config)
+
+
+def test_a_rare_target_needs_its_detection_probability():
+    from morphocoverage import RareTarget
+
+    with pytest.raises(TypeError, match="detection_probability is required"):
+        RareTarget(
+            detection_probability=None, min_fov_occurrences=1, phenotype="x", fov_incidence=0.1
+        )

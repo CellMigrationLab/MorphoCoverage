@@ -29,7 +29,6 @@ for population objectives.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 from scipy import stats
@@ -69,8 +68,13 @@ def fovs_to_detect(fov_incidence: float, detection_probability: float, occurrenc
 
 
 def first_detection_fovs(fov_incidence: float, detection_probability: float) -> int:
-    """Closed form for one occurrence: ``ceil(log(1 - beta) / log(1 - p))``."""
-    return math.ceil(math.log(1 - detection_probability) / math.log(1 - fov_incidence))
+    """FOVs to see one occurrence: ``ceil(log(1 - beta) / log(1 - p))``, as ``fovs_to_detect``.
+
+    The closed form is computed from ``fovs_to_detect`` itself, since the
+    logarithms can round across an integer at an exact boundary (``p = 0.2``,
+    ``beta = 0.36`` gives 2.0000000000000004, which would ceil to 3).
+    """
+    return fovs_to_detect(fov_incidence, detection_probability, 1)
 
 
 def _plan_evidence(objective: ObjectiveConfig) -> Evidence:

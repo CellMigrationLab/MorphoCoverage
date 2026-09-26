@@ -440,7 +440,7 @@ def test_a_weakly_detected_control_prefixes_every_adequacy_answer():
 def test_adequacy_and_order_summaries_state_the_tail(gradient_replay):
     adequacy = adequacy_points(gradient_replay)
     text = adequacy.summary()
-    assert "(medians; by field" in text or "in 10% or more of runs" in text
+    assert "(medians; by field" in text or "in more than 10% of runs" in text
     realized = adequacy.realized[adequacy.realized["criterion"] == "all criteria"]
     one_order = realized[realized["order"] == "recorded"]["sustained_realized"]
     tail = float(
@@ -545,8 +545,8 @@ def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
         row["few_state_incidence_low"], 0.95, 1
     )
     text = report.summary()
-    assert "Planning for such a state: seen in 5% of FOVs (95% interval" in text
-    assert "image about 59 independent representative FOVs at the observed incidence" in text
+    assert "Planning for such a state: these FOVs together are 5% of FOVs (95% interval" in text
+    assert "image about 59 independent representative FOVs, up to" in text
     assert "Fields that cluster the state need more." in text
 
 

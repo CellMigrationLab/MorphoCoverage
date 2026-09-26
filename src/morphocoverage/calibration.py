@@ -120,7 +120,8 @@ def calibrate_next_fov_novelty(
     - ``fovs_imaged`` (``k``) and ``remaining_fovs`` (the FOVs the actual rate
       was measured on);
     - ``draws`` used and ``unavailable_draws`` (subsets on which the
-      prediction was undefined, for example too few FOVs with objects);
+      prediction or the actual rate was undefined, for example too few FOVs
+      with objects, or missing values in a remaining FOV);
     - ``predicted``: mean predicted chance; ``actual``: mean fraction of the
       remaining FOVs that did show something new;
     - ``bound``: mean upper bound; ``bound_held``: fraction of draws in which

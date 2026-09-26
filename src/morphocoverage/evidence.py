@@ -19,7 +19,7 @@ from typing import Any
 # Effort is framework-owned (AGENTS.md section 20); an estimator reporting its
 # own count could disagree with the acquisition record, e.g. by dropping
 # zero-object FOVs.
-RESERVED_QUANTITY_NAMES = frozenset({"n_fovs", "n_objects"})
+RESERVED_QUANTITY_NAMES = frozenset({"n_fovs", "n_observations", "n_objects"})
 
 
 class Component(str, Enum):

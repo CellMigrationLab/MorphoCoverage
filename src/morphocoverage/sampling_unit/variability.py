@@ -14,8 +14,10 @@ For one declared scalar feature, per analysis group:
   object-count rule such as ``SD / sqrt(n)`` understates the real standard
   error. A design effect of 1 means the fields behave like random objects.
 - **FOVs that differ more than random objects would.** Each field's mean as a
-  z-score, ``(mean_j - mean) / (s_within / sqrt(n_j))``, with the pooled
-  within-field SD. Under random objects about 5% of fields have ``|z| > 1.96``;
+  z-score, ``(mean_j - mean) / (s_within sqrt(1 / n_j - 1 / N))``, with the
+  pooled within-field SD; the field is part of the overall mean, so its
+  difference from it varies by ``1 / n_j - 1 / N``, not ``1 / n_j``. Under
+  random objects about 5% of fields have ``|z| > 1.96``;
   the share observed is a direct reading of field-to-field variation, and the
   one-way ANOVA p-value (``scipy.stats.f_oneway``) tests it.
 
@@ -75,12 +77,19 @@ class FOVVariability:
             if row["status"] != "ok":
                 lines.append(f"{head} {row['status']}.")
                 continue
+            share = row["unusual_fov_share"]
+            unusual = (
+                f"{share:.0%} of fields differ more than random {words} would let them "
+                "(about 5% expected)."
+                if share is not None and not pd.isna(share)
+                else f"The {words} do not vary within any field, so fields cannot be "
+                f"compared with random {words}."
+            )
             lines.append(
                 f"{head} {row['icc']:.0%} of the variance lies between fields. A mean from "
                 f"whole fields has {row['design_effect']:.1f} times the variance of one from "
                 f"as many random {words}, so SD / sqrt(n) understates its error "
-                f"{row['error_ratio']:.1f}-fold. {row['unusual_fov_share']:.0%} of fields "
-                f"differ more than random {words} would let them (about 5% expected)."
+                f"{row['error_ratio']:.1f}-fold. {unusual}"
             )
         return "\n".join(lines)
 
@@ -130,7 +139,10 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
     if within > 0:
         for fov_row, v in zip(fov_rows, per_fov, strict=True):
             if len(v):
-                z = (float(v.mean()) - mean) / (within / np.sqrt(len(v)))
+                spread = within * np.sqrt(1 / len(v) - 1 / observations)
+                if spread <= 0:
+                    continue  # the only field with observations
+                z = (float(v.mean()) - mean) / spread
                 fov_row["z"] = z
                 fov_row["unusual"] = bool(abs(z) > UNUSUAL_Z)
     scored = [r["unusual"] for r in fov_rows if r["unusual"] is not None]

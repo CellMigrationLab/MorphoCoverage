@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 import pandas as pd
@@ -40,15 +41,22 @@ MORPHOBRICKS_FOV_CANDIDATES = ("position_id", "image_file", "fov_id")
 WITHIN_FOV_METADATA_COLUMNS = ("z", "z0", "z1", "c", "t")
 
 
-def _empty(values: pd.Series) -> pd.Series:
-    """Which entries hold no value: missing, or text that is blank."""
-    blank = values.astype(str).str.strip() == ""
-    return values.isna() | (blank & values.map(lambda v: isinstance(v, str)))
+def empty_values(values: pd.Series) -> pd.Series:
+    """Which entries hold no value: missing, or text that is blank (``""``, ``"  "``).
+
+    Vectorised, and only text columns are searched for blanks, since the
+    validator runs this on every identity column.
+    """
+    missing = values.isna()
+    if values.dtype == object or pd.api.types.is_string_dtype(values.dtype):
+        blank = values.str.strip().eq("")  # NaN for entries that are not text
+        missing = missing | blank.fillna(False).astype(bool)
+    return missing
 
 
 def column_has_values(table: pd.DataFrame, column: str) -> bool:
     """Whether ``table`` has ``column`` with at least one value in it."""
-    return column in table.columns and not bool(_empty(table[column]).all())
+    return column in table.columns and not bool(empty_values(table[column]).all())
 
 
 def drop_empty_optional_columns(
@@ -66,7 +74,8 @@ def drop_empty_optional_columns(
             continue
         present = [t for t in (objects, fovs) if t is not None and column in t.columns]
         if present and not any(column_has_values(t, column) for t in present):
-            objects = objects.drop(columns=column)
+            if column in objects.columns:
+                objects = objects.drop(columns=column)
             if fovs is not None and column in fovs.columns:
                 fovs = fovs.drop(columns=column)
     return objects, fovs
@@ -80,25 +89,37 @@ def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str,
     return tables
 
 
+def canonical_spelling(column: object) -> str | None:
+    """The MorphoBricks column that ``column`` misspells, or ``None``.
+
+    A near miss differs only in case, in spaces or hyphens for underscores, in
+    surrounding whitespace, or in a byte-order mark that a spreadsheet wrote
+    before the first header (``Repeat``, ``technical repeat``, ``condition ``,
+    ``\ufeffcondition``). The exact name is not a near miss.
+    """
+    if not isinstance(column, str):
+        return None
+    normalised = re.sub(r"[\s-]+", "_", column.replace("\ufeff", "").strip().lower())
+    canonical = {*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES}
+    return normalised if normalised in canonical and normalised != column else None
+
+
 def check_canonical_spellings(
     objects: pd.DataFrame,
     fovs: pd.DataFrame | None,
     explicit_columns: Sequence[str],
 ) -> None:
     """Reject near-miss spellings such as Repeat that would bypass defaults."""
-    canonical = {
-        *MORPHOBRICKS_GROUP_COLUMNS,
-        *MORPHOBRICKS_FOV_CANDIDATES,
-    }
     for table_name, table in _tables(objects, fovs):
         for column in table.columns:
-            if not isinstance(column, str) or column in explicit_columns:
+            if column in explicit_columns:
                 continue
-            if column.lower() in canonical and column != column.lower():
+            meant = canonical_spelling(column)
+            if meant is not None:
                 raise ValueError(
                     f"{table_name} has column {column!r}, a non-canonical spelling of "
-                    f"MorphoBricks column {column.lower()!r}. Rename it to "
-                    f"{column.lower()!r} or name it explicitly via fov_col/group_cols."
+                    f"MorphoBricks column {meant!r}. Rename it to "
+                    f"{meant!r} or name it explicitly via fov_col/group_cols."
                 )
 
 

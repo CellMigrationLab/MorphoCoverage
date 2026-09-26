@@ -39,9 +39,11 @@ Bias: the energy distance and MMD are unbiased U-statistics only when the
 stop and the reference are independent samples of independent observations.
 Against the default reference, the full acquisition, the stop is contained
 in the reference: identical observations enter the cross term and bias both
-downward (about -0.0004 for the energy distance and -0.0013 for MMD with
-bandwidth 1, for a 100-observation stop inside 1,000 i.i.d. normal
-observations). Values against the full acquisition are therefore descriptive,
+downward (about -0.0035 for the energy distance and -0.0013 for MMD with
+bandwidth 1, for a 100-observation stop inside 1,000 i.i.d. two-dimensional
+standard normal observations: the stop's own observations make up 1/N of the
+cross term, so the expected bias is -2E|X-X'|/N for the energy distance and
+-2(1-E k(X,X'))/N for MMD). Values against the full acquisition are therefore descriptive,
 not unbiased; a held-out reservoir (``morphocoverage.reservoir``) keeps the
 two samples disjoint. Cells within one FOV are usually correlated as well,
 and then even a disjoint reservoir of the same population gives a positive
@@ -75,6 +77,7 @@ import numpy as np
 from . import distances
 from .outcomes import OutcomeMetric
 from .schema import ValidatedInput
+from .transforms import constant_columns
 
 
 def _feature_tuple(features: Sequence[str]) -> tuple[str, ...]:
@@ -104,7 +107,7 @@ def _samples(
         return None
     if metric.standardize:
         centre, scale = reference.mean(axis=0), reference.std(axis=0, ddof=1)
-        if not (scale > 0).all():
+        if constant_columns(reference).any():
             return None
         reference, sample = (reference - centre) / scale, (sample - centre) / scale
     return sample, reference

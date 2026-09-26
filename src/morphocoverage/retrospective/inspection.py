@@ -26,14 +26,15 @@ Reasons:
   least ``neighbour_threshold`` standard deviations of the FOV means.
 
 Missing feature values: the influence and neighbour reasons use the
-non-missing values of each feature; the novelty reason follows the estimator,
-which reports nothing when values are missing.
+non-missing values of each feature, every FOV still weighing one; the novelty
+reason follows the estimator, which cannot judge a group with missing values,
+and the summary says so.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -41,12 +42,24 @@ import pandas as pd
 from scipy.spatial import cKDTree
 
 from ..evaluator import iter_analysis_groups
+from ..objectives import ObjectiveConfig, SamplingObjective
 from ..schema import ValidatedInput, fov_positions, validate_input_tables
-from ..strategies.support_novelty import SupportNoveltyEstimator
+from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
 from ._text import unit_plural, where
 
 REASONS = ("new state", "influence", "count", "neighbours")
 _TRACE = ("image_file", "position_id", "mask_file")
+_POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
+
+
+def _ordinal_suffix(number: float) -> str:
+    """``st``, ``nd``, ``rd`` or ``th`` for a whole number; ``th`` otherwise (``2.5th``)."""
+    if not float(number).is_integer():
+        return "th"
+    whole = int(number)
+    if whole % 100 in (11, 12, 13):
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(whole % 10, "th")
 
 
 @dataclass(frozen=True)
@@ -71,7 +84,7 @@ class Summary:
         if self.statistic == "mean":
             return f"mean of {self.feature}"
         percent = 100 * float(self.statistic)
-        return f"{percent:g}th percentile of {self.feature}"
+        return f"{percent:g}{_ordinal_suffix(percent)} percentile of {self.feature}"
 
 
 @dataclass(frozen=True)
@@ -116,14 +129,17 @@ def _influence(
     explodes, so such summaries are skipped and reported in ``skipped``.
     """
     positions = fov_positions(data, data.fovs)
-    counts = np.bincount(positions, minlength=len(data.fovs)).astype(float)
     rows = []
     for summary in summaries:
         values = data.feature_values(summary.feature)
         if np.nanmin(values, initial=0.0) < 0:
             skipped[summary.label] = "has negative values, so a relative change is undefined"
             continue
-        weights = 1.0 / counts[positions]
+        # Each FOV weighs 1 over its non-missing values, so missing values
+        # never make a FOV count less.
+        present = ~np.isnan(values)
+        counts = np.bincount(positions[present], minlength=len(data.fovs)).astype(float)
+        weights = np.where(present, 1.0 / np.maximum(counts[positions], 1.0), 0.0)
         full = _weighted(values, weights, summary.statistic)
         if full is None or full == 0:
             continue
@@ -221,9 +237,16 @@ def _neighbours(
     return rows
 
 
-def _novel(data: ValidatedInput, novelty: SupportNoveltyEstimator) -> list[dict]:
+def _novel(
+    data: ValidatedInput, novelty: SupportNoveltyEstimator, group: str, skipped: list[dict]
+) -> list[dict]:
+    """FOVs holding a new state; when novelty is not estimable, the reason goes in ``skipped``."""
     flags = novelty.novel_observation_flags(data, new_states_only=True)
-    if flags is None or not flags.any():
+    if flags is None:
+        quantity = novelty.estimate(data, objective=_POPULATION).quantities[FOV_QUANTITY]
+        skipped.append({"group": group, "reason": quantity.reason or "novelty is not estimable"})
+        return []
+    if not flags.any():
         return []
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions[flags], minlength=len(data.fovs))
@@ -281,6 +304,7 @@ def inspect_fovs(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    novelty_cols: Sequence[str] | None = None,
 ) -> InspectionResult:
     """The fields worth reopening, one row per FOV and reason, per analysis group.
 
@@ -290,7 +314,9 @@ def inspect_fovs(
     neighbour reason, on every feature in ``feature_cols``; ``count_ratio=None``
     turns the count reason off. Thresholds are provisional presets: a 10% relative
     change, a count 3 times the median (or a third of it), 3 SD from the 4
-    nearest fields.
+    nearest fields. ``novelty_cols`` are the columns new states are judged on
+    (default ``feature_cols``), so novelty can read the declared
+    representation while the other reasons read the readout.
     """
     summaries = _check(
         summaries,
@@ -304,10 +330,12 @@ def inspect_fovs(
     missing = [s.feature for s in summaries if s.feature not in feature_cols]
     if missing:
         raise ValueError(f"summary features must be among feature_cols: {missing}")
+    feature_cols = list(feature_cols)
+    novelty_cols = feature_cols if novelty_cols is None else list(novelty_cols)
     data = validate_input_tables(
         objects,
         fovs=fovs,
-        feature_cols=feature_cols,
+        feature_cols=list(dict.fromkeys([*feature_cols, *novelty_cols])),
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,
@@ -317,13 +345,15 @@ def inspect_fovs(
         if absent:
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
-    rows, skipped, neighbours_skipped = [], {}, []
+    rows, skipped, neighbours_skipped, novelty_skipped = [], {}, [], []
     n_fovs = 0
-    for group, group_data in iter_analysis_groups(data):
-        n_fovs += len(group_data.fovs)
+    for group, both in iter_analysis_groups(data):
+        n_fovs += len(both.fovs)
+        group_data = replace(both, feature_cols=tuple(feature_cols))
         found = []
         if novelty is not None:
-            found += _novel(group_data, novelty)
+            judged = replace(both, feature_cols=tuple(novelty_cols))
+            found += _novel(judged, novelty, where(group), novelty_skipped)
         if summaries:
             found += _influence(group_data, summaries, float(influence_threshold), skipped)
         if count_ratio is not None:
@@ -362,6 +392,7 @@ def inspect_fovs(
     settings = {
         "summaries": [{"feature": s.feature, "statistic": s.statistic} for s in summaries],
         "novelty": None if novelty is None else dict(novelty.parameters),
+        "novelty_cols": None if novelty is None else novelty_cols,
         "influence_threshold": float(influence_threshold),
         "count_ratio": None if count_ratio is None else float(count_ratio),
         "stage_cols": None if stage_cols is None else list(stage_cols),
@@ -371,6 +402,7 @@ def inspect_fovs(
         "trace": trace,
         "skipped_summaries": skipped,
         "skipped_neighbours": neighbours_skipped,
+        "skipped_novelty": novelty_skipped,
         "n_fovs": n_fovs,
     }
     return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
@@ -380,12 +412,19 @@ def inspection_summary(result: InspectionResult) -> str:
     """ "Fields to reopen" in sentences, per group."""
     keys = list(result.group_cols)
     skipped = result.settings.get("skipped_summaries", {})
-    note = "".join(
-        f"\nThe influence on the {label} was not checked: it {why}."
-        for label, why in skipped.items()
-    ) + "".join(
-        f"\nStage neighbours were not compared in {s['group']}: {s['reason']}."
-        for s in result.settings.get("skipped_neighbours", [])
+    note = (
+        "".join(
+            f"\nThe influence on the {label} was not checked: it {why}."
+            for label, why in skipped.items()
+        )
+        + "".join(
+            f"\nStage neighbours were not compared in {s['group']}: {s['reason']}."
+            for s in result.settings.get("skipped_neighbours", [])
+        )
+        + "".join(
+            f"\nNew states were not looked for in {s['group']}: {s['reason']}."
+            for s in result.settings.get("skipped_novelty", [])
+        )
     )
     if result.fovs.empty:
         return "No field stands out under the declared thresholds." + note

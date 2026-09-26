@@ -103,6 +103,9 @@ A definition of new (`novelty`) needs `features`, and a positive control needs
 `novelty`. Group columns beyond condition and repeat (the `technical_repeat`, say) are part of
 a field's identity everywhere, including in the control check. "New" is judged
 on `features` only, never on the readout, and the report names those columns.
+The stopping rules see the same columns (the readout, then `features`) in
+`report`, `optimise`, `benchmark` and the live session, so one rule gives one
+verdict whichever workflow runs it.
 
 ## REPORT: what can the finished acquisition be trusted for?
 
@@ -212,7 +215,8 @@ print(bench.summary())
 
 `default_families(setup.readout)` holds the rule families and threshold grids
 of the locked protocol (version 2): the JCB rule and the JCS descriptor
-spread, each per object and per field, and the FOV bootstrap of the mean.
+spread, each per object and per field, and the FOV bootstrap of the mean
+(on the readout only, whatever other features are declared).
 Pass `families=` to compare others.
 
 Tuning belongs on development data and scoring on held-out data
@@ -296,8 +300,8 @@ the FOV row signals that a field is complete:
   been read raises an error.
 
 `key` names the columns that link an object row to its field. By default it
-is the session's FOV column plus the condition and repeat columns present in
-both tables. A key column holding numbers in one table and text in the other
+is the session's FOV column plus its group columns present in both tables:
+condition, repeat and, when it holds values, `technical_repeat`. A key column holding numbers in one table and text in the other
 (`1` against `"1"`) raises an error, because those values never match. Objects
 still waiting for their FOV row are counted in each update's summary.
 

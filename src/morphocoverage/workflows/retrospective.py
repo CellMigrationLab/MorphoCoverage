@@ -30,7 +30,7 @@ plan into the full microscopist's report.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import pandas as pd
@@ -84,6 +84,12 @@ def _orders(setup: Setup, permuted: int, dispersed: int) -> list[AcquisitionOrde
 
 
 def _check_tables(objects: Any, fovs: Any, setup: Any) -> None:
+    if fovs is None:
+        raise TypeError(
+            "the workflows need the FOV table of every acquired field (fovs=None was given); "
+            "morphocoverage.schema.fov_table_from_observations rebuilds one, without the "
+            "fields that held no observation"
+        )
     if not isinstance(objects, pd.DataFrame) or not isinstance(fovs, pd.DataFrame):
         raise TypeError("objects and fovs must be pandas DataFrames (every acquired FOV in fovs)")
     if not isinstance(setup, Setup):
@@ -211,11 +217,11 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
                 random_state=setup.random_state,
                 **common,
             )
-    novelty_features = list(setup.features) if setup.novelty is not None else []
     results["sufficiency"] = sufficiency_report(
         objects,
         fovs,
-        feature_cols=[readout, *[f for f in novelty_features if f != readout]],
+        # The rules read the same columns in report, optimise, benchmark and live.
+        feature_cols=setup.columns,
         strategies=list(setup.stopping_rules()),
         objective=setup.objective(),
         orders=_orders(setup, permuted=5, dispersed=0),
@@ -228,24 +234,19 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
         novelty_cols=list(setup.features) if setup.novelty is not None else None,
         **common,
     )
-    if setup.novelty is not None and setup.features:
-        results["inspection"] = inspect_fovs(
-            objects,
-            fovs,
-            feature_cols=list(setup.features),
-            novelty=setup.novelty,
-            count_ratio=None,
-            **common,
-        )
-    else:
-        results["inspection"] = inspect_fovs(
-            objects,
-            fovs,
-            feature_cols=[readout],
-            summaries=[Summary(readout, "mean")],
-            stage_cols=setup.stage_cols,
-            **common,
-        )
+    # Every reason at once: new states on the declared features, influence, empty
+    # or crowded fields and stage neighbours on the readout.
+    novel = setup.novelty is not None and bool(setup.features)
+    results["inspection"] = inspect_fovs(
+        objects,
+        fovs,
+        feature_cols=[readout],
+        summaries=[Summary(readout, "mean")],
+        novelty=setup.novelty if novel else None,
+        novelty_cols=list(setup.features) if novel else None,
+        stage_cols=setup.stage_cols,
+        **common,
+    )
     return Report(results, microscopist_report(**results, declaration=setup.declaration()), setup)
 
 
@@ -288,7 +289,7 @@ def optimise(
     ``fov_counts`` are the numbers of fields to judge (for example
     ``[2, 4, 8, 12]``) and ``reservoir_fraction`` the share of each group's
     fields held back as the reference, a design choice with no default. Runs
-    ``sampling_reliability`` for each tolerance (P1), ``protocol_reliability``
+    ``sampling_reliability`` with one criterion per tolerance (P1), ``protocol_reliability``
     across samples when a hierarchy is declared or derived from a
     ``technical_repeat`` column (P2), a replay of the setup's rules against
     the same held-back fields for their calibration and adequacy points (P3
@@ -325,7 +326,8 @@ def optimise(
     replay = replay_acquisitions(
         objects,
         fovs,
-        feature_cols=setup.judged_columns,
+        # The rules read the same columns in report, optimise, benchmark and live.
+        feature_cols=setup.columns,
         strategies=list(setup.stopping_rules()),
         criteria=criteria,
         objective=setup.objective(),
@@ -353,7 +355,7 @@ def optimise(
                 **common,
             )
     if hierarchy is not None:
-        results["effort"] = effort_projection(
+        effort = effort_projection(
             objects,
             fovs,
             feature=setup.readout,
@@ -362,6 +364,12 @@ def optimise(
             random_state=setup.random_state,
             observation_unit=setup.observation_unit,
         )
+        normalized = setup.normalized_sentence(fovs)
+        if normalized is not None:
+            # Normalising within each repeat removes the variance between repeats,
+            # so question 7 must say which values it describes.
+            effort = replace(effort, settings={**effort.settings, "normalized": normalized})
+        results["effort"] = effort
     document = microscopist_report(
         **{k: v for k, v in results.items() if k != "calibration"},
         declaration=setup.declaration(),
@@ -433,7 +441,8 @@ def default_families(readout: str, n_resamples: int = 200) -> list[Family]:
         ),
         Family(
             "FOV bootstrap of the mean",
-            FOVBootstrapStrategy("centroid", boot[0], None, n_resamples, 0, 2),
+            # On the readout only, whatever other features the setup declares.
+            FOVBootstrapStrategy("centroid", boot[0], None, n_resamples, 0, 2, features=(readout,)),
             "fov_bootstrap_centroid_max_se",
             boot,
         ),
@@ -486,7 +495,7 @@ def benchmark(
     replay = replay_acquisitions(
         objects,
         fovs,
-        feature_cols=setup.judged_columns,
+        feature_cols=setup.columns,
         strategies=[f.strategy for f in families],
         criteria=criteria,
         objective=setup.objective(),
@@ -511,8 +520,15 @@ def benchmark(
         for f in families
     ]
     units = list(replay.group_cols) if unit_cols is None else list(unit_cols)
+    labels = [criterion.label for criterion in criteria]
+    # Frontiers are keyed by label; two criteria with one label (tolerances 5% and
+    # 5.02% both print as 5.0%) keep both, the second named by its criterion.
+    keys = [
+        label if labels.count(label) == 1 or labels.index(label) == i else f"{label} ({c.name})"
+        for i, (label, c) in enumerate(zip(labels, criteria, strict=True))
+    ]
     frontiers = {
-        criterion.label: frontier(
+        key: frontier(
             replay,
             swept,
             criterion=criterion.name,
@@ -522,7 +538,7 @@ def benchmark(
             random_state=setup.random_state,
             label=criterion.label,
         )
-        for criterion in criteria
+        for key, criterion in zip(keys, criteria, strict=True)
     }
     settings = {
         "reservoir_fraction": reservoir_fraction,

@@ -184,7 +184,14 @@ class OnlineSession:
             preferred = MORPHOBRICKS_FOV_CANDIDATES[
                 : MORPHOBRICKS_FOV_CANDIDATES.index(self._resolved_fov_col)
             ]
-            higher_priority = [column for column in preferred if column in fov.columns]
+            # An empty position_id (a producer that writes every column) is not an
+            # identifier, exactly as _detect_fov_col skips it.
+            higher_priority = [
+                column
+                for column in preferred
+                if column in fov.columns
+                and (column not in EMPTY_MEANS_ABSENT or column_has_values(fov, column))
+            ]
             if higher_priority:
                 raise ValueError(
                     "fov_metadata introduces higher-priority FOV identifier(s) "

@@ -127,7 +127,9 @@ def test_the_profile_states_measured_numbers_with_their_source():
     assert "design effect" in profile.loc["field-to-field heterogeneity", "statement"]
     assert "in 1 of 2 groups, fields closer than about 520 µm" in report.sections["profile"]
     assert set(profile["source"]) == {"effort_projection", "redundancy_distance"}
-    assert "sampling-frame bias is not assessed" in report.sections["order"]
+    # Redundancy alone does not answer question 8 (G9); its caveat stays with the profile.
+    assert "sampling-frame bias is not assessed" in report.sections["profile"]
+    assert report.inputs["order"] == "not assessed"
 
 
 def test_a_declared_control_joins_the_first_question_and_the_profile():

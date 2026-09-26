@@ -135,17 +135,11 @@ def order_efficiency(
                 "reached": float(needed.notna().mean()),
                 # Not reached counts as beyond the stream, so the median stays honest.
                 "median_fovs": float(needed.fillna(stream + 1).median()),
-                "median_travel": (
-                    float(block["travel_to_sustained"].dropna().median())
-                    if block["travel_to_sustained"].notna().any()
-                    else None
-                ),
+                # Over the same runs as median_fovs: a run that never got there
+                # travelled and took longer than any that did.
+                "median_travel": _median_beyond(block["travel_to_sustained"]),
                 "median_travel_total": float(block["travel_total"].median()),
-                "median_time": (
-                    float(block["time_to_sustained"].dropna().median())
-                    if block["time_to_sustained"].notna().any()
-                    else None
-                ),
+                "median_time": _median_beyond(block["time_to_sustained"]),
                 "stream_fovs": stream,
             }
         )
@@ -156,6 +150,18 @@ def order_efficiency(
         "stage_speed": stage_speed,
     }
     return EfficiencyResult(runs, pd.DataFrame(table_rows), tuple(groups), settings)
+
+
+def _median_beyond(values: pd.Series) -> float | None:
+    """The median over every run, a missing value counting as larger than any other.
+
+    ``None`` when half or more of the runs are missing, or none was measured.
+    """
+    filled = pd.to_numeric(values, errors="coerce").to_numpy(dtype=float, na_value=np.nan)
+    if not len(filled) or np.isnan(filled).all():
+        return None
+    median = float(np.median(np.where(np.isnan(filled), np.inf, filled)))
+    return median if np.isfinite(median) else None
 
 
 _ORDER_WORDS = {
@@ -194,7 +200,7 @@ def efficiency_summary(result: EfficiencyResult) -> str:
                 "" if row.median_travel is None else f" and {_distance(row.median_travel, unit)}"
             )
             time = "" if row.median_time is None else f" (about {row.median_time / 60:.0f} min)"
-            fields = "1 field" if row.median_fovs == 1 else f"{row.median_fovs:.0f} fields"
+            fields = "1 field" if row.median_fovs == 1 else f"{row.median_fovs:g} fields"
             # The median hides runs that never got there; a protocol must serve those too.
             missed = (
                 f" (never within the {row.stream_fovs} fields in "

@@ -262,3 +262,16 @@ def test_incremental_sessions_never_join_the_accumulated_data():
     )
     [group] = session._groups.values()
     assert group._visible is None and len(group._parts) == len(scenario.fovs)
+
+
+def test_an_empty_position_id_on_every_field_does_not_stop_the_session():
+    """CellPatcher writes position_id empty when one file is one field."""
+    session = OnlineSession(
+        strategies=[FixedFOVStrategy(3)], feature_cols=["a"], objective=POPULATION
+    )
+    for i in range(4):
+        metadata = {"condition": "c", "repeat": "r", "image_file": f"f{i}.tif", "position_id": None}
+        objects = pd.DataFrame({"a": [1.0, 2.0], "position_id": [None, None]})
+        [result] = session.add_fov(objects, metadata)
+    assert session.fov_col == "image_file"
+    assert result.n_fovs == 4

@@ -213,8 +213,8 @@ class ImagedAreaEstimator(Estimator):
             "units": f"units of {self.area_col!r}",
             "component": Component.POPULATION,
         }
-        if np.isnan(areas).any() or (areas <= 0).any():
-            reason = f"missing, zero or negative areas in {self.area_col!r}"
+        if not np.isfinite(areas).all() or (areas <= 0).any():
+            reason = f"missing, infinite, zero or negative areas in {self.area_col!r}"
             quantity = Quantity.not_applicable(reason, **meta)
             return Evidence({_AREA: quantity}, {"undefined_reason": reason})
         return Evidence({_AREA: Quantity.available(float(areas.sum()), **meta)})

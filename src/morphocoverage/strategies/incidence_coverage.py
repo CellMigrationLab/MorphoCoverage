@@ -72,7 +72,7 @@ recurrence across positions, not objects. Assumptions and limits:
   labels cannot express;
 - detection within an FOV is taken as certain.
 
-Missing labels make both quantities ``not_applicable``. Fewer than
+Missing labels make all quantities ``not_applicable``. Fewer than
 ``min_fovs`` visible FOVs, or no labelled observations, give
 ``insufficient_data``.
 """
@@ -334,5 +334,6 @@ class IncidenceCoverageStrategy(SamplingStrategy):
 
     @property
     def policies(self) -> tuple[ThresholdPolicy]:
-        """``quantity >= target``."""
+        """``quantity`` reaches ``target`` in its better direction: ``>=`` for coverage and
+        completeness, ``<=`` for the others."""
         return (ThresholdPolicy(self.quantity, self.target),)

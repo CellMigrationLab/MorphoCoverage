@@ -280,8 +280,19 @@ class DescriptorSpreadCheck:
                     if not pd.isna(match)
                     else f"not matched within {int(row['largest_size_tried'])}"
                 )
-                parts.append(f"{row['descriptor']} {row['ratio']:.1f}x ({reach})")
+                ratio = row["ratio"]
+                shown = (
+                    f"{ratio:.1f}x"
+                    if ratio is not None and not pd.isna(ratio)
+                    else "no ratio (random samples never varied)"
+                )
+                parts.append(f"{row['descriptor']} {shown} ({reach})")
             lines.append(f"{group}: whole fields against random {words}: {'; '.join(parts)}.")
+        for skipped in self.settings.get("skipped_groups", []):
+            lines.append(
+                f"{skipped['group']}: not checked: {skipped['observations']} {words}, fewer than "
+                f"the threshold of {threshold}."
+            )
         return "\n".join(lines)
 
 
@@ -332,7 +343,7 @@ def descriptor_spread_check(
     sizes = sorted({*sizes, threshold})
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
     keys = list(data.group_cols)
-    rows, threshold_rows = [], []
+    rows, threshold_rows, skipped = [], [], []
     for group, group_data in groups(data):
         per_fov = [v for v in fov_values(group_data, group_data.feature_values(feature)) if len(v)]
         pooled = np.concatenate(per_fov) if per_fov else np.array([])
@@ -351,6 +362,7 @@ def descriptor_spread_check(
                     {**group, "n": n, "sampling": how, **dict(zip(DESCRIPTORS, spread.tolist()))}
                 )
         if (RANDOM_OBJECTS, threshold) not in spreads:
+            skipped.append({"group": where(group), "observations": len(pooled)})
             continue
         tried = sorted(n for how, n in spreads if how == WHOLE_FOVS)
         for index, name in enumerate(DESCRIPTORS):
@@ -377,6 +389,7 @@ def descriptor_spread_check(
         "n_draws": n_draws,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
+        "skipped_groups": skipped,
     }
     return DescriptorSpreadCheck(
         pd.DataFrame(rows), pd.DataFrame(threshold_rows), tuple(keys), settings

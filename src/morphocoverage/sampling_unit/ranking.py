@@ -33,7 +33,7 @@ import pandas as pd
 
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..retrospective._text import group_identity
-from ..statistics import benjamini_hochberg, cohen_d
+from ..statistics import benjamini_hochberg
 from ._common import check_count, check_seed, groups, validated
 from ._units import (
     FIELD,
@@ -41,6 +41,7 @@ from ._units import (
     describe_groups,
     field_means,
     permutation_p,
+    separation_d,
     side_units,
     sides,
     unit_means,
@@ -125,16 +126,22 @@ class FeatureRanking:
         by_unit = self.tests[self.tests["permutation_unit"] != FIELD]
         if len(by_unit):
             smallest = int(by_unit["distinct_assignments"].min())
+            floor = 1 / smallest
+            # Only a floor above the gate makes a test unable to pass it.
+            consequence = (
+                ", so those technical repeats cannot pass the gate however large the difference"
+                if floor > alpha
+                else ""
+            )
             lines.append(
                 f"  {len(by_unit)} of the tests shuffled whole technical repeats; with as few as "
                 f"{smallest} distinct assignments a p-value cannot fall below "
-                f"{1 / smallest:.2g}, so few technical repeats cannot pass the gate however "
-                f"large the difference."
+                f"{floor:.2g}{consequence}."
             )
         if not ranked.empty:
             lines.append(
-                f"  Plotted by default: the readout and the {min(TOP_FEATURES, len(ranked))} "
-                f"best-ranked features."
+                f"  Plotted by default: the readout and up to {TOP_FEATURES} best-ranked other "
+                "features."
             )
         return "\n".join(lines)
 
@@ -227,7 +234,8 @@ def feature_ranking(
                     "control_fields": len(c_means),
                     "technical": n_technical[0],
                     "control_technical": n_technical[1],
-                    "d_fields": cohen_d(t_means, c_means),
+                    # A perfect separation is an infinite d, capped when ranked.
+                    "d_fields": separation_d(t_means, c_means),
                     "permutation_unit": technical_col if by_unit else FIELD,
                     "distinct_assignments": (
                         comb(sum(n_technical), n_technical[0]) if by_unit else np.nan
@@ -236,8 +244,12 @@ def feature_ranking(
                     "status": "ok",
                 }
             )
-            if len(t_means) < 2 or len(c_means) < 2 or not np.isfinite(row["d_fields"]):
+            if len(t_means) < 2 or len(c_means) < 2:
                 row["status"] = "fewer than 2 fields with observations on one side"
+                rows.append(row)
+                continue
+            if np.isnan(row["d_fields"]):
+                row["status"] = "the field means do not vary, so there is nothing to test"
                 rows.append(row)
                 continue
             rng = np.random.default_rng(

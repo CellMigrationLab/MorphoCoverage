@@ -141,7 +141,8 @@ class ThresholdPolicy(DecisionPolicy):
 
 @dataclass(frozen=True)
 class EffortPolicy(DecisionPolicy):
-    """Stop once acquired effort (``"n_fovs"`` or ``"n_objects"``) reaches ``target``.
+    """Stop once acquired effort (``"n_fovs"`` or ``"n_observations"``; the legacy
+    ``"n_objects"`` is read as ``"n_observations"``) reaches ``target``.
 
     Needs no estimator. ``component`` states which objective component the
     rule is claimed to answer; fixed counts are conventionally used for
@@ -258,7 +259,8 @@ def redecide(
 
     The returned result equals evaluating ``SamplingStrategy(estimators,
     policies, name=name)`` on the same data, apart from ``compute_seconds``
-    (kept from the original estimate). Use it for threshold sweeps.
+    and ``timing`` (both kept from the original estimate). Use it for
+    threshold sweeps.
     """
     policies = tuple(policies)
     effort = Effort(
