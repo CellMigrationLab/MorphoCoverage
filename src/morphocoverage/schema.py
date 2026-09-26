@@ -14,6 +14,7 @@ from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     WITHIN_FOV_METADATA_COLUMNS,
     check_canonical_spellings,
+    drop_empty_optional_columns,
     resolve_fov_col,
     resolve_group_cols,
     resolve_identity_cols,
@@ -357,6 +358,40 @@ def validate_input_tables(
 ) -> ValidatedInput:
     """Validate linked observation/FOV tables using MorphoBricks conventions.
 
+    See ``_validate_input_tables`` for the rules. When the tables are refused,
+    the error (same type, first line unchanged) carries the full
+    ``data_check.check_tables`` report: every problem, where, and how to fix it.
+    """
+    arguments = {
+        "feature_cols": feature_cols,
+        "fov_col": fov_col,
+        "fovs": fovs,
+        "group_cols": group_cols,
+        "observation_unit": observation_unit,
+    }
+    try:
+        return _validate_input_tables(objects, **arguments)
+    except (ValueError, TypeError) as exc:
+        from .data_check import check_tables
+
+        try:
+            report = check_tables(objects, **arguments).summary()
+        except Exception:  # noqa: BLE001 -- the report is a courtesy; never hide the real error
+            raise exc from None
+        raise type(exc)(f"{exc}\n\n{report}") from exc
+
+
+def _validate_input_tables(
+    objects: pd.DataFrame,
+    *,
+    feature_cols: Sequence[str],
+    fov_col: str | None = None,
+    fovs: pd.DataFrame | None = None,
+    group_cols: Sequence[str] | None = None,
+    observation_unit: str | None = None,
+) -> ValidatedInput:
+    """Validate linked observation/FOV tables using MorphoBricks conventions (first error raises).
+
     ``objects`` is retained as the argument name for backwards compatibility,
     but rows may represent any declared phenotype observation unit. Feature
     columns are always explicit; numeric metadata is never inferred.
@@ -369,6 +404,11 @@ def validate_input_tables(
     ``observation_unit`` says what one row is (``"cell"``, ``"patch"``, ...).
     When omitted, rows are assumed to be objects and the result records
     ``observation_unit_declared=False``.
+
+    An optional MorphoBricks group column (``technical_repeat``) that holds no
+    value in either table is read as absent, since producers that always
+    write every column leave it empty; a partly empty one is refused, and
+    one named in ``group_cols`` is kept (and then refused when empty).
     """
     if not isinstance(objects, pd.DataFrame):
         raise TypeError("objects must be a pandas DataFrame")
@@ -379,6 +419,7 @@ def validate_input_tables(
     observation_unit, unit_declared = resolve_observation_unit(observation_unit)
 
     explicit_columns = [*(group_cols or ()), *([fov_col] if fov_col is not None else [])]
+    objects, fovs = drop_empty_optional_columns(objects, fovs, explicit_columns)
     check_canonical_spellings(objects, fovs, explicit_columns)
     resolved_fov_col = resolve_fov_col(objects, fovs, fov_col)
     metadata_to_attach = list(MORPHOBRICKS_GROUP_COLUMNS)

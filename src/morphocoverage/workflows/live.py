@@ -63,7 +63,13 @@ from typing import Any
 
 import pandas as pd
 
-from ..metadata import MORPHOBRICKS_FOV_CANDIDATES, MORPHOBRICKS_GROUP_COLUMNS
+from ..metadata import (
+    EMPTY_MEANS_ABSENT,
+    MORPHOBRICKS_FOV_CANDIDATES,
+    MORPHOBRICKS_GROUP_COLUMNS,
+    OPTIONAL_GROUP_COLUMNS,
+    column_has_values,
+)
 from ..online import OnlineSession
 from ..results import Decision, StrategyResult, decision_view
 from ..strategies.base import SamplingStrategy
@@ -355,12 +361,25 @@ class LiveTables:
         if self.key is None:
             fov_col = self.session.fov_col or self.session._requested_fov_col
             if fov_col is None:
-                fov_col = next((c for c in MORPHOBRICKS_FOV_CANDIDATES if c in fovs.columns), None)
+                fov_col = next(
+                    (
+                        c
+                        for c in MORPHOBRICKS_FOV_CANDIDATES
+                        if c in fovs.columns
+                        and (c not in EMPTY_MEANS_ABSENT or column_has_values(fovs, c))
+                    ),
+                    None,
+                )
             if fov_col is None:
                 raise ValueError("could not find the FOV column; pass fov_col to the session")
             groups = self.session.group_cols or self.session._requested_group_cols
             if groups is None:
-                groups = MORPHOBRICKS_GROUP_COLUMNS
+                # An optional group column counts only when it holds a value.
+                groups = tuple(
+                    g
+                    for g in MORPHOBRICKS_GROUP_COLUMNS
+                    if g not in OPTIONAL_GROUP_COLUMNS or column_has_values(fovs, g)
+                )
             self.key = (*(g for g in groups if g in fovs and g in objects), fov_col)
         missing = [c for c in self.key if c not in objects.columns or c not in fovs.columns]
         if missing:

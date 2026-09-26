@@ -1,6 +1,7 @@
 """MorphoCoverage: FOV-aware phenotypic sampling analysis."""
 
 from . import _deprecated
+from .data_check import DataCheck, check_tables
 from .evidence import Availability, Component, Direction, Evidence, Quantity
 from .framework import run_strategies
 from .objectives import ObjectiveConfig, RareTarget, SamplingObjective
@@ -30,6 +31,7 @@ from .strategies import (
 __all__ = [
     "Availability",
     "Component",
+    "DataCheck",
     "Decision",
     "DecisionPolicy",
     "DescriptorPlateauEstimator",
@@ -59,6 +61,7 @@ __all__ = [
     "StrategyResult",
     "ThresholdPolicy",
     "ValidatedInput",
+    "check_tables",
     "evaluate_acquisition_prefixes",
     "plan_objects_to_average",
     "redecide",

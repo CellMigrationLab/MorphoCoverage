@@ -152,7 +152,9 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 | `mask_file` | string, if used | Preserved as metadata, never a feature. |
 | `patch_file` | string, if used | Preserved as metadata, never a feature. |
 
-Group metadata such as `condition`/`repeat` may live only in the FOV table when the supplied FOV identifier maps unambiguously to one metadata value; the validator then attaches it to observation rows. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
+The user-facing description of both tables, every mandatory and optional column, and the validation rules is [`docs/data_format.md`](docs/data_format.md); keep it in step with this section, with `schema.validate_input_tables` and with `data_check.check_tables` (which must accept exactly what the validator accepts). `tests/test_data_check.py` checks that agreement, and `tests/test_docs.py` runs the page's example and checks that every shared column is listed.
+
+An optional shared column that is empty in every row (`position_id`, `technical_repeat`: `metadata.EMPTY_MEANS_ABSENT`) is read as absent, because producers that write every column, CellPatcher among them, leave it empty when it does not apply; a partly empty one still raises, and one named explicitly in `group_cols`/`fov_col` is kept. Group metadata such as `condition`/`repeat` may live only in the FOV table when the supplied FOV identifier maps unambiguously to one metadata value; the validator then attaches it to observation rows. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
 
 ### Outputs
 
@@ -177,6 +179,7 @@ src/morphocoverage/
     __init__.py            # public API (__all__); changes need approval (section 15)
     metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings
     schema.py              # ValidatedInput and linked-table validation
+    data_check.py          # check_tables: every data problem at once, where and how to fix it
     objectives.py          # sampling objectives and RareTarget, independent of strategies
     evidence.py            # Evidence and Quantity: estimates with direction, units, component
     policies.py            # decision policies, per-objective combination, redecide
