@@ -203,7 +203,7 @@ def _quantities(**values: Any) -> dict[str, Quantity]:
     return out
 
 
-def _check(label_col, min_fovs) -> None:
+def _check(label_col: str, min_fovs: int) -> None:
     """A label column name and a minimum of at least 2 FOVs."""
     if not isinstance(label_col, str) or not label_col:
         raise TypeError("label_col must be the name of an observation label column")

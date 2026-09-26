@@ -348,7 +348,7 @@ If acquisition becomes targeted, do not treat targeted FOVs as an unbiased popul
 - PEP 8 style.
 - 4-space indentation.
 - Descriptive names.
-- Type hints on every function, private helpers included (decided 2026-09-26; modules written before then are being brought up to the rule).
+- Type hints on every function, private helpers included (decided 2026-09-26; the whole package meets it).
 - Docstrings on public modules/functions/classes.
 - No module above 600 lines: split a growing module along its natural seam (computation and wording, geometry and decision), re-exporting the public names so callers do not change.
 - Statistics shared by several analyses live once, in `morphocoverage.statistics`, and are reused rather than re-derived.

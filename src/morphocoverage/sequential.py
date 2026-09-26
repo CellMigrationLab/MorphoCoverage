@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from time import perf_counter
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -93,20 +94,20 @@ def evaluate_acquisition_prefixes(
 
 
 def _evaluate_prefixes(
-    objects,
-    fovs,
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
     *,
-    strategies,
-    feature_cols,
-    acquisition_order_col,
-    objective,
-    fov_col,
-    group_cols,
-    min_fovs,
-    incremental,
-    observation_unit,
-    n_jobs,
-    pool=None,
+    strategies: Sequence[SamplingStrategy],
+    feature_cols: Sequence[str],
+    acquisition_order_col: str,
+    objective: ObjectiveConfig,
+    fov_col: str | None,
+    group_cols: Sequence[str] | None,
+    min_fovs: int,
+    incremental: bool,
+    observation_unit: str | None,
+    n_jobs: int,
+    pool: Any = None,
 ) -> list[SequentialResult]:
     """``evaluate_acquisition_prefixes``, optionally on running workers (``pool``)."""
     check_n_jobs(n_jobs)
@@ -165,13 +166,29 @@ def _interleave(parts: list[list[tuple]]) -> list[tuple]:
     return sorted((row for part in parts for row in part), key=lambda row: row[0])
 
 
-def _replay_strategies(strategies, group, acquisition, *, objective, min_fovs, incremental):
+def _replay_strategies(
+    strategies: Sequence[SamplingStrategy],
+    group: Mapping[str, Any],
+    acquisition: _Acquisition,
+    *,
+    objective: ObjectiveConfig,
+    min_fovs: int,
+    incremental: bool,
+) -> list[tuple[int, StrategyResult]]:
     """``(step, result)`` of every strategy after every prefix of ``acquisition``."""
     replay = _replay_incremental if incremental else _replay_full
     return list(replay(strategies, group, acquisition, objective=objective, min_fovs=min_fovs))
 
 
-def _replay_unit(strategies, group, group_data, ordered, objective, min_fovs, incremental):
+def _replay_unit(
+    strategies: Sequence[SamplingStrategy],
+    group: Mapping[str, Any],
+    group_data: ValidatedInput,
+    ordered: pd.DataFrame,
+    objective: ObjectiveConfig,
+    min_fovs: int,
+    incremental: bool,
+) -> list[tuple[int, tuple, StrategyResult]]:
     acquisition = _Acquisition(group_data, ordered)
     return [
         (step, acquisition.keys[:step], result)
@@ -265,7 +282,14 @@ class _Acquisition:
         )
 
 
-def _replay_full(strategies, group, acquisition, *, objective, min_fovs):
+def _replay_full(
+    strategies: Sequence[SamplingStrategy],
+    group: Mapping[str, Any],
+    acquisition: _Acquisition,
+    *,
+    objective: ObjectiveConfig,
+    min_fovs: int,
+) -> Iterator[tuple[int, StrategyResult]]:
     """Full recomputation of every strategy on every prefix (the reference)."""
     for step in range(min_fovs, acquisition.n_fovs + 1):
         started = perf_counter()
@@ -297,7 +321,14 @@ class _LazyPrefix:
         return self.data, perf_counter() - started
 
 
-def _replay_incremental(strategies, group, acquisition, *, objective, min_fovs):
+def _replay_incremental(
+    strategies: Sequence[SamplingStrategy],
+    group: Mapping[str, Any],
+    acquisition: _Acquisition,
+    *,
+    objective: ObjectiveConfig,
+    min_fovs: int,
+) -> Iterator[tuple[int, StrategyResult]]:
     """Feed each newly revealed FOV to incremental estimators; recompute the others."""
     replays = [
         IncrementalReplay(strategy, acquisition.data, objective=objective, group=group)

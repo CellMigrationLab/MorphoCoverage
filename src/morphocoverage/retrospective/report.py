@@ -161,7 +161,7 @@ def _indent(text: str) -> str:
     return "\n".join(f"  {line}" if line else line for line in text.splitlines())
 
 
-def _false_alarm_rate(controls) -> float | None:
+def _false_alarm_rate(controls: ControlResult | None) -> float | None:
     """The declared reference's false-alarm rate, when it was measured."""
     if controls is None or controls.status != "assessed":
         return None
@@ -171,7 +171,9 @@ def _false_alarm_rate(controls) -> float | None:
     return float(rates["reference"])
 
 
-def _detection_adjusted_bounds(sufficiency, controls) -> str | None:
+def _detection_adjusted_bounds(
+    sufficiency: SufficiencyReport, controls: ControlResult | None
+) -> str | None:
     """The unseen-state bound divided by the declared control's detection rate.
 
     The rule-of-three bound holds for states this definition would detect in
@@ -208,7 +210,9 @@ def _detection_adjusted_bounds(sufficiency, controls) -> str | None:
     return "\n".join(lines) if len(lines) > 1 else None
 
 
-def _unit_rows(variability, clustering, observations: str) -> list[dict]:
+def _unit_rows(
+    variability: FOVVariability | None, clustering: FOVClustering | None, observations: str
+) -> list[dict]:
     """Profile rows from the sampling-unit checks: FOVs against random objects, clustering."""
     rows = []
     if variability is not None:
@@ -261,7 +265,12 @@ def _unit_rows(variability, clustering, observations: str) -> list[dict]:
 
 
 def _profile(
-    controls, effort, redundancy, inspection, variability=None, clustering=None
+    controls: ControlResult | None,
+    effort: EffortResult | None,
+    redundancy: pd.DataFrame | None,
+    inspection: InspectionResult | None,
+    variability: FOVVariability | None = None,
+    clustering: FOVClustering | None = None,
 ) -> pd.DataFrame:
     units = [
         r.settings.get("observation_unit")
@@ -396,7 +405,7 @@ def _profile(
     return pd.DataFrame(rows, columns=["item", "where", "value", "statement", "source"])
 
 
-def _check(value, kind, name):
+def _check(value: object, kind: type, name: str) -> None:
     if value is not None and not isinstance(value, kind):
         raise TypeError(f"{name} must be a {kind.__name__}")
 

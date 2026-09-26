@@ -130,7 +130,7 @@ def _levels(hierarchy: SamplingHierarchy) -> list[str]:
     return list(reversed(hierarchy.levels))
 
 
-def _tree(frame: pd.DataFrame, columns: list[str]):
+def _tree(frame: pd.DataFrame, columns: list[str]) -> np.ndarray | list:
     """Nested lists of per-FOV value arrays, coarsest level first."""
     if not columns:
         return frame["value"].to_numpy(dtype=float)
@@ -138,14 +138,14 @@ def _tree(frame: pd.DataFrame, columns: list[str]):
     return [_tree(part, rest) for _, part in frame.groupby(head, sort=False, dropna=False)]
 
 
-def _resample(tree, rng):
+def _resample(tree: np.ndarray | list, rng: np.random.Generator) -> np.ndarray | list:
     if isinstance(tree, np.ndarray):
         return tree
     picks = rng.integers(0, len(tree), size=len(tree))
     return [_resample(tree[i], rng) for i in picks]
 
 
-def _flatten(tree, depth: int):
+def _flatten(tree: np.ndarray | list, depth: int) -> tuple[np.ndarray, list[np.ndarray]]:
     """Values and one code array per level for a (resampled) tree of ``depth`` levels.
 
     Codes number the units of each level 0, 1, ... in the order they are met,
@@ -154,7 +154,7 @@ def _flatten(tree, depth: int):
     values, leaf_codes = [], []
     counters = [0] * depth
 
-    def walk(node, level):
+    def walk(node: np.ndarray | list, level: int) -> None:
         if level == depth:
             values.append(node)
             leaf_codes.append([c - 1 for c in counters])
@@ -171,7 +171,9 @@ def _flatten(tree, depth: int):
     return np.concatenate(values), [np.repeat(table[:, d], lengths) for d in range(depth)]
 
 
-def _se(components, design: dict, samples: float, fovs_per_sample: float) -> float:
+def _se(
+    components: np.ndarray, design: dict[str, Any], samples: float, fovs_per_sample: float
+) -> float:
     """Projected SE of the mean for ``samples`` x ``fovs_per_sample`` acquired FOVs.
 
     Only a share ``design["yield"]`` of acquired FOVs holds observations, with
@@ -196,7 +198,9 @@ def _se(components, design: dict, samples: float, fovs_per_sample: float) -> flo
     )
 
 
-def _allocations(design: dict, allocations) -> list[tuple[int, float]]:
+def _allocations(
+    design: dict[str, Any], allocations: Sequence[tuple[int, float]] | None
+) -> list[tuple[int, float]]:
     """Allocations to compare, always including the acquired one (``samples``, total / samples)."""
     samples, total = design["samples"], design["total_fovs"]
     current = (samples, total / samples)
@@ -422,7 +426,7 @@ def _check_separable(codes: list[np.ndarray], levels: list[str], n_observations:
             )
 
 
-def _contributions(estimate, design: dict) -> list[float | None]:
+def _contributions(estimate: np.ndarray, design: dict[str, Any]) -> list[float | None]:
     """Share of each level in the variance of the acquired design's mean (components >= 0)."""
     comp = np.maximum(estimate, 0.0)
     fields_with = design["total_fovs"] * design["yield"]

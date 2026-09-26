@@ -158,7 +158,9 @@ class Standardize(FeatureTransform):
 
     name: str = "standardize"
 
-    def fit_matrix(self, matrix, names):
+    def fit_matrix(
+        self, matrix: np.ndarray, names: tuple[str, ...]
+    ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
         """Visible mean and SD per feature."""
         if np.isnan(matrix).any():
             return "missing feature values; choose or implement an explicit missing-data policy"
@@ -171,7 +173,7 @@ class Standardize(FeatureTransform):
             return f"zero SD on the visible data for {constant}"
         return {"mean": _floats(mean), "sd": _floats(sd)}, names
 
-    def apply_matrix(self, state, matrix):
+    def apply_matrix(self, state: Mapping[str, Any], matrix: np.ndarray) -> np.ndarray:
         """``(x - mean) / sd``."""
         return (matrix - np.asarray(state["mean"])) / np.asarray(state["sd"])
 
@@ -205,7 +207,9 @@ class PCA(FeatureTransform):
         """The number of components."""
         return {"n_components": self.n_components}
 
-    def fit_matrix(self, matrix, names):
+    def fit_matrix(
+        self, matrix: np.ndarray, names: tuple[str, ...]
+    ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
         """Visible mean, leading components and their explained-variance ratios."""
         if np.isnan(matrix).any():
             return "missing feature values; choose or implement an explicit missing-data policy"
@@ -229,7 +233,7 @@ class PCA(FeatureTransform):
         }
         return state, tuple(f"pc{i + 1}" for i in range(self.n_components))
 
-    def apply_matrix(self, state, matrix):
+    def apply_matrix(self, state: Mapping[str, Any], matrix: np.ndarray) -> np.ndarray:
         """Scores on the fitted components."""
         return (matrix - np.asarray(state["mean"])) @ np.asarray(state["components"]).T
 
@@ -264,7 +268,9 @@ class Chain(FeatureTransform):
         """The steps, with their own ids."""
         return {"steps": [t.describe() for t in self.transforms]}
 
-    def fit_matrix(self, matrix, names):
+    def fit_matrix(
+        self, matrix: np.ndarray, names: tuple[str, ...]
+    ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
         """Fit each step on the output of the previous one."""
         states: list[dict[str, Any]] = []
         for transform in self.transforms:
@@ -276,7 +282,7 @@ class Chain(FeatureTransform):
             matrix = transform.apply_matrix(state, matrix)
         return {"steps": states}, names
 
-    def apply_matrix(self, state, matrix):
+    def apply_matrix(self, state: Mapping[str, Any], matrix: np.ndarray) -> np.ndarray:
         """Apply every fitted step in order."""
         steps: Sequence[Mapping[str, Any]] = state["steps"]
         for transform, step in zip(self.transforms, steps, strict=True):

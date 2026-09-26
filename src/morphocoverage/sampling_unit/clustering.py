@@ -70,7 +70,7 @@ from scipy.spatial import cKDTree
 from ..bounds import upper_bound
 from ..retrospective._text import fields as fields_text
 from ..retrospective._text import group_identity, unit_plural, where
-from ..schema import fov_positions
+from ..schema import ValidatedInput, fov_positions
 from ..strategies.rare_planning import first_detection_fovs
 from ..transforms import Standardize
 from ._common import check_count, check_seed, groups, matching_groups, validated
@@ -318,7 +318,9 @@ class UnusualObjects:
         return "\n".join(lines)
 
 
-def _reference_sample(group_datas, per_fov: int, rng) -> tuple[np.ndarray, np.ndarray]:
+def _reference_sample(
+    group_datas: Sequence[ValidatedInput], per_fov: int, rng: np.random.Generator
+) -> tuple[np.ndarray, np.ndarray]:
     """Up to ``per_fov`` complete observations of every reference FOV, and their FOV ids."""
     rows, fov_ids, offset = [], [], 0
     for data in group_datas:

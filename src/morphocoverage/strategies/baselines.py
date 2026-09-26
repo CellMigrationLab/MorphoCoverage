@@ -99,7 +99,7 @@ class _ObjectCountPolicy(DecisionPolicy):
         """The effort measure and its target."""
         return {"effort": "n_objects", "target": self.target}
 
-    def decide(self, evidence, effort: Effort):
+    def decide(self, evidence: Evidence, effort: Effort) -> tuple[Component, Decision | None]:
         """Undefined (``None``) unless rows are objects; else stop at the target count.
 
         A count of slices or patches is not a count of objects, so the rule

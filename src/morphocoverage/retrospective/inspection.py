@@ -87,7 +87,7 @@ class InspectionResult:
         return inspection_summary(self)
 
 
-def _weighted(values: np.ndarray, weights: np.ndarray, statistic) -> float | None:
+def _weighted(values: np.ndarray, weights: np.ndarray, statistic: str) -> float | None:
     keep = ~np.isnan(values)
     values, weights = values[keep], weights[keep]
     if not len(values) or weights.sum() <= 0:
@@ -103,7 +103,12 @@ def _weighted(values: np.ndarray, weights: np.ndarray, statistic) -> float | Non
     return float(np.interp(float(statistic), positions, values))
 
 
-def _influence(data: ValidatedInput, summaries, threshold, skipped: dict) -> list[dict]:
+def _influence(
+    data: ValidatedInput,
+    summaries: Sequence[Summary],
+    threshold: float | None,
+    skipped: dict[str, Any],
+) -> list[dict]:
     """Relative change of each FOV-weighted summary when one FOV is left out.
 
     A relative change needs a positive scale: for a feature with negative
@@ -164,7 +169,7 @@ def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
     return rows
 
 
-def _neighbours_skipped(fovs: pd.DataFrame, x_col, y_col, k) -> str | None:
+def _neighbours_skipped(fovs: pd.DataFrame, x_col: str, y_col: str, k: int) -> str | None:
     """Why stage neighbours cannot be compared in this group, or None."""
     if len(fovs) <= k:
         return f"{len(fovs)} fields, not more than the {k} neighbours compared"
@@ -173,7 +178,9 @@ def _neighbours_skipped(fovs: pd.DataFrame, x_col, y_col, k) -> str | None:
     return None
 
 
-def _neighbours(data: ValidatedInput, x_col, y_col, k, threshold, unit) -> list[dict]:
+def _neighbours(
+    data: ValidatedInput, x_col: str, y_col: str, k: int, threshold: float, unit: str
+) -> list[dict]:
     fovs = data.fovs
     xy = fovs[[x_col, y_col]].to_numpy(dtype=float)
     if _neighbours_skipped(fovs, x_col, y_col, k) is not None:
@@ -233,7 +240,15 @@ def _novel(data: ValidatedInput, novelty: SupportNoveltyEstimator) -> list[dict]
     ]
 
 
-def _check(summaries, novelty, influence_threshold, count_ratio, stage, neighbour_threshold, k):
+def _check(
+    summaries: Sequence[Summary | tuple],
+    novelty: SupportNoveltyEstimator | None,
+    influence_threshold: float | None,
+    count_ratio: float | None,
+    stage: Sequence[str] | None,
+    neighbour_threshold: float | None,
+    k: int,
+) -> list[Summary]:
     summaries = [s if isinstance(s, Summary) else Summary(*s) for s in summaries]
     if novelty is not None and not isinstance(novelty, SupportNoveltyEstimator):
         raise TypeError("novelty must be a SupportNoveltyEstimator")

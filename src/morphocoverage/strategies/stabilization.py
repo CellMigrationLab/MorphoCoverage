@@ -79,7 +79,7 @@ def _reported(descriptors: dict[str, float]) -> dict[str, float | None]:
     return {name: None if np.isnan(value) else value for name, value in descriptors.items()}
 
 
-def _describe_many(samples: np.ndarray, descriptors) -> dict[str, np.ndarray]:
+def _describe_many(samples: np.ndarray, descriptors: Sequence[str]) -> dict[str, np.ndarray]:
     """Descriptors for each row of a 2-D array of equally sized samples."""
     q1, median, q3 = np.percentile(samples, [25, 50, 75], axis=1)
     available = {
@@ -96,7 +96,7 @@ _MAX_RESAMPLED_VALUES = 5_000_000
 
 
 def _describe_fov_resamples(
-    grouped: np.ndarray, counts: np.ndarray, draws: np.ndarray, descriptors
+    grouped: np.ndarray, counts: np.ndarray, draws: np.ndarray, descriptors: Sequence[str]
 ) -> dict[str, np.ndarray]:
     """Descriptors of each resample of whole FOVs, without a Python loop over resamples.
 
@@ -151,13 +151,13 @@ def _describe_fov_resamples(
     return {name: np.where(defined, available[name](), np.nan) for name in descriptors}
 
 
-def _check_tolerance(tolerance) -> None:
+def _check_tolerance(tolerance: float) -> None:
     """The tolerance is a positive, finite amount in the feature's units."""
     if not (tolerance > 0 and np.isfinite(tolerance)):
         raise ValueError("tolerance must be positive and finite (in the feature's units)")
 
 
-def _check_common(feature, descriptors) -> None:
+def _check_common(feature: str, descriptors: Sequence[str]) -> None:
     """One feature, and a non-empty duplicate-free subset of the paper's descriptors."""
     if not isinstance(feature, str):
         raise TypeError("feature must be one column name")
@@ -167,7 +167,7 @@ def _check_common(feature, descriptors) -> None:
         raise ValueError("descriptors contains duplicates")
 
 
-def _check_plateau(window, order_col) -> None:
+def _check_plateau(window: int, order_col: str) -> None:
     """A positive integer window and an order column name."""
     if isinstance(window, bool) or not isinstance(window, int) or window < 1:
         raise ValueError("window must be a positive integer number of FOVs")
@@ -175,7 +175,7 @@ def _check_plateau(window, order_col) -> None:
         raise TypeError("order_col must be the FOV table's acquisition-order column")
 
 
-def _check_spread(resampling_unit, n_resamples, random_state) -> None:
+def _check_spread(resampling_unit: str, n_resamples: int, random_state: int) -> None:
     """A known resampling unit, at least 2 resamples and an integer seed."""
     if resampling_unit not in _UNITS:
         raise ValueError(f"resampling_unit must be one of {_UNITS}")

@@ -31,7 +31,7 @@ def validated(
     )
 
 
-def groups(data: ValidatedInput):
+def groups(data: ValidatedInput) -> list[tuple[dict[str, Any], ValidatedInput]]:
     """The independent analysis groups, as ``(group, data)`` pairs."""
     return list(iter_analysis_groups(data))
 

@@ -108,7 +108,15 @@ AGGREGATES = ("max", "rms")
 DEGENERATE_TOLERANCE = 0.05
 
 
-def _check(summary, n_resamples, random_state, min_fovs, quantiles, transform, n_components):
+def _check(
+    summary: str,
+    n_resamples: int,
+    random_state: int,
+    min_fovs: int,
+    quantiles: Sequence[float] | None,
+    transform: FeatureTransform | None,
+    n_components: int | None,
+) -> None:
     """Validate the settings shared by the estimator and the strategy."""
     if summary not in SUMMARIES:
         raise ValueError(f"summary must be one of {SUMMARIES}")

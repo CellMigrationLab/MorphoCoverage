@@ -42,6 +42,7 @@ from matplotlib.figure import Figure
 
 from ..plots import plots_of_data
 from ..retrospective import (
+    MicroscopistReport,
     RepresentationControl,
     dataset_overview,
     Summary,
@@ -354,7 +355,7 @@ def optimise(
     return Plan(results, document, setup)
 
 
-def document(*parts: Report | Plan):
+def document(*parts: Report | Plan) -> MicroscopistReport:
     """The full microscopist's report from a ``report`` and a ``plan`` of the same data."""
     merged: dict[str, Any] = {}
     for part in parts:

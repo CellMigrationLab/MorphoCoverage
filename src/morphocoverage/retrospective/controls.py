@@ -37,14 +37,14 @@ import pandas as pd
 
 from .._parallel import check_n_jobs, map_units, worker_pool
 from ..evaluator import FovSubsets, restrict_input
-from ..schema import validate_input_tables
+from ..schema import ValidatedInput, validate_input_tables
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ._text import group_identity, percent, unit_plural, where
 
 CANDIDATES = ("reference", "positive", "planted")
 
 
-def _selector(value, label) -> dict[str, tuple] | None:
+def _selector(value: Mapping[str, Any] | None, label: str) -> dict[str, tuple] | None:
     if value is None:
         return None
     if not isinstance(value, Mapping) or not value:
@@ -140,7 +140,13 @@ def _select(fovs: pd.DataFrame, selector: dict[str, tuple]) -> pd.Series:
     return mask
 
 
-def _planted(subsets: FovSubsets, host_rows, donors: list[pd.DataFrame], size, rng):
+def _planted(
+    subsets: FovSubsets,
+    host_rows: np.ndarray,
+    donors: list[pd.DataFrame],
+    size: int,
+    rng: np.random.Generator,
+) -> ValidatedInput | None:
     """Each host FOV with ``size`` objects of a random donor FOV (with enough objects) added."""
     usable = [cells for cells in donors if len(cells) >= size]
     if not usable:
@@ -160,7 +166,9 @@ def _planted(subsets: FovSubsets, host_rows, donors: list[pd.DataFrame], size, r
     return restrict_input(data, objects, hosts)
 
 
-def _judge(novelty, seen, candidates):
+def _judge(
+    novelty: SupportNoveltyEstimator, seen: ValidatedInput, candidates: Mapping[str, ValidatedInput]
+) -> dict[str, tuple[int, int, int]]:
     """Per candidate kind: FOVs judged new, FOVs judged, FOVs that could not be judged."""
     counts = {}
     for kind, table in candidates.items():

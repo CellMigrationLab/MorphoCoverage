@@ -53,7 +53,9 @@ class EfficiencyResult:
         return efficiency_summary(self)
 
 
-def _time(fovs, travel, per_fov, per_move, speed):
+def _time(
+    fovs: int, travel: float, per_fov: float | None, per_move: float | None, speed: float | None
+) -> float | None:
     if per_fov is None and per_move is None and speed is None:
         return None
     seconds = (per_fov or 0.0) * fovs + (per_move or 0.0) * max(fovs - 1, 0)

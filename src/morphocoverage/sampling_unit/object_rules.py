@@ -56,6 +56,7 @@ import pandas as pd
 
 from ..retrospective._text import fields as fields_text
 from ..retrospective._text import group_identity, unit_plural, where
+from ..schema import ValidatedInput
 from ..strategies.scalar_precision import sd_upper_bound_factor
 from ._common import check_count, check_seed, fov_values, groups, matching_groups, validated
 
@@ -110,7 +111,11 @@ class ObjectRuleCheck:
         return "\n".join(lines)
 
 
-def _reference_means(all_groups, feature: str, control) -> tuple[dict[int, float | None], str]:
+def _reference_means(
+    all_groups: list[tuple[dict[str, Any], ValidatedInput]],
+    feature: str,
+    control: Mapping[str, Any] | None,
+) -> tuple[dict[int, float | None], str]:
     """The mean that normalizes each group: its own, or the mean of all control objects.
 
     As in the JCB supplementary spreadsheet and R code, the control mean pools

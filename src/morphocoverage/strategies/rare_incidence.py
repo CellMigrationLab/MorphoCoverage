@@ -84,7 +84,7 @@ def _positive_fovs(data: ValidatedInput, label_col: str) -> int:
     return int(np.unique(positions).size)
 
 
-def _check(label_col, prior_a, prior_b) -> None:
+def _check(label_col: str, prior_a: float, prior_b: float) -> None:
     """A label column and a proper Beta prior."""
     if not isinstance(label_col, str) or not label_col:
         raise TypeError("label_col must be the name of an observation label column")

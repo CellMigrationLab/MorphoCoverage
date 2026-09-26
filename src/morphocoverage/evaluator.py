@@ -366,5 +366,10 @@ def evaluate_strategies(
     return map_units(_evaluate_unit, jobs, n_jobs)
 
 
-def _evaluate_unit(strategy, group_data, objective, group) -> StrategyResult:
+def _evaluate_unit(
+    strategy: SamplingStrategy,
+    group_data: ValidatedInput,
+    objective: ObjectiveConfig,
+    group: dict[str, object] | None,
+) -> StrategyResult:
     return evaluate_strategy(strategy, group_data, objective=objective, group=group)
