@@ -532,12 +532,20 @@ def frontier_summary(result: FrontierResult) -> str:
                 if saved < -0.05
                 else "does as well as the fixed count, no better"
             )
-            interval = (
-                ""
-                if row.saved_low is None or pd.isna(row.saved_low)
-                else f", {percent(0.95)} interval {_number(row.saved_low)} to "
-                f"{_number(row.saved_high)}"
-            )
+            # The interval reads in the verdict's direction: fields saved, or fields it costs.
+            if row.saved_low is None or pd.isna(row.saved_low):
+                interval = ""
+            elif saved < -0.05:
+                interval = (
+                    f", {percent(0.95)} interval {_number(-row.saved_high)} to "
+                    f"{_number(-row.saved_low)}"
+                )
+            else:
+                of = "" if saved > 0.05 else " of the fields saved"
+                interval = (
+                    f", {percent(0.95)} interval{of} {_number(row.saved_low)} to "
+                    f"{_number(row.saved_high)}"
+                )
             adaptive = (
                 ""
                 if row.adaptivity is None or pd.isna(row.adaptivity)

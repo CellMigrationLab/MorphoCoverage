@@ -6,6 +6,11 @@ You declare the dataset once, in a `Setup`. Each workflow then calls the
 package's analyses in the order of [`questions.md`](questions.md) and returns
 its results with a `summary()` written in sentences.
 
+A worked example of all four, with plots, is the notebook
+[`notebooks/MorphoCoverage_Workflows_Example`](../notebooks/MorphoCoverage_Workflows_Example/MorphoCoverage_Workflows_Example.ipynb).
+It runs on the bundled idr0028 dataset or on your own CSV files, locally or on
+Google Colab (its plots need `matplotlib`).
+
 The workflows make no scientific choice of their own. Every choice is either a
 `Setup` field or an argument without a default. The analyses they call are
 the ones documented elsewhere, and their results stay available under

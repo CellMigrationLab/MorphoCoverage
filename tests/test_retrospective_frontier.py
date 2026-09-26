@@ -20,6 +20,7 @@ from morphocoverage.policies import ThresholdPolicy
 from morphocoverage.retrospective import OutcomeCriterion, replay_acquisitions
 from morphocoverage.retrospective.frontier import (
     BASELINE,
+    FrontierResult,
     _bootstrap,
     family,
     frontier,
@@ -269,3 +270,33 @@ def test_invalid_requests_are_refused(mixed):
     renamed = family(replay, BASELINE, {_oracle(2, 12).config_id: 12})
     with pytest.raises(ValueError, match="baseline's name"):
         frontier(replay, [renamed], criterion=MEAN.name, alphas=[0.1], unit_cols=[])
+
+
+def test_the_interval_reads_in_the_direction_of_the_verdict():
+    # fields_saved and its interval are negative when a rule costs fields; the sentence
+    # "costs 1.3 more fields" must not be followed by an interval of -1.3 to -1.2.
+    def row(family, effort, saved, low, high):
+        return {
+            "family": family,
+            "alpha": 0.05,
+            "setting": 1.0,
+            "effort": effort,
+            "risk": 0.0,
+            "fields_saved": saved,
+            "saved_low": low,
+            "saved_high": high,
+            "adaptivity": None,
+        }
+
+    scores = pd.DataFrame(
+        [
+            row(BASELINE, 1.0, 0.0, None, None),
+            row("costly", 2.3, -1.3, -1.3, -1.2),
+            row("thrifty", 0.5, 0.5, 0.2, 0.8),
+            row("level", 1.0, 0.0, -0.1, 0.0),
+        ]
+    )
+    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"label": "x"}).summary()
+    assert "costs 1.3 more fields, 95% interval 1.2 to 1.3" in text
+    assert "saves 0.5 fields, 95% interval 0.2 to 0.8" in text
+    assert "no better, 95% interval of the fields saved -0.1 to 0.0" in text
