@@ -37,6 +37,8 @@ spread, in the feature's units, plus a ``ThresholdPolicy`` at ``tolerance``.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -185,26 +187,48 @@ def _check_spread(resampling_unit, n_resamples, random_state) -> None:
         raise TypeError("random_state must be an integer seed")
 
 
-def _feature_quantity(feature: str, value: float | None, reason: str | None = None) -> Quantity:
-    """A population quantity in the feature's units: a value, or insufficient data with a reason."""
+SPREAD_DESCRIPTORS = ("sd", "iqr")
+
+
+def component_of(descriptors: Sequence[str]) -> Component:
+    """Which objective component the descriptors are evidence about.
+
+    The paper's procedure watches the mean, median, SD and IQR settle. Location
+    descriptors alone summarise the population; once a spread descriptor (SD or
+    IQR) is among them the rule describes the distribution of phenotypes, so
+    it is distribution evidence (the phenotypic fingerprint). The choice is a
+    parameter, so it is recorded in the estimator's provenance.
+    """
+    if any(name in SPREAD_DESCRIPTORS for name in descriptors):
+        return Component.DISTRIBUTION
+    return Component.POPULATION
+
+
+def _feature_quantity(
+    feature: str, descriptors: Sequence[str], value: float | None, reason: str | None = None
+) -> Quantity:
+    """A quantity in the feature's units: a value, or insufficient data with a reason."""
     units = f"units of {feature!r}"
+    component = component_of(descriptors)
     if reason is not None:
         # More FOVs with objects make the window or resamples computable.
         return Quantity.insufficient(
-            reason, direction=Direction.LOWER_IS_BETTER, units=units, component=Component.POPULATION
+            reason, direction=Direction.LOWER_IS_BETTER, units=units, component=component
         )
     return Quantity.available(
-        value, direction=Direction.LOWER_IS_BETTER, units=units, component=Component.POPULATION
+        value, direction=Direction.LOWER_IS_BETTER, units=units, component=component
     )
 
 
-def _not_applicable(quantity: str, feature: str, reason: str) -> Evidence:
+def _not_applicable(
+    quantity: str, feature: str, descriptors: Sequence[str], reason: str
+) -> Evidence:
     """Evidence for data the rule does not apply to; more acquisition will not fix it."""
     value = Quantity.not_applicable(
         reason,
         direction=Direction.LOWER_IS_BETTER,
         units=f"units of {feature!r}",
-        component=Component.POPULATION,
+        component=component_of(descriptors),
     )
     return Evidence({quantity: value}, {"undefined_reason": reason})
 
@@ -254,7 +278,7 @@ class DescriptorPlateauEstimator(Estimator):
         if reason is None and np.isnan(values).any():
             reason = "missing values in the selected feature"
         if reason is not None:
-            return _not_applicable("max_descriptor_range", self.feature, reason)
+            return _not_applicable("max_descriptor_range", self.feature, self.descriptors, reason)
         if self.order_col not in data.fovs.columns:
             raise ValueError(f"order_col {self.order_col!r} is not a column of the FOV table")
 
@@ -284,9 +308,9 @@ class DescriptorPlateauEstimator(Estimator):
                 reason = "fewer than 2 objects in the window"
         if reason is not None:
             diagnostics["undefined_reason"] = reason
-            quantity = _feature_quantity(self.feature, None, reason)
+            quantity = _feature_quantity(self.feature, self.descriptors, None, reason)
         else:
-            quantity = _feature_quantity(self.feature, max(ranges.values()))
+            quantity = _feature_quantity(self.feature, self.descriptors, max(ranges.values()))
         return Evidence({"max_descriptor_range": quantity}, diagnostics)
 
 
@@ -368,7 +392,7 @@ class DescriptorSpreadEstimator(Estimator):
         if reason is None and np.isnan(values).any():
             reason = "missing values in the selected feature"
         if reason is not None:
-            return _not_applicable("max_descriptor_spread", self.feature, reason)
+            return _not_applicable("max_descriptor_spread", self.feature, self.descriptors, reason)
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
             "assumes_random_object_sampling": self.resampling_unit == "object",
@@ -376,7 +400,7 @@ class DescriptorSpreadEstimator(Estimator):
         resampled = self._resampled_descriptors(data)
         if isinstance(resampled, str):
             diagnostics["undefined_reason"] = resampled
-            quantity = _feature_quantity(self.feature, None, resampled)
+            quantity = _feature_quantity(self.feature, self.descriptors, None, resampled)
             return Evidence({"max_descriptor_spread": quantity}, diagnostics)
         # A resample with fewer than 2 objects has undefined descriptors: not stable.
         spreads = {
@@ -384,7 +408,7 @@ class DescriptorSpreadEstimator(Estimator):
             for name, series in resampled.items()
         }
         diagnostics["resample_spreads"] = spreads
-        quantity = _feature_quantity(self.feature, max(spreads.values()))
+        quantity = _feature_quantity(self.feature, self.descriptors, max(spreads.values()))
         return Evidence({"max_descriptor_spread": quantity}, diagnostics)
 
 

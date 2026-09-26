@@ -190,7 +190,9 @@ def _quantities(**values: Any) -> dict[str, Quantity]:
                 else Direction.HIGHER_IS_BETTER
             ),
             "units": _UNITS[name],
-            "component": Component.POPULATION,
+            # How complete the set of labelled states is describes the distribution
+            # of phenotypes, not its summary and not a declared RareTarget.
+            "component": Component.DISTRIBUTION,
         }
         if "not_applicable" in values:
             out[name] = Quantity.not_applicable(values["not_applicable"], **meta)
@@ -216,7 +218,7 @@ class IncidenceCoverageEstimator(Estimator):
     Reports ``incidence_coverage`` and ``chao2_completeness`` (higher is
     better) and ``expected_new_states_next_fov``, ``prob_new_state_next_fov``,
     ``good_turing_new_state_estimate``, ``lofo_new_state_fov_fraction`` and
-    ``new_state_fov_upper`` (lower is better), all population evidence.
+    ``new_state_fov_upper`` (lower is better), all distribution evidence.
     ``label_col`` is an observation column of labels fixed independently of
     the acquisition; it is metadata and must not be a
     phenotype feature.

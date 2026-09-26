@@ -9,18 +9,33 @@ from .evidence import Component
 
 
 class SamplingObjective(str, Enum):
-    """High-level purpose of an acquisition decision."""
+    """High-level purpose of an acquisition decision.
+
+    Each objective names the components a decision must cover: the population
+    summary, the phenotypic fingerprint (distribution), the rare phenotype.
+    ``POPULATION``, ``DISTRIBUTION`` and ``RARE_DISCOVERY`` need one each;
+    ``PHENOTYPE`` the summary and the fingerprint; ``BALANCED`` the summary
+    and the rare state; ``ALL`` every one.
+    """
 
     POPULATION = "population"
+    DISTRIBUTION = "distribution"
     RARE_DISCOVERY = "rare_discovery"
+    PHENOTYPE = "phenotype"
     BALANCED = "balanced"
+    ALL = "all"
 
 
 # Objective components a decision must cover for each objective.
 REQUIRED_COMPONENTS: dict[SamplingObjective, frozenset[Component]] = {
     SamplingObjective.POPULATION: frozenset({Component.POPULATION}),
+    SamplingObjective.DISTRIBUTION: frozenset({Component.DISTRIBUTION}),
     SamplingObjective.RARE_DISCOVERY: frozenset({Component.RARE}),
+    SamplingObjective.PHENOTYPE: frozenset({Component.POPULATION, Component.DISTRIBUTION}),
     SamplingObjective.BALANCED: frozenset({Component.POPULATION, Component.RARE}),
+    SamplingObjective.ALL: frozenset(
+        {Component.POPULATION, Component.DISTRIBUTION, Component.RARE}
+    ),
 }
 
 
@@ -89,9 +104,9 @@ class ObjectiveConfig:
     """User-defined acquisition objective.
 
     ``rare`` is required when rare-state discovery contributes to the objective
-    (``rare_discovery`` and ``balanced``), and rejected otherwise so that it is
-    never silently ignored. It describes the scientific target, not an
-    estimator.
+    (``rare_discovery``, ``balanced`` and ``all``), and rejected otherwise so
+    that it is never silently ignored. It describes the scientific target, not
+    an estimator.
     """
 
     objective: SamplingObjective = SamplingObjective.POPULATION
@@ -110,11 +125,14 @@ class ObjectiveConfig:
         needs_rare = Component.RARE in self.required_components
         if not needs_rare and self.rare is not None:
             raise ValueError(
-                "a rare target was given for a population objective; use "
-                "rare_discovery or balanced so the rare target is not silently ignored"
+                f"a rare target was given for a {self.objective.value} objective, which has no "
+                "rare component; use rare_discovery, balanced or all so the rare target is not "
+                "silently ignored"
             )
         if needs_rare and self.rare is None:
-            raise ValueError("a RareTarget is required for rare_discovery and balanced objectives")
+            raise ValueError(
+                "a RareTarget is required for rare_discovery, balanced and all objectives"
+            )
 
     @property
     def required_components(self) -> frozenset[Component]:

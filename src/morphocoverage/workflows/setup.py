@@ -13,8 +13,10 @@ within ``tolerances``), a phenotypic fingerprint (``fingerprint``: outcome
 criteria on the declared features), and a rare phenotype (``rare``: a
 ``RareTarget``, with ``rare_label`` naming the objects that carry it when a
 label exists). ``Setup.criteria()`` turns the declaration into the outcome
-criteria every planning analysis judges on held-back fields, and
-``Setup.declaration()`` states it in sentences, which the report prints first.
+criteria every planning analysis judges on held-back fields,
+``Setup.objective()`` into the objective the live decision runs under (its
+components are the declared targets), and ``Setup.declaration()`` states it
+in sentences, which the report prints first.
 """
 
 from __future__ import annotations
@@ -25,8 +27,10 @@ from typing import Any
 
 import numpy as np
 
-from ..objectives import RareTarget
+from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
+from ..evidence import Component
 from ..outcomes import RareStateDetected, RelativeMeanError
+from ..results import COMPONENT_WORDS
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator
@@ -202,6 +206,24 @@ class Setup:
         analyses validate and carry."""
         return [self.readout, *(c for c in self.criterion_columns if c != self.readout)]
 
+    def objective(self) -> ObjectiveConfig:
+        """The objective whose components are the declared targets.
+
+        The population summary is always declared; a fingerprint adds the
+        distribution component, a rare target the rare component. The live
+        decision and every replay run under it, so a rule that has no evidence
+        about a declared target cannot alone say stop, and a target no rule
+        decides stays ``unsupported`` in the decision view rather than being
+        assumed adequate.
+        """
+        if self.rare is not None and self.fingerprint:
+            return ObjectiveConfig(SamplingObjective.ALL, rare=self.rare)
+        if self.rare is not None:
+            return ObjectiveConfig(SamplingObjective.BALANCED, rare=self.rare)
+        if self.fingerprint:
+            return ObjectiveConfig(SamplingObjective.PHENOTYPE)
+        return ObjectiveConfig(SamplingObjective.POPULATION)
+
     def criteria(self) -> list[OutcomeCriterion]:
         """The declaration as outcome criteria, judged on held-back fields.
 
@@ -268,6 +290,15 @@ class Setup:
         lines.append(
             f"Representation: readout {self.readout}; {features} for unusual objects and new "
             f"phenotypes; definition of new: {new}."
+        )
+        objective = self.objective()
+        targets = " and ".join(
+            COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components
+        )
+        lines.append(
+            f"Live decision: the {objective.objective.value} objective ({targets}); a rule "
+            "decides only the targets it has evidence about, and a target no rule decides "
+            "stays unsupported rather than assumed adequate."
         )
         return tuple(lines)
 

@@ -247,7 +247,9 @@ def run_rare() -> list[str]:
     specs = question["families"]
     target = specs["rare incidence (labels)"]["target_incidence"]
     objectives = {
-        "novelty bound": POPULATION,
+        # The novelty bound is distribution evidence (the phenotypic fingerprint);
+        # the frontier reads each rule's own verdict, so the scores do not depend on it.
+        "novelty bound": ObjectiveConfig(SamplingObjective.DISTRIBUTION),
         "rare incidence (labels)": ObjectiveConfig(
             SamplingObjective.RARE_DISCOVERY,
             rare=RareTarget(

@@ -140,7 +140,15 @@ dataset's role: keeping the two apart is up to you.
 ## ONLINE: continue or stop while the microscope acquires
 
 `live_session(setup)` returns an `OnlineSession` for the setup's rules
-([`online.md`](online.md)). It has two sources of fields: files on disk, or
+([`online.md`](online.md)), under the objective made of the declared targets
+(`setup.objective()`). Each update ends with one view per target: the
+population summary, the phenotypic fingerprint and the rare phenotype, each
+with the decision of the rules that decide it, then the overall decision. The
+default rules (the JCB rule per object and per field) decide the population
+summary only; declare a fingerprint or a rare target and the view says that
+no rule decides it until you pass `rules=(...)` with one that does (for
+example a `FOVBootstrapStrategy` on the covariance), and the overall decision
+stays unsupported rather than assuming the target adequate. It has two sources of fields: files on disk, or
 tables held in memory. Both give the same decisions as calling `add_fov`
 yourself with the same fields.
 

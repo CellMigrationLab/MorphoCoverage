@@ -35,6 +35,29 @@ def test_balanced_accepts_explicit_rare_target_and_requires_both_components():
 def test_population_objective_rejects_rare_targets():
     with pytest.raises(ValueError, match="population objective"):
         ObjectiveConfig(SamplingObjective.POPULATION, rare=_rare())
+    with pytest.raises(ValueError, match="phenotype objective"):
+        ObjectiveConfig(SamplingObjective.PHENOTYPE, rare=_rare())
+
+
+def test_distribution_phenotype_and_all_name_their_components():
+    components = lambda config: {c.value for c in config.required_components}  # noqa: E731
+    assert components(ObjectiveConfig(SamplingObjective.DISTRIBUTION)) == {"distribution"}
+    assert components(ObjectiveConfig(SamplingObjective.PHENOTYPE)) == {
+        "population",
+        "distribution",
+    }
+    assert components(ObjectiveConfig(SamplingObjective.ALL, rare=_rare())) == {
+        "population",
+        "distribution",
+        "rare",
+    }
+    with pytest.raises(ValueError, match="RareTarget is required"):
+        ObjectiveConfig(SamplingObjective.ALL)
+    # Balanced keeps its meaning: the summary and the rare state, not the fingerprint.
+    assert components(ObjectiveConfig(SamplingObjective.BALANCED, rare=_rare())) == {
+        "population",
+        "rare",
+    }
 
 
 def test_rare_target_must_be_a_rare_target():

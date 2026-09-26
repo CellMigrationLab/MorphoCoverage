@@ -155,8 +155,8 @@ def test_strategy_stops_once_novelty_is_within_tolerance():
         quantity = item.result.evidence.quantities["lofo_novel_fraction"]
         if quantity.availability.value == "available":
             expected = Decision.STOP if quantity.value <= 0.02 else Decision.CONTINUE
-            assert item.result.decision is expected
-    assert any(item.result.decision is Decision.STOP for item in results)
+            assert item.result.rule_decision is expected
+    assert any(item.result.rule_decision is Decision.STOP for item in results)
 
 
 @pytest.mark.parametrize(
@@ -349,7 +349,7 @@ def test_cell_weighted_and_fov_weighted_fractions_differ_with_unequal_fovs():
         [result] = run_strategies(
             data.objects, strategies=[strategy], feature_cols=["a", "b"], objective=POPULATION
         )
-        assert (result.decision is Decision.STOP) is stops
+        assert (result.rule_decision is Decision.STOP) is stops
 
 
 def test_support_needing_several_cells_matches_brute_force():

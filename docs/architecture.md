@@ -73,7 +73,7 @@ class DecisionPolicy:
 SamplingStrategy(estimators, policies, name=...)
 ```
 
-- **Evidence** is a set of named `Quantity` values. Each has a value, a `direction` (`lower_is_better` or `higher_is_better`), `units`, the objective `component` it is evidence about (`population` or `rare`), and an `availability`. `insufficient_data` means more acquisition may make it computable; `not_applicable` means it is undefined for these data. Either needs a reason, and NaN is never a value. Free-form diagnostics accompany the quantities.
+- **Evidence** is a set of named `Quantity` values. Each has a value, a `direction` (`lower_is_better` or `higher_is_better`), `units`, the objective `component` it is evidence about (`population`, `distribution` or `rare`), and an `availability`. `insufficient_data` means more acquisition may make it computable; `not_applicable` means it is undefined for these data. Either needs a reason, and NaN is never a value. Free-form diagnostics accompany the quantities.
 - **Policies** are `ThresholdPolicy(quantity, threshold)`, whose component is the quantity's own, and `EffortPolicy("n_fovs" | "n_observations", target)` (`n_objects` remains a compatibility alias) on framework-owned effort. Custom policies subclass `DecisionPolicy`.
 - **Combination** per objective is described in `docs/sampling_objectives.md`. A required component without a policy is `unsupported`, never `stop`.
 - **`redecide(result, policies, name=...)`** applies other policies to stored results. It equals re-running the same estimators with those policies, which makes threshold sweeps and Pareto curves cheap.
@@ -106,11 +106,14 @@ The objective is independent of the strategy.
 
 Current objective types are:
 
-- `population`
+- `population` (the population summary)
+- `distribution` (the phenotypic fingerprint)
 - `rare_discovery`
-- `balanced`
+- `phenotype` (summary and fingerprint)
+- `balanced` (summary and rare phenotype)
+- `all`
 
-Rare-discovery and balanced objectives require a `RareTarget`: object prevalence and/or FOV incidence, detection probability, minimum number of FOV occurrences, and a declared phenotype definition.
+The objectives with a rare component (`rare_discovery`, `balanced`, `all`) require a `RareTarget`: object prevalence and/or FOV incidence, detection probability, minimum number of FOV occurrences, and a declared phenotype definition. `workflows.Setup.objective()` picks the objective whose components are the declared targets.
 
 A strategy may perform well for one objective and poorly for another. That is a benchmarking result, not an API failure.
 
@@ -121,8 +124,8 @@ The framework builds every result; strategies never construct one. A `StrategyRe
 - strategy name and `config_id`;
 - objective;
 - evidence (quantities and diagnostics; `diagnostics` is a shortcut);
-- overall decision: `continue`, `stop`, `unsupported` or `None` (undefined);
-- `component_decisions`, one per component;
+- overall decision: `continue`, `stop`, `unsupported` or `None` (undefined), for the objective;
+- `component_decisions`, one per component, and `rule_decision`, the rule's own verdict over the components it decides (what a self-assessment, a replay or a calibration reads; `docs/sampling_objectives.md`);
 - number of FOVs and number of observations;
 - resolved condition/repeat group identity;
 - strategy parameters, and `configuration` (name, type, `config_id` and parameters of each estimator and policy);

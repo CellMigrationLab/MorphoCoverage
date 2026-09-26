@@ -137,7 +137,7 @@ def sweep(
         decided = rows.drop(columns=["result"]).copy()
         decisions = []
         for result in rows["result"]:
-            outcome = redecide(result, [policy], name=name).decision
+            outcome = redecide(result, [policy], name=name).rule_decision
             decisions.append(None if outcome is None else outcome.value)
         decided["decision"] = decisions
         decided["family"] = name

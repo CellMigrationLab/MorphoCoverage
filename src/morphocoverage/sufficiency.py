@@ -194,7 +194,8 @@ def _final_row(result: StrategyResult, group_cols: Sequence[str]) -> dict:
             "policies": _policies(result),
             "n_fovs": result.n_fovs,
             "n_observations": result.n_observations,
-            "verdict": None if result.decision is None else result.decision.value,
+            # The rule's own verdict, by its own threshold, whatever the objective asks.
+            "verdict": None if result.rule_decision is None else result.rule_decision.value,
             "undefined_reason": result.evidence.diagnostics.get("undefined_reason"),
             # The object-unit JCB rule treats objects as independent draws; the
             # sentence says so, since that is what makes a stop after one FOV possible.

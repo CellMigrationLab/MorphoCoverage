@@ -136,7 +136,7 @@ def test_strategy_stops_once_coverage_reaches_the_target():
         quantity = item.result.evidence.quantities["incidence_coverage"]
         if quantity.availability.value == "available":
             expected = Decision.STOP if quantity.value >= 0.95 else Decision.CONTINUE
-            assert item.result.decision is expected
+            assert item.result.rule_decision is expected
 
 
 @pytest.mark.parametrize(

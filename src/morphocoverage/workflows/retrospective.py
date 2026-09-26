@@ -17,9 +17,10 @@ in sentences:
 
 They add no scientific choice of their own: every one is in the ``Setup`` or
 an explicit argument. Each document opens with the setup's declaration of what
-the acquisition was asked to preserve, and ``optimise`` and ``benchmark`` judge
-every declared criterion (``Setup.criteria()``: the mean, the fingerprint, the
-labelled rare state) on held-back fields. ``document`` merges a report and a
+the acquisition was asked to preserve; every replay runs under the objective
+made of the declared targets (``Setup.objective()``), and ``optimise`` and
+``benchmark`` judge every declared criterion (``Setup.criteria()``: the mean,
+the fingerprint, the labelled rare state) on held-back fields. ``document`` merges a report and a
 plan into the full microscopist's report.
 """
 
@@ -33,7 +34,6 @@ import pandas as pd
 
 from ..benchmark import AcquisitionOrder
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
-from ..objectives import ObjectiveConfig, SamplingObjective
 from ..retrospective import (
     RepresentationControl,
     Summary,
@@ -56,7 +56,6 @@ from ..strategies.base import SamplingStrategy
 from ..sufficiency import sufficiency_report
 from .setup import Setup
 
-POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 REPORT_QUESTIONS = ("unit", "controls", "enough", "profile", "inspect")
 PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
 _UNUSUAL = "morphocoverage_unusual"
@@ -169,7 +168,7 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
         fovs,
         feature_cols=[readout, *[f for f in novelty_features if f != readout]],
         strategies=list(setup.stopping_rules()),
-        objective=POPULATION,
+        objective=setup.objective(),
         orders=_orders(setup, permuted=5, dispersed=0),
         novelty=setup.novelty,
         novelty_target=setup.novelty_target if setup.novelty is not None else None,
@@ -279,7 +278,7 @@ def optimise(
         feature_cols=setup.judged_columns,
         strategies=list(setup.stopping_rules()),
         criteria=criteria,
-        objective=POPULATION,
+        objective=setup.objective(),
         reservoir_fraction=reservoir_fraction,
         orders=_orders(setup, permuted_orders, dispersed_orders),
         acquisition_order_col=setup.acquisition_order_col,
@@ -439,7 +438,7 @@ def benchmark(
         feature_cols=setup.judged_columns,
         strategies=[f.strategy for f in families],
         criteria=criteria,
-        objective=POPULATION,
+        objective=setup.objective(),
         reservoir_fraction=reservoir_fraction,
         orders=_orders(setup, permuted_orders, dispersed=0),
         acquisition_order_col=setup.acquisition_order_col,

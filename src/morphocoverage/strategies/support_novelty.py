@@ -441,11 +441,15 @@ def new_state_members(
 
 
 def _meta(name: str) -> dict[str, Any]:
-    """Direction, units and component of a novelty quantity."""
+    """Direction, units and component of a novelty quantity.
+
+    Whether a field shows a state no other field supports is a property of
+    the distribution of phenotypes, not of its summary: distribution evidence.
+    """
     return {
         "direction": Direction.LOWER_IS_BETTER,
         "units": _UNITS[name],
-        "component": Component.POPULATION,
+        "component": Component.DISTRIBUTION,
     }
 
 
@@ -462,7 +466,7 @@ class SupportNoveltyEstimator(Estimator):
 
     Reports ``lofo_novel_fraction`` (object-weighted),
     ``lofo_mean_fov_novel_fraction`` (FOV-weighted), ``lofo_novel_fov_fraction``
-    and its upper bound (population, lower is better). See the module
+    and its upper bound (distribution evidence, lower is better). See the module
     docstring for the estimands, their weighting and their limits.
     """
 

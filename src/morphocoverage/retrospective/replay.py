@@ -61,8 +61,9 @@ class ReplayResult:
     """Decisions and outcomes after every prefix of every replayed acquisition.
 
     - ``decisions``: one row per group, split, order, strategy and prefix
-      length (``fovs``); ``decision`` is ``"stop"``, ``"continue"``,
-      ``"unsupported"`` or ``None`` (undefined).
+      length (``fovs``); ``decision`` is the rule's own verdict
+      (``StrategyResult.rule_decision``): ``"stop"``, ``"continue"`` or
+      ``None`` (undefined).
     - ``outcomes``: one row per group, split, order, prefix length and
       criterion, with the metric ``value`` and ``status`` (``preserved``,
       ``not_preserved``, ``undefined``) against that split's reservoir.
@@ -228,7 +229,8 @@ def _decide(
         min_fovs=min_fovs,
         incremental=incremental,
     ):
-        decision = None if result.decision is None else result.decision.value
+        # What the rule itself said (its own components), not the objective's verdict.
+        decision = None if result.rule_decision is None else result.rule_decision.value
         row = {
             **where,
             "strategy": result.strategy,

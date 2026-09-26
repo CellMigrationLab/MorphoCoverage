@@ -87,9 +87,9 @@ target that is not declared is printed as not declared, so an answer about
 the mean is never read as an answer about the distribution or about rare
 states. A fourth target, the **difference between conditions**, is a
 retrospective benchmark outcome and not a declaration yet (open work item 2).
-The ONLINE decision still runs under the population objective; a
-per-target decision needs a distribution component in the objective model
-(O4, open work).
+The live decision runs under the objective made of the declared targets
+(`Setup.objective()`: `population`, `phenotype`, `balanced` or `all`), and
+`decision_view` shows each target's decision and the overall (O4).
 
 Two distinctions run through all three:
 
@@ -149,8 +149,8 @@ extension, which changes the sampling distribution and needs its own design.
 |---|---|---|---|
 | O1 | **Should I continue or stop after this FOV?** | `OnlineSession.add_fov` | done |
 | O2 | **Why?** A short explanation, such as "population representation looks adequate, but the rare-state objective is not yet met". | `StrategyResult.explain()`: the rule, its evidence and the effort in one line | partial: one line per rule; no combined sentence across objectives |
-| O3 | **Which objective is driving the decision?** Population representation, rare phenotype discovery, or both. | `component_decisions` of each result | done |
-| O4 | **If the objectives disagree, is that obvious?** For example: "Population: STOP / Rare-state target: CONTINUE / Overall: CONTINUE". | the per-component decisions exist | partial: not rendered as one view |
+| O3 | **Which objective is driving the decision?** The population summary, the phenotypic fingerprint, the rare phenotype, or several. | `component_decisions` of each result; `rule_decision` for what the rule itself said | done |
+| O4 | **If the objectives disagree, is that obvious?** For example: "Population summary: stop / Phenotypic fingerprint: continue / Overall: continue". | `results.decision_view` over the rules of one acquisition state, printed by every live update | done; a target no rule decides is printed as such |
 | O5 | **How uncertain is the evidence?** A borderline quantity must not become an unconditional STOP. | upper bounds on some quantities (novelty bound, upper-95 SD) | gap: no margin or "borderline" state in the decision |
 | O6 | **How does this stopping rule perform on previously acquired datasets?** When this exact rule said STOP in replayed deep datasets, how often was it adequate? This is PLAN 6 seen from the microscope. | `stopping_calibration` of the same `config_id` | partial: not attached to the live session. **Benchmark** |
 | O7 | **Can the decision be made fast enough?** Is the analysis faster than the time before the next acquisition? | `Timing` on every result; measured latencies in `docs/online.md` | done |
@@ -184,7 +184,7 @@ extension, which changes the sampling distribution and needs its own design.
    `data/crick_idr/jcs_effect_fovs.py` (the JCS Fig. 3G-I analysis with whole
    fields, `docs/preliminary_findings.md` entry 9) and needs its own contract
    registry before it is packaged (AGENTS.md section 9).
-3. R6 as its own report section; P3 printed as increments; O4 as one view.
+3. R6 as its own report section; P3 printed as increments.
 4. O5, a borderline state in the decision, and O6, the calibration of the
    same rule attached to the live session.
 5. Data: deeper held-out acquisitions (30 or more FOVs per sample, five or

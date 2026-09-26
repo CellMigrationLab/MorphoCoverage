@@ -1,6 +1,19 @@
 # Sampling objectives
 
 MorphoCoverage does not define "enough imaging" without an acquisition objective.
+The objective names the targets a decision must cover, and they are the
+targets the microscopist declares (`docs/questions.md`, "Declare the
+target"; `workflows.Setup.objective()`): the population summary, the
+phenotypic fingerprint (the distribution component) and the rare phenotype.
+
+| Objective | Components required |
+|---|---|
+| `population` | population summary |
+| `distribution` | phenotypic fingerprint |
+| `rare_discovery` | rare phenotype |
+| `phenotype` | population summary and phenotypic fingerprint |
+| `balanced` | population summary and rare phenotype |
+| `all` | all three |
 
 ## Population representation
 
@@ -9,6 +22,20 @@ Question:
 > Have enough representative FOVs been acquired to obtain a stable description of the dominant phenotypic population?
 
 This objective prioritizes accurate representation of common population structure. Extremely rare observations should not force indefinite acquisition unless they materially affect the declared population-level target.
+
+## Phenotypic fingerprint (distribution)
+
+Question:
+
+> Have enough representative FOVs been acquired to describe the distribution
+> of phenotypes beyond its summary: its spread, its shape, the states present?
+
+Evidence about it is tagged `distribution`: the FOV-bootstrap uncertainty of
+the covariance, the quantiles and the PCA summaries (the centroid stays
+population evidence), the support-novelty quantities (a field showing a state
+no other field supports), the incidence coverage of labelled states, and the
+JCS descriptor rules whenever a spread descriptor (SD or IQR) is among the
+descriptors watched (location descriptors alone are population evidence).
 
 ## Rare-phenotype discovery
 
@@ -29,11 +56,15 @@ Cell prevalence and FOV incidence are distinct. A phenotype present in 1% of all
 
 A rare phenotype is also not automatically equivalent to a single outlier. Independent recurrence, coherent feature-space structure, annotation, or other evidence may be required to distinguish biology from segmentation or imaging artifacts.
 
-## Balanced sampling
+## Balanced sampling, and the objectives that combine targets
 
 Question:
 
 > Is the common population adequately represented, and has the requested rare-state discovery target also been met?
+
+`balanced` asks this (population summary and rare phenotype); `phenotype`
+asks for the summary and the fingerprint; `all` for all three. The combining
+rules below are the same for every objective.
 
 The two components remain visible separately. Every result has `component_decisions`, for example:
 
@@ -48,10 +79,31 @@ rather than collapsing both into one opaque coverage percentage.
 
 Estimators report quantities tagged with the component they are evidence about (`population` or `rare`); decision policies decide one component each. The framework combines them:
 
-- `population` needs a population decision, `rare_discovery` a rare one, and `balanced` both;
-- balanced stops only when both components stop;
-- a required component with no evidence of that kind gives `unsupported`, never `stop`. All current baselines are population rules, so under `rare_discovery` they return `unsupported`, while still reporting their population decision;
+- each objective needs a decision for every component in the table above;
+- an objective with several components stops only when every one stops;
+- a required component with no evidence of that kind gives `unsupported`, never `stop`. The current-practice baselines are population rules, so under `rare_discovery` or `distribution` they return `unsupported`, while still reporting their own verdict;
 - a quantity that needs more data gives `continue`; one that is undefined for the data gives `None`.
+
+Every result therefore carries two decisions. `decision` is the objective's,
+as above. `rule_decision` is the rule's own verdict, combined over the
+components its policies decide, whatever the objective; it is never
+`unsupported`. The live decision, `run_benchmark` and the contract tests read
+the first; a self-assessment ("did each criterion say enough, by its own
+threshold?"), a replay, a calibration and the frontier read the second, since
+they ask what the rule said, not whether the rule alone could settle the
+objective. `explain()` prints both when they differ, and
+`morphocoverage.results.decision_view` renders several rules on one
+acquisition state as one line per target and the overall decision, for
+example:
+
+```text
+Population summary: stop (2 rules); Phenotypic fingerprint: continue (1 rule);
+Overall (phenotype objective): continue
+```
+
+A required target that no rule decides is printed as such, and the overall
+decision stays `unsupported`: a target is never assumed adequate because no
+rule looked at it.
 
 ## Current API
 
@@ -61,6 +113,7 @@ The objective is represented independently from the strategy:
 from morphocoverage import ObjectiveConfig, RareTarget, SamplingObjective
 
 population = ObjectiveConfig(SamplingObjective.POPULATION)
+phenotype = ObjectiveConfig(SamplingObjective.PHENOTYPE)  # summary and fingerprint
 
 target = RareTarget(
     object_prevalence=0.01,

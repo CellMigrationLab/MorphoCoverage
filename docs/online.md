@@ -99,8 +99,20 @@ Contract tests require incremental replay to agree with full recomputation.
 
 Every `StrategyResult` has `explain()`: one line with the decision, each
 policy's rule beside its evidence, and the effort, for example
-`stop: lofo_novel_fov_upper = 0.24 (stop at <= 0.25, population); after 11
-FOVs, 1100 cells`. Read the quantity, not only the word: with nothing new among `k`
+`stop: lofo_novel_fov_upper = 0.24 (stop at <= 0.25, distribution); after 11
+FOVs, 1100 cells`. When the rule cannot settle the session's objective (a
+novelty rule under the population objective, a JCB rule under the phenotype
+objective) the line says `unsupported (the rule itself: continue): ...`, so
+the rule's own verdict is never hidden behind the objective's.
+
+Several rules on one acquisition state are read together with
+`morphocoverage.results.decision_view(results)`: one entry per target
+(population summary, phenotypic fingerprint, rare phenotype), the decision
+combined over the rules that decide it, then the overall decision for the
+objective; a required target no rule decides is printed as such and keeps the
+overall at `unsupported`. `LiveUpdate.summary()` ends with that line
+(`docs/questions.md`, O4). `live_session(setup)` runs under
+`setup.objective()`, whose components are the declared targets. Read the quantity, not only the word: with nothing new among `k`
 FOVs the novelty bound is `1 - 0.05 ** (1 / k)` whatever the data, so a stop
 on it after 11 FOVs is a statement about the next field, not about rare
 states (`docs/preliminary_findings.md`, entry 3). A rule's threshold is its

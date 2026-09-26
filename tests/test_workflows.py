@@ -117,6 +117,11 @@ def test_setup_declares_what_to_preserve_and_refuses_undeclared_targets():
     line = _setup(rare=prevalence_only).declaration()[2]
     assert "No field incidence was declared" in line and "not judged" in line
 
+    assert plain.objective().objective.value == "population"
+    assert _setup(fingerprint=(_fingerprint(),)).objective().objective.value == "phenotype"
+    assert _setup(rare=_rare()).objective().objective.value == "balanced"
+    assert full.objective().objective.value == "all"
+    assert declared[-1].startswith("Live decision: the all objective (population summary and")
     with pytest.raises(TypeError, match="fingerprint"):
         Setup(readout=READOUT, fingerprint=_fingerprint())  # one criterion, not a sequence
     with pytest.raises(TypeError, match="fingerprint"):
@@ -258,6 +263,28 @@ def test_live_folder_matches_live_tables_and_add_fov(tmp_path):
     expected = [[(r.decision, r.n_fovs, r.n_observations) for r in u] for u in by_session]
     assert _decisions(by_folder) == _decisions(by_tables) == expected
     assert folder.poll() == [] and tables.update(seen_objects, seen_fovs) == []
+
+
+def test_live_updates_end_with_one_view_per_target():
+    objects, fovs = _acquisition(n_fovs=4)
+    # A fingerprint is declared, so the live objective is phenotype; the default JCB
+    # rules decide the population summary only, and the view says so.
+    setup = _setup(fingerprint=(_fingerprint(),))
+    tables = LiveTables(live_session(setup))
+    updates = tables.update(objects, fovs)
+    assert updates
+    text = updates[-1].summary()
+    assert "Population summary:" in text
+    assert "Phenotypic fingerprint: no rule decides it" in text
+    assert (
+        "Overall (phenotype objective): unsupported (no rule decides the phenotypic fingerprint)"
+        in text
+    )
+    assert all(r.decision.value == "unsupported" for r in updates[-1].results)
+    assert all(r.rule_decision is not None for r in updates[-1].results)
+    # Without a fingerprint the same rules decide the population objective.
+    plain = LiveTables(live_session(_setup())).update(objects, fovs)
+    assert "Overall (population objective):" in plain[-1].summary()
 
 
 def test_live_folder_waits_for_an_unterminated_manifest_line(tmp_path):

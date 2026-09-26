@@ -25,7 +25,7 @@ from typing import Any
 from .evidence import Availability, Component, Direction, Evidence
 from .objectives import ObjectiveConfig
 from .provenance import class_identity, config_hash
-from .results import Decision, StrategyResult
+from .results import Decision, StrategyResult, combine_decisions
 
 _EFFORTS = ("n_fovs", "n_observations", "n_objects")
 
@@ -182,11 +182,7 @@ class EffortPolicy(DecisionPolicy):
 
 def _combine(decisions: Sequence[Decision | None]) -> Decision | None:
     """Undefined if any decision is, stop if all stop, otherwise continue."""
-    if any(decision is None for decision in decisions):
-        return None
-    if all(decision is Decision.STOP for decision in decisions):
-        return Decision.STOP
-    return Decision.CONTINUE
+    return combine_decisions(decisions)
 
 
 def decide(
