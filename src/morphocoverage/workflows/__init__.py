@@ -11,7 +11,10 @@ Declare the dataset once with a ``Setup``, then:
   memory): ONLINE, continue or stop while the microscope acquires, one field
   at a time;
 - ``benchmark(objects, fovs, setup, reservoir_fraction=...)``: BENCHMARK,
-  which rule needs the fewest fields for the same risk.
+  which rule needs the fewest fields for the same risk;
+- ``plots(objects, fovs, setup, folder=...)``: PlotsOfData-style figures of
+  the readout, every object a point coloured by repeat, the median with its
+  interval from resampling whole fields.
 
 Each returns its results with a ``summary()`` in sentences. The workflows add
 no scientific choice of their own; see ``docs/workflows.md``.
@@ -27,6 +30,7 @@ from .retrospective import (
     default_families,
     document,
     optimise,
+    plots,
     report,
 )
 from .setup import PositiveControl, Setup, default_novelty
@@ -47,6 +51,7 @@ __all__ = [
     "document",
     "live_session",
     "optimise",
+    "plots",
     "report",
     "write_fov",
 ]

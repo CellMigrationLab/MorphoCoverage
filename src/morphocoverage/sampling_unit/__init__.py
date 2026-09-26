@@ -32,7 +32,7 @@ The results on the committed data, in plain language, are in
 """
 
 from .clustering import FOVClustering, UnusualObjects, fov_clustering, unusual_objects
-from .contrast import ConditionContrast, cohen_d, condition_contrast
+from .contrast import ConditionContrast, condition_contrast
 from .object_rules import (
     DESCRIPTORS,
     RANDOM_OBJECTS,
@@ -54,7 +54,6 @@ __all__ = [
     "FOVVariability",
     "ObjectRuleCheck",
     "UnusualObjects",
-    "cohen_d",
     "condition_contrast",
     "descriptor_spread_check",
     "fov_clustering",

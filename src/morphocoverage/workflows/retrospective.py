@@ -16,8 +16,11 @@ in sentences:
   for rule families swept over threshold grids (``retrospective.frontier``).
 
 They add no scientific choice of their own: every one is in the ``Setup`` or
-an explicit argument. Each document opens with the setup's declaration of what
-the acquisition was asked to preserve; every replay runs under the objective
+an explicit argument. When the setup asks for it, the object table is first
+normalised to the control condition's mean, repeat by repeat
+(``Setup.prepared``), and every document says so in its overview. Each
+document opens with the setup's declaration of what the acquisition was asked
+to preserve; every replay runs under the objective
 made of the declared targets (``Setup.objective()``), and ``optimise`` and
 ``benchmark`` judge every declared criterion (``Setup.criteria()``: the mean,
 the fingerprint, the labelled rare state) on held-back fields. ``document`` merges a report and a
@@ -27,6 +30,7 @@ plan into the full microscopist's report.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -34,8 +38,12 @@ import pandas as pd
 
 from ..benchmark import AcquisitionOrder
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
+from matplotlib.figure import Figure
+
+from ..plots import plots_of_data
 from ..retrospective import (
     RepresentationControl,
+    dataset_overview,
     Summary,
     adequacy_points,
     effort_projection,
@@ -115,8 +123,16 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     _check_tables(objects, fovs, setup)
     common = setup.common
     readout = setup.readout
+    objects = setup.prepared(objects, fovs)
     results: dict[str, Any] = {
-        "variability": fov_variability(objects, fovs, feature=readout, **common)
+        "overview": dataset_overview(
+            objects,
+            fovs,
+            feature_cols=setup.columns,
+            normalized=setup.normalized_sentence(fovs),
+            **common,
+        ),
+        "variability": fov_variability(objects, fovs, feature=readout, **common),
     }
     if setup.control is not None:
         results["object_rules"] = object_rule_check(
@@ -269,6 +285,7 @@ def optimise(
     _check_tables(objects, fovs, setup)
     common = setup.common
     criteria = setup.criteria()
+    objects = setup.prepared(objects, fovs)
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(
         objects,
@@ -450,6 +467,7 @@ def benchmark(
     if not families or any(not isinstance(f, Family) for f in families):
         raise TypeError("families must be a non-empty sequence of Family")
     criteria = setup.criteria()
+    objects = setup.prepared(objects, fovs)
     replay = replay_acquisitions(
         objects,
         fovs,
@@ -517,3 +535,43 @@ __all__ = [
     "optimise",
     "report",
 ]
+
+
+def plots(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    setup: Setup,
+    *,
+    features: Sequence[str] | None = None,
+    folder: str | Path | None = None,
+    **settings: Any,
+) -> dict[str, list[Figure]]:
+    """PlotsOfData-style figures of the readout (or ``features``), on the prepared table.
+
+    Every object is a point coloured by repeat, with the median per condition
+    and its interval from resampling whole fields (``plots.plots_of_data``,
+    which also takes ``settings`` such as ``summary`` or ``max_conditions``).
+    With ``folder`` each figure is also saved there as
+    ``<feature>[_<part>].png``. Returns the figures by feature.
+    """
+    _check_tables(objects, fovs, setup)
+    chosen = [setup.readout] if features is None else list(features)
+    undeclared = sorted(set(chosen) - set(setup.columns))
+    if undeclared:
+        raise ValueError(f"features to plot must be declared in the setup: {undeclared}")
+    figures = plots_of_data(
+        setup.prepared(objects, fovs),
+        fovs,
+        features=chosen,
+        random_state=settings.pop("random_state", setup.random_state),
+        **settings,
+        **setup.common,
+    )
+    if folder is not None:
+        target = Path(folder)
+        target.mkdir(parents=True, exist_ok=True)
+        for feature, parts in figures.items():
+            for index, figure in enumerate(parts, start=1):
+                suffix = f"_{index}" if len(parts) > 1 else ""
+                figure.savefig(target / f"{feature}{suffix}.png", dpi=150)
+    return figures

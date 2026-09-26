@@ -18,7 +18,6 @@ import pytest
 from scipy import stats
 
 from morphocoverage.sampling_unit import (
-    cohen_d,
     condition_contrast,
     descriptor_spread_check,
     fov_clustering,
@@ -472,6 +471,8 @@ CONTRAST_GROUPS = ["condition", "repeat", "well"]
 
 
 def test_cohen_d_is_the_pooled_sd_effect_size():
+    from morphocoverage.statistics import cohen_d
+
     a, b = np.array([1.0, 2.0, 3.0, 4.0]), np.array([3.0, 4.0, 5.0, 6.0])
     assert cohen_d(b, a) == pytest.approx(2.0 / np.sqrt(5 / 3))
     assert np.isnan(cohen_d(np.array([1.0]), a))

@@ -24,10 +24,14 @@ foundation every other answer rests on, then answers the questions in order:
 9. Do the conditions differ, and how confidently? (``sampling_unit.condition_contrast``:
    each condition against the control, with objects and with fields as the unit)
 
-When the declaration of what the acquisition was asked to preserve is given
-(``workflows.Setup.declaration()``), it is printed before the Foundation, so
-every answer is read against a named target. A question without its analysis
-says "not assessed" and what it needs; nothing is filled in. The **sampling
+The report opens with what the tables hold (``dataset_overview``: objects,
+fields, features, conditions and repeats, normalisation) and with the
+declaration of what the acquisition was asked to preserve
+(``workflows.Setup.declaration()``), so every answer is read against a named
+target; it closes with "What this dataset cannot tell me" (R6): every question
+not assessed, with what it needs, and the notes to read the answers with. A
+question without its analysis says "not assessed" and what it needs; nothing
+is filled in. The **sampling
 profile** lists only measured quantities, each with its numbers and its
 source: how well a declared control is seen, the design effect of whole
 fields, where the variance of the mean sits, the distance over which
@@ -54,6 +58,7 @@ from .calibration import StoppingCalibration
 from .controls import ControlResult
 from .effort import EffortResult, design_effect, share_caveat
 from .inspection import InspectionResult
+from .overview import DatasetOverview
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
 from .spatial import EfficiencyResult
@@ -68,7 +73,9 @@ if TYPE_CHECKING:  # sampling_unit imports retrospective helpers, so it is impor
         UnusualObjects,
     )
 
+OVERVIEW_TITLE = "What is in the dataset"
 DECLARATION_TITLE = "What this acquisition was asked to preserve"
+LIMITS_TITLE = "What this dataset cannot tell me"
 
 QUESTIONS = (
     ("unit", "Foundation: why count fields, and not only objects?"),
@@ -108,12 +115,16 @@ class MicroscopistReport:
     notes: tuple[str, ...] = ()
     inputs: dict[str, str] = field(default_factory=dict)
     declaration: tuple[str, ...] = ()
+    overview: str | None = None
 
     def summary(self, questions: Sequence[str] | None = None) -> str:
         """The whole report, question by question, or only the ``questions`` keys given.
 
-        The declaration of what the acquisition was asked to preserve, when
-        given, comes first, whatever ``questions`` selects.
+        The dataset overview and the declaration of what the acquisition was
+        asked to preserve, when given, come first, and the closing section,
+        "What this dataset cannot tell me" (R6 of ``docs/questions.md``), lists
+        every question not assessed with what it needs and the notes to read
+        the answers with, whatever ``questions`` selects.
         """
         keys = [key for key, _ in QUESTIONS]
         if questions is not None:
@@ -121,6 +132,8 @@ class MicroscopistReport:
             if unknown:
                 raise ValueError(f"unknown report questions {unknown}; choose from {keys}")
         blocks = []
+        if self.overview:
+            blocks.append(f"{OVERVIEW_TITLE}\n{_indent(self.overview)}")
         if self.declaration:
             blocks.append(
                 f"{DECLARATION_TITLE}\n" + "\n".join(f"  - {line}" for line in self.declaration)
@@ -129,9 +142,19 @@ class MicroscopistReport:
             if questions is not None and key not in questions:
                 continue
             blocks.append(f"{title}\n{self.sections[key]}")
-        if self.notes:
-            blocks.append("Read with care\n" + "\n".join(f"  - {note}" for note in self.notes))
+        blocks.append(f"{LIMITS_TITLE}\n{self.limits(questions)}")
         return "\n\n".join(blocks)
+
+    def limits(self, questions: Sequence[str] | None = None) -> str:
+        """The questions not assessed (among ``questions``, or all), what each needs, the notes."""
+        missing = [
+            f"  - {title}: not assessed; needs: {_NEEDS[key]}."
+            for key, title in QUESTIONS
+            if (questions is None or key in questions) and self.inputs.get(key) == "not assessed"
+        ]
+        lines = missing or ["  - Every question was assessed."]
+        lines += [f"  - {note}" for note in self.notes]
+        return "\n".join(lines)
 
 
 def _indent(text: str) -> str:
@@ -396,6 +419,7 @@ def microscopist_report(
     unusual: UnusualObjects | None = None,
     clustering: FOVClustering | None = None,
     contrast: ConditionContrast | None = None,
+    overview: DatasetOverview | None = None,
     minimum_detection: float = 0.9,
     declaration: Sequence[str] = (),
 ) -> MicroscopistReport:
@@ -407,7 +431,8 @@ def microscopist_report(
     Below it, every adequacy section is prefixed with the detection rate, since
     a "nothing new" answer cannot exclude a phenotype the features miss.
     ``declaration`` is what the acquisition was asked to preserve, one sentence
-    per target (``workflows.Setup.declaration()``); the report prints it first.
+    per target (``workflows.Setup.declaration()``), and ``overview`` what the
+    tables hold (``dataset_overview``); the report prints them first.
     """
     from ..sampling_unit import (
         ConditionContrast,
@@ -439,6 +464,7 @@ def microscopist_report(
         (unusual, UnusualObjects, "unusual"),
         (clustering, FOVClustering, "clustering"),
         (contrast, ConditionContrast, "contrast"),
+        (overview, DatasetOverview, "overview"),
     ):
         _check(value, kind, name)
     parts: dict[str, list[str]] = {key: [] for key, _ in QUESTIONS}
@@ -525,7 +551,21 @@ def microscopist_report(
         for key, texts in parts.items()
     }
     inputs = {key: ("given" if parts[key] else "not assessed") for key, _ in QUESTIONS}
-    return MicroscopistReport(sections, profile, tuple(notes), inputs, tuple(declaration))
+    return MicroscopistReport(
+        sections,
+        profile,
+        tuple(notes),
+        inputs,
+        tuple(declaration),
+        None if overview is None else overview.summary(),
+    )
 
 
-__all__ = ["DECLARATION_TITLE", "QUESTIONS", "MicroscopistReport", "microscopist_report"]
+__all__ = [
+    "DECLARATION_TITLE",
+    "LIMITS_TITLE",
+    "OVERVIEW_TITLE",
+    "QUESTIONS",
+    "MicroscopistReport",
+    "microscopist_report",
+]

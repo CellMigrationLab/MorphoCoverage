@@ -37,7 +37,7 @@ MorphoCoverage is used in four modes. The first three are the moments of use of 
 | **ONLINE** | I am imaging now. Should I acquire another field? | only the FOVs acquired so far | `OnlineSession.add_fov`, with any `SamplingStrategy`; the same estimators and policies as replay |
 | **BENCHMARK** | Which stopping rule needs the fewest fields for the same risk of stopping too early? | development datasets for tuning, held-out datasets for scoring | `morphocoverage.retrospective.frontier` (fields saved at matched risk), `replay_acquisitions`, `morphocoverage.benchmark`; the locked protocol in `data/crick_idr/benchmark.py`; [`docs/benchmarking.md`](docs/benchmarking.md) |
 
-To run a new dataset through the four modes, declare it once in a `morphocoverage.workflows.Setup`, including what the acquisition must preserve (a population summary, a phenotypic fingerprint, a rare phenotype; every document opens with that declaration), and call `report`, `optimise`, `live_session` with `LiveFolder` (files on disk) or `LiveTables` (tables in memory), or `benchmark`. Each returns a `summary()` in sentences ([`docs/workflows.md`](docs/workflows.md)). The notebook [`notebooks/MorphoCoverage_Workflows_Example`](notebooks/MorphoCoverage_Workflows_Example/MorphoCoverage_Workflows_Example.ipynb) runs all four on the example dataset or your own tables, locally or on Google Colab.
+To run a new dataset through the four modes, declare it once in a `morphocoverage.workflows.Setup`, including what the acquisition must preserve (a population summary, a phenotypic fingerprint, a rare phenotype) and whether to normalise every feature to the control condition's mean per repeat; every document opens with what is in the dataset and that declaration, and closes with what the dataset cannot tell. `workflows.plots` draws PlotsOfData-style figures (every object a point coloured by repeat, the median with its interval from resampling whole fields). Then call `report`, `optimise`, `live_session` with `LiveFolder` (files on disk) or `LiveTables` (tables in memory), or `benchmark`. Each returns a `summary()` in sentences ([`docs/workflows.md`](docs/workflows.md)). The notebook [`notebooks/MorphoCoverage_Workflows_Example`](notebooks/MorphoCoverage_Workflows_Example/MorphoCoverage_Workflows_Example.ipynb) runs all four on the example dataset or your own tables, locally or on Google Colab.
 
 The report opens with the foundation every other answer rests on: a microscope acquires phenotype observations through spatial fields, not as an arbitrary random sample of individual objects, and whether that matters for a dataset is measured, not assumed (the Foundation section of [`docs/questions.md`](docs/questions.md); plain-language results: [`docs/objects_or_fields.md`](docs/objects_or_fields.md)). Everything except ONLINE is retrospective.
 
@@ -166,7 +166,7 @@ Read [`docs/project_aim.md`](docs/project_aim.md) for the detailed scientific ai
 
 ## Development
 
-Python 3.11+ is required.
+Python 3.11+ is required. Runtime dependencies: `numpy`, `pandas`, `scipy` and `matplotlib` (the last only for `morphocoverage.plots`).
 
 ```bash
 python -m pip install -e ".[dev]"

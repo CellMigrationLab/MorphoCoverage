@@ -30,6 +30,40 @@ def test_an_empty_report_says_what_each_question_needs():
     assert report.profile.empty
 
 
+def test_the_overview_opens_and_the_limits_close_the_report():
+    from morphocoverage.retrospective import dataset_overview
+    from morphocoverage.retrospective.report import LIMITS_TITLE, OVERVIEW_TITLE
+
+    built = SCENARIOS["condition_repeat_groups"]()
+    overview = dataset_overview(built.objects, built.fovs, feature_cols=list(FEATURE_COLS))
+    assert overview.counts["objects"] == len(built.objects)
+    assert overview.counts["fields"] == len(built.fovs)
+    assert overview.counts["features"] == len(FEATURE_COLS)
+    report = microscopist_report(overview=overview)
+    text = report.summary()
+    assert text.startswith(f"{OVERVIEW_TITLE}\n")
+    assert "feature column" in text and "condition" in text.split(DECLARATION_TITLE)[0]
+    assert text.rstrip().split("\n\n")[-1].startswith(LIMITS_TITLE)
+    limits = report.limits()
+    assert "1. Can these features detect what I care about?: not assessed; needs:" in limits
+    assert "No representation control" in limits  # the notes close the report
+    assert "Read with care" not in text
+    # An overview with many features lists the first twelve and counts the rest.
+    many = built.objects.assign(**{f"f{i}": 0.0 for i in range(15)})
+    columns = [*FEATURE_COLS, *(f"f{i}" for i in range(15))]
+    wide = dataset_overview(many, built.fovs, feature_cols=columns)
+    assert "and 5 more" in wide.summary()
+    single = SCENARIOS["homogeneous"]()
+    bare = dataset_overview(
+        single.objects.drop(columns=["condition", "repeat"]),
+        single.fovs.drop(columns=["condition", "repeat"]),
+        feature_cols=list(FEATURE_COLS),
+    )
+    assert "No condition or repeat column" in bare.summary()
+    # A selection of questions limits the closing section to those questions.
+    assert "4. How many fields" not in report.summary(["enough"])
+
+
 def test_the_declaration_is_printed_first_only_when_given():
     assert DECLARATION_TITLE not in microscopist_report().summary()
     report = microscopist_report(declaration=["Population summary: the mean of x within 5%."])

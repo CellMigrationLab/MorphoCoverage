@@ -122,6 +122,12 @@ def test_setup_declares_what_to_preserve_and_refuses_undeclared_targets():
     assert _setup(rare=_rare()).objective().objective.value == "balanced"
     assert full.objective().objective.value == "all"
     assert declared[-1].startswith("Live decision: the all objective (population summary and")
+    with pytest.raises(ValueError, match="normalize must be"):
+        Setup(readout=READOUT, control={"condition": "control"}, normalize="z-score")
+    with pytest.raises(ValueError, match="name the condition column"):
+        Setup(readout=READOUT, normalize="control_mean")
+    normalised = _setup(normalize="control_mean")
+    assert "divided by the mean of the control" in normalised.declaration()[-2]
     with pytest.raises(TypeError, match="fingerprint"):
         Setup(readout=READOUT, fingerprint=_fingerprint())  # one criterion, not a sequence
     with pytest.raises(TypeError, match="fingerprint"):
@@ -146,7 +152,7 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     setup = _setup(fingerprint=(_fingerprint(),), rare=_rare(), rare_label="state")
     result = report(objects, fovs, setup)
     text = result.summary()
-    assert text.startswith(DECLARATION_TITLE)
+    assert text.startswith("What is in the dataset") and DECLARATION_TITLE in text
     fingerprint_line = text.index("Phenotypic fingerprint: the covariance")
     assert fingerprint_line < text.index("Foundation: why count")
     plan = optimise(
@@ -166,7 +172,8 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     assert text.startswith(DECLARATION_TITLE)
     assert "how many fields do you need for the covariance of the features within 50%?" in text
     assert "the rare phenotype (planted) seen in at least 1 field" in text
-    assert document(result, plan).summary().startswith(DECLARATION_TITLE)
+    merged = document(result, plan).summary()
+    assert merged.startswith("What is in the dataset") and DECLARATION_TITLE in merged
     with pytest.raises(ValueError, match="rare_label"):
         report(objects.drop(columns="state"), fovs, setup)
 
@@ -185,6 +192,14 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     # A control condition and another condition: the contrast runs, per repeat.
     assert "9. Do the conditions differ" in text and "drug vs control" in text
     assert list(result.results["contrast"].table["repeat"]) == ["R1", "R2"]
+    assert text.startswith("What is in the dataset") and "What this dataset cannot tell me" in text
+    assert result.results["overview"].counts["fields"] == len(fovs)
+    # Normalised to the control: the control mean of the readout is 1 in every repeat.
+    normalised = report(objects, fovs, _setup(normalize="control_mean"))
+    assert "Values: every feature divided by the mean of the control" in normalised.summary()
+    means = normalised.results["variability"].groups
+    control = means[means["condition"] == "control"]
+    assert control["mean"].tolist() == pytest.approx([1.0] * len(control))
     pd.testing.assert_frame_equal(objects, before[0])
     pd.testing.assert_frame_equal(fovs, before[1])
     assert report(objects, fovs, setup).summary() == text  # deterministic

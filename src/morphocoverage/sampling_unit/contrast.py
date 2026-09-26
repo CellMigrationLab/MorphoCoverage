@@ -27,7 +27,8 @@ pooled within the repeat, and the summary says so):
   and as whole fields in random order (what a microscope stopping at that
   count has), with the median and interquartile band over ``n_draws`` and the
   share of draws whose sign agrees with the full-data effect, as in
-  ``data/crick_idr/jcs_effect_fovs.py``.
+  ``data/crick_idr/jcs_effect_fovs.py``. The statistics themselves live in
+  ``morphocoverage.statistics``.
 
 The check describes what these fields support about a difference between
 conditions under this feature; it is retrospective, and it is not the user's
@@ -45,55 +46,12 @@ import pandas as pd
 
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective._text import group_identity, unit_plural
+from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import check_count, check_seed, fov_values, groups, validated
 
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
 RANDOM_OBJECTS = "random objects"
 WHOLE_FOVS = "whole FOVs"
-
-
-def cohen_d(first: np.ndarray, second: np.ndarray) -> float:
-    """Cohen's d with the pooled sample variance, as Plot&Stats computes it; NaN if undefined."""
-    n1, n2 = len(first), len(second)
-    if n1 < 2 or n2 < 2:
-        return float("nan")
-    pooled = ((n1 - 1) * first.var(ddof=1) + (n2 - 1) * second.var(ddof=1)) / (n1 + n2 - 2)
-    if pooled <= 0:
-        return float("nan")
-    return float((first.mean() - second.mean()) / np.sqrt(pooled))
-
-
-def _field_sample(fields: list[np.ndarray], n: int, rng: np.random.Generator) -> np.ndarray:
-    """Whole fields in random order until ``n`` objects, with a random part of the last one."""
-    taken, count = [], 0
-    for i in rng.permutation(len(fields)):
-        field = fields[i]
-        need = n - count
-        if len(field) >= need:
-            taken.append(rng.choice(field, size=need, replace=False))
-            break
-        taken.append(field)
-        count += len(field)
-    return np.concatenate(taken)
-
-
-def _fields_holding(fields: list[np.ndarray], n: int, rng: np.random.Generator) -> float:
-    """Mean number of fields, in random order, whose objects reach ``n``."""
-    counts = []
-    for _ in range(50):
-        total, k = 0, 0
-        for i in rng.permutation(len(fields)):
-            k += 1
-            total += len(fields[i])
-            if total >= n:
-                break
-        counts.append(k)
-    return float(np.mean(counts))
-
-
-def _jcs_effect(treated: np.ndarray, control: np.ndarray) -> float:
-    sd = control.std(ddof=1) if len(control) > 1 else 0.0
-    return float((treated.mean() - control.mean()) / sd) if sd > 0 else float("nan")
 
 
 @dataclass(frozen=True)
@@ -332,7 +290,7 @@ def condition_contrast(
             "d_fields": cohen_d(t_means, c_means),
             "p_value": np.nan,
             "p_bonferroni": np.nan,
-            "effect_full": _jcs_effect(t_objects, c_objects) if len(c_objects) > 1 else np.nan,
+            "effect_full": jcs_effect_size(t_objects, c_objects),
             "status": "ok",
         }
         if len(t_means) < 2 or len(c_means) < 2:
@@ -362,9 +320,9 @@ def condition_contrast(
                         t = rng.choice(t_objects, size=n, replace=False)
                         c = rng.choice(c_objects, size=n, replace=False)
                     else:
-                        t = _field_sample([f for f in t_fields if len(f)], n, rng)
-                        c = _field_sample([f for f in c_fields if len(f)], n, rng)
-                    draws[i] = _jcs_effect(t, c)
+                        t = field_sample([f for f in t_fields if len(f)], n, rng)
+                        c = field_sample([f for f in c_fields if len(f)], n, rng)
+                    draws[i] = jcs_effect_size(t, c)
                 defined = draws[np.isfinite(draws)]
                 effect_rows.append(
                     {
@@ -380,7 +338,7 @@ def condition_contrast(
                             else np.nan
                         ),
                         "fields_treated": (
-                            _fields_holding([f for f in t_fields if len(f)], n, rng)
+                            fields_holding([f for f in t_fields if len(f)], n, rng)
                             if sampling == WHOLE_FOVS
                             else np.nan
                         ),
@@ -395,4 +353,4 @@ def condition_contrast(
     return ConditionContrast(table, pd.DataFrame(effect_rows), settings)
 
 
-__all__ = ["ConditionContrast", "cohen_d", "condition_contrast"]
+__all__ = ["ConditionContrast", "condition_contrast"]

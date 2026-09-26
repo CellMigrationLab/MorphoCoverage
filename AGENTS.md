@@ -15,7 +15,7 @@
 | Lint | `ruff check src tests data` and `ruff format --check src tests data` (ruff pinned in `pyproject.toml`; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
-Key dependencies: `numpy`, `pandas`, `scipy` (runtime); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
+Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; matplotlib only in `morphocoverage.plots`, added 2026-09-26 at the project owner's request for the PlotsOfData-style figures); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
 
 MorphoCoverage is deliberately independent of CellPatcher, fiberfeatures, Nyxus, CellProfiler, DINO, Torch, microscopy file formats, segmentation tools, and microscope-control software.
 
@@ -196,6 +196,9 @@ src/morphocoverage/
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
+    statistics.py          # shared statistics: Cohen's d, JCS effect size, whole-field sampling and bootstrap
+    normalize.py           # features divided by the control condition's mean, repeat by repeat
+    plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
         hierarchy.py       # SamplingHierarchy: declared FOV / sample / repeat levels
@@ -210,10 +213,12 @@ src/morphocoverage/
         stage.py           # dispersed (farthest-point) orders and stage travel
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
+        overview.py        # what is in the dataset: counts, features, conditions and repeats
         _text.py           # private: shared wording and group seeding for summaries
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
+        contrast.py        # each condition against the control, on objects and with the field as unit
         clustering.py      # unusual (out-of-distribution) objects; state clustering by FOV
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         setup.py           # Setup: every scientific choice of the workflows, declared once

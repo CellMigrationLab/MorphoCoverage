@@ -26,10 +26,15 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from ..evidence import Component
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
+from ..normalize import METHODS as NORMALIZATIONS
+from ..normalize import normalize_to_control
 from ..outcomes import RareStateDetected, RelativeMeanError
+from ..retrospective.overview import normalized_sentence
 from ..results import COMPONENT_WORDS
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
@@ -78,6 +83,12 @@ class Setup:
     - ``control``: the negative-control groups, for example
       ``{"condition": "MOCK"}``; it normalizes the JCB rule and is the
       reference for unusual objects.
+    - ``normalize``: ``"control_mean"`` divides every feature (the readout
+      included) by the mean of the control condition's objects of the same
+      repeat before any retrospective analysis (``normalize_to_control``);
+      needs ``control`` to name the condition column. The live session runs
+      on raw values, since it sees one group at a time. ``None`` keeps the
+      values as given.
     - ``positive``: a ``PositiveControl``, for the detection check.
     - ``tolerances``: the readout's mean within these fractions, the outcomes
       judged on held-back FOVs and the JCB targets; default the paper's 5% and
@@ -111,6 +122,7 @@ class Setup:
     readout: str
     features: tuple[str, ...] = ()
     control: Mapping[str, Any] | None = None
+    normalize: str | None = None
     positive: PositiveControl | None = None
     tolerances: tuple[float, ...] = (0.05, 0.025)
     fingerprint: tuple[OutcomeCriterion, ...] = ()
@@ -163,6 +175,14 @@ class Setup:
             raise TypeError("positive must be a PositiveControl")
         if self.positive is not None and self.control is None:
             raise ValueError("a positive control is checked against the control: declare both")
+        if self.normalize is not None:
+            if self.normalize not in NORMALIZATIONS:
+                raise ValueError(f"normalize must be one of {list(NORMALIZATIONS)} or None")
+            if self.control is None or MORPHOBRICKS_GROUP_COLUMNS[0] not in self.control:
+                raise ValueError(
+                    "normalize needs control to name the condition column, for example "
+                    "control={'condition': 'MOCK'}"
+                )
         # A declaration the workflows could not use is refused, never silently skipped.
         if self.novelty is not None and not self.features:
             raise ValueError(
@@ -205,6 +225,37 @@ class Setup:
         """The readout plus every column a declared criterion reads: what the planning
         analyses validate and carry."""
         return [self.readout, *(c for c in self.criterion_columns if c != self.readout)]
+
+    def prepared(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
+        """The object table every retrospective analysis reads: normalised when asked.
+
+        With ``normalize="control_mean"`` every declared column is divided by
+        its repeat's control mean; otherwise ``objects`` is returned unchanged.
+        A repeat without a control raises (``normalize_to_control``).
+        """
+        if self.normalize is None:
+            return objects
+        assert self.control is not None
+        return normalize_to_control(
+            objects,
+            fovs,
+            feature_cols=self.columns,
+            control=self.control,
+            repeat_col=self.repeat_col(fovs),
+            **self.common,
+        )
+
+    def repeat_col(self, fovs: pd.DataFrame) -> str | None:
+        """The repeat column when the FOV table has one."""
+        column = MORPHOBRICKS_GROUP_COLUMNS[1]
+        return column if column in fovs.columns else None
+
+    def normalized_sentence(self, fovs: pd.DataFrame) -> str | None:
+        """How the values are normalised, or ``None`` when they are not."""
+        if self.normalize is None:
+            return None
+        assert self.control is not None
+        return normalized_sentence(self.control, self.repeat_col(fovs))
 
     def objective(self) -> ObjectiveConfig:
         """The objective whose components are the declared targets.
@@ -291,6 +342,12 @@ class Setup:
             f"Representation: readout {self.readout}; {features} for unusual objects and new "
             f"phenotypes; definition of new: {new}."
         )
+        if self.normalize is not None:
+            lines.append(
+                "Values: every declared feature divided by the mean of the control "
+                f"{dict(self.control or {})} objects of the same repeat before every "
+                "retrospective analysis; the live decision runs on raw values."
+            )
         objective = self.objective()
         targets = " and ".join(
             COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components

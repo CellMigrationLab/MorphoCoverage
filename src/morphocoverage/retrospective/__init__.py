@@ -24,6 +24,7 @@ from .inspection import InspectionResult, Summary, inspect_fovs
 from .protocol import ProtocolResult, protocol_reliability
 from .reliability import ReliabilityResult, reliability_summary, sampling_reliability
 from .replay import ReplayResult, default_orders, replay_acquisitions
+from .overview import DatasetOverview, dataset_overview
 from .report import MicroscopistReport, microscopist_report
 from .spatial import (
     EfficiencyResult,
@@ -34,6 +35,8 @@ from .spatial import (
 )
 
 __all__ = [
+    "DatasetOverview",
+    "dataset_overview",
     "ALL_CRITERIA",
     "AdequacyResult",
     "ControlResult",

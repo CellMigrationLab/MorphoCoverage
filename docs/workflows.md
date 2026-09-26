@@ -27,6 +27,7 @@ setup = Setup(
     readout="YAPTAZ_Ratio",                  # the scalar you report
     features=features,                        # explicit columns; never inferred
     control={"condition": "MOCK"},            # negative-control groups
+    normalize="control_mean",                 # or None: divide by the repeat's control mean
     positive=PositiveControl({"condition": "YAP"}, fovs_seen=10, pair_cols=("repeat",)),
     novelty=default_novelty(features),        # the definition of "new"; None to skip
     tolerances=(0.05, 0.025),                 # the readout's mean within 5% and 2.5%
@@ -42,6 +43,18 @@ Every field left at `None` switches off the analyses that need it. The report
 then says "Not assessed" and names what would be needed. The stopping rules
 default to the JCB rule (upper-95 SD, first tolerance), per object and per
 field; pass `rules=(...)` to assess others.
+
+### Normalising to the control
+
+`normalize="control_mean"` divides every declared column (the readout and
+the features) by the mean of the control condition's objects of the same
+repeat before any retrospective analysis, as the JCB rule and the lab's
+Plot&Stats notebook express values (`morphocoverage.normalize`). It needs
+`control` to name the condition column, every repeat must hold control
+objects (a repeat without them raises, since mixing scales inside one
+analysis would be worse than stopping), and the report's overview and the
+declaration say that the values are normalised. The live session runs on raw
+values, because it sees one group at a time and has not seen the control.
 
 ### What must the acquisition preserve?
 
@@ -97,9 +110,39 @@ on `features` only, never on the readout, and the report names those columns.
 from morphocoverage.workflows import report
 
 result = report(objects, fovs, setup)        # fovs lists every acquired field
-print(result.summary())                      # the declaration, the Foundation, questions 1 to 3, 6 and 9
+print(result.summary())                      # overview, declaration, Foundation, questions 1 to 3, 6, 9, limits
 result.results["sufficiency"]                # each analysis, for further use
 ```
+
+Every document opens with **what is in the dataset**: objects, acquired
+fields and empty fields, what one row is, the feature columns (the first 12
+names, then how many more), the conditions and repeats with a table of fields
+by condition and repeat, and whether the values are normalised. It closes
+with **what this dataset cannot tell me**: every question not assessed, with
+what it would need (a control, a positive control, stage coordinates, a
+hierarchy, a replay), and the notes to read the answers with. Missing
+columns never stop the report: without `condition` or `repeat` every field is
+one group and the sections that need them say so.
+
+## Plots: every object a point, the interval from fields
+
+```python
+from morphocoverage.workflows import plots
+
+figures = plots(objects, fovs, setup, folder="figures")   # the readout by default
+figures = plots(objects, fovs, setup, features=["YAPTAZ_Ratio", "Nuclei_Area"])
+```
+
+PlotsOfData-style figures (`morphocoverage.plots`): per feature and
+condition, every object is a jittered point coloured by repeat, the median
+(or `summary="mean"`) is drawn per condition, and its 95% interval comes
+from resampling whole fields, not objects, so it reflects how the data were
+sampled. More than 12 conditions are split over several figures, more than 8
+repeats share one grey and the legend says so, and more than 24 features
+raise so that you choose; all three are arguments (`max_conditions`,
+`max_repeats`, `max_features`). The features must be declared in the setup,
+and the plots use the same normalised values as the report when
+`normalize` is set. With `folder`, each figure is saved as a PNG.
 
 When `control` names a condition and the FOV table holds other conditions,
 the report also answers question 9, "Do the conditions differ, and how

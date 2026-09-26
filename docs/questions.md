@@ -118,7 +118,7 @@ measurements or diagnostics to report, not to rank.
 | R3 | **Would another representative FOV likely have shown something new?** What phenotype information might still be missing? | next-FOV novelty chance with its nominal bound, checked by `calibrate_next_fov_novelty`; what the FOVs rule out (about 3 / k) | done. **Benchmark** (calibration of a probability) |
 | R4 | **What is limiting my sampling?** Too few FOVs, strong FOV heterogeneity, spatial correlation, rare-state clustering, or a poor representation? | the sampling profile of `microscopist_report`: design effect, variance components, redundancy distance, control detection, fields with new states; rare-state clustering by field (`sampling_unit.fov_clustering`, on labels from `unusual_objects` or any other source): field incidence against random objects, and the fields needed to see the state | done; clustering is only as good as its labels |
 | R5 | **Which FOVs should I go back and inspect?** Unique states, strong influence, disagreement with neighbours, empty or unusual fields. | `inspect_fovs`, one reason per line, no combined score, no FOV called an artifact | done |
-| R6 | **What can this dataset not tell me?** For example: too shallow to assess a 1% state, no positive control, no stage coordinates, only one biological repeat. | "not assessed" lines, ceilings and notes spread across the report | partial: needs one section that lists every limit in one place |
+| R6 | **What can this dataset not tell me?** For example: too shallow to assess a 1% state, no positive control, no stage coordinates, only one biological repeat. | the closing section of `microscopist_report`, "What this dataset cannot tell me": every question not assessed with what it needs, then the notes to read the answers with; ceilings stay beside the curves they cap | done |
 | R7 | **Do the conditions differ, and how confidently?** Each condition against the declared control, per repeat: the effect size on objects (as the lab's Plot&Stats notebook computes it) and on field means, a randomization test that shuffles condition labels over whole fields, and the JCS effect size from `n` objects drawn as random objects and as whole fields. | `sampling_unit.condition_contrast`; section 9 of `microscopist_report`; run by the `report` workflow whenever a control condition is declared and others exist | done, descriptive: what these fields support about a difference under this feature; generalizing needs independent repeats. Whether a stop at `k` fields preserves the contrast is an OPTIMISE outcome, pending the multi-group outcome contract (open work item 2) |
 
 ## 2. OPTIMISE / PLAN: "What should I do next time?"
@@ -188,7 +188,7 @@ extension, which changes the sampling distribution and needs its own design.
    `data/crick_idr/jcs_effect_fovs.py` (the JCS Fig. 3G-I analysis with whole
    fields, `docs/preliminary_findings.md` entry 9) and needs its own contract
    registry before it is packaged (AGENTS.md section 9).
-3. R6 as its own report section; P3 printed as increments.
+3. P3 printed as increments.
 4. O5, a borderline state in the decision, and O6, the calibration of the
    same rule attached to the live session.
 5. Data: deeper held-out acquisitions (30 or more FOVs per sample, five or

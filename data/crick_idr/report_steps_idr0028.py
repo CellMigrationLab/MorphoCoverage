@@ -57,6 +57,7 @@ from morphocoverage import (
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
+    dataset_overview,
     OutcomeCriterion,
     ReliabilityResult,
     RepresentationControl,
@@ -74,6 +75,7 @@ from morphocoverage.retrospective import (
     stopping_calibration,
 )
 from morphocoverage.sampling_unit import (
+    condition_contrast,
     fov_clustering,
     fov_variability,
     object_rule_check,
@@ -247,7 +249,8 @@ def order(objects, fovs):
 
 
 def sampling_unit(dataset) -> dict:
-    """Foundation and R4: fields against random objects, and unusual objects clustered by field."""
+    """The overview, the Foundation, R4 and R7: what the tables hold, fields against random
+    objects, unusual objects clustered by field, and each condition against MOCK."""
     objects, fovs = dataset.tables
     common = {"group_cols": list(dataset.groups), "observation_unit": dataset.observation_unit}
     reference = {"condition": dataset.control}
@@ -255,6 +258,10 @@ def sampling_unit(dataset) -> dict:
         objects, fovs, feature_cols=list(dataset.features), reference=reference, **common
     )
     return {
+        "overview": dataset_overview(
+            objects, fovs, feature_cols=[RATIO, *dataset.features], **common
+        ),
+        "contrast": condition_contrast(objects, fovs, feature=RATIO, control=reference, **common),
         "variability": fov_variability(objects, fovs, feature=RATIO, **common),
         "object_rules": object_rule_check(
             objects, fovs, feature=RATIO, control=reference, **common
@@ -322,6 +329,9 @@ def main() -> None:
     unit = _timed("objects or fields", lambda: sampling_unit(dataset))
     for part in unit.values():
         print(part.summary(), "\n")
+    unit["contrast"].table.to_csv(
+        RESULTS / "contrast_idr0028.csv", index=False, float_format="%.4g"
+    )
 
     # Step 10: every answer in one document (Step 1 curves reloaded from their tables).
     report = microscopist_report(

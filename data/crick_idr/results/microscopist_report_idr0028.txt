@@ -1,4 +1,20 @@
-1. Can I count objects, or must I count fields?
+What is in the dataset
+  9550 nuclei in 336 acquired fields; a field is identified by condition, repeat, well, image_file.
+  31 feature columns: YAPTAZ_Ratio, Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ, Nuclei_Intensity_IntegratedIntensity_YAPTAZ, Nuclei_Intensity_LowerQuartileIntensity_YAPTAZ, Nuclei_Intensity_MADIntensity_YAPTAZ, Nuclei_Intensity_MassDisplacement_YAPTAZ, Nuclei_Intensity_MaxIntensityEdge_YAPTAZ, Nuclei_Intensity_MaxIntensity_YAPTAZ, Nuclei_Intensity_MeanIntensityEdge_YAPTAZ, Nuclei_Intensity_MeanIntensity_YAPTAZ, Nuclei_Intensity_MedianIntensity_YAPTAZ, Nuclei_Intensity_MinIntensityEdge_YAPTAZ and 19 more.
+  4 conditions (condition: MOCK, LATS1, YAP, ARAP2); 3 repeats (repeat: 1A, 2A, 2B).
+    condition  repeat  fields  empty  nuclei
+    MOCK  1A  28  0  966
+    LATS1  1A  56  0  1365
+    YAP  1A  56  0  1258
+    ARAP2  2A  28  0  797
+    LATS1  2A  28  0  736
+    MOCK  2A  28  0  953
+    YAP  2A  28  0  557
+    ARAP2  2B  56  0  1955
+    MOCK  2B  28  0  963
+  Values: as given (not normalised).
+
+Foundation: why count fields, and not only objects?
   How variable are the fields? Feature YAPTAZ_Ratio.
   condition=MOCK, repeat=1A, well=B6: 28 fields, 966 nuclei (34 per field). 2% of the variance lies between fields. A mean from whole fields has 1.7 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.3-fold. 14% of fields differ more than random nuclei would let them (about 5% expected).
   condition=LATS1, repeat=1A, well=I23: 28 fields, 718 nuclei (26 per field). 4% of the variance lies between fields. A mean from whole fields has 2.0 times the variance of one from as many random nuclei, so SD / sqrt(n) understates its error 1.4-fold. 11% of fields differ more than random nuclei would let them (about 5% expected).
@@ -39,7 +55,7 @@
   condition=MOCK, repeat=2B, well=P13, target 5.0%: the rule asks for 2 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.9% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (1 from the upper-95 SD) of 28 acquired.
   condition=MOCK, repeat=2B, well=P13, target 2.5%: the rule asks for 7 nuclei, which took 1.0 fields. SD / sqrt(n) predicts 1.2%; the real error of that mean is 1.8% (1.6 times), so it meets the target. With fields as the unit the rule asks for 1 field (2 from the upper-95 SD) of 28 acquired.
 
-2. Can these features detect what I care about?
+1. Can these features detect what I care about?
   Can these features see the declared phenotype? (after 10 reference fields)
     Fields of the declared positive control were recognized as different in 100% of 1680 checks.
     Ordinary reference fields with 5 positive-control objects added were recognized in 100% of 720 checks.
@@ -48,7 +64,7 @@
     Not judged: repeat=2B (no positive-control FOV).
     This holds for this definition of new and these features, on these controls; a phenotype unlike the control may be seen better or worse.
 
-3. Did I image enough?
+2. Did I image enough?
   condition=MOCK, repeat=1A, well=B6:
     Did each criterion say enough? (its own threshold, not a held-out check)
     - fixed_fov (n_fovs >= 8): its target was reached by the 28 acquired FOVs; first met after 8 FOVs (10-90%: 8-8) over 6 orders.
@@ -552,7 +568,7 @@
       for the well mean within 2.5%: 12% of acquisitions stopped too early, 88% stopped with it preserved.
     Judged on held-back fields the rule never saw; each acquisition is one hold-out and one order of the same fields, not an independent experiment.
 
-4. What is limiting my sampling?
+3. What is limiting my sampling?
   a mean from whole fields varies 2.1 times as much as one from as many random nuclei (design effect, range 1.0-3.4); 16% of fields differ more than random nuclei would (5% expected) [median of 12 groups; fov_variability]
   unusual: clustered in a few fields (p <= 0.05) in 5 of the 11 groups where it was seen; there, seeing it takes about 1.9 times the fields that a count of nuclei predicts [all groups; fov_clustering]
   100% of declared positive-control fields recognized as different [pooled; representation_control]
@@ -593,7 +609,7 @@
   condition=ARAP2, repeat=2B, well=C17, unusual: 19 nuclei (2.0%) in 12 of 28 fields; random nuclei would fill 13.9 (clustering ratio 1.2, p = 0.2). To see it with 95% chance: 6 fields (up to 10) from its field incidence, against 5 fields if the nuclei were random.
   condition=MOCK, repeat=2B, well=P13, unusual: 6 nuclei (0.6%) in 5 of 28 fields; random nuclei would fill 5.5 (clustering ratio 1.1, p = 0.47). To see it with 95% chance: 16 fields (up to 40) from its field incidence, against 14 fields if the nuclei were random.
 
-5. How many fields should I image next time?
+4. How many fields should I image next time?
   condition=MOCK, repeat=1A, well=B6: how many fields do you need for the well mean of YAP/TAZ ratio within 5%?
     2 fields: enough in 100% of random acquisitions (±0% across hold-outs)
     4 fields: enough in 100% of random acquisitions (±0% across hold-outs)
@@ -1026,7 +1042,7 @@
     For 3 repeats, the others reached no number that served enough samples, so nothing was checked there.
     Uncertainty is large with only 3 repeats: add more before fixing a protocol.
 
-6. What did the extra fields buy?
+5. What did the extra fields buy?
   condition=MOCK, repeat=1A, well=B6: when was it enough? (medians over hold-outs and orders)
     Spreading the same positions out: judged on held-back fields, everything you wanted was first preserved at field 1 and reliably from field 1 (medians; by field 2 in 90% of runs).
       scalar_precision_object_upper95 (feature=YAPTAZ_Ratio, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95) would have first said stop at field 1, and kept saying stop from field 1.
@@ -1207,7 +1223,7 @@
       fixed_fov (target_fovs=8) would have first said stop at field 8, and kept saying stop from field 8.
     'Reliably' means every later field count, up to the last available field, also preserved it; each hold-out is a different set of held-back fields.
 
-7. Which fields should I look at?
+6. Which fields should I look at?
   condition=YAP, repeat=1A, well=N23: fields to reopen before trusting the result
     014023-15.tif: 3 objects of a state no other field shows.
     None of these is called an error: look at the images to see whether it is biology, technique or simply a large field.
@@ -1221,7 +1237,7 @@
     003013-26.tif: 3 objects of a state no other field shows.
     None of these is called an error: look at the images to see whether it is biology, technique or simply a large field.
 
-8. More fields or more samples?
+7. More fields or more samples?
   condition=MOCK: more fields or more samples, for the mean YAPTAZ_Ratio?
     Most of the uncertainty of the mean is between fields within a sample (52% of its variance with the acquired design; not established: only 3 samples).
     More fields or more samples: cannot tell from these data (only 3 samples).
@@ -1238,7 +1254,7 @@
     Most of the uncertainty of the mean is between samples (80% of its variance with the acquired design; not established: only 3 samples, its interval includes zero).
     More fields or more samples: cannot tell from these data (only 3 samples).
 
-9. Could I have sampled more efficiently?
+8. Could I have sampled more efficiently?
   condition=MOCK, repeat=1A, well=B6: could the same positions have been visited in a better order?
     your recorded order: reliably enough after 1 field and 0 µm of stage travel.
     random orders: reliably enough after 1 field and 0 µm of stage travel.
@@ -1324,7 +1340,25 @@
 
   Whether these were the right positions needs every candidate position from an overview (not available: sampling-frame bias is not assessed).
 
-Read with care
+9. Do the conditions differ, and how confidently?
+  Do the conditions differ, and how confidently? Feature YAPTAZ_Ratio, each condition against the control {'condition': 'MOCK'}, within each repeat. The fields of a condition's analysis groups are pooled for this comparison. Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with the field as the unit.
+  repeat=1A, LATS1 vs MOCK: 56 fields (1365 nuclei) against 28 control fields (966 nuclei). Cohen's d on nuclei 1.32; on field means 4.94. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+    JCS effect size (treated mean minus control mean, over the control SD) from every object: 1.42; from 50 nuclei: random objects median 1.45 (IQR 1.26 to 1.61), same sign in 100% of draws; whole FOVs median 1.42 (IQR 1.24 to 1.66), same sign in 100% of draws, about 3 fields. from 100 nuclei: random objects median 1.42 (IQR 1.32 to 1.56), same sign in 100% of draws; whole FOVs median 1.44 (IQR 1.31 to 1.56), same sign in 100% of draws, about 5 fields. from 200 nuclei: random objects median 1.42 (IQR 1.35 to 1.50), same sign in 100% of draws; whole FOVs median 1.43 (IQR 1.33 to 1.52), same sign in 100% of draws, about 9 fields. from 500 nuclei: random objects median 1.43 (IQR 1.38 to 1.46), same sign in 100% of draws; whole FOVs median 1.43 (IQR 1.38 to 1.48), same sign in 100% of draws, about 21 fields.
+  repeat=1A, YAP vs MOCK: 56 fields (1258 nuclei) against 28 control fields (966 nuclei). Cohen's d on nuclei -1.08; on field means -4.36. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+    JCS effect size (treated mean minus control mean, over the control SD) from every object: -1.07; from 50 nuclei: random objects median -1.06 (IQR -1.32 to -0.91), same sign in 100% of draws; whole FOVs median -1.09 (IQR -1.26 to -0.90), same sign in 100% of draws, about 3 fields. from 100 nuclei: random objects median -1.10 (IQR -1.24 to -0.97), same sign in 100% of draws; whole FOVs median -1.09 (IQR -1.24 to -0.95), same sign in 100% of draws, about 5 fields. from 200 nuclei: random objects median -1.07 (IQR -1.17 to -0.98), same sign in 100% of draws; whole FOVs median -1.09 (IQR -1.19 to -0.98), same sign in 100% of draws, about 9 fields. from 500 nuclei: random objects median -1.06 (IQR -1.12 to -1.02), same sign in 100% of draws; whole FOVs median -1.07 (IQR -1.12 to -1.02), same sign in 100% of draws, about 23 fields.
+  repeat=2A, ARAP2 vs MOCK: 28 fields (797 nuclei) against 28 control fields (953 nuclei). Cohen's d on nuclei 0.29; on field means 1.08. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+    JCS effect size (treated mean minus control mean, over the control SD) from every object: 0.28; from 50 nuclei: random objects median 0.27 (IQR 0.14 to 0.36), same sign in 93% of draws; whole FOVs median 0.26 (IQR 0.11 to 0.40), same sign in 90% of draws, about 2 fields. from 100 nuclei: random objects median 0.28 (IQR 0.19 to 0.37), same sign in 98% of draws; whole FOVs median 0.27 (IQR 0.19 to 0.37), same sign in 96% of draws, about 4 fields. from 200 nuclei: random objects median 0.28 (IQR 0.23 to 0.33), same sign in 100% of draws; whole FOVs median 0.26 (IQR 0.19 to 0.32), same sign in 100% of draws, about 7 fields. from 500 nuclei: random objects median 0.27 (IQR 0.25 to 0.30), same sign in 100% of draws; whole FOVs median 0.28 (IQR 0.25 to 0.30), same sign in 100% of draws, about 18 fields.
+  repeat=2A, LATS1 vs MOCK: 28 fields (736 nuclei) against 28 control fields (953 nuclei). Cohen's d on nuclei 0.69; on field means 2.45. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+    JCS effect size (treated mean minus control mean, over the control SD) from every object: 0.67; from 50 nuclei: random objects median 0.66 (IQR 0.56 to 0.80), same sign in 100% of draws; whole FOVs median 0.67 (IQR 0.54 to 0.85), same sign in 100% of draws, about 2 fields. from 100 nuclei: random objects median 0.67 (IQR 0.60 to 0.76), same sign in 100% of draws; whole FOVs median 0.69 (IQR 0.58 to 0.78), same sign in 100% of draws, about 4 fields. from 200 nuclei: random objects median 0.68 (IQR 0.62 to 0.73), same sign in 100% of draws; whole FOVs median 0.66 (IQR 0.60 to 0.72), same sign in 100% of draws, about 8 fields. from 500 nuclei: random objects median 0.68 (IQR 0.66 to 0.70), same sign in 100% of draws; whole FOVs median 0.67 (IQR 0.65 to 0.70), same sign in 100% of draws, about 20 fields.
+  repeat=2A, YAP vs MOCK: 28 fields (557 nuclei) against 28 control fields (953 nuclei). Cohen's d on nuclei -1.63; on field means -5.29. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.0005 (Bonferroni over 6 comparisons: 0.003).
+    JCS effect size (treated mean minus control mean, over the control SD) from every object: -1.52; from 50 nuclei: random objects median -1.53 (IQR -1.77 to -1.28), same sign in 100% of draws; whole FOVs median -1.57 (IQR -1.96 to -1.34), same sign in 100% of draws, about 3 fields. from 100 nuclei: random objects median -1.51 (IQR -1.67 to -1.34), same sign in 100% of draws; whole FOVs median -1.53 (IQR -1.74 to -1.36), same sign in 100% of draws, about 5 fields. from 200 nuclei: random objects median -1.52 (IQR -1.62 to -1.43), same sign in 100% of draws; whole FOVs median -1.53 (IQR -1.65 to -1.41), same sign in 100% of draws, about 11 fields. from 500 nuclei: random objects median -1.52 (IQR -1.56 to -1.47), same sign in 100% of draws; whole FOVs median -1.52 (IQR -1.59 to -1.47), same sign in 100% of draws, about 26 fields.
+  repeat=2B, ARAP2 vs MOCK: 56 fields (1955 nuclei) against 28 control fields (963 nuclei). Cohen's d on nuclei 0.35; on field means 1.19. Randomization test over whole fields (2000 shuffles of the condition labels over fields): p = 0.001 (Bonferroni over 6 comparisons: 0.006).
+    JCS effect size (treated mean minus control mean, over the control SD) from every object: 0.37; from 50 nuclei: random objects median 0.38 (IQR 0.23 to 0.52), same sign in 98% of draws; whole FOVs median 0.37 (IQR 0.16 to 0.66), same sign in 86% of draws, about 2 fields. from 100 nuclei: random objects median 0.40 (IQR 0.31 to 0.49), same sign in 99% of draws; whole FOVs median 0.39 (IQR 0.22 to 0.54), same sign in 95% of draws, about 3 fields. from 200 nuclei: random objects median 0.40 (IQR 0.31 to 0.45), same sign in 100% of draws; whole FOVs median 0.39 (IQR 0.27 to 0.49), same sign in 100% of draws, about 6 fields. from 500 nuclei: random objects median 0.37 (IQR 0.34 to 0.41), same sign in 100% of draws; whole FOVs median 0.40 (IQR 0.33 to 0.45), same sign in 100% of draws, about 15 fields.
+
+  This describes what these fields support about a difference under this feature; generalizing it needs independent biological repeats, which is the user's inference.
+
+What this dataset cannot tell me
+  - Every question was assessed.
   - Every answer holds for the stated features, tolerances and definition of new.
   - Replays, draws and hold-outs describe these samples; they are not independent experiments. Statements across samples count samples or repeats.
   - A field count that preserved this acquisition is not a protocol until it holds on samples it was not chosen on.
