@@ -195,14 +195,17 @@ src/morphocoverage/
     benchmark.py           # dataset roles, acquisition orders, one record per run
     reservoir.py           # held-out evaluation reservoirs split by spatial block
     spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
-    bounds.py              # Clopper-Pearson bounds for probabilities from few FOVs
+    bounds.py              # Clopper-Pearson bounds and intervals for probabilities from few FOVs
     framework.py           # run_strategies convenience entry point
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
+    _wording.py            # private: the one way to write percentages, counts, fields, durations, groups
+    _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng)
+    _checks.py             # private: integer and number checks that accept numpy types
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
     sufficiency_text.py    # the sentences of the sufficiency report
     sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops
-    statistics.py          # shared statistics: Cohen's d, JCS effect size, whole-field sampling and bootstrap
+    statistics.py          # shared statistics, written once: effect sizes, tolerances, whole-field sampling and bootstrap, variance components, design effect, JCB counts, detection counts, field-level JCB estimands
     normalize.py           # features divided by the control condition's mean, repeat by repeat
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
@@ -216,12 +219,14 @@ src/morphocoverage/
         inspection.py      # inspect-these-fields: one traceable reason per FOV and line
         controls.py        # representation controls: detection and false-alarm rates
         effort.py          # nested variance components and projected SE at equal FOVs
+        effort_design.py   # its standard errors and allocations: acquired and balanced designs
         effort_text.py     # the effort projection in words (technical repeats, samples, caveats)
         stage.py           # dispersed (farthest-point) orders and stage travel
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
+        report_profile.py  # its sampling profile, one helper per source, and the control rates
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
-        _text.py           # private: shared wording and group seeding for summaries
+        _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
@@ -234,10 +239,12 @@ src/morphocoverage/
         retrospective.py   # report, optimise, benchmark: the analyses in question order
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
+        _shared.py         # private: rule replays on raw values, outcomes on normalised ones
     strategies/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
+        _averaging_cv.py   # private: its averaging-CV arithmetic (object and FOV units)
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
         fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries

@@ -25,7 +25,7 @@ Versions:
   was added; the objective is not part of the protocol digest, and the
   frontier reads each rule's own verdict (``StrategyResult.rule_decision``),
   so the scores are unchanged.)
-- 3 (2026-09-26, second audit, ``docs/audit/function_audit_2.md``): the
+- 3 (2026-09-26, second audit, ``docs/audit/function_audit_2_2026-09-26.md``): the
   replay changed under the settings, not the settings. Permuted orders are
   drawn per analysis group, from the group's FOVs in key order, seeded from
   ``random_state``, the group identity, the order and the split

@@ -222,7 +222,12 @@ plan records its pilot samples, and a group containing one reports
   They also correctly lower the projected `required_fovs` yield per FOV. The
   behaviour is kept, and the estimand and degrees-of-freedom choice are now
   documented. Empirical calibration of the FOV-level bound belongs in the
-  benchmark (item 4), as the audit also suggests.
+  benchmark (item 4), as the audit also suggests. *Superseded by the second
+  audit (C-1, `docs/audit/function_audit_2_2026-09-26.md`):* an empty field
+  adds no between-field information, and counting it in `k / (k - 1)` and in
+  the degrees of freedom made the nominal 95% upper bound cover 37–49% of the
+  time. Only fields with objects enter them now; every acquired field still
+  counts for `required_fovs` and the pilot projection.
 - **A new sample-hierarchy abstraction.** Explicit `fov_col` and `group_cols`
   already express the plate/well case: the real-data tests group by
   `condition`, `repeat` and `well`. `image_file` is only the default. The
