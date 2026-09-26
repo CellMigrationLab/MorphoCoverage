@@ -211,11 +211,20 @@ def test_permuted_orders_are_reproducible_and_differ_from_the_recorded_order():
 
 def test_permutation_is_by_whole_fov_and_within_groups():
     scenario = SCENARIOS["condition_repeat_groups"]()
-    ordered, column = AcquisitionOrder.permuted(3).apply(scenario.fovs, ORDER_COL)
-    assert sorted(ordered[column]) == list(range(len(scenario.fovs)))
+    data = validate_input_tables(
+        scenario.objects, fovs=scenario.fovs, feature_cols=list(FEATURE_COLS)
+    )
+    groups = list(iter_analysis_groups(data))
+    ordered, column = AcquisitionOrder.permuted(3).apply(groups, ORDER_COL)
+    assert len(ordered) == len(scenario.fovs)
+    # Ranks are drawn within each group: every group holds ranks 0 .. n - 1.
+    for group, group_data in groups:
+        ranks = ordered.loc[(ordered[list(group)] == pd.Series(group)).all(axis=1), column]
+        assert sorted(ranks) == list(range(len(group_data.fovs)))
     assert column != ORDER_COL and ORDER_COL in ordered
+    marked = [(group, replace(g, fovs=g.fovs.assign(**{column: 0}))) for group, g in groups]
     with pytest.raises(ValueError, match="already has"):
-        AcquisitionOrder.permuted(3).apply(ordered, ORDER_COL)
+        AcquisitionOrder.permuted(3).apply(marked, ORDER_COL)
     with pytest.raises(TypeError):
         AcquisitionOrder.permuted(None)
     with pytest.raises(ValueError):

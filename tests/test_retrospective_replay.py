@@ -349,10 +349,10 @@ def test_worker_processes_give_identical_replays():
         _replay("homogeneous", [FixedFOVStrategy(3)], n_jobs=0)
 
 
-def test_outcome_prefixes_are_the_masked_prefix_tables_in_table_order():
-    # Outcome metrics that subsample rows by position (energy, MMD) need the
-    # prefix rows in table order, exactly as the masked prefix has them.
-    from morphocoverage.retrospective.replay import _SortedPrefixes
+def test_outcome_prefixes_are_in_acquisition_order():
+    # Outcome metrics and estimators that subsample rows by position (energy,
+    # MMD) see the prefix rows in acquisition order, as a live session joins
+    # the FOVs one by one (second audit, B-2).
     from morphocoverage.sequential import _Acquisition
 
     built = SCENARIOS["unequal_objects_per_fov"]()
@@ -361,8 +361,8 @@ def test_outcome_prefixes_are_the_masked_prefix_tables_in_table_order():
     )
     ordered = data.fovs.iloc[np.random.default_rng(4).permutation(len(data.fovs))]
     acquisition = _Acquisition(data, ordered)
-    prefixes = _SortedPrefixes(acquisition)
     for step in range(1, acquisition.n_fovs + 1):
-        pd.testing.assert_frame_equal(
-            prefixes.prefix(step).objects, acquisition.prefix(step).objects
+        arrived = pd.concat(
+            [acquisition.new_fov(i).objects for i in range(1, step + 1)], ignore_index=True
         )
+        pd.testing.assert_frame_equal(acquisition.prefix(step).objects, arrived)

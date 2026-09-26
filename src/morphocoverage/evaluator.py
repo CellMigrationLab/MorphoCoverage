@@ -78,8 +78,19 @@ class FovSubsets:
         return len(self.data.fovs)
 
     def take(self, rows: np.ndarray) -> ValidatedInput:
-        """The FOVs at row positions ``rows`` of ``data.fovs``, with their observations."""
+        """The FOVs at row positions ``rows`` of ``data.fovs``, with their observations.
+
+        Rows must be distinct: a repeated row would list its FOV twice under one
+        identity while its observations appear once. A resample with
+        replacement must give every copy its own FOV identity instead.
+        """
         rows = np.asarray(rows, dtype=np.int64)
+        if len(np.unique(rows)) != len(rows):
+            raise ValueError(
+                "FovSubsets.take needs distinct FOV rows; a repeated row would list the FOV "
+                "twice but its observations once. Give each copy of a resampled FOV its "
+                "own identity instead."
+            )
         mask = np.isin(self.positions, rows)
         return restrict_input(self.data, self.data.objects.loc[mask], self.data.fovs.iloc[rows])
 
