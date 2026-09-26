@@ -141,6 +141,7 @@ def test_j16_wording_helpers():
     assert percent(0.003) == "0.3%" and percent(0.5) == "50%" and percent(0) == "0%"
     assert number(7.0) == "7" and number(7.25) == "7.2" and number(1234567) == "1234567"
     assert fields(1) == "1 field" and fields(2.5) == "2.5 fields"
+    assert fields(1.047) == "1 field" and fields(0.96) == "1 field" and fields(1.06) == "1.1 fields"
     assert count(1, "batch", "batches") == "1 batch" and count(3, "batch", "batches") == "3 batches"
     assert duration(20) == "20 s" and duration(600) == "10 min" and duration(5400) == "1.5 h"
 

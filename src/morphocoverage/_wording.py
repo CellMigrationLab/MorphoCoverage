@@ -27,7 +27,8 @@ def number(value: float) -> str:
 def count(n: float, word: str, plural: str | None = None) -> str:
     """``1 field``, ``3 fields``, ``2.5 fields`` (``plural`` defaults to ``word + 's'``)."""
     many = plural if plural is not None else f"{word}s"
-    return f"{number(n)} {word if float(n) == 1 else many}"
+    written = number(n)  # singular when the number as written is 1 (1.04 reads "1 field")
+    return f"{written} {word if written == '1' else many}"
 
 
 def fields(n: float) -> str:
