@@ -18,6 +18,7 @@ from .metadata import (
     MORPHOBRICKS_FOV_CANDIDATES,
     MORPHOBRICKS_GROUP_COLUMNS,
     REPEAT_COLUMN,
+    canonical_spelling,
     empty_values,
 )
 
@@ -100,18 +101,17 @@ def _check_spellings(
     c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, explicit: Sequence[str]
 ) -> None:
     """Near-miss spellings of the MorphoBricks columns (``Repeat`` for ``repeat``)."""
-    canonical = {*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES}
     for name, table in _tables(objects, fovs):
         for column in table.columns:
-            if not isinstance(column, str) or column in explicit:
+            if column in explicit:
                 continue
-            if column.lower() in canonical and column != column.lower():
+            meant = canonical_spelling(column)
+            if meant is not None:
                 c.error(
-                    f"Column {column!r} looks like the MorphoBricks column {column.lower()!r} "
+                    f"Column {column!r} looks like the MorphoBricks column {meant!r} "
                     "but is spelt differently, so it would be ignored.",
                     f"{name}, column {column!r}.",
-                    f"Rename it to {column.lower()!r}, or name it in group_cols/fov_col to use it "
-                    "as it is.",
+                    f"Rename it to {meant!r}, or name it in group_cols/fov_col to use it as it is.",
                 )
 
 
@@ -275,11 +275,16 @@ def _check_features(
         )
     missing = [f for f in dict.fromkeys(feature_cols) if f not in objects.columns]
     if missing:
+        close = {f: _close_column(f, objects.columns) for f in missing}
+        hints = [f"{found!r} for {f!r}" for f, found in close.items() if found is not None]
         c.error(
             f"{_count(len(missing), 'feature column')} named in feature_cols "
             f"{'is' if len(missing) == 1 else 'are'} not in the observation table.",
-            f"missing: {_names(missing)}.",
-            "Check the spelling, or add the columns to the observation table.",
+            f"missing: {_names(missing)}"
+            + (f"; the table has {', '.join(hints)}" if hints else "")
+            + ".",
+            "Check the spelling (spaces and case count), or add the columns to the observation "
+            "table.",
         )
     for feature in dict.fromkeys(feature_cols):
         if feature not in objects.columns:
@@ -314,6 +319,78 @@ def _check_features(
                 "Missing values are kept and never imputed; check they are expected (for "
                 "example, a measurement that failed).",
             )
+
+
+def _close_column(name: str, columns: Sequence[Any]) -> Any | None:
+    """A column that differs from ``name`` only in case or surrounding whitespace."""
+    target = name.strip().casefold()
+    for column in columns:
+        if isinstance(column, str) and column != name and column.strip().casefold() == target:
+            return column
+    return None
+
+
+def _loose(value: Any) -> str:
+    """A value compared loosely: without surrounding spaces or case, a number by its value."""
+    text = str(value).strip().casefold()
+    try:
+        return repr(float(text))
+    except ValueError:
+        return text
+
+
+def _near_values(objects: pd.DataFrame, fovs: pd.DataFrame, key: Sequence[str]) -> str:
+    """Why observation keys miss the FOV table, when it is spaces, case or number against text."""
+    hints = []
+    for column in key:
+        seen = pd.Series(objects[column].dropna().unique())
+        listed = pd.Series(fovs[column].dropna().unique())
+        absent = seen[~seen.isin(listed)]
+        if absent.empty:
+            continue
+        by_text = {_loose(v): v for v in listed}
+        pairs = [(v, by_text[_loose(v)]) for v in absent if _loose(v) in by_text][:EXAMPLES]
+        if pairs:
+            shown = "; ".join(f"{_value(a)} against {_value(b)}" for a, b in pairs)
+            mixed = any(isinstance(a, str) != isinstance(b, str) for a, b in pairs)
+            why = (
+                "is text in one table and a number in the other"
+                if mixed
+                else "differs only in spaces or case"
+            )
+            hints.append(f"'{column}' {why} ({shown})")
+    return (" In these rows " + "; ".join(hints) + ".") if hints else ""
+
+
+def _check_copies(c: Collector, objects: pd.DataFrame) -> None:
+    """Rows that repeat another row exactly, or a ``label_id`` twice in one field."""
+    copies = objects.duplicated(keep="first")
+    if copies.any():
+        c.warning(
+            f"{_count(int(copies.sum()), 'observation')} {'is' if copies.sum() == 1 else 'are'} "
+            "an exact copy of another row.",
+            f"observation table, {_examples(objects, copies, list(objects.columns[:4]))}.",
+            "A file read or appended twice counts every cell twice; remove the copies, or keep "
+            "them if identical rows are real.",
+        )
+        return
+    if "label_id" not in objects.columns or c.has_errors():
+        # A misspelt group column already breaks field identity; labels would repeat.
+        return
+    field = [
+        col
+        for col in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
+        if col in objects.columns
+    ]
+    twice = objects.duplicated([*field, "label_id"], keep="first") & objects["label_id"].notna()
+    if field and twice.any():
+        c.warning(
+            f"{_count(int(twice.sum()), 'label_id')} {'appears' if twice.sum() == 1 else 'appear'} "
+            "twice in the same field.",
+            f"observation table, {_examples(objects, twice, [*field, 'label_id'])}.",
+            "A label names one segmented object of a field; check for a file appended twice or "
+            "a field identifier shared by two images.",
+        )
 
 
 def _check_key_values(
@@ -363,7 +440,8 @@ def _check_fov_table(
     if observed.any():
         c.error(
             "Some observations belong to fields that are not in the FOV table.",
-            f"observation table, {_examples(objects, observed, key)}.",
+            f"observation table, {_examples(objects, observed, key)}."
+            + _near_values(objects[observed], fovs, key),
             "Add those fields to the FOV table, or check that condition, repeat and the field "
             "identifier are spelt the same way in both tables.",
         )

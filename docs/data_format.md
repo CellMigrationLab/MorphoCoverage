@@ -45,9 +45,12 @@ observations. It warns every time, because it cannot know about empty fields.
 
 ## Rules the validator enforces
 
-- **Exact names.** Column names are lowercase and exact. A near-miss such as
-  `Repeat` or `Technical_Repeat` raises, so a misspelt group cannot silently
-  merge repeats. Name the column in `group_cols` or `fov_col` to use it anyway.
+- **Exact names.** Column names are lowercase and exact. A near miss raises,
+  so a misspelt group cannot silently merge repeats: `Repeat`,
+  `Technical_Repeat`, `technical repeat` (a space for the underscore),
+  `condition ` (a trailing space), or a byte-order mark that a spreadsheet
+  wrote before the first header. Name the column in `group_cols` or
+  `fov_col` to use it anyway.
 - **One row per field.** Every field appears once in the FOV table, and
   every observation's field must be listed there.
 - **Field identity.** A field is identified by its group columns together with
@@ -109,14 +112,29 @@ Errors stop the analysis. They cover every rule above: misspelt MorphoBricks
 columns, a missing or unmatched field identifier, empty identifiers or group
 values, a field listed twice, observations of fields missing from the FOV
 table, missing, non-numeric or infinite features, a column with two roles,
-and planes or channels counted as fields. Warnings do not stop it but are
-often mistakes:
-- no FOV table;
+and planes or channels counted as fields. Where it can tell, an error says
+what was probably meant:
+- a label typed differently in the two tables (`' drug'` or `'Drug'`
+  against `'drug'`);
+- a number in one table against text in the other (`5` against `'05'`);
+- a feature name that differs only in case or spaces (`'Area '` for
+  `'area'`);
+- the values that exist when the control matches nothing.
+
+Warnings do not stop it but are often mistakes:
+- no FOV table (the workflows need one);
 - an undeclared observation unit;
 - fields with no observation, so you can confirm that they are real empty
   fields and not failed images;
+- an observation table with no rows;
+- rows that are exact copies of another row (a file read twice), or a
+  `label_id` twice in one field;
 - features with missing values;
 - repeats without the declared control.
+
+`data/synthetic` holds a small acquisition whose answers are known, and
+`tests/test_human_errors.py` breaks it in each of these ways; read the test
+to see the message each mistake gives.
 
 `validate_input_tables` and every workflow run the same check when they
 refuse tables, so their error carries the full report after its first line.

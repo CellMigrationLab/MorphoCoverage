@@ -84,6 +84,12 @@ def _orders(setup: Setup, permuted: int, dispersed: int) -> list[AcquisitionOrde
 
 
 def _check_tables(objects: Any, fovs: Any, setup: Any) -> None:
+    if fovs is None:
+        raise TypeError(
+            "the workflows need the FOV table of every acquired field (fovs=None was given); "
+            "morphocoverage.schema.fov_table_from_observations rebuilds one, without the "
+            "fields that held no observation"
+        )
     if not isinstance(objects, pd.DataFrame) or not isinstance(fovs, pd.DataFrame):
         raise TypeError("objects and fovs must be pandas DataFrames (every acquired FOV in fovs)")
     if not isinstance(setup, Setup):

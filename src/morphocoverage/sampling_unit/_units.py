@@ -17,7 +17,7 @@ import numpy as np
 from ..retrospective._text import group_identity
 from ..schema import ValidatedInput
 from ..statistics import cohen_d
-from ._common import fov_values
+from ._common import fov_values, no_match_message
 
 FIELD = "field"
 
@@ -55,7 +55,7 @@ def describe_groups(
             }
         )
     if not any(d["is_control"] for d in described):
-        raise ValueError(f"no analysis group matches control {dict(control)}")
+        raise ValueError(no_match_message(all_groups, control, "control"))
     return described
 
 

@@ -25,6 +25,7 @@ from ._data_rules import (
     Problem,
     _attach,
     _check_control,
+    _check_copies,
     _check_features,
     _check_fov_table,
     _check_key_values,
@@ -36,6 +37,7 @@ from ._data_rules import (
     _tables,
 )
 from .metadata import EMPTY_MEANS_ABSENT, column_has_values, drop_empty_optional_columns
+from .schema import normalize_observation_unit
 
 FORMAT_DOC = "docs/data_format.md"
 
@@ -140,6 +142,24 @@ def check_tables(
         )
         feature_cols = [feature_cols]
     feature_cols = list(feature_cols)
+    unit_given = observation_unit is not None
+    if unit_given:
+        try:
+            normalize_observation_unit(observation_unit)
+        except ValueError:
+            c.error(
+                "The observation unit is not a word.",
+                f"observation_unit={observation_unit!r}.",
+                "Say what one row is in words, e.g. observation_unit='cell', 'nucleus' or 'patch'.",
+            )
+            observation_unit = None
+    if isinstance(group_cols, str):
+        c.error(
+            "group_cols is a single string, not a list of column names.",
+            f"group_cols={group_cols!r}.",
+            f"Pass a list: group_cols=[{group_cols!r}].",
+        )
+        group_cols = [group_cols]
     explicit = [*(group_cols or ()), *([fov_col] if fov_col is not None else [])]
 
     for column in EMPTY_MEANS_ABSENT:
@@ -161,9 +181,18 @@ def check_tables(
             "No FOV table was given.",
             "fovs=None.",
             "Pass the list of every acquired field, including fields with no observation; "
-            "without it, empty fields are missing and every sampling answer is optimistic.",
+            "without it, empty fields are missing and every sampling answer is optimistic. "
+            "The workflows (report, optimise, benchmark, plots) need it; "
+            "schema.fov_table_from_observations rebuilds one, without the empty fields.",
         )
-    if observation_unit is None:
+    if objects.empty:
+        c.warning(
+            "The observation table has no rows.",
+            "0 observations.",
+            "Nothing was measured, so no feature can be analysed; check that the right file was "
+            "read (a live session may start empty).",
+        )
+    if not unit_given:
         c.warning(
             "The observation unit is not declared.",
             "observation_unit=None.",
@@ -187,6 +216,8 @@ def check_tables(
             + "."
         )
         objects = _attach(c, objects, fovs, resolved, identity)
+        # After the group columns are attached, so the same label in two wells is not a copy.
+        _check_copies(c, objects)
         _check_key_values(c, objects, fovs, key)
         if fovs is not None:
             _check_fov_table(c, objects, fovs, key)
@@ -211,11 +242,17 @@ def check_tables(
                 observation_unit=observation_unit,
             )
         except (ValueError, TypeError) as exc:
+            message = str(exc).split("\n\n")[0].rstrip(".")
+            planes = any(w in message for w in ("plane", "z/c/t", "channel"))
             c.error(
-                str(exc)[0].upper() + str(exc)[1:] + ".",
-                "the within-field coordinates (z, c, t) and the field identifier.",
+                message[0].upper() + message[1:] + ".",
+                "the within-field coordinates (z, c, t) and the field identifier."
+                if planes
+                else "found by validate_input_tables.",
                 "Give every plane, channel or frame of one stage position the same "
-                "'position_id', and a z/c/t value that tells its files apart.",
+                "'position_id', and a z/c/t value that tells its files apart."
+                if planes
+                else "Correct what the message names; every rule is in docs/data_format.md.",
             )
     return DataCheck(tuple(c.problems), tuple(c.understood))
 

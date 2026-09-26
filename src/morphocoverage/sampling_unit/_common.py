@@ -78,5 +78,26 @@ def matching_groups(
         if len(values) == 1 and all(values.iloc[0][c] == v for c, v in selector.items()):
             chosen.append(group)
     if not chosen:
-        raise ValueError(f"no analysis group matches {name} {dict(selector)}")
+        raise ValueError(no_match_message(all_groups, selector, name))
     return chosen
+
+
+def no_match_message(
+    all_groups: list[tuple[dict[str, Any], ValidatedInput]],
+    selector: Mapping[str, Any],
+    name: str,
+) -> str:
+    """Why ``selector`` matched no group, with the values its first column holds."""
+    column = next(iter(selector))
+    present = sorted(
+        {
+            str(v)
+            for _, data in all_groups
+            if column in data.fovs
+            for v in data.fovs[column].unique()
+        }
+    )
+    return (
+        f"no analysis group matches {name} {dict(selector)}; {column!r} holds {present[:8]} "
+        "(values are matched exactly, case and spaces included)"
+    )

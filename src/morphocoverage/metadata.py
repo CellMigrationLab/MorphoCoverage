@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 import pandas as pd
@@ -88,25 +89,37 @@ def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str,
     return tables
 
 
+def canonical_spelling(column: object) -> str | None:
+    """The MorphoBricks column that ``column`` misspells, or ``None``.
+
+    A near miss differs only in case, in spaces or hyphens for underscores, in
+    surrounding whitespace, or in a byte-order mark that a spreadsheet wrote
+    before the first header (``Repeat``, ``technical repeat``, ``condition ``,
+    ``\ufeffcondition``). The exact name is not a near miss.
+    """
+    if not isinstance(column, str):
+        return None
+    normalised = re.sub(r"[\s-]+", "_", column.replace("\ufeff", "").strip().lower())
+    canonical = {*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES}
+    return normalised if normalised in canonical and normalised != column else None
+
+
 def check_canonical_spellings(
     objects: pd.DataFrame,
     fovs: pd.DataFrame | None,
     explicit_columns: Sequence[str],
 ) -> None:
     """Reject near-miss spellings such as Repeat that would bypass defaults."""
-    canonical = {
-        *MORPHOBRICKS_GROUP_COLUMNS,
-        *MORPHOBRICKS_FOV_CANDIDATES,
-    }
     for table_name, table in _tables(objects, fovs):
         for column in table.columns:
-            if not isinstance(column, str) or column in explicit_columns:
+            if column in explicit_columns:
                 continue
-            if column.lower() in canonical and column != column.lower():
+            meant = canonical_spelling(column)
+            if meant is not None:
                 raise ValueError(
                     f"{table_name} has column {column!r}, a non-canonical spelling of "
-                    f"MorphoBricks column {column.lower()!r}. Rename it to "
-                    f"{column.lower()!r} or name it explicitly via fov_col/group_cols."
+                    f"MorphoBricks column {meant!r}. Rename it to "
+                    f"{meant!r} or name it explicitly via fov_col/group_cols."
                 )
 
 
