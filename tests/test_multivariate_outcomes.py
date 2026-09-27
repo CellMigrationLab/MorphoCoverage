@@ -113,7 +113,7 @@ METRICS = [
     MMDError(FEATURES, True, None, 0, 1.0),
     SlicedWassersteinError(FEATURES, True, 10, 0),
 ]
-IDS = [metric.label for metric in METRICS]
+IDS = [metric.family for metric in METRICS]
 
 
 @pytest.mark.parametrize("metric", METRICS, ids=IDS)

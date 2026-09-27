@@ -46,6 +46,9 @@ Assumptions and limits:
 
 A target without ``fov_incidence`` gives ``not_applicable``: object prevalence
 is never converted to FOV incidence.
+
+Shared-private: ``_positive_fovs`` (the one count of FOVs holding a labelled
+state, also used by ``outcomes.RareStateDetected``).
 """
 
 from __future__ import annotations
@@ -80,13 +83,25 @@ def incidence_risk(
     return float(stats.beta.sf(target, a + positive, b + fovs - positive))
 
 
-def _positive_fovs(data: ValidatedInput, label_col: str) -> int:
-    """Number of visible FOVs with at least one observation labelled with the rare state."""
+def _positive_fovs(data: ValidatedInput, label_col: str) -> int | None:
+    """Number of FOVs of ``data`` with at least one observation labelled with the state.
+
+    ``None`` when a label is missing (the count is then unknown). Raises when
+    ``label_col`` is not an observation column or holds values other than
+    booleans or 0/1.
+    """
+    if label_col not in data.objects.columns:
+        raise ValueError(f"label_col {label_col!r} is not a column of the observations")
     labels = data.objects[label_col]
+    if labels.isna().any():
+        return None
     if not (pd.api.types.is_bool_dtype(labels) or set(labels.unique()) <= {0, 1}):
-        raise ValueError(f"label_col {label_col!r} must hold booleans or 0/1")
+        raise ValueError(
+            f"label_col {label_col!r} must hold booleans or 0/1, got "
+            f"{sorted(map(str, labels.unique()))[:5]}"
+        )
     positions = fov_positions(data, data.fovs)[labels.to_numpy(dtype=bool)]
-    return int(np.unique(positions).size)
+    return int(np.unique(positions[positions >= 0]).size)
 
 
 def _check(label_col: str, prior_a: float, prior_b: float) -> None:
@@ -131,15 +146,13 @@ class RareIncidenceEstimator(Estimator):
                 else "the rare target states object prevalence only, not FOV incidence"
             )
             return Evidence({QUANTITY: Quantity.not_applicable(reason, **_META)}, {})
-        if self.label_col not in data.objects.columns:
-            raise ValueError(f"label_col {self.label_col!r} is not a column of the observations")
         if self.label_col in data.feature_cols:
             raise ValueError(f"label_col {self.label_col!r} is a phenotype feature, not a label")
-        if data.objects[self.label_col].isna().any():
+        positive, k = _positive_fovs(data, self.label_col), len(data.fovs)
+        if positive is None:
             reason = f"missing labels in {self.label_col!r}"
             quantity = Quantity.not_applicable(reason, **_META)
             return Evidence({QUANTITY: quantity}, {"undefined_reason": reason})
-        positive, k = _positive_fovs(data, self.label_col), len(data.fovs)
         risk = incidence_risk(
             positive,
             k,

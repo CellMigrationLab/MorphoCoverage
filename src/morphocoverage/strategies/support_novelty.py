@@ -41,13 +41,21 @@ it has there, and support from another FOV counts once however many of its
 objects are nearby, so a dense FOV cannot cover what a sparse FOV showing the
 same state would not.
 
-Support is symmetric with the new-state rule: another FOV supports an
-observation only with at least ``min_novel_observations`` of its own
-observations within ``epsilon``. A state must recur as a group of similar
-objects to be covered, so a single stray object (debris, a mis-segmented
-object) in another FOV cannot cancel a real new state, just as scattered
-outliers cannot make one. With ``min_novel_observations=1`` one nearby
-observation is enough, as before.
+Support mirrors the new-state rule: another FOV supports an observation
+only with at least ``min_novel_observations`` of its own observations within
+``epsilon`` of it. A state must recur as a group of similar objects to be
+covered, so a single stray object (debris, a mis-segmented object) in another
+FOV cannot cancel a real new state, just as scattered outliers cannot make
+one. The two rules are not symmetric, though: support counts objects in a
+ball of radius ``epsilon`` around the observation, while a new state is a
+single-linkage chain, which can reach far beyond ``epsilon``. A sparse state
+strung out at almost ``epsilon`` spacing can therefore form a new state in
+each of two FOVs while no object of either has ``min_novel_observations``
+objects of the other within ``epsilon``, and it is counted new in both
+although it recurs (five objects 0.9 apart at ``epsilon = 1`` with
+``min_novel_observations = 3``, repeated half a step along in a second FOV).
+With ``min_novel_observations=1`` one nearby observation is enough, and the
+two rules agree.
 
 Single linkage can chain: unsupported objects spaced at most ``epsilon``
 apart form one state however far the chain extends. A continuous run of
@@ -93,6 +101,14 @@ Choices and limits:
   diagnostics record the fit on all visible FOVs and the number of folds.
 - It only sees states that have appeared: a phenotype absent from every
   visible FOV contributes nothing.
+- Every held-out FOV needs ``min_other_fovs`` other FOVs with observations to
+  be supported at all, so the quantities are insufficient data below
+  ``max(min_fovs, min_other_fovs + 1)`` FOVs with observations (else every
+  observation would be novel by construction).
+- A feature that varies in only one FOV (a count that is 0 everywhere else)
+  cannot be standardized without that FOV, so its fold, and the estimate,
+  are insufficient data; the reason names the feature and the FOV. Leave such
+  a feature out, or use no transform.
 - Zero-observation FOVs add no observations to judge; they still count as
   acquisition effort.
 
@@ -110,12 +126,14 @@ from typing import Any
 
 import numpy as np
 
+from .._checks import is_integer
+from .._wording import listing
 from ..bounds import check_confidence, upper_bound
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from ..transforms import FeatureTransform
+from ..transforms import FeatureTransform, constant_columns
 from .base import Estimator, SamplingStrategy
 from .support_geometry import new_state_members, novel_against, novel_observations
 
@@ -142,7 +160,7 @@ def _check(
         (min_other_fovs, "min_other_fovs", 1),
         (min_fovs, "min_fovs", 2),
     ):
-        if isinstance(value, bool) or not isinstance(value, int):
+        if not is_integer(value):
             raise TypeError(f"{label} must be an integer")
         if value < minimum:
             raise ValueError(f"{label} must be at least {minimum}")
@@ -153,8 +171,38 @@ def _check(
 def _check_novel(min_novel_observations: int) -> None:
     """A positive integer number of novel observations per FOV."""
     value = min_novel_observations
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+    if not is_integer(value) or value < 1:
         raise ValueError("min_novel_observations must be a positive integer")
+
+
+def _as_ints(settings: object, *names: str) -> None:
+    """Store numpy integer settings of a frozen dataclass as Python ints (JSON provenance)."""
+    for name in names:
+        object.__setattr__(settings, name, int(getattr(settings, name)))
+
+
+def _fov_names(data: ValidatedInput) -> list[str]:
+    """Each FOV's identifier, by position in ``data.fovs``, for messages."""
+    return [str(value) for value in data.fovs[data.fov_key[-1]].tolist()]
+
+
+def _fold_failure(
+    matrix: np.ndarray, own: np.ndarray, names: tuple[str, ...], fov: str, reason: str
+) -> str:
+    """Why a leave-one-FOV-out fold could not be fitted, naming a feature varying only there."""
+    only_here = constant_columns(matrix[~own]) & ~constant_columns(matrix)
+    varying = [f"{name!r}" for name, flag in zip(names, only_here, strict=True) if flag]
+    failed = "the transform could not be fitted without one FOV"
+    if not varying:
+        return f"{failed} ({fov}): {reason}"
+    if len(varying) == 1:
+        subject = f"feature {varying[0]} varies"
+    else:
+        subject = f"features {listing(varying)} vary"
+    return (
+        f"{failed}: {subject} only in FOV {fov}, and the other FOVs alone give {reason}; "
+        "leave the feature out or use no transform"
+    )
 
 
 def _meta(name: str) -> dict[str, Any]:
@@ -198,8 +246,14 @@ class SupportNoveltyEstimator(Estimator):
     def __post_init__(self) -> None:
         _check(self.epsilon, self.min_other_fovs, self.min_fovs, self.transform)
         _check_novel(self.min_novel_observations)
+        _as_ints(self, "min_other_fovs", "min_fovs", "min_novel_observations")
         object.__setattr__(self, "epsilon", float(self.epsilon))
         object.__setattr__(self, "confidence", check_confidence(self.confidence))
+
+    @property
+    def _minimum_fovs(self) -> int:
+        """``max(min_fovs, min_other_fovs + 1)``: a held-out FOV needs ``min_other_fovs`` others."""
+        return max(self.min_fovs, self.min_other_fovs + 1)
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -228,12 +282,18 @@ class SupportNoveltyEstimator(Estimator):
             diagnostics["transform"] = fitted.provenance()
             if not fitted.fitted:
                 reason = f"the transform could not be fitted: {fitted.reason}"
-        if diagnostics["fovs_with_observations"] < self.min_fovs:
-            reason = f"fewer than {self.min_fovs} visible FOVs with observations"
+        minimum = self._minimum_fovs
+        if diagnostics["fovs_with_observations"] < minimum:
+            reason = f"fewer than {minimum} visible FOVs with observations"
+            if minimum > self.min_fovs:
+                reason += (
+                    f" (an observation needs {self.min_other_fovs} other FOVs to be supported, "
+                    f"min_other_fovs={self.min_other_fovs})"
+                )
         if reason is not None:
             return _unavailable("insufficient", reason, diagnostics)
 
-        lofo = self._lofo(matrix, positions, tuple(data.feature_cols))
+        lofo = self._lofo(matrix, positions, tuple(data.feature_cols), _fov_names(data))
         if isinstance(lofo, str):
             return _unavailable("insufficient", lofo, diagnostics)
         novel, members = lofo
@@ -273,17 +333,20 @@ class SupportNoveltyEstimator(Estimator):
         within ``epsilon`` and form one cluster at ``epsilon`` (a new state).
         The transform is fitted on ``visible`` only. FOVs
         without observations are not novel. Returns ``None`` for missing values
-        in ``visible`` or ``new``, too few FOVs, or a transform that cannot be
-        fitted on ``visible``. It does not refit the leave-one-FOV-out folds, so
-        it can return flags where ``estimate`` on ``visible`` is insufficient
-        because one fold could not be fitted; callers check ``estimate`` first.
+        in ``visible`` or ``new``, too few FOVs (fewer than ``min_fovs``, or
+        than ``min_other_fovs``, with observations in ``visible``), or a
+        transform that cannot be fitted on ``visible``. It does not refit the
+        leave-one-FOV-out folds, so it can return flags where ``estimate`` on
+        ``visible`` is insufficient because one fold could not be fitted;
+        callers check ``estimate`` first.
         """
         reference = visible.feature_matrix()
         queries = new.feature_matrix()
         if np.isnan(reference).any() or np.isnan(queries).any():
             return None
         positions = fov_positions(visible, visible.fovs)
-        if len(np.unique(positions)) < self.min_fovs:
+        # Every visible FOV is another FOV for a new one.
+        if len(np.unique(positions)) < max(self.min_fovs, self.min_other_fovs):
             return None
         if self.transform is not None:
             fitted = self.transform.fit(visible)
@@ -316,11 +379,12 @@ class SupportNoveltyEstimator(Estimator):
         """
         matrix = data.feature_matrix()
         positions = fov_positions(data, data.fovs)
-        if np.isnan(matrix).any() or len(np.unique(positions)) < self.min_fovs:
+        minimum = self._minimum_fovs
+        if np.isnan(matrix).any() or len(np.unique(positions)) < minimum:
             return None
         if self.transform is not None and not self.transform.fit(data).fitted:
             return None
-        lofo = self._lofo(matrix, positions, tuple(data.feature_cols))
+        lofo = self._lofo(matrix, positions, tuple(data.feature_cols), _fov_names(data))
         if isinstance(lofo, str):
             return None
         novel, members = lofo
@@ -331,6 +395,7 @@ class SupportNoveltyEstimator(Estimator):
         matrix: np.ndarray,
         positions: np.ndarray,
         names: tuple[str, ...],
+        fov_names: list[str],
     ) -> tuple[np.ndarray, np.ndarray] | str:
         """Leave-one-FOV-out novel observations and new-state members, or why not.
 
@@ -338,7 +403,8 @@ class SupportNoveltyEstimator(Estimator):
         one, each held-out FOV is judged in a geometry fitted on the other FOVs
         only, as a genuinely new FOV would be (``novel_fovs_against``): an extreme
         FOV must not widen the standardization or rotate the PCA that decides
-        whether it is extreme.
+        whether it is extreme. ``fov_names`` name the FOVs (by position) when a
+        fold cannot be fitted.
         """
         m = self.min_novel_observations
         if self.transform is None:
@@ -350,7 +416,7 @@ class SupportNoveltyEstimator(Estimator):
             own = positions == fov
             fitted = self.transform.fit_matrix(matrix[~own], names)
             if isinstance(fitted, str):
-                return f"the transform could not be fitted without one FOV: {fitted}"
+                return _fold_failure(matrix, own, names, fov_names[fov], fitted)
             state = fitted[0]
             reference = self.transform.apply_matrix(state, matrix[~own])
             queries = self.transform.apply_matrix(state, matrix[own])
@@ -372,7 +438,8 @@ class SupportNoveltyStrategy(SamplingStrategy):
     object-weighted fraction of novel observations (default), the FOV-weighted
     mean fraction, the fraction of FOVs showing a new state or its upper
     bound. The
-    resolution, support and minimum FOVs have no defaults.
+    resolution, support and minimum FOVs have no defaults. A tolerance of 0 is
+    refused for the upper bound, which is positive for any number of FOVs.
     """
 
     epsilon: float
@@ -388,11 +455,17 @@ class SupportNoveltyStrategy(SamplingStrategy):
     def __post_init__(self) -> None:
         _check(self.epsilon, self.min_other_fovs, self.min_fovs, self.transform)
         _check_novel(self.min_novel_observations)
+        _as_ints(self, "min_other_fovs", "min_fovs", "min_novel_observations")
         if self.quantity not in QUANTITIES:
             raise ValueError(f"quantity must be one of {QUANTITIES}")
         check_confidence(self.confidence)
         if not 0 <= self.tolerance < 1:
             raise ValueError("tolerance must be a fraction in [0, 1)")
+        if self.quantity == UPPER_QUANTITY and self.tolerance == 0:
+            raise ValueError(
+                f"tolerance 0 on {UPPER_QUANTITY} is never reached: the upper confidence "
+                "bound stays above 0 however many FOVs are seen; choose a positive tolerance"
+            )
 
     @property
     def parameters(self) -> dict[str, Any]:
