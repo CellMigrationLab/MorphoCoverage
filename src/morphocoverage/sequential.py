@@ -23,6 +23,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._checks import as_count
 from ._parallel import check_n_jobs, map_units
 from .data_check import validate_input_tables
 from .evaluator import (
@@ -31,6 +32,7 @@ from .evaluator import (
     iter_analysis_groups,
     restrict_input,
 )
+from .metadata import column_names
 from .objectives import ObjectiveConfig
 from .results import StrategyResult
 from .schema import ValidatedInput, fov_positions
@@ -90,6 +92,9 @@ def evaluate_acquisition_prefixes(
     each strategy apart when there are too few groups to keep them busy.
     Results come back in the same order and are identical for every value,
     apart from timings (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
+
+    ``min_fovs`` is the first prefix recorded: an integer of at least 1
+    (``2.0`` or ``2.5`` is refused, numpy integers are accepted).
     """
     return _evaluate_prefixes(
         objects,
@@ -125,7 +130,10 @@ def _evaluate_prefixes(
 ) -> list[SequentialResult]:
     """``evaluate_acquisition_prefixes``, optionally on running workers (``pool``)."""
     check_n_jobs(n_jobs)
-    _check_order_column(fovs, acquisition_order_col, feature_cols, min_fovs)
+    # Read once, so a generator of names is not consumed by the order check.
+    feature_cols = column_names(feature_cols, "feature_cols")
+    min_fovs = as_count(min_fovs, "min_fovs")
+    _check_order_column(fovs, acquisition_order_col, feature_cols)
     data = validate_input_tables(
         objects,
         feature_cols=feature_cols,
@@ -218,16 +226,14 @@ def _replay_unit(
 
 
 def _check_order_column(
-    fovs: pd.DataFrame, order_col: str, feature_cols: Sequence[str], min_fovs: int
+    fovs: pd.DataFrame, order_col: str, feature_cols: Sequence[str] | None
 ) -> None:
     """The acquisition-order column exists, is complete and is not a phenotype feature."""
-    if min_fovs < 1:
-        raise ValueError("min_fovs must be at least 1")
     if not isinstance(fovs, pd.DataFrame):
         raise TypeError("fovs must be a pandas DataFrame")
     if order_col not in fovs.columns:
         raise ValueError(f"fovs is missing required columns: {[order_col]}")
-    if order_col in feature_cols:
+    if feature_cols is not None and order_col in feature_cols:
         raise ValueError("acquisition order cannot also be a phenotype feature")
     _check_order_values(fovs, order_col)
 
@@ -373,3 +379,6 @@ def _replay_incremental(
             result = replay.step(new, prefix, record=step >= min_fovs, setup_seconds=setup_seconds)
             if result is not None:
                 yield step, result
+
+
+__all__ = ["SequentialResult", "evaluate_acquisition_prefixes"]
