@@ -22,8 +22,15 @@ def is_number(value: object) -> bool:
 def as_count(value: object, name: str, minimum: int = 1) -> int:
     """``value`` as a Python ``int`` of at least ``minimum``, or a ``ValueError`` naming it."""
     if not is_integer(value) or int(value) < minimum:
-        raise ValueError(f"{name} must be an integer of at least {minimum}")
+        raise ValueError(f"{name} must be an integer of at least {minimum}, not {value!r}")
     return int(value)
 
 
-__all__ = ["as_count", "is_integer", "is_number"]
+def check_seed(value: object, name: str = "random_state") -> int:
+    """A random seed: an integer of at least 0 (numpy integers accepted), as a Python ``int``."""
+    if not is_integer(value) or int(value) < 0:
+        raise ValueError(f"{name} must be a non-negative integer seed, not {value!r}")
+    return int(value)
+
+
+__all__ = ["as_count", "check_seed", "is_integer", "is_number"]

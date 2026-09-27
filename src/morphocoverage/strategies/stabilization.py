@@ -47,30 +47,10 @@ from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
+from ..statistics import PAPER_DESCRIPTORS, describe
 from .base import Estimator, SamplingStrategy, check_order_col, unsupported_observation_unit
 
-PAPER_DESCRIPTORS = ("mean", "median", "sd", "iqr")
 _UNITS = ("object", "fov")
-
-
-def describe(
-    values: np.ndarray, descriptors: tuple[str, ...] = PAPER_DESCRIPTORS
-) -> dict[str, float]:
-    """Descriptors of one sample, as in the paper's Table 1; NaN with fewer than 2 values.
-
-    Quantiles use linear interpolation, matching the companion code's
-    ``np.percentile`` and ``pandas.quantile``; SD uses ``ddof=1``.
-    """
-    if len(values) < 2:
-        return {name: float("nan") for name in descriptors}
-    q1, median, q3 = np.percentile(values, [25, 50, 75])
-    available = {
-        "mean": float(np.mean(values)),
-        "median": float(median),
-        "sd": float(np.std(values, ddof=1)),
-        "iqr": float(q3 - q1),
-    }
-    return {name: available[name] for name in descriptors}
 
 
 def _reported(descriptors: dict[str, float]) -> dict[str, float | None]:

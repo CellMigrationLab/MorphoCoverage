@@ -63,12 +63,12 @@ from .._wording import fields as fields_text
 from .._wording import where
 from ..schema import ValidatedInput, unit_plural
 from ..statistics import (
+    describe,
     field_sample,
     field_weighted_mean_se,
     jcb_required_objects,
     sd_upper_bound_factor,
 )
-from ..strategies.stabilization import describe
 from ._common import check_count, check_seed, fov_values, groups, matching_groups, validated
 
 DESCRIPTORS = ("mean", "median", "SD", "IQR")

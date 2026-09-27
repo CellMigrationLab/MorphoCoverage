@@ -79,16 +79,19 @@ def test_e13_srs_relative_rmse_refuses_impossible_inputs():
 
 def test_e5_nested_bootstrap_keeps_fields_within_a_drawn_well():
     # Two wells whose fields are identical within each well: resampling wells only
-    # can give just three means (both of one well, or one of each).
+    # can give just three means (both of one well, or one of each), so each end of
+    # the percentile interval is 1, 2 or 3 before the small-sample widening (audit 3,
+    # E-2), which multiplies its distance from the point by one factor.
     wells = [[np.full(5, 1.0), np.full(5, 1.0)], [np.full(5, 3.0), np.full(5, 3.0)]]
-    draws = set()
+    widen = np.sqrt(2) * stats.t.ppf(0.975, 1) / stats.norm.ppf(0.975)
+    ends = set()
     for seed in range(20):
         point, low, high = statistics.bootstrap_nested(
             wells, np.mean, n_boot=200, rng=np.random.default_rng(seed)
         )
-        draws.update({low, high})
         assert point == 2.0
-    assert draws <= {1.0, 2.0, 3.0}
+        ends.update({round((point - low) / widen, 9), round((high - point) / widen, 9)})
+    assert ends <= {0.0, 1.0}
 
 
 def test_e5_nested_bootstrap_with_one_well_is_the_field_bootstrap():

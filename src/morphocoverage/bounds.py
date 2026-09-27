@@ -23,7 +23,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import stats
 
-from ._checks import is_integer
+from ._checks import is_integer, is_number
 
 
 def _check_counts(successes: int, trials: int, confidence: float) -> tuple[int, int]:
@@ -121,7 +121,7 @@ def extra_trials_for_bound(
 
 def check_confidence(confidence: object) -> float:
     """A confidence level strictly between 0 and 1, as a float."""
-    if isinstance(confidence, bool) or not isinstance(confidence, int | float):
+    if not is_number(confidence):
         raise TypeError("confidence must be a number")
     if not 0 < confidence < 1:
         raise ValueError("confidence must be between 0 and 1")

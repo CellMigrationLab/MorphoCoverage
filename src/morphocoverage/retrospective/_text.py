@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .._seeds import group_identity  # noqa: F401  (re-exported for the summaries)
-from .._wording import fields, number, percent, rows_of, where  # noqa: F401  (re-exported)
+from .._wording import fields, number, percent, plural, rows_of, where  # noqa: F401  (re-exported)
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..schema import unit_plural  # noqa: F401  (re-exported for the summaries)
 
@@ -25,15 +25,6 @@ def order_phrase(order: str, *, capital: bool = False) -> str:
     """Where a replay ran, as a sentence opens: ``in random orders``, ``In random orders``."""
     phrase = _ORDER_PHRASES.get(order, order)
     return phrase[:1].upper() + phrase[1:] if capital else phrase
-
-
-def plural(word: str) -> str:
-    """English plural of a unit's name: ``batches``, ``wells``, ``technical repeats``."""
-    if word.endswith(("s", "x", "z", "ch", "sh")):
-        return f"{word}es"
-    if len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
-        return f"{word[:-1]}ies"
-    return f"{word}s"
 
 
 def sample_word(hierarchy: Mapping[str, Any]) -> str:

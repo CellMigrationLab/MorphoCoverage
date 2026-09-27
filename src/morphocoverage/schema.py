@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from ._wording import plural
 from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     WITHIN_FOV_METADATA_COLUMNS,
@@ -46,17 +47,9 @@ _UNIT_ALIASES = {
 DEFAULT_OBSERVATION_UNIT = "object"
 
 
-_PLURALS = {
-    "nucleus": "nuclei",
-    "object": "objects",
-    "patch": "patches",
-    "fov_summary": "field summaries",
-}
-
-
 def unit_plural(observation_unit: str) -> str:
-    """Plural of an observation unit for sentences, e.g. ``nuclei``; ``object`` is ``objects``."""
-    return _PLURALS.get(observation_unit, f"{observation_unit}s")
+    """Plural of an observation unit for sentences, e.g. ``nuclei`` (``_wording.plural``)."""
+    return plural(observation_unit)
 
 
 def resolve_observation_unit(unit: str | None) -> tuple[str, bool]:
