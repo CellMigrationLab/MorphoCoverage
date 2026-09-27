@@ -205,7 +205,7 @@ def test_i4_livetables_key_is_the_fov_identity_of_the_validator():
 
 
 def test_i5_the_report_takes_few_fovs_from_the_setup():
-    objects, fovs = _tables()
+    objects, fovs = _tables(n_fovs=10)  # 5 fields per well: enough for min_other_fovs=4
     novelty = SupportNoveltyEstimator(1.5, 3, Standardize(), 3, 2)
     with pytest.raises(ValueError, match="must exceed"):
         _setup(novelty=novelty, few_fovs=3)

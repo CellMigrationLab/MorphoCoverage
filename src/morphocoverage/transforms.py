@@ -32,6 +32,7 @@ from typing import Any
 
 import numpy as np
 
+from ._checks import is_integer
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput
 from .statistics import RELATIVE_TOLERANCE  # rounding-noise share of the scale
@@ -229,10 +230,12 @@ class PCA(FeatureTransform):
     n_components: int
 
     def __post_init__(self) -> None:
-        if isinstance(self.n_components, bool) or not isinstance(self.n_components, int):
+        if not is_integer(self.n_components):
             raise TypeError("n_components must be an integer")
         if self.n_components < 1:
             raise ValueError("n_components must be at least 1")
+        # A numpy integer is stored as a Python int: the same name and config_id.
+        object.__setattr__(self, "n_components", int(self.n_components))
 
     @property
     def name(self) -> str:
@@ -346,3 +349,13 @@ class Chain(FeatureTransform):
         for transform, step in zip(self.transforms, steps, strict=True):
             matrix = transform.apply_matrix(step, matrix)
         return matrix
+
+
+__all__ = [
+    "PCA",
+    "Chain",
+    "FeatureTransform",
+    "FittedTransform",
+    "Standardize",
+    "constant_columns",
+]

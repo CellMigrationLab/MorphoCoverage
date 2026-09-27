@@ -93,6 +93,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._checks import is_integer
 from ..bounds import check_confidence, upper_bound
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -219,7 +220,7 @@ def _check(label_col: str, min_fovs: int) -> None:
     """A label column name and a minimum of at least 2 FOVs."""
     if not isinstance(label_col, str) or not label_col:
         raise TypeError("label_col must be the name of an observation label column")
-    if isinstance(min_fovs, bool) or not isinstance(min_fovs, int) or min_fovs < 2:
+    if not is_integer(min_fovs) or min_fovs < 2:
         raise ValueError("min_fovs must be an integer of at least 2")
 
 
@@ -243,6 +244,7 @@ class IncidenceCoverageEstimator(Estimator):
 
     def __post_init__(self) -> None:
         _check(self.label_col, self.min_fovs)
+        object.__setattr__(self, "min_fovs", int(self.min_fovs))  # numpy ints too
         object.__setattr__(self, "confidence", check_confidence(self.confidence))
 
     @property
@@ -311,6 +313,7 @@ class IncidenceCoverageStrategy(SamplingStrategy):
 
     def __post_init__(self) -> None:
         _check(self.label_col, self.min_fovs)
+        object.__setattr__(self, "min_fovs", int(self.min_fovs))  # numpy ints too
         check_confidence(self.confidence)
         if self.quantity not in QUANTITIES:
             raise ValueError(f"quantity must be one of {QUANTITIES}")

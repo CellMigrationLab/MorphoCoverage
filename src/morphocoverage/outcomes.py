@@ -13,22 +13,31 @@ acquisition shows.
 
 Metrics return a float, or ``None`` when the outcome is undefined (for example
 a relative error of a zero mean); never NaN.
+
+Every metric takes an optional keyword ``label``: when given it is the
+metric's ``name`` (the key of its value in benchmark records) and enters its
+parameters, so two settings of one metric can be told apart; without it the
+name and ``config_id`` are the defaults.
+
+Shared-private: ``_check_label`` (used by ``multivariate_outcomes``).
 """
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
 from . import _deprecated
+from ._checks import is_integer
 from .provenance import class_identity, config_hash
-from .schema import ValidatedInput, fov_positions
+from .schema import ValidatedInput
 from .statistics import mean_is_zero, srs_relative_rmse
+from .strategies.rare_incidence import _positive_fovs
 
 
 class OutcomeMetric(ABC):
@@ -64,6 +73,31 @@ def _feature(feature: object) -> str:
     return feature
 
 
+def _check_label(label: object) -> None:
+    """``None`` or a non-empty string: a metric's own name."""
+    if label is not None and (not isinstance(label, str) or not label):
+        raise TypeError("label must be a non-empty string (the metric's name) or None")
+
+
+def _named(label: str | None, default: str) -> str:
+    """The metric's name: its label when given, else its default name."""
+    return default if label is None else label
+
+
+def _labelled(label: str | None, parameters: dict[str, Any]) -> dict[str, Any]:
+    """``parameters`` with the label, when one is given (the default ``config_id`` otherwise)."""
+    return parameters if label is None else {**parameters, "label": label}
+
+
+def _stop_within(full: ValidatedInput, stopped: ValidatedInput) -> bool:
+    """Whether every FOV of the stop is a FOV of the reference (the stop drawn from it)."""
+    if tuple(stopped.fov_key) != tuple(full.fov_key):
+        return False
+    key = list(full.fov_key)
+    reference = set(zip(*(full.fovs[column].tolist() for column in key)))
+    return all(fov in reference for fov in zip(*(stopped.fovs[column].tolist() for column in key)))
+
+
 @dataclass(frozen=True)
 class RelativeMeanError(OutcomeMetric):
     """``|mean(stop) - mean(full)| / |mean(full)|`` of one feature's observation mean.
@@ -77,19 +111,21 @@ class RelativeMeanError(OutcomeMetric):
     """
 
     feature: str
+    label: str | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         _feature(self.feature)
+        _check_label(self.label)
 
     @property
     def name(self) -> str:
-        """``relative_mean_error:<feature>``."""
-        return f"relative_mean_error:{self.feature}"
+        """``label`` when given, else ``relative_mean_error:<feature>``."""
+        return _named(self.label, f"relative_mean_error:{self.feature}")
 
     @property
     def parameters(self) -> dict[str, Any]:
-        """The feature."""
-        return {"feature": self.feature}
+        """The feature, and the label when given."""
+        return _labelled(self.label, {"feature": self.feature})
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Relative error of the stop mean against the full mean."""
@@ -110,28 +146,38 @@ class RandomObjectRelativeError(OutcomeMetric):
     """Expected relative RMSE had the stop's number of objects been drawn at random.
 
     The comparator that object-number rules assume: the same number of objects
-    as the stop prefix, drawn at random from the full group (simple random
-    sampling with finite-population correction, ``srs_relative_rmse``).
+    as the stop prefix, drawn at random from the reference's objects.
     Averaged over acquisition orders, the ratio of ``RelativeMeanError``'s RMSE
     to this value is the error inflation from acquiring whole FOVs. ``None``
-    with fewer than 2 objects in the full group or none at the stop, or a zero
-    full mean (up to rounding).
+    with fewer than 2 objects in the reference or none at the stop, or a zero
+    reference mean (up to rounding).
+
+    When the reference contains the stop (the full group, the default), the
+    stop's objects are a sample without replacement from that finite
+    population: simple random sampling with finite-population correction,
+    ``sqrt(s^2 / n * (1 - n / N)) / |mean|`` (``srs_relative_rmse``). When it
+    does not (a held-out reservoir, whose FOVs the stop never sees), the stop's
+    mean estimates the population the reference samples, and there is no
+    finite population to correct for: ``sqrt(s^2 / n) / |mean|``, for any
+    ``n``, including more objects than the reference holds.
     """
 
     feature: str
+    label: str | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         _feature(self.feature)
+        _check_label(self.label)
 
     @property
     def name(self) -> str:
-        """``random_object_relative_error:<feature>``."""
-        return f"random_object_relative_error:{self.feature}"
+        """``label`` when given, else ``random_object_relative_error:<feature>``."""
+        return _named(self.label, f"random_object_relative_error:{self.feature}")
 
     @property
     def parameters(self) -> dict[str, Any]:
-        """The feature."""
-        return {"feature": self.feature}
+        """The feature, and the label when given."""
+        return _labelled(self.label, {"feature": self.feature})
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Expected random-object error at the stop's object count."""
@@ -144,7 +190,10 @@ class RandomObjectRelativeError(OutcomeMetric):
         mean = float(reference.mean())
         if mean_is_zero(mean, reference):
             return None
-        return srs_relative_rmse(float(reference.var(ddof=1)), mean, n, len(reference))
+        within = _stop_within(full, stopped) and n <= len(reference)
+        # An infinite population is no finite-population correction.
+        population = len(reference) if within else math.inf
+        return srs_relative_rmse(float(reference.var(ddof=1)), mean, n, population)
 
 
 @dataclass(frozen=True)
@@ -153,53 +202,49 @@ class RareStateDetected(OutcomeMetric):
 
     ``label_col`` is an object column that labels the state independently of
     any strategy (booleans, or integers 0/1); it is metadata and never needs to
-    be a feature. ``None`` when the full acquisition itself does not reach
+    be a feature. FOVs holding the state are counted as ``RareIncidenceEstimator``
+    counts them. ``None`` when the full acquisition itself does not reach
     ``min_fov_occurrences`` FOVs with the state, since no stop could then
-    detect it.
+    detect it, or when a label is missing in either acquisition (the
+    estimator reports its risk as not applicable then).
     """
 
     label_col: str
     min_fov_occurrences: int
+    label: str | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         if not isinstance(self.label_col, str):
             raise TypeError("label_col must be one column name")
-        if isinstance(self.min_fov_occurrences, bool) or not isinstance(
-            self.min_fov_occurrences, int
-        ):
+        if not is_integer(self.min_fov_occurrences):
             raise TypeError("min_fov_occurrences must be an integer count of FOVs")
         if self.min_fov_occurrences < 1:
             raise ValueError("min_fov_occurrences must be at least 1")
+        object.__setattr__(self, "min_fov_occurrences", int(self.min_fov_occurrences))
+        _check_label(self.label)
 
     @property
     def name(self) -> str:
-        """``rare_state_detected:<label_col>:<min_fov_occurrences>``."""
-        return f"rare_state_detected:{self.label_col}:{self.min_fov_occurrences}"
+        """``label`` when given, else ``rare_state_detected:<label_col>:<min_fov_occurrences>``."""
+        default = f"rare_state_detected:{self.label_col}:{self.min_fov_occurrences}"
+        return _named(self.label, default)
 
     @property
     def parameters(self) -> dict[str, Any]:
-        """The label column and the number of FOVs required."""
-        return {"label_col": self.label_col, "min_fov_occurrences": self.min_fov_occurrences}
-
-    def _fovs_with_state(self, data: ValidatedInput) -> int:
-        """Number of FOVs containing at least one observation labelled with the state."""
-        if self.label_col not in data.objects.columns:
-            raise ValueError(f"label_col {self.label_col!r} is not a column of the object table")
-        labels = data.objects[self.label_col]
-        if not (pd.api.types.is_bool_dtype(labels) or set(labels.unique()) <= {0, 1}):
-            raise ValueError(
-                f"label_col {self.label_col!r} must hold booleans or 0/1, got "
-                f"{sorted(map(str, labels.unique()))[:5]}"
-            )
-        positions = fov_positions(data, data.fovs)[labels.to_numpy(dtype=bool)]
-        return len(np.unique(positions[positions >= 0]))
+        """The label column, the number of FOVs required, and the label when given."""
+        settings = {"label_col": self.label_col, "min_fov_occurrences": self.min_fov_occurrences}
+        return _labelled(self.label, settings)
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Whether the stop prefix already shows the state in enough FOVs."""
-        if self._fovs_with_state(full) < self.min_fov_occurrences:
+        in_full = _positive_fovs(full, self.label_col)
+        if in_full is None or in_full < self.min_fov_occurrences:
             return None
-        return float(self._fovs_with_state(stopped) >= self.min_fov_occurrences)
+        at_stop = _positive_fovs(stopped, self.label_col)
+        return None if at_stop is None else float(at_stop >= self.min_fov_occurrences)
 
 
 # Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).
 __getattr__ = _deprecated.module_getattr(__name__, globals(), ("RandomCellRelativeError",))
+
+__all__ = ["OutcomeMetric", "RandomObjectRelativeError", "RareStateDetected", "RelativeMeanError"]
