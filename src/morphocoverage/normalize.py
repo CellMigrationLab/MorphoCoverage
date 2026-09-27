@@ -19,16 +19,29 @@ sign of every value, so a treated mean above its control would read as below
 it (a signed feature such as a velocity or a log-ratio is compared raw). A
 repeat column named explicitly but absent from the tables raises too, rather
 than pooling the repeats; only the default ``"repeat"`` may be absent.
+
+A signed feature whose control mean happens to be positive is still
+normalised, but ``normalize_to_control`` warns (``UserWarning``) whenever the
+control objects hold negative values of a feature: such a feature has no
+ratio scale, so a value divided by the control mean is not a multiple of the
+control, and a control mean near zero inflates every value (a log-ratio with
+control mean 0.05 and treated mean 0.3 reads "6 x control"). The same
+sentence is in the result's ``attrs["normalization_note"]``, and
+``control_means`` lists the features in its ``negative_features`` column
+(``negative_values_sentence`` words it), so a report can state it beside
+the values.
 """
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from ._wording import listing
 from .data_check import validate_input_tables
 from .metadata import MORPHOBRICKS_GROUP_COLUMNS
 from .statistics import mean_is_zero
@@ -95,6 +108,13 @@ def control_means(
     the whole table is one repeat, labelled ``None``; a ``repeat_col`` named
     explicitly must be a column. Raises when a repeat has no control objects
     or a control mean is zero (up to rounding), negative or undefined.
+
+    Each row holds ``repeat``, ``control_objects`` (the number of control
+    objects the means rest on: an object missing a feature's value is left
+    out of that feature's mean, so with missing values this is the smallest
+    count over the features), ``negative_features`` (the features whose
+    control objects in that repeat include negative values, as a tuple; see
+    the module docstring) and the mean of every feature.
     """
     if not isinstance(control, Mapping) or condition_col not in control:
         raise ValueError(f"control must name the condition column {condition_col!r}")
@@ -134,8 +154,34 @@ def control_means(
                 "has no meaning and dividing by a negative one flips the sign of the effect: "
                 "leave these features out of normalisation (compare them raw)"
             )
-        rows.append({"repeat": repeat, "control_objects": len(chosen), **means.to_dict()})
+        with_values = int(chosen.notna().sum(axis=0).min())
+        negative = tuple(column for column in feature_cols if (chosen[column] < 0).any())
+        rows.append(
+            {
+                "repeat": repeat,
+                "control_objects": with_values,
+                "negative_features": negative,
+                **means.to_dict(),
+            }
+        )
     return pd.DataFrame(rows)
+
+
+def negative_values_sentence(means: pd.DataFrame) -> str | None:
+    """The caution for features whose control holds negative values, or ``None`` without any.
+
+    ``means`` is a ``control_means`` table; the sentence names the features
+    and says why their normalised values are not multiples of the control.
+    """
+    features = list(dict.fromkeys(f for row in means["negative_features"] for f in row))
+    if not features:
+        return None
+    return (
+        f"the control objects hold negative values of {listing([repr(f) for f in features])}: "
+        "a feature that can change sign has no ratio scale, so its value divided by the "
+        "control mean is not a multiple of the control, and a control mean near zero "
+        "inflates every value; compare such a feature raw"
+    )
 
 
 def normalize_to_control(
@@ -154,7 +200,10 @@ def normalize_to_control(
 
     Every other column, the row order and the index are kept, so the result
     replaces ``objects`` in any analysis. See ``control_means`` for the
-    arguments and the errors.
+    arguments and the errors. When the control objects hold negative values of
+    a feature, the values are still divided but a ``UserWarning`` says why they
+    are not multiples of the control, and ``attrs["normalization_note"]``
+    keeps the sentence.
     """
     means = control_means(
         objects,
@@ -187,7 +236,18 @@ def normalize_to_control(
         divisors = by_repeat.loc[attached[repeat_col].tolist()].to_numpy()
     values = objects[list(feature_cols)].to_numpy(dtype=float) / divisors
     normalized[list(feature_cols)] = values
+    note = negative_values_sentence(means)
+    if note is not None:
+        # Normalised as asked, but the reader must know the ratios are not "x control".
+        normalized.attrs["normalization_note"] = note
+        warnings.warn(f"normalize_to_control: {note}.", UserWarning, stacklevel=2)
     return normalized
 
 
-__all__ = ["CONTROL_MEAN", "METHODS", "control_means", "normalize_to_control"]
+__all__ = [
+    "CONTROL_MEAN",
+    "METHODS",
+    "control_means",
+    "negative_values_sentence",
+    "normalize_to_control",
+]

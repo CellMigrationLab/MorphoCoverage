@@ -5,6 +5,9 @@ plain sentences a microscopist reads, so the wording can be read and changed
 without touching the computation. Every sentence names the criterion, its
 threshold and the assumptions it rests on, and never calls a sample adequate
 for a target it did not measure.
+
+Shared-private: ``_policies`` (``sufficiency_tables``), ``_enough_answer`` and
+``_next_fov_answer`` (``sufficiency``).
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from typing import Any
 
 import pandas as pd
 
-from ._wording import count, percent, rows_of
+from ._wording import count, listing, number, percent, rows_of, where
 from .evidence import Direction
 from .results import StrategyResult
 from .strategies.support_novelty import SupportNoveltyEstimator
@@ -40,35 +43,64 @@ def _policies(result: StrategyResult) -> str:
     return "; ".join(_policy_text(policy, result) for policy in policies)
 
 
-def _enough_answer(final: Mapping[str, Any], stops: Mapping[str, Any]) -> str:
-    """One criterion's answer to 'did we sample enough?' as a sentence."""
+def _stops_clause(stops: Mapping[str, Any]) -> str:
+    """Where one kind of replayed order (recorded or random) first met the criterion.
+
+    The median and its 10-90% range are over the orders that met it, so the
+    clause says how many did: "in 2 of 10 random orders, first met after 14.5
+    FOVs", never a median that reads as if every order had stopped.
+    """
+    orders = int(stops["orders"])
+    met = orders - int(stops["never_stopped"])
+    recorded = stops.get("order_kind") == "recorded"
+    kind = "recorded order" if recorded else "random order"
+    where = f"the {kind}" if orders == 1 else None
+    if not met:
+        return f"not met at any point in {where or count(orders, kind)}"
+    first = f"first met after {count(stops['stop_fov_median'], 'FOV')}"
+    if met > 1:
+        first += (
+            f" (median; 10-90%: {number(stops['stop_fov_p10'])}-{number(stops['stop_fov_p90'])})"
+        )
+    share = f"all {count(orders, kind)}" if met == orders else f"{met} of {count(orders, kind)}"
+    return f"in {where or share}, {first}"
+
+
+def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]]) -> str:
+    """One criterion's answer to 'did we sample enough?' as a sentence.
+
+    ``stops`` holds one row per kind of replayed order (the recorded order, the
+    random orders), each given in its own clause: pooled, a recorded order that
+    drifts would hide among the random ones.
+    """
     criterion = f"{final['strategy']} ({final['policies']})"
-    acquired, orders = final["n_fovs"], stops["orders"]
+    acquired = final["n_fovs"]
     if pd.isna(final["verdict"]):
         return f"{criterion}: undefined for these data ({final['undefined_reason']})."
-    # A fixed count says its target was reached, not that the sample was enough.
-    effort_rule = " >= " in str(final["policies"]) and str(final["policies"]).startswith("n_")
+    # A fixed amount of effort says its target was reached, not that the sample was
+    # enough; read from the rule's structure (sufficiency_tables.is_effort_rule).
+    effort_rule = bool(final.get("effort_rule", False))
     if final["verdict"] == "continue":
         head = f"{criterion}: no, not met by the {acquired} acquired FOVs"
+        reason = final.get("insufficient_reason")
+        if isinstance(reason, str) and reason:
+            head += f" (it cannot be judged yet: {reason})"
     elif effort_rule:
         head = f"{criterion}: its target was reached by the {acquired} acquired FOVs"
     else:
         head = f"{criterion}: yes, its threshold was met by the {acquired} acquired FOVs"
     if final.get("assumes_spatial_uniformity"):
         head += " (treats observations as independent draws: assumes a spatially uniform sample)"
-    if pd.isna(stops["stop_fov_median"]):
-        return f"{head}; not met at any point in {count(orders, 'replayed order')}."
-    first = (
-        f"first met after {stops['stop_fov_median']:g} FOVs "
-        f"(10-90%: {stops['stop_fov_p10']:g}-{stops['stop_fov_p90']:g}) over "
-        f"{count(orders, 'order')}"
-    )
-    never = stops["never_stopped"]
-    missing = f", never in {never}" if never else ""
+    if not stops:
+        return f"{head}."
+    clauses = "; ".join(_stops_clause(row) for row in stops)
+    ever_met = any(int(row["orders"]) > int(row["never_stopped"]) for row in stops)
     lost = (
-        "; it was met and then lost as more FOVs arrived" if final["verdict"] == "continue" else ""
+        "; it was met and then lost as more FOVs arrived"
+        if final["verdict"] == "continue" and ever_met
+        else ""
     )
-    return f"{head}; {first}{missing}{lost}."
+    return f"{head}; {clauses}{lost}."
 
 
 def novelty_definition(
@@ -76,27 +108,31 @@ def novelty_definition(
 ) -> str:
     """What counts as a FOV showing something new, in words; with ``feature_cols``,
     also the columns it is judged on (the phenotype geometry's provenance)."""
-    m, others = novelty.min_novel_observations, novelty.min_other_fovs
+    m = novelty.min_novel_observations
     space = "raw feature units" if novelty.transform is None else novelty.transform.name
     cells = (
         "at least 1 observation"
         if m == 1
         else f"a cluster of at least {m} similar observations (linked within the distance)"
     )
-    text = (
-        f"{cells} with fewer than {others} other FOV{'s' if others > 1 else ''} "
-        f"within distance {novelty.epsilon:g} ({space})"
-    )
+    text = f"{cells} with {_other_fovs(novelty.min_other_fovs)} within distance "
+    text += f"{novelty.epsilon:g} ({space})"
     if feature_cols:
         names = list(feature_cols)
-        shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
-        text += f", on {len(names)} feature{'s' if len(names) > 1 else ''} ({shown})"
+        text += f", on {count(len(names), 'feature')} ({listing(names, limit=3)})"
     return text
 
 
-def _more_fovs(count: int) -> str:
+def _other_fovs(min_other_fovs: int) -> str:
+    """``no other FOV`` (for 1), ``fewer than 3 other FOVs``: the support that makes a state new."""
+    if min_other_fovs == 1:
+        return "no other FOV"
+    return f"fewer than {count(min_other_fovs, 'other FOV')}"
+
+
+def _more_fovs(n: int) -> str:
     """``1 more FOV``, ``3 more FOVs``."""
-    return f"{count} more FOV" if count == 1 else f"{count} more FOVs"
+    return count(n, "more FOV")
 
 
 def _several_states(row: Mapping[str, Any], fewest: int) -> str:
@@ -110,21 +146,29 @@ def _several_states(row: Mapping[str, Any], fewest: int) -> str:
 
 
 def _next_fov_answer(
-    row: Mapping[str, Any], target: float | None, calibrated: Mapping[str, Any] | None
+    row: Mapping[str, Any],
+    target: float | None,
+    calibrated: Mapping[str, Any] | None,
+    min_other_fovs: int = 1,
 ) -> str:
-    """Question 2 for one group, as lines of text."""
+    """Question 2 for one group, as lines of text.
+
+    ``min_other_fovs`` is the novelty definition's: a FOV counts as new when a
+    state in it is shown by fewer than that many other FOVs (none, for 1).
+    """
     if pd.isna(row["chance_new"]):
         return f"Not estimable: {row['reason']}."
     confidence = percent(row["confidence"])
+    shows = "shows" if min_other_fovs == 1 else "show"
     chance = (
         f"Chance: {percent(row['chance_new'])} (nominal {confidence} upper bound "
         f"{percent(row['chance_new_at_most'])}, approximate: the leave-one-FOV-out outcomes "
         f"share their reference FOVs); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
-        "showed something the others did not."
+        f"showed a state that {_other_fovs(min_other_fovs)} {shows}."
     )
     empty = int(row.get("fovs_without_observations", 0) or 0)
     counted = (
-        f" The count includes {empty} FOV{'s' if empty > 1 else ''} without observations, "
+        f" The count includes {count(empty, 'FOV')} without observations, "
         "which cannot show a state."
         if empty
         else ""
@@ -214,8 +258,7 @@ def report_summary(
     rows = list(groups.itertuples(index=False, name=None)) if keys else [()] * bool(tables)
     for values in rows:
         group = dict(zip(keys, values, strict=True))
-        label = ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
-        lines = [f"{label}:"]
+        lines = [f"{where(group)}:"]
         # A question that was not asked has an empty table without the group columns.
         criteria = rows_of(enough, group) if not enough.empty else enough
         if len(criteria):

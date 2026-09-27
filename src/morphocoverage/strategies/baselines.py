@@ -127,6 +127,7 @@ class FixedObjectStrategy(SamplingStrategy):
 
     target_objects: int
     name: str = "fixed_objects"
+    effort_rule = True  # a fixed amount of effort, not a measure of the data (not a field)
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -249,6 +250,7 @@ class FixedAreaStrategy(SamplingStrategy):
     target_area: float
     area_col: str
     name: str = "fixed_area"
+    effort_rule = True  # a fixed amount of effort, not a measure of the data (not a field)
 
     def __post_init__(self) -> None:
         _check_area_col(self.area_col)

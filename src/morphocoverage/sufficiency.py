@@ -21,9 +21,9 @@ observation table and the FOV table of every acquired position:
    (``unseen_state_max_frequency``), with the extra FOVs needed to rule out
    states above ``novelty_target``. A small chance for the next FOV is not
    evidence that no rare state remains: in the idr0028 frequency control
-   (``docs/preliminary_findings.md``, entry 3) stopping at a 25% bound after 11
-   FOVs missed a state in 5% of FOVs in almost half the acquisitions that had
-   it. ``new_observations`` lists the
+   (``docs/preliminary_findings.md``, entry 3) stopping at a 25% bound (after
+   a median of 11 FOVs, up to 23) missed a state in 5% of FOVs in almost half
+   the acquisitions that had it. ``new_observations`` lists the
    observations counted as new so they can be inspected in the images, and
    ``calibration`` (optional) checks the prediction against this dataset by
    shuffling (``morphocoverage.calibration``).
@@ -49,7 +49,12 @@ Reading it:
   new FOV among ``k``, the 95% bound is ``1 - 0.05 ** (1 / k)``, so claiming
   "below 10%" needs at least 29 FOVs.
 - Random orders treat FOVs as exchangeable; the recorded order keeps drift
-  and neighbour effects. Declare both to see the difference.
+  and neighbour effects. Declare both to see the difference: the stops table
+  has one row per ``order_kind`` and each answer gives the recorded and the
+  random orders in separate clauses, never pooled into one median.
+- A fixed-effort rule (a number of FOVs or objects, an imaged area) reports
+  ``sampled_enough = "target reached"``, not ``"yes"``: reaching a fixed
+  amount of effort says nothing about what the data show.
 - This is self-assessment of one dataset. It says what each criterion
   concludes, not that the criterion is right; that needs held-out deep data
   (``docs/benchmarking.md``). The calibration check is the part that tests a
@@ -65,6 +70,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._checks import is_integer
 from ._wording import rows_of
 from .benchmark import (
     AcquisitionOrder,
@@ -121,7 +127,8 @@ class SufficiencyReport:
     - ``calibration``: predicted versus actual chance of a new phenotype, per
       group and number of FOVs (empty unless requested).
     - ``final``: every criterion's decision and evidence (``q.<name>``) on the
-      full acquisition. ``stops``: the stop-FOV distribution over orders.
+      full acquisition. ``stops``: the stop-FOV distribution over orders, one
+      row per group, criterion and ``order_kind`` (recorded, permuted).
     """
 
     enough: pd.DataFrame
@@ -139,13 +146,26 @@ class SufficiencyReport:
 
 
 def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
-    """Question 1, one row per group and criterion."""
-    keys = [*group_cols, "config_id"]
-    merged = final.merge(stops, on=[*keys, "strategy"], how="left", validate="one_to_one")
+    """Question 1, one row per group and criterion.
+
+    ``sampled_enough`` is ``"yes"`` when a rule on the data met its threshold,
+    ``"target reached"`` when a fixed-effort rule (FOVs, objects, area) reached
+    its target, ``"no"`` or ``"undefined"``. The stop columns summarise the
+    random orders when any were replayed, otherwise the recorded order
+    (``order_kind`` says which); ``answer`` states each kind apart, and the
+    stops table holds both.
+    """
+    keys = [*group_cols, "strategy", "config_id"]
     rows = []
-    for _, row in merged.iterrows():
+    for _, row in final.iterrows():
+        own = rows_of(stops, {column: row[column] for column in keys}) if len(stops) else stops
+        kinds = [part for _, part in own.iterrows()]
+        by_kind = {part["order_kind"]: part for part in kinds}
+        summary = by_kind.get("permuted", by_kind.get("recorded"))
         verdict = row["verdict"]
-        enough = {"stop": "yes", "continue": "no"}.get(verdict, "undefined")
+        stop_word = "target reached" if row.get("effort_rule", False) else "yes"
+        enough = {"stop": stop_word, "continue": "no"}.get(verdict, "undefined")
+        stop = {} if summary is None else summary
         rows.append(
             {
                 **{column: row[column] for column in group_cols},
@@ -154,15 +174,18 @@ def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str
                 "config_id": row["config_id"],
                 "fovs_acquired": row["n_fovs"],
                 "sampled_enough": enough,
-                "enough_after_fovs": row["stop_fov_median"],
-                "enough_after_p10": row["stop_fov_p10"],
-                "enough_after_p90": row["stop_fov_p90"],
+                "enough_after_fovs": stop.get("stop_fov_median", np.nan),
+                "enough_after_p10": stop.get("stop_fov_p10", np.nan),
+                "enough_after_p90": stop.get("stop_fov_p90", np.nan),
                 # FOVs imaged beyond the point of enough exist only when the acquired
                 # FOVs are enough: a criterion met early and lost has none.
-                "fovs_beyond_enough": row["spare_fovs_median"] if enough == "yes" else np.nan,
-                "orders": row["orders"],
-                "orders_never_enough": row["never_stopped"],
-                "answer": _enough_answer(row, row),
+                "fovs_beyond_enough": (
+                    stop.get("spare_fovs_median", np.nan) if verdict == "stop" else np.nan
+                ),
+                "order_kind": stop.get("order_kind"),
+                "orders": stop.get("orders", np.nan),
+                "orders_never_enough": stop.get("never_stopped", np.nan),
+                "answer": _enough_answer(row, kinds),
             }
         )
     return pd.DataFrame(rows)
@@ -421,10 +444,11 @@ def sufficiency_report(
     if few_fovs is not None:
         if novelty is None:
             raise ValueError("few_fovs needs a novelty definition")
-        if isinstance(few_fovs, bool) or not isinstance(few_fovs, int):
+        if not is_integer(few_fovs):  # numpy integers too; bool is refused
             raise TypeError("few_fovs must be an integer number of FOVs")
         if few_fovs <= novelty.min_other_fovs:
             raise ValueError("few_fovs must exceed the novelty definition's min_other_fovs")
+        few_fovs = int(few_fovs)
     novelty_rules: list[SamplingStrategy] = []
     if novelty is not None and novelty_target is not None:
         novelty_rules.append(
@@ -513,7 +537,10 @@ def sufficiency_report(
             )
         next_fov["answer"] = [
             _next_fov_answer(
-                row, novelty_target, _largest_calibrated(calibrated, row, resolved_groups)
+                row,
+                novelty_target,
+                _largest_calibrated(calibrated, row, resolved_groups),
+                novelty.min_other_fovs,
             )
             for _, row in next_fov.iterrows()
         ]

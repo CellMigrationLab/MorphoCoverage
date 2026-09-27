@@ -42,7 +42,7 @@ from ..metadata import (
     resolve_fov_col,
 )
 from ..normalize import METHODS as NORMALIZATIONS
-from ..normalize import normalize_to_control
+from ..normalize import control_means, negative_values_sentence, normalize_to_control
 from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from ..outcomes import RareStateDetected, RelativeMeanError
 from ..results import COMPONENT_WORDS
@@ -360,16 +360,34 @@ class Setup:
             return list(self.effort_strata)
         return [CONDITION_COLUMN] if CONDITION_COLUMN in fovs.columns else []
 
-    def normalized_sentence(self, fovs: pd.DataFrame) -> str | None:
-        """How the values are normalised and what reads them, or ``None`` when they are not."""
+    def normalized_sentence(
+        self, fovs: pd.DataFrame, objects: pd.DataFrame | None = None
+    ) -> str | None:
+        """How the values are normalised and what reads them, or ``None`` when they are not.
+
+        With ``objects``, also the caution when the control holds negative
+        values of a feature (``normalize.negative_values_sentence``).
+        """
         if self.normalize is None:
             return None
         assert self.control is not None
-        return (
+        text = (
             f"{normalized_sentence(self.control, self.repeat_col(fovs))}, for the outcomes "
             "judged on held-back fields, the condition contrast, the feature ranking and the "
             "plots; the stopping rules and the other analyses read the raw values"
         )
+        if objects is not None:
+            means = control_means(
+                objects,
+                fovs,
+                feature_cols=self.columns,
+                control=self.control,
+                repeat_col=self.repeat_col(fovs),
+                **self.common,
+            )
+            note = negative_values_sentence(means)
+            text += f". Caution: {note}" if note else ""
+        return text
 
     def objective(self) -> ObjectiveConfig:
         """The objective whose components are the declared targets.

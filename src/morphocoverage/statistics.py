@@ -441,8 +441,9 @@ def object_weighted_mean_se(sums: np.ndarray, counts: np.ndarray) -> tuple[float
 
     The variance is a first-order (linearization) approximation. When field
     size and field mean are related it can be several times smaller than the
-    spread of ``m`` over resampled whole fields (0.013 against 0.051 on 8
-    fields of 2 to 150 objects whose crowded fields hold a different state).
+    spread of ``m`` over resampled whole fields (relative to the mean, 0.013
+    against 0.044 on 8 fields of 2 to 150 objects whose crowded fields hold a
+    different state).
 
     Returns ``(m, se, k')``. Needs two fields with objects.
     """

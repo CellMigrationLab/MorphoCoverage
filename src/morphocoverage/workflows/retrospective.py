@@ -133,7 +133,7 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
             objects,
             fovs,
             feature_cols=setup.columns,
-            normalized=setup.normalized_sentence(fovs),
+            normalized=setup.normalized_sentence(fovs, objects),
             **common,
         ),
         "variability": fov_variability(objects, fovs, feature=readout, **common),

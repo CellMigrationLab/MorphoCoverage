@@ -176,7 +176,7 @@ def test_summary_answers_both_questions_in_words():
     assert "Chance: 15% (nominal 95% upper bound" in text and "2 of 13 FOVs" in text
     assert "Check on this dataset: predicting from 6 random FOVs" in text
     assert "'New' means a cluster of at least 3 similar observations" in text
-    assert "with fewer than 1 other FOV within distance 0.5" in text
+    assert "with no other FOV within distance 0.5" in text
     assert list(report.calibration["fovs_imaged"]) == [6]
 
 
@@ -282,7 +282,7 @@ def test_novelty_cols_keep_the_definition_of_new_apart_from_the_readout():
         assert list(mine[name]) == list(reference[name]), table
         assert list(mine["condition"]) == list(reference["condition"]), table
         assert mine.dtypes.to_dict() == reference.dtypes.to_dict(), table
-    assert "feature_a, feature_b" in split.summary()
+    assert "(feature_a and feature_b)" in split.summary()
     with pytest.raises(ValueError, match="novelty_cols"):
         sufficiency_report(
             built.objects,

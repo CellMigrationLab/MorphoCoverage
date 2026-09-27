@@ -266,7 +266,7 @@ def test_e9_one_replayed_order_is_singular():
         orders=[AcquisitionOrder.permuted(0)],
     )
     text = report.summary()
-    assert "over 1 order." in text and "1 orders" not in text
+    assert "in the random order, first met after" in text and "1 orders" not in text
 
 
 def test_e10_the_semivariogram_refuses_infinite_coordinates():
