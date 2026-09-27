@@ -17,9 +17,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
-import pandas as pd
-
+from .._areas import area_problem
 from .._checks import is_integer
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -223,22 +221,16 @@ class ImagedAreaEstimator(Estimator):
             raise ValueError(f"area_col {self.area_col!r} is not a column of the FOV table")
         if self.area_col in data.feature_cols:
             raise ValueError(f"area_col {self.area_col!r} is metadata, not a phenotype feature")
-        column = data.fovs[self.area_col]
-        if not pd.api.types.is_numeric_dtype(column) or pd.api.types.is_bool_dtype(column):
-            raise ValueError(
-                f"area_col {self.area_col!r} holds {column.dtype} values, not numbers; "
-                "convert it to numeric areas first"
-            )
-        areas = column.to_numpy(dtype=float)
+        reason = area_problem(data.fovs, self.area_col, data.fov_key)  # text areas raise
         meta = {
             "direction": Direction.HIGHER_IS_BETTER,
             "units": f"units of {self.area_col!r}",
             "component": Component.POPULATION,
         }
-        if not np.isfinite(areas).all() or (areas <= 0).any():
-            reason = f"missing, infinite, zero or negative areas in {self.area_col!r}"
+        if reason is not None:
             quantity = Quantity.not_applicable(reason, **meta)
             return Evidence({_AREA: quantity}, {"undefined_reason": reason})
+        areas = data.fovs[self.area_col].to_numpy(dtype=float)
         return Evidence({_AREA: Quantity.available(float(areas.sum()), **meta)})
 
 
