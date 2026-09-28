@@ -64,6 +64,7 @@ import pandas as pd
 from ._checks import check_seed, is_integer
 from ._seeds import group_rng, split_seed
 from .evaluator import objects_in_fovs, restrict_input
+from .metadata import sorted_by_key
 from .outcomes import OutcomeMetric
 from .schema import ValidatedInput
 
@@ -158,14 +159,15 @@ class ReservoirSplit:
     ) -> tuple[ValidatedInput, ValidatedInput]:
         """(stream, reservoir) for one analysis group; both keep whole blocks.
 
-        FOVs are put in FOV-key order first, so the split depends on which FOVs
-        were acquired and never on the row order of the FOV table. ``data`` must
+        FOVs are put in FOV-key order first (by value, ``metadata.sorted_by_key``),
+        so the split depends on which FOVs were acquired and never on the row
+        order of the FOV table or the category order of a categorical column. ``data`` must
         hold one analysis group: an input with several groups raises rather than
         pooling them into one stream and one reservoir; split each group of
         ``iter_analysis_groups`` apart.
         """
         _check_one_group(data)
-        fovs = data.fovs.sort_values(list(data.fov_key), kind="stable")
+        fovs = sorted_by_key(data.fovs, data.fov_key)
         blocks = self._blocks(fovs)
         labels, block_of_fov = np.unique(blocks, return_inverse=True)
         if len(labels) < 2:

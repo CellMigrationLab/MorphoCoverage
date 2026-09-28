@@ -46,6 +46,18 @@ Versions:
   yet enough data for the JCB rule; the frontier withholds intervals from
   fewer than 90% of its resamples. Every threshold, grid, split count and
   seed is that of version 3.
+- 5 (2026-09-28, fourth, adversarial audit): the rules and the replay under
+  the settings, not the settings. The JCB per-field bound takes Kish's
+  effective number of fields as its degrees of freedom and is not yet
+  enough data below 2 effective fields; the FOV bootstrap's stopping SE is
+  widened for few fields like every whole-field interval; the JCS spread,
+  plateau and bootstrap are not yet enough data on a readout constant so
+  far, and the per-field spread needs 5 fields with objects; resamples draw
+  in a canonical (FOV-key, value) order; each group is seeded from its
+  labels written canonically (``1`` and ``"1"`` are one group); the default
+  novelty definition standardizes robustly (median and MAD); the frontier's
+  interval is widened for its units and withheld below 5 units. Every
+  threshold, grid, split count and seed is that of version 4.
 
 Questions scored (codes of ``docs/questions.md``):
 
@@ -82,9 +94,10 @@ import hashlib
 import json
 
 PROTOCOL = {
-    "version": 4,
+    "version": 5,
     "order_permutation": "per analysis group, FOVs in key order, seeded from random_state",
     "reservoir_seeding": "split_seed(random_state, split)",
+    "group_seeding": "labels written canonically (_seeds.seed_labels)",
     "prefix_order": "acquisition order",
     "alphas": [0.05, 0.10],
     "n_boot": 2000,

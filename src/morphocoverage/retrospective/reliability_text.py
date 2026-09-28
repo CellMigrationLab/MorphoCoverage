@@ -78,7 +78,7 @@ def reliability_summary(result: ReliabilityResult) -> str:
             spread = (
                 ""
                 if row.preserved_split_sd is None or pd.isna(row.preserved_split_sd)
-                else f" (±{percent(row.preserved_split_sd)} across {over_word})"
+                else f" ({_mc_se(row)}±{percent(row.preserved_split_sd)} across {over_word})"
             )
             if row.fovs == stream:
                 # Every draw is the same acquisition: this point is the ceiling itself.
@@ -166,8 +166,18 @@ def _basis_line(
         )
     return (
         f"  Judged on{held or ''} {over}; nothing is said beyond {beyond}, and fields are "
-        "treated as random draws."
+        "treated as random draws. The shares are conservative by construction: the "
+        "held-back fields are a sample too, and their own error counts against the drawn "
+        "fields, so a field count read from this curve errs high."
     )
+
+
+def _mc_se(row: object) -> str:
+    """``Monte Carlo SE 5%; `` before the spread, or '' when the curve has no such column."""
+    value = getattr(row, "preserved_mc_se", None)
+    if value is None or pd.isna(value):
+        return ""
+    return f"Monte Carlo SE {percent(value)}; "
 
 
 def _distinct_holdouts(ceiling: pd.DataFrame) -> int | None:

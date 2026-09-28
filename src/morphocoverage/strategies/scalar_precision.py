@@ -32,8 +32,33 @@ in ``jcb_planning``.
 ``resampling_unit="object"`` is the published criterion. ``resampling_unit="fov"``
 is a MorphoCoverage variant, not part of the paper: the same averaging noise
 estimated with FOVs as the sampling unit (ratio-estimator variance for cluster
-sampling), so spatially clustered phenotypes inflate it. The gap between the
+sampling), so phenotypes clustered within FOVs inflate it. The gap between the
 two is the comparison the regime map needs; it does not make either wrong.
+The FOV unit assumes the acquired FOVs are representative, exchangeable draws
+of the well's positions: it does not see correlation between neighbouring
+FOVs, so a raster over a spatial gradient, or a readout that drifts during
+the acquisition, can stop it early (audit 4, P4-2); the live and report
+lines print the order check (``morphocoverage.order_check``), or without
+order and stage columns this assumption, beside every stop. Its upper bound uses Kish's effective
+number of FOVs, ``(sum N_j) ** 2 / sum N_j ** 2`` over the FOVs' object
+counts, minus one as its degrees of freedom (``fov_averaging_cv``): with one
+crowded FOV among sparse ones the bound is wide, and below 2 effective FOVs
+the quantity is ``insufficient_data`` in both SD estimates.
+
+Assumptions the paper's arithmetic makes, stated here because the rule cannot
+check them all:
+
+- The chi-square upper bound of the SD holds for normal values. A readout
+  with a heavy tail or a minority state (10% of cells at four times the
+  level of the rest) makes it optimistic; the object unit's upper-95 variant
+  then says so in ``warning`` (excess kurtosis above 2 or bimodality
+  coefficient above 5/9, from 8 objects).
+- A CV is not invariant to an additive offset: intensities must be
+  background-subtracted (+500 of camera background moved the per-FOV stop from
+  FOV 21 to FOV 5 in one well).
+- The point SD estimate is optimistic with few FOVs: with fewer than 5 FOVs
+  holding objects the FOV unit's point variant says so in ``warning``, since
+  the paper advises the upper bound for small samples.
 
 Not reproduced here, but in ``jcb_planning``, both parts of the multi-sample
 procedure:
@@ -60,6 +85,11 @@ count in every object) gives an averaging CV of 0, which says nothing about
 averaging noise: the quantity is ``insufficient_data`` until objects (object
 unit) or FOV means (FOV unit) differ, in every variant, as the planning path
 refuses such a pilot.
+
+A missing value is never imputed or dropped: one object without a value makes
+the rule undefined (``not_applicable``) for the group from that FOV on, and
+the reason names the first FOV and object without one, so the value can be
+filled in.
 """
 
 from __future__ import annotations
@@ -81,16 +111,17 @@ from ..policies import ThresholdPolicy
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
 from ..statistics import RELATIVE_TOLERANCE, sd_upper_bound_factor  # noqa: F401  (re-exported)
 from ._averaging_cv import (  # the public names are re-exported (__all__)
+    _central_sums,
     _field_size_check,
-    _FovSummary,
-    _merged_moments,
+    _missing_reason,
     _no_spread,
-    _object_cv_from_moments,
+    _shape_warning,
     fov_averaging_cv,
     object_averaging_cv,
     required_fovs,
     required_objects,
 )
+from ._scalar_precision_state import _ScalarPrecisionState
 from .base import (
     Estimator,
     EstimatorState,
@@ -103,6 +134,8 @@ _UNITS = ("object", "fov")
 _SD_ESTIMATES = ("point", "upper_95")
 # The paper's advice: a pilot SD estimate above 50% CV calls for more data.
 _MAX_TRUSTED_CV = 0.5
+# Below this many FOVs with objects the FOV unit's point estimate carries a caution.
+_FEW_FOVS_FOR_POINT = 5
 
 
 _CV_UNITS = "fraction of the mean (CV)"
@@ -157,20 +190,25 @@ class ScalarPrecisionEstimator(Estimator):
       FOV that sorts before a pilot FOV takes its place, so the pilot and its
       requirement can change as acquisition goes on.
 
-    Too few objects or FOVs, or a zero mean so far (only zeros), give
-    ``insufficient_data``, as does no spread so far (every object alike for the
-    object unit, every FOV mean alike for the FOV unit, up to rounding: a CV
-    of 0 says nothing about averaging noise). Missing or negative
-    values make the CV undefined (``not_applicable``), as does a pilot that
-    cannot define the requirement.
+    Too few objects or FOVs, fewer than 2 effective FOVs (Kish, FOV unit), or
+    a zero mean so far (only zeros), give ``insufficient_data``, as does no
+    spread so far (every object alike for the object unit, every FOV mean
+    alike for the FOV unit, up to rounding: a CV of 0 says nothing about
+    averaging noise). Missing or negative values make the CV undefined
+    (``not_applicable``; the reason names the first FOV and object without a
+    value), as does a pilot that cannot define the requirement.
 
     With the FOV unit the diagnostics also give ``ratio_design_effect``, the
     FOV-unit variance of the mean over that of as many random objects (the
     squared ratio of the two averaging CVs); it is not
     ``sampling_unit.fov_variability``'s ``design_effect``, which comes from
     variance components (``statistics.design_effect``). When FOV size and FOV
-    mean are related, ``field_size_warning`` says so. See
-    ``ScalarPrecisionStrategy`` for the parameters.
+    mean are related, ``field_size_warning`` says so; that check has little
+    power, so no warning is not evidence that they are unrelated. ``warning``
+    joins the other cautions: an SD above 50% CV, values far from normal for
+    the upper-95 SD bound (object unit), a point estimate from fewer than 5
+    FOVs with objects (FOV unit). See ``ScalarPrecisionStrategy`` for the
+    parameters.
     """
 
     feature: str
@@ -223,12 +261,23 @@ class ScalarPrecisionEstimator(Estimator):
         values = data.feature_values(self.feature)[inside]
         sums = np.bincount(positions[inside], weights=values, minlength=len(fovs))
         counts = np.bincount(positions[inside], minlength=len(fovs)).astype(float)
+        missing = None
+        if np.isnan(values).any():
+            where = positions[inside]
+            gaps = where[np.isnan(values)]
+            first = int(gaps.min())
+            within = np.isnan(values[where == first])
+            name = fovs[data.fov_key[-1]].tolist()[first]
+            place = int(np.argmax(within)) + 1
+            missing = _missing_reason(name, place, len(np.unique(gaps)), data.observation_unit)
         return self._precision_from(
             sums,
             counts,
             has_negative=bool((values < 0).any()),
             cells=lambda: object_averaging_cv(values),
             unit=data.observation_unit,
+            moments=lambda: _central_sums(values),
+            missing=missing,
         )
 
     def _precision_from(
@@ -239,20 +288,26 @@ class ScalarPrecisionEstimator(Estimator):
         has_negative: bool,
         cells: Callable[[], dict[str, float]],
         unit: str,
+        moments: Callable[[], tuple[int, float, float, float]] | None = None,
+        missing: str | None = None,
     ) -> dict[str, Any] | tuple[str, str]:
         """The estimate from per-FOV sums and counts; ``cells()`` gives the object-level CVs.
 
         Conditions that no further FOV can change (missing or negative values)
         are ``not_applicable`` whatever the effort so far; those more FOVs can
         change are ``insufficient_data``. In the FOV unit, empty FOVs carry no
-        between-FOV information, so at least two FOVs must hold objects. No
-        spread so far is also not yet enough data: a CV of 0 would stop the
-        rule after two objects of a saturated or integer feature, although a
-        later FOV can show the spread. ``unit`` names the observation rows in
-        the wording.
+        between-FOV information, so at least two FOVs must hold objects, and
+        at least 2 effective FOVs (Kish) must: one crowded FOV beside sparse
+        ones is about one FOV of information. No spread so far is also not yet
+        enough data: a CV of 0 would stop the rule after two objects of a
+        saturated or integer feature, although a later FOV can show the
+        spread. ``unit`` names the observation rows in the wording;
+        ``moments()`` gives the objects' central sums for the shape check (none
+        without it) and ``missing`` where the first missing value is
+        (``_missing_reason``); both paths of the estimator pass them.
         """
         if np.isnan(sums).any():
-            return "not_applicable", "missing values in the selected scalar feature"
+            return "not_applicable", missing or "missing values in the selected scalar feature"
         if has_negative:
             return "not_applicable", (
                 "negative values; the CV criterion applies to non-negative whole-cell measurements"
@@ -279,6 +334,13 @@ class ScalarPrecisionEstimator(Estimator):
                 # Every FOV has the same mean: the ratio-estimator SE is 0 whatever the
                 # objects within the FOVs, and a later FOV can differ.
                 return "insufficient_data", "no spread among the FOV means so far"
+            if estimate["effective_fovs"] < 2:
+                # The ratio-estimator residuals of one crowded and one sparse FOV are
+                # tiny whatever the between-FOV spread (audit 4, P4-3).
+                return "insufficient_data", (
+                    f"fewer than 2 effective FOVs (Kish: {estimate['effective_fovs']:.2f}); "
+                    f"one FOV holds most of the {plural(unit)}"
+                )
             # Values are non-negative here, so a between-object CV at rounding level is a
             # constant feature: its design effect would be rounding noise over noise.
             if object_cvs is not None and object_cvs["cv_objects"] > RELATIVE_TOLERANCE:
@@ -286,11 +348,29 @@ class ScalarPrecisionEstimator(Estimator):
                 ratio = (estimate["cv_mean"] / object_cvs["cv_mean"]) ** 2
                 estimate["ratio_design_effect"] = ratio
                 estimate.update(_field_size_check(sums, counts))
+        cautions = []
         if object_cvs is not None and object_cvs["cv_objects"] > _MAX_TRUSTED_CV:
-            estimate["warning"] = (
+            cautions.append(
                 f"the SD between {plural(unit)} exceeds 50% CV; the paper advises acquiring "
                 "more data and repeating the estimate"
             )
+        if moments and self.resampling_unit == "object" and self.sd_estimate == "upper_95":
+            cautions.append(_shape_warning(*moments(), plural(unit)))
+        filled = int((counts > 0).sum())
+        if (
+            self.resampling_unit == "fov"
+            and self.sd_estimate == "point"
+            and filled < _FEW_FOVS_FOR_POINT
+        ):
+            cautions.append(
+                f"the point estimate from {filled} FOVs with {plural(unit)} is optimistic; the "
+                "paper advises the upper-95 bound for small samples (the point rule stopped at "
+                "2-3 FOVs in 39% of simulated homogeneous wells, and 18% of its stops were "
+                "more than 9.8% off the well mean)"
+            )
+        cautions = [text for text in cautions if text]
+        if cautions:
+            estimate["warning"] = "; ".join(cautions)
         # The data this estimate came from: kept for the pilot's provenance, and
         # dropped from the visible estimate's diagnostics (the framework owns effort).
         estimate["n_objects"] = n_objects
@@ -409,70 +489,6 @@ class ScalarPrecisionEstimator(Estimator):
         if self._unit_reason(template) is not None:
             return None
         return _ScalarPrecisionState(self, template.observation_unit)
-
-
-class _ScalarPrecisionState(EstimatorState):
-    """Per-FOV sufficient statistics; each update costs O(new objects + acquired FOVs).
-
-    The estimate from these statistics equals full recomputation up to
-    floating-point rounding: the object mean and variance are merged per FOV
-    instead of computed over all values at once.
-    """
-
-    def __init__(self, estimator: ScalarPrecisionEstimator, unit: str) -> None:
-        self.estimator = estimator
-        self.unit = unit  # the group's observation unit, fixed for the session
-        self.fovs: list[_FovSummary] = []
-        self.order: pd.Series | None = None  # order_col of every FOV, in arrival order
-
-    def _precision(self, fovs: list[_FovSummary]) -> dict[str, Any] | tuple[str, str]:
-        """The estimate from per-FOV summaries, as the full path computes it from values."""
-        sums = np.array([fov.total for fov in fovs], dtype=float)
-        counts = np.array([fov.count for fov in fovs], dtype=float)
-
-        def cells() -> dict[str, float]:
-            """Cell-level CVs from the merged moments."""
-            n, mean, m2 = _merged_moments(fovs)
-            return _object_cv_from_moments(n, mean, math.sqrt(m2 / (n - 1)))
-
-        return self.estimator._precision_from(
-            sums,
-            counts,
-            has_negative=any(fov.has_negative for fov in fovs),
-            cells=cells,
-            unit=self.unit,
-        )
-
-    def update(self, new: ValidatedInput) -> Evidence:
-        """Summarize the new FOV(s) and recompute the estimate from the summaries."""
-        estimator = self.estimator
-        estimator._check_order_col(new.fovs)
-        values = new.feature_values(estimator.feature)
-        positions = fov_positions(new, new.fovs)
-        for j in range(len(new.fovs)):
-            members = values[positions == j]
-            mean = float(members.mean()) if len(members) else 0.0
-            self.fovs.append(
-                _FovSummary(
-                    count=len(members),
-                    total=float(members.sum()),
-                    mean=mean,
-                    m2=float(((members - mean) ** 2).sum()),
-                    has_negative=bool((members < 0).any()),
-                )
-            )
-        if estimator.pilot_fovs is not None:
-            arrived = new.fovs[estimator.order_col].reset_index(drop=True)
-            before = [] if self.order is None else [self.order]
-            self.order = pd.concat([*before, arrived], ignore_index=True)
-        current = self._precision(self.fovs)
-        pilot = None
-        if estimator.pilot_fovs is not None and len(self.fovs) >= estimator.pilot_fovs:
-            # The full recomputation's sort (pandas, stable: ties by arrival).
-            ordered = self.order.sort_values(kind="stable").index[: estimator.pilot_fovs]
-            pilot = self._precision([self.fovs[i] for i in ordered])
-        n_objects = sum(fov.count for fov in self.fovs)
-        return estimator._evidence(current, pilot, n_objects, len(self.fovs), self.unit)
 
 
 @dataclass(frozen=True)

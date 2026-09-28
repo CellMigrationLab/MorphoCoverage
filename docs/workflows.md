@@ -52,6 +52,21 @@ adequacy answers are read without a warning. A `PositiveControl` without
 FOV table has a repeat column; `pair_cols=()` pools the repeats, as an
 explicit request. The declaration prints every such preset.
 
+`default_novelty(features)` standardizes robustly (median and MAD, the
+`RobustStandardize` transform), so a few extreme objects such as clumps or
+debris cannot widen the scale and hide a new state elsewhere. It was chosen
+on idr0028 with the mean and SD, the version behind the numbers of
+[`preliminary_findings.md`](preliminary_findings.md) until they are
+regenerated after audit 4. Its radius is `sqrt(len(features))`: with 8 or more standardized
+features two objects of one ordinarily variable state often sit farther
+apart than that, and `Setup` warns (reduce the dimension, for example
+`Chain([RobustStandardize(), PCA(k)])`, or declare fewer features).
+
+`fields_independent` (default `False`) declares that the fields are
+independent draws of their condition. Only then do the condition contrast and
+the feature ranking give a p-value when the fields have no unit to shuffle
+(see question 9 below): fields of one dish or well are not independent draws.
+
 Features measured plane by plane are split before the `Setup`:
 `morphocoverage.planes_as_features` turns `area` into `area_z0`, `area_z1`,
 ... (objects matched by `label_id`), and those names are the `readout` and
@@ -120,7 +135,16 @@ that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
 Every document opens with the declaration (`setup.declaration()`), one
 sentence per target, and a target that is not declared says so, so that an
 answer about the mean is never read as an answer about the distribution or
-about rare states. A fourth target, the difference between conditions, is a
+about rare states. The declaration also names the JCB criterion as what it
+is (an averaging CV of 5% is one standard error of 5% of the mean, not a
+bound of ±5% on its error; the tolerances are judged on held-back fields) and
+has an "Acquisition order:" line: the order check printed beside every stop
+(with `acquisition_order_col`, a trend of the readout's field means with
+order; with `stage_cols`, alike means in neighbouring fields), or, with
+neither column, that every stop treats the fields as a random sample of the
+well's positions ([`online.md`](online.md#acquisition-order-random-or-dispersed)).
+A flagged trend is a caution beside the stop, never a veto; image fields in
+a random or dispersed order. A fourth target, the difference between conditions, is a
 retrospective benchmark outcome and not yet a declaration
 ([`questions.md`](questions.md), open work).
 
@@ -160,6 +184,25 @@ what it would need (a control, a positive control, stage coordinates, a
 hierarchy, a replay), and the notes to read the answers with. Missing
 columns never stop the report: without `condition` or `repeat` every field is
 one group and the sections that need them say so.
+
+Every workflow runs `check_tables` on the setup's columns and control before
+any analysis. `optimise`, `benchmark` and `plots` issue its warnings (copied
+rows, labels written two ways such as `B2` and `B02`, undeclared group-like
+columns, repeats without a control, ...) as one `UserWarning`; `report`
+prints them at the end of its overview instead. Warnings that only restate the
+design (an assumed observation unit, empty fields) are left out. In the
+report, as in the live session, each rule's stop is given with what it rests
+on: the order check's caution, or the random-sample assumption.
+
+With `report(objects, fovs, setup, integrity=True)` the overview also gives
+the exact data-integrity checks (`integrity_checks`): a field copied under
+another name, in another order or in other units, a block of rows pasted into
+another field, observations shared by two fields or repeated within one, a
+field summary written twice. A finding is structure to inspect, not a
+judgment. The fields the checks name are also listed under "6. Which fields
+should I look at?" and in "What this dataset cannot tell me", since every
+other answer still counts them as independent fields; see
+[`integrity.md`](integrity.md).
 
 ## Plots: every object a point, the interval from fields
 
@@ -207,18 +250,31 @@ the report also answers question 9, "Do the conditions differ, and how
 confidently?": each condition against the control, per repeat, with Cohen's
 d and the JCS effect size computed on objects (the numbers of the lab's
 Plot&Stats notebook) and with the field as the unit, and a randomization test
-that shuffles condition labels over whole technical repeats when each side
-has at least two (the FOV table's `technical_repeat` column, whatever
-`group_cols` says). A side with a single technical repeat gets no test, since
+that shuffles condition labels over whole units when each side has at least
+two. The unit is the FOV table's `technical_repeat` column, whatever
+`group_cols` says; without it, a group column beyond condition and repeat
+(a `well` column in `group_cols`) when some condition of a repeat holds more
+than one of its values. Over wells the p-value is coarser: with 2 wells a
+side it cannot go below 1/3. A side with a single unit gets no test, since
 its fields cannot stand in for wells, and its effect sizes are still
-reported; only without a technical-repeat column are whole fields shuffled. It describes what these fields support; generalizing
-needs independent repeats. With several declared features the section also
+reported. **Without a unit there is no p-value**, unless
+`Setup(fields_independent=True)` declares the fields independent draws;
+whole fields are then shuffled and the section says the p-value treats them
+so. A d computed from three or fewer unit means is marked unstable. The
+whole-field draws of the JCS effect size take whole technical repeats with
+replacement when both sides have them; otherwise they resample these fields
+only, and their "same sign in X% of draws" is not a confidence in the effect.
+Every test compares means, and the section says that a difference confined
+to a subpopulation is not tested. It describes what these fields support;
+generalizing needs independent repeats. With several declared features the section also
 ranks them (`sampling_unit.feature_ranking`), as fiberfeatures scores a
 feature set: the same test for every feature and contrast, Benjamini-Hochberg
 corrected together, a gate at q <= 0.05, and the passing features ordered by
 the largest |d| on field means. The ranking says which features are worth
-plotting; with two technical repeats a side no test can pass the gate, and
-the section says so.
+plotting. With few technical repeats a side the p-values have a floor, and
+after the correction a lone contrast at the floor cannot pass: the section
+gives the smallest q the tests can reach and how many must reach the floor
+for one to pass.
 
 ## OPTIMISE / PLAN: what should the next experiment do?
 
@@ -268,12 +324,19 @@ print(bench.summary())
 ```
 
 `default_families(setup.readout)` holds the rule families and threshold grids
-of the locked protocol (version 4, whose grids are those of versions 1 to 3): the JCB rule and the JCS descriptor
+of the locked protocol (version 5, whose grids are those of versions 1 to 4): the JCB rule and the JCS descriptor
 spread, each per object and per field, and the FOV bootstrap of the mean
 (on the readout only, whatever other features are declared).
 `default_families` takes `random_state` for its resampling rules; `benchmark`
 passes `Setup.random_state`, and the locked protocol uses 0. Pass `families=`
-to compare others.
+to compare others. The grids are absolute (the JCS spread and the
+bootstrap's standard error are in the readout's units), so a readout in other
+units needs other grids: the summary warns for every family whose grid does
+not bracket the data (it never stopped, or stopped at the first field it
+could decide, at every setting) and says to widen it. The fields saved carry
+an approximate 95% interval from resampling the independent units, withheld
+below 5 units, where such an interval covers the truth far less often than
+it says.
 
 Tuning belongs on development data and scoring on held-out data
 ([`benchmarking.md`](benchmarking.md)). The workflow does not know a
@@ -307,6 +370,14 @@ live = LiveFolder(folder, live_session(setup))
 live.watch(interval=1.0, until_stop=True)    # or live.poll() from your own loop
 ```
 
+`until_stop=True` returns once every rule says stop in every group seen so
+far, each group judged by its latest field: on a plate acquired well by well,
+the watch goes on while any well still needs fields.
+`until_stop="latest_group"` returns as soon as the latest field's group is
+done. Fields are added one at a time, so a backlog stops at the stop: the
+fields still waiting in the folder are not added, and the next `poll` or
+`watch` reads them.
+
 The folder holds one object file per field, `objects/<name>.csv`, plus an
 append-only manifest, `fovs.csv`, with one line per completed field:
 
@@ -319,7 +390,13 @@ A field is read only once its manifest line exists.
 
 The watcher remembers its byte offset in the manifest, so each poll reads
 only the new lines. A last line that is not yet terminated waits for the next
-poll.
+poll. The manifest may only grow: one rewritten, truncated or replaced under
+the watcher raises rather than skipping fields. A line identical to one
+already read (an acquisition that retried) is skipped with a warning; a line
+naming an accepted field with another object file raises, naming both lines.
+A field whose rows repeat another row exactly, or that holds a `label_id`
+twice (an object file appended twice), is added with a warning, as
+`check_tables` warns.
 
 A field with no objects is either an empty object file or an empty
 `objects_file` entry. It still counts as acquisition effort. An
@@ -361,7 +438,10 @@ session's group columns, then the MorphoBricks condition, repeat and, when it
 holds values, `technical_repeat` present in both tables, then the FOV column,
 so well `B02` of two repeats is two fields even when `group_cols` pool the
 repeats. It is resolved once the FOV table has a row, so objects appended
-before the first FOV row wait without fixing it. A key column holding numbers in one table and text in the other
+before the first FOV row wait without fixing it. A key that names two fields
+is refused before any field of the update is added: a FOV-table group column
+the key leaves out holding two values for one key (file names that restart in
+each well, with no well column in the key), or a key twice. A key column holding numbers in one table and text in the other
 (`1` against `"1"`) raises an error, because those values never match. Objects
 still waiting for their FOV row are counted in each update's summary.
 
@@ -413,13 +493,23 @@ not arise there.
 ## Run time on real data
 
 These times come from idr0028 screen B: 12 wells, 28 fields each, 30
-features, 4 workers. They are approximate.
+features, 4 workers. They are approximate and predate audit 4.
 
 | Workflow | Settings | Time |
 | --- | --- | --- |
 | `report` | defaults | about 45 s |
 | `optimise` | `fov_counts=[2, 4, 8, 12]` | about 20 s |
 | `benchmark` | `n_boot=200` | about 85 s |
+
+`Setup.n_jobs` reaches every workflow, the report's replay of the stopping
+rules included (`sufficiency_report(..., n_jobs=)`, since audit 4); results
+are the same for every value. With a novelty definition the report's time
+grows faster than the number of objects, since the leave-one-field-out
+novelty compares every object with the other fields' objects. In audit 4 (336
+fields, 12 groups, 5 features, one process) it took about 90 s of CPU at
+30,000 objects, 7 min at 100,000 and 86 min at 300,000, and did not finish in
+2.5 h at 1,000,000. For plate-scale tables, set `n_jobs`, subsample the
+objects per field for the novelty question, or leave `novelty=None`.
 
 In the live runs, one field took about 1 ms to read and a few milliseconds to
 decide.

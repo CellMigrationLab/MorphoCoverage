@@ -138,10 +138,18 @@ def test_plateau_uses_acquisition_order_not_table_order():
 
 
 @pytest.mark.parametrize("unit", ["object", "fov"])
-def test_identical_values_have_zero_spread(unit):
+def test_identical_values_are_not_yet_enough_data(unit):
+    # A spread of 0 from values that are all alike says nothing (audit 4, P4-1): not a stop.
     objects, fovs = _tables([[2.0, 2.0]] * 5)
     result = _evaluate(objects, fovs, _spread(0.01, unit))
-    assert _score(result) == 0.0 and result.rule_decision == "stop"
+    assert _score(result) is None and result.rule_decision == "continue"
+    assert result.evidence.quantities["max_descriptor_spread"].reason == (
+        "no spread among the objects so far"
+    )
+    # FOVs that are all alike, each with a spread, have a spread of 0 across resamples.
+    objects, fovs = _tables([[2.0, 3.0]] * 5)
+    result = _evaluate(objects, fovs, _spread(0.01, unit))
+    assert (_score(result) == 0.0) == (unit == "fov")
 
 
 def test_spread_shrinks_with_more_cells():
@@ -179,10 +187,11 @@ def test_spread_is_reproducible_and_seed_dependent():
 
 
 def test_fov_spread_counts_empty_fovs_as_sampled_units():
-    # 2 FOVs with cells and 8 empty ones: some FOV resamples contain fewer than 2
+    # 5 FOVs with one cell and 45 empty ones: some FOV resamples contain fewer than 2
     # cells, so descriptors are undefined and the spread is unbounded. If empty
-    # FOVs were dropped, only the 2 non-empty FOVs would be resampled.
-    objects, fovs = _tables([[1.0, 1.0], [3.0, 3.0]] + [[]] * 8)
+    # FOVs were dropped, only the 5 non-empty FOVs would be resampled, always 5 cells.
+    # (The per-FOV spread needs 5 FOVs with objects, audit 4, P4-6.)
+    objects, fovs = _tables([[1.0], [2.0], [3.0], [4.0], [5.0]] + [[]] * 45)
     result = _evaluate(objects, fovs, _spread(1.0, "fov"))
     assert _score(result) == float("inf") and result.rule_decision == "continue"
 
@@ -348,8 +357,9 @@ def test_cell_stabilization_rules_are_not_applicable_to_slice_observations(strat
 
 
 def test_fov_spread_variant_applies_to_any_observation_unit():
-    # Resampling whole FOVs does not assume the rows are cells.
-    objects, fovs = _tables([[2.0, 2.0]] * 5)
+    # Resampling whole FOVs does not assume the rows are cells (alike FOVs, each with a
+    # spread: values all alike are not yet enough data, audit 4, P4-1).
+    objects, fovs = _tables([[2.0, 3.0]] * 5)
     results = [
         run_strategies(
             objects,

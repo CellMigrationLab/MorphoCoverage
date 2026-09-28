@@ -171,8 +171,16 @@ def test_the_control_mean_pools_every_control_object():
     small = acquisition(mean=10.0, n_fields=10, per_field=5, condition="A", repeat="r1", seed=1)
     large = acquisition(mean=20.0, n_fields=10, per_field=45, condition="A", repeat="r2", seed=2)
     objects, fovs = combined(small, large)
+    # repeat_col=None pools the control objects of every repeat (by default each repeat
+    # is judged against its own control, audit 4 D3).
     check = object_rule_check(
-        objects, fovs, feature="x", targets=[0.05], control={"condition": "A"}, n_draws=50
+        objects,
+        fovs,
+        feature="x",
+        targets=[0.05],
+        control={"condition": "A"},
+        n_draws=50,
+        repeat_col=None,
     )
     reference = objects["x"].mean()
     assert reference == pytest.approx(19.0, abs=0.1)
@@ -507,8 +515,11 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
     # Both wells of a condition are pooled: 24 fields of 25 objects on each side.
     assert (table["fields"] == 24).all() and (table["observations"] == 600).all()
     assert (table["d_objects"] > 1).all() and (table["d_fields"] > 1).all()
-    assert table["p_value"].tolist() == pytest.approx([1 / 501] * 2)
-    assert table["p_bonferroni"].tolist() == pytest.approx([2 / 501] * 2)
+    # The well column in group_cols is the shuffled unit (audit 4 Q1): 2 wells a side
+    # give 6 assignments, so p cannot fall below 1/3 however large the shift.
+    assert (table["permutation_unit"] == "well").all()
+    assert table["p_value"].tolist() == pytest.approx([1 / 3] * 2)
+    assert table["p_bonferroni"].tolist() == pytest.approx([2 / 3] * 2)
     effects = result.effects
     # 10,000 objects exceed what a side holds and are left out; 50 and 200 are kept.
     assert sorted(effects["n_objects"].unique()) == [50, 200]
@@ -519,8 +530,8 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
     text = result.summary()
     assert "repeat=R1, treated vs control" in text
     assert "Cohen's d on objects" in text and "on field means" in text
-    assert "Randomization test over whole fields" in text
-    assert "JCS effect size" in text and "whole FOVs median" in text
+    assert "Randomization test over whole technical repeats (well" in text
+    assert "JCS effect size" in text and "whole FOVs of resampled technical repeats" in text
 
 
 def test_a_field_effect_alone_does_not_make_the_conditions_differ_by_fields():

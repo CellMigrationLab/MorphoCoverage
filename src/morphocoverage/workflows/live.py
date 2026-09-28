@@ -30,11 +30,25 @@ value, a missing object file), the updates so far are kept, and the next poll
 or update raises on the same field again, so no later field is added past it
 and acquisition effort is never under-counted.
 
-``write_fov`` does both steps for the acquisition side. ``LiveFolder.poll()``
-reads only the manifest lines added since the last poll (it keeps its byte
-offset and ignores a last line that is not yet terminated), reads each new
-field's object file, and returns one update per field; ``watch()`` repeats
-the poll every ``interval`` seconds.
+``write_fov`` does both steps for the acquisition side (it and the manifest
+reader live in ``workflows._manifest``). ``LiveFolder.poll()`` reads the
+manifest lines added since the last poll (it keeps its byte offset and
+ignores a last line that is not yet terminated), reads each new field's
+object file, and returns one update per field; ``watch()`` repeats the poll
+every ``interval`` seconds, and with ``until_stop`` returns once every rule
+says stop in every group seen so far (``"latest_group"``: in the latest
+field's group). The manifest may only grow: one rewritten, truncated or
+replaced under the watcher (its first bytes are no longer the ones read)
+raises, rather than skipping fields. A line identical to one already read (an
+acquisition retry) is skipped with a warning; a line naming an accepted field
+with another object file raises, naming both lines.
+
+**Checks on the fields.** Each field passes the session's validation and,
+as ``check_tables`` warns, a warning for rows that are exact copies of
+another row or a ``label_id`` twice (an object file appended twice).
+``LiveTables`` refuses, before adding any field of an update, a key that
+names two fields: a FOV-table group column the key leaves out that holds two
+values for one key (file names that restart in each well), or a key twice.
 
 **Why CSV, and why chunks.** One growing object table has no signal that a
 field is complete, can be read while half written, and must be re-read or
@@ -52,11 +66,9 @@ writes. No chunking within a field is needed.
 
 from __future__ import annotations
 
-import csv
-import io
-import os
 import time
-from collections.abc import Callable, Mapping, Sequence
+import warnings
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -65,114 +77,53 @@ import pandas as pd
 
 from .._wording import count
 from ..metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
     drop_empty_optional_columns,
     resolve_fov_col,
     resolve_group_cols,
     resolve_identity_cols,
 )
 from ..online import OnlineSession
+from ..order_check import OrderCheck
 from ..results import Decision, StrategyResult, decision_view
 from ..strategies.base import SamplingStrategy
+from ._live_order import _CheckedSession, _order_check
+from ._manifest import MANIFEST, OBJECTS_DIR, OBJECTS_FILE, ManifestReader, write_fov
 from .setup import Setup
-
-MANIFEST = "fovs.csv"
-OBJECTS_DIR = "objects"
-OBJECTS_FILE = "objects_file"
 
 
 def live_session(setup: Setup, rules: tuple[SamplingStrategy, ...] | None = None) -> OnlineSession:
-    """An ``OnlineSession`` for ``rules`` (default: the setup's rules) on the setup's columns."""
+    """An ``OnlineSession`` for ``rules`` (default: the setup's rules) on the setup's columns.
+
+    The session also checks the acquisition order of each group's fields so
+    far (``order_check``: the readout against ``acquisition_order_col``,
+    neighbouring fields by ``stage_cols``), and ``LiveFolder``/``LiveTables``
+    print the check's caution beside every stop; without either column, the
+    stop states that it treats the fields as a random sample of the well's
+    positions. The check flags; it never changes a decision.
+    """
     if not isinstance(setup, Setup):
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
-    return OnlineSession(
+    return _CheckedSession(
         strategies=list(setup.stopping_rules() if rules is None else rules),
         feature_cols=setup.columns,
         objective=setup.objective(),
         fov_col=setup.fov_col,
         group_cols=None if setup.group_cols is None else list(setup.group_cols),
         observation_unit=setup.observation_unit,
+        readout=setup.readout,
+        acquisition_order_col=setup.acquisition_order_col,
+        stage_cols=setup.stage_cols,
     )
-
-
-def write_fov(
-    folder: str | Path,
-    objects: pd.DataFrame,
-    fov_metadata: Mapping[str, Any],
-    *,
-    name: str | None = None,
-    suffix: str = ".csv",
-) -> Path:
-    """Add one completed field to a live folder: its object file, then its manifest line.
-
-    ``name`` is the object file's stem (default: the field's position in the
-    manifest, ``fov_000001``). The manifest's columns are fixed by its first
-    line; a later field with other metadata keys raises. Returns the object
-    file's path (written even when ``objects`` is empty: with its header, or as
-    an empty file when it has no columns either).
-    """
-    folder = Path(folder)
-    (folder / OBJECTS_DIR).mkdir(parents=True, exist_ok=True)
-    manifest = folder / MANIFEST
-    metadata = {str(k): v for k, v in fov_metadata.items()}
-    if OBJECTS_FILE in metadata:
-        raise ValueError(f"{OBJECTS_FILE!r} is written by write_fov; do not pass it")
-    header = _manifest_header(manifest)
-    if header is None and manifest.exists() and manifest.stat().st_size > 0:
-        raise ValueError(f"{manifest} has no complete header line; fix or remove it")
-    count = _manifest_rows(manifest)
-    stem = name if name is not None else f"fov_{count + 1:06d}"
-    relative = f"{OBJECTS_DIR}/{stem}{suffix}"
-    target = folder / relative
-    if target.exists():
-        raise FileExistsError(f"{target} exists; every field needs its own object file")
-    temporary = target.with_name(f".{target.name}.tmp")
-    if objects.shape[1] == 0:
-        temporary.write_bytes(b"")  # a field without objects: an empty file, read as zero rows
-    elif suffix in (".csv", ".csv.gz"):
-        objects.to_csv(
-            temporary, index=False, compression="gzip" if suffix.endswith(".gz") else None
-        )
-    elif suffix == ".parquet":
-        objects.to_parquet(temporary, index=False)
-    else:
-        raise ValueError("suffix must be .csv, .csv.gz or .parquet")
-    os.replace(temporary, target)
-    row = {**metadata, OBJECTS_FILE: relative}
-    new_manifest = header is None  # absent, or an empty file: the header comes first
-    if header is None:
-        header = list(row)
-    elif set(header) != set(row):
-        raise ValueError(f"manifest columns are {header}; this field has {list(row)}")
-    buffer = io.StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=header, lineterminator="\n")
-    if new_manifest:
-        writer.writeheader()
-    writer.writerow(row)
-    with open(manifest, "a", newline="") as handle:
-        handle.write(buffer.getvalue())
-        handle.flush()
-        os.fsync(handle.fileno())
-    return target
-
-
-def _manifest_header(manifest: Path) -> list[str] | None:
-    if not manifest.exists():
-        return None
-    with open(manifest, newline="") as handle:
-        first = handle.readline()
-    return next(csv.reader([first])) if first.endswith("\n") else None
-
-
-def _manifest_rows(manifest: Path) -> int:
-    if not manifest.exists():
-        return 0
-    with open(manifest, newline="") as handle:
-        return max(0, sum(1 for line in handle if line.endswith("\n")) - 1)
 
 
 @dataclass(frozen=True)
 class LiveUpdate:
-    """One field added to the session: its metadata, object count and the rules' results."""
+    """One field added to the session: its metadata, object count and the rules' results.
+
+    ``order_check`` is the acquisition-order check of the field's group so far
+    (``live_session``), or ``None`` when none was run.
+    """
 
     fov_metadata: dict[str, Any]
     n_objects: int
@@ -180,15 +131,20 @@ class LiveUpdate:
     read_seconds: float
     pending_objects: int = 0
     observation_unit: str = "object"
+    order_check: OrderCheck | None = None
 
     def summary(self) -> str:
-        """One line per rule (the decision and why), then one view per target."""
+        """One line per rule (the decision and why), then one view per target.
+
+        Beside every stop, what it rests on: the order check's caution, or the
+        assumption that the fields are a random sample of the well's positions.
+        """
         where = ", ".join(f"{k}={v}" for k, v in self.fov_metadata.items() if k != OBJECTS_FILE)
         objects = count(self.n_objects, self.observation_unit)
         head = f"{where}: {objects} (read in {1000 * self.read_seconds:.0f} ms)"
-        lines = [head, *(f"  {r.explain()}" for r in self.results)]
+        lines = [head, *(f"  {r.explain(self.order_check)}" for r in self.results)]
         if self.results:
-            lines.append(f"  {decision_view(self.results)}")
+            lines.append(f"  {decision_view(self.results, self.order_check)}")
         if self.pending_objects:
             unit = self.observation_unit
             waiting = (
@@ -236,31 +192,8 @@ class LiveFolder:
         self.session = session
         self.reader = pd.read_csv if reader is None else reader
         self.metadata_dtypes = dict(metadata_dtypes or {})
-        self._offset = 0
-        self._header: list[str] | None = None
+        self._manifest = ManifestReader(self.folder)
         self.updates: list[LiveUpdate] = []
-
-    def _new_rows(self) -> list[tuple[dict[str, str], int]]:
-        """The complete manifest lines after the offset, each with the offset past it."""
-        manifest = self.folder / MANIFEST
-        if not manifest.exists():
-            return []
-        with open(manifest, "rb") as handle:
-            handle.seek(self._offset)
-            data = handle.read()
-        complete = data[: data.rfind(b"\n") + 1]  # a line still being written waits
-        rows, offset = [], self._offset
-        for raw in complete.splitlines(keepends=True):
-            offset += len(raw)
-            fields = next(csv.reader([raw.decode("utf-8")]), None)
-            if self._header is None:
-                if OBJECTS_FILE not in (fields or []):
-                    raise ValueError(f"{manifest} has no {OBJECTS_FILE!r} column")
-                self._header, self._offset = fields, offset
-                continue
-            if fields:
-                rows.append((dict(zip(self._header, fields, strict=True)), offset))
-        return rows
 
     def _typed(self, row: dict[str, str]) -> dict[str, Any]:
         typed: dict[str, Any] = {}
@@ -280,42 +213,90 @@ class LiveFolder:
         return pd.read_csv(path, dtype=text)
 
     def poll(self) -> list[LiveUpdate]:
-        """Add every field completed since the last poll; one update per field, in order."""
-        updates = []
-        for row, offset in self._new_rows():
-            started = time.perf_counter()
-            path = self.folder / row[OBJECTS_FILE] if row.get(OBJECTS_FILE) else None
-            if path is not None and not path.exists():
-                raise FileNotFoundError(
-                    f"the manifest names {path}, which does not exist; an empty field has an "
-                    f"empty {OBJECTS_FILE!r} entry or an empty file"
+        """Add every field completed since the last poll; one update per field, in order.
+
+        A line identical to one already accepted (an acquisition that retried
+        and wrote its line twice) is skipped with a warning. A field that
+        raises is read again on the next poll; the error's note names its
+        manifest line.
+        """
+        return list(self._fields())
+
+    def _fields(self) -> Iterator[LiveUpdate]:
+        """Add the completed fields one at a time, each only when the next is asked for.
+
+        ``watch`` stops asking once its condition is met, so the session holds
+        exactly the fields of the updates it returns; the rest wait for the
+        next poll.
+        """
+        manifest = self._manifest
+        for row, raw in manifest.new_rows():
+            line = manifest.lines + 1
+            repeated = manifest.repeat_of(row)
+            if repeated is not None:
+                warnings.warn(
+                    f"{MANIFEST} line {line} repeats line {repeated} exactly "
+                    f"({OBJECTS_FILE} {row.get(OBJECTS_FILE)!r}); skipped, since a field is "
+                    "added once (an acquisition that retried may write its line twice).",
+                    UserWarning,
+                    stacklevel=3,
                 )
-            if path is not None and path.stat().st_size > 0:
-                objects = self._read(path, row)
-            else:
-                objects = pd.DataFrame(columns=self.session.feature_cols)
-            read = time.perf_counter() - started
-            metadata = self._typed(row)
-            # The manifest is the authority on metadata: an object file that repeats a
-            # metadata column (say a plate number read back as an integer) is compared
-            # as text, so only a real disagreement raises.
-            for key, value in metadata.items():
-                if key in objects.columns and isinstance(value, str):
-                    objects[key] = objects[key].astype(str)
-            results = self.session.add_fov(objects, metadata)
+            if not row or repeated is not None:
+                manifest.skip(raw)
+                continue
+            update = self._add(row, line)
             # Move past the field only once the session has it: a field that raises is
             # read again on the next poll instead of being skipped.
-            self._offset = offset
-            update = LiveUpdate(
-                metadata,
-                len(objects),
-                results,
-                read,
-                observation_unit=self.session.observation_unit,
-            )
-            updates.append(update)
+            manifest.accept(row, raw)
             self.updates.append(update)
-        return updates
+            yield update
+
+    def _add(self, row: dict[str, str], line: int) -> LiveUpdate:
+        """Read one manifest line's field and add it to the session."""
+        started = time.perf_counter()
+        metadata = self._typed(row)
+        same = self._manifest.same_field_as(row)
+        if same is not None:
+            raise ValueError(
+                f"{MANIFEST} line {line} lists the field of line {same} (the same metadata) "
+                f"with another object file, {row.get(OBJECTS_FILE)!r}; if it is a retry, remove "
+                f"line {line} from {self.folder / MANIFEST} (the watcher reads it again on the "
+                "next poll; the lines already read must stay as they are)"
+            )
+        path = self.folder / row[OBJECTS_FILE] if row.get(OBJECTS_FILE) else None
+        if path is not None and not path.exists():
+            raise FileNotFoundError(
+                f"the manifest names {path}, which does not exist; an empty field has an "
+                f"empty {OBJECTS_FILE!r} entry or an empty file"
+            )
+        if path is not None and path.stat().st_size > 0:
+            objects = self._read(path, row)
+        else:
+            objects = pd.DataFrame(columns=self.session.feature_cols)
+        read = time.perf_counter() - started
+        # The manifest is the authority on metadata: an object file that repeats a
+        # metadata column (say a plate number read back as an integer) is compared
+        # as text, so only a real disagreement raises.
+        for key, value in metadata.items():
+            if key in objects.columns and isinstance(value, str):
+                objects[key] = objects[key].astype(str)
+        try:
+            results = self.session.add_fov(objects, metadata)
+        except Exception as error:
+            error.add_note(
+                f"While adding {MANIFEST} line {line} ({OBJECTS_FILE} "
+                f"{row.get(OBJECTS_FILE)!r}): fix that field or its line in "
+                f"{self.folder / MANIFEST}; the watcher reads it again on the next poll."
+            )
+            raise
+        return LiveUpdate(
+            metadata,
+            len(objects),
+            results,
+            read,
+            observation_unit=self.session.observation_unit,
+            order_check=_order_check(self.session, results),
+        )
 
     def watch(
         self,
@@ -323,31 +304,49 @@ class LiveFolder:
         interval: float = 1.0,
         timeout: float | None = None,
         max_fovs: int | None = None,
-        until_stop: bool = False,
+        until_stop: bool | str = False,
         on_update: Callable[[LiveUpdate], None] | None = print_update,
     ) -> list[LiveUpdate]:
-        """Poll every ``interval`` seconds until ``timeout``, ``max_fovs`` or, with
-        ``until_stop``, until every rule says stop in the latest field's group.
+        """Poll every ``interval`` seconds until ``timeout``, ``max_fovs`` or ``until_stop``.
+
+        ``until_stop=True`` (or ``"all_groups"``) returns once every rule says
+        stop in every group seen so far, each group judged by its latest field:
+        on a plate acquired well by well in turn, the watch goes on while any
+        well still needs fields. ``until_stop="latest_group"`` returns as soon
+        as every rule says stop in the latest field's group (one well done).
 
         "Says stop" is each rule's own verdict (``StrategyResult.rule_decision``),
         as in the replays: a rule that has no evidence about a declared target
         still stops when its own criterion is met, and the decision view of each
         update says which targets no rule decides.
 
+        The condition is checked after each field, and fields are added one at a
+        time: when it is met, the fields still waiting in the folder (a backlog,
+        or a restart on a full folder) are not added, so the session holds
+        exactly the fields of the returned updates; the next ``poll`` or
+        ``watch`` reads the rest.
+
         Stop with Ctrl-C at any time; the updates so far are kept in ``updates``.
         """
         if interval <= 0:
             raise ValueError("interval must be positive")
+        if until_stop not in (False, True, "all_groups", "latest_group"):
+            raise ValueError("until_stop must be False, True, 'all_groups' or 'latest_group'")
         started = time.monotonic()
         seen: list[LiveUpdate] = []
+        latest: dict[tuple, bool] = {}  # each group's latest field: every rule says stop
         try:
             while True:
-                for update in self.poll():
+                for update in self._fields():
                     seen.append(update)
                     if on_update is not None:
                         on_update(update)
                     stopped = [r.rule_decision == Decision.STOP for r in update.results]
-                    if until_stop and stopped and all(stopped):
+                    group = tuple(update.results[0].group.items()) if update.results else ()
+                    latest[group] = bool(stopped) and all(stopped)
+                    if until_stop == "latest_group" and latest[group]:
+                        return seen
+                    if until_stop in (True, "all_groups") and all(latest.values()):
                         return seen
                     if max_fovs is not None and len(seen) >= max_fovs:
                         return seen
@@ -437,6 +436,39 @@ class LiveTables:
                     "give it the same type in both (for example .astype(str))"
                 )
 
+    def _check_fov_keys(
+        self, fovs: pd.DataFrame, new_fovs: pd.DataFrame, key: tuple[str, ...]
+    ) -> None:
+        """Refuse, before adding any field, a key that does not name one field.
+
+        A group column of the FOV table that the key leaves out (the objects
+        do not carry it) must hold one value per key, as the validator requires
+        to attach it; and no key may appear twice in the FOV table.
+        """
+        requested = self.session.group_cols or self.session._requested_group_cols or ()
+        groups = [
+            c
+            for c in dict.fromkeys((*requested, *MORPHOBRICKS_GROUP_COLUMNS))
+            if c in fovs.columns and c not in key
+        ]
+        for column in groups:
+            pairs = fovs.loc[:, [*key, column]].drop_duplicates()
+            if pairs.duplicated(subset=list(key)).any():
+                raise ValueError(
+                    f"cannot attach {column!r} from the FOV table because the key {list(key)} "
+                    "is reused across different metadata values; include the grouping column "
+                    "in the object table (or pass it in key) or use a globally unique FOV "
+                    "identifier. No field of this update was added."
+                )
+        seen = set(self._added)
+        for fov_key in self._keys(new_fovs, key):
+            if fov_key in seen:
+                raise ValueError(
+                    f"field {fov_key} appears twice in the FOV table; no field of this update "
+                    "was added"
+                )
+            seen.add(fov_key)
+
     @staticmethod
     def _keys(table: pd.DataFrame, key: tuple[str, ...]) -> list[tuple]:
         return list(zip(*(table[c].tolist() for c in key), strict=True))
@@ -459,6 +491,8 @@ class LiveTables:
             return []
         key = self._resolve_key(objects, fovs)
         self._check_key_types(new_objects if len(new_objects) else objects, fovs, key)
+        # Before any field is added: a key that names two fields would pool their objects.
+        self._check_fov_keys(fovs, new_fovs, key)
         if not new_objects.empty:
             late = [k for k in self._keys(new_objects, key) if k in self._added]
             if late:
@@ -474,8 +508,6 @@ class LiveTables:
         for metadata in new_fovs.to_dict("records"):
             started = time.perf_counter()
             fov_key = tuple(metadata[c] for c in key)
-            if fov_key in self._added:
-                raise ValueError(f"field {fov_key} appears twice in the FOV table")
             if self._buffer is not None and len(self._buffer):
                 mine = [k == fov_key for k in self._keys(self._buffer, key)]
                 selected = self._buffer.loc[mine] if any(mine) else self._buffer.iloc[:0]
@@ -496,6 +528,7 @@ class LiveTables:
                 read,
                 self.pending_objects,
                 self.session.observation_unit,
+                _order_check(self.session, results),
             )
             updates.append(update)
             self.updates.append(update)

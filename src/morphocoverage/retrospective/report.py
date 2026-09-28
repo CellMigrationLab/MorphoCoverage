@@ -160,7 +160,12 @@ class MicroscopistReport:
             for key, title in QUESTIONS
             if (questions is None or key in questions) and self.inputs.get(key) == "not assessed"
         ]
-        lines = missing or ["  - Every question was assessed."]
+        # Assessed is not "everything was checked": each answer holds for what it read.
+        assessed = (
+            "  - Every question was assessed, each on the columns and under the assumptions "
+            "stated with it and in the notes below."
+        )
+        lines = missing or [assessed]
         lines += [f"  - {note}" for note in self.notes]
         return "\n".join(lines)
 
@@ -295,13 +300,23 @@ def microscopist_report(
     if controls is None or controls.status == "not assessed":
         notes.append(
             "No representation control: a 'nothing new' answer says nothing about phenotypes "
-            "these features cannot see."
+            "these features and this definition of new cannot see."
         )
     else:
-        detection = _control_rate(controls, "positive")
+        # With planted objects declared, the rare-state rate gates the warning (P6-4).
+        planted = (controls.settings.get("control") or {}).get("planted_objects")
+        planted_rate = _control_rate(controls, "planted") if planted else None
+        detection = (
+            planted_rate if planted_rate is not None else _control_rate(controls, "positive")
+        )
+        seen = (
+            f"ordinary fields with {planted} planted positive-control objects"
+            if planted_rate is not None
+            else "fields of the declared positive control"
+        )
         if detection is not None and detection < float(minimum_detection):
             weak = (
-                f"Weak representation: fields of the declared positive control were recognized "
+                f"Weak representation: {seen} were recognized "
                 f"in only {percent(detection)} of checks (below {percent(minimum_detection)})"
             )
             for key in ("enough", "next_time", "bought"):

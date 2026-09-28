@@ -4,6 +4,7 @@ from . import _deprecated
 from .data_check import DataCheck, Problem, check_tables, validate_input_tables
 from .evidence import Availability, Component, Direction, Evidence, Quantity
 from .framework import run_strategies
+from .integrity import IntegrityResult, integrity_checks
 from .objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from .online import OnlineSession
 from .planes import planes_as_features
@@ -47,6 +48,7 @@ __all__ = [
     "FixedFOVStrategy",
     "FixedObjectStrategy",
     "FixedObservationStrategy",
+    "IntegrityResult",
     "ObjectCountPlan",
     "ObjectiveConfig",
     "OnlineSession",
@@ -65,6 +67,7 @@ __all__ = [
     "ValidatedInput",
     "check_tables",
     "evaluate_acquisition_prefixes",
+    "integrity_checks",
     "plan_objects_to_average",
     "planes_as_features",
     "redecide",

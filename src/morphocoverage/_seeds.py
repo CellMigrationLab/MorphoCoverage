@@ -1,8 +1,16 @@
 """Stable per-group seeding (private): a group's random draws never depend on other groups.
 
 Every analysis that draws at random seeds each group from the caller's
-``random_state`` and the group's own identity, so adding, removing or
-re-sorting other groups never changes a group's result.
+``random_state`` (and the analysis's own extra numbers, such as the split)
+and from the group's labels written canonically (``seed_labels``), and draws
+over the group's fields in a canonical order (the FOV key). So adding,
+removing or re-sorting other groups never changes a group's result, and
+retyping a label (repeat ``1`` read as ``"1"`` or ``1.0``) is the same group,
+with the same draws. Renaming a group is a new Monte Carlo draw of its
+answers; the summaries state their Monte Carlo errors (audit 4, P9-2).
+
+``group_key`` tells groups apart for lookups (``1`` and ``"1"`` differ there);
+``group_identity`` is a 32-bit hash for seeding only.
 """
 
 from __future__ import annotations
@@ -13,6 +21,8 @@ from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
+
+from ._checks import is_integer, is_number
 
 
 def _plain(value: Any) -> Any:
@@ -31,13 +41,41 @@ def group_key(group: Mapping[str, Any]) -> str:
     return json.dumps(items, default=str)
 
 
+def _seed_label(value: Any) -> str:
+    """A label as seeding reads it: a number, or text that reads as one, in one spelling.
+
+    ``1``, ``np.int64(1)``, ``1.0`` and ``"1"`` are the same label; so are
+    ``0.5`` and ``"0.5"``. Other text is kept as it is.
+    """
+    value = _plain(value)
+    if isinstance(value, str):
+        try:
+            number = float(value)
+        except ValueError:
+            return value
+        value = number if np.isfinite(number) else value
+    if is_integer(value):
+        return str(int(value))
+    if not is_number(value):
+        return str(value)
+    value = float(value)
+    return str(int(value)) if value.is_integer() else repr(value)
+
+
+def seed_labels(group: Mapping[str, Any]) -> str:
+    """A group's labels written canonically, for seeding (``_seed_label``)."""
+    items = sorted((str(k), _seed_label(v)) for k, v in group.items())
+    return json.dumps(items)
+
+
 def group_identity(group: Mapping[str, Any]) -> int:
     """A stable integer for a group, so its random draws never depend on other groups.
 
-    A 32-bit hash of ``group_key``: two groups can collide, so it seeds draws
-    but never identifies a group (look groups up with ``group_key``).
+    A 32-bit hash of the group's canonical labels (``seed_labels``): two
+    groups can collide, so it seeds draws but never identifies a group (look
+    groups up with ``group_key``).
     """
-    return zlib.crc32(group_key(group).encode())
+    return zlib.crc32(seed_labels(group).encode())
 
 
 def group_seed(random_state: int, group: Mapping[str, Any], *more: int) -> list[int]:

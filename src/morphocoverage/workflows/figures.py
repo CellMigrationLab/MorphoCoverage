@@ -65,6 +65,7 @@ def plots(
         value_note=settings.pop(
             "value_note", None if setup.normalize is None else "relative to control"
         ),
+        control=settings.pop("control", setup.control),
         **settings,
         **setup.common,
     )

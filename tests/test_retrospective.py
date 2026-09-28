@@ -253,7 +253,9 @@ def test_a_clustered_rare_state_needs_many_fields():
         criteria=[rare],
         counts=(2, 10, 25),
         reservoir_fraction=0.3,
-        n_splits=6,
+        # 10 splits: with 6, no hold-out of the label-independent seeds (audit 4, P9-2)
+        # split the two state fields between reservoir and stream.
+        n_splits=10,
         draws=30,
     )
     curve = result.curve.sort_values("fovs")

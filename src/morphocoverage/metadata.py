@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Hashable, Iterable, Sequence
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -278,6 +279,16 @@ def _plain_spelling(name: str) -> str:
 _CANONICAL_BY_SQUASHED = {
     _squashed(name): name for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
 }
+# Other names of the within-field coordinates, by their squashed form: a plane,
+# channel or frame column under any of them would be read as an ordinary column,
+# so one file per plane would count as one field per plane.
+_PLANE_SYNONYMS = {
+    **dict.fromkeys(("plane", "zplane", "slice", "zslice", "zindex"), "z"),
+    **dict.fromkeys(("channel", "cindex", "channelnumber"), "c"),
+    **dict.fromkeys(("frame", "timepoint", "tindex", "timeframe"), "t"),
+}
+# The prefix CellProfiler gives every metadata column (``Metadata_Z``, ``Metadata_condition``).
+_METADATA_PREFIX = re.compile(r"^metadata[\s_.-]*", re.IGNORECASE)
 
 
 def canonical_spelling(column: object) -> str | None:
@@ -291,24 +302,50 @@ def canonical_spelling(column: object) -> str | None:
     ``technicalRepeat``, ``PositionID``, ``Conditions``, ``condition ``,
     ``\ufeffcondition``, ``Repeat.1``). A near miss of a within-field
     coordinate (``z``, ``z0``, ``z1``, ``c``, ``t``) differs only in case or
-    whitespace (``Z``, ``T ``). Such a column would otherwise be ignored: its
-    groups pooled, or its planes counted as fields, without a word. The exact
-    name is not a near miss.
+    whitespace (``Z``, ``T ``), or is one of its other names (``plane``,
+    ``slice``, ``channel``, ``frame``, ``timepoint``, ...). Either may carry
+    CellProfiler's ``Metadata_`` prefix (``Metadata_Z``, ``Metadata_condition``).
+    Such a column would otherwise be ignored: its groups pooled, or its planes
+    counted as fields, without a word. The exact name is not a near miss.
     """
     if not isinstance(column, str):
         return None
     cleaned = column.replace("\ufeff", "").replace("\u200b", "")
-    meant = _CANONICAL_BY_SQUASHED.get(_squashed(cleaned))
-    if meant is None and _plain_spelling(cleaned) in WITHIN_FOV_METADATA_COLUMNS:
-        meant = _plain_spelling(cleaned)
+    # CellProfiler's Metadata_ prefix is forgiven only before a name that is then a near miss.
+    unprefixed = _METADATA_PREFIX.sub("", cleaned) or cleaned
+    meant = _CANONICAL_BY_SQUASHED.get(_squashed(unprefixed))
+    if meant is None and _plain_spelling(unprefixed) in WITHIN_FOV_METADATA_COLUMNS:
+        meant = _plain_spelling(unprefixed)
+    if meant is None:
+        meant = _PLANE_SYNONYMS.get(_squashed(unprefixed))
     return meant if meant is not None and meant != column else None
+
+
+# Names of a stage-position index inside a multi-position file (an .nd2 or .czi
+# series, a scene, a site), by their squashed form, with or without ``Metadata_``.
+_POSITION_NAMES = frozenset(
+    _squashed(name)
+    for name in ("series", "scene", "site", "position", "stage_position", "multipoint")
+)
+
+
+def position_like(column: object) -> bool:
+    """Whether ``column`` names a stage position within a file (``series``, ``Metadata_Site``).
+
+    The exact MorphoBricks identifiers (``position_id``) are not position-like:
+    they are the field identifier itself.
+    """
+    if not isinstance(column, str) or column in MORPHOBRICKS_FOV_CANDIDATES:
+        return False
+    return _squashed(_METADATA_PREFIX.sub("", column) or column) in _POSITION_NAMES
 
 
 def near_miss_advice(column: str, meant: str) -> str:
     """How to fix a near-miss spelling ``column`` of ``meant`` (``canonical_spelling``)."""
     if meant in WITHIN_FOV_METADATA_COLUMNS:
         return (
-            f"Rename it to {meant!r} (the within-field coordinates are read in lowercase only), "
+            f"Rename it to {meant!r} (the within-field coordinates are read under their "
+            "lowercase names only), "
             "or, if it is not a plane, channel or time coordinate, give it another name."
         )
     if _PANDAS_COPY.search(column):
@@ -442,6 +479,55 @@ def resolve_identity_cols(
     return tuple(identity)
 
 
+def sorted_labels(values: Iterable[Any], first: Any = None) -> list:
+    """The distinct ``values`` in sorted order (by type, then text, when types mix), with
+    ``first`` (the control condition) first when present: an order of groups for
+    sentences and figures that never follows the row order of a table."""
+    distinct = list(dict.fromkeys(values))
+    try:
+        ordered = sorted(distinct)
+    except TypeError:
+        ordered = sorted(distinct, key=lambda value: (type(value).__name__, str(value)))
+    if first is None or first not in ordered:
+        return ordered
+    return [first, *(value for value in ordered if value != first)]
+
+
+def unambiguous_index(table: pd.DataFrame) -> pd.DataFrame:
+    """``table`` without the index level names that are also column names.
+
+    ``set_index([...], drop=False)`` leaves ``condition`` both an index level
+    and a column, which pandas refuses to group by as ambiguous. The labels are
+    kept (results aligned with the caller's rows keep their index); only the
+    clashing level names are dropped.
+    """
+    names = list(table.index.names)
+    if not any(name is not None and name in table.columns for name in names):
+        return table
+    table = table.copy(deep=False)
+    table.index = table.index.set_names(
+        [None if name is not None and name in table.columns else name for name in names]
+    )
+    return table
+
+
+def sorted_by_key(table: pd.DataFrame, key: Sequence[str]) -> pd.DataFrame:
+    """``table`` in the order of its ``key`` values (a stable sort), whatever their dtype.
+
+    The canonical order that seeded permutations and splits start from. A
+    categorical column is sorted by its values, not by the order of its
+    categories, which is not data: reordering the categories (or adding
+    unused ones) leaves the order unchanged.
+    """
+
+    def by_value(values: pd.Series) -> pd.Series:
+        if isinstance(values.dtype, pd.CategoricalDtype):
+            return values.astype(object)
+        return values
+
+    return table.sort_values(list(key), kind="stable", key=by_value)
+
+
 __all__ = [
     "CONDITION_COLUMN",
     "EMPTY_MEANS_ABSENT",
@@ -461,8 +547,12 @@ __all__ = [
     "empty_optional_columns",
     "empty_values",
     "near_miss_advice",
+    "position_like",
     "repeated_names",
     "resolve_fov_col",
     "resolve_group_cols",
     "resolve_identity_cols",
+    "sorted_by_key",
+    "sorted_labels",
+    "unambiguous_index",
 ]

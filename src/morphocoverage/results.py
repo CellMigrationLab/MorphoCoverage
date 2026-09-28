@@ -10,6 +10,13 @@ threshold?"), a replay or a calibration reads, since those ask what the rule
 said, not whether the rule alone could settle the objective.
 ``decision_view`` renders a set of results (one acquisition state, several
 rules) as one line per target and the overall decision.
+
+Every stop is printed with what it rests on: the fields seen so far read as
+a random sample of the well's positions (``order_check``). ``explain`` and
+``decision_view`` take the ``OrderCheck`` of the fields seen (live, the
+``LiveUpdate`` passes it) and print its caution beside a stop, or the
+assumption itself when no check was run; a flagged trend never changes a
+decision.
 """
 
 from __future__ import annotations
@@ -19,9 +26,10 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any
 
-from ._wording import count
+from ._wording import count, listing, rate
 from .evidence import Component, Evidence
 from .objectives import ObjectiveConfig
+from .order_check import RANDOM_SAMPLE_ASSUMPTION, RARE_ASSUMPTION, OrderCheck
 from .schema import unit_plural
 
 # Plain words for each objective component, as reports and the live view print them.
@@ -125,22 +133,58 @@ class StrategyResult:
     feature_cols: tuple[str, ...] = ()
     fov_key: tuple[str, ...] = ()
 
-    def explain(self) -> str:
+    def explain(self, order_check: OrderCheck | None = None) -> str:
         """One line: the decision, each policy's rule with its evidence, and the effort.
 
         For example ``stop: lofo_novel_fov_upper = 0.24 (stop at <= 0.25, distribution);
-        after 11 FOVs, 1100 objects``: the value, then the rule it is compared with,
-        so a ``continue`` never reads as a false inequality. When the objective's
-        decision differs from the rule's own (a rule with no evidence about a
-        required target is ``unsupported``), both are printed: ``unsupported (the
-        rule itself: continue): ...``. A rule's own threshold is not a held-out
-        check: the line names the quantity so the reader can see when a stop rests
-        on the number of FOVs alone.
+        after 11 FOVs, 1100 objects; treats the fields as a random sample ...``: the
+        value, then the rule it is compared with, so a ``continue`` never reads as a
+        false inequality. When the objective's decision differs from the rule's own,
+        both are printed: a rule that decides some of the objective's targets but not
+        all reads ``stop (decides the population summary only)``, and a rule that
+        decides none of them ``unsupported (the rule itself: continue)``. A rule's
+        own threshold is not a held-out check: the line names the quantity so the
+        reader can see when a stop rests on the number of FOVs alone.
+
+        A rule that treats objects as independent draws says so
+        (``assumes_spatial_uniformity``). Beside a stop, the line says what the
+        stop rests on: the caution of ``order_check`` (the acquisition-order check
+        of the fields seen so far), or without one the assumption that the fields
+        are a random sample of the well's positions; a rule deciding the rare
+        phenotype adds where the fields have looked.
         """
-        decision = _word(self.decision)
-        if self.rule_decision is not self.decision:
-            # A rule that cannot settle the objective still said something itself.
-            decision += f" (the rule itself: {_word(self.rule_decision)})"
+        effort = f"after {self._fovs()}, {self._observations()}"
+        line = f"{self._decision_words()}: {'; '.join(self._rules())}; {effort}"
+        diagnostics = self.evidence.diagnostics
+        if diagnostics.get("assumes_spatial_uniformity") or diagnostics.get(
+            "assumes_random_object_sampling"
+        ):
+            line += "; treats observations as independent draws: assumes a spatially uniform sample"
+        if Decision.STOP in (self.decision, self.rule_decision):
+            line += f"; {stop_caution(order_check, rare=self.decides_rare)}"
+        return line
+
+    def _decision_words(self) -> str:
+        """The decision, with the rule's own verdict when the objective's differs."""
+        if self.rule_decision is self.decision:
+            return _word(self.decision)
+        required = self.objective.required_components
+        decided = [
+            c
+            for c in Component
+            if c in required
+            and self.component_decisions.get(c.value, Decision.UNSUPPORTED)
+            is not Decision.UNSUPPORTED
+        ]
+        if self.decision is Decision.UNSUPPORTED and decided:
+            # It settles some required targets, not all: say which, not "unsupported".
+            own = combine_decisions([self.component_decisions[c.value] for c in decided])
+            words = listing([COMPONENT_WORDS[c].lower() for c in decided])
+            return f"{_word(own)} (decides the {words} only)"
+        return f"{_word(self.decision)} (the rule itself: {_word(self.rule_decision)})"
+
+    def _rules(self) -> list[str]:
+        """Each policy's rule beside its evidence, or ``no decision policy``."""
         parts = []
         for policy in self.configuration.get("policies", []):
             parameters = policy.get("parameters", {})
@@ -164,16 +208,37 @@ class StrategyResult:
                 )
             else:
                 parts.append(policy.get("name", "policy"))
+        return parts or ["no decision policy"]
+
+    def _fovs(self) -> str:
+        return "an unknown number of FOVs" if self.n_fovs is None else count(self.n_fovs, "FOV")
+
+    def _observations(self) -> str:
         unit = self.observation_unit if self.observation_unit_declared else "observation"
-        fovs = "an unknown number of FOVs" if self.n_fovs is None else count(self.n_fovs, "FOV")
-        observations = (
-            f"an unknown number of {unit_plural(unit)}"
-            if self.n_observations is None
-            else count(self.n_observations, _SINGULAR_WORDS.get(unit, unit), unit_plural(unit))
+        if self.n_observations is None:
+            return f"an unknown number of {unit_plural(unit)}"
+        return count(self.n_observations, _SINGULAR_WORDS.get(unit, unit), unit_plural(unit))
+
+    @property
+    def decides_rare(self) -> bool:
+        """Whether a policy of this rule decides the rare phenotype."""
+        decision = self.component_decisions.get(Component.RARE.value, Decision.UNSUPPORTED)
+        return Component.RARE.value in self.component_decisions and (
+            decision is not Decision.UNSUPPORTED
         )
-        effort = f"after {fovs}, {observations}"
-        rules = "; ".join(parts) if parts else "no decision policy"
-        return f"{decision}: {rules}; {effort}"
+
+    def criteria(self, component: Component) -> list[str]:
+        """This rule's thresholds on ``component``'s quantities, as ``averaging_cv <= 0.05``."""
+        found = []
+        for policy in self.configuration.get("policies", []):
+            parameters = policy.get("parameters", {})
+            quantity = self.evidence.quantities.get(parameters.get("quantity"))
+            if quantity is None or "threshold" not in parameters:
+                continue
+            if quantity.component is component:
+                better = "<=" if quantity.direction.value == "lower_is_better" else ">="
+                found.append(f"{parameters['quantity']} {better} {parameters['threshold']:g}")
+        return found
 
     @property
     def rule_decision(self) -> Decision | None:
@@ -243,17 +308,78 @@ def _distinct(value: float, threshold: float) -> tuple[str, str]:
     return f"{value:.{digits}g}", f"{threshold:.{max(digits, 6)}g}"
 
 
-def decision_view(results: Sequence[StrategyResult]) -> str:
+def stop_caution(order_check: OrderCheck | None, *, rare: bool = False) -> str:
+    """What a stop rests on: the caution of ``order_check``, or the assumption without one."""
+    if order_check is not None:
+        return order_check.caution(rare=rare)
+    return f"{RANDOM_SAMPLE_ASSUMPTION}; it {RARE_ASSUMPTION}" if rare else RANDOM_SAMPLE_ASSUMPTION
+
+
+def _averaging_cv_note(thresholds: Sequence[float]) -> str:
+    """An averaging CV is a standard error as a fraction of the mean, not a tolerance."""
+    notes = [
+        f"an averaging CV of {rate(t)} is one standard error of {rate(t)} of the mean, "
+        f"not a ±{rate(t)} bound"
+        for t in sorted(set(thresholds))
+    ]
+    return "; ".join(notes)
+
+
+def _component_entry(
+    component: Component, results: Sequence[StrategyResult], decided: list[Decision | None]
+) -> str:
+    """One target of the view: its combined decision, and which criteria decided it."""
+    combined = combine_decisions(decided)
+    rules = count(len(decided), "rule")
+    deciding = [
+        r
+        for r in results
+        if r.component_decisions.get(component.value, Decision.UNSUPPORTED)
+        is not Decision.UNSUPPORTED
+    ]
+    if combined is Decision.STOP:
+        chosen = deciding
+    else:
+        chosen = [
+            r for r in deciding if r.component_decisions[component.value] is not Decision.STOP
+        ]
+    named = [
+        f"{r.strategy} {' and '.join(r.criteria(component))}"
+        for r in chosen
+        if r.criteria(component)
+    ]
+    word = COMPONENT_WORDS[component]
+    if not named:
+        return f"{word}: {_word(combined)} ({rules})"
+    if combined is Decision.STOP:
+        thresholds = [
+            float(policy["parameters"]["threshold"])
+            for r in chosen
+            for policy in r.configuration.get("policies", [])
+            if str(policy.get("parameters", {}).get("quantity", "")).endswith("averaging_cv")
+            and "threshold" in policy.get("parameters", {})
+        ]
+        note = f"; {_averaging_cv_note(thresholds)}" if thresholds else ""
+        return f"{word}: stop ({rules}, met: {', '.join(named)}{note})"
+    return f"{word}: {_word(combined)} ({rules}; not yet met: {', '.join(named)})"
+
+
+def decision_view(results: Sequence[StrategyResult], order_check: OrderCheck | None = None) -> str:
     """One view of several rules on the same acquisition state: each target, then the overall.
 
     For each objective component, the decision combined over the rules that
-    decide it (``combine_decisions``), with the number of rules; a required
-    component that no rule decides is said so. The overall decision is the
-    objective's: ``unsupported`` while a required component has no rule,
-    otherwise the combination of the required components. The results must
-    share one objective (one session, one acquisition state); the view
-    answers "if the targets disagree, is that obvious?" (``docs/questions.md``
-    O4).
+    decide it (``combine_decisions``), with the number of rules and the
+    criteria that decided it: at a stop every rule's threshold (an averaging
+    CV is named as the standard error it is, not a tolerance on the mean),
+    otherwise the thresholds not yet met. A required component that no rule
+    decides is said so. The overall decision is the objective's:
+    ``unsupported`` while a required component has no rule, otherwise the
+    combination of the required components; an overall stop is followed by
+    what it rests on (``stop_caution``: the caution of ``order_check``, or the
+    assumption that the fields are a random sample of the well's positions).
+    The results must share one objective (one session, one acquisition
+    state); the view answers "if the targets disagree, is that obvious?"
+    (``docs/questions.md`` O4).
     """
     results = list(results)
     if not results:
@@ -271,15 +397,12 @@ def decision_view(results: Sequence[StrategyResult]) -> str:
             if r.component_decisions.get(component.value, Decision.UNSUPPORTED)
             is not Decision.UNSUPPORTED
         ]
-        word = COMPONENT_WORDS[component]
         if decided:
-            combined = combine_decisions(decided)
-            rules = count(len(decided), "rule")
-            parts.append(f"{word}: {_word(combined)} ({rules})")
+            parts.append(_component_entry(component, results, decided))
             if component in required:
-                overall.append(combined)
+                overall.append(combine_decisions(decided))
         elif component in required:
-            parts.append(f"{word}: no rule decides it")
+            parts.append(f"{COMPONENT_WORDS[component]}: no rule decides it")
             overall.append(Decision.UNSUPPORTED)
     if Decision.UNSUPPORTED in overall:
         missing = [
@@ -293,7 +416,13 @@ def decision_view(results: Sequence[StrategyResult]) -> str:
         ]
         final = f"unsupported (no rule decides the {', '.join(missing)})"
     else:
-        final = _word(combine_decisions(overall))
+        combined = combine_decisions(overall)
+        final = _word(combined)
+        if combined is Decision.STOP:
+            rare = any(
+                r.component_decisions.get(Component.RARE.value) is Decision.STOP for r in results
+            )
+            final += f"; {stop_caution(order_check, rare=rare)}"
     return "; ".join([*parts, f"Overall ({objective.objective.value} objective): {final}"])
 
 
@@ -304,4 +433,5 @@ __all__ = [
     "Timing",
     "combine_decisions",
     "decision_view",
+    "stop_caution",
 ]

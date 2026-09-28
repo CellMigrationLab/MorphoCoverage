@@ -4,17 +4,20 @@ Each rule reads the tables, records problems on a ``Collector`` in plain words
 (what is wrong, where, how to fix it) and never raises for bad data.
 
 Shared-private: every ``_check_*`` rule, ``_attach``, ``_resolve_fov_col``,
-``_resolve_groups``, ``_names`` and ``_tables``, used by ``data_check``.
+``_resolve_groups``, ``_names`` and ``_tables``, used by ``data_check``; ``_loose``
+(labels that print alike) by ``retrospective.overview``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Mapping, Sequence
+import re
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from ._copy_rules import check_copies
 from ._data_problems import (  # noqa: F401  (re-exported)
     ERROR,
     EXAMPLES,
@@ -335,12 +338,13 @@ def _close_column(name: Any, columns: Sequence[Any]) -> Any | None:
 
 
 def _loose(value: Any) -> str:
-    """A value compared loosely: without surrounding spaces or case, a number by its value."""
+    """A value compared loosely: no outer spaces, case or zero padding (B02 is b2); a number
+    by its value."""
     text = str(value).strip().casefold()
     try:
         return repr(float(text))
     except ValueError:
-        return text
+        return re.sub(r"^([a-z]+)0+(?=\d)", r"\1", text)
 
 
 def _near_values(objects: pd.DataFrame, fovs: pd.DataFrame, key: Sequence[str]) -> str:
@@ -367,65 +371,27 @@ def _why_different(seen: Any, listed: Any) -> str:
         return "is text in one table and a number in the other"
     if str(seen).strip().casefold() == str(listed).strip().casefold():
         return "differs only in spaces or case"
+    if not re.fullmatch(r"[-+.\deE]+", str(seen).strip()):
+        return "writes the same label with and without zero padding"  # 'B2' against 'B02'
     return "writes the same number differently"  # '1' against '1.0'
 
 
-def _comparable(objects: pd.DataFrame) -> pd.DataFrame:
-    """``objects`` with cells that cannot be compared as they are (lists, arrays) as their text.
+def _check_copies(
+    c: Collector, objects: pd.DataFrame, key: Sequence[str], feature_cols: Sequence[str] = ()
+) -> None:
+    """Exact copies, observations repeated in every feature of a field, labels twice in one.
 
-    An embedding stored as one list per row is valid (it is not a feature), but
-    ``DataFrame.duplicated`` cannot hash it.
+    The rule lives in ``_copy_rules.check_copies``; the field is the one the
+    validator uses (``key``), so labels that restart in each field, file or
+    plane are fine.
     """
-    comparable = objects.copy()
-    for column in objects.columns[(objects.dtypes == object).to_numpy()]:
-        values = objects[column]
-        if not values.map(lambda value: isinstance(value, Hashable)).all():
-            comparable[column] = values.map(repr)
-    return comparable
-
-
-def _check_copies(c: Collector, objects: pd.DataFrame, key: Sequence[str]) -> None:
-    """Rows that repeat another row exactly, or a ``label_id`` twice in one field.
-
-    The field is the one the validator uses (``key``: the group columns and the
-    resolved field identifier, even one named with ``fov_col``), so labels that
-    restart in each field, file or plane are fine.
-    """
-    try:
-        copies = objects.duplicated(keep="first")
-    except TypeError:  # a column of lists: compared by their text
-        objects = _comparable(objects)
-        copies = objects.duplicated(keep="first")
-    if copies.any():
-        c.warning(
-            f"{count(int(copies.sum()), 'observation')} {'is' if copies.sum() == 1 else 'are'} "
-            "an exact copy of another row.",
-            f"observation table, {_examples(objects, copies, list(objects.columns[:4]))}.",
-            "A file read or appended twice counts every cell twice; remove the copies, or keep "
-            "them if identical rows are real.",
-        )
-        return
-    if "label_id" not in objects.columns or c.has_errors():
-        # A misspelt group column already breaks field identity; labels would repeat.
-        return
-    # A label names one object of one image: the field, and its file or plane when recorded.
-    image = [*key, *MORPHOBRICKS_FOV_CANDIDATES, *WITHIN_FOV_METADATA_COLUMNS]
-    field = [col for col in dict.fromkeys(image) if col in objects.columns]
-    twice = objects.duplicated([*field, "label_id"], keep="first") & objects["label_id"].notna()
-    if field and twice.any():
-        c.warning(
-            f"{count(int(twice.sum()), 'label_id')} {'appears' if twice.sum() == 1 else 'appear'} "
-            "twice in the same field.",
-            f"observation table, {_examples(objects, twice, [*field, 'label_id'])}.",
-            "A label names one segmented object of a field; check for a file appended twice or "
-            "a field identifier shared by two images.",
-        )
+    check_copies(c, objects, key, feature_cols)
 
 
 def _check_label_variants(
     c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, columns: Sequence[str]
 ) -> None:
-    """Group labels of one table that differ only in spaces, case, or number against text.
+    """Group labels of one table that differ only in spaces, case, padding, or number vs text.
 
     ``1`` and ``'1'`` (two files read differently), ``'drug'``, ``'drug '`` and
     ``'Drug'`` (a hand-typed table) are separate groups to the analysis, and
@@ -454,8 +420,8 @@ def _check_label_variants(
             more = f" and {len(variants) - EXAMPLES} more" if len(variants) > EXAMPLES else ""
             reported.add(column)
             c.warning(
-                f"{column!r} holds labels that differ only in spaces, case, or number against "
-                "text, so each is analysed as a group of its own.",
+                f"{column!r} holds labels that differ only in spaces, case, zero padding or number "
+                "against text, so each is analysed as a group of its own.",
                 f"{name}, column {column!r}: {shown}{more}.",
                 "If they name one group, write them the same way in every row (strip the spaces, "
                 "use one case, read the column as text in every file); if they are different "

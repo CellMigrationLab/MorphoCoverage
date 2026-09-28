@@ -35,8 +35,14 @@ Limits:
 - The actual rate is measured on the group's remaining FOVs only. With few
   remaining FOVs it is noisy, which lowers how often the bound appears to
   hold; ``remaining_fovs`` says how many there were.
-- Neighbouring FOVs are often correlated, which the bound ignores; this is
-  one thing the check can reveal.
+- Neighbouring FOVs are often correlated, which the bound ignores, and the
+  check cannot reveal it: random subsets break adjacency, so a raster over
+  spatially patchy states (states persisting over a few neighbouring fields)
+  can make the bound fail for the fields acquired next while the check reports
+  it holding. The acquisition-order check (``morphocoverage.order_check``,
+  printed beside every stop when ``acquisition_order_col`` or ``stage_cols``
+  are declared) flags a trend or spatial autocorrelation of the readout;
+  acquire in a random or dispersed order to make the check's premise true.
 - The check is for this dataset and these settings (``epsilon``, transform,
   ``min_novel_observations``); it does not transfer to other settings.
 """
@@ -53,6 +59,7 @@ from ._seeds import group_rng
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .evidence import Availability
+from .metadata import sorted_by_key
 from .objectives import ObjectiveConfig, SamplingObjective
 from .schema import ValidatedInput
 from .strategies.support_novelty import FOV_QUANTITY, UPPER_QUANTITY, SupportNoveltyEstimator
@@ -164,7 +171,7 @@ def calibrate_next_fov_novelty(
     for group, group_data in iter_analysis_groups(data):
         # FOV-key order first, as permuted_fovs and ReservoirSplit do, so the
         # draws do not depend on the row order of the FOV table.
-        ordered = group_data.fovs.sort_values(list(group_data.fov_key), kind="stable")
+        ordered = sorted_by_key(group_data.fovs, group_data.fov_key)
         group_data = restrict_input(group_data, group_data.objects, ordered)
         total = len(group_data.fovs)
         for k in counts:

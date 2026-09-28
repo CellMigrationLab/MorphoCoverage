@@ -37,6 +37,13 @@ from ._data_rules import (
     _resolve_fov_col,
     _resolve_groups,
 )
+from ._input_traps import (
+    InvalidRowsWarning,
+    _check_container_files,
+    _check_undeclared_groups,
+    _check_unimaged_technical_repeats,
+    _check_well_names,
+)
 from ._wording import count
 from .metadata import (
     column_names,
@@ -128,11 +135,16 @@ def check_tables(
     Arguments are those of ``validate_input_tables`` (``fovs`` may be passed
     by position here); ``control`` (for example ``{"condition": "MOCK"}``)
     also checks that the control exists in every repeat. Never raises for bad
-    data: the problems are in the result. Beyond the validator's rules it
-    warns about what is often a mistake: no FOV table, no declared unit,
-    exact copies of rows, a ``label_id`` twice in one field, fields without
-    observations, missing feature values, group labels that differ only in
-    spaces, case or number against text, and repeats without a control.
+    data: the problems are in the result. Beyond the validator's rules (and
+    its warnings) it warns about what is often a mistake: no FOV table, no
+    declared unit, exact copies of rows, a ``label_id`` twice in one field,
+    fields without observations, wells without an observation in any field,
+    missing feature values, group labels that differ only in spaces, case,
+    zero padding or number against text, a plate well named in two
+    conditions of one repeat, an undeclared text column that splits analysis
+    groups into blocks of fields (a well or a plate under another name),
+    multi-position files that repeat a ``label_id``, and repeats without a
+    control.
     """
     c = Collector()
     if not isinstance(objects, pd.DataFrame):
@@ -246,11 +258,15 @@ def check_tables(
         if _identity_hashable(c, objects, fovs, key):
             objects = _attach(c, objects, fovs, resolved, identity)
             # After the group columns are attached, so the same label in two wells is not a copy.
-            _check_copies(c, objects, key)
+            _check_copies(c, objects, key, feature_cols)
             _check_key_values(c, objects, fovs, key)
             _check_label_variants(c, objects, fovs, identity)
+            _check_well_names(c, objects, fovs, identity)
+            _check_undeclared_groups(c, objects, fovs, key, groups, feature_cols)
+            _check_container_files(c, objects, key)
             if fovs is not None:
                 _check_fov_table(c, objects, fovs, key)
+                _check_unimaged_technical_repeats(c, objects, fovs, key)
     if features_readable:
         _check_features(c, objects, feature_cols, taken)
     c.understood.append(
@@ -281,8 +297,16 @@ def check_tables(
                 if not issubclass(warning.category, UserWarning):
                     warnings.warn(warning.message, warning.category, stacklevel=2)
                     continue
-                # The validator's only warning: planes that may be counted as fields.
                 message = str(warning.message)
+                if issubclass(warning.category, InvalidRowsWarning):
+                    c.warning(
+                        message[0].upper() + message[1:],
+                        "observation table, column 'valid'.",
+                        "Keep only the valid rows, or rename the column if it means something "
+                        "else.",
+                    )
+                    continue
+                # The validator's other warnings: planes that may be counted as fields.
                 c.warning(
                     message[0].upper() + message[1:],
                     "the within-field coordinates (z, c, t) and the field identifier.",
@@ -293,12 +317,16 @@ def check_tables(
         except (ValueError, TypeError) as exc:
             message = str(exc).split("\n\n")[0].rstrip(".")
             planes = any(w in message for w in ("plane", "z/c/t", "channel"))
+            within = "planes_as_features" in message  # planes of one field as observations
             c.error(
                 message[0].upper() + message[1:] + ".",
                 "the within-field coordinates (z, c, t) and the field identifier."
                 if planes
                 else "found by validate_input_tables.",
-                "Give every plane, channel or frame of one stage position the same "
+                "Keep one row per object: pivot the planes with planes_as_features, or keep one "
+                "plane; declare observation_unit='slice' if each row measures a whole plane."
+                if within
+                else "Give every plane, channel or frame of one stage position the same "
                 "'position_id', and a z/c/t value that tells its files apart."
                 if planes
                 else "Correct what the message names; every rule is in docs/data_format.md.",

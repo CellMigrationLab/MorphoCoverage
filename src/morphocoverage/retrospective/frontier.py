@@ -25,8 +25,14 @@ The **score** of a rule family at a risk level ``alpha`` is
 in fields, so 0 is the null result (as good as a fixed count) and a negative
 value is worse. Its interval resamples the declared **independent units**
 (samples or repeats, ``unit_cols``) with replacement; hold-outs, orders and
-draws describe each unit and never narrow it. With fewer than two units there
-is no interval, and none either when fewer than ``MIN_BOOT_SUCCESS`` (90%) of
+draws describe each unit and never narrow it. The percentile interval of the
+resamples is widened for the number of units (``statistics._interval``:
+``sqrt(k / (k - 1)) t_{k-1} / z``), since a plain percentile interval over
+few units of a "from here on" statistic covers far below its level (about
+30% at 3 units, 55% at 5, 78% at 12 for a nominal 95%); even widened it is
+approximate, and the summary says so. With fewer than ``FEW_UNITS`` (5)
+units there is no interval, as for the protocol reliability and the effort
+projection, and none either when fewer than ``MIN_BOOT_SUCCESS`` (90%) of
 the resamples reached ``alpha`` for both the family and the fixed rule: the
 others would be a selected subset, not the bootstrap distribution (the rule
 of the effort projection's intervals).
@@ -78,7 +84,14 @@ from ..policies import ThresholdPolicy, redecide
 from .adequacy import adequacy_points
 from .criteria import Preservation
 from .effort import MIN_BOOT_SUCCESS
+from .frontier_bootstrap import (
+    _bootstrap,
+    _from_here_on,
+    _saved_interval,
+    _unit_ids,
+)
 from .frontier_text import BASELINE, frontier_summary
+from .protocol_text import FEW_UNITS
 from .replay import ReplayResult
 
 _RUN = ["split", "order_id"]
@@ -246,24 +259,6 @@ def _curve(runs: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _from_here_on(risks: np.ndarray, alpha: float) -> int | None:
-    """Index of the first setting (by effort) from which every later risk is within alpha.
-
-    The same "from here on" rule as the protocol's field count: a lucky dip in
-    a noisy curve, followed by worse settings, is not a safe choice. Settings
-    whose risk could not be judged (NaN) neither start nor break the run.
-    """
-    chosen = None
-    for i, risk in enumerate(risks):
-        if np.isnan(risk):
-            continue
-        if risk <= alpha + 1e-12:
-            chosen = i if chosen is None else chosen
-        else:
-            chosen = None
-    return chosen
-
-
 def _needed(curve: pd.DataFrame, alpha: float) -> pd.Series | None:
     """The cheapest setting from which risk stays at most ``alpha``, or None."""
     ordered = curve.sort_values(["effort", "setting"], kind="stable")
@@ -297,68 +292,6 @@ def _interpolate_baseline(baseline: pd.DataFrame, effort: float) -> float | None
     return float(np.interp(effort, points["effort"], points["risk"]))
 
 
-def _unit_ids(runs: pd.DataFrame, unit_cols: Sequence[str]) -> pd.Series:
-    if not unit_cols:
-        return pd.Series("all", index=runs.index)
-    return runs[list(unit_cols)].astype(str).agg(" / ".join, axis=1)
-
-
-def _bootstrap(
-    runs: pd.DataFrame,
-    unit_cols: Sequence[str],
-    alphas: Sequence[float],
-    n_boot: int,
-    rng: np.random.Generator,
-) -> dict[tuple[str, float], np.ndarray]:
-    """Fields saved per family and alpha in each resample of independent units."""
-    runs = runs.assign(
-        unit=_unit_ids(runs, unit_cols),
-        defined=runs["status"] != Preservation.UNDEFINED.value,
-        failed=runs["status"] == Preservation.NOT_PRESERVED.value,
-    )
-    units = sorted(runs["unit"].unique())
-    if len(units) < 2:
-        return {}
-    configs = list(runs.groupby(["family", "setting"], sort=False).groups)
-    index = {u: i for i, u in enumerate(units)}
-    shape = (len(configs), len(units))
-    count, effort, defined, failed = (np.zeros(shape) for _ in range(4))
-    for c, ((name, setting), own) in enumerate(runs.groupby(["family", "setting"], sort=False)):
-        per_unit = own.groupby("unit")[["effort", "defined", "failed"]].agg(["sum", "count"])
-        for unit, row in per_unit.iterrows():
-            u = index[unit]
-            count[c, u] = row[("effort", "count")]
-            effort[c, u] = row[("effort", "sum")]
-            defined[c, u] = row[("defined", "sum")]
-            failed[c, u] = row[("failed", "sum")]
-    picks = rng.integers(0, len(units), size=(n_boot, len(units)))
-    weights = np.zeros((n_boot, len(units)))
-    np.add.at(weights, (np.arange(n_boot)[:, None], picks), 1.0)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        mean_effort = (weights @ effort.T) / (weights @ count.T)
-        risk = (weights @ failed.T) / (weights @ defined.T)
-    families = {}
-    for c, (name, _) in enumerate(configs):
-        families.setdefault(name, []).append(c)
-    saved = {}
-    for alpha in alphas:
-        needed = {}
-        for name, columns in families.items():
-            cols = np.array(columns)
-            best = np.full(n_boot, np.nan)
-            for b in range(n_boot):
-                # Settings in the order of their effort in this resample.
-                order = np.argsort(mean_effort[b, cols], kind="stable")
-                index = _from_here_on(risk[b, cols][order], alpha)
-                if index is not None:
-                    best[b] = mean_effort[b, cols][order][index]
-            needed[name] = best
-        for name in families:
-            if name != BASELINE:
-                saved[(name, alpha)] = needed[BASELINE] - needed[name]
-    return saved
-
-
 def _adaptivity(runs: pd.DataFrame, realized: pd.DataFrame, keys: list[str]) -> float | None:
     """Spearman correlation of the stop with sustained realized adequacy, over runs."""
     merged = runs.merge(realized, on=keys, how="inner")
@@ -378,7 +311,9 @@ class FrontierResult:
       ``effort`` and ``risk``, the baseline's ``baseline_effort``, the
       ``fields_saved`` with ``saved_low`` / ``saved_high`` and
       ``saved_reached`` (the share of unit resamples in which both reached
-      ``alpha``; below ``MIN_BOOT_SUCCESS`` there is no interval),
+      ``alpha``; below ``MIN_BOOT_SUCCESS`` there is no interval, nor with
+      fewer than ``FEW_UNITS`` units; the interval is widened for the number
+      of units and approximate),
       ``baseline_risk_at_same_effort`` and ``adaptivity``. For a
       family with no chosen setting that met ``alpha`` at some setting but not
       from there on, ``met_setting`` / ``met_risk`` (the cheapest within
@@ -464,6 +399,7 @@ def frontier(
     rng = np.random.default_rng(random_state)
     boot = _bootstrap(runs, unit_cols, alphas, n_boot, rng)
     baseline_curve = curve[curve["family"] == BASELINE]
+    units = int(_unit_ids(runs, unit_cols).nunique())
     scores = []
     for alpha in alphas:
         base = _needed(baseline_curve, alpha)
@@ -488,14 +424,15 @@ def frontier(
             row["fields_saved"] = float(base["effort"] - chosen["effort"]) if reached else None
             draws = boot.get((name, alpha))
             row["saved_low"] = row["saved_high"] = row["saved_reached"] = None
-            # An interval only around a score that exists, and only from (nearly) every
-            # resample: the few that reached alpha would be a selected subset.
+            # An interval only around a score that exists, only from (nearly) every
+            # resample (the few that reached alpha would be a selected subset), and
+            # only from at least FEW_UNITS units, widened for their number.
             if reached and draws is not None:
                 finite = draws[np.isfinite(draws)]
                 row["saved_reached"] = float(len(finite) / len(draws))
                 if len(finite) and row["saved_reached"] >= MIN_BOOT_SUCCESS:
-                    row["saved_low"] = float(np.quantile(finite, 0.025))
-                    row["saved_high"] = float(np.quantile(finite, 0.975))
+                    low, high = _saved_interval(row["fields_saved"], finite, units)
+                    row["saved_low"], row["saved_high"] = low, high
             row["baseline_risk_at_same_effort"] = (
                 None if chosen is None else _interpolate_baseline(baseline_curve, chosen["effort"])
             )
@@ -505,7 +442,6 @@ def frontier(
             else:
                 row["adaptivity"] = None
             scores.append(row)
-    units = int(_unit_ids(runs, unit_cols).nunique())
     settings = {
         **dict(replay.settings),
         "criterion": criterion,
@@ -515,6 +451,7 @@ def frontier(
         "units": units,
         "n_boot": n_boot,
         "min_boot_success": MIN_BOOT_SUCCESS,
+        "few_units": FEW_UNITS,
         "random_state_frontier": random_state,
     }
     return FrontierResult(curve, pd.DataFrame(scores), runs, settings)

@@ -24,6 +24,7 @@ in sentences, which the report prints first.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -54,19 +55,29 @@ from ..schema import resolve_observation_unit, unit_plural
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator, SupportNoveltyStrategy
 from ..strategies.base import SamplingStrategy
 from ..strategies.support_novelty import UPPER_QUANTITY
-from ..transforms import Standardize
+from ..transforms import RobustStandardize, Standardize
 from ._declaration import declaration
+
+# From this many features on, a radius of sqrt(d) links too few objects of a state.
+MANY_NOVELTY_FEATURES = 8
 
 
 def default_novelty(features: Sequence[str]) -> SupportNoveltyEstimator:
     """The definition of "new" used in ``docs/preliminary_findings.md`` (entries 2, 3, 6).
 
-    Standardized features, a radius of ``sqrt(len(features))``, support from
-    one other FOV, clusters of at least 3 unsupported objects, 5 FOVs before
-    any estimate. It was chosen on idr0028 (development data): call it
-    explicitly, and check it with ``representation_control`` on your data.
+    Robustly standardized features (``RobustStandardize``: median and MAD, so
+    a few extreme objects such as clumps or debris cannot widen the scale and
+    hide a new state elsewhere), a radius of ``sqrt(len(features))``, support
+    from one other FOV, clusters of at least 3 unsupported objects, 5 FOVs
+    before any estimate. It was chosen on idr0028 (development data) with the
+    mean and SD, robust since audit 4: call it explicitly, and check it with
+    ``representation_control`` on your data.
+
+    A state's observations must be linked by steps of at most ``sqrt(d)``,
+    though two of a state varying by one SD per feature sit ``sqrt(2 d)``
+    apart: with 8 or more features ``Setup`` warns (reduce the dimension).
     """
-    return SupportNoveltyEstimator(float(np.sqrt(len(features))), 1, Standardize(), 5, 3)
+    return SupportNoveltyEstimator(float(np.sqrt(len(features))), 1, RobustStandardize(), 5, 3)
 
 
 @dataclass(frozen=True)
@@ -111,8 +122,8 @@ class Setup:
     - ``features``: the representation for unusual observations and novelty
       (explicit columns; never inferred). Empty means the readout only.
     - ``control``: the negative-control groups, for example
-      ``{"condition": "MOCK"}``. Its mean is the reference of the Foundation's
-      JCB object-rule check (``object_rule_check``; the stopping rules use each
+      ``{"condition": "MOCK"}``. Its mean in each repeat is the reference of the
+      Foundation's JCB object-rule check (``object_rule_check``; the stopping rules use each
       group's own mean), its observations the reference for unusual
       observations (without it they are not assessed), and, with ``normalize``,
       the divisor of the normalised values.
@@ -173,6 +184,12 @@ class Setup:
       (``resolved_effort_strata``).
     - ``acquisition_order_col``, ``stage_cols``: acquisition order and stage
       coordinates, when recorded.
+    - ``fields_independent``: declares that the fields are independent draws
+      of their condition (default ``False``). The condition contrast and the
+      feature ranking shuffle the technical repeats (``technical_repeat``),
+      else a group column nested within condition x repeat (a well column in
+      ``group_cols``); without either they give no p-value, since fields of
+      one dish or well are not independent draws, unless this is ``True``.
     - ``fov_col``, ``group_cols``, ``observation_unit``: as for
       ``validate_input_tables`` (MorphoBricks defaults when ``None``).
     - ``rules``: the stopping rules to assess, calibrate and run live; by
@@ -215,6 +232,7 @@ class Setup:
     random_state: int = 0
     n_jobs: int = 1
     minimum_detection: float = 0.9
+    fields_independent: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.readout, str) or not self.readout:
@@ -232,6 +250,9 @@ class Setup:
             object.__setattr__(self, "group_cols", tuple(self.group_cols))
         if self.rules is not None:
             object.__setattr__(self, "rules", tuple(self.rules))
+        if not isinstance(self.fields_independent, (bool, np.bool_)):
+            raise TypeError("fields_independent must be True or False")
+        object.__setattr__(self, "fields_independent", bool(self.fields_independent))
         if isinstance(self.fingerprint, OutcomeCriterion):
             raise TypeError("fingerprint must be a sequence of OutcomeCriterion, not one")
         object.__setattr__(self, "fingerprint", tuple(self.fingerprint))
@@ -273,6 +294,7 @@ class Setup:
             )
         self._check_presets()
         self._check_few_fovs()
+        self._warn_novelty_dimension()
         undeclared = sorted(set(self.criterion_columns) - set(self.columns))
         if undeclared:
             raise ValueError(
@@ -324,6 +346,23 @@ class Setup:
         object.__setattr__(self, "random_state", check_seed(self.random_state))
         check_n_jobs(self.n_jobs)
         object.__setattr__(self, "n_jobs", int(self.n_jobs))
+
+    def _warn_novelty_dimension(self) -> None:
+        """Warn when a standardization alone defines "new" on many features (P6-3)."""
+        d = len(self.features)
+        novelty = self.novelty
+        if novelty is None or d < MANY_NOVELTY_FEATURES:
+            return
+        if isinstance(novelty.transform, (Standardize, RobustStandardize)):
+            warnings.warn(
+                f"novelty is judged on {d} standardized features at distance "
+                f"{novelty.epsilon:g}, but two observations of a state varying by one SD per "
+                f"feature sit about {np.sqrt(2 * d):.1f} apart, so small, ordinarily variable "
+                "states are often missed: reduce the dimension (Chain([RobustStandardize(), "
+                "PCA(k)])) or declare fewer features",
+                UserWarning,
+                stacklevel=3,
+            )
 
     def _check_few_fovs(self) -> None:
         if self.few_fovs is None:

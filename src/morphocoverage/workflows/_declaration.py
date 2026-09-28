@@ -2,7 +2,9 @@
 
 ``Setup.declaration()`` returns ``declaration(setup)``: one sentence per
 target, then the representation, the novelty rule, the positive control, the
-stopping rules and the values they read, and the live decision. Every preset
+stopping rules (an averaging CV named as the standard error it is), the order
+check beside every stop (or the random-sample assumption it rests on without
+one), the values the rules read, and the live decision. Every preset
 a workflow applies without being asked (``minimum_detection``, the default
 stopping rules, the pairing of the positive control) is named here, so the
 report never rests on a setting it does not print.
@@ -16,10 +18,12 @@ from typing import TYPE_CHECKING
 
 from .._wording import count, listing, percent, rate
 from ..evidence import Component
+from ..order_check import RANDOM_SAMPLE_ASSUMPTION
 from ..results import COMPONENT_WORDS
 from ..retrospective.replay import strategy_label
 from ..schema import resolve_observation_unit
 from ..statistics import fovs_to_detect
+from ..strategies import ScalarPrecisionStrategy
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -57,6 +61,7 @@ def declaration(setup: Setup) -> tuple[str, ...]:
     if setup.positive is not None:
         lines.append(_positive(setup))
     lines.append(_rules(setup))
+    lines.append(_order(setup))
     if setup.normalize is not None:
         lines.append(
             "Values: every declared feature divided by the mean of the control "
@@ -176,7 +181,45 @@ def _rules(setup: Setup) -> str:
         )
     else:
         named += " (rules)"
-    return f"Stopping rules: {named}; assessed in the report, calibrated by optimise, run live."
+    line = f"Stopping rules: {named}; assessed in the report, calibrated by optimise, run live."
+    targets = sorted(
+        {r.target_cv for r in setup.stopping_rules() if isinstance(r, ScalarPrecisionStrategy)}
+    )
+    if targets:
+        # The JCB criterion is the paper's: a CV of the mean, not a tolerance on it.
+        cvs = " and ".join(f"{rate(t)} is one standard error of {rate(t)}" for t in targets)
+        line += (
+            f" The JCB rules stop on the averaging CV: a CV of {cvs} of the mean, not a "
+            f"bound of ±{rate(targets[0])} on its error; whether the mean is within "
+            f"{' and '.join(rate(t) for t in setup.tolerances)} is judged on held-back "
+            "fields (report, optimise), never by the rules."
+        )
+    return line
+
+
+def _order(setup: Setup) -> str:
+    """The acquisition-order check printed beside every stop, or the assumption without it."""
+    order, stage = setup.acquisition_order_col, setup.stage_cols
+    advice = "Image fields in a random or dispersed order."
+    if order is None and stage is None:
+        return (
+            "Acquisition order: no acquisition_order_col or stage_cols, so nothing is "
+            f"checked and every stop {RANDOM_SAMPLE_ASSUMPTION}. {advice}"
+        )
+    tests = []
+    if order is not None:
+        tests.append(f"a trend of the field means of {setup.readout} with {order!r} (Spearman)")
+    if stage is not None:
+        tests.append(
+            f"alike means in neighbouring fields by {listing(stage)} (Moran's I, permutation "
+            "p-value), with the stage extent covered beside a rare-phenotype stop"
+        )
+    return (
+        f"Acquisition order: every stop, live and in the report, is printed with a check of "
+        f"the fields seen so far for {' and '.join(tests)}. A flagged trend is a caution, "
+        "never a veto (it does not turn stop into continue), and finding none does not show "
+        f"the fields to be a random sample of the well's positions. {advice}"
+    )
 
 
 def _rare(setup: Setup) -> str:
@@ -206,8 +249,9 @@ def _rare(setup: Setup) -> str:
         )
     if setup.rare_label is not None:
         line += (
-            f" Judged on held-back fields with the label column {setup.rare_label!r}, and its "
-            "clustering in few fields reported with the sampling profile."
+            f" Judged on held-back fields with the label column {setup.rare_label!r} by "
+            "optimise and benchmark; the report shows its clustering in few fields with the "
+            "sampling profile."
         )
     else:
         line += " No label column: stated and planned for, not judged on held-back fields."

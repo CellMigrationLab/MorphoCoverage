@@ -13,6 +13,7 @@ from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
 from morphocoverage.benchmark import AcquisitionOrder
+from morphocoverage.bounds import lower_bound
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
     OutcomeCriterion,
@@ -204,7 +205,9 @@ def test_a_variance_share_from_few_samples_is_marked_as_not_established():
 
 
 def test_a_variance_share_from_many_samples_with_a_clear_component_is_stated_plainly():
-    objects, fovs = _nested(np.random.default_rng(0), 8, 8, 20, v_sample=4.0, v_fov=0.05)
+    # 12 samples: from 8, the interval widened for the number of samples (audit 4,
+    # P3-10) rightly reaches zero for a variance estimated from 8 values.
+    objects, fovs = _nested(np.random.default_rng(0), 12, 8, 20, v_sample=4.0, v_fov=0.05)
     result = effort_projection(
         objects,
         fovs,
@@ -376,7 +379,12 @@ def test_a_result_explains_its_decision_in_one_line():
         rows = built.objects[built.objects["image_file"] == fov["image_file"]]
         results = session.add_fov(rows.drop(columns=["condition", "repeat"]), fov.to_dict())
     fixed, novelty = results
-    assert fixed.explain() == "stop: n_fovs = 3 (stop at >= 3, population); after 3 FOVs, 90 cells"
+    # A stop says what it rests on (audit 4, Q2): here, the random-sample assumption.
+    assert fixed.explain() == (
+        "stop: n_fovs = 3 (stop at >= 3, population); after 3 FOVs, 90 cells; treats the "
+        "fields as a random sample of the well's positions; a raster over a spatial trend can "
+        "stop early"
+    )
     line = novelty.explain()
     # The value, then the rule: a "continue" never reads as a false inequality.
     # Under the population objective the novelty rule cannot settle the decision, and says
@@ -556,10 +564,13 @@ def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
 def test_the_unseen_state_bound_is_divided_by_the_controls_detection_rate():
     controls, sufficiency = _weak_control_report()
     # The rate against every reference field, as the bound judges fields (audit 2, G-13).
-    detection = float(controls.pooled.set_index("candidate")["rate"]["positive_lofo"])
+    row = controls.pooled.set_index("candidate").loc["positive_lofo"]
+    detection = float(row["rate"])
     bound = float(sufficiency.next_fov["unseen_state_max_frequency"].iloc[0])
     section = microscopist_report(controls=controls, sufficiency=sufficiency).sections["enough"]
-    adjusted = min(1.0, bound / detection)
+    # Audit 4 (P3-9): divided by the rate's one-sided lower bound, not its point estimate.
+    low = lower_bound(int(row["judged_new"]), int(row["candidates"]), 0.95)
+    adjusted = min(1.0, bound / low)
     assert f"Adjusted for the declared control's detection rate ({100 * detection:.0f}%" in section
     assert (
         f"up to {100 * adjusted:.0f}% of FOVs (the {100 * bound:.0f}% bound above divided by"

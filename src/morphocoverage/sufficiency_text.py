@@ -23,6 +23,7 @@ from ._wording import count, listing, number, percent, rows_of, where
 from .evidence import Direction
 from .results import StrategyResult
 from .strategies.support_novelty import SupportNoveltyEstimator
+from .transforms import RobustStandardize, Standardize
 
 
 def _policy_text(policy: Mapping[str, Any], result: StrategyResult) -> str:
@@ -59,8 +60,11 @@ def _stops_clause(stops: Mapping[str, Any]) -> str:
         return f"not met at any point in {where or count(orders, kind)}"
     first = f"first met after {count(stops['stop_fov_median'], 'FOV')}"
     if met > 1:
+        se = stops.get("stop_fov_median_mc_se")
+        se = "" if se is None or pd.isna(se) else f"; Monte Carlo SE {number(se)}"
         first += (
-            f" (median; 10-90%: {number(stops['stop_fov_p10'])}-{number(stops['stop_fov_p90'])})"
+            f" (median{se}; 10-90%: {number(stops['stop_fov_p10'])}-"
+            f"{number(stops['stop_fov_p90'])})"
         )
     share = f"all {count(orders, kind)}" if met == orders else f"{met} of {count(orders, kind)}"
     return f"in {where or share}, {first}"
@@ -94,10 +98,12 @@ def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]])
     # The rule's own caveats (FOV size related to FOV mean, SD above 50% CV) follow its answer.
     warnings = final.get("warnings")
     caution = f" Caution: {warnings}." if isinstance(warnings, str) and warnings else ""
+    ever_met = any(int(row["orders"]) > int(row["never_stopped"]) for row in stops)
+    # Beside every stop, what it rests on: the order check, or the random-sample assumption.
+    caution += _order_sentence(final) if final["verdict"] == "stop" or ever_met else ""
     if not stops:
         return f"{head}.{caution}"
     clauses = "; ".join(_stops_clause(row) for row in stops)
-    ever_met = any(int(row["orders"]) > int(row["never_stopped"]) for row in stops)
     lost = (
         "; it was met and then lost as more FOVs arrived"
         if final["verdict"] == "continue" and ever_met
@@ -106,23 +112,45 @@ def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]])
     return f"{head}; {clauses}{lost}.{caution}"
 
 
+def _order_sentence(final: Mapping[str, Any]) -> str:
+    """The order caution of a rule's stop (``sufficiency_tables``) as a sentence, or nothing."""
+    text = final.get("order_caution")
+    if not isinstance(text, str) or not text:
+        return ""
+    if text.startswith("treats"):
+        return f" The stop {text}."
+    return f" {text[0].upper()}{text[1:]}."
+
+
 def novelty_definition(
     novelty: SupportNoveltyEstimator, feature_cols: Sequence[str] | None = None
 ) -> str:
     """What counts as a FOV showing something new, in words; with ``feature_cols``,
-    also the columns it is judged on (the phenotype geometry's provenance)."""
+    also the columns it is judged on (the phenotype geometry's provenance).
+
+    It says how compact a state must be: its observations must be linked by
+    steps within the distance, and after a standardization two observations
+    of a state that varies by one SD per feature sit about ``sqrt(2 d)`` apart
+    for ``d`` features, so a state must be tighter than that to count.
+    """
     m = novelty.min_novel_observations
     space = "raw feature units" if novelty.transform is None else novelty.transform.name
     cells = (
         "at least 1 observation"
         if m == 1
-        else f"a cluster of at least {m} similar observations (linked within the distance)"
+        else f"a cluster of at least {m} similar observations (each linked to another by a "
+        "step within the distance, so a more spread-out state is not counted)"
     )
     text = f"{cells} with {_other_fovs(novelty.min_other_fovs)} within distance "
     text += f"{novelty.epsilon:g} ({space})"
     if feature_cols:
         names = list(feature_cols)
         text += f", on {count(len(names), 'feature')} ({listing(names, limit=3)})"
+        if m > 1 and isinstance(novelty.transform, (Standardize, RobustStandardize)):
+            text += (
+                f"; two observations of a state that varies by one SD per feature sit about "
+                f"{math.sqrt(2 * len(names)):.1f} apart"
+            )
     return text
 
 
@@ -158,6 +186,11 @@ def _next_fov_answer(
 
     ``min_other_fovs`` is the novelty definition's: a FOV counts as new when a
     state in it is shown by fewer than that many other FOVs (none, for 1).
+    Every bound names what it assumes: FOVs that are independent,
+    representative draws (neighbouring fields of a raster over patchy states
+    are not, and fields of one technical repeat are not independent of each
+    other), and a bound that holds at a number of FOVs fixed in advance, not
+    at the first FOV where it passes.
     """
     if pd.isna(row["chance_new"]):
         return f"Not estimable: {row['reason']}."
@@ -166,7 +199,9 @@ def _next_fov_answer(
     chance = (
         f"Chance: {percent(row['chance_new'])} (nominal {confidence} upper bound "
         f"{percent(row['chance_new_at_most'])}, approximate: the leave-one-FOV-out outcomes "
-        f"share their reference FOVs); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
+        f"share their reference FOVs, and it treats FOVs as independent, representative "
+        f"draws, so neighbouring fields acquired in a raster over patchy states make it too "
+        f"low); {row['fovs_with_new']} of {row['fovs_imaged']} FOVs "
         f"showed a state that {_other_fovs(min_other_fovs)} {shows}."
     )
     empty = int(row.get("fovs_without_observations", 0) or 0)
@@ -176,15 +211,22 @@ def _next_fov_answer(
         if empty
         else ""
     )
+    m = row.get("min_novel_observations")
+    sparse = (
+        f" A state carried by fewer than {int(m)} similar observations per FOV is never "
+        "counted, however many FOVs hold it."
+        if m is not None and not pd.isna(m) and int(m) > 1
+        else ""
+    )
     # The zero-success bound is about -ln(1 - confidence) / k: 3 / k at 95%.
     successes = -math.log(1 - row["confidence"])
     unseen = (
         f"Not yet seen: a state this definition detects but no FOV has shown is in at most "
         f"{percent(row['unseen_state_max_frequency'])} of FOVs ({confidence} confidence, about "
         f"{successes:.2g} / {row['fovs_imaged']}), if FOVs are independent, representative "
-        f"draws. Rarer states can remain.{counted}"
+        f"draws. Rarer states can remain.{sparse}{counted}"
     )
-    lines = [chance, unseen]
+    lines = [chance, unseen, *_technical_repeats_line(row, confidence)]
     few = row.get("few_fovs")
     if few is not None and not pd.isna(few):
         seen_in_few = row["fovs_with_state_in_few"]
@@ -235,15 +277,45 @@ def _next_fov_answer(
             lines.append(
                 f"{goal}: at least {_more_fovs(best)} if none shows anything new; {at_rate}."
             )
+        lines.append(
+            f"The bound holds at a number of FOVs fixed in advance, not at the first FOV where "
+            f"it passes: stopping there is premature more often than "
+            f"{percent(1 - row['confidence'])} of the time."
+        )
     if calibrated is not None:
         predicted, actual = percent(calibrated["predicted"]), percent(calibrated["actual"])
         held = percent(calibrated["bound_held"])
         lines.append(
             f"Check on this dataset: predicting from {int(calibrated['fovs_imaged'])} random FOVs, "
             f"predicted {predicted}, actual {actual}; "
-            f"the bound held in {held} of {int(calibrated['draws'])} draws."
+            f"the bound held in {held} of {int(calibrated['draws'])} draws (random subsets "
+            "break the acquisition order and the neighbours, so this check cannot reveal "
+            "neighbour correlation)."
         )
     return "\n".join(lines)
+
+
+def _technical_repeats_line(row: Mapping[str, Any], confidence: str) -> list[str]:
+    """When the group pools technical repeats, the unseen-state bound over them (P3-8).
+
+    Fields of one technical repeat (a well, a dish) share its preparation, so
+    a state held by some technical repeats is clustered in their fields: the
+    per-FOV bound above then fails far more often than its level, while ``n``
+    technical repeats none of which showed the state bound its share of
+    technical repeats as ``n`` independent draws.
+    """
+    n = row.get("technical_repeats")
+    share = row.get("unseen_state_max_technical_share")
+    if n is None or pd.isna(n) or int(n) < 2 or share is None or pd.isna(share):
+        return []
+    return [
+        (
+            f"Fields of one technical repeat are not independent draws: this group pools "
+            f"{int(n)} technical repeats, so the FOV bound above is optimistic; a state none "
+            f"of them showed is in at most {percent(share)} of technical repeats "
+            f"({confidence} confidence, {int(n)} independent technical repeats)."
+        )
+    ]
 
 
 def report_summary(

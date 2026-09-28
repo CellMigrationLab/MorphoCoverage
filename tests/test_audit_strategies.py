@@ -57,8 +57,10 @@ def test_c1_one_field_with_objects_never_stops_the_per_field_rule():
             assert result.decision is Decision.CONTINUE
             quantity = result.evidence.quantities["averaging_cv"]
             assert quantity.availability is Availability.INSUFFICIENT_DATA
-    # Two fields with objects and an empty one still give a value.
-    result = _run([spread, [], spread[:10]], ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
+    # Two fields with objects and an empty one still give a value (fields of equal size: 2
+    # effective fields, Kish, audit 4, Q3).
+    halves = [spread[:25], [], spread[25:]]
+    result = _run(halves, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
     assert result.evidence.value("averaging_cv") > 0
 
 

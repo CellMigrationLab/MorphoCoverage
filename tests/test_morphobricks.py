@@ -115,7 +115,10 @@ def test_position_id_is_preferred_over_image_file_for_fov_identity():
         }
     )
 
-    data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+    # One row per plane of each position (audit 4, D18: declared as plane-level rows).
+    data = validate_input_tables(
+        objects, fovs=fovs, feature_cols=["area"], observation_unit="slice"
+    )
     assert data.fov_col == "position_id"
     assert data.fov_key == ("condition", "repeat", "position_id")
     assert len(data.fovs) == 2
@@ -133,7 +136,9 @@ def test_z_c_t_can_be_preserved_as_within_fov_metadata():
     )
     fovs = pd.DataFrame({"position_id": ["P1"]})
 
-    data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
+    data = validate_input_tables(
+        objects, fovs=fovs, feature_cols=["area"], observation_unit="slice"
+    )
     assert data.fov_col == "position_id"
     assert {"z", "c", "t"} <= set(data.objects.columns)
     assert data.feature_cols == ("area",)
@@ -196,7 +201,8 @@ def test_per_plane_files_are_not_silently_counted_as_fovs():
 
 def test_per_plane_files_are_accepted_with_position_id_or_an_explicit_fov_col():
     with_position = _per_plane_files().assign(position_id=["p1", "p1", "p1", "p2", "p2"])
-    assert len(validate_input_tables(with_position, feature_cols=["area"]).fovs) == 2
+    slices = validate_input_tables(with_position, feature_cols=["area"], observation_unit="slice")
+    assert len(slices.fovs) == 2
     # Naming the column explicitly is the caller's statement that files are positions.
     explicit = validate_input_tables(
         _per_plane_files(), feature_cols=["area"], fov_col="image_file"
@@ -208,7 +214,8 @@ def test_a_z_stack_per_file_is_one_fov():
     stacks = pd.DataFrame(
         {"image_file": ["a.tif", "a.tif", "b.tif", "b.tif"], "z": [0, 1, 0, 1], "area": [1.0] * 4}
     )
-    assert len(validate_input_tables(stacks, feature_cols=["area"]).fovs) == 2
+    slices = validate_input_tables(stacks, feature_cols=["area"], observation_unit="slice")
+    assert len(slices.fovs) == 2
 
 
 def test_within_position_axes_must_tell_the_files_apart():
@@ -224,7 +231,8 @@ def test_within_position_axes_must_tell_the_files_apart():
     with pytest.raises(ValueError, match="do not tell the files of one position apart"):
         validate_input_tables(objects, feature_cols=["area"])
     objects["z"] = [0, 0, 1, 1]
-    assert len(validate_input_tables(objects, feature_cols=["area"]).fovs) == 1
+    slices = validate_input_tables(objects, feature_cols=["area"], observation_unit="slice")
+    assert len(slices.fovs) == 1
 
 
 def test_multi_file_check_applies_to_any_fov_column_name():

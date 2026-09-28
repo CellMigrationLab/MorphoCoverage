@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
+from .._wording import count
 from ._text import percent, unit_plural
 
 if TYPE_CHECKING:
@@ -50,6 +51,13 @@ def _leave_one_out_line(rates: pd.DataFrame, groups: Sequence[str] | None) -> st
             "positive-control fields, each judged against the reference fields of each group, "
             f"in {_rate(positive['rate'], int(positive['candidates']))}"
         )
+    if "planted_lofo" in rates.index:
+        planted = rates.loc["planted_lofo"]
+        checks = _rate(planted["rate"], int(planted["candidates"]))
+        parts.append(
+            "reference fields with planted positive-control objects, each against the other "
+            f"reference fields of its group, in {checks}"
+        )
     if not parts:
         return ""
     within = f"each analysis group ({', '.join(groups)})" if groups else "each stratum"
@@ -76,7 +84,7 @@ def control_summary(result: ControlResult) -> str:
         )
         return (
             f"Representation sensitivity: not assessed: {why}. A 'nothing new' answer says "
-            "nothing about phenotypes these features cannot see."
+            "nothing about phenotypes these features and this definition of new cannot see."
         )
     rates = result.pooled.set_index("candidate")
     seen = result.settings["fovs_seen"]
@@ -87,6 +95,13 @@ def control_summary(result: ControlResult) -> str:
         f"  Fields of the declared positive control were recognized as different in "
         f"{_rate(positive['rate'], int(positive['candidates']))}{_unjudged(positive)}."
     )
+    empty = int(result.settings.get("positive_empty", 0) or 0)
+    if empty:
+        lines.append(
+            f"  {count(empty, 'positive-control field')} without {cells} "
+            f"{'was' if empty == 1 else 'were'} not judged: an empty field cannot show the "
+            "phenotype, so it is not a miss."
+        )
     for gap in result.settings.get("planted_skipped", []):
         lines.append(
             f"  Planted {cells}: not measured in {gap['stratum']}: "
@@ -134,7 +149,9 @@ def control_summary(result: ControlResult) -> str:
         )
     lines.append(
         "  This holds for this definition of new and these features, on these controls; "
-        "a phenotype unlike the control may be seen better or worse."
+        "a phenotype unlike the control may be seen better or worse: a whole-field "
+        "phenotype says little about a small or sparse state in an ordinary field"
+        + (" (the planted rates measure that)." if "planted" in rates.index else ".")
     )
     return "\n".join(lines)
 

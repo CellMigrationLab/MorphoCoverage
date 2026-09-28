@@ -93,6 +93,7 @@ def _planes(n_positions=2, n_planes=3, n_cells=4, **columns):
 
 
 def test_a1_upper_case_plane_coordinates_are_near_misses():
+    # 'Channel' is a near miss of 'c' since audit 4 (P5-2: other names of the coordinates).
     assert [canonical_spelling(n) for n in ("Z", "T ", " c", "Z0", "z1", "zs", "Channel")] == [
         "z",
         "t",
@@ -100,7 +101,7 @@ def test_a1_upper_case_plane_coordinates_are_near_misses():
         "z0",
         None,
         None,
-        None,
+        "c",
     ]
     cells = _planes().drop(columns="position_id").rename(columns={"z": "Z"})
     fovs = cells[["condition", "repeat", "image_file", "Z"]].drop_duplicates()
@@ -288,7 +289,8 @@ def test_a9_counts_are_singular_for_one():
         group_cols=[],
         observation_unit="fov_summary",
     )
-    assert result.explain().endswith("after 1 FOV, 1 field summary")
+    # A stop then says what it rests on (audit 4, Q2).
+    assert "after 1 FOV, 1 field summary; treats the fields as a random sample" in result.explain()
 
 
 def test_a10_group_identity_is_the_same_for_numpy_and_python_values():

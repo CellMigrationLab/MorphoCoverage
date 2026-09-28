@@ -136,6 +136,7 @@ def _dispersed_start(
 
     Stepping it by the seed (from a group- and split-specific offset) makes
     seeds below the stream length give distinct orders, never repeated ones.
+    The group offset reads its labels canonically (``_seeds.group_identity``).
     """
     return (order.seed + group_identity(group) + split) % n_fovs
 

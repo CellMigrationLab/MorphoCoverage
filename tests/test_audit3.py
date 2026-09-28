@@ -35,9 +35,9 @@ def test_j7_one_plural_helper():
 
 def test_a10_b11_group_identity_does_not_depend_on_the_numpy_type():
     assert group_identity({"repeat": np.int64(1)}) == group_identity({"repeat": 1})
-    assert group_identity({"repeat": 1}) != group_identity({"repeat": "1"})
-    # Python values hash as before, so the committed seeds of such groups are kept.
-    assert group_identity({"repeat": 1}) == 3766957931
+    # Audit 4 (owner decision on P9-2): a retyped label is the same group for seeding.
+    assert group_identity({"repeat": 1}) == group_identity({"repeat": "1"})
+    assert group_identity({"repeat": 1}) != group_identity({"repeat": 2})
 
 
 def test_j1_group_key_tells_every_group_apart():

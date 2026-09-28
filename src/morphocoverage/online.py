@@ -11,16 +11,25 @@ does, one FOV at a time, using the shared-private helpers
 ``schema._within_fov_axes`` and ``schema._check_within_fov_axes`` (and
 ``metadata.drop_empty_optional_columns``): a live acquisition is refused
 exactly where ``validate_input_tables`` refuses the same linked tables.
+
+Each accepted FOV also passes the data check's within-field copy rule
+(``_data_rules._check_copies``): rows that repeat another row exactly, or a
+``label_id`` twice in the field, are warned about (``UserWarning``), as
+``check_tables`` warns about them, since an object file read or appended
+twice would otherwise count every object twice without a word.
 """
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from time import perf_counter
 from typing import Any
 
 import pandas as pd
 
+from ._data_problems import Collector
+from ._data_rules import _check_copies
 from .data_check import validate_input_tables
 from .evaluator import IncrementalReplay, restrict_input
 from .metadata import (
@@ -342,14 +351,18 @@ class OnlineSession:
         plane-as-FOV rule is applied to all FOVs added so far: FOVs that each
         hold a single, differing ``z``/``c``/``t`` value (on the observations or
         in ``fov_metadata``) are refused, or with one observation per FOV warned
-        about, as ``validate_input_tables`` does for those tables.
+        about, as ``validate_input_tables`` does for those tables. An accepted
+        FOV whose rows repeat another row exactly, or repeat a ``label_id``, is
+        warned about (``UserWarning``), as ``check_tables`` warns: the rules
+        count those rows as they are.
         """
         started = perf_counter()
         observations = self._as_observations(observations)
         fov = self._metadata_frame(fov_metadata)
         fov_col, group_cols = self._resolve_columns(observations, fov)
+        stamped = self._stamp_metadata(observations, fov, [*group_cols, fov_col])
         validated = validate_input_tables(
-            self._stamp_metadata(observations, fov, [*group_cols, fov_col]),
+            stamped,
             fovs=fov,
             feature_cols=self.feature_cols,
             fov_col=fov_col,
@@ -388,7 +401,21 @@ class OnlineSession:
         self._groups[group_values] = added
         self._resolved_fov_col, self._resolved_group_cols = fov_col, group_cols
         self._plane_rows = plane_rows
+        _warn_copies(stamped, [*group_cols, fov_col], _GroupSession._key_of(validated))
         return results
+
+
+def _warn_copies(observations: pd.DataFrame, key: Sequence[str], fov: tuple) -> None:
+    """Warn, as ``check_tables`` does, about copied rows or a repeated ``label_id`` in one FOV."""
+    collector = Collector()
+    _check_copies(collector, observations, key)
+    for problem in collector.problems:
+        warnings.warn(
+            f"FOV {fov!r}: {problem.title} Where: {problem.where} Fix: {problem.fix} "
+            "The rules count these rows as they are.",
+            UserWarning,
+            stacklevel=3,
+        )
 
 
 __all__ = ["OnlineSession"]

@@ -81,18 +81,17 @@ def test_h1_perfectly_separating_shuffles_count_as_extreme():
     t = [[np.array([3.0]), np.array([3.0])], [np.array([3.0]), np.array([3.0])]]
     c = [[np.array([1.0]), np.array([1.0])], [np.array([1.0]), np.array([1.0])]]
     # 8 fields shuffled: of 70 assignments, the two that keep the sides whole are infinite.
-    p = permutation_p(t, c, False, np.inf, 100, np.random.default_rng(0))
+    p = permutation_p(t, c, False, 100, np.random.default_rng(0))
     assert p == pytest.approx(2 / 70)
-    shuffled = permutation_p(t, c, False, np.inf, 69, np.random.default_rng(0))
+    shuffled = permutation_p(t, c, False, 69, np.random.default_rng(0))
     assert shuffled > 1 / 70  # at random too, the infinite shuffles count
 
 
 def test_h2_float_ties_count_and_few_assignments_are_enumerated():
     t = [[np.array([3.0]), np.array([3.1])], [np.array([3.2]), np.array([3.3])]]
     c = [[np.array([1.0]), np.array([1.1])], [np.array([1.2]), np.array([1.3])]]
-    observed = abs(separation_d(field_means(t), field_means(c)))
     # Six assignments, fewer than the shuffles asked for: enumerated, exactly 1/3.
-    exact = permutation_p(t, c, True, observed, 5999, np.random.default_rng(0))
+    exact = permutation_p(t, c, True, 5999, np.random.default_rng(0))
     assert exact == pytest.approx(_exact_p(t, c)) and exact == pytest.approx(1 / 3)
     # Under no difference no p-value falls below the attainable floor (2/20 with 3 v 3 fields).
     rng = np.random.default_rng(5)
@@ -100,14 +99,12 @@ def test_h2_float_ties_count_and_few_assignments_are_enumerated():
     for _ in range(300):
         tt = [[rng.normal(size=5) for _ in range(3)]]
         cc = [[rng.normal(size=5) for _ in range(3)]]
-        o = abs(separation_d(field_means(tt), field_means(cc)))
-        ps.append(permutation_p(tt, cc, False, o, 199, rng))
+        ps.append(permutation_p(tt, cc, False, 199, rng))
     assert min(ps) == pytest.approx(0.1)
     # More assignments than shuffles: the Monte Carlo (extreme + 1) / (n + 1).
     many = [[rng.normal(size=4) for _ in range(12)]]
     other = [[rng.normal(size=4) for _ in range(12)]]
-    o = abs(separation_d(field_means(many), field_means(other)))
-    p = permutation_p(many, other, False, o, 99, np.random.default_rng(1))
+    p = permutation_p(many, other, False, 99, np.random.default_rng(1))
     assert (p * 100) == pytest.approx(round(p * 100))
 
 
@@ -165,7 +162,13 @@ def test_h4_a_constant_feature_is_never_separated_or_variable():
     fovs = pd.concat([t_fovs, c_fovs], ignore_index=True)
     objects["x"] = 0.1
     ranking = feature_ranking(
-        objects, fovs, features=["x"], control=CONTROL, technical_col=None, n_permutations=99
+        objects,
+        fovs,
+        features=["x"],
+        control=CONTROL,
+        technical_col=None,
+        n_permutations=99,
+        fields_independent=True,
     )
     assert np.isnan(ranking.tests["d_fields"].iloc[0]) and ranking.top() == []
     assert "do not vary" in ranking.tests["status"].iloc[0]
@@ -197,7 +200,12 @@ def _perfect_separation():
 
 def test_h6_the_contrast_scores_a_perfect_separation_as_the_ranking_does():
     objects, fovs = _perfect_separation()
-    common = {"control": CONTROL, "group_cols": ["condition"], "n_permutations": 199}
+    common = {
+        "control": CONTROL,
+        "group_cols": ["condition"],
+        "n_permutations": 199,
+        "fields_independent": True,
+    }
     contrast = condition_contrast(
         objects, fovs, feature="x", n_draws=5, object_counts=(4,), **common
     )
@@ -368,7 +376,14 @@ def test_h15_untested_features_are_listed_as_untested():
     fovs = pd.concat([fovs, pd.DataFrame([{**empty, "position_id": "empty"}])], ignore_index=True)
     objects["y"] = np.where(objects["condition"] == "drug", np.nan, objects["x"])
     objects["w"] = np.random.default_rng(0).normal(size=len(objects))
-    common = {"control": CONTROL, "technical_col": None}
+    # Fields compared as independent draws (audit 4 Q1): the wells are left out of the
+    # groups and the unit, and the fields declared independent.
+    common = {
+        "control": CONTROL,
+        "technical_col": None,
+        "group_cols": ["condition", "repeat"],
+        "fields_independent": True,
+    }
     result = feature_ranking(objects, fovs, features=["x", "y", "w"], n_permutations=199, **common)
     text = result.summary()
     assert "No contrast passes the gate for 1 feature: w." in text

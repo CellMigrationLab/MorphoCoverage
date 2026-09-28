@@ -20,7 +20,8 @@ count their variance twice. Acquired fields without observations take part,
 as in ``statistics.bootstrap_fields``, when the FOV table places them in the
 cluster. The title says how many units a cluster's interval resamples, and
 warns when one has only 2 or 3, which no resampling turns into a reliable
-interval.
+interval, or a single technical repeat, whose interval shows field-to-field
+variation only.
 
 Every column of FOV identity that the figure does not place (condition,
 repeat or technical repeat) is pooled within a cluster, never merged: with
@@ -51,7 +52,7 @@ a notebook and save with ``savefig`` without touching global state.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -69,6 +70,7 @@ from .metadata import (
     REPEAT_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
     empty_values,
+    sorted_labels,
 )
 from .schema import ValidatedInput, fov_positions, fov_values
 from .statistics import bootstrap_nested
@@ -154,12 +156,15 @@ def _layout(
     repeat_col: str | None,
     technical_col: str | None,
     max_repeats: int,
+    control: Any = None,
 ) -> _Layout:
     """Resolve the condition, repeat and technical columns and their values.
 
     The technical-repeat column is ``technical_col``, else the MorphoBricks
     ``technical_repeat`` column when present, never another column. An
-    analysis-group column the layout does not place raises.
+    analysis-group column the layout does not place raises. Conditions and
+    repeats are drawn in sorted order, the ``control`` condition first, never
+    in the order of the table's rows.
     """
     columns = set(data.objects.columns) | set(data.fovs.columns)
     # condition_col=None or repeat_col=None asks for that column to be pooled.
@@ -184,8 +189,8 @@ def _layout(
         )
     meta = _field_metadata(data, placed)
     observed = meta.iloc[fov_positions(data, data.fovs)]
-    conditions = list(dict.fromkeys(observed[condition_col].tolist())) if condition_col else [None]
-    repeats = list(dict.fromkeys(observed[repeat_col].tolist())) if repeat_col else [None]
+    conditions = sorted_labels(observed[condition_col], control) if condition_col else [None]
+    repeats = sorted_labels(observed[repeat_col]) if repeat_col else [None]
     pooled = len(repeats) > max_repeats
     identity = [c for c in data.fov_key if c != data.fov_col and c not in placed]
     pooled_cols = ([repeat_col] if pooled else []) + identity
@@ -370,7 +375,10 @@ def _title(
     ``clusters`` holds, per cluster, its top-level units and each one's
     technical repeats (``_cluster_units``): the interval line says how many
     units are resampled, and a fourth line warns when a cluster has only 2 or
-    3, which no resampling turns into a reliable interval.
+    3, which no resampling turns into a reliable interval, or a single
+    technical repeat, whose interval resamples its fields and so shows
+    field-to-field variation only (it covered the repeat's median about half
+    the time with a well SD above the field SD).
     """
     repeats = ""
     if layout.pooled_repeats:
@@ -406,6 +414,11 @@ def _title(
             )
             if any(n in (2, 3) for n in single):
                 caveat = "\nwith only 2-3 technical repeats a cluster's interval is not reliable"
+            if any(n == 1 for n in single):
+                caveat += (
+                    "\none technical repeat: the interval shows field-to-field variation "
+                    "only, not well-to-well"
+                )
         else:
             phrases.append("whole fields")
     resampled = " or, in a cluster of one, ".join(phrases)
@@ -435,6 +448,7 @@ def plots_of_data(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     value_note: str | None = None,
+    control: Mapping[str, Any] | None = None,
 ) -> dict[str, list[Figure]]:
     """One or more figures per feature (see the module); keys are the feature names.
 
@@ -449,7 +463,8 @@ def plots_of_data(
     their defaults; any other absent column raises, and so does an
     analysis-group column none of the three names.
     ``value_note`` is added to the value axis label, for example
-    ``"relative to control"`` for normalised values.
+    ``"relative to control"`` for normalised values. Conditions are drawn in
+    sorted order, the ``control`` condition (``{"condition": "MOCK"}``) first.
     """
     features = list(features)
     if not features:
@@ -483,7 +498,8 @@ def plots_of_data(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
-    layout = _layout(data, condition_col, repeat_col, technical_col, max_repeats)
+    first = dict(control or {}).get(condition_col) if condition_col is not None else None
+    layout = _layout(data, condition_col, repeat_col, technical_col, max_repeats, first)
     colours = PALETTE[:max_technical]
     meta = _field_metadata(
         data,

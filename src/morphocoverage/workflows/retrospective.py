@@ -44,6 +44,7 @@ from typing import Any
 
 import pandas as pd
 
+from ..integrity import integrity_checks
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
     MicroscopistReport,
@@ -121,7 +122,9 @@ class Report:
         return self.results.get("ranking")
 
 
-def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
+def report(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, *, integrity: bool = False
+) -> Report:
     """REPORT on a finished acquisition: what can be trusted, and what cannot.
 
     Runs, as the setup allows: ``fov_variability`` and, with a control,
@@ -142,8 +145,12 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     against the control need the control's columns (and, for the contrast, the
     condition and the repeat) kept apart by the analysis groups; with
     ``group_cols`` that pool them they are "not assessed", with the reason.
+
+    With ``integrity=True`` (opt-in) the overview also reports the exact
+    data-integrity checks (``integrity_checks``: copied, reordered or scaled
+    fields, repeated blocks and field summaries) on every declared column.
     """
-    check_workflow_inputs(objects, fovs, setup)
+    data_check = check_workflow_inputs(objects, fovs, setup, warn=False)
     common = setup.common
     readout = setup.readout
     reasons: dict[str, str] = {}
@@ -153,6 +160,8 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
             fovs,
             feature_cols=setup.columns,
             normalized=setup.normalized_sentence(fovs, objects),
+            control=setup.control,
+            data_check=data_check,
             **common,
         ),
         "variability": fov_variability(objects, fovs, feature=readout, **common),
@@ -185,6 +194,8 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
             # The leave-one-field-out rates within the inspection's analysis groups.
             lofo_group_cols=common["group_cols"],
         )
+    if integrity:
+        results["integrity"] = integrity_checks(objects, fovs, feature_cols=setup.columns, **common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     results.update(conditions(setup.prepared(objects, fovs), fovs, setup, reasons))
@@ -206,6 +217,10 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
         # "New" is judged on the declared features only, as in the controls and the
         # inspection; the rules read the readout.
         novelty_cols=list(setup.features) if setup.novelty is not None else None,
+        # The order check beside every stop: the readout against order and stage.
+        readout=setup.readout,
+        stage_cols=setup.stage_cols,
+        n_jobs=setup.n_jobs,
         **common,
     )
     results["sufficiency"] = report_only(sufficiency, setup)
@@ -358,6 +373,7 @@ def optimise(
                 feature_cols=[setup.readout],
                 stage_cols=setup.stage_cols,
                 bin_edges=list(redundancy_bins),
+                random_state=setup.random_state,
                 **common,
             )
     if hierarchy is not None:

@@ -8,6 +8,7 @@ from test_retrospective_inspection import FEATURES as INSPECTED
 from test_retrospective_inspection import _acquisition
 
 from morphocoverage._wording import percent
+from morphocoverage.bounds import lower_bound
 from morphocoverage.retrospective import (
     RepresentationControl,
     SamplingHierarchy,
@@ -365,11 +366,14 @@ def test_g13_the_adjusted_bound_uses_the_rate_against_every_reference_field():
         fovs_seen=6,
         draws=10,
     )
-    detection = float(controls.pooled.set_index("candidate").loc["positive_lofo", "rate"])
+    row = controls.pooled.set_index("candidate").loc["positive_lofo"]
+    detection = float(row["rate"])
     text = _detection_adjusted_bounds(_sufficiency(), controls)
     # Audit 3 (G-1, J-2): against the reference fields of an analysis group, via percent().
     assert f"({percent(detection)} of its fields recognized against the reference" in text
-    assert f"up to {percent(min(1.0, 0.12 / detection))} of FOVs" in text
+    # Audit 4 (P3-9): divided by the rate's one-sided 95% lower bound, not its point estimate.
+    low = lower_bound(int(row["judged_new"]), int(row["candidates"]), 0.95)
+    assert f"up to {percent(min(1.0, 0.12 / low))} of FOVs" in text
 
 
 def test_g14_a_sampling_frame_caveat_alone_does_not_assess_question_3():
@@ -445,7 +449,7 @@ def test_g16_a_saving_whose_interval_includes_zero_is_not_resolved():
         assert ("(not resolved)" in text) != resolved
     costs = pd.DataFrame([baseline, _score(-1.5, -3.0, 0.5)])
     text = FrontierResult(pd.DataFrame(), costs, pd.DataFrame(), {"units": 6}).summary()
-    assert "costs 1.5 more fields, 95% interval -0.5 to 3.0 (not resolved)" in text
+    assert "costs 1.5 more fields, approximate 95% interval -0.5 to 3.0 (not resolved)" in text
 
 
 def test_g18_the_split_modules_keep_the_names_callers_use():

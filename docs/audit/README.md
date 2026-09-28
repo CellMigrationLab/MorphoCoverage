@@ -1,12 +1,13 @@
 # Audits: a short history
 
-Five audits of the package were made between 2026-09-25 and 2026-09-28.
+Six audits of the package were made between 2026-09-25 and 2026-09-28.
 Each read the code against what it claims and prints, reproduced every
 finding before fixing it, and pinned each fix with a regression test that
 fails on the old code. This page keeps what each one was, its most important
 fixes and where its tests are. The full texts of the first four, with every
-finding, are in git history, and the commands below print them; the fifth was
-never committed, so this page and its commit messages are its record. The
+finding, are in git history, and the commands below print them; the fifth and
+sixth were never committed, so this page and their commit messages are their
+record. The
 work they left open is in [`docs/questions.md`](../questions.md), "Open work".
 
 **2026-09-25: the microscopist audit.** An adversarial audit of the three
@@ -160,3 +161,38 @@ only the code that changed. Tests: `tests/test_guards.py`, and
 `tests/test_audit3.py` (the foundations) with `tests/test_audit3_a.py` to
 `_i` (one file per group; the test names carry the finding ids). Committed in
 `5e80d25` to `a65a226`, whose messages summarise the fixes group by group.
+
+**2026-09-28: the fourth, adversarial audit.** Nine passes from commit
+`2f5847a` (with PR #51, the integrity checks), each trying to make the
+package give a wrong answer a microscopist would act on, on data a lab could
+plausibly produce and whose truth was known: the report (P1), live stopping
+(P2), the calibration of the bounds (P3), the stopping rules (P4), input
+traps (P5), novelty and rare states (P6), integrity and `check_tables` (P7),
+the documents' claims against their evidence (P8) and reproducibility (P9).
+They reported 109 findings (18 high, 45 medium, 46 low), every high one
+reproduced before fixing. Among the high ones: the contrast shuffled fields
+as independent draws unless the wells were named `technical_repeat`; a raster
+over a spatial trend let the per-field rules stop early with nothing saying
+the fields must be a random sample; the per-field JCB bound under-covered
+with unequal field sizes; the JCS and bootstrap rules stopped on a readout
+constant so far; rows of every z-plane in one field counted as objects; the
+rare-state field count was driven by ordinary unusual cells; and the scaled-copy
+check compared every pair of fields.
+
+The fixes came in eight groups: integrity and duplicate checks (A), input
+traps (B), the sampling-unit analyses (C), the stopping rules (D), the
+acquisition-order check beside every stop (E), the live sources (F),
+novelty and rare states (G), and the retrospective analyses and the benchmark
+(H). The project owner decided the choices: a well column in `group_cols` is
+the contrast's unit, and without a unit there is no p-value unless
+`fields_independent=True` (Q1); an order check flags a trend beside every
+stop, never vetoing it, and the documents recommend random or dispersed
+orders (Q2); the per-field bound takes Kish's effective number of fields as
+its degrees of freedom (Q3); and the recommended defaults D1 to D20, among
+them robust standardization in `default_novelty`, per-plane rows refused,
+`watch(until_stop=True)` waiting for every group, and Monte Carlo errors
+beside every reliability share, with each group seeded from its labels
+written canonically (D16). Benchmark protocol version 5 was locked for the
+changed rules (`e30b8a6`). Tests: `tests/test_audit4_a.py` to `_h` (one file
+per group; the test names carry the finding ids). Committed in `98f6006` to
+`e30b8a6`, whose messages summarise the fixes group by group.
