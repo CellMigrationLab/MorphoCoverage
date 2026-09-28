@@ -13,11 +13,14 @@ in sentences:
   how reliable each stopping rule was, more fields or more samples, and the
   order of acquisition;
 - ``benchmark``: fields saved against a fixed field count at matched risk,
-  for rule families swept over threshold grids (``retrospective.frontier``).
+  for rule families swept over threshold grids (``retrospective.frontier``;
+  defined in ``workflows.benchmarks`` and re-exported here).
 
 Their scientific choices are the ``Setup``'s fields and the explicit
 arguments; the few defaults they carry (``protocol_threshold``, ``alphas``,
-the numbers of replayed orders) are printed in the summaries. When the setup
+the numbers of replayed orders, the benchmark's resamples and grids) are
+printed in the summaries, and every random order, draw and resample is
+seeded from ``Setup.random_state``. When the setup
 asks for it, the observation table is normalised to the control condition's
 mean, repeat by repeat (``Setup.prepared``), for the outcome criteria judged
 on held-back fields, the condition contrast and the feature ranking; every
@@ -29,14 +32,14 @@ under the objective made of the declared targets (``Setup.objective()``), and
 (``Setup.criteria()``: the mean, the fingerprint, the labelled rare state) on
 held-back fields. An analysis the declared analysis groups cannot support
 (``group_cols`` that pool the repeats a comparison needs apart) says "not
-assessed" and why. ``document`` merges a report and a plan into the full
-microscopist's report.
+assessed" and why. ``document`` merges a report and a plan of one setup
+into the full microscopist's report, with the settings of both.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 import pandas as pd
@@ -50,7 +53,6 @@ from ..retrospective import (
     dataset_overview,
     effort_projection,
     inspect_fovs,
-    microscopist_report,
     order_efficiency,
     protocol_reliability,
     redundancy_distance,
@@ -58,47 +60,60 @@ from ..retrospective import (
     sampling_reliability,
     stopping_calibration,
 )
-from ..retrospective.frontier import FrontierResult, frontier, sweep
 from ..sampling_unit import (
     FeatureRanking,
     fov_variability,
 )
-from ..strategies import DescriptorSpreadStrategy, FOVBootstrapStrategy, ScalarPrecisionStrategy
-from ..strategies.base import SamplingStrategy
 from ..sufficiency import sufficiency_report
-from ._shared import check_tables as _check_tables
-from ._shared import (
-    conditions,
-    control_checks,
+from ._document import (
+    assemble,
     no_hierarchy_reasons,
     plan_settings,
     protocol_reason,
+    report_settings,
+    with_reasons,
+    with_settings,
+)
+from ._shared import (
+    check_workflow_inputs,
+    conditions,
+    control_checks,
+    rare_clustering,
     replay_rules,
     report_only,
-    with_reasons,
+    reservoir_sizes,
+    sufficiency_rules,
 )
 from ._shared import orders as _orders
+from .benchmarks import Benchmark, Family, benchmark, default_families
 from .setup import Setup
 
 REPORT_QUESTIONS = ("unit", "controls", "enough", "profile", "inspect", "conditions")
 PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
+# The random orders in which the report replays each rule for "Did I image enough?".
+REPORT_ORDERS = 5
 
 
 @dataclass(frozen=True)
 class Report:
     """The REPORT answers: ``results`` by analysis, ``document`` the assembled report.
 
-    ``not_assessed`` holds, by question, why an analysis was not run.
+    ``not_assessed`` holds, by question, why an analysis was not run;
+    ``settings`` the replay settings of the run.
     """
 
     results: dict[str, Any]
     document: Any
     setup: Setup
     not_assessed: dict[str, str] = field(default_factory=dict)
+    settings: dict[str, Any] = field(default_factory=dict)
 
     def summary(self) -> str:
-        """The report questions, in sentences."""
-        return self.document.summary(REPORT_QUESTIONS)
+        """The report questions, in sentences, then the settings of the run."""
+        parts = [self.document.summary(REPORT_QUESTIONS)]
+        if self.settings:
+            parts.append(report_settings(self.settings))
+        return "\n\n".join(parts)
 
     @property
     def ranking(self) -> FeatureRanking | None:
@@ -111,10 +126,14 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
 
     Runs, as the setup allows: ``fov_variability`` and, with a control,
     ``object_rule_check`` (the Foundation); ``representation_control`` with a positive
-    control and a definition of new (R1); ``sufficiency_report`` for the
-    setup's rules, with next-field novelty when ``novelty`` is set (R2, R3);
-    ``unusual_objects`` and ``fov_clustering`` with a control and features
-    (R4); ``inspect_fovs`` (R5); ``condition_contrast`` when the control is
+    control and a definition of new (R1), its fields paired within each repeat
+    unless ``PositiveControl.pair_cols`` says otherwise; ``sufficiency_report``
+    for the setup's rules in the recorded order and ``REPORT_ORDERS`` random
+    orders seeded from ``random_state``, with next-field novelty when
+    ``novelty`` is set (R2, R3); ``unusual_objects`` and ``fov_clustering``
+    with a control and features, and ``fov_clustering`` of the declared rare
+    phenotype's ``rare_label`` (R4); ``inspect_fovs`` (R5);
+    ``condition_contrast`` when the control is
     declared by condition and the FOV table holds other conditions, and
     with several declared features ``feature_ranking``, the gated ranking
     that chooses what ``plots`` draws by default (R7). The contrast and the
@@ -124,7 +143,7 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     condition and the repeat) kept apart by the analysis groups; with
     ``group_cols`` that pool them they are "not assessed", with the reason.
     """
-    _check_tables(objects, fovs, setup)
+    check_workflow_inputs(objects, fovs, setup)
     common = setup.common
     readout = setup.readout
     reasons: dict[str, str] = {}
@@ -152,7 +171,7 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
                 reference=setup.control,
                 planted_objects=positive.planted_objects,
             ),
-            pair_cols=list(positive.pair_cols),
+            pair_cols=list(positive.resolved_pair_cols(fovs)),
             fovs_seen=positive.fovs_seen,
             draws=positive.draws,
             random_state=setup.random_state,
@@ -164,18 +183,22 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
                 c for c in (setup.group_cols or ()) if c not in MORPHOBRICKS_GROUP_COLUMNS
             ],
         )
+    if setup.rare_label is not None:
+        results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     results.update(conditions(setup.prepared(objects, fovs), fovs, setup, reasons))
+    rules, novelty_target = sufficiency_rules(setup)
     sufficiency = sufficiency_report(
         objects,
         fovs,
         # The rules read the same columns, and the same raw values, in report,
         # optimise, benchmark and live.
         feature_cols=setup.columns,
-        strategies=list(setup.stopping_rules()),
+        strategies=rules,
         objective=setup.objective(),
-        orders=_orders(setup, permuted=5, dispersed=0),
+        # sufficiency_report seeds a permutation by its order's seed alone.
+        orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
         novelty=setup.novelty,
-        novelty_target=setup.novelty_target if setup.novelty is not None else None,
+        novelty_target=novelty_target,
         few_fovs=setup.resolved_few_fovs,
         acquisition_order_col=setup.acquisition_order_col,
         # "New" is judged on the declared features only, as in the controls and the
@@ -197,8 +220,13 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
         stage_cols=setup.stage_cols,
         **common,
     )
-    document = microscopist_report(**results, declaration=setup.declaration())
-    return Report(results, with_reasons(document, reasons), setup, reasons)
+    settings = {
+        "recorded_order": setup.acquisition_order_col is not None,
+        "permuted_orders": REPORT_ORDERS,
+        "random_state": setup.random_state,
+    }
+    document = with_reasons(assemble(results, setup), reasons)
+    return Report(results, document, setup, reasons, settings)
 
 
 @dataclass(frozen=True)
@@ -265,7 +293,7 @@ def optimise(
     represented; the summary prints it. A count of fields is a recommendation
     only once it holds on samples it was not chosen on.
     """
-    _check_tables(objects, fovs, setup)
+    check_workflow_inputs(objects, fovs, setup)
     common = setup.common
     criteria = setup.criteria()
     hierarchy = setup.resolved_hierarchy(objects, fovs)
@@ -340,15 +368,14 @@ def optimise(
             random_state=setup.random_state,
             observation_unit=setup.observation_unit,
         )
-    document = microscopist_report(
-        **{k: v for k, v in results.items() if k != "calibration"},
-        declaration=setup.declaration(),
-    )
+    document = assemble({k: v for k, v in results.items() if k != "calibration"}, setup)
     settings = {
         "protocol_threshold": protocol_threshold,
         "reservoir_fraction": reservoir_fraction,
+        "reservoir_fovs": reservoir_sizes(replay),
         "n_splits": n_splits,
         "draws": draws,
+        "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": permuted_orders,
         "dispersed_orders": dispersed_orders if setup.stage_cols is not None else 0,
         "random_state": setup.random_state,
@@ -356,199 +383,48 @@ def optimise(
     return Plan(results, with_reasons(document, reasons), setup, reasons, settings)
 
 
+def _same_setup(first: Setup, other: Setup) -> bool:
+    """Whether two setups declare the same analysis (``n_jobs`` changes no result)."""
+    return all(
+        getattr(first, f.name) == getattr(other, f.name)
+        for f in fields(Setup)
+        if f.name != "n_jobs"
+    )
+
+
 def document(*parts: Report | Plan) -> MicroscopistReport:
-    """The full microscopist's report from a ``report`` and a ``plan`` of the same data."""
+    """The full microscopist's report from a ``report`` and a ``plan`` of the same data.
+
+    Every part must come from one setup (``n_jobs`` aside): the declaration
+    printed first is the one every answer was computed under. The settings
+    sentence of each part is kept among the closing notes.
+    """
+    if not parts:
+        raise ValueError("document takes the results of report() and optimise()")
     merged: dict[str, Any] = {}
     reasons: dict[str, str] = {}
+    sentences: list[str] = []
     for part in parts:
         if not isinstance(part, Report | Plan):
             raise TypeError("document takes the results of report() and optimise()")
+        if not _same_setup(parts[0].setup, part.setup):
+            raise ValueError(
+                "document merges parts of one setup: these were computed under different "
+                "Setups, so one declaration cannot describe them; run report and optimise "
+                "with the same Setup"
+            )
         merged.update(part.results)
         reasons.update(part.not_assessed)
-    declaration = parts[0].setup.declaration() if parts else ()
-    return with_reasons(microscopist_report(**merged, declaration=declaration), reasons)
-
-
-@dataclass(frozen=True)
-class Family:
-    """A rule family for the benchmark: one strategy, the quantity it thresholds, a grid.
-
-    ``strategy`` is built at any threshold of the grid; the sweep re-decides
-    every threshold from its stored evidence (``redecide``), so the replay runs
-    once per family.
-    """
-
-    name: str
-    strategy: SamplingStrategy
-    quantity: str
-    thresholds: tuple[float, ...]
-
-
-def default_families(readout: str, n_resamples: int = 200) -> list[Family]:
-    """The rule families and grids of the locked benchmark (protocol version 3).
-
-    The JCB rule and the JCS descriptor spread, each per object and per FOV,
-    and the FOV bootstrap of the mean, on ``readout``. The grids reach from a
-    setting that never stops to one that stops at the first field on the
-    committed data; widen them if your data need it.
-    """
-    jcb = (0.0025, 0.005, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.4)
-    jcs = (0.001, 0.002, 0.005, 0.01, 0.02, 0.04, 0.08, 0.16)
-    boot = (0.0005, 0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064)
-    return [
-        Family(
-            "JCB per object",
-            ScalarPrecisionStrategy(readout, jcb[0], "object", "upper_95"),
-            "averaging_cv",
-            jcb,
-        ),
-        Family(
-            "JCB per field",
-            ScalarPrecisionStrategy(readout, jcb[0], "fov", "upper_95"),
-            "averaging_cv",
-            jcb,
-        ),
-        Family(
-            "JCS spread per object",
-            DescriptorSpreadStrategy(readout, jcs[0], "object", n_resamples, 0),
-            "max_descriptor_spread",
-            jcs,
-        ),
-        Family(
-            "JCS spread per field",
-            DescriptorSpreadStrategy(readout, jcs[0], "fov", n_resamples, 0),
-            "max_descriptor_spread",
-            jcs,
-        ),
-        Family(
-            "FOV bootstrap of the mean",
-            # On the readout only, whatever other features the setup declares.
-            FOVBootstrapStrategy("centroid", boot[0], None, n_resamples, 0, 2, features=(readout,)),
-            "fov_bootstrap_centroid_max_se",
-            boot,
-        ),
-    ]
-
-
-@dataclass(frozen=True)
-class Benchmark:
-    """Fields saved at matched risk, one ``FrontierResult`` per criterion."""
-
-    frontiers: dict[str, FrontierResult]
-    families: tuple[str, ...]
-    settings: dict[str, Any] = field(default_factory=dict)
-
-    def summary(self) -> str:
-        """Every criterion's scores, in sentences, then the risk levels and settings."""
-        blocks = [result.summary() for result in self.frontiers.values()]
-        if self.settings:
-            settings = self.settings
-            levels = " and ".join(f"{alpha:.0%}" for alpha in settings["alphas"])
-            units = ", ".join(settings["unit_cols"]) or "one pooled unit"
-            blocks.append(
-                f"Settings: risk levels {levels} of stopping too early (alphas, a preset); "
-                f"{settings['reservoir_fraction']:.0%} of each group's fields held back, "
-                f"{settings['n_splits']} hold-outs, {settings['permuted_orders']} random "
-                f"orders; intervals over {units}."
-            )
-        return "\n\n".join(blocks)
-
-
-def benchmark(
-    objects: pd.DataFrame,
-    fovs: pd.DataFrame,
-    setup: Setup,
-    *,
-    reservoir_fraction: float,
-    families: Sequence[Family] | None = None,
-    alphas: Sequence[float] = (0.05, 0.10),
-    unit_cols: Sequence[str] | None = None,
-    n_splits: int = 5,
-    permuted_orders: int = 10,
-    min_fovs: int = 1,
-    n_boot: int = 2000,
-) -> Benchmark:
-    """BENCHMARK: which rule needs the fewest fields for the same risk of stopping too early.
-
-    Each family (default: ``default_families(setup.readout)``) is replayed
-    once against held-back fields and swept over its grid; at each risk level
-    in ``alphas`` its cheapest setting from which the risk stays at or below
-    the level is scored against a fixed field count, with intervals over the
-    independent units ``unit_cols`` (default: the analysis groups). ``alphas``
-    (default 5% and 10%, a preset) are printed in the summary. The rules run on
-    the raw values, as live; the criteria judge the normalised values when
-    ``normalize`` is set. Settings chosen here describe these data; score them
-    on data they were not chosen on before using them
-    (``retrospective.frontier.transfer``).
-    """
-    _check_tables(objects, fovs, setup)
-    families = list(default_families(setup.readout) if families is None else families)
-    if not families or any(not isinstance(f, Family) for f in families):
-        raise TypeError("families must be a non-empty sequence of Family")
-    criteria = setup.criteria()
-    # The rules on the raw values, as live; the criteria on the normalised ones.
-    replay = replay_rules(
-        objects,
-        setup.prepared(objects, fovs),
-        fovs,
-        setup,
-        strategies=[f.strategy for f in families],
-        criteria=criteria,
-        reservoir_fraction=reservoir_fraction,
-        orders=_orders(setup, permuted_orders, dispersed=0),
-        acquisition_order_col=setup.acquisition_order_col,
-        n_splits=n_splits,
-        random_state=setup.random_state,
-        min_fovs=min_fovs,
-        keep_results=True,
-        n_jobs=setup.n_jobs,
-    )
-    swept = [
-        sweep(
-            replay,
-            config_id=f.strategy.config_id,
-            quantity=f.quantity,
-            thresholds=list(f.thresholds),
-            name=f.name,
-        )
-        for f in families
-    ]
-    units = list(replay.group_cols) if unit_cols is None else list(unit_cols)
-    labels = [criterion.label for criterion in criteria]
-    # Frontiers are keyed by label; two criteria with one label (tolerances 5% and
-    # 5.02% both print as 5.0%) keep both, the second named by its criterion.
-    keys = [
-        label if labels.count(label) == 1 or labels.index(label) == i else f"{label} ({c.name})"
-        for i, (label, c) in enumerate(zip(labels, criteria, strict=True))
-    ]
-    frontiers = {
-        key: frontier(
-            replay,
-            swept,
-            criterion=criterion.name,
-            alphas=list(alphas),
-            unit_cols=units,
-            n_boot=n_boot,
-            random_state=setup.random_state,
-            label=criterion.label,
-        )
-        for key, criterion in zip(keys, criteria, strict=True)
-    }
-    settings = {
-        "reservoir_fraction": reservoir_fraction,
-        "alphas": list(alphas),
-        "unit_cols": units,
-        "n_splits": n_splits,
-        "permuted_orders": permuted_orders,
-        "families": {
-            f.name: {"quantity": f.quantity, "thresholds": list(f.thresholds)} for f in families
-        },
-    }
-    return Benchmark(frontiers, tuple(f.name for f in families), settings)
+        if part.settings:
+            writer = report_settings if isinstance(part, Report) else plan_settings
+            sentences.append(writer(part.settings))
+    merged_document = with_reasons(assemble(merged, parts[0].setup), reasons)
+    return with_settings(merged_document, sentences)
 
 
 __all__ = [
     "PLAN_QUESTIONS",
+    "REPORT_ORDERS",
     "REPORT_QUESTIONS",
     "Benchmark",
     "Family",

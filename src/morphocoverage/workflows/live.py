@@ -63,16 +63,15 @@ from typing import Any
 
 import pandas as pd
 
+from .._wording import count
 from ..metadata import (
-    EMPTY_MEANS_ABSENT,
-    MORPHOBRICKS_FOV_CANDIDATES,
-    MORPHOBRICKS_GROUP_COLUMNS,
-    OPTIONAL_GROUP_COLUMNS,
-    column_has_values,
+    drop_empty_optional_columns,
+    resolve_fov_col,
+    resolve_group_cols,
+    resolve_identity_cols,
 )
 from ..online import OnlineSession
 from ..results import Decision, StrategyResult, decision_view
-from ..schema import unit_plural
 from ..strategies.base import SamplingStrategy
 from .setup import Setup
 
@@ -185,8 +184,8 @@ class LiveUpdate:
     def summary(self) -> str:
         """One line per rule (the decision and why), then one view per target."""
         where = ", ".join(f"{k}={v}" for k, v in self.fov_metadata.items() if k != OBJECTS_FILE)
-        words = unit_plural(self.observation_unit)
-        head = f"{where}: {self.n_objects} {words} (read in {1000 * self.read_seconds:.0f} ms)"
+        objects = count(self.n_objects, self.observation_unit)
+        head = f"{where}: {objects} (read in {1000 * self.read_seconds:.0f} ms)"
         lines = [head, *(f"  {r.explain()}" for r in self.results)]
         if self.results:
             lines.append(f"  {decision_view(self.results)}")
@@ -365,11 +364,15 @@ class LiveTables:
     Call ``update(objects, fovs)`` with the current tables whenever rows were
     appended; rows already read must stay in place (the tables only grow).
     ``key`` names the columns that tie an object row to its FOV row (default:
-    the FOV identity, resolved as ``validate_input_tables`` resolves it: the
+    the FOV identity, resolved with the validator's own resolvers
+    (``metadata.resolve_fov_col``, ``resolve_group_cols``,
+    ``resolve_identity_cols``, after ``drop_empty_optional_columns``): the
     session's analysis-group columns, then every MorphoBricks group column
     (condition, repeat and, when it holds values, technical_repeat), each when
     the object table has it too, then the FOV column; so a well ``B02`` of two
-    repeats is two fields even when ``group_cols`` pool the repeats). Objects of a field must
+    repeats is two fields even when ``group_cols`` pool the repeats). The
+    default key is resolved once the FOV table has a row, so objects appended
+    before the first FOV row wait without fixing it. Objects of a field must
     be appended no later than its FOV row; an object row for a field already
     added raises, since it would change a field the rules have already judged.
     """
@@ -389,43 +392,38 @@ class LiveTables:
 
     def _resolve_key(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> tuple[str, ...]:
         if self.key is None:
-            fov_col = self.session.fov_col or self.session._requested_fov_col
-            if fov_col is None:
-                fov_col = next(
-                    (
-                        c
-                        for c in MORPHOBRICKS_FOV_CANDIDATES
-                        if c in fovs.columns
-                        and (c not in EMPTY_MEANS_ABSENT or column_has_values(fovs, c))
-                    ),
-                    None,
-                )
-            if fov_col is None:
-                raise ValueError("could not find the FOV column; pass fov_col to the session")
-            groups = self.session.group_cols
-            if groups is None:
-                groups = self.session._requested_group_cols
-            # The FOV identity of the validator (metadata.resolve_identity_cols): the
-            # analysis groups, then every MorphoBricks group column present, since
-            # condition and repeat (and a technical repeat with values) always name
-            # a field, whatever the grouping. An optional column counts only when it
-            # holds a value, as the validator reads an empty one as absent.
-            present = tuple(
-                g
-                for g in MORPHOBRICKS_GROUP_COLUMNS
-                if g in fovs.columns
-                and (g not in OPTIONAL_GROUP_COLUMNS or column_has_values(fovs, g))
-            )
-            identity = [*(present if groups is None else groups)]
-            identity += [g for g in present if g not in identity and g != fov_col]
-            # A column only the FOV table holds is attached by the validator when the
-            # FOV identifier maps to one value; here a reused identifier then reads as
-            # a field appearing twice, which raises.
-            self.key = (*(g for g in identity if g in objects.columns), fov_col)
+            self.key = self._default_key(objects, fovs)
         missing = [c for c in self.key if c not in objects.columns or c not in fovs.columns]
         if missing:
             raise ValueError(f"key columns {missing} must be in both the object and FOV tables")
         return self.key
+
+    def _default_key(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> tuple[str, ...]:
+        """The FOV identity the validator resolves for these tables, as the key.
+
+        Resolved on the FOV table's columns, where every field's metadata is:
+        a group column only the FOV table holds is attached to the objects by
+        the validator when the FOV identifier maps to one value, so it is left
+        out of the key (a reused identifier then reads as a field appearing
+        twice, which raises). An optional column empty in both tables is
+        absent, as for the validator.
+        """
+        requested_fov = self.session.fov_col or self.session._requested_fov_col
+        groups = self.session.group_cols
+        if groups is None:
+            groups = self.session._requested_group_cols
+        explicit = [*(groups or ()), *([requested_fov] if requested_fov else [])]
+        observed, table = drop_empty_optional_columns(objects, fovs, explicit)
+        assert table is not None
+        try:
+            fov_col = resolve_fov_col(table, None, requested_fov)
+        except ValueError as error:
+            raise ValueError(
+                f"could not find the FOV column; pass fov_col to the session ({error})"
+            ) from None
+        resolved = resolve_group_cols(table, None, groups)
+        identity = resolve_identity_cols(table, None, resolved, fov_col)
+        return (*(c for c in identity if c in observed.columns), fov_col)
 
     @staticmethod
     def _check_key_types(objects: pd.DataFrame, fovs: pd.DataFrame, key: tuple[str, ...]) -> None:
@@ -453,6 +451,12 @@ class LiveTables:
         new_fovs = fovs.iloc[self._n_fovs :]
         if new_fovs.empty and new_objects.empty:
             return []
+        if fovs.empty:
+            # No field yet: the objects wait, and the key is resolved with the first
+            # FOV row (an empty FOV table would read every optional column as absent).
+            self._buffer = self._appended(new_objects)
+            self._n_objects = len(objects)
+            return []
         key = self._resolve_key(objects, fovs)
         self._check_key_types(new_objects if len(new_objects) else objects, fovs, key)
         if not new_objects.empty:
@@ -462,8 +466,7 @@ class LiveTables:
                     f"objects appended for field(s) already added {sorted(set(late))[:3]}; "
                     "append a field's objects before its FOV row"
                 )
-            parts = [p for p in (self._buffer, new_objects) if p is not None]
-            self._buffer = pd.concat(parts) if len(parts) > 1 else new_objects
+            self._buffer = self._appended(new_objects)
         self._n_objects = len(objects)
         updates = []
         # Records keep each column's type; iterrows would turn integers into floats
@@ -497,6 +500,11 @@ class LiveTables:
             updates.append(update)
             self.updates.append(update)
         return updates
+
+    def _appended(self, new_objects: pd.DataFrame) -> pd.DataFrame:
+        """The buffer with ``new_objects`` appended."""
+        parts = [p for p in (self._buffer, new_objects) if p is not None]
+        return pd.concat(parts) if len(parts) > 1 else new_objects
 
     @property
     def pending_objects(self) -> int:

@@ -1,17 +1,26 @@
-"""Private helpers of the retrospective workflows: inputs, orders, replays, parts, reasons.
+"""Private helpers of the retrospective workflows: inputs, orders, replays and analyses.
 
+- ``check_workflow_inputs`` refuses tables and setups the workflows cannot use;
+- ``orders`` builds the replay orders, every random one seeded from
+  ``Setup.random_state``;
 - ``replay_rules`` runs the stopping rules on the raw values (as the live
   session does) and judges the outcome criteria on the prepared values, so a
   rule gives the verdict in ``optimise`` and ``benchmark`` that it gives live;
 - ``pooled_columns`` names the columns an analysis group spans several values
   of, so an analysis that needs them apart says "not assessed" instead of
-  raising deep inside;
-- ``with_reasons`` adds those reasons to an assembled report.
+  raising deep inside (the reasons and the assembled report are in
+  ``workflows._document``);
+- ``control_checks``, ``rare_clustering`` and ``conditions`` run the report's
+  analyses against the control, of the rare label and between conditions.
+
+Shared-private: every name in ``__all__`` is used by ``workflows.retrospective``
+(``check_workflow_inputs`` also by ``workflows.figures``), not part of the public API.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import zlib
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -24,35 +33,58 @@ from ..metadata import (
     drop_empty_optional_columns,
     resolve_group_cols,
 )
-from ..retrospective import MicroscopistReport, SamplingHierarchy, replay_acquisitions
+from ..outcomes import OutcomeMetric
+from ..retrospective import replay_acquisitions
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.replay import ReplayResult
-from ..retrospective.report import QUESTIONS
 from ..sampling_unit import (
+    FOVClustering,
     condition_contrast,
     feature_ranking,
     fov_clustering,
     object_rule_check,
     unusual_objects,
 )
+from ..schema import ValidatedInput
 from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
+from ._document import pooling_reason
 from .setup import Setup
 
-_UNUSUAL = "morphocoverage_unusual"
+
+def order_seeds(random_state: int, n: int) -> list[int]:
+    """``n`` order seeds of their own for ``random_state``: ``0 .. n-1`` for seed 0.
+
+    Consecutive within the block (dispersed orders then start at distinct
+    fields), and blocks of different seeds never overlap, so ``random_state=1``
+    shares no order with ``random_state=0``.
+    """
+    return [random_state * n + i for i in range(n)]
 
 
-def orders(setup: Setup, permuted: int, dispersed: int) -> list[AcquisitionOrder]:
-    """The recorded order when there is one, ``permuted`` random and ``dispersed`` orders."""
+def orders(
+    setup: Setup, permuted: int, dispersed: int, *, seed_permuted: bool = False
+) -> list[AcquisitionOrder]:
+    """The recorded order when there is one, ``permuted`` random and ``dispersed`` orders.
+
+    The dispersed orders' seeds come from ``Setup.random_state``
+    (``order_seeds``), since the replay seeds a dispersed order from its own
+    seed only. ``seed_permuted`` does the same for the permuted orders: for
+    ``sufficiency_report``, whose permutations are seeded by the order's seed
+    alone; ``replay_acquisitions`` already seeds each permutation from its
+    ``random_state``, so its orders keep the seeds ``0 .. permuted-1``.
+    """
     chosen = [AcquisitionOrder.recorded()] if setup.acquisition_order_col else []
-    chosen += [AcquisitionOrder.permuted(seed) for seed in range(permuted)]
+    permuted_seeds = order_seeds(setup.random_state, permuted) if seed_permuted else range(permuted)
+    chosen += [AcquisitionOrder.permuted(seed) for seed in permuted_seeds]
     if setup.stage_cols is not None:
-        chosen += [AcquisitionOrder.dispersed(seed) for seed in range(dispersed)]
+        seeds = order_seeds(setup.random_state, dispersed)
+        chosen += [AcquisitionOrder.dispersed(seed) for seed in seeds]
     return chosen
 
 
-def check_tables(objects: Any, fovs: Any, setup: Any) -> None:
+def check_workflow_inputs(objects: Any, fovs: Any, setup: Any) -> None:
     """Refuse inputs the workflows cannot use, before any analysis runs."""
     if fovs is None:
         raise TypeError(
@@ -71,6 +103,28 @@ def check_tables(objects: Any, fovs: Any, setup: Any) -> None:
         )
 
 
+class _RevealedFields(OutcomeMetric):
+    """A fingerprint of which fields a prefix and its reservoir hold (never reported).
+
+    ``replay_rules`` judges it in both of its replays: equal values at every
+    prefix of every run mean both replays held back the same reservoir and
+    revealed the same fields in the same order, whatever the values.
+    """
+
+    name = "revealed_fields"
+
+    def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
+        """A 32-bit hash of the reservoir's and the prefix's sorted FOV keys."""
+        keys = [
+            sorted(map(str, table[list(data.fov_key)].itertuples(index=False, name=None)))
+            for table, data in ((full.fovs, full), (stopped.fovs, stopped))
+        ]
+        return float(zlib.crc32(repr(keys).encode()))
+
+
+_REVEALED = OutcomeCriterion(_RevealedFields(), 0.0, "lower_is_better")
+
+
 def replay_rules(
     raw: pd.DataFrame,
     prepared: pd.DataFrame,
@@ -87,41 +141,50 @@ def replay_rules(
     the decisions come from a replay of the raw values and the outcomes from a
     replay of the prepared ones. Hold-outs and orders depend only on the FOV
     table, the groups and the seeds, never on the values, so both replays
-    reveal the same fields in the same order (checked); the first judges only
-    one cheap criterion and the second runs only a fixed-count rule, whose
-    decisions are discarded.
+    hold back the same fields and reveal the same fields in the same order:
+    checked at every prefix of every run with a fingerprint of the reservoir
+    and the revealed fields' keys (``_RevealedFields``), besides the stream
+    sizes and stage travel. The first replay judges only that fingerprint and
+    the second runs only a fixed-count rule, whose decisions are discarded.
     """
     common = {"feature_cols": setup.columns, "objective": setup.objective(), **setup.common}
-    decided = replay_acquisitions(
-        raw,
-        fovs,
-        strategies=strategies,
-        criteria=criteria if prepared is raw else list(criteria)[:1],
-        **common,
-        **settings,
-    )
     if prepared is raw:
-        return decided
+        return replay_acquisitions(
+            raw, fovs, strategies=strategies, criteria=criteria, **common, **settings
+        )
+    decided = replay_acquisitions(
+        raw, fovs, strategies=strategies, criteria=[_REVEALED], **common, **settings
+    )
     scored = replay_acquisitions(
         prepared,
         fovs,
         strategies=[FixedFOVStrategy(1)],
-        criteria=criteria,
+        criteria=[*criteria, _REVEALED],
         **common,
         **{**settings, "keep_results": False},
     )
-    if not decided.streams.equals(scored.streams) or not decided.paths.equals(scored.paths):
+    revealed = scored.outcomes["criterion"] == _REVEALED.name
+    same_fields = (
+        decided.outcomes.reset_index(drop=True)
+        .drop(columns="status")
+        .equals(scored.outcomes.loc[revealed].reset_index(drop=True).drop(columns="status"))
+    )
+    if (
+        not same_fields
+        or not decided.streams.equals(scored.streams)
+        or not decided.paths.equals(scored.paths)
+    ):
         raise RuntimeError(
             "the replays of the raw and the normalised values revealed different fields; "
             "please report this as a bug"
         )
     return replace(
         decided,
-        outcomes=scored.outcomes,
+        outcomes=scored.outcomes.loc[~revealed].reset_index(drop=True),
         settings={
             **decided.settings,
-            "criteria": scored.settings["criteria"],
-            "labels": scored.settings["labels"],
+            "criteria": [c.parameters for c in criteria],
+            "labels": {c.name: c.label for c in criteria},
             "values": "stopping rules on raw values; outcome criteria on normalised values",
         },
     )
@@ -148,37 +211,6 @@ def pooled_columns(
     return pooled
 
 
-def pooling_reason(analyses: str, setup: Setup, pooled: Sequence[str]) -> str:
-    """Why ``analyses`` were not run: the analysis groups pool the columns they need apart."""
-    named = ", ".join(repr(c) for c in pooled)
-    return (
-        f"{analyses} not assessed: group_cols {tuple(setup.group_cols or ())} pool {named} "
-        f"(an analysis group holds several of its values), and they compare within one "
-        f"{' and one '.join(pooled)}; add {named} to group_cols to assess them"
-    )
-
-
-def with_reasons(document: MicroscopistReport, reasons: Mapping[str, str]) -> MicroscopistReport:
-    """The report with each question's reason for what it could not assess.
-
-    A question with nothing assessed shows the reason instead of the generic
-    need; one assessed in part keeps its answers, adds the reason, and the
-    closing section lists it among the notes.
-    """
-    if not reasons:
-        return document
-    titles = dict(QUESTIONS)
-    sections, notes = dict(document.sections), list(document.notes)
-    for key, reason in reasons.items():
-        sentence = f"{reason[:1].upper()}{reason[1:]}."
-        if document.inputs.get(key) == "not assessed":
-            sections[key] = f"  {sentence}"
-        else:
-            sections[key] = f"{sections[key]}\n\n  {sentence}"
-            notes.append(f"{titles[key]} {sentence}")
-    return replace(document, sections=sections, notes=tuple(notes))
-
-
 def report_only(sufficiency: SufficiencyReport, setup: Setup) -> SufficiencyReport:
     """The sufficiency report with the rules it adds beyond ``Setup.rules`` labelled.
 
@@ -197,6 +229,32 @@ def report_only(sufficiency: SufficiencyReport, setup: Setup) -> SufficiencyRepo
         + enough.loc[extra, "answer"]
     )
     return replace(sufficiency, enough=enough)
+
+
+def sufficiency_rules(setup: Setup) -> tuple[list[SamplingStrategy], float | None]:
+    """The rules and the ``novelty_target`` to pass to ``sufficiency_report``.
+
+    ``sufficiency_report`` adds the novelty-bound rule of ``novelty_target``
+    itself and refuses it a second time. When the setup's rules hold it (to
+    run it live), it is judged once: on the same columns, the added copy is
+    the setup's rule (so it is dropped from the rules passed); when the rules
+    also read the readout, which novelty does not, the setup's rule is kept,
+    as live judges it, and no target is passed.
+    """
+    rules = list(setup.stopping_rules())
+    target = setup.novelty_target if setup.novelty is not None else None
+    added = setup.novelty_rule()
+    if added is None or not setup.novelty_rule_declared:
+        return rules, target
+    if set(setup.features) == set(setup.columns):
+        return [rule for rule in rules if rule.config_id != added.config_id], target
+    return rules, None
+
+
+def unusual_label(objects: pd.DataFrame, setup: Setup) -> str:
+    """The column name of the unusual-observation labels: it is printed (``unusual cells``)."""
+    label = f"unusual {setup.unit_words}"
+    return label if label not in objects.columns else f"{label} (report)"
 
 
 def control_checks(
@@ -240,15 +298,30 @@ def control_checks(
             **common,
         )
         results["unusual"] = unusual
+        label = unusual_label(objects, setup)
         results["clustering"] = fov_clustering(
-            objects.assign(**{_UNUSUAL: unusual.labels}),
+            objects.assign(**{label: unusual.labels}),
             fovs,
-            label_col=_UNUSUAL,
+            label_col=label,
             states=[True],
             random_state=setup.random_state,
             **common,
         )
     return results
+
+
+def rare_clustering(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> FOVClustering:
+    """R4 for the declared rare phenotype: are its labelled objects clustered in few fields?"""
+    assert setup.rare is not None and setup.rare_label is not None
+    return fov_clustering(
+        objects,
+        fovs,
+        label_col=setup.rare_label,
+        states=[True],
+        detection_probability=setup.rare.detection_probability,
+        random_state=setup.random_state,
+        **setup.common,
+    )
 
 
 def conditions(
@@ -288,60 +361,25 @@ def conditions(
     return results
 
 
-def plan_settings(settings: dict[str, Any]) -> str:
-    """The run's settings in one sentence, the provisional preset first."""
-    return (
-        f"Settings: a sample counts as adequately represented at k fields when "
-        f"{settings['protocol_threshold']:.0%} of random acquisitions of k fields preserved "
-        f"the criterion (protocol_threshold, a provisional preset); "
-        f"{settings['reservoir_fraction']:.0%} of each group's fields held back, "
-        f"{settings['n_splits']} hold-outs, {settings['draws']} draws per field count, "
-        f"{settings['permuted_orders']} random and {settings['dispersed_orders']} dispersed "
-        f"orders; random_state {settings['random_state']}."
-    )
-
-
-def protocol_reason(
-    setup: Setup, hierarchy: SamplingHierarchy, strata: Sequence[str], groups: Sequence[str]
-) -> str | None:
-    """Why protocol reliability cannot run on these analysis groups, or ``None``."""
-    levels = [c for c in hierarchy.unit_key(hierarchy.sample) if c not in groups]
-    apart = [c for c in strata if c not in groups]
-    if not levels and not apart:
+def reservoir_sizes(replay: ReplayResult) -> tuple[int, int] | None:
+    """The smallest and largest reservoir the replay held back, or ``None`` without one."""
+    if replay.streams.empty:
         return None
-    named = ", ".join(repr(c) for c in [*levels, *apart])
-    reason = (
-        f"protocol reliability across samples is not assessed: group_cols {tuple(groups)} pool "
-        f"{named}, so the reliability has no result per sample ({hierarchy.sample}"
-    )
-    reason += f") and per stratum ({', '.join(strata)}); " if apart else "); "
-    reason += f"add {named} to group_cols"
-    if apart:
-        reason += " (or pass effort_strata=() to pool the strata explicitly)"
-    return reason
+    sizes = replay.streams["reservoir_fovs"]
+    return int(sizes.min()), int(sizes.max())
 
 
-def no_hierarchy_reasons(setup: Setup, fovs: pd.DataFrame) -> dict[str, str]:
-    """Why questions 4 (across samples) and 7 were not assessed although the FOV
-    table has technical repeats: ``group_cols`` leave them out."""
-    technical = setup.technical_col(fovs)
-    if technical is None:
-        return {}  # the generic need (a technical_repeat column or a hierarchy) holds
-    pooled = (
-        f"group_cols {tuple(setup.group_cols or ())} leave {technical!r} out, so the "
-        "technical repeats are pooled"
-    )
-    return {
-        "effort": (
-            f"not assessed: {pooled} and no sampling hierarchy is derived; add {technical!r} "
-            "to group_cols, or declare hierarchy to model them anyway"
-        ),
-        "next_time": (
-            f"protocol reliability across samples is not assessed: {pooled}, and the "
-            f"reliability then has no result per technical repeat; add {technical!r} to "
-            "group_cols"
-        ),
-    }
-
-
-__all__: list[str] = []
+__all__ = [
+    "check_workflow_inputs",
+    "conditions",
+    "control_checks",
+    "order_seeds",
+    "orders",
+    "pooled_columns",
+    "rare_clustering",
+    "replay_rules",
+    "report_only",
+    "reservoir_sizes",
+    "sufficiency_rules",
+    "unusual_label",
+]

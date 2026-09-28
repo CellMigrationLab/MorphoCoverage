@@ -20,8 +20,11 @@ Declare the dataset once with a ``Setup``, then:
 
 Each returns its results with a ``summary()`` in sentences. Their scientific
 choices are the ``Setup``'s fields and explicit arguments; the few presets they
-default (``protocol_threshold``, ``alphas``) are printed in the summaries. See
-``docs/workflows.md``.
+default (``Setup.minimum_detection``, the default stopping rules, the
+positive control's pairing, ``protocol_threshold``, ``alphas``) are printed in
+the declaration and the summaries, with the computational settings (orders,
+resamples, grids, the fields held back), and every random procedure is seeded
+from ``Setup.random_state``. See ``docs/workflows.md``.
 """
 
 from .figures import plots
