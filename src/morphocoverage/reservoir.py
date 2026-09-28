@@ -62,7 +62,7 @@ import numpy as np
 import pandas as pd
 
 from ._checks import check_seed, is_integer
-from ._seeds import group_rng
+from ._seeds import group_rng, split_seed
 from .evaluator import objects_in_fovs, restrict_input
 from .outcomes import OutcomeMetric
 from .schema import ValidatedInput
@@ -218,7 +218,7 @@ def reference_error_floor(
     check_seed(seed, "seed")
     floors: list[float | None] = []
     for i in range(int(n_splits)):
-        half, other = ReservoirSplit(0.5, int(seed) + i, block_col).split({}, reference)
+        half, other = ReservoirSplit(0.5, split_seed(seed, i), block_col).split({}, reference)
         floors.append(metric.evaluate(other, half))
     return floors
 

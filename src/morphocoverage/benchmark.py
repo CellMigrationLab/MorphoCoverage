@@ -494,7 +494,10 @@ def run_benchmark(
     metric_list = list(metrics)
     names = [metric.name for metric in metric_list]
     if len(set(names)) != len(names):
-        raise ValueError(f"outcome metric names must be distinct: {names}")
+        raise ValueError(
+            f"outcome metric names must be distinct: {names}; give two settings of one "
+            "metric different names with label=, e.g. MMDError(..., label='mmd_wide')"
+        )
     if dataset.area_col is not None and dataset.area_col in dataset.feature_cols:
         raise ValueError("the area column is acquisition metadata, not a phenotype feature")
 
