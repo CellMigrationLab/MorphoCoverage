@@ -40,7 +40,7 @@ def test_clean_tables_pass_and_say_what_was_understood():
     )
     assert check.ok and not check.errors and not check.warnings
     text = check.summary()
-    assert text.startswith("MorphoCoverage data check: 0 errors, 0 warnings; the tables can be")
+    assert text.startswith("✅ MorphoCoverage data check — 0 errors, 0 warnings; the tables can be")
     assert "A field is identified by 'image_file' within condition, repeat." in text
     assert "Analysis groups: condition, repeat." in text
     check.raise_if_errors()
@@ -63,12 +63,15 @@ def test_every_problem_is_reported_at_once_with_where_and_how_to_fix():
     warnings = _titles(check, "warning")
     assert "1 field of the FOV table holds no observation." in warnings
     assert "Feature 'area' is missing in 17% of observations." in warnings
-    text = check.summary()
+    # Where each problem is: in the full form (the short one gives the title and the fix).
+    text = " ".join(check.summary(detail="full").split())
     assert (
         "Where: observation table, 2 rows: row 0 (intensity='12,5'); row 3 (intensity='n/a')"
         in (text)
     )
     assert "Where: observation table, 1 row: row 2 (area=inf)." in text
+    short = " ".join(check.summary().split())
+    assert "Feature 'intensity' is not numeric." in short and "Where:" not in short
     assert "np.float64" not in text and "nan" not in text.lower().replace("nan)", "")
     assert text.rstrip().endswith("is in docs/data_format.md.")
     with pytest.raises(ValueError, match="6 errors"):
@@ -143,8 +146,9 @@ def test_the_validator_raises_with_the_full_report_after_its_own_first_line():
     message = str(caught.value)
     first, _, rest = message.partition("\n\n")
     assert "non-canonical spelling of MorphoBricks column 'repeat'" in first
-    assert rest.startswith("MorphoCoverage data check:")
+    assert rest.startswith("❌ MorphoCoverage data check — ")
     assert "The FOV table lists a field more than once." in rest
+    assert "Where: FOV table" in rest  # the full report, with where each problem is
 
 
 @pytest.mark.parametrize("name", sorted(SCENARIOS))

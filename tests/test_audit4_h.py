@@ -97,9 +97,12 @@ def test_p3_3_frontier_interval_is_widened_for_the_units_and_said_to_be_approxim
     # Widened by sqrt(8 / 7) t_7 / z, about 1.28 on each side.
     assert low < plain_low - 0.4 and high > plain_high + 0.4
     assert (2.0 - low) / (2.0 - plain_low) == pytest.approx(1.28, abs=0.02)
-    text = frontier_summary(_frontier_result(units=8))
+    text = " ".join(frontier_summary(_frontier_result(units=8), detail="full").split())
     assert "approximate 95% interval 1.0 to 3.0" in text
     assert "with fewer than 20 units they cover the truth less often than stated" in text
+    short = " ".join(frontier_summary(_frontier_result(units=8)).split())
+    assert "saves 2.0 (1.0 to 3.0)" in short
+    assert "with fewer than 20 units they cover the truth less often than stated" in short
 
 
 def test_p8_1_frontier_gives_no_interval_below_five_units():
@@ -108,9 +111,12 @@ def test_p8_1_frontier_gives_no_interval_below_five_units():
     assert _saved_interval(7.0, draws, 4) == (None, None)
     assert _saved_interval(7.0, draws, 5)[0] is not None
     # Even a stored interval is not printed from two units (entry 8's plates 1A and 2A).
-    text = frontier_summary(_frontier_result(units=2))
-    assert "interval" not in text.split("\n")[2]
-    assert "No interval: only 2 units (repeat) to resample, and at least 5 are needed" in text
+    for detail in ("short", "full"):
+        text = frontier_summary(_frontier_result(units=2), detail=detail)
+        [rule_line] = [line for line in text.split("\n") if "rule at 0.05" in line]
+        assert "interval" not in rule_line and "to" not in rule_line.split("%")[-1]
+        text = " ".join(text.split())
+        assert "No interval: only 2 units (repeat) to resample, and at least 5 are needed" in text
 
 
 def _calibration_runs(premature: int, beyond: int, correct: int) -> pd.DataFrame:

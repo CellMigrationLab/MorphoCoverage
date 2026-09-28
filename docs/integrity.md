@@ -10,6 +10,12 @@ A finding is **structure to inspect**, never a judgment of intent: the report
 says "check where these fields came from (a file read or exported twice, a
 field identifier reused, a copy in another unit)".
 
+`IntegrityResult.summary()` opens with ❌ when something was found, ✅ when
+nothing was, and ➖ when no check could be applied to the features; the short
+form gives the findings as one table row per check and pair of groups, and
+`summary(detail="full")` every finding with its detail. Both state what the
+checks could not compare and what they cannot see, once.
+
 ## 1. Which PaperGuard ideas apply to image-derived feature tables?
 
 Only the **deterministic duplication** detectors: exact duplicates, reordered

@@ -68,7 +68,9 @@ import pandas as pd
 
 from . import _integrity_match as match
 from ._checks import as_count, is_number
-from ._wording import count, listing, percent, plural, where
+from ._integrity_text import PRECISION, integrity_status, integrity_summary
+from ._style import Status, group_label
+from ._wording import listing, percent, plural, where
 from .data_check import validate_input_tables
 from .schema import ValidatedInput, fov_positions
 
@@ -91,9 +93,7 @@ FINDING_COLUMNS = (
     "other_group",
 )
 CHECK_COLUMNS = ("check", "status", "reason", "compared")
-# Lines of findings the summary prints before "and N more".
-SUMMARY_LINES = 12
-_PRECISION = f"to {match.DIGITS} significant digits"
+_PRECISION = PRECISION
 
 
 @dataclass(frozen=True)
@@ -123,119 +123,48 @@ class IntegrityResult:
         names = [*self.findings["field"], *self.findings["other_field"]]
         return list(dict.fromkeys(names))
 
-    def summary(self) -> str:
-        """The findings in sentences, grouped by pair of groups, framed as structure to inspect."""
-        settings = self.settings
-        head = (
-            "Data integrity (exact checks for copied data, "
-            f"{_PRECISION}; structure to inspect, not a judgment): "
-            f"{count(settings.get('n_fovs', 0), 'field')} and "
-            f"{settings.get('n_observations', 0)} "
-            f"{settings.get('observation_words', 'observations')} checked, on "
-            f"{settings.get('features_compared', 'the declared features')}."
-        )
-        lines = [head]
-        if self.findings.empty:
-            lines.append("  Nothing was found by these checks.")
-        lines += _finding_lines(self.findings)
-        lines += _coverage_lines(settings)
-        skipped = self.checks[self.checks["status"] == "not applicable"]
-        for why, rows in skipped.groupby("reason", sort=False):
-            named = "any check" if len(rows) == len(self.checks) else listing(list(rows["check"]))
-            lines.append(f"  Not checked, {named}: {why}.")
-        lines.append(
-            f"  Out of reach of these checks: a copy re-rounded to fewer than {match.DIGITS} "
-            f"significant digits, a block of fewer than {settings.get('block_length', 10)} "
-            "observations, a copy with feature columns swapped or a feature (or a value) "
-            "missing in one copy only, and observations pasted into two or more other fields "
-            "(they read as recurring)."
-        )
-        if not self.findings.empty:
-            lines.append(
-                "  Check where these fields came from (a file read or exported twice, a field "
-                "identifier reused, a copy in another unit, a merge that repeats rows) before "
-                "reading the answers."
-            )
-        return "\n".join(lines)
+    @property
+    def status(self) -> Status:
+        """❌ with a finding, ➖ when no check applied to these features, ✅ otherwise."""
+        return integrity_status(self)
+
+    def summary(self, detail: str = "short") -> str:
+        """``"short"``: one marked line, what was checked, the findings grouped by check and
+        pair of groups in a table, each caveat once; ``"full"``: every finding with its detail.
+        Framed as structure to inspect, not a judgment."""
+        return integrity_summary(self, detail)
 
 
-def _finding_lines(findings: pd.DataFrame) -> list[str]:
-    """One line per finding, or per check and pair of groups when it repeats; capped."""
-    lines = []
-    grouped = findings.groupby(["check", "group", "other_group"], sort=False)
-    for (check, group, other), rows in grouped:
-        first = rows.iloc[0]
-        if len(rows) == 1 and check == "repeated within a field":
-            lines.append(
-                f"  - {check}: {first.field} "
-                f"({count(first.observations, 'observation')}): {first.detail}."
-            )
-            continue
-        if len(rows) == 1:
-            lines.append(
-                f"  - {check}: {first.field} and {first.other_field} "
-                f"({count(first.observations, 'observation')}): {first.detail}."
-            )
-            continue
-        if check == "repeated within a field":
-            lines.append(
-                f"  - {check}, {count(len(rows), 'field')} of {group}, e.g. {first.field} "
-                f"({count(first.observations, 'observation')}): {first.detail}."
-            )
-            continue
-        between = f"within {group}" if group == other else f"between {group} and {other}"
-        lines.append(
-            f"  - {check}, {count(len(rows), 'pair')} of fields {between}, e.g. "
-            f"{first.field} and {first.other_field} "
-            f"({count(first.observations, 'observation')}): {first.detail}."
-        )
-    if len(lines) > SUMMARY_LINES:
-        more = len(lines) - SUMMARY_LINES
-        tail = f"  - and {count(more, 'more line')} of findings (IntegrityResult.findings lists "
-        lines = [*lines[:SUMMARY_LINES], tail + "every one)."]
-    return lines
-
-
-def _coverage_lines(settings: dict[str, Any]) -> list[str]:
-    """What the checks could not compare, counted, so "nothing found" is not read as more."""
-    lines = []
-    n_fovs, compared = settings.get("n_fovs", 0), settings.get("fields_compared", 0)
-    small, uniform = settings.get("fields_too_small", 0), settings.get("fields_too_uniform", 0)
-    if compared < n_fovs and settings.get("continuous_features"):
-        parts = []
-        if small:
-            parts.append(
-                f"{count(small, 'field')} held fewer than "
-                f"{count(settings['min_objects'], 'observation')}"
-            )
-        if uniform:
-            parts.append(
-                f"{count(uniform, 'field')} fewer than {settings['min_objects']} distinct values "
-                "of every continuous feature, so a coincidence could not be ruled out"
-            )
-        lines.append(
-            f"  Whole fields compared: {compared} of {n_fovs}"
-            + (f"; {' and '.join(parts)}." if parts else ".")
-        )
-    recurring = settings.get("recurring_observations", 0)
-    if recurring:
-        lines.append(
-            f"  {count(recurring, 'observation')} {'recurs' if recurring == 1 else 'recur'} in "
-            f"{match.RECURRING} or more fields (identical low-information objects, such as hot "
-            "pixels or empty background) and were set aside, not counted as copied."
-        )
-    return lines
-
-
-def _fields(data: ValidatedInput) -> tuple[match.Rows, list[str], list[str]]:
-    """The observations by field, and each field's name and group (its name without the field)."""
+def _fields(data: ValidatedInput) -> tuple[match.Rows, list[str], list[str], dict[str, list]]:
+    """The observations by field, each field's name and group (its name without the field),
+    and both as the summary prints them (``MOCK · 1A · B6``), by name."""
     positions = fov_positions(data, data.fovs)
     rows = match.Rows.build(data.feature_matrix(), positions, len(data.fovs))
     records = data.fovs.to_dict("records")
-    names = [where({column: record[column] for column in data.fov_key}) for record in records]
     group_key = [column for column in data.fov_key if column != data.fov_col]
-    groups = [where({column: record[column] for column in group_key}) for record in records]
-    return rows, names, groups
+    names, groups, labels = [], [], {"field_labels": [], "group_labels": []}
+    for record in records:
+        field_values = {column: record[column] for column in data.fov_key}
+        group_values = {column: record[column] for column in group_key}
+        names.append(where(field_values))
+        groups.append(where(group_values))
+        labels["field_labels"].append(group_label(field_values))
+        labels["group_labels"].append(group_label(group_values))
+    return rows, names, groups, labels
+
+
+def _labels(
+    findings: list[dict[str, Any]], names: list[str], groups: list[str], labels: dict[str, list]
+) -> dict[str, dict[str, str]]:
+    """The printed labels of the fields and groups the findings name, by name."""
+    named = {name for f in findings for name in (f["field"], f["other_field"])}
+    grouped = {group for f in findings for group in (f["group"], f["other_group"])}
+    fields_map = {n: label for n, label in zip(names, labels["field_labels"], strict=True)}
+    groups_map = {g: label for g, label in zip(groups, labels["group_labels"], strict=True)}
+    return {
+        "field_labels": {name: fields_map[name] for name in names if name in named},
+        "group_labels": {group: groups_map[group] for group in grouped},
+    }
 
 
 def _distinct_shares(rows: match.Rows, informative: np.ndarray) -> list[float]:
@@ -291,7 +220,7 @@ def integrity_checks(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
-    rows, names, groups = _fields(data)
+    rows, names, groups, labels = _fields(data)
     n_fields = len(rows.sizes)
     recurring = rows.recurrence >= match.RECURRING
     shares = _distinct_shares(rows, ~recurring)
@@ -371,6 +300,8 @@ def integrity_checks(
         "recurring_observations": int(recurring[rows.ids].sum()),
         "observation_words": plural(data.observation_unit),
         "features_compared": listing(list(data.feature_cols)),
+        "field_columns": list(data.fov_key),
+        **_labels(findings, names, groups, labels),
     }
     return IntegrityResult(
         pd.DataFrame(findings, columns=list(FINDING_COLUMNS)),

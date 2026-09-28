@@ -215,7 +215,8 @@ def test_g6_a_baseline_that_met_the_risk_but_lost_it_says_so_and_keeps_the_famil
         "exceeded_risk": 0.125,
     }
     rule = {"family": "rule", "alpha": 0.05, "setting": 1, "effort": 2.0, "risk": 0.0}
-    text = _frontier_scores([base, rule], {"label": "c", "units": 8}).summary()
+    result = _frontier_scores([base, rule], {"label": "c", "units": 8})
+    text = " ".join(result.summary(detail="full").split())
     assert "a fixed number of fields met this risk at 2 (risk 0%) but not from there on" in text
     assert "never got there" not in text
     assert "rule at 1: 2 fields on average (risk 0%), with no fixed count to compare" in text
@@ -279,9 +280,10 @@ def test_g8_a_frontier_interval_from_too_few_resamples_is_withheld():
     assert MIN_BOOT_SUCCESS == 0.9 and row["saved_reached"] < MIN_BOOT_SUCCESS
     assert row["saved_low"] is None or pd.isna(row["saved_low"])
     reached = f"{100 * row['saved_reached']:.0f}%"
-    text = result.summary()
-    assert f"no interval: only {reached} of the resamples reached this risk for both" in text
-    assert "(at least 90% are needed)" in text
+    for text in (result.summary(), result.summary(detail="full")):
+        text = " ".join(text.split())
+        assert f"no interval: only {reached} of the resamples reached this risk for both" in text
+        assert "(at least 90% are needed)" in text
 
 
 def test_g9_the_imbalance_line_names_the_level_that_differs():

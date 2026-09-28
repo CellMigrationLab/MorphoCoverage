@@ -420,7 +420,8 @@ def test_g15_a_rule_that_met_the_risk_but_not_lastingly_is_not_never():
             },
         ]
     )
-    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"label": "the mean"}).summary()
+    result = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"label": "the mean"})
+    text = " ".join(result.summary(detail="full").split())
     assert "rule: met this risk at cheap (risk 0%) but not from there on: at late" in text
     assert "never got there" not in text
 
@@ -445,11 +446,14 @@ def test_g16_a_saving_whose_interval_includes_zero_is_not_resolved():
     baseline = {"family": BASELINE, "alpha": 0.05, "setting": 12, "effort": 12.0, "risk": 0.04}
     for saved, low, high, resolved in ((1.2, -2.5, 3.0, False), (1.2, 0.4, 3.0, True)):
         scores = pd.DataFrame([baseline, _score(saved, low, high)])
-        text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"units": 6}).summary()
-        assert ("(not resolved)" in text) != resolved
+        result = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"units": 6})
+        for text in (result.summary(), result.summary(detail="full")):
+            assert ("not resolved" in text) != resolved
     costs = pd.DataFrame([baseline, _score(-1.5, -3.0, 0.5)])
-    text = FrontierResult(pd.DataFrame(), costs, pd.DataFrame(), {"units": 6}).summary()
+    result = FrontierResult(pd.DataFrame(), costs, pd.DataFrame(), {"units": 6})
+    text = " ".join(result.summary(detail="full").split())
     assert "costs 1.5 more fields, approximate 95% interval -0.5 to 3.0 (not resolved)" in text
+    assert "costs 1.5 (-0.5 to 3.0, not resolved)" in result.summary()
 
 
 def test_g18_the_split_modules_keep_the_names_callers_use():

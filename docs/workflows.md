@@ -292,8 +292,15 @@ from morphocoverage.workflows import document, optimise
 
 plan = optimise(objects, fovs, setup, fov_counts=[2, 4, 8, 12], reservoir_fraction=0.35)
 print(plan.summary())                         # questions 4, 5, 7, 8 and the rule calibration
+print(plan.summary(detail="full"))            # every sentence and number
 print(document(result, plan).summary())       # one report with every question
 ```
+
+The plan opens with its own title and an **At a glance** block, which adds
+the rule check ("How reliable was each stopping rule?", ⚠️ when some rule
+stopped where a criterion was not preserved in held-back fields in more than
+10% of the acquisitions of a group and order kind); the rule check's section
+comes before "What this dataset cannot tell me", and the settings close it.
 
 `document` refuses a report and a plan computed under different setups
 (`n_jobs` aside), since the declaration it prints first must be the one every
@@ -329,8 +336,15 @@ is read per target, and a target the held-back fields cannot judge says so.
 from morphocoverage.workflows import benchmark, default_families
 
 bench = benchmark(objects, fovs, setup, reservoir_fraction=0.35)
-print(bench.summary())
+print(bench.summary())                        # a table of the rules per criterion and risk level
+print(bench.summary(detail="full"))           # every rule in sentences
 ```
+
+Each criterion opens with its marker: ✅ when the rule that saves most
+fields does so with an interval above 0, or when no rule beats the fixed
+count (the null result) with an interval; ⚠️ when the best saving is not
+resolved or has no interval; ➖ when a fixed count never met the risk level
+lastingly, so no rule is scored.
 
 `default_families(setup.readout)` holds the rule families and threshold grids
 of the locked protocol (version 5, whose grids are those of versions 1 to 4): the JCB rule and the JCS descriptor
