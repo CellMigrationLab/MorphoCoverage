@@ -242,7 +242,7 @@ def test_p7_15_frame_columns_and_failed_segmentations_are_worded_honestly():
     objects, fovs = _tables(n_fields=6, size=10)
     objects["label_id"] = 1 + np.arange(len(objects)) % 10
     frames = pd.concat(
-        [objects.assign(timepoint=0), objects.assign(timepoint=1, area=objects["area"] * 1.01)],
+        [objects.assign(cycle=0), objects.assign(cycle=1, area=objects["area"] * 1.01)],
         ignore_index=True,
     )
     warnings = check_tables(frames, fovs, feature_cols=FEATURES, observation_unit="cell").warnings
@@ -260,6 +260,11 @@ def test_p5_4_a_merge_with_one_row_per_channel_is_reported():
     objects["ObjectNumber"] = objects.groupby("image_file").cumcount() + 1
     merged = pd.concat([objects.assign(Channel="DAPI"), objects.assign(Channel="GFP")])
     merged = merged.sort_values(["image_file", "Channel"], kind="stable")
+    # A column named like the channel axis is refused as a misspelt 'c' (P5-2) ...
+    errors = [p.title for p in check_tables(merged, fovs, feature_cols=FEATURES).errors]
+    assert any("'Channel' looks like the within-field coordinate 'c'" in t for t in errors)
+    # ... and under any other name the repeated rows are still warned about.
+    merged = merged.rename(columns={"Channel": "stain"})
     titles = [p.title for p in check_tables(merged, fovs, feature_cols=FEATURES).warnings]
     assert any("repeat another observation of the same field in every feature" in t for t in titles)
     result = _checks(merged, fovs)
