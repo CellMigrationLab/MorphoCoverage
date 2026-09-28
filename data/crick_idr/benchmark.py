@@ -180,7 +180,7 @@ def run_mean() -> tuple[list[str], list[pd.DataFrame]]:
             )
             _write(result, "mean", dataset, index)
             results[(dataset, index)] = result
-            lines.append(result.summary())
+            lines.append(result.summary(detail="full"))
     transfers = []
     for index in range(len(question["criteria"])):
         for alpha in PROTOCOL["alphas"]:
@@ -301,7 +301,7 @@ def run_rare() -> list[str]:
         "== rare, planted states in idr0028 (semi-synthetic; replays "
         f"{time.perf_counter() - started:.0f} s) =="
     )
-    return [heading, result.summary()]
+    return [heading, result.summary(detail="full")]
 
 
 def main(argv: list[str]) -> None:

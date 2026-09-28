@@ -31,8 +31,10 @@ development dataset: nothing here is a protocol.
 - **Objects or fields** (the Foundation, R4): ``fov_variability`` and ``object_rule_check``
   of the YAP/TAZ ratio, and the clustering by field of objects unusual against
   the MOCK wells (the full tables are written by ``objects_vs_fields.py``).
-- **The report** (``microscopist_report_idr0028.txt``,
-  ``sampling_profile_idr0028.csv``): all of the above, question by question.
+- **The report** (``microscopist_report_idr0028.txt``, the short form a user
+  reads first; ``microscopist_report_idr0028_full.txt``, every sentence and
+  number; ``sampling_profile_idr0028.csv``): all of the above, question by
+  question.
 
 Usage::
 
@@ -219,6 +221,9 @@ def sufficiency(objects, fovs, features):
         novelty_target=0.05,
         few_fovs=3,
         acquisition_order_col="acquisition_order",
+        # The order check beside every stop, as workflows.report runs it.
+        readout=RATIO,
+        stage_cols=STAGE,
         group_cols=GROUPS,
         observation_unit=OBSERVATION_UNIT,
     )
@@ -366,6 +371,9 @@ def main() -> None:
         redundancy=redundancy,
     )
     (RESULTS / "microscopist_report_idr0028.txt").write_text(report.summary() + "\n")
+    (RESULTS / "microscopist_report_idr0028_full.txt").write_text(
+        report.summary(detail="full") + "\n"
+    )
     report.profile.to_csv(RESULTS / "sampling_profile_idr0028.csv", index=False)
 
 
