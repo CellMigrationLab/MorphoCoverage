@@ -9,3 +9,4 @@ repeat,stratum,candidate,judged_new,candidates,not_judged,rate
 2A,repeat=2A,planted,360,360,0,1.0000
 2A,repeat=2A,reference_lofo,0,28,0,0.0000
 2A,repeat=2A,positive_lofo,28,28,0,1.0000
+2B,repeat=2B,reference_lofo,0,28,0,0.0000
