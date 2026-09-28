@@ -152,11 +152,14 @@ def test_p2_9_calibration_headlines_the_stops_not_preserved_with_bounds():
     assert "after a median of 4 fields (Monte Carlo SE" in text
 
 
-def test_p9_2_group_seeds_ignore_labels_and_shares_carry_their_monte_carlo_error():
-    assert group_seed(0, {"repeat": 1}) == group_seed(0, {"repeat": "1"}) == [0]
-    assert group_seed(3, {"well": "A1"}, 2) == [3, 2]
+def test_p9_2_retyped_labels_keep_their_draws_and_shares_carry_their_monte_carlo_error():
+    # Owner decision: seed by the labels written canonically, so a retyped label is the
+    # same group; other groups keep independent draws and never enter a group's seed.
+    assert group_seed(0, {"repeat": 1}) == group_seed(0, {"repeat": "1"})
+    assert group_seed(0, {"repeat": 1}) == group_seed(0, {"repeat": 1.0})
+    assert group_seed(3, {"well": "A1"}, 2)[::2] == [3, 2]
     first = group_rng(0, {"condition": "ctrl"}).permutation(12)
-    assert (group_rng(0, {"condition": "drug"}).permutation(12) == first).all()
+    assert not (group_rng(0, {"condition": "drug"}).permutation(12) == first).all()
     built = SCENARIOS["homogeneous"]()
     settings = {
         "feature_cols": list(FEATURE_COLS),
@@ -166,15 +169,23 @@ def test_p9_2_group_seeds_ignore_labels_and_shares_carry_their_monte_carlo_error
         "n_splits": 4,
         "draws": 10,
     }
-    result = sampling_reliability(built.objects, built.fovs, **settings)
-    renamed = sampling_reliability(
-        built.objects.assign(repeat="renamed"), built.fovs.assign(repeat="renamed"), **settings
+    numbered = {"R1": 1, "R2": 2, "R3": 3}
+
+    def retyped(table: pd.DataFrame, as_text: bool) -> pd.DataFrame:
+        labels = table["repeat"].map(lambda r: numbered.get(r, r))
+        return table.assign(repeat=labels.astype(str) if as_text else labels.astype(int))
+
+    as_numbers = sampling_reliability(
+        retyped(built.objects, False), retyped(built.fovs, False), **settings
+    )
+    as_text = sampling_reliability(
+        retyped(built.objects, True), retyped(built.fovs, True), **settings
     )
     columns = ["fovs", "preserved", "preserved_split_sd", "preserved_mc_se"]
-    pd.testing.assert_frame_equal(result.curve[columns], renamed.curve[columns])
-    row = result.curve.iloc[0]
+    pd.testing.assert_frame_equal(as_numbers.curve[columns], as_text.curve[columns])
+    row = as_numbers.curve.iloc[0]
     assert row["preserved_mc_se"] == pytest.approx(row["preserved_split_sd"] / 2)
-    assert "Monte Carlo SE" in result.summary()
+    assert "Monte Carlo SE" in as_numbers.summary()
 
 
 def test_p9_6_benchmark_warns_when_a_grid_does_not_bracket_the_data():

@@ -70,9 +70,8 @@ def test_groups_get_their_own_split_from_the_same_seed():
         held = split.split(group, group_data)[1]
         assert set(held.fovs["condition"]) == {group["condition"]}
         positions.append(tuple(sorted(held.fovs["image_file"])))
-    # Same image names in every group, and the same held-out positions: the seed does
-    # not depend on the group's labels (audit 4, P9-2), so renaming a group changes nothing.
-    assert len(set(positions)) == 1
+    # Same image names in every group, but not the same held-out positions.
+    assert len(set(positions)) > 1
 
 
 def test_blocks_are_held_out_with_equal_probability_whatever_their_size():
