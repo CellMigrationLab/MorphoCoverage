@@ -96,8 +96,11 @@ def test_few_independent_units_give_no_recommendation():
         strata=["condition"],
         n_boot=100,
     )
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "cannot tell from these data (only 3 repeats)" in text
+    short = " ".join(result.summary().split())
+    assert "Cannot tell whether more fields or more samples would help" in short
+    assert "only 3 repeats" in short
     assert not result.comparisons["resolved"].any()
     levels = result.components.set_index("level")
     assert list(levels.index) == ["repeat", "well", "image_file", "observation"]
@@ -120,8 +123,11 @@ def test_a_dominant_between_sample_component_favours_more_samples():
     comparisons = result.comparisons.set_index("samples")
     assert comparisons.loc[24, "resolved"] and comparisons.loc[24, "ratio"] < 1
     assert comparisons.loc[6, "resolved"] and comparisons.loc[6, "ratio"] > 1
-    assert "24 samples of about 4 fields would give a" in result.summary()
-    assert "Most of the uncertainty of the mean is between samples" in result.summary()
+    full = " ".join(result.summary(detail="full").split())
+    assert "24 samples of about 4 fields would give a" in full
+    assert "Most of the uncertainty of the mean is between samples" in full
+    assert "24 samples of about 4 fields" in result.summary()
+    assert "between samples" in result.summary()
 
 
 def test_fields_without_observations_count_as_acquired_effort():
@@ -170,7 +176,9 @@ def test_one_observation_per_field_is_reported_clearly():
     )
     assert result.components.empty
     assert "single observation" in result.skipped["reason"].iloc[0]
-    assert "Not estimable: every FOV holds a single observation" in result.summary()
+    for detail in ("short", "full"):
+        text = " ".join(result.summary(detail=detail).split())
+        assert "Not estimable: every FOV holds a single observation" in text
 
 
 def test_invalid_declarations_are_refused():
@@ -209,6 +217,8 @@ def test_invalid_declarations_are_refused():
     assert result.components["repeat_dropped"].all()
     assert (result.components["unit"] == "well").all()
     assert result.components["units"].iloc[0] == 3  # W0 of R0, R1 and R2 are three samples
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "Every repeat holds a single sample here" in text
     assert "cannot tell from these data (only 3 samples)" in text
+    short = " ".join(result.summary().split())
+    assert "Every repeat holds a single sample here" in short and "only 3 samples" in short

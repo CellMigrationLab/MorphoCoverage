@@ -555,7 +555,8 @@ def test_a_technical_repeat_column_derives_the_hierarchy_and_ranks_the_features(
     assert "effort" in plan.results and "protocol" in plan.results
     effort = plan.results["effort"]
     assert set(effort.components["stratum"]) == {"condition=control", "condition=drug"}
-    assert "more fields or more technical repeats, for the mean" in plan.summary()
+    assert "more fields or more technical repeats, for the mean" in plan.summary(detail="full")
+    assert "more fields or technical repeats?" in plan.summary()
     assert "7. More fields or more samples?" in plan.summary()
 
 

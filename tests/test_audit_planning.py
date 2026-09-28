@@ -25,6 +25,11 @@ from morphocoverage.retrospective.frontier import family, frontier
 from morphocoverage.retrospective.frontier_text import _setting
 
 
+def _full(result):
+    """The full summary with its line breaks as spaces (the text is wrapped)."""
+    return " ".join(result.summary(detail="full").split())
+
+
 def test_f1_unequal_fields_weigh_the_field_term_by_their_cluster_size():
     # 10 fields of 2 cells and 2 of 100: N = 220, sum n^2 = 20040.
     sizes = np.array([2] * 10 + [100] * 2, dtype=float)
@@ -89,8 +94,11 @@ def test_f3_no_alternative_at_the_same_total_is_not_called_an_overlap():
         allocations=[(6, 20)],
         n_boot=20,
     )
-    assert "no allocation compared has the acquired total of fields" in result.summary()
-    assert "overlap" not in result.summary()
+    assert "no allocation compared has the acquired total of fields" in _full(result)
+    assert "no allocation compared has the acquired total of fields" in " ".join(
+        result.summary().split()
+    )
+    assert "overlap" not in _full(result) and "overlap" not in result.summary()
 
 
 def test_f4_checks_that_could_not_be_judged_are_counted_not_printed_as_nan():
@@ -152,10 +160,13 @@ def test_f6_order_medians_are_over_the_same_runs():
 def test_f7_f12_one_unit_and_half_field_medians_are_stated_plainly():
     one = {("P1", "A1"): {5: 0.95, 10: 0.99}, ("P1", "A2"): {5: 0.8, 10: 0.95}}
     text = protocol_reliability(_curve(one), HIERARCHY, threshold=0.9, strata=["condition"])
-    text = text.summary()
+    short = " ".join(text.summary().split())
+    text = _full(text)
     assert "With a single plate, no number can be chosen on other plates" in text
     assert "the others reached no number" not in text
     assert "median 7.5, range 5–10" in text
+    assert "with a single plate, no number can be chosen on other plates" in short
+    assert "7.5 (5-10)" in short
 
 
 def test_f8_f14_frontier_refuses_foreign_replays_and_says_when_there_is_no_interval():
@@ -197,6 +208,7 @@ def test_f16_a_technical_repeat_is_named_as_such_in_the_protocol():
         {"labels": {"mean": "the mean"}},
     )
     hierarchy = SamplingHierarchy("image_file", "technical_repeat", "repeat")
-    text = protocol_reliability(curve, hierarchy, threshold=0.9, strata=["condition"]).summary()
-    assert "fields per technical repeat" in text and "3 technical repeats in 2 repeats" in text
-    assert "technical_repeat" not in text
+    result = protocol_reliability(curve, hierarchy, threshold=0.9, strata=["condition"])
+    for text in (_full(result), " ".join(result.summary().split())):
+        assert "ields per technical repeat" in text and "3 technical repeats in 2 repeats" in text
+        assert "technical_repeat" not in text

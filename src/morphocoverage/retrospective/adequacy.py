@@ -27,9 +27,10 @@ The apparent points use only decisions, the realized points only outcomes;
 they are never mixed. Realized points depend on the order of FOVs, never on
 the strategy. Realized points are reported for all criteria together
 (``ALL_CRITERIA``) and for each criterion on its own. The summary names the
-groups the replay skipped (``ReplayResult.skipped``).
+groups the replay skipped (``ReplayResult.skipped``); its wording, short and
+full, is ``adequacy_text``.
 
-Shared-private: ``_unjudged`` (used by ``spatial``).
+Shared-private: ``_unjudged`` (used by ``spatial``), re-exported from ``adequacy_text``.
 """
 
 from __future__ import annotations
@@ -38,14 +39,19 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
-from ._text import median_beyond, number, order_phrase, rows_of, skipped_lines, where
+from .adequacy_text import (  # noqa: F401  (the point helpers, re-exported for their callers)
+    ALL_CRITERIA,
+    _median_point,
+    _reached,
+    _tail_point,
+    _unjudged,
+    adequacy_summary,
+)
 from .criteria import Preservation
 from .replay import ReplayResult
 
-ALL_CRITERIA = "all criteria"
 _STOP = "stop"
 _RUN_KEYS = ("split", "order_id")
 
@@ -143,9 +149,10 @@ class AdequacyResult:
     settings: dict[str, Any] = field(default_factory=dict)
     skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
-    def summary(self) -> str:
-        """The points in sentences, one block per group."""
-        return adequacy_summary(self)
+    def summary(self, detail: str = "short") -> str:
+        """The points in words: ``"short"`` tables across groups, ``"full"`` per group
+        (``adequacy_text``)."""
+        return adequacy_summary(self, detail)
 
 
 def _keyed(frame: pd.DataFrame, keys: list[str]) -> pd.core.groupby.DataFrameGroupBy:
@@ -253,138 +260,6 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
         dict(replay.settings),
         skipped=replay.skipped.copy(),
     )
-
-
-def _median_point(values: pd.Series, streams: pd.Series) -> str:
-    """The median over runs as "field 12"; a run that never reached it counts as beyond its own
-    stream, so the median is "not reached" when half or more of the runs never reached it.
-    """
-    median = median_beyond(values)
-    if median is None:
-        return (
-            f"not within the fields available (up to {int(streams.max())}) in half or more of runs"
-        )
-    return f"field {number(median)}"
-
-
-def _tail_point(values: pd.Series, streams: pd.Series) -> str:
-    """The 90th percentile over runs, the number a protocol has to serve.
-
-    Taken as an observed field count (the smallest one reached by at least
-    90% of runs), never interpolated between runs, so "by field k in 90% of
-    runs" is true of the runs; a run that never reached it counts as beyond
-    its stream.
-    """
-    filled = values.astype("Float64").to_numpy(dtype=float, na_value=np.inf)
-    tail = float(np.quantile(filled, 0.9, method="inverted_cdf"))
-    if not np.isfinite(tail):
-        limit = int(streams.max())
-        return f"not within the fields available (up to {limit}) in more than 10% of runs"
-    return f"by field {int(tail)} in 90% of runs"
-
-
-def _reached(point: str, reached: str, missed: str) -> str:
-    """``reached`` followed by the point, or ``missed`` in its place when it was not reached:
-    "first preserved at field 3", "not preserved within the fields available (up to 11) ..."."""
-    if point.startswith("not"):
-        return f"{missed} {point.removeprefix('not ')}"
-    return f"{reached} {point}"
-
-
-def _unjudged(rows: pd.DataFrame) -> pd.Series:
-    """Runs in which no prefix could be judged (every outcome undefined)."""
-    if "judged_fovs" not in rows.columns:
-        return pd.Series(False, index=rows.index)
-    return rows["judged_fovs"].fillna(0).astype(int).eq(0)
-
-
-def _tail_unjudged(rows: pd.DataFrame) -> pd.Series:
-    """Judged runs whose last fields could not be judged, so 'reliably' was not confirmed."""
-    if "last_judged" not in rows.columns:
-        return pd.Series(False, index=rows.index)
-    last = rows["last_judged"].astype("Float64")
-    return (last.notna() & (last < rows["stream_fovs"].astype(float))).fillna(False).astype(bool)
-
-
-def _realized_sentence(rows: pd.DataFrame) -> str:
-    """When everything wanted was first, and reliably, preserved over the judged runs."""
-    unjudged = _unjudged(rows)
-    if unjudged.all():
-        return (
-            "judged on held-back fields, what you wanted could not be judged at any field count "
-            "(the outcome was undefined in every run)."
-        )
-    rows = rows[~unjudged]
-    stream = rows["stream_fovs"]
-    first = _median_point(rows["first_realized"], stream)
-    lasting = _median_point(rows["sustained_realized"], stream)
-    tail = _tail_point(rows["sustained_realized"], stream)
-    if first.startswith("not"):
-        text = f"everything you wanted was not preserved {first.removeprefix('not ')}"
-    else:
-        text = (
-            f"everything you wanted was first preserved at {first} and "
-            f"{_reached(lasting, 'reliably from', 'not reliably')}"
-        )
-    skipped = (
-        f"; {int(unjudged.sum())} of {len(unjudged)} runs could not be judged and are left out"
-        if unjudged.any()
-        else ""
-    )
-    cut = _tail_unjudged(rows)
-    if cut.any():
-        skipped += (
-            f"; in {int(cut.sum())} of {len(cut)} runs the last fields could not be judged, "
-            "so it was not confirmed reliably there"
-        )
-    return f"judged on held-back fields, {text} (medians; {tail}{skipped})."
-
-
-def adequacy_summary(result: AdequacyResult) -> str:
-    """Per group: when rules would have stopped and when held-back fields confirmed it."""
-    keys = list(result.group_cols)
-    labels = result.settings.get("labels", {})
-    names = result.settings.get("strategy_names", {})
-    blocks = []
-    frames = [result.apparent[keys], result.realized[keys]]
-    all_groups = pd.concat(frames).drop_duplicates() if keys else pd.DataFrame([{}])
-    if keys and all_groups.empty:
-        all_groups = pd.DataFrame(columns=keys)
-    for _, group_row in all_groups.iterrows():
-        group = {k: group_row[k] for k in keys}
-        apparent, realized = rows_of(result.apparent, group), rows_of(result.realized, group)
-        lines = [f"{where(group)}: when was it enough? (medians over hold-outs and orders)"]
-        for order, rows in realized[realized["criterion"] == ALL_CRITERIA].groupby("order"):
-            lines.append(f"  {order_phrase(order, capital=True)}: {_realized_sentence(rows)}")
-            if len(labels) > 1:
-                for criterion, own in realized[
-                    (realized["order"] == order) & (realized["criterion"] != ALL_CRITERIA)
-                ].groupby("criterion", sort=False):
-                    label = labels.get(criterion, criterion)
-                    judged = own[~_unjudged(own)]
-                    if judged.empty:
-                        lines.append(f"    {label}: could not be judged in any run.")
-                        continue
-                    point = _median_point(judged["sustained_realized"], judged["stream_fovs"])
-                    reached = _reached(point, "reliably from", "not reliably")
-                    lines.append(f"    {label}: {reached}.")
-            for config_id, own in apparent[apparent["order"] == order].groupby("config_id"):
-                name = names.get(config_id, own["strategy"].iloc[0])
-                first = _median_point(own["first_apparent"], own["stream_fovs"])
-                lasting = _median_point(own["sustained_apparent"], own["stream_fovs"])
-                said = _reached(first, "would have first said stop at", "would not have said stop")
-                if not first.startswith("not"):
-                    said += ", and " + _reached(
-                        lasting, "kept saying stop from", "not kept saying stop"
-                    )
-                lines.append(f"    {name} {said}.")
-        lines.append(
-            "  'Reliably' means every later field count, up to the last available field, also "
-            "preserved it; each hold-out is a different set of held-back fields."
-        )
-        blocks.append("\n".join(lines))
-    blocks += skipped_lines(result.skipped, keys)
-    return "\n\n".join(blocks)
 
 
 __all__ = [

@@ -387,7 +387,8 @@ def test_g14_projections_assume_the_same_share_of_fields_would_be_empty_again():
         strata=["condition"],
         n_boot=20,
     )
-    assert "the same share would be empty again." in result.summary()
+    assert "the same share would be empty again." in " ".join(result.summary().split())
+    assert "the same share would be empty again." in " ".join(result.summary(detail="full").split())
 
 
 def test_g15_the_closing_notes_do_not_point_below():

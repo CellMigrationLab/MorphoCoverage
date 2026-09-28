@@ -148,9 +148,10 @@ class EffortResult:
     settings: dict[str, Any] = field(default_factory=dict)
     skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
-    def summary(self) -> str:
-        """Where the uncertainty is, and whether more fields or more samples would help."""
-        return effort_summary(self)
+    def summary(self, detail: str = "short") -> str:
+        """Where the uncertainty is, and whether more fields or more samples would help:
+        ``"short"`` one table over the strata, ``"full"`` per stratum (``effort_text``)."""
+        return effort_summary(self, detail)
 
 
 def _levels(hierarchy: SamplingHierarchy) -> list[str]:
