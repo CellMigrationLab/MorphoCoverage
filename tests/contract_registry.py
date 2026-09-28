@@ -110,6 +110,7 @@ METRIC_IDS = [metric.name for metric in METRICS_UNDER_CONTRACT]
 # Every feature transform added to the package must be added here.
 TRANSFORMS_UNDER_CONTRACT: list[transforms.FeatureTransform] = [
     transforms.Standardize(),
+    transforms.RobustStandardize(),
     transforms.PCA(1),
     transforms.Chain([transforms.Standardize(), transforms.PCA(2)]),
 ]

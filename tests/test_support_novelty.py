@@ -142,7 +142,9 @@ def test_insufficient_and_not_applicable_cases():
 
 def test_strategy_stops_once_novelty_is_within_tolerance():
     built = SCENARIOS["homogeneous"]()
-    strategy = SupportNoveltyStrategy(0.5, 0.02, 1, Standardize(), 3)
+    strategy = SupportNoveltyStrategy(
+        0.5, 0.02, 1, Standardize(), 3, quantity="lofo_novel_fraction"
+    )
     results = evaluate_acquisition_prefixes(
         built.objects,
         built.fovs,
@@ -186,7 +188,7 @@ def test_parameters_are_serializable_provenance():
         "min_fovs": 3,
         "min_novel_observations": 1,
         "confidence": 0.95,
-        "quantity": "lofo_novel_fraction",
+        "quantity": "lofo_novel_fov_upper",  # the default since audit 4 (P4-10)
         "tolerance": 0.05,
     }
     assert strategy.config_id != SupportNoveltyStrategy(0.3, 0.05, 2, Standardize(), 3).config_id

@@ -24,6 +24,7 @@ in sentences, which the report prints first.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -54,19 +55,29 @@ from ..schema import resolve_observation_unit, unit_plural
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator, SupportNoveltyStrategy
 from ..strategies.base import SamplingStrategy
 from ..strategies.support_novelty import UPPER_QUANTITY
-from ..transforms import Standardize
+from ..transforms import RobustStandardize, Standardize
 from ._declaration import declaration
+
+# From this many features on, a radius of sqrt(d) links too few objects of a state.
+MANY_NOVELTY_FEATURES = 8
 
 
 def default_novelty(features: Sequence[str]) -> SupportNoveltyEstimator:
     """The definition of "new" used in ``docs/preliminary_findings.md`` (entries 2, 3, 6).
 
-    Standardized features, a radius of ``sqrt(len(features))``, support from
-    one other FOV, clusters of at least 3 unsupported objects, 5 FOVs before
-    any estimate. It was chosen on idr0028 (development data): call it
-    explicitly, and check it with ``representation_control`` on your data.
+    Robustly standardized features (``RobustStandardize``: median and MAD, so
+    a few extreme objects such as clumps or debris cannot widen the scale and
+    hide a new state elsewhere), a radius of ``sqrt(len(features))``, support
+    from one other FOV, clusters of at least 3 unsupported objects, 5 FOVs
+    before any estimate. It was chosen on idr0028 (development data) with the
+    mean and SD, robust since audit 4: call it explicitly, and check it with
+    ``representation_control`` on your data.
+
+    A state's observations must be linked by steps of at most ``sqrt(d)``,
+    though two of a state varying by one SD per feature sit ``sqrt(2 d)``
+    apart: with 8 or more features ``Setup`` warns (reduce the dimension).
     """
-    return SupportNoveltyEstimator(float(np.sqrt(len(features))), 1, Standardize(), 5, 3)
+    return SupportNoveltyEstimator(float(np.sqrt(len(features))), 1, RobustStandardize(), 5, 3)
 
 
 @dataclass(frozen=True)
@@ -273,6 +284,7 @@ class Setup:
             )
         self._check_presets()
         self._check_few_fovs()
+        self._warn_novelty_dimension()
         undeclared = sorted(set(self.criterion_columns) - set(self.columns))
         if undeclared:
             raise ValueError(
@@ -324,6 +336,23 @@ class Setup:
         object.__setattr__(self, "random_state", check_seed(self.random_state))
         check_n_jobs(self.n_jobs)
         object.__setattr__(self, "n_jobs", int(self.n_jobs))
+
+    def _warn_novelty_dimension(self) -> None:
+        """Warn when a standardization alone defines "new" on many features (P6-3)."""
+        d = len(self.features)
+        novelty = self.novelty
+        if novelty is None or d < MANY_NOVELTY_FEATURES:
+            return
+        if isinstance(novelty.transform, (Standardize, RobustStandardize)):
+            warnings.warn(
+                f"novelty is judged on {d} standardized features at distance "
+                f"{novelty.epsilon:g}, but two observations of a state varying by one SD per "
+                f"feature sit about {np.sqrt(2 * d):.1f} apart, so small, ordinarily variable "
+                "states are often missed: reduce the dimension (Chain([RobustStandardize(), "
+                "PCA(k)])) or declare fewer features",
+                UserWarning,
+                stacklevel=3,
+            )
 
     def _check_few_fovs(self) -> None:
         if self.few_fovs is None:

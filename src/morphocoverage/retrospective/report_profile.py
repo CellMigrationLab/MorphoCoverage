@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 
 from .._wording import number, percent
-from ..bounds import upper_bound
+from ..bounds import lower_bound, upper_bound
 from ..sufficiency import SufficiencyReport
 from ._text import unit_plural
 from .controls import ControlResult
@@ -86,22 +86,45 @@ def _groups(columns: Sequence[str]) -> str:
     return f"the groups {', '.join(columns)}" if len(columns) else "whole strata"
 
 
+def _detection(controls: ControlResult) -> tuple[str, int, int] | None:
+    """The detection rate the unseen-state bound is adjusted by: kind, recognized, checks.
+
+    With ``planted_objects`` declared, the rate of planted objects in ordinary
+    reference fields (``planted_lofo``): the bound is about a state not yet
+    seen, which a whole-field phenotype does not stand for (P6-4). Otherwise,
+    or when no planting could be judged, the whole positive fields
+    (``positive_lofo``).
+    """
+    rates = controls.pooled.set_index("candidate")
+    planted = (getattr(controls, "settings", {}) or {}).get("control", {}) or {}
+    kinds = ["planted_lofo", "positive_lofo"] if planted.get("planted_objects") else []
+    for kind in kinds or ["positive_lofo"]:
+        if kind in rates.index and int(rates.loc[kind, "candidates"]) > 0:
+            return kind, int(rates.loc[kind, "judged_new"]), int(rates.loc[kind, "candidates"])
+    return None
+
+
 def _detection_adjusted_bounds(
     sufficiency: SufficiencyReport, controls: ControlResult | None
 ) -> str | None:
-    """The unseen-state bound divided by the declared control's detection rate.
+    """The unseen-state bound divided by the low end of the control's detection rate.
 
     The rule-of-three bound holds for states this definition would detect in
-    every FOV that has them. A phenotype recognized like the declared
-    positive control, in a share ``d`` of the fields that show it, is seen
-    with probability ``d * f`` per FOV when present in a share ``f``, so the
-    same run of FOVs with nothing new bounds ``f`` at ``bound / d`` (at most 1),
-    assuming detection is independent between fields. ``d`` is the rate of
-    positive fields judged against the reference fields of an analysis group
-    (``positive_lofo``), as the bound is about fields judged against the other
-    fields of their group; it needs a positive control only, so it is given
-    under "positive only" too. It is not given when the sufficiency report
-    records another definition of new or other analysis groups.
+    every FOV that has them. A phenotype recognized like the declared control,
+    in a share ``d`` of the fields that show it, is seen with probability
+    ``d * f`` per FOV when present in a share ``f``, so the same run of FOVs
+    with nothing new bounds ``f`` at ``bound / d`` (at most 1), assuming
+    detection is independent between fields. ``d`` is judged as the bound
+    judges fields, against the other fields of an analysis group: the rate
+    of planted positive objects in ordinary reference fields
+    (``planted_lofo``) when ``planted_objects`` is declared, else of whole
+    positive fields (``positive_lofo``), which holds for whole-field
+    phenotypes only, and the text says so. The bound is divided by the
+    one-sided Clopper-Pearson lower bound of ``d`` at the bound's confidence,
+    not by its point estimate, which with few control fields let the
+    adjusted bound exceed its level (P3-9). It needs a positive control only,
+    so it is given under "positive only" too, and it is not given when the
+    sufficiency report records another definition of new or other groups.
     """
     if controls is None or controls.status == "not assessed" or sufficiency.next_fov.empty:
         return None
@@ -112,37 +135,60 @@ def _detection_adjusted_bounds(
     )
     if different is not None:
         return f"The unseen-state bound is not adjusted for detection: {different}."
-    detection = _control_rate(controls, "positive_lofo")
-    if detection is None:
+    measured = _detection(controls)
+    if measured is None:
         return (
             "The unseen-state bound is not adjusted for detection: the declared positive "
             "control could not be judged against the reference fields of an analysis group."
         )
-    if detection <= 0:
+    kind, recognized, checks = measured
+    if recognized == 0:
         return (
             "The declared positive control was never recognized against the reference fields "
             "of an analysis group, so the unseen-state bound says nothing about a phenotype "
             "seen like it."
         )
-    keys = list(sufficiency.group_cols)
+    frame = sufficiency.next_fov
+    confidence = float(frame["confidence"].iloc[0]) if "confidence" in frame else _CONFIDENCE
+    detection, low = recognized / checks, lower_bound(recognized, checks, confidence)
+    if kind == "planted_lofo":
+        planted = controls.settings["control"]["planted_objects"]
+        what = (
+            f"for {planted} planted positive-control objects: {percent(detection)} of ordinary "
+            "reference fields with them recognized against the other reference fields of "
+            "their analysis group"
+        )
+        scope = ""
+    else:
+        what = (
+            f"{percent(detection)} of its fields recognized against the reference fields of an "
+            "analysis group"
+        )
+        scope = (
+            "  This holds for whole-field phenotypes like the control only: a small state in "
+            "an ordinary field is recognized less often (declare planted_objects to measure it)."
+        )
     heading = (
-        f"Adjusted for the declared control's detection rate ({percent(detection)} of its "
-        "fields recognized against the reference fields of an analysis group): a phenotype "
-        "seen as well as the control, and shown by no FOV yet, could still be in"
+        f"Adjusted for the declared control's detection rate ({what}; at least {percent(low)} "
+        f"at {percent(confidence)} confidence, of {checks} checks): a phenotype seen as well "
+        "as the control, and shown by no FOV yet, could still be in"
     )
     lines = [heading]
-    for row in sufficiency.next_fov.itertuples(index=False):
+    keys = list(sufficiency.group_cols)
+    for row in frame.itertuples(index=False):
         bound = row.unseen_state_max_frequency
         if bound is None or pd.isna(bound):
             continue
-        adjusted = min(1.0, float(bound) / detection)
+        adjusted = min(1.0, float(bound) / low)
         label = ", ".join(f"{k}={getattr(row, k)}" for k in keys) or "all FOVs (pooled)"
         lines.append(
             f"  {label}: up to {percent(adjusted)} of FOVs (the {percent(float(bound))} "
-            f"bound above divided by {percent(detection)}), if detection is independent "
+            f"bound above divided by {percent(low)}), if detection is independent "
             "between fields."
         )
-    return "\n".join(lines) if len(lines) > 1 else None
+    if len(lines) == 1:
+        return None
+    return "\n".join([*lines, scope] if scope else lines)
 
 
 def _variability_rows(variability: FOVVariability | None, observations: str) -> list[dict]:
@@ -196,8 +242,13 @@ def _clustering_rows(clustering: FOVClustering | None, observations: str) -> lis
             f"{clustering.state_name(state)}: clustered in a few fields (p <= 0.05) in "
             f"{len(clustered)} of the {len(seen)} groups where it was seen"
         )
-        if len(clustered):
-            factor = clustered["fovs_needed"] / clustered["fovs_needed_if_random"]
+        # Fields holding the state (at least m of its objects, for unusual labels);
+        # a group where no field holds it has no field count to compare.
+        factor = (
+            pd.to_numeric(clustered["fovs_needed"], errors="coerce")
+            / pd.to_numeric(clustered["fovs_needed_if_random"], errors="coerce")
+        ).dropna()
+        if len(factor):
             statement += (
                 f"; there, seeing it takes about {factor.median():.1f} times the fields "
                 f"that a count of {observations} predicts"
@@ -250,6 +301,14 @@ def _representation_rows(controls: ControlResult | None, observations: str) -> l
             (
                 "checks of a positive-control field against the reference fields of an "
                 f"analysis group{within} recognized as different"
+            ),
+        ),
+        (
+            "planted_lofo",
+            "representation, as inspect_fovs judges",
+            (
+                f"reference fields with planted positive-control {observations} recognized "
+                f"against the other reference fields of their analysis group{within}"
             ),
         ),
     ):

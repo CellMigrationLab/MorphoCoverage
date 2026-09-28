@@ -13,6 +13,7 @@ from scenarios import FEATURE_COLS, ORDER_COL, SCENARIOS
 
 from morphocoverage import FixedFOVStrategy, ObjectiveConfig, SamplingObjective
 from morphocoverage.benchmark import AcquisitionOrder
+from morphocoverage.bounds import lower_bound
 from morphocoverage.outcomes import RelativeMeanError
 from morphocoverage.retrospective import (
     OutcomeCriterion,
@@ -556,10 +557,13 @@ def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
 def test_the_unseen_state_bound_is_divided_by_the_controls_detection_rate():
     controls, sufficiency = _weak_control_report()
     # The rate against every reference field, as the bound judges fields (audit 2, G-13).
-    detection = float(controls.pooled.set_index("candidate")["rate"]["positive_lofo"])
+    row = controls.pooled.set_index("candidate").loc["positive_lofo"]
+    detection = float(row["rate"])
     bound = float(sufficiency.next_fov["unseen_state_max_frequency"].iloc[0])
     section = microscopist_report(controls=controls, sufficiency=sufficiency).sections["enough"]
-    adjusted = min(1.0, bound / detection)
+    # Audit 4 (P3-9): divided by the rate's one-sided lower bound, not its point estimate.
+    low = lower_bound(int(row["judged_new"]), int(row["candidates"]), 0.95)
+    adjusted = min(1.0, bound / low)
     assert f"Adjusted for the declared control's detection rate ({100 * detection:.0f}%" in section
     assert (
         f"up to {100 * adjusted:.0f}% of FOVs (the {100 * bound:.0f}% bound above divided by"

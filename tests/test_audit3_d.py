@@ -166,7 +166,8 @@ def test_d_7_a_label_names_the_metric_and_the_default_name_is_unchanged():
 def test_d_8_zero_tolerance_on_the_upper_bound_is_refused():
     with pytest.raises(ValueError, match="never reached"):
         SupportNoveltyStrategy(1.0, 0.0, 1, None, 2, quantity=UPPER_QUANTITY)
-    SupportNoveltyStrategy(1.0, 0.0, 1, None, 2)  # the observed fraction can reach 0
+    # the observed fraction can reach 0 (audit 4, P4-10: the default is now the bound)
+    SupportNoveltyStrategy(1.0, 0.0, 1, None, 2, quantity="lofo_novel_fraction")
 
 
 def test_d_9_numpy_integers_are_accepted_and_stored_as_python_ints():
