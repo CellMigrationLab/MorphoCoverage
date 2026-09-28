@@ -84,29 +84,46 @@ from ..metadata import (
     resolve_identity_cols,
 )
 from ..online import OnlineSession
+from ..order_check import OrderCheck
 from ..results import Decision, StrategyResult, decision_view
 from ..strategies.base import SamplingStrategy
+from ._live_order import _CheckedSession, _order_check
 from ._manifest import MANIFEST, OBJECTS_DIR, OBJECTS_FILE, ManifestReader, write_fov
 from .setup import Setup
 
 
 def live_session(setup: Setup, rules: tuple[SamplingStrategy, ...] | None = None) -> OnlineSession:
-    """An ``OnlineSession`` for ``rules`` (default: the setup's rules) on the setup's columns."""
+    """An ``OnlineSession`` for ``rules`` (default: the setup's rules) on the setup's columns.
+
+    The session also checks the acquisition order of each group's fields so
+    far (``order_check``: the readout against ``acquisition_order_col``,
+    neighbouring fields by ``stage_cols``), and ``LiveFolder``/``LiveTables``
+    print the check's caution beside every stop; without either column, the
+    stop states that it treats the fields as a random sample of the well's
+    positions. The check flags; it never changes a decision.
+    """
     if not isinstance(setup, Setup):
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
-    return OnlineSession(
+    return _CheckedSession(
         strategies=list(setup.stopping_rules() if rules is None else rules),
         feature_cols=setup.columns,
         objective=setup.objective(),
         fov_col=setup.fov_col,
         group_cols=None if setup.group_cols is None else list(setup.group_cols),
         observation_unit=setup.observation_unit,
+        readout=setup.readout,
+        acquisition_order_col=setup.acquisition_order_col,
+        stage_cols=setup.stage_cols,
     )
 
 
 @dataclass(frozen=True)
 class LiveUpdate:
-    """One field added to the session: its metadata, object count and the rules' results."""
+    """One field added to the session: its metadata, object count and the rules' results.
+
+    ``order_check`` is the acquisition-order check of the field's group so far
+    (``live_session``), or ``None`` when none was run.
+    """
 
     fov_metadata: dict[str, Any]
     n_objects: int
@@ -114,15 +131,20 @@ class LiveUpdate:
     read_seconds: float
     pending_objects: int = 0
     observation_unit: str = "object"
+    order_check: OrderCheck | None = None
 
     def summary(self) -> str:
-        """One line per rule (the decision and why), then one view per target."""
+        """One line per rule (the decision and why), then one view per target.
+
+        Beside every stop, what it rests on: the order check's caution, or the
+        assumption that the fields are a random sample of the well's positions.
+        """
         where = ", ".join(f"{k}={v}" for k, v in self.fov_metadata.items() if k != OBJECTS_FILE)
         objects = count(self.n_objects, self.observation_unit)
         head = f"{where}: {objects} (read in {1000 * self.read_seconds:.0f} ms)"
-        lines = [head, *(f"  {r.explain()}" for r in self.results)]
+        lines = [head, *(f"  {r.explain(self.order_check)}" for r in self.results)]
         if self.results:
-            lines.append(f"  {decision_view(self.results)}")
+            lines.append(f"  {decision_view(self.results, self.order_check)}")
         if self.pending_objects:
             unit = self.observation_unit
             waiting = (
@@ -273,6 +295,7 @@ class LiveFolder:
             results,
             read,
             observation_unit=self.session.observation_unit,
+            order_check=_order_check(self.session, results),
         )
 
     def watch(
@@ -505,6 +528,7 @@ class LiveTables:
                 read,
                 self.pending_objects,
                 self.session.observation_unit,
+                _order_check(self.session, results),
             )
             updates.append(update)
             self.updates.append(update)

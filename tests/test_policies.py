@@ -240,7 +240,12 @@ def test_decision_view_shows_every_target_and_the_overall():
     view = decision_view(
         [_result(POPULATION, population_cv=0.5), _result(POPULATION, distribution_se=0.5)]
     )
-    assert view.endswith("Overall (population objective): stop")
+    # An overall stop says what it rests on (audit 4, Q2): without an order check,
+    # the fields as a random sample of the well's positions.
+    assert view.endswith(
+        "Overall (population objective): stop; treats the fields as a random sample of the "
+        "well's positions; a raster over a spatial trend can stop early"
+    )
     with pytest.raises(ValueError, match="one objective"):
         decision_view([mean, _result(POPULATION, population_cv=0.5)])
 

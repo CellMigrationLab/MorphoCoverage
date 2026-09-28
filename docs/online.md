@@ -114,17 +114,27 @@ Contract tests require incremental replay to agree with full recomputation.
 Every `StrategyResult` has `explain()`: one line with the decision, each
 policy's rule beside its evidence, and the effort, for example
 `stop: lofo_novel_fov_upper = 0.24 (stop at <= 0.25, distribution); after 11
-FOVs, 1100 cells`. When the rule cannot settle the session's objective (a
-novelty rule under the population objective, a JCB rule under the phenotype
-objective) the line says `unsupported (the rule itself: continue): ...`, so
-the rule's own verdict is never hidden behind the objective's.
+FOVs, 1100 cells; treats the fields as a random sample of the well's
+positions; a raster over a spatial trend can stop early`. Every stop ends with
+what it rests on (see [Acquisition order](#acquisition-order-random-or-dispersed)),
+and a rule that treats objects as independent draws (the JCB rule per object)
+says so. When the rule decides some of the objective's targets but not all (a
+JCB rule under a declared rare target) the line says
+`stop (decides the population summary only): ...`; when it decides none of
+them (a novelty rule under the population objective) it says
+`unsupported (the rule itself: continue): ...`, so the rule's own verdict is
+never hidden behind the objective's.
 
 Several rules on one acquisition state are read together with
 `morphocoverage.results.decision_view(results)`: one entry per target
 (population summary, phenotypic fingerprint, rare phenotype), the decision
-combined over the rules that decide it, then the overall decision for the
-objective; a required target no rule decides is printed as such and keeps the
-overall at `unsupported`. `LiveUpdate.summary()` ends with that line
+combined over the rules that decide it and the criteria that decided it,
+then the overall decision for the objective; a required target no rule
+decides is printed as such and keeps the overall at `unsupported`. The JCB
+criterion is named as what it is: an averaging CV of 5% is one standard error
+of 5% of the mean (the paper's criterion), not a bound of ±5% on the mean's
+error; whether the mean was within the declared tolerances is judged on
+held-back fields by `report` and `optimise`. `LiveUpdate.summary()` ends with that line
 (`docs/questions.md`, O4). `live_session(setup)` runs under
 `setup.objective()`, whose components are the declared targets. Read the quantity, not only the word: with nothing new among `k`
 FOVs the novelty bound is `1 - 0.05 ** (1 / k)` whatever the data, so a stop
@@ -132,6 +142,46 @@ on it after 11 FOVs is a statement about the next field, not about rare
 states (`docs/preliminary_findings.md`, entry 3). A rule's threshold is its
 own; whether its stops were premature is the retrospective calibration
 (`morphocoverage.retrospective.stopping_calibration`).
+
+## Acquisition order: random or dispersed
+
+Every stopping rule reads the fields seen so far as a random sample of the
+well's positions. A raster that tiles the well row by row breaks that when
+the readout follows a spatial trend (a gradient, an edge, an empty region) or
+drifts over the acquisition: the first rows look settled, and the default JCB
+pair can say stop after one or two rows while the well's mean is far off. In
+audit 4 (a 10 x 10 well, a gradient of ±20%), the overall stop was more than
+5% off in every raster run, against 16% of runs with the same wells in random
+order; a rare state confined to the last rows was declared ruled out in every
+raster run before the raster reached it, and in no random-order run.
+
+**Acquire fields in a random or dispersed order** (for example a random
+permutation of the planned positions, or a farthest-point order of them,
+`morphocoverage.retrospective.stage.dispersed_order`); that makes the rules' premise true instead of hoping
+it holds.
+
+`live_session(setup)` also checks the fields of each group so far, and
+`LiveUpdate.summary()` prints the result beside every stop, in each rule's
+line and after the overall decision:
+
+- with `Setup.acquisition_order_col`, a trend of the field means of the
+  readout with acquisition order (Spearman);
+- with `Setup.stage_cols`, alike means in neighbouring fields (Moran's I,
+  neighbours within 1.5 times the median nearest-neighbour distance, a
+  permutation p-value with a fixed seed), and beside a rare-phenotype stop the
+  stage region the fields have covered (in the report: the share of the
+  acquired fields' stage extent covered at the recorded order's stop);
+- with neither, the stop says that it treats the fields as a random sample of
+  the well's positions, and that a raster over a spatial trend can stop early.
+
+The two tests share a 5% level (Bonferroni), and each needs 4 fields with a
+mean. The check **flags, it never vetoes**: a flagged stop stays a stop. A
+check that finds nothing does not show the fields to be representative: in a
+raster over a gradient it has little power in the first rows, where the
+early stops happen. It reads only the fields seen so far, so a replay of the
+same prefix gives the same check (`order_check.check_acquisition_order`).
+`report` prints the same caution beside each rule's stop ("Did each
+criterion say enough?"), computed on the group's acquired fields.
 
 ## Timing
 

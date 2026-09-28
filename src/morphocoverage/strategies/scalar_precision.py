@@ -34,6 +34,13 @@ is a MorphoCoverage variant, not part of the paper: the same averaging noise
 estimated with FOVs as the sampling unit (ratio-estimator variance for cluster
 sampling), so spatially clustered phenotypes inflate it. The gap between the
 two is the comparison the regime map needs; it does not make either wrong.
+Both units treat the fields as representative, exchangeable draws from the
+well: clustering within fields inflates the per-field CV, but correlation
+between neighbouring fields does not, so a raster over a spatial gradient, or
+a readout drifting over the acquisition, can stop early with the mean far off
+(audit 4, P4-2); the live and report lines print the order check
+(``morphocoverage.order_check``), or without order and stage columns this
+assumption, beside every stop.
 
 Not reproduced here, but in ``jcb_planning``, both parts of the multi-sample
 procedure:

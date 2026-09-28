@@ -95,16 +95,28 @@ def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]])
     # The rule's own caveats (FOV size related to FOV mean, SD above 50% CV) follow its answer.
     warnings = final.get("warnings")
     caution = f" Caution: {warnings}." if isinstance(warnings, str) and warnings else ""
+    ever_met = any(int(row["orders"]) > int(row["never_stopped"]) for row in stops)
+    # Beside every stop, what it rests on: the order check, or the random-sample assumption.
+    caution += _order_sentence(final) if final["verdict"] == "stop" or ever_met else ""
     if not stops:
         return f"{head}.{caution}"
     clauses = "; ".join(_stops_clause(row) for row in stops)
-    ever_met = any(int(row["orders"]) > int(row["never_stopped"]) for row in stops)
     lost = (
         "; it was met and then lost as more FOVs arrived"
         if final["verdict"] == "continue" and ever_met
         else ""
     )
     return f"{head}; {clauses}{lost}.{caution}"
+
+
+def _order_sentence(final: Mapping[str, Any]) -> str:
+    """The order caution of a rule's stop (``sufficiency_tables``) as a sentence, or nothing."""
+    text = final.get("order_caution")
+    if not isinstance(text, str) or not text:
+        return ""
+    if text.startswith("treats"):
+        return f" The stop {text}."
+    return f" {text[0].upper()}{text[1:]}."
 
 
 def novelty_definition(

@@ -91,9 +91,8 @@ from .strategies.support_novelty import (
     SupportNoveltyEstimator,
     SupportNoveltyStrategy,
 )
-from .sufficiency_tables import criteria_tables, group_major
+from .sufficiency_tables import criteria_tables, enough_table, group_major
 from .sufficiency_text import (
-    _enough_answer,
     _next_fov_answer,
     novelty_definition,
     report_summary,
@@ -144,52 +143,6 @@ class SufficiencyReport:
     def summary(self) -> str:
         """Both answers in plain sentences, one block per analysis group."""
         return report_summary(self.enough, self.next_fov, self.group_cols, self.novelty_definition)
-
-
-def _enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
-    """Question 1, one row per group and criterion.
-
-    ``sampled_enough`` is ``"yes"`` when a rule on the data met its threshold,
-    ``"target reached"`` when a fixed-effort rule (FOVs, objects, area) reached
-    its target, ``"no"`` or ``"undefined"``. The stop columns summarise the
-    random orders when any were replayed, otherwise the recorded order
-    (``order_kind`` says which); ``answer`` states each kind apart, and the
-    stops table holds both.
-    """
-    keys = [*group_cols, "strategy", "config_id"]
-    rows = []
-    for _, row in final.iterrows():
-        own = rows_of(stops, {column: row[column] for column in keys}) if len(stops) else stops
-        kinds = [part for _, part in own.iterrows()]
-        by_kind = {part["order_kind"]: part for part in kinds}
-        summary = by_kind.get("permuted", by_kind.get("recorded"))
-        verdict = row["verdict"]
-        stop_word = "target reached" if row.get("effort_rule", False) else "yes"
-        enough = {"stop": stop_word, "continue": "no"}.get(verdict, "undefined")
-        stop = {} if summary is None else summary
-        rows.append(
-            {
-                **{column: row[column] for column in group_cols},
-                "criterion": row["strategy"],
-                "settings": row["policies"],
-                "config_id": row["config_id"],
-                "fovs_acquired": row["n_fovs"],
-                "sampled_enough": enough,
-                "enough_after_fovs": stop.get("stop_fov_median", np.nan),
-                "enough_after_p10": stop.get("stop_fov_p10", np.nan),
-                "enough_after_p90": stop.get("stop_fov_p90", np.nan),
-                # FOVs imaged beyond the point of enough exist only when the acquired
-                # FOVs are enough: a criterion met early and lost has none.
-                "fovs_beyond_enough": (
-                    stop.get("spare_fovs_median", np.nan) if verdict == "stop" else np.nan
-                ),
-                "order_kind": stop.get("order_kind"),
-                "orders": stop.get("orders", np.nan),
-                "orders_never_enough": stop.get("never_stopped", np.nan),
-                "answer": _enough_answer(row, kinds),
-            }
-        )
-    return pd.DataFrame(rows)
 
 
 def _seen_in_few(
@@ -420,6 +373,8 @@ def sufficiency_report(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     novelty_cols: Sequence[str] | None = None,
+    readout: str | None = None,
+    stage_cols: Sequence[str] | None = None,
 ) -> SufficiencyReport:
     """Did we sample enough, and would one more FOV show something new? Per analysis group.
 
@@ -448,6 +403,8 @@ def sufficiency_report(
     the columns "new" is judged on, when they differ from the columns the
     rules read: for example the rules on a readout, novelty on the features it
     was defined for. By default novelty uses every column of ``feature_cols``.
+    ``readout`` with ``acquisition_order_col`` or ``stage_cols`` adds the order
+    check (``order_check``) beside every stop in the answers.
     Other arguments are those of ``run_strategies``.
     """
     strategies, orders = list(strategies), list(orders)
@@ -484,6 +441,7 @@ def sufficiency_report(
             )
         )
     _check_distinct([*strategies, *novelty_rules], added=bool(novelty_rules))
+    declared_order = acquisition_order_col
     if acquisition_order_col is None:
         if any(order.kind == "recorded" for order in orders):
             raise ValueError("the recorded order needs acquisition_order_col")
@@ -527,6 +485,9 @@ def sufficiency_report(
             acquisition_order_col,
             run_columns,
             resolved_groups,
+            readout=readout,
+            order_col=declared_order,
+            stage_cols=stage_cols,
         )
         for rules, run_columns in runs
         if rules
@@ -538,7 +499,7 @@ def sufficiency_report(
             pd.concat([part[0] for part in parts], ignore_index=True), resolved_groups
         ).infer_objects()
         stops = pd.concat([part[1] for part in parts], ignore_index=True).infer_objects()
-        enough = _enough_table(final, stops, resolved_groups)
+        enough = enough_table(final, stops, resolved_groups)
 
     next_fov, new_observations, calibrated = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     if novelty is not None:

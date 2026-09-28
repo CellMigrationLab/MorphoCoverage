@@ -377,7 +377,12 @@ def test_a_result_explains_its_decision_in_one_line():
         rows = built.objects[built.objects["image_file"] == fov["image_file"]]
         results = session.add_fov(rows.drop(columns=["condition", "repeat"]), fov.to_dict())
     fixed, novelty = results
-    assert fixed.explain() == "stop: n_fovs = 3 (stop at >= 3, population); after 3 FOVs, 90 cells"
+    # A stop says what it rests on (audit 4, Q2): here, the random-sample assumption.
+    assert fixed.explain() == (
+        "stop: n_fovs = 3 (stop at >= 3, population); after 3 FOVs, 90 cells; treats the "
+        "fields as a random sample of the well's positions; a raster over a spatial trend can "
+        "stop early"
+    )
     line = novelty.explain()
     # The value, then the rule: a "continue" never reads as a false inequality.
     # Under the population objective the novelty rule cannot settle the decision, and says

@@ -6,8 +6,17 @@ replays the declared acquisition orders to record where each rule first
 stopped, separately for the recorded order and the random (permuted) orders
 (``order_kind``): the recorded order keeps drift and neighbour effects that
 random orders remove, so the two are never pooled into one distribution.
-``sufficiency`` turns the two tables into the answer to "did each criterion
-say enough?".
+``enough_table`` turns the two tables into the answer to "did each criterion
+say enough?", one row per group and criterion.
+
+With a ``readout``, each group's fields are also checked for a trend of the
+readout's field means with the declared acquisition order and for spatial
+autocorrelation between stage neighbours (``order_check``); every row of the
+full-acquisition table carries, in ``order_caution``, the sentence a stop of
+that rule rests on: the check's caution (for a rare-phenotype rule, with the
+share of the stage extent the recorded order had covered at its stop), or
+without a check the assumption that the fields are a random sample of the
+well's positions.
 """
 
 from __future__ import annotations
@@ -18,6 +27,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._seeds import group_key
+from ._wording import rows_of
 from .benchmark import (
     AcquisitionOrder,
     BenchmarkDataset,
@@ -25,13 +36,16 @@ from .benchmark import (
     records_to_frame,
     run_benchmark,
 )
+from .data_check import validate_input_tables
+from .evaluator import iter_analysis_groups, restrict_input
 from .evidence import Availability
 from .framework import run_strategies
 from .objectives import ObjectiveConfig
+from .order_check import OrderCheck, check_acquisition_order
 from .policies import EffortPolicy
-from .results import StrategyResult
+from .results import StrategyResult, stop_caution
 from .strategies.base import SamplingStrategy
-from .sufficiency_text import _policies
+from .sufficiency_text import _enough_answer, _policies
 
 
 def is_effort_rule(strategy: SamplingStrategy) -> bool:
@@ -104,6 +118,7 @@ def _final_row(
                 or diagnostics.get("assumes_random_object_sampling", False)
             ),
             "warnings": _warnings(diagnostics),
+            "decides_rare": result.decides_rare,
         }
     )
     for name, quantity in result.evidence.quantities.items():
@@ -151,6 +166,62 @@ def group_major(table: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
     return table.loc[order].reset_index(drop=True)
 
 
+def _order_checks(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    columns: Mapping[str, Any],
+    readout: str,
+    order_col: str | None,
+    stage_cols: Sequence[str] | None,
+) -> dict[str, OrderCheck]:
+    """The order check of every group's fields, in the recorded order when there is one."""
+    data = validate_input_tables(objects, fovs=fovs, **{**columns, "feature_cols": [readout]})
+    checks = {}
+    for group, group_data in iter_analysis_groups(data):
+        ordered = group_data.fovs
+        if order_col is not None:
+            ordered = ordered.sort_values(order_col, kind="stable")
+        acquired = restrict_input(group_data, group_data.objects, ordered)
+        checks[group_key(group)] = check_acquisition_order(
+            acquired, readout, order_col=order_col, stage_cols=stage_cols
+        )
+    return checks
+
+
+def _recorded_stop(
+    stops: pd.DataFrame, row: Mapping[str, Any], group_cols: list[str]
+) -> int | None:
+    """Where the recorded order first met this rule's criterion, or ``None``."""
+    if stops.empty:
+        return None
+    keys = {**{c: row[c] for c in group_cols}, "config_id": row["config_id"]}
+    mine = stops[stops["order_kind"].eq("recorded")]
+    for column, value in keys.items():
+        mine = mine[mine[column].eq(value)]
+    if len(mine) != 1 or int(mine["orders"].iloc[0]) == int(mine["never_stopped"].iloc[0]):
+        return None
+    return int(mine["stop_fov_median"].iloc[0])
+
+
+def _with_order_cautions(
+    final: pd.DataFrame,
+    stops: pd.DataFrame,
+    checks: Mapping[str, OrderCheck],
+    group_cols: list[str],
+) -> pd.DataFrame:
+    """``final`` with ``order_caution``: what a stop of each rule rests on (see the module)."""
+    cautions = []
+    for _, row in final.iterrows():
+        check = checks.get(group_key({c: row[c] for c in group_cols}))
+        rare = bool(row["decides_rare"])
+        if check is None:
+            cautions.append(stop_caution(None, rare=rare))
+        else:
+            stop = _recorded_stop(stops, row, group_cols) if rare else None
+            cautions.append(check.caution(rare=rare, stop_after=stop))
+    return final.assign(order_caution=cautions)
+
+
 def criteria_tables(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -160,12 +231,19 @@ def criteria_tables(
     acquisition_order_col: str | None,
     columns: Mapping[str, Any],
     group_cols: list[str],
+    *,
+    readout: str | None = None,
+    order_col: str | None = None,
+    stage_cols: Sequence[str] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Decisions on the full acquisition, and the stop-FOV distribution over orders.
 
     The stops table has one row per group, criterion and ``order_kind``
     (``"recorded"``, ``"permuted"``, in the order declared), each kind
-    summarised on its own.
+    summarised on its own. ``readout`` turns on the order check of each
+    group's fields, with the declared ``order_col`` (``None`` when the orders
+    replayed rest on no recorded order) and ``stage_cols``; the final table's
+    ``order_caution`` says what each rule's stop rests on (see the module).
     """
     results = run_strategies(
         objects, fovs=fovs, strategies=strategies, objective=objective, **columns
@@ -203,7 +281,58 @@ def criteria_tables(
     group_keys = [f"group.{column}" for column in group_cols]
     stops = _stop_summary(records, [*group_keys, "strategy", "config_id", "order_kind"])
     stops = stops.rename(columns={f"group.{c}": c for c in group_cols})
-    return final, stops
+    checks = (
+        {}
+        if readout is None or (order_col is None and stage_cols is None)
+        else _order_checks(objects, fovs, columns, readout, order_col, stage_cols)
+    )
+    return _with_order_cautions(final, stops, checks, group_cols), stops
 
 
-__all__ = ["criteria_tables", "group_major", "is_effort_rule"]
+def enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
+    """Question 1, one row per group and criterion.
+
+    ``sampled_enough`` is ``"yes"`` when a rule on the data met its threshold,
+    ``"target reached"`` when a fixed-effort rule (FOVs, objects, area) reached
+    its target, ``"no"`` or ``"undefined"``. The stop columns summarise the
+    random orders when any were replayed, otherwise the recorded order
+    (``order_kind`` says which); ``answer`` states each kind apart, and the
+    stops table holds both.
+    """
+    keys = [*group_cols, "strategy", "config_id"]
+    rows = []
+    for _, row in final.iterrows():
+        own = rows_of(stops, {column: row[column] for column in keys}) if len(stops) else stops
+        kinds = [part for _, part in own.iterrows()]
+        by_kind = {part["order_kind"]: part for part in kinds}
+        summary = by_kind.get("permuted", by_kind.get("recorded"))
+        verdict = row["verdict"]
+        stop_word = "target reached" if row.get("effort_rule", False) else "yes"
+        enough = {"stop": stop_word, "continue": "no"}.get(verdict, "undefined")
+        stop = {} if summary is None else summary
+        rows.append(
+            {
+                **{column: row[column] for column in group_cols},
+                "criterion": row["strategy"],
+                "settings": row["policies"],
+                "config_id": row["config_id"],
+                "fovs_acquired": row["n_fovs"],
+                "sampled_enough": enough,
+                "enough_after_fovs": stop.get("stop_fov_median", np.nan),
+                "enough_after_p10": stop.get("stop_fov_p10", np.nan),
+                "enough_after_p90": stop.get("stop_fov_p90", np.nan),
+                # FOVs imaged beyond the point of enough exist only when the acquired
+                # FOVs are enough: a criterion met early and lost has none.
+                "fovs_beyond_enough": (
+                    stop.get("spare_fovs_median", np.nan) if verdict == "stop" else np.nan
+                ),
+                "order_kind": stop.get("order_kind"),
+                "orders": stop.get("orders", np.nan),
+                "orders_never_enough": stop.get("never_stopped", np.nan),
+                "answer": _enough_answer(row, kinds),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+__all__ = ["criteria_tables", "enough_table", "group_major", "is_effort_rule"]
