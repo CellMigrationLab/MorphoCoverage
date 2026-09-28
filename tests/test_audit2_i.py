@@ -283,10 +283,11 @@ def test_i11_watch_until_stop_follows_each_rules_own_verdict(tmp_path):
     )
     last = seen[-1].results[0]
     # The objective stays unsupported (no rule decides the fingerprint); the rule stops
-    # at the second field of the first well (wells alternate: w0, w1, w0), and watch
-    # returns there instead of reading every field and waiting for the timeout.
+    # at the second field of each well (wells alternate: w0, w1, w0, w1), and watch
+    # returns once both wells stop (audit 4, P2-5) instead of reading every field and
+    # waiting for the timeout.
     assert last.decision != Decision.STOP and last.rule_decision == Decision.STOP
-    assert len(seen) == 3 < len(group)
+    assert len(seen) == 4 < len(group)
 
 
 def test_i12_presets_are_printed_and_the_docstrings_say_what_is_chosen():
