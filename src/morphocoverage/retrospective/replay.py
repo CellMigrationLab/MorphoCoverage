@@ -5,7 +5,9 @@ adequacy points (R2, P4). Per analysis group and outer split:
 
 1. hold out a fixed reservoir of whole FOVs (or spatial blocks) with
    ``ReservoirSplit``, exactly as ``sampling_reliability`` does for the same
-   ``random_state`` and split; the rest is the stream;
+   ``random_state`` and split (both seed a split from ``random_state`` and the
+   split number together, ``_seeds.split_seed``, so another ``random_state``
+   holds back other fields in every split); the rest is the stream;
 2. for each acquisition order of the stream (recorded, or seeded random
    permutations), reveal whole FOVs one at a time and record every strategy's
    decision after each prefix, with the same estimators and policies a live
@@ -24,9 +26,16 @@ changes another's orders, and neither does the row order of the tables.
 Every prefix lists its observations in acquisition order (table order within
 each FOV), as a live session receives them.
 
+A dispersed order is fixed by its start; with more dispersed seeds than
+stream fields, a seed whose start repeats an earlier seed's start in the same
+split would replay the same acquisition again and weigh it twice in every
+median and share, so it is replayed once.
+
 A group too small to hold out a reservoir and keep a stream (a single FOV,
-or a single block with ``block_col``) is skipped, and listed with the reason
-in ``ReplayResult.skipped``; the other groups are replayed as usual.
+or a single block with ``block_col``) is skipped by the rule of
+``sampling_reliability``, and listed with the reason in
+``ReplayResult.skipped``; the other groups are replayed as usual. The
+adequacy, calibration and efficiency summaries name the skipped groups.
 """
 
 from __future__ import annotations
@@ -38,13 +47,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._checks import as_count, check_seed
 from .._parallel import check_n_jobs, map_units
 from .._seeds import group_identity
 from ..benchmark import AcquisitionOrder, permuted_fovs
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..objectives import ObjectiveConfig
-from ..reservoir import ReservoirSplit
 from ..schema import ValidatedInput
 from ..sequential import (
     _Acquisition,
@@ -56,6 +65,7 @@ from ..sequential import (
 )
 from ..strategies.base import SamplingStrategy
 from .criteria import OutcomeCriterion
+from .reliability import _reservoir_split, _skip_reason
 from .stage import dispersed_order, stage_travel
 
 DEFAULT_PERMUTATIONS = 10
@@ -119,6 +129,17 @@ def order_id(order: AcquisitionOrder) -> str:
     return order.kind if order.seed is None else f"{order.kind}-{order.seed}"
 
 
+def _dispersed_start(
+    group: Mapping[str, Any], order: AcquisitionOrder, split: int, n_fovs: int
+) -> int:
+    """The first field of a dispersed order: its only free choice.
+
+    Stepping it by the seed (from a group- and split-specific offset) makes
+    seeds below the stream length give distinct orders, never repeated ones.
+    """
+    return (order.seed + group_identity(group) + split) % n_fovs
+
+
 def _ordered_stream(
     group: Mapping[str, Any],
     stream: ValidatedInput,
@@ -132,11 +153,8 @@ def _ordered_stream(
     if order.kind == "recorded":
         return _in_acquisition_order(group, stream, order_col)
     if order.kind == "dispersed":
-        # The start is the only free choice of a dispersed order. Stepping it by
-        # the seed (from a group- and split-specific offset) makes seeds below
-        # the stream length give distinct orders, never repeated ones.
         xy = stream.fovs[list(stage_cols)].to_numpy(dtype=float)
-        start = (order.seed + group_identity(group) + split) % len(xy)
+        start = _dispersed_start(group, order, split, len(xy))
         return stream.fovs.iloc[dispersed_order(xy, start)]
     return permuted_fovs(stream.fovs, stream.fov_key, random_state, group, order.seed, split)
 
@@ -174,11 +192,9 @@ def _check(
         raise ValueError("the recorded order needs acquisition_order_col")
     if stage_cols is None and any(o.kind == "dispersed" for o in orders):
         raise ValueError("a dispersed order needs stage_cols")
-    for value, label in ((n_splits, "n_splits"), (min_fovs, "min_fovs")):
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-            raise ValueError(f"{label} must be a positive integer")
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
-        raise TypeError("random_state must be an integer seed")
+    as_count(n_splits, "n_splits")
+    as_count(min_fovs, "min_fovs")
+    check_seed(random_state)
     return strategies, criteria, orders
 
 
@@ -197,9 +213,15 @@ def _runs(
     """
     reservoir_fraction, block_col, n_splits, random_state = split_settings
     for split in range(n_splits):
-        splitter = ReservoirSplit(float(reservoir_fraction), random_state + split, block_col)
+        splitter = _reservoir_split(float(reservoir_fraction), random_state, split, block_col)
         stream, reservoir = splitter.split(group, group_data)
+        starts: set[int] = set()
         for order in orders:
+            if order.kind == "dispersed":
+                start = _dispersed_start(group, order, split, len(stream.fovs))
+                if start in starts:
+                    continue  # the same acquisition as an earlier dispersed seed
+                starts.add(start)
             ordered = _ordered_stream(
                 group, stream, order, acquisition_order_col, split, stage_cols, random_state
             )
@@ -371,6 +393,8 @@ def replay_acquisitions(
     (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
     """
     check_n_jobs(n_jobs)
+    if not isinstance(objective, ObjectiveConfig):
+        raise TypeError("objective must be an ObjectiveConfig, for example ObjectiveConfig()")
     strategies, criteria, orders = _check(
         strategies,
         criteria,
@@ -381,6 +405,8 @@ def replay_acquisitions(
         min_fovs,
         stage_cols,
     )
+    # numpy integers are accepted and recorded as the Python values they hold.
+    n_splits, min_fovs, random_state = int(n_splits), int(min_fovs), int(random_state)
     if acquisition_order_col is not None and acquisition_order_col in feature_cols:
         raise ValueError("acquisition order cannot also be a phenotype feature")
     data = validate_input_tables(
@@ -479,28 +505,18 @@ def _replayable(
 ) -> tuple[list[tuple[dict[str, Any], ValidatedInput]], list[dict[str, Any]]]:
     """The groups that can hold out a reservoir and keep a stream, and the others with why.
 
-    A group with a single FOV (or block) cannot be split. It is skipped with
+    The skip rule of ``sampling_reliability`` (``reliability._skip_reason``):
+    a group with a single FOV (or block) cannot be split. It is skipped with
     its reason rather than failing every other group; with no group left the
     replay raises, since there would be nothing to report.
     """
-    splitter = ReservoirSplit(reservoir_fraction, 0, block_col)
     groups, skipped = [], []
     for group, group_data in iter_analysis_groups(data):
-        blocks = splitter.n_blocks(group_data)
-        if blocks >= 2:
+        reason = _skip_reason(group_data, reservoir_fraction, block_col)
+        if reason is None:
             groups.append((group, group_data))
-            continue
-        unit = "FOV" if block_col is None else f"block of {block_col!r}"
-        skipped.append(
-            {
-                **group,
-                "fovs": len(group_data.fovs),
-                "reason": (
-                    f"only {blocks} {unit}, so no reservoir can be held out beside a stream; "
-                    "this group was not replayed"
-                ),
-            }
-        )
+        else:
+            skipped.append({**group, "fovs": len(group_data.fovs), "reason": reason})
     if not groups:
         raise ValueError(
             f"no analysis group has two or more {'FOVs' if block_col is None else 'blocks'} "
@@ -510,7 +526,10 @@ def _replayable(
 
 
 __all__ = [
+    "DECISION_COLUMNS",
     "DEFAULT_PERMUTATIONS",
+    "OUTCOME_COLUMNS",
+    "STREAM_COLUMNS",
     "ReplayResult",
     "default_orders",
     "order_id",

@@ -8,7 +8,9 @@ separate, sequential question.
 Design, per analysis group (one sample):
 
 1. For each outer split ``s``, hold out a fixed **reservoir** of whole FOVs (or
-   spatial blocks) with ``ReservoirSplit``; the remaining FOVs are the stream.
+   spatial blocks) with ``ReservoirSplit``, seeded from ``random_state`` and
+   ``s`` together (``_seeds.split_seed``), so another ``random_state`` holds
+   back other fields in every split; the remaining FOVs are the stream.
 2. For each ``k`` in ``fov_counts`` and each of ``draws`` draws, take ``k``
    stream FOVs at random, as a representative acquisition would.
 3. Assess every ``OutcomeCriterion`` of those ``k`` FOVs against the same
@@ -19,12 +21,14 @@ Design, per analysis group (one sample):
    spread over splits, the metric's distribution, and the information gain
    of ``k`` over the previous listed ``k``.
 
-A draw of FOVs without any observations is acquired effort and counts as not
+A draw of FOVs without any observations, or with fewer than the metric needs
+(one object has no covariance), is acquired effort and counts as not
 preserved (``OutcomeCriterion.assess``). A draw is undefined only when the
 metric cannot be computed for other reasons, most often because the reservoir
 lacks what the criterion needs (a rare state absent from the held-back FOVs);
 the summary says how many draws and hold-outs could be judged, since the
-answer is then conditional on the hold-outs that could.
+answer is then conditional on the hold-outs that could, and says so when
+nothing could be judged at all.
 
 Limits, stated with every result:
 
@@ -38,12 +42,19 @@ Limits, stated with every result:
   recorded, spatially ordered acquisition is a different question.
 - With few blocks the splits repeat hold-outs (3 blocks give at most 3
   reservoirs of one block); the summary says how many of the splits were
-  distinct hold-outs, since repeated ones differ only by the random draws.
+  distinct hold-outs, since repeated ones differ only by the random draws,
+  and then states shares and spreads over splits rather than hold-outs.
 - A group with fewer than two FOVs (or blocks) cannot hold one back and keep a
   stream; it is skipped with the reason (``ReliabilityResult.skipped``), and
-  the other groups are still computed.
+  the other groups are still computed. ``replay_acquisitions`` skips by the
+  same rule, in the same words.
 - Everything is conditional on the criteria: the metric, its tolerance and
   the features it reads.
+
+Shares are rounded to 12 decimals, so a share of exactly 90% is 0.9 and not
+0.8999999999999999 from the averaging over splits.
+
+Shared-private: ``_reservoir_split`` and ``_skip_reason`` (used by ``replay``).
 """
 
 from __future__ import annotations
@@ -55,16 +66,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._checks import is_integer
+from .._checks import as_count, check_seed, is_integer
 from .._parallel import check_n_jobs, map_units
-from .._seeds import group_identity
+from .._seeds import group_key, group_rng, split_seed
 from .._wording import count
 from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..reservoir import ReservoirSplit
 from ..schema import ValidatedInput
-from ._text import fields, percent, where
 from .criteria import OutcomeCriterion, Preservation
+from .reliability_text import reliability_summary
 
 CURVE_COLUMNS = (
     "criterion",
@@ -94,7 +105,9 @@ class ReliabilityResult:
     preservation. ``ceiling`` has one row per group and criterion: the share of
     splits in which the whole stream preserved the criterion, and
     ``distinct_holdouts``, how many of those splits held back a different set
-    of fields. The reservoir is
+    of fields, with the longest and shortest whole stream (``stream_fovs``,
+    ``shortest_stream_fovs``) and the smallest reservoir (``reservoir_fovs``).
+    The reservoir is
     itself a finite sample, so this ceiling can be below 1 however well the
     stream was sampled, and the curve cannot be read above it. ``skipped``
     has one row per group that could not be split (fewer than two FOVs or
@@ -133,17 +146,23 @@ def _check_settings(
     counts = sorted({int(k) for k in counts})  # numpy integers (np.arange) accepted
     if isinstance(reservoir_fraction, bool) or not 0 < float(reservoir_fraction) < 1:
         raise ValueError("reservoir_fraction must be between 0 and 1")
-    for value, label in ((n_splits, "n_splits"), (draws, "draws")):
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-            raise ValueError(f"{label} must be a positive integer")
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
-        raise TypeError("random_state must be an integer seed")
+    as_count(n_splits, "n_splits")
+    as_count(draws, "draws")
+    check_seed(random_state)
     return criteria, counts
 
 
-def _draw_rng(random_state: int, group: Mapping[str, Any], split: int) -> np.random.Generator:
-    """A generator for one group and split: the same draws whatever other groups exist."""
-    return np.random.default_rng([random_state, group_identity(group), split])
+def _reservoir_split(
+    fraction: float, random_state: int, split: int, block_col: str | None
+) -> ReservoirSplit:
+    """The ``ReservoirSplit`` of one outer split, as reliability and replay both hold it out.
+
+    Seeded with ``_seeds.split_seed(random_state, split)``, so neighbouring
+    ``random_state`` values share no reservoir, and the same ``random_state``
+    and split hold back the same fields in ``sampling_reliability`` and in
+    ``replay_acquisitions``.
+    """
+    return ReservoirSplit(fraction, split_seed(random_state, split), block_col)
 
 
 def _group_draws(
@@ -180,9 +199,11 @@ def _split_draws(
     """Every assessed draw for one analysis group and split, and the whole stream."""
     fraction, block_col = split_settings
     rows, ceiling = [], []
-    stream, reservoir = ReservoirSplit(fraction, random_state + split, block_col).split(group, data)
+    stream, reservoir = _reservoir_split(fraction, random_state, split, block_col).split(
+        group, data
+    )
     # Which fields were held back: splits with few blocks can repeat a hold-out.
-    holdout = group_identity(
+    holdout = group_key(
         {"fovs": sorted(map(str, reservoir.fovs[list(data.fov_key)].itertuples(index=False)))}
     )
     for criterion in criteria:
@@ -195,10 +216,12 @@ def _split_draws(
                 "value": value,
                 "status": status.value,
                 "stream_fovs": len(stream.fovs),
+                "reservoir_fovs": len(reservoir.fovs),
                 "holdout": holdout,
             }
         )
-    rng = _draw_rng(random_state, group, split)
+    # One generator per group and split: the same draws whatever other groups exist.
+    rng = group_rng(random_state, group, split)
     n_stream = len(stream.fovs)
     subsets = FovSubsets(stream)
     for k in (k for k in counts if k <= n_stream):
@@ -222,23 +245,26 @@ def _split_draws(
     return rows, ceiling
 
 
-def _holdout_units(data: ValidatedInput, block_col: str | None) -> int | None:
-    """How many FOVs (or blocks) a group has to hold back from; ``None`` when the
-    split itself must report a problem with ``block_col``."""
-    if block_col is None:
-        return len(data.fovs)
-    if block_col not in data.fovs.columns or data.fovs[block_col].isna().any():
-        return None
-    return int(data.fovs[block_col].nunique())
+def _skip_reason(data: ValidatedInput, fraction: float, block_col: str | None) -> str | None:
+    """Why a group cannot be split into a reservoir and a stream, or ``None``.
 
-
-def _skip_reason(data: ValidatedInput, block_col: str | None) -> str | None:
-    """Why a group cannot be split into a reservoir and a stream, or ``None``."""
-    units = _holdout_units(data, block_col)
-    if units is None or units >= 2:
+    The one skip rule of ``sampling_reliability`` and ``replay_acquisitions``:
+    a group needs two FOVs (or blocks) to hold one back and keep a stream. A
+    ``block_col`` missing from the FOV table, or with missing values, raises
+    here as it would in the split.
+    """
+    units = ReservoirSplit(fraction, 0, block_col).n_blocks(data)
+    if units >= 2:
         return None
     what = count(units, "field") if block_col is None else f"{count(units, 'block')} of {block_col}"
-    return f"only {what}: at least two are needed to hold one back and keep a stream to draw from"
+    return f"only {what}: at least two are needed to hold one back and keep a stream"
+
+
+# Shares over splits are ratios of draw counts; their mean and SD carry
+# rounding noise (nine splits at exactly 90% average to 0.8999999999999999,
+# and identical splits have an SD of 1e-16). Rounding to 12 decimals removes
+# the noise, so a share of exactly 90% meets a threshold of 90% and reads "±0%".
+_DIGITS = 12
 
 
 def _curve_row(runs: pd.DataFrame) -> dict[str, Any]:
@@ -250,11 +276,12 @@ def _curve_row(runs: pd.DataFrame) -> dict[str, Any]:
         .mean()
     )
     values = defined["value"].to_numpy(dtype=float)
+    spread = round(float(per_split.std(ddof=1)), _DIGITS) if len(per_split) > 1 else None
     return {
         "splits": int(runs["split"].nunique()),
         "defined_splits": len(per_split),
-        "preserved": float(per_split.mean()) if len(per_split) else None,
-        "preserved_split_sd": float(per_split.std(ddof=1)) if len(per_split) > 1 else None,
+        "preserved": round(float(per_split.mean()), _DIGITS) if len(per_split) else None,
+        "preserved_split_sd": spread,
         "defined_draws": len(defined),
         "undefined_draws": len(runs) - len(defined),
         "metric_median": float(np.median(values)) if len(values) else None,
@@ -318,6 +345,8 @@ def sampling_reliability(
     criteria, counts = _check_settings(
         criteria, fov_counts, reservoir_fraction, n_splits, draws, random_state
     )
+    # numpy integers are accepted and recorded as the Python values they hold.
+    n_splits, draws, random_state = int(n_splits), int(draws), int(random_state)
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -334,7 +363,7 @@ def sampling_reliability(
     # together, which sends its data once.
     groups, skipped = [], []
     for group, group_data in iter_analysis_groups(data):
-        reason = _skip_reason(group_data, block_col)
+        reason = _skip_reason(group_data, float(reservoir_fraction), block_col)
         if reason is None:
             groups.append((group, group_data))
         else:
@@ -420,7 +449,12 @@ def _beyond_every_stream(
 
 
 def _ceiling(table: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
-    """Share of splits in which the whole stream preserved each criterion."""
+    """Share of splits in which the whole stream preserved each criterion.
+
+    ``stream_fovs`` is the longest stream and ``shortest_stream_fovs`` the
+    shortest (they differ with unequal blocks); ``reservoir_fovs`` is the
+    smallest reservoir.
+    """
     columns = [
         *keys,
         "criterion",
@@ -428,6 +462,8 @@ def _ceiling(table: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
         "defined_splits",
         "whole_stream_preserved",
         "stream_fovs",
+        "shortest_stream_fovs",
+        "reservoir_fovs",
         "distinct_holdouts",
     ]
     if table.empty:
@@ -442,117 +478,14 @@ def _ceiling(table: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
                 **values,
                 "splits": len(runs),
                 "defined_splits": len(defined),
-                "whole_stream_preserved": None if share is None else float(share),
+                "whole_stream_preserved": (None if share is None else round(float(share), _DIGITS)),
                 "stream_fovs": int(runs["stream_fovs"].max()),
+                "shortest_stream_fovs": int(runs["stream_fovs"].min()),
+                "reservoir_fovs": int(runs["reservoir_fovs"].min()),
                 "distinct_holdouts": int(runs["holdout"].nunique()),
             }
         )
     return pd.DataFrame(rows, columns=columns)
-
-
-def reliability_summary(result: ReliabilityResult) -> str:
-    """ "How many fields do you need?" in sentences, per group and criterion."""
-    blocks = []
-    keys = list(result.group_cols)
-    labels = result.settings.get("labels", {})
-    n_splits = int(result.settings.get("n_splits", 0))
-    for key, rows in result.curve.groupby([*keys, "criterion"], sort=False, dropna=False):
-        key = key if isinstance(key, tuple) else (key,)
-        group = dict(zip(keys, key[: len(keys)], strict=True))
-        criterion = key[-1]
-        rows = rows.sort_values("fovs")
-        stream = int(rows["stream_fovs"].max())
-        lines = [
-            f"{where(group)}: how many fields do you need for {labels.get(criterion, criterion)}?"
-        ]
-        for row in rows.itertuples(index=False):
-            if row.splits == 0:
-                lines.append(f"  {fields(row.fovs)}: more than the {stream} fields available")
-                continue
-            if row.preserved is None or pd.isna(row.preserved):
-                lines.append(
-                    f"  {fields(row.fovs)}: could not be judged ({row.undefined_draws} draws "
-                    "undefined)"
-                )
-                continue
-            spread = (
-                ""
-                if row.preserved_split_sd is None or pd.isna(row.preserved_split_sd)
-                else f" (±{percent(row.preserved_split_sd)} across hold-outs)"
-            )
-            if row.fovs == stream:
-                # Every draw is the same acquisition: this point is the ceiling itself.
-                spread = " (all available fields: one acquisition per hold-out)"
-            partial = []
-            if n_splits and row.defined_splits < n_splits:
-                partial.append(f"judged on {row.defined_splits} of {n_splits} hold-outs")
-            if row.undefined_draws:
-                total = row.undefined_draws + row.defined_draws
-                partial.append(f"{percent(row.undefined_draws / total)} of draws not judged")
-            note = f" [{'; '.join(partial)}]" if partial else ""
-            lines.append(
-                f"  {fields(row.fovs)}: enough in {percent(row.preserved)} of random "
-                f"acquisitions{spread}{note}"
-            )
-        match = result.ceiling
-        if not match.empty:
-            match = match[match["criterion"] == criterion]
-            for column, value in group.items():
-                match = match[match[column] == value]
-        if len(match) and match["whole_stream_preserved"].notna().iloc[0]:
-            ceiling = match.iloc[0]
-            defined = int(ceiling["defined_splits"])
-            judged = (
-                f" of the {defined} that could judge it" if defined < int(ceiling["splits"]) else ""
-            )
-            lines.append(
-                f"  All {int(ceiling['stream_fovs'])} available fields together were enough in "
-                f"{percent(float(ceiling['whole_stream_preserved']))} of hold-outs{judged}: the "
-                "held-back fields are themselves a sample, so the curve cannot be read above "
-                "this."
-            )
-        elif result.ceiling.empty:
-            # A result rebuilt without its ceiling table (for example from a saved curve)
-            # would otherwise read as if every field count could reach 100%.
-            lines.append(
-                f"  How often all {stream} available fields together were enough was not "
-                "computed: the held-back fields are themselves a sample, so a flat curve may "
-                "be capped by them rather than by the fields."
-            )
-        judged = rows[rows["splits"] > 0]
-        smallest = int(judged["reservoir_fovs"].min()) if len(judged) else 0
-        splits = n_splits or int(rows["splits"].max())
-        distinct = _distinct_holdouts(match)
-        over = (
-            f"{count(splits, 'hold-out')}"
-            if distinct is None
-            else f"{count(splits, 'split')} over {count(distinct, 'distinct hold-out')}"
-        )
-        lines.append(
-            f"  Judged on {smallest} or more held-back fields in {over}; nothing is said "
-            f"beyond {stream} fields, and fields are treated as random draws."
-        )
-        if distinct is not None and distinct < splits:
-            lines.append(
-                f"  Warning: the {splits} splits repeat hold-outs (too few fields or blocks to "
-                "hold back a different set each time): splits of the same hold-out differ "
-                "only by the random draws, so the spread across hold-outs is partly draw "
-                f"noise, and the curve rests on {count(distinct, 'reference')}, not {splits}."
-            )
-        blocks.append("\n".join(lines))
-    blocks += [
-        f"{where(dict(zip(keys, row[: len(keys)], strict=True)))}: skipped, {row[-1]}."
-        for row in result.skipped.itertuples(index=False, name=None)
-    ]
-    return "\n\n".join(blocks)
-
-
-def _distinct_holdouts(ceiling: pd.DataFrame) -> int | None:
-    """How many distinct hold-outs the group's splits used, when the ceiling table says."""
-    if ceiling.empty or "distinct_holdouts" not in ceiling.columns:
-        return None
-    value = ceiling["distinct_holdouts"].iloc[0]
-    return None if pd.isna(value) else int(value)
 
 
 __all__ = ["CURVE_COLUMNS", "ReliabilityResult", "reliability_summary", "sampling_reliability"]

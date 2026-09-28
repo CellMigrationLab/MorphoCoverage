@@ -11,7 +11,11 @@ sampling-frame bias, P9, not implemented):
 - ``stage_travel``: the summed straight-line stage path between successive
   FOVs; with per-FOV and per-move times and a stage speed, an acquisition time.
 - ``order_efficiency``: per sample and order kind, the four adequacy points of
-  ``adequacy_points`` with the stage travel needed to reach sustained realized adequacy.
+  ``adequacy_points`` with the stage travel needed to reach sustained realized
+  adequacy. Runs in which the criteria could not be judged at any field count
+  are left out of the medians and counted (``unjudged``), as the adequacy
+  summary does, rather than counted as never enough; groups the replay
+  skipped are named.
 - ``redundancy_distance``: from the semivariogram of FOV means, the distance
   below which neighbouring fields are more alike than random pairs. It states
   a limitation of closely spaced fields; it is not an adequacy claim.
@@ -26,13 +30,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import duration
+from .._wording import count, duration
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..spatial import fov_means, fov_semivariogram
 from ._text import fields as fields_text
-from ._text import percent
-from .adequacy import ALL_CRITERIA, AdequacyResult, adequacy_points
+from ._text import median_beyond, order_phrase, percent, skipped_lines, where
+from .adequacy import ALL_CRITERIA, AdequacyResult, _unjudged, adequacy_points
 from .replay import ReplayResult
 from .stage import dispersed_order, stage_travel
 
@@ -41,15 +45,19 @@ from .stage import dispersed_order, stage_travel
 class EfficiencyResult:
     """Per sample and order kind: adequacy points, stage travel, and acquisition time.
 
-    ``runs`` has one row per replayed acquisition (group, split, order);
-    ``table`` the medians per group and order kind. Travel is in the stage
-    units; time in seconds when the timing settings were given.
+    ``runs`` has one row per replayed acquisition (group, split, order), with
+    ``judged`` false for a run in which the criteria could not be judged at
+    any field count; ``table`` the medians per group and order kind over the
+    judged runs, with ``unjudged`` the runs left out. Travel is in the stage
+    units; time in seconds when the timing settings were given. ``skipped``
+    lists the groups the replay skipped, with the reason.
     """
 
     runs: pd.DataFrame
     table: pd.DataFrame
     group_cols: tuple[str, ...]
     settings: dict[str, Any] = field(default_factory=dict)
+    skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def summary(self) -> str:
         """The order comparison in sentences."""
@@ -79,14 +87,17 @@ def order_efficiency(
 
     ``replay`` must come from ``replay_acquisitions(..., stage_cols=...)``.
     ``adequacy`` defaults to ``adequacy_points(replay)``; one computed from
-    another replay (other settings, so other hold-outs and orders) is refused.
-    The realized points are for all criteria together. ``stage_speed`` is in
-    stage units per second.
+    another replay (other settings, other data, so other hold-outs, orders or
+    outcomes) is refused. The realized points are for all criteria together.
+    ``stage_speed`` is in stage units per second.
 
     ``median_fovs`` (and the travel and time medians) count a run that never
     reached adequacy as beyond its own stream, so it is ``None`` when half or
     more of the runs never got there; ``stream_fovs`` is the shortest stream
     and ``longest_stream_fovs`` the longest, which differ with unequal blocks.
+    Runs that could not be judged at any field count are left out of these
+    (``unjudged`` counts them): they say nothing about how soon an order
+    became enough. ``reached`` is a share of the judged runs.
     """
     if not isinstance(replay, ReplayResult):
         raise TypeError("replay must be a ReplayResult")
@@ -104,12 +115,13 @@ def order_efficiency(
     groups = list(replay.group_cols)
     run_keys = [*groups, "split", "order_id"]
     realized = adequacy.realized[adequacy.realized["criterion"] == ALL_CRITERIA]
+    unjudged = _unjudged(realized)
     travel = {
         key: rows.set_index("fovs")["travel"]
         for key, rows in replay.paths.groupby(run_keys, sort=False, dropna=False)
     }
     rows = []
-    for _, run in realized.iterrows():
+    for index, run in realized.iterrows():
         key = tuple(run[k] for k in run_keys)
         path = travel[key]
         stream = int(run["stream_fovs"])
@@ -130,26 +142,29 @@ def order_efficiency(
                     else None
                 ),
                 "stream_fovs": stream,
+                "judged": not bool(unjudged.loc[index]),
             }
         )
     runs = pd.DataFrame(rows)
     table_rows = []
     for key, block in runs.groupby([*groups, "order"], sort=False, dropna=False):
         key = key if isinstance(key, tuple) else (key,)
-        needed = block["sustained_realized"].astype("Float64")
+        judged = block[block["judged"]]
+        needed = judged["sustained_realized"].astype("Float64")
         table_rows.append(
             {
                 **dict(zip([*groups, "order"], key, strict=True)),
                 "runs": len(block),
-                "reached": float(needed.notna().mean()),
+                "unjudged": int((~block["judged"]).sum()),
+                "reached": float(needed.notna().mean()) if len(judged) else None,
                 # Not reached counts as beyond the run's own stream, whatever its
                 # length, so the median stays honest with unequal streams too.
-                "median_fovs": _median_beyond(needed),
+                "median_fovs": median_beyond(needed),
                 # Over the same runs as median_fovs: a run that never got there
                 # travelled and took longer than any that did.
-                "median_travel": _median_beyond(block["travel_to_sustained"]),
+                "median_travel": median_beyond(judged["travel_to_sustained"]),
                 "median_travel_total": float(block["travel_total"].median()),
-                "median_time": _median_beyond(block["time_to_sustained"]),
+                "median_time": median_beyond(judged["time_to_sustained"]),
                 "stream_fovs": int(block["stream_fovs"].min()),
                 "longest_stream_fovs": int(block["stream_fovs"].max()),
             }
@@ -160,11 +175,18 @@ def order_efficiency(
         "per_move_seconds": per_move_seconds,
         "stage_speed": stage_speed,
     }
-    return EfficiencyResult(runs, pd.DataFrame(table_rows), tuple(groups), settings)
+    return EfficiencyResult(
+        runs, pd.DataFrame(table_rows), tuple(groups), settings, skipped=replay.skipped.copy()
+    )
 
 
 def _check_same_replay(replay: ReplayResult, adequacy: AdequacyResult) -> None:
-    """Refuse adequacy points from another replay: its runs are other hold-outs and orders."""
+    """Refuse adequacy points from another replay: its runs are other hold-outs and orders.
+
+    Equal settings are not enough: a replay of other data with the same
+    settings has other outcomes, so the realized points must also be those of
+    ``adequacy_points(replay)``.
+    """
     if not isinstance(adequacy, AdequacyResult):
         raise TypeError("adequacy must be an AdequacyResult (adequacy_points(replay))")
     theirs, ours = dict(adequacy.settings), dict(replay.settings)
@@ -175,25 +197,14 @@ def _check_same_replay(replay: ReplayResult, adequacy: AdequacyResult) -> None:
             f"{', '.join(differ) or 'group_cols'}): its runs are other hold-outs and orders; "
             "pass adequacy_points(replay) of this replay, or leave adequacy out"
         )
-
-
-def _median_beyond(values: pd.Series) -> float | None:
-    """The median over every run, a missing value counting as larger than any other.
-
-    ``None`` when half or more of the runs are missing, or none was measured.
-    """
-    filled = pd.to_numeric(values, errors="coerce").to_numpy(dtype=float, na_value=np.nan)
-    if not len(filled) or np.isnan(filled).all():
-        return None
-    median = float(np.median(np.where(np.isnan(filled), np.inf, filled)))
-    return median if np.isfinite(median) else None
-
-
-_ORDER_WORDS = {
-    "recorded": "your recorded order",
-    "permuted": "random orders",
-    "dispersed": "spreading the same positions out",
-}
+    own = adequacy_points(replay).realized.reset_index(drop=True)
+    given = adequacy.realized.reset_index(drop=True)
+    if not (list(own.columns) == list(given.columns) and own.equals(given[own.columns])):
+        raise ValueError(
+            "adequacy comes from another replay (same settings, other realized points: "
+            "other data or other outcomes); pass adequacy_points(replay) of this replay, "
+            "or leave adequacy out"
+        )
 
 
 def _distance(value: float, unit: str) -> str:
@@ -225,14 +236,26 @@ def efficiency_summary(result: EfficiencyResult) -> str:
         result.table.groupby(keys, sort=False, dropna=False) if keys else [((), result.table)]
     ):
         key = key if isinstance(key, tuple) else (key,)
-        where = ", ".join(f"{k}={v}" for k, v in zip(keys, key, strict=True)) or "all FOVs"
-        lines = [f"{where}: could the same positions have been visited in a better order?"]
+        group = dict(zip(keys, key, strict=True))
+        lines = [f"{where(group)}: could the same positions have been visited in a better order?"]
         for row in rows.itertuples(index=False):
-            label = _ORDER_WORDS.get(row.order, row.order)
+            label = order_phrase(row.order, capital=True)
+            unjudged = int(getattr(row, "unjudged", 0) or 0)
+            left_out = (
+                f"; {unjudged} of {count(row.runs, 'run')} could not be judged and are left out"
+                if unjudged
+                else ""
+            )
+            if unjudged == row.runs:
+                lines.append(
+                    f"  {label}: could not be judged at any field count "
+                    f"(the outcome was undefined in every run)."
+                )
+                continue
             if row.median_fovs is None or pd.isna(row.median_fovs):
                 lines.append(
                     f"  {label}: not reliably enough within {_available(row)} in half or more "
-                    f"of runs (never in {percent(1 - row.reached)} of runs)."
+                    f"of runs (never in {percent(1 - row.reached)} of runs{left_out})."
                 )
                 continue
             travel = (
@@ -248,9 +271,9 @@ def efficiency_summary(result: EfficiencyResult) -> str:
             fields = fields_text(row.median_fovs)
             # The median hides runs that never got there; a protocol must serve those too.
             missed = (
-                f" (never within {_available(row)} in {percent(1 - row.reached)} of runs)"
+                f" (never within {_available(row)} in {percent(1 - row.reached)} of runs{left_out})"
                 if row.reached < 1
-                else ""
+                else (f" ({left_out.removeprefix('; ')})" if left_out else "")
             )
             lines.append(f"  {label}: reliably enough after {fields}{travel}{time}{missed}.")
         reached = rows[rows["median_fovs"].notna()]
@@ -266,6 +289,7 @@ def efficiency_summary(result: EfficiencyResult) -> str:
             "between successive fields."
         )
         blocks.append("\n".join(lines))
+    blocks += skipped_lines(result.skipped, keys)
     return "\n\n".join(blocks)
 
 
@@ -290,10 +314,12 @@ def redundancy_distance(
     are then alike at every distance measured, up to ``largest_lag``, the
     strongest redundancy). Also reports the smallest lag measured, since
     nothing is said below it. A group with fewer than two fields with
-    observations, or with no pair of fields within the bins, has nothing
-    measured: its row holds ``None`` and says why in ``reason``, and the other
-    groups are still computed. With several features, standardize them
-    beforehand if their scales differ.
+    observations, with a missing feature value (its FOV means are undefined),
+    with FOV means that do not vary at all (no distance can be told from
+    them), or with no pair of fields within the bins, has nothing measured:
+    its row holds ``None`` and says why in ``reason``, and the other groups
+    are still computed. With several features, standardize them beforehand if
+    their scales differ.
     """
     if not 0 < float(share) <= 1:
         raise ValueError("share must be in (0, 1]")
@@ -321,6 +347,12 @@ def redundancy_distance(
             "reason": None,
         }
         rows.append(row)
+        if np.isnan(group_data.feature_matrix()).any():
+            row["reason"] = (
+                "missing feature values in this group: its FOV means are undefined "
+                "(missing values are never imputed)"
+            )
+            continue
         means, _ = fov_means(group_data)
         if len(means) < 2:
             row["reason"] = (
@@ -336,6 +368,15 @@ def redundancy_distance(
             )
             continue
         variance = float(np.mean(np.var(means, axis=0, ddof=1)))
+        if not np.ptp(means, axis=0).any():
+            # Every semivariance is 0 and reaches 90% of a variance of 0 at the
+            # first bin: that would read as the shortest redundancy distance.
+            row["fov_mean_variance"] = variance
+            row["reason"] = (
+                "the FOV means do not vary at all, so no distance at which fields become "
+                "alike can be measured"
+            )
+            continue
         reached = gamma[gamma["gamma"] >= float(share) * variance]
         row.update(
             {
