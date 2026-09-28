@@ -40,16 +40,28 @@ whether labelled rare or unusual objects cluster in a few fields. It
 describes this acquisition under these features; it is not a biological
 conclusion. Where the sampling frame (candidate positions) would
 be needed, the report says so (P9, not implemented).
+
+Shared-private: re-exports ``_detection_adjusted_bounds`` and
+``_false_alarm_rate`` of ``report_profile`` for its callers.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from .._wording import percent
+from ..sampling_unit import (
+    ConditionContrast,
+    DescriptorSpreadCheck,
+    FeatureRanking,
+    FOVClustering,
+    FOVVariability,
+    ObjectRuleCheck,
+    UnusualObjects,
+)
 from ..sufficiency import SufficiencyReport
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
@@ -60,22 +72,12 @@ from .overview import DatasetOverview
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
 from .report_profile import (  # noqa: F401  (private helpers re-exported for callers)
+    _control_rate,
     _detection_adjusted_bounds,
     _false_alarm_rate,
     sampling_profile,
 )
 from .spatial import EfficiencyResult
-
-if TYPE_CHECKING:  # sampling_unit imports retrospective helpers, so it is imported late
-    from ..sampling_unit import (
-        ConditionContrast,
-        DescriptorSpreadCheck,
-        FeatureRanking,
-        FOVClustering,
-        FOVVariability,
-        ObjectRuleCheck,
-        UnusualObjects,
-    )
 
 OVERVIEW_TITLE = "What is in the dataset"
 DECLARATION_TITLE = "What this acquisition was asked to preserve"
@@ -206,16 +208,6 @@ def microscopist_report(
     per target (``workflows.Setup.declaration()``), and ``overview`` what the
     tables hold (``dataset_overview``); the report prints them first.
     """
-    from ..sampling_unit import (
-        ConditionContrast,
-        DescriptorSpreadCheck,
-        FeatureRanking,
-        FOVClustering,
-        FOVVariability,
-        ObjectRuleCheck,
-        UnusualObjects,
-    )
-
     if isinstance(minimum_detection, bool) or not 0 < float(minimum_detection) <= 1:
         raise ValueError("minimum_detection must be a share in (0, 1]")
     if isinstance(declaration, str) or any(not isinstance(d, str) for d in declaration):
@@ -306,18 +298,22 @@ def microscopist_report(
             "these features cannot see."
         )
     else:
-        rates = controls.pooled.set_index("candidate")["rate"]
-        detection = float(rates["positive"]) if "positive" in rates.index else None
+        detection = _control_rate(controls, "positive")
         if detection is not None and detection < float(minimum_detection):
-            warning = (
+            weak = (
                 f"Weak representation: fields of the declared positive control were recognized "
-                f"in only {100 * detection:.0f}% of checks (below {100 * minimum_detection:.0f}%)"
-                ", so the answers below cannot exclude a phenotype like it."
+                f"in only {percent(detection)} of checks (below {percent(minimum_detection)})"
             )
             for key in ("enough", "next_time", "bought"):
                 if parts[key]:
-                    parts[key].insert(0, warning)
-            notes.append(warning)
+                    parts[key].insert(
+                        0, f"{weak}, so the answers below cannot exclude a phenotype like it."
+                    )
+            # The notes close the report: the adequacy answers are above them.
+            notes.append(
+                f"{weak}, so the adequacy answers (questions 2, 4 and 5) cannot exclude a "
+                "phenotype like it."
+            )
     notes.append(
         "Technical drift between repeats, batches or plates is not assessed: groups are "
         "analysed apart, and a shift shared by all fields of a group is not new within it."

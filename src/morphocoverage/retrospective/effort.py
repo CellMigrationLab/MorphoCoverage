@@ -42,10 +42,11 @@ as balanced: with the observed share ``y`` of FOVs holding observations, their
 mean number of observations ``m``, their cluster size ``c = sum n_j^2 / N``
 (``m`` when all are equal) and the observed number of repeats ``R``,
 
-    sqrt(v_repeat / R + v_sample / n + v_fov c / (n f y m) + v_obs / (n f y m)),
+    sqrt(v_repeat / min(R, n) + v_sample / n + v_fov c / (n f y m) + v_obs / (n f y m)),
 
 with ``N = n f y m`` observations; empty FOVs are effort that averages out
-nothing.
+nothing. Fewer samples than repeats cover only ``n`` of the repeats, hence
+``min(R, n)``.
 
 Allocations are compared at equal total FOVs with the acquired allocation
 made balanced (the same samples, FOVs and observations, spread evenly), so a
@@ -58,7 +59,11 @@ is "cannot tell from these data".
 
 **Units.** A unit is identified by its own value and every level outside it
 (``SamplingHierarchy.unit_key``), so well J23 of plate 1A and well J23 of
-plate 2A are two samples even when the plate is not a variance level.
+plate 2A are two samples even when the plate is not a variance level. The
+units inside the biological repeat (the FOV and the sample) are also
+identified by the FOV identity's other group columns, as FOV identity is: in
+a stratum that pools conditions, dish 2 of the control and dish 2 of the
+drug are two samples, while one repeat spans both conditions.
 Samples, repeats and independent units are counted among those holding
 observations with a value: a well whose fields are all empty is acquired
 effort (its fields count), not a sample of the measurement. When a stratum
@@ -79,7 +84,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._seeds import group_identity
+from .._checks import is_integer
+from .._seeds import group_rng
 from .._wording import rows_of
 from ..data_check import validate_input_tables
 from ..schema import fov_positions
@@ -147,13 +153,25 @@ def _levels(hierarchy: SamplingHierarchy) -> list[str]:
     return list(reversed(hierarchy.levels))
 
 
+def _unit_columns(hierarchy: SamplingHierarchy, level: str, identity: Sequence[str]) -> list[str]:
+    """The columns identifying one unit of ``level``: its unit key and, inside the repeat, the
+    FOV identity's other group columns (``identity``), so a sample name reused in two
+    conditions pooled in one stratum stays two samples."""
+    outer = [] if level == hierarchy.biological_repeat else list(identity)
+    return [*hierarchy.unit_key(level), *outer]
+
+
 def _qualified(
-    cells: pd.DataFrame, hierarchy: SamplingHierarchy, levels: list[str]
+    cells: pd.DataFrame,
+    hierarchy: SamplingHierarchy,
+    levels: list[str],
+    identity: Sequence[str] = (),
 ) -> pd.DataFrame:
     """``value`` and each level as its full unit key, so units stay distinct across outer levels."""
     table = cells[["value"]].copy()
     for level in levels:
-        table[level] = cells[hierarchy.unit_key(level)].astype(str).agg("|".join, axis=1)
+        columns = _unit_columns(hierarchy, level, identity)
+        table[level] = cells[columns].astype(str).agg("|".join, axis=1)
     return table
 
 
@@ -299,9 +317,10 @@ def _stratum(
     n_boot: int,
     rng: np.random.Generator,
     where: dict[str, Any],
+    identity: Sequence[str] = (),
 ) -> dict[str, list[dict]] | str:
     """The component, projection and comparison rows of one stratum, or why it is skipped."""
-    qualified = _qualified(cells, hierarchy, _levels(hierarchy))
+    qualified = _qualified(cells, hierarchy, _levels(hierarchy), identity)
     levels, dropped = _stratum_levels(hierarchy, qualified)  # e.g. [repeat, sample, fov]
     has_repeat = hierarchy.biological_repeat is not None and dropped is None
     codes = [qualified[level].factorize()[0] for level in levels]
@@ -326,7 +345,11 @@ def _stratum(
         "repeats": int(qualified[repeat].nunique()) if repeat is not None else None,
         "repeats_acquired": hierarchy.count(stratum_fovs, repeat) if repeat is not None else None,
         "samples": design["samples"],
-        "samples_acquired": hierarchy.count(stratum_fovs, hierarchy.sample),
+        "samples_acquired": int(
+            stratum_fovs.drop_duplicates(
+                subset=_unit_columns(hierarchy, hierarchy.sample, identity)
+            ).shape[0]
+        ),
         "fovs": design["total_fovs"],
         "fovs_with_observations": design["fovs_with_observations"],
         "observations_per_fov": design["per_fov"],
@@ -346,9 +369,9 @@ def _check_arguments(hierarchy: SamplingHierarchy, n_boot: object, random_state:
         raise TypeError("hierarchy must be a SamplingHierarchy")
     if hierarchy.technical_levels:
         raise ValueError("technical levels are not supported by the effort projection yet")
-    if isinstance(n_boot, bool) or not isinstance(n_boot, int) or n_boot < 2:
+    if not is_integer(n_boot) or n_boot < 2:
         raise ValueError("n_boot must be an integer of at least 2")
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
+    if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
 
 
@@ -413,6 +436,8 @@ def effort_projection(
     missing = [c for c in strata if c not in data.fovs.columns]
     if missing:
         raise ValueError(f"strata missing from the FOV table: {missing}")
+    # FOV-identity columns the hierarchy does not name (a condition): they identify units too.
+    identity = [c for c in data.fov_key if c not in hierarchy.levels and c not in strata]
     positions = fov_positions(data, data.fovs)
     values = data.feature_values(feature)
     tables: dict[str, list[dict]] = {"components": [], "projections": [], "comparisons": []}
@@ -435,11 +460,12 @@ def effort_projection(
             reason = f"no field holds an observation with a value of {feature}"
             skipped_rows.append({**where, "reason": reason})
             continue
-        cells = data.fovs.iloc[positions[keep]][list(hierarchy.levels)].reset_index(drop=True)
+        columns = [*hierarchy.levels, *identity]
+        cells = data.fovs.iloc[positions[keep]][columns].reset_index(drop=True)
         cells["value"] = values[keep]
         # One generator per stratum, so adding a stratum never changes another's interval.
-        rng = np.random.default_rng([random_state, group_identity(stratum)])
-        rows = _stratum(cells, stratum_fovs, hierarchy, chosen, n_boot, rng, where)
+        rng = group_rng(int(random_state), stratum)
+        rows = _stratum(cells, stratum_fovs, hierarchy, chosen, int(n_boot), rng, where, identity)
         if isinstance(rows, str):
             # Reported, so one inestimable stratum does not hide the others.
             skipped_rows.append({**where, "reason": rows})

@@ -7,6 +7,7 @@ from test_retrospective_controls import FEATURES, NOVELTY, _plate
 from test_retrospective_inspection import FEATURES as INSPECTED
 from test_retrospective_inspection import _acquisition
 
+from morphocoverage._wording import percent
 from morphocoverage.retrospective import (
     RepresentationControl,
     SamplingHierarchy,
@@ -334,16 +335,20 @@ def test_g13_the_chance_expectation_uses_the_leave_one_field_out_rate():
         if s.startswith("new states")
     )
     expected = rates["reference_lofo"] * 60
-    assert f"about {expected:.0f} of 60 expected by chance" in statement
-    assert f"{100 * rates['reference_lofo']:.0f}% false-alarm rate" in statement
+    # Audit 3 (G-3): from the rate to its upper bound, over the fields judged.
+    assert f"{expected:.0f} to " in statement and "of the 60 fields judged" in statement
+    assert f"was {flagged_reference} of 30 fields" in statement
 
 
 def _sufficiency():
     """The part of a sufficiency report the adjusted bound reads."""
     from types import SimpleNamespace
 
-    next_fov = pd.DataFrame([{"condition": "MOCK", "unseen_state_max_frequency": 0.12}])
-    return SimpleNamespace(group_cols=("condition",), next_fov=next_fov)
+    # The analysis groups of the controls' tables (audit 3, G-20: other groups are refused).
+    next_fov = pd.DataFrame(
+        [{"condition": "MOCK", "repeat": "P1", "unseen_state_max_frequency": 0.12}]
+    )
+    return SimpleNamespace(group_cols=("condition", "repeat"), next_fov=next_fov)
 
 
 def test_g13_the_adjusted_bound_uses_the_rate_against_every_reference_field():
@@ -362,8 +367,9 @@ def test_g13_the_adjusted_bound_uses_the_rate_against_every_reference_field():
     )
     detection = float(controls.pooled.set_index("candidate").loc["positive_lofo", "rate"])
     text = _detection_adjusted_bounds(_sufficiency(), controls)
-    assert f"({100 * detection:.0f}% of its fields recognized against every reference" in text
-    assert f"up to {100 * min(1.0, 0.12 / detection):.0f}% of FOVs" in text
+    # Audit 3 (G-1, J-2): against the reference fields of an analysis group, via percent().
+    assert f"({percent(detection)} of its fields recognized against the reference" in text
+    assert f"up to {percent(min(1.0, 0.12 / detection))} of FOVs" in text
 
 
 def test_g14_a_sampling_frame_caveat_alone_does_not_assess_question_3():

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from ._text import fields, percent
+from .effort import MIN_BOOT_SUCCESS
 
 if TYPE_CHECKING:
     from .frontier import FrontierResult
@@ -27,16 +28,82 @@ def _number(value: float) -> str:
     return f"{0.0 if value == 0 else value:.1f}"
 
 
-def _not_chosen(row: object) -> str:
-    """A family with no safe setting: met the risk once but not from there on, or never."""
+def _lapse(row: object) -> str | None:
+    """``met this risk at 2 (risk 0%) but not from there on: ...``, or None if it never met it."""
     met = getattr(row, "met_setting", None)
     if met is None or pd.isna(met):
-        return f"  {row.family}: never got there at any setting tried."
+        return None
     return (
-        f"  {row.family}: met this risk at {_setting(met)} (risk {percent(row.met_risk)}) but "
+        f"met this risk at {_setting(met)} (risk {percent(row.met_risk)}) but "
         f"not from there on: at {_setting(row.exceeded_setting)}, with more fields, the risk "
-        f"was {percent(row.exceeded_risk)}, so no setting is taken as safe."
+        f"was {percent(row.exceeded_risk)}, so no setting is taken as safe"
     )
+
+
+def _not_chosen(row: object) -> str:
+    """A family with no safe setting: met the risk once but not from there on, or never."""
+    lapse = _lapse(row)
+    if lapse is None:
+        return f"  {row.family}: never got there at any setting tried."
+    return f"  {row.family}: {lapse}."
+
+
+def _unscored(rows: pd.DataFrame, base: object) -> list[str]:
+    """A risk level the fixed count never met lastingly: why, then each family on its own."""
+    lapse = _lapse(base)
+    if lapse is not None:
+        first = f"  a fixed number of fields {lapse}; no rule is scored against it at this level."
+    else:
+        first = (
+            "  a fixed number of fields never got there within the fields available, "
+            "so no rule can be scored against it at this level."
+        )
+    lines = [first]
+    for row in rows[rows["family"] != BASELINE].itertuples(index=False):
+        if row.effort is None or pd.isna(row.effort):
+            lines.append(_not_chosen(row))
+        else:
+            lines.append(
+                f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
+                f"(risk {percent(row.risk)}), with no fixed count to compare."
+            )
+    return lines
+
+
+def _interval(row: object, saved: float) -> str:
+    """The interval of the fields saved in the verdict's direction, with its notes, or ''.
+
+    No interval when fewer than ``MIN_BOOT_SUCCESS`` of the resamples reached
+    the risk for both: the others are a selected subset.
+    """
+    reached = getattr(row, "saved_reached", None)
+    reached = None if reached is None or pd.isna(reached) else float(reached)
+    if reached is not None and reached < MIN_BOOT_SUCCESS:
+        return (
+            f", no interval: only {percent(reached)} of the resamples reached this risk for "
+            f"both (at least {percent(MIN_BOOT_SUCCESS)} are needed)"
+        )
+    if row.saved_low is None or pd.isna(row.saved_low):
+        return ""
+    # The interval reads in the verdict's direction: fields saved, or fields it costs.
+    if saved < -0.05:
+        interval = (
+            f", {percent(0.95)} interval {_number(-row.saved_high)} to {_number(-row.saved_low)}"
+        )
+    else:
+        of = "" if saved > 0.05 else " of the fields saved"
+        interval = (
+            f", {percent(0.95)} interval{of} {_number(row.saved_low)} to {_number(row.saved_high)}"
+        )
+    notes = []
+    # A saving (or cost) whose interval includes no change is not resolved.
+    if abs(saved) > 0.05 and row.saved_low <= 0 <= row.saved_high:
+        notes.append("not resolved")
+    if reached is not None and reached < 1:
+        notes.append(
+            f"from the {percent(reached)} of the resamples in which both reached this risk"
+        )
+    return interval + (f" ({'; '.join(notes)})" if notes else "")
 
 
 def frontier_summary(result: FrontierResult) -> str:
@@ -48,10 +115,9 @@ def frontier_summary(result: FrontierResult) -> str:
         lines = [f"For {label}, stopping too early in at most {percent(alpha)} of acquisitions:"]
         base = rows[rows["family"] == BASELINE].iloc[0]
         if base["effort"] is None or pd.isna(base["effort"]):
-            lines.append(
-                "  a fixed number of fields never got there within the fields available, "
-                "so no rule can be scored against it at this level."
-            )
+            # The families are still listed, with their own effort and risk.
+            baseline = next(rows[rows["family"] == BASELINE].itertuples(index=False))
+            lines += _unscored(rows, baseline)
             blocks.append("\n".join(lines))
             continue
         # Fields saved subtract mean efforts; when streams shorter than the fixed count
@@ -77,31 +143,7 @@ def frontier_summary(result: FrontierResult) -> str:
                 if saved < -0.05
                 else "does as well as the fixed count, no better"
             )
-            # The interval reads in the verdict's direction: fields saved, or fields it costs.
-            if row.saved_low is None or pd.isna(row.saved_low):
-                interval = ""
-            elif saved < -0.05:
-                interval = (
-                    f", {percent(0.95)} interval {_number(-row.saved_high)} to "
-                    f"{_number(-row.saved_low)}"
-                )
-            else:
-                of = "" if saved > 0.05 else " of the fields saved"
-                interval = (
-                    f", {percent(0.95)} interval{of} {_number(row.saved_low)} to "
-                    f"{_number(row.saved_high)}"
-                )
-            notes = []
-            # A saving (or cost) whose interval includes no change is not resolved.
-            if interval and abs(saved) > 0.05 and row.saved_low <= 0 <= row.saved_high:
-                notes.append("not resolved")
-            reached = getattr(row, "saved_reached", None)
-            if interval and reached is not None and not pd.isna(reached) and reached < 1:
-                notes.append(
-                    f"from the {percent(reached)} of the resamples in which both reached this risk"
-                )
-            if notes:
-                interval += f" ({'; '.join(notes)})"
+            interval = _interval(row, saved)
             adaptive = (
                 ""
                 if row.adaptivity is None or pd.isna(row.adaptivity)

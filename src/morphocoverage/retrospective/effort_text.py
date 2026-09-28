@@ -64,7 +64,7 @@ def share_caveat(component: Mapping[str, Any], units: int, unit_word: str) -> st
         return ""
     reasons = []
     if units < FEW_UNITS:
-        reasons.append(f"only {units} {unit_word}{'s' if units != 1 else ''}")
+        reasons.append(f"only {count(units, unit_word)}")
     if missing:
         reasons.append(_no_interval(component))
     elif includes_zero:
@@ -97,7 +97,33 @@ def _repeat_line(first: Mapping[str, Any], repeat: str, samples: str, observatio
     )
 
 
-def _imbalance_line(projections: pd.DataFrame, samples: str, observations: str) -> str:
+def _unequal(first: Mapping[str, Any], samples: str) -> str:
+    """Which acquired units differ in size: ``repeats``, ``technical repeats``, or both.
+
+    Only the sample and repeat sizes separate the acquired from the balanced
+    standard error (the field sizes are kept in both, through the cluster
+    size): a level differs when its weight ``sum N_u^2 / N^2`` exceeds
+    ``1 / units``.
+    """
+    parts = []
+
+    def differs(weight: object, units: object) -> bool:
+        if weight is None or units is None or pd.isna(weight) or pd.isna(units):
+            return False
+        return float(weight) * float(units) > 1 + 1e-9
+
+    if not bool(first.get("repeat_dropped", True)) and differs(
+        first.get("repeat_weight"), first.get("repeats")
+    ):
+        parts.append("repeats")
+    if differs(first.get("sample_weight"), first.get("samples")):
+        parts.append(f"{samples}s")
+    return " and ".join(parts) or f"{samples}s"
+
+
+def _imbalance_line(
+    projections: pd.DataFrame, first: Mapping[str, Any], samples: str, observations: str
+) -> str:
     """The cost of the acquired imbalance: the acquired against the balanced SE, or ''."""
     current = projections[projections["current"]].set_index("design")
     if not {"acquired", "balanced"} <= set(current.index):
@@ -106,8 +132,9 @@ def _imbalance_line(projections: pd.DataFrame, samples: str, observations: str) 
     if not balanced > 0 or abs(acquired / balanced - 1) < _IMBALANCE_SHOWN:
         return ""
     direction = "larger" if acquired > balanced else "smaller"
+    unequal = _unequal(first, samples)
     return (
-        f"  The acquired {samples}s differ in size: the standard error of the mean is "
+        f"  The acquired {unequal} differ in size: the standard error of the mean is "
         f"{acquired:.3g} as acquired and would be {balanced:.3g} with the same {samples}s, "
         f"fields and {observations} spread evenly ({percent(abs(acquired / balanced - 1))} "
         f"{direction} as acquired); the comparisons below are with the balanced version."
@@ -125,12 +152,12 @@ def _allocation_line(
         direction = "smaller" if change > 0 else "larger"
         return (
             f"  At the same total number of fields, {best['samples']} {samples}s of about "
-            f"{best['fovs_per_sample']:.3g} fields would give a {100 * abs(change):.0f}% "
+            f"{best['fovs_per_sample']:.3g} fields would give a {percent(abs(change))} "
             f"{direction} standard error than the acquired {best['current_samples']} "
             f"{samples}s of about {best['current_fovs_per_sample']:.3g}, made balanced."
         )
     if units < FEW_UNITS:
-        reason = f"only {units} {unit}s"
+        reason = f"only {count(units, unit)}"
     elif not len(compared):
         reason = "no other allocation was compared"
     elif not compared["same_total"].any():
@@ -153,7 +180,7 @@ def _counts_lines(first: Mapping[str, Any], samples: str, observations: str) -> 
     if empty:
         lines.append(
             f"  {empty} of {fovs} acquired fields had no {observations}; projections assume "
-            "the same share would again."
+            "the same share would be empty again."
         )
     acquired = first.get("samples_acquired")
     if acquired is not None and not pd.isna(acquired) and int(acquired) > int(first["samples"]):
@@ -195,21 +222,15 @@ def effort_summary(result: EffortResult) -> str:
             lead = "Most of" if top["share"] > 0.5 else "The largest part of"
             lines.append(
                 f"  {lead} the uncertainty of the mean is "
-                f"{words.get(top['level'], top['level'])} ({100 * top['share']:.0f}% of its "
+                f"{words.get(top['level'], top['level'])} ({percent(top['share'])} of its "
                 f"variance with the acquired design{share_caveat(top, units, unit)})."
             )
         projections = result.projections[result.projections["stratum"] == stratum]
-        imbalance = _imbalance_line(projections, samples, observations)
+        imbalance = _imbalance_line(projections, first, samples, observations)
         if imbalance:
             lines.append(imbalance)
         compared = result.comparisons[result.comparisons["stratum"] == stratum]
         lines.append(_allocation_line(compared, first, units, unit, samples))
-        normalized = result.settings.get("normalized")
-        if normalized:
-            lines.append(
-                f"  Values are normalised ({normalized}): variance shared by a whole repeat "
-                "is removed, so the between-repeat share is lower than in raw values."
-            )
         lines += _counts_lines(first, samples, observations)
         blocks.append("\n".join(lines))
     for row in result.skipped.itertuples(index=False):

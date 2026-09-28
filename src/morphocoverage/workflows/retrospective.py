@@ -163,6 +163,8 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
             identity_cols=[
                 c for c in (setup.group_cols or ()) if c not in MORPHOBRICKS_GROUP_COLUMNS
             ],
+            # The leave-one-field-out rates within the inspection's analysis groups.
+            lofo_group_cols=common["group_cols"],
         )
     results.update(conditions(setup.prepared(objects, fovs), fovs, setup, reasons))
     sufficiency = sufficiency_report(

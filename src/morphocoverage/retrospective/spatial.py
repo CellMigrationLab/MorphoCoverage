@@ -288,9 +288,11 @@ def redundancy_distance(
     mean lag at which the semivariance reaches ``share`` of the variance of
     the FOV means (``None`` with no ``reason`` when no bin reaches it: fields
     are then alike at every distance measured, up to ``largest_lag``, the
-    strongest redundancy). Also reports the smallest lag measured, since
-    nothing is said below it. A group with fewer than two fields with
-    observations, or with no pair of fields within the bins, has nothing
+    strongest redundancy). The distance is a point estimate, not tested
+    against chance; ``pairs_closer`` counts the pairs of fields closer than
+    it. Also reports the smallest lag measured, since nothing is said below
+    it. A group with fewer than two fields with observations, or with no pair
+    of fields within the bins, has nothing
     measured: its row holds ``None`` and says why in ``reason``, and the other
     groups are still computed. With several features, standardize them
     beforehand if their scales differ.
@@ -313,6 +315,7 @@ def redundancy_distance(
         row = {
             **group,
             "redundancy_distance": None,
+            "pairs_closer": None,
             "smallest_lag": None,
             "largest_lag": None,
             "fov_mean_variance": None,
@@ -337,10 +340,15 @@ def redundancy_distance(
             continue
         variance = float(np.mean(np.var(means, axis=0, ddof=1)))
         reached = gamma[gamma["gamma"] >= float(share) * variance]
+        distance = float(reached["mean_lag"].iloc[0]) if len(reached) else None
         row.update(
             {
-                "redundancy_distance": (
-                    float(reached["mean_lag"].iloc[0]) if len(reached) else None
+                "redundancy_distance": distance,
+                # The pairs of fields behind the point estimate: those closer than it.
+                "pairs_closer": (
+                    int(gamma.loc[gamma["mean_lag"] < distance, "n_pairs"].sum())
+                    if distance is not None
+                    else None
                 ),
                 "smallest_lag": float(gamma["mean_lag"].iloc[0]),
                 "largest_lag": float(gamma["mean_lag"].iloc[-1]),
