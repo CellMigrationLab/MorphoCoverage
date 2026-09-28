@@ -141,8 +141,11 @@ decides is printed as such and keeps the overall at `unsupported`. The JCB
 criterion is named as what it is: an averaging CV of 5% is one standard error
 of 5% of the mean (the paper's criterion), not a bound of ±5% on the mean's
 error; whether the mean was within the declared tolerances is judged on
-held-back fields by `report` and `optimise`. `LiveUpdate.summary()` ends with that line
-(`docs/questions.md`, O4). `live_session(setup)` runs under
+held-back fields by `report` and `optimise`. `LiveUpdate.summary(detail="full")` ends with
+that view, one entry per line (`docs/questions.md`, O4); the default short block opens with
+the field and its decision (`✅ field 8 · MOCK · 1A · B6 — stop: all 3 rules say enough`, `⏳
+continue: ...` with what is not yet met, `⚠️` at a stop the order check flags, `➖` while a
+declared target has no rule), then one table of the rules and, at a stop, each caveat once. `live_session(setup)` runs under
 `setup.objective()`, whose components are the declared targets. Read the quantity, not only the word: with nothing new among `k`
 FOVs the novelty bound is `1 - 0.05 ** (1 / k)` whatever the data, so a stop
 on it after 11 FOVs is a statement about the next field, not about rare
@@ -168,8 +171,8 @@ permutation of the planned positions, or a farthest-point order of them,
 it holds.
 
 `live_session(setup)` also checks the fields of each group so far, and
-`LiveUpdate.summary()` prints the result beside every stop, in each rule's
-line and after the overall decision:
+`LiveUpdate.summary()` prints the result once at a stop (`detail="full"`: beside every stop,
+in each rule's line and after the overall decision):
 
 - with `Setup.acquisition_order_col`, a trend of the field means of the
   readout with acquisition order (Spearman);

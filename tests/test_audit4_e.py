@@ -96,9 +96,14 @@ def test_p2_1_live_stops_carry_the_order_caution_and_are_never_vetoed():
     updates = _live(declared, objects, fovs)
     flagged = [u for u in updates if _overall_stop(u) and u.order_check.trend]
     assert flagged, "the drift must be flagged at some stop"
-    summary = flagged[0].summary()
+    summary = " ".join(flagged[0].summary(detail="full").split())
     assert "caution: the field means of intensity trend with acquisition order" in summary
     assert "(a flag, not a veto" in summary
+    # The short block states the caution once, and marks the stop to look at (⚠️).
+    short = " ".join(flagged[0].summary().split())
+    assert short.startswith("⚠️ field ") and "stop: both rules say enough" in short
+    assert short.count("the field means of intensity trend with acquisition order") == 1
+    assert "(a flag, not a veto" in short
     # The flag changes no decision: the same rules without columns decide the same.
     plain = _live(Setup(readout=READOUT), objects, fovs)
     assert [[r.without_timing() for r in u.results] for u in updates] == [
@@ -107,7 +112,8 @@ def test_p2_1_live_stops_carry_the_order_caution_and_are_never_vetoed():
     # Without either column, every stop states the assumption it rests on.
     stops = [u for u in plain if _overall_stop(u)]
     assert stops and all(u.order_check is None for u in plain)
-    assert all(RANDOM_SAMPLE_ASSUMPTION in u.summary() for u in stops)
+    assert all(RANDOM_SAMPLE_ASSUMPTION in " ".join(u.summary().split()) for u in stops)
+    assert all(RANDOM_SAMPLE_ASSUMPTION in " ".join(u.summary("full").split()) for u in stops)
     # The declaration says so too, and recommends random or dispersed orders.
     line = [s for s in Setup(readout=READOUT).declaration() if s.startswith("Acquisition order")]
     assert RANDOM_SAMPLE_ASSUMPTION in line[0] and "random or dispersed order" in line[0]
