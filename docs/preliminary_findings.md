@@ -4,21 +4,11 @@ These are exploratory, retrospective observations made while building the
 framework. They are not benchmark results and not publication claims. Each
 entry states what was run, what it shows, and what it does not show.
 
-**Regenerated 2026-09-26, twice.** After the first function audit
-(`docs/audit/function_audit_2026-09-26.md`), every tracked table except the
-benchmark was regenerated with `data/crick_idr/run_all.py`: the earlier
-tables predated the `well` to `technical_repeat` rename, which reseeds each
-group. After the second audit (`docs/audit/function_audit_2_2026-09-26.md`)
-every table was regenerated again, and the benchmark ran under protocol
-version 3, locked before the run. Where a number moved, the entry names the
-finding that moved it. The changed conclusions:
-
-- **Entry 5 is stronger:** no stop in a random order was premature at 5%.
-- **Entry 6:** the four "new state" fields are no longer at the chance
-  level. The inspection's own leave-one-field-out rate is 0 of 56 reference
-  fields.
-
-Every other conclusion holds.
+**What the numbers are from.** Every tracked table and number below comes
+from the 2026-09-28 run of `data/crick_idr/run_all.py` after the third audit
+(`docs/audit/README.md`; run times in
+`data/crick_idr/results/logs/run_all.txt`), with the benchmark under protocol
+version 4 (`data/crick_idr/benchmark_protocol.py`).
 
 ## 1. Whole FOVs versus random cells in the JCS and JCB settings (2026-09-23)
 
@@ -55,7 +45,7 @@ whole FOVs have the error that random-cell reasoning predicts?
 | | 8 | 264 | 0.53% | 0.34% | 1.5 [1.3–1.7] | 53% |
 | | 14 | 462 | 0.33% | 0.22% | 1.5 [1.3–1.7] | 54% |
 
-Errors are relative RMSE of the well mean, as medians across wells. Every number in this entry is taken from the tracked outputs `data/crick_idr/results/fov_vs_objects_idr0139_fascin.csv` and `fov_vs_objects_idr0028_screenB_yaptaz.csv`, generated from Crick commit `a81d20c` with checksum-verified inputs. Since 2026-09-25 the complete plates are stored in the repository (`idr0139_plate`, `idr0028_screenB_plates`), and the rerun from them reproduces these numbers.
+Errors are relative RMSE of the well mean, as medians across wells. Every number in this entry is taken from the tracked outputs `data/crick_idr/results/fov_vs_objects_idr0139_fascin.csv` and `fov_vs_objects_idr0028_screenB_yaptaz.csv`, generated from Crick commit `a81d20c` with checksum-verified inputs. The complete plates are stored in the repository (`idr0139_plate`, `idr0028_screenB_plates`), and the tables are regenerated from them.
 
 **What this shows**
 
@@ -150,15 +140,11 @@ both knockdown wells of each (tracked in
 | 10 | 3% | 100% | 21% | 8% | 95% | 8% | 5% |
 | 20 | 1% | 100% | 13% | 6% | 93% | 3% | 2% |
 
-**Corrected 2026-09-25.** The first version of this table read the knockdown
-FOVs by image file name alone. idr0028 reuses file names across plates, and
-two donor wells (siLATS1 J23 on plates 1A and 2A, siARAP2 C13 on plates 2A and
-2B) have a namesake on another plate, so each of their "whole FOVs" held the
-nuclei of two fields from two plates. It gave 65% / 53% / 39% for whole
-siLATS1 fields and 19% / 9% / 8% for siARAP2. The scripts now key FOVs by
-plate and file (`datasets.fov_matrices`); siYAP, the false-alarm rate and the
-planted-cell columns are unchanged within 2 points. Entry 3, which plants
-siYAP cells, was rerun: its tables are unchanged at the precision shown.
+FOVs are keyed by plate and file (`datasets.fov_matrices`), here and in
+entry 3: idr0028 reuses file names across plates, and two donor wells
+(siLATS1 J23 on plates 1A and 2A, siARAP2 C13 on plates 2A and 2B) have a
+namesake on another plate, so a key by file name alone would merge the nuclei
+of two fields from two plates into one "whole FOV".
 
 **What this shows**
 
@@ -267,8 +253,8 @@ reaches 25%:
 ## 4. How many fields do you need? Sampling reliability on idr0028 (2026-09-24)
 
 **Question.** For a stated tolerance, how often does a random set of `k`
-fields give the same answer as fields that were not used? This is roadmap
-Step 1 (`morphocoverage.retrospective.sampling_reliability`). It is a property
+fields give the same answer as fields that were not used? This is P1 of
+`docs/questions.md` (`morphocoverage.retrospective.sampling_reliability`). It is a property
 of the acquisition, not of any stopping rule.
 
 **Method** (`data/crick_idr/reliability_idr0028.py`, fixed seed). The data are
@@ -277,7 +263,7 @@ time. The phenotype is the YAP/TAZ nuclear ratio of Marcotti et al. (nuclear
 mean / (nuclear + cytoplasmic mean intensity)). Each of 10 splits holds back a
 random 10 FOVs as the reference. For each `k`, 50 random sets of `k` whole
 FOVs are drawn from the other 18 and judged against that same reference. The
-three criteria are the roadmap's provisional presets:
+three criteria are provisional presets:
 
 - the well mean within 5%;
 - the well mean within 2.5%;
@@ -290,24 +276,28 @@ together met the criterion.
 | criterion | 2 fields | 4 fields | 8 fields | all 18 fields (ceiling) |
 |---|---|---|---|---|
 | mean within 5% | 99–100% | 100% | 100% | 100% |
-| mean within 2.5% | 83–100% (median 92%) | 92–100% (98%) | 98–100% | 100% |
-| variance within 10% | 15–30% (21%) | 17–42% (26%) | 18–64% (32%) | 10–80% (45%) |
+| mean within 2.5% | 78–99% (median 92%) | 86–100% (99%) | 93–100% | 90–100% (100%) |
+| variance within 10% | 16–31% (22%) | 16–42% (29%) | 12–48% (32%) | 10–50% (30%) |
 
 Each cell gives the range across the 12 wells, with the median in brackets.
+The numbers moved in the third audit's rerun (`docs/audit/README.md`) because
+each split's reservoir is now seeded with `split_seed`, so the held-back fields
+differ.
 
 **What this shows**
 
 - **For the well mean, two fields are almost always enough.** At a 5%
   tolerance, 2 fields matched the held-back fields in at least 99% of draws in
-  every well. At 2.5%, 2 fields were enough in 83–100% of draws (worst:
-  ARAP2 2B C17, YAP 2A N23 and MOCK 2A K16), 4 fields in at least 92%, and 8 in
-  at least 98%. The median error of a 2-field mean was 1%. With 28 FOVs per well, this
+  every well. At 2.5%, 2 fields were enough in 78–99% of draws (worst:
+  ARAP2 2B C17 and YAP 2A N23), 4 fields in at least 86%, and 8 in
+  at least 93%; in ARAP2 2B C17 even all 18 fields met 2.5% in only 90% of
+  splits. The median error of a 2-field mean was 1%. With 28 FOVs per well, this
   mean was heavily oversampled.
 - **The variance within 10% cannot be judged with this design.** Even all 18
-  fields matched the 10 held-back fields in only 45% of splits (median; 10–80%
+  fields matched the 10 held-back fields in only 30% of splits (median; 10–50%
   across wells). The held-back fields are too few to pin the variance down to
   10%. The curve is flat because it is capped by that ceiling, not because
-  more fields do not help: the median error falls from 0.26 at 2 fields to
+  more fields do not help: the median error falls from 0.24 at 2 fields to
   0.14 at 18. The report states the ceiling for this reason. Here it says that
   the question needs more fields than the well holds, not that 18 fields fail.
 - **The criterion decides the answer.** The same wells need 2 fields or cannot
@@ -317,13 +307,13 @@ Each cell gives the range across the 12 wells, with the median in brackets.
 
 **What this does not show**
 
-- **Development data only.** idr0028 is the only registered dataset and was
+- **Development data only.** idr0028 is the development dataset and was
   used to build this analysis. No field count here is a protocol.
 - **Nothing beyond 18 fields**, and nothing about wells, plates or repeats:
   every statement is within one well. Draws and splits are not independent
   replicates. The ranges across wells describe these 12 wells only.
 - **Fields are treated as random draws** from the well. Spatial order and
-  neighbour correlation between fields are not modelled (roadmap Step 8).
+  neighbour correlation between fields are not modelled (P8, entry 6).
 - **One feature**, one representation, and provisional tolerances.
 
 ## 5. Would a stopping rule have stopped at the right time? Replayed idr0028 acquisitions (2026-09-24)
@@ -331,10 +321,11 @@ Each cell gives the range across the 12 wells, with the median in brackets.
 **Question.** Entry 4 shows how often random sets of fields preserve the well
 mean. A stopping rule decides from the fields seen so far, in the order they
 arrive. When would the rule have stopped, and was it enough at that point,
-judged on fields the rule never saw? This is roadmap Steps 2 and 3
-(`replay_acquisitions`, `stopping_calibration`, `adequacy_points`).
+judged on fields the rule never saw? This is P6, R2 and P4 of
+`docs/questions.md` (`replay_acquisitions`, `stopping_calibration`,
+`adequacy_points`).
 
-**Method** (`data/crick_idr/stopping_idr0028.py`, fixed seed; 45 s before the optimizations, about 20 s on 4 CPUs after them; see `docs/optimization_log.md`). The data
+**Method** (`data/crick_idr/stopping_idr0028.py`, fixed seed; 40 s in the 2026-09-28 run, `results/logs/run_all.txt`). The data
 are the same 12 wells and the same YAP/TAZ nuclear ratio as entry 4. Each of 5
 splits holds back 10 FOVs, the same reservoirs as the first five splits of
 entry 4. The other 18 FOVs are replayed in the recorded order and in 10 random
@@ -352,37 +343,42 @@ and `adequacy_idr0028.csv`.
 
 | rule | stop (FOVs) | premature, mean within 5% (random orders; median, max over wells) | premature, mean within 2.5% (random orders; median, max over wells) | premature, 2.5%, recorded order (max over wells, of 5) |
 |---|---|---|---|---|
-| JCB CV ≤ 5%, cells | 2 | 0%, 0% | 9%, 16% | 40% |
-| JCB CV ≤ 5%, FOVs | 2 | 0%, 0% | 9%, 16% | 40% |
-| fixed 4 FOVs | 4 | 0%, 0% | 2%, 12% | 60% |
-| fixed 8 FOVs | 8 | 0%, 0% | 0%, 2% | 0% |
+| JCB CV ≤ 5%, cells | 2 | 0%, 2% | 10%, 20% | 80% |
+| JCB CV ≤ 5%, FOVs | 2 | 0%, 2% | 10%, 20% | 80% |
+| fixed 4 FOVs | 4 | 0%, 0% | 1%, 12% | 20% |
+| fixed 8 FOVs | 8 | 0%, 0% | 0%, 4% | 20% |
 
 Judged on held-back fields, the mean was first within both tolerances at a
-median of 1 FOV (all 660 replayed acquisitions: 1–11), and lastingly from a
-median of 1 (1–11; 89% by 2 FOVs). The random orders are now drawn per well
-(B-4 of `docs/audit/function_audit_2_2026-09-26.md`), which moved the
-random-order shares above; the recorded order is unchanged.
+median of 1 FOV (all 660 replayed acquisitions: 1–6), and lastingly from a
+median of 1 (1–12; 88% by 2 FOVs). The random orders are drawn per well,
+from the replay's seed. Every number moved in the third audit's rerun
+(`docs/audit/README.md`) because each split's reservoir is now seeded with
+`split_seed`. The calibration now also counts separately the stops that the
+whole stream could not have fixed; there were none here.
 
 **What this shows**
 
 - **Both JCB-style rules stopped as early as they were allowed (2 FOVs) in
-  every well.** With about a hundred nuclei per field, the averaging CV of the
+  every well.** With 20 to 36 nuclei per field, the averaging CV of the
   mean ratio is below 5% after two fields, whether cells or FOVs are the
   resampling unit. For the mean within 5%, which is the target the rule was
-  designed for, that stop was always right here (none of the random orders
-  and none of the recorded-order hold-outs was premature). For the stricter
-  2.5%, it was premature in a median 9% of random acquisitions, up to 16% in
-  the worst well. A rule at 5% CV answers the 5% question; it is
-  not a promise for 2.5%.
+  designed for, that stop was almost always right here (premature in at most
+  2% of the random orders of any well, ARAP2 2B C17, and in 1 of 5
+  recorded-order hold-outs of one well, YAP 2A N23). For the stricter
+  2.5%, it was premature in a median 10% of random acquisitions, up to 20% in
+  the worst well (ARAP2 2B C17, and 4 of its 5 recorded-order hold-outs). A
+  rule at 5% CV answers the 5% question; it is not a promise for 2.5%.
 - **The mean was never the hard part here.** Held-back fields confirmed it
-  after one or two fields in most runs, and never later than 11. This is the
+  after one or two fields in most runs, and lastingly by 12 at the latest. This is the
   regime AGENTS.md section 10 asks us to name: for the mean nuclear YAP/TAZ
   ratio of a well in this screen, the cell-number guidance is sufficient, and
   FOV-aware sampling adds nothing for this readout.
 - **Fixed rules.** Four fields were enough for 5% in every run, and for 2.5% in
-  all but up to 12% of random acquisitions of the worst well (LATS1 1A J23);
-  in the recorded order of one well (YAP 1A M23) they were premature in 3 of
-  5 hold-outs. Eight fields were premature in at most 2%.
+  all but up to 12% of random acquisitions of the worst well (YAP 2A N23);
+  in the recorded order they were premature in 1 of 5 hold-outs in each of
+  four wells (LATS1 1A J23, YAP 1A M23, YAP 2A N23, ARAP2 2B C17). Eight
+  fields were premature in at most 4% of random acquisitions (YAP 2A N23)
+  and in 1 of 5 recorded-order hold-outs of ARAP2 2B C17.
 
 **What this does not show**
 
@@ -397,44 +393,50 @@ random-order shares above; the recorded order is unchanged.
 
 ## 6. Protocol, fields to inspect, controls, effort and order on idr0028 (2026-09-24)
 
-**Question.** Roadmap Steps 4–8 and 10 on the same 12 wells: what field number
+**Question.** The other report questions on the same 12 wells (P2, R5, R1,
+P10, P7 and P8 of `docs/questions.md`, then the whole report): what field number
 would a protocol need, which fields should be reopened, can these features see
 the declared siYAP phenotype, would more fields or more wells help, and could
 the same positions have been visited in a better order?
 
-**Method** (`data/crick_idr/report_steps_idr0028.py`, fixed seeds; about 35 s before the optimizations and about 15 s after them,
-see `docs/optimization_log.md`; run after the Step 1 curves of entry 4). Every table is in `data/crick_idr/results/`,
+**Method** (`data/crick_idr/report_steps_idr0028.py`, fixed seeds; 100 s in the
+2026-09-28 run, `results/logs/run_all.txt`; run after the P1 curves of entry
+4). Every table is in `data/crick_idr/results/`,
 and the assembled report is `microscopist_report_idr0028.txt`. idr0028 remains a
 development dataset.
 
 **What this shows**
 
-- **Protocol (Step 4).** A well counts as adequately represented when at least
+- **Protocol (P2).** A well counts as adequately represented when at least
   90% of random acquisitions preserved the criterion, and all conditions are
   pooled explicitly.
   - For the well mean within 5%, 2 fields were enough for 12 of 12 wells.
-  - Within 2.5%, 2 fields were enough for 7 of 12 wells (by plate: 3 of 5, 2
-    of 4, 2 of 3), and 4 fields for all 12.
-  - A number chosen on two plates served every well of the third.
+  - Within 2.5%, 2 fields were enough for 8 of 12 wells (by plate: 4 of 5, 3
+    of 4, 1 of 3), 4 fields for 11 of 12 (not ARAP2 2B C17), and 8 fields for
+    all 12 (reservoirs reseeded with `split_seed` in the third audit).
+  - A number chosen on two plates served every well of the third at 5%, and
+    11 of 12 wells at 2.5%.
   - For the variance within 10%, no well was adequately represented at any
     depth (the reservoir ceiling of entry 4).
   - With 3 plates the summary says the uncertainty is too large to fix a
     protocol, and it is.
-- **Fields to inspect (Step 5).**
+- **Fields to inspect (R5).**
   - Two fields hold far fewer nuclei than their well (6 against a median of
     27 and 21.5).
   - One siYAP field has a mean YAP/TAZ ratio 5.6 SD below its four stage
-    neighbours, and one siARAP2 field 3.1 SD above. The SD is now that of the
-    other fields, not including the field itself (audit fix).
+    neighbours, and one siARAP2 field 3.1 SD above. The SD is that of the
+    other fields, not including the field itself.
   - Four fields hold a small new state: 3 nuclei no other field of the well
     shows, in 30 standardized features. Judged as the inspection judges a
-    field, against every other field of the well, none of 56 MOCK reference
-    fields was called new, so the report now expects about 0 of 336 by
-    chance, not 6 (G-13 of `docs/audit/function_audit_2_2026-09-26.md`: the
-    rate is measured leave one field out, not after 10 fields).
+    field, against the other fields of its well, none of 84 MOCK reference
+    fields was called new (at most 4% at 95% confidence), so the report
+    expects 0 to 11.8 of the 336 fields by chance: four fields lie within
+    that range, so these data cannot tell them from the chance level (the
+    third audit measures this rate leave one field out within the
+    inspection's analysis groups, now all three MOCK wells).
   - No field moved the well mean or 95th percentile of the ratio by 10% or
     more when left out, as expected with 28 fields per well.
-- **Representation control (Step 6).** Measured after 10 MOCK fields on the
+- **Representation control (R1).** Measured after 10 MOCK fields on the
   same plate:
   - siYAP fields were recognized as different in 100% of 1680 checks;
   - MOCK fields with 5 siYAP nuclei planted were recognized in 100% of 720;
@@ -442,7 +444,7 @@ development dataset.
 
   This matches the tracked positive control (entry 2: 100% for siYAP, about
   3% false alarms at 10 fields) computed by independent code.
-- **More fields or more wells (Step 7).** For the mean ratio of a condition:
+- **More fields or more wells (P10).** For the mean ratio of a condition:
   - in MOCK, 54% of the variance of the mean is between fields within a well;
   - in the knockdowns, 79–99% is between wells, which are on different plates;
   - fields vary 1.6–2.6 times as much as random cells would (design effect,
@@ -452,66 +454,39 @@ development dataset.
   designed. Plate and well are confounded here: in MOCK each plate has one
   well. The analysis therefore refuses a plate level and uses plate-qualified
   well and field identities.
-- **Order (Step 8).** For the well mean within 2.5%, recorded, random and
+- **Order (P8).** For the well mean within 2.5%, recorded, random and
   dispersed orders all reached it after a median of 1 field. The recorded
-  serpentine raster needed 2 fields (805–1114 µm of travel) in 3 wells and 5
-  fields (2.0 mm) in YAP 1A M23, where random and dispersed orders needed 1;
-  random orders needed 2 fields (444–558 µm) in 2 other wells, and dispersed
-  orders 2 fields in 2 wells. The random orders are now drawn per well (B-4
-  of the second function audit), which moved YAP 1A M23 from 2 fields to 1
-  and two wells from 1 to 2. Outside YAP 1A M23
-  the orders differ by at most one field, the null result the roadmap
-  allows: the mean is too easy here to tell orders apart. One well where
-  the raster is 4 fields slower is not a pattern across 12.
+  serpentine raster needed 2 fields (805 µm of travel) in MOCK 2A K16 and 4
+  fields (1.7 mm) in ARAP2 2B C17, where random and dispersed orders needed 1;
+  random orders needed 1 field in every well, and dispersed orders 2 fields
+  (2.1 mm) in YAP 2A N23 (reservoirs reseeded with `split_seed` in the third
+  audit). The random orders are drawn per well. Outside
+  ARAP2 2B C17 the orders differ by at most one field, a permitted null result
+  (AGENTS.md section 3): the mean is too easy here to tell orders apart. One well where
+  the raster is 3 fields slower is not a pattern across 12.
   - In 5 of 12 wells, fields closer than about 520–780 µm are more alike than
     random pairs.
   - The other 7 wells show no such redundancy down to the closest spacing
     measured (336 µm).
+- **Objects or fields (the Foundation).** The report opens with the
+  Foundation: per well, fields vary 1.0–3.4 times as much as random nuclei
+  would (median 2.1; `fov_variability`), and unusual nuclei cluster by field
+  in 3 of the 11 wells where they were seen (entry 10; 5 before the third
+  audit calibrated the unusual-object threshold leave one group out).
 
 **What this does not show**
 
 - **One easy readout, 12 wells, 3 plates, development data.** None of these
-  numbers is a protocol. The Step 7 and Step 4 answers are limited by 3 wells
+  numbers is a protocol. The P10 and P2 answers are limited by 3 wells
   per condition and 3 plates, and they say so.
-- **The Step 7 intervals are approximate.** Simulated nested designs with 8
+- **The P10 intervals are approximate.** Simulated nested designs with 8
   samples recover the variance components on average (tested), but the
   bootstrap interval covered the true sample and field components in only
   88% and 80% of 40 runs, not 95%. Resampling only the samples was worse (68%
   for the sample component). A stated difference between allocations
   therefore also needs five or more independent units.
-- **The reading test** (roadmap rule 4) has not been done by the project
-  owner on this report.
-- **Audit revision (2026-09-24).** Entries 4–6 were regenerated after an audit.
-  The held-back fields no longer depend on the row order of the FOV table, and
-  a draw with no observations counts as not enough. The effort projection now
-  uses the acquired design, and empty fields no longer shrink it. The
-  neighbour check uses the spread of the other fields. The numbers above are
-  those of the regenerated tables.
-- **Second audit (2026-09-25,** `docs/audit/microscopist_audit_2026-09-25.md`**).**
-  The report and profile were regenerated with unchanged numbers; every
-  other tracked table came out identical. What changed is wording that had
-  turned a limit of the data into a claim: the variance curves now print
-  their ceiling (they were rebuilt from the CSV without it), the protocol
-  names the 12 wells whose held-back fields could not judge the variance
-  instead of listing them as needing more than 18 fields, and the
-  "98% of the variance is between samples" lines are marked as not
-  established (3 wells; the well component's interval includes zero). The
-  audit also found that a rare state seen in two neighbouring fields is
-  invisible to the next-FOV novelty with `min_other_fovs=1`, that the four
-  "new state" fields above are at the 0.8–2% false-alarm level (a rate
-  measured after 10 fields; the inspection's own leave-one-field-out rate is
-  0 of 56 reference fields, see Step 5), and that
-  the object-unit JCB verdict was printed without its independence
-  assumption; see the audit for the ranked list.
-
-**Rerun (2026-09-25, after the sampling-unit section was added).** The
-report now opens with "Can I count objects, or must I count fields?" (R0):
-per well, fields vary 1.0–3.4 times as much as random nuclei would (median
-2.1; `fov_variability`, which replaces the per-condition design-effect lines
-of the profile), and unusual nuclei cluster by field in 5 of the 11 wells
-where they were seen (entry 10). Every other table was regenerated from the
-stored datasets with the numbers above; only the wording "observations"
-became "objects" where the unit is undeclared.
+- **The reading test** (`docs/questions.md`, open work) has not been done by
+  the project owner on this report.
 
 ## 7. Held-out check on idr0139: does "two fields are enough for the mean" transfer? (2026-09-25)
 
@@ -519,7 +494,7 @@ became "objects" where the unit is undeclared.
 the well mean of the YAP/TAZ ratio was within 5% of held-back fields from 2
 fields in every well and that the JCB cell-number rule's stop at 2 fields was
 almost never premature at 5%. Those wells were also where every preset was
-chosen. idr0139 (10 wells × 4 fields, one plate, the JCS case study) is now
+chosen. idr0139 (10 wells × 4 fields, one plate, the JCS case study) is
 registered as **held out** (`data/crick_idr/datasets.py`): no setting was ever
 chosen on it. Does the conclusion hold there, for the paper's fascin ratio?
 
@@ -532,29 +507,32 @@ recorded and 5 random orders.
 
 | | 1 field | 2 fields | all 2 stream fields (ceiling) |
 |---|---|---|---|
-| mean within 5%, share of draws enough (median over wells; range) | 65% (8–100%) | 100% (17–100%) | 100% (17–100%) |
-| mean within 2.5% | 47% (0–100%) | 50% (0–100%) | 50% (0–100%) |
-| wells adequately represented (≥ 90% of draws), within 5% | 2 of 10 | 6 of 10 | |
+| mean within 5%, share of draws enough (median over wells; range) | 68% (17–100%) | 92% (17–100%) | 92% (17–100%) |
+| mean within 2.5% | 53% (5–100%) | 42% (0–100%) | 42% (0–100%) |
+| wells adequately represented (≥ 90% of draws), within 5% | 2 of 10 | 5 of 10 | |
 | wells adequately represented, within 2.5% | 1 of 10 | 2 of 10 | |
 
-| rule | stop | premature, mean within 5% (median; max over wells) | premature, 2.5% |
-|---|---|---|---|
-| JCB CV ≤ 5% or ≤ 2.5%, cells | 1 field | 32%; 90% | 47%; 100% |
-| fixed 2 fields | 2 fields | 0%; 83% | 50%; 100% |
+| rule | stop | not preserved at the stop, mean within 5% (median; max over wells) | of which premature | not preserved, 2.5% | of which premature |
+|---|---|---|---|---|---|
+| JCB CV ≤ 5%, cells | 1 field | 32%; 77% | 18%; 33% | 58%; 87% | 7%; 37% |
+| JCB CV ≤ 2.5%, cells | 1 field | 32%; 77% | 12%; 33% | 58%; 87% | 2%; 37% |
+| fixed 2 fields | 2 fields | 8%; 83% | 0%; 0% | 58%; 100% | 0%; 0% |
 
-Premature shares are over the random orders, as before. These orders are now
-drawn per well (B-4 of `docs/audit/function_audit_2_2026-09-26.md`), which
-moved the JCB shares (they were 33%; 87% and 55–57%); the reliability
-table and the recorded order are unchanged.
+Shares are over the random orders, drawn per well. The third audit
+(`docs/audit/README.md`) reseeded each split's reservoir with `split_seed`,
+which moved every number here, and the calibration now counts separately the
+stops that not even both stream fields could have fixed: only the rest are
+premature (so a stop at the last stream field is never premature).
 
 **What this shows**
 
 - **The development conclusion does not transfer as a number.** On idr0028,
   2 fields were enough for the mean within 5% in 12 of 12 wells; on idr0139,
-  2 fields are enough in 6 of 10 wells, and 1 field (where the JCB rule stops,
-  since one field holds about 330 nuclei) in 2 of 10. The JCB stop is premature
-  at 5% in a median 32% of replayed acquisitions and up to 90% in the worst
-  well. This is the held-out counterpart of entry 1's observation that with
+  2 fields are enough in 5 of 10 wells, and 1 field (where the JCB rule stops,
+  since one field holds about 330 nuclei) in 2 of 10. The JCB stop misses the
+  mean within 5% in a median 32% of replayed acquisitions and up to 77% in the
+  worst well; in a median 18% (up to 33%) the second field would have fixed
+  it. This is the held-out counterpart of entry 1's observation that with
   the actual single field 35% of wells miss 5%.
 - **What transfers is the regime, not the count.** idr0139 has about 3 times
   the FOV-level error that random cells predict (entry 1), idr0028 about 1.5
@@ -562,8 +540,8 @@ table and the recorded order are unchanged.
   insufficient where they vary more. A protocol must be set per readout and
   per preparation, not carried over.
 - **The report says what it can and cannot judge.** The 2-field reference is
-  itself noisy: the ceiling is 100% (median; 17% in the worst well) at 5% and
-  50% at 2.5%, and the
+  itself noisy: the ceiling is 92% (median; 17% in the worst well) at 5% and
+  42% at 2.5%, and the
   protocol summary names the wells whose reference could not judge the
   criterion rather than listing them as needing more fields. So the shares
   above are lower bounds on nothing and upper bounds on nothing: with 4
@@ -589,22 +567,16 @@ stopping too early? This is the benchmark of `docs/questions.md` (rows R2,
 P5 and P6), scored with `retrospective.frontier` (`docs/benchmarking.md`,
 "The score").
 
-**Method.** `data/crick_idr/benchmark.py` under protocol version 1
-(`benchmark_protocol.py`, locked by digest `8edc7dc0` before the first run).
-Version 2 (digest `f586f431`) renamed the families "JCB per cell" and "JCS
-spread per cell" to "per object" and changed no setting. Version 3 (digest
-`9cceed31`, locked 2026-09-26 before its run) keeps every setting and records
-what the second audit changed in the replay under them
-(`docs/audit/function_audit_2_2026-09-26.md`, B-2, B-4):
-
-- permuted orders are drawn per well from `random_state`, so one well's
-  order no longer depends on the others;
-- the rules see each prefix in acquisition order.
-
-The per-field precision rule also changed: C-1 counts only fields with
-objects in its variance factor and degrees of freedom. The numbers below are
-those of the version 3 run; where one moved from version 2, the text says so.
-Replays hold back 35% of each idr0028 well (5 splits, recorded and 10 random
+**Method.** `data/crick_idr/benchmark.py` under protocol version 4
+(`benchmark_protocol.py`, locked by digest `ea4d4b0a` on 2026-09-28 before
+its run). Its settings, grids and seeds are those of version 1, locked
+before the first run; the protocol file records what each version changed.
+Version 3 (second audit) drew permuted orders per well and fed the rules each
+prefix in acquisition order; version 4 (third audit, `docs/audit/README.md`)
+seeds each split's reservoir with `split_seed`, counts a subset with too few
+objects for its metric as not preserved, gives the JCB rule insufficient data
+for a feature with no spread so far, and withholds a frontier interval when
+fewer than 90% of its resamples reach the risk. Replays hold back 35% of each idr0028 well (5 splits, recorded and 10 random
 orders; 50% of each idr0139 well, 6 splits, recorded and 5 random orders).
 Each rule family is swept over a threshold grid fixed in the protocol; risk
 is the share of acquisitions that did not preserve the outcome in held-back
@@ -618,53 +590,59 @@ Fields saved against a fixed count, idr0028 (negative: costs fields):
 
 | rule | mean within 5%, risk ≤ 5% | mean within 2.5%, risk ≤ 5% | mean within 2.5%, risk ≤ 10% |
 |---|---|---|---|
-| fixed count (fields needed) | 1 | 3 | 2 |
-| JCB per object | 0.0 | −5.4 | −0.9 |
-| JCB per field | −1.3 | −0.5 | −0.3 |
-| JCS spread per object | 0.0 | −1.1 | −2.1 |
-| JCS spread per field | −1.0 | −7.5 | 0.0 |
-| FOV bootstrap of the mean | −1.0 | −10.4 | 0.0 |
+| fixed count (fields needed) | 1 | 4 | 2 |
+| JCB per object | 0.0 | −4.3 | −0.9 |
+| JCB per field | −1.3 | +0.5 | −0.3 |
+| JCS spread per object | 0.0 | −0.1 | −2.1 |
+| JCS spread per field | −1.0 | −6.2 | 0.0 |
+| FOV bootstrap of the mean | −1.0 | −1.7 | 0.0 |
 
 The 95% intervals over the 12 wells are wide. For example, JCB per field at
-2.5% has −0.6 to 0.7 fields saved. At the 2.5% criterion every cost's
-interval includes 0, so the summary marks each one "(not resolved)". Every
-adaptivity correlation is 0.35 or less. Under version 2 the fixed count
-needed 4 fields at 2.5% and 5% risk; with per-well orders it needs 3, and
-every rule's cost there is counted from 3.
+2.5% has −0.6 to 0.8 fields saved. At the 2.5% criterion every cost's and
+saving's interval includes 0, so the summary marks each one "(not resolved)". Every
+adaptivity correlation is 0.35 or less. At 2.5% and 5% risk the fixed count
+needs 4 fields, and every rule's cost there is counted from 4.
 
 Settings chosen on idr0028 to meet 5% risk, scored on the held-out idr0139:
 
 | mean within 5% | stop on idr0139 | risk on idr0139 |
 |---|---|---|
-| fixed 1 field, JCB per object, JCS spread per object | 1 field | 35% |
-| JCB per field, JCS spread per field, FOV bootstrap | 2 fields (all available) | 22% |
+| fixed 1 field, JCB per object, JCS spread per object | 1 field | 36% |
+| JCB per field, JCS spread per field, FOV bootstrap | 2 fields (all available) | 27% |
 
-For the mean within 2.5%, every setting reaches 58% risk on idr0139.
+For the mean within 2.5%, every setting reaches 55% risk on idr0139.
 
 Planted rare state (semi-synthetic: 5 siYAP nuclei in 10% or 20% of the
 fields of the MOCK wells of plates 1A and 2A, 48 acquisitions):
 
 | rule | risk ≤ 5% | risk ≤ 10% |
 |---|---|---|
-| fixed count (fields needed) | 15 | 12 |
-| novelty bound | −3.0 | −2.9 |
-| rare incidence, reading the planted label | +8.5 (Spearman 0.66) | +5.5 (Spearman 0.66) |
+| fixed count (fields needed) | 17 | 14 |
+| novelty bound | −1.0 | −0.9 |
+| rare incidence, reading the planted label | +9.9 (Spearman 0.77) | +7.3 (Spearman 0.77) |
+
+At risk ≤ 5% only 77% of the frontier's resamples reach that risk for both
+the fixed count and each rule, so the summary gives no interval there; at
+10% risk the label rule saves 5.6 to 8.1 fields and the novelty bound costs
+0.9 to 3.3.
 
 **What this shows**
 
-- **For the well mean on idr0028, nothing beats a fixed count.** This is the
-  null result the regime map needs: the readout is easy, one field meets the
-  mean within 5%, and every rule either matches that or costs fields.
+- **For the well mean on idr0028, nothing beats a fixed count by a resolved
+  margin.** This is the null result the regime map needs: the readout is
+  easy, one field meets the mean within 5%, and every rule either matches that
+  or costs fields; the one saving, JCB per field at 2.5% (0.5 fields), has an
+  interval that includes 0.
 - **Per cell against per field changes where each rule fails.** At 5% the
   per-object rules match a fixed single field, and the per-field rules cost one
   field because they need two fields to estimate field-to-field variance. At
-  2.5% it reverses: the per-object JCB rule (upper-95 SD) costs 5.4 fields,
-  JCB per field only 0.5, because object counts overstate what the fields add.
-  Neither cost is resolved over 12 wells.
+  2.5% it reverses: the per-object JCB rule (upper-95 SD) costs 4.3 fields,
+  while JCB per field saves 0.5, because object counts overstate what the
+  fields add. Neither difference is resolved over 12 wells.
 - **No development setting transfers to the held-out wells.** At the setting
-  chosen for 5% risk on idr0028, idr0139 gives 22–35% risk. Part of that is
+  chosen for 5% risk on idr0028, idr0139 gives 27–36% risk. Part of that is
   idr0139 itself: its 2-field reference cannot confirm the mean within 5% in
-  22% of hold-outs even with every field (entry 7). Stopping at one field
+  27% of hold-outs even with every field (entry 7). Stopping at one field
   (fixed, JCB per object, JCS spread per object) is worse than that floor;
   stopping at two is exactly at it. Entry 7's conclusion holds: the count
   does not transfer.
@@ -691,7 +669,7 @@ fields of the MOCK wells of plates 1A and 2A, 48 acquisitions):
 
 ## 9. Objects or fields, each paper's own procedure (2026-09-25)
 
-**Question** (R0 and P5 of `docs/questions.md`). Entry 1 compared errors.
+**Question** (the Foundation and P5 of `docs/questions.md`). Entry 1 compared errors.
 This entry runs each reference paper's own procedure twice: once with objects
 (here nuclei with their cytoplasm) drawn at random from the well, as the
 paper does, and once with the same number of objects obtained by imaging
@@ -711,8 +689,8 @@ per well).
   L08 and O02, with the same counts, means, medians and SDs.
 - **JCB** (`object_rule_check`). Values are normalized to the mean of every
   object of the negative-control wells, as the paper's supplementary
-  spreadsheet and R code do (a correction to the first version, which
-  averaged the control wells' means; see below). For each well,
+  spreadsheet and R code do, not to the mean of the control wells' means.
+  For each well,
   `n = ceil((SD / target)^2)` at 5% and 2.5%. Whole fields are then drawn at
   random, with replacement, until at least `n` objects, 4000 times (1000 on
   the complete plates); the SD of that average is the real averaging error.
@@ -814,14 +792,9 @@ random objects and −0.09 to 0.33 from whole fields.
   different effort at 30 and at 270 objects per field. Large effects, such as
   leptomycin B, survive either way.
 
-**Corrected 2026-09-25.** Two changes moved the idr0028 complete-plate
-column only. The control mean now pools every control object, as in the
-JCB supplementary spreadsheet and R code (PR #39). And the complete plates had
-labelled every well without a gene symbol MOCK, including 92 technical-control
-and 19 empty wells whose nuclei (up to 10,134 per well) have a much lower
-ratio; they now keep their control type, so MOCK means negative control only.
-Before, the plates gave 95 of 1,144 wells missing 2.5% and 19 missing 5%. The
-paper's wells and the idr0139 plate are unchanged.
+On the complete idr0028 plates, MOCK means negative control only: the 92
+technical-control and 19 empty wells without a gene symbol keep their control
+type, since their nuclei (up to 10,134 per well) have a much lower ratio.
 
 **What this does not show**
 
@@ -830,9 +803,9 @@ paper's wells and the idr0139 plate are unchanged.
 - **The complete plates carry the readout only**, so the descriptor spread,
   the unusual objects and the treatment comparisons are on the paper's wells.
 - **The JCS max − min statistic is noisy.** It is the paper's statistic and
-  is kept for faithfulness, but a first run of the same analysis with another
-  random stream gave a median ratio of 1.6 for the mean on idr0139, where the
-  package gave 1.3 before the 2026-09-26 regeneration and 1.4 after it. Read the ratios as "above 1 for location descriptors",
+  is kept for faithfulness, but other random streams of the same analysis
+  gave median ratios of 1.6 and 1.3 for the mean on idr0139, where this run
+  gives 1.4. Read the ratios as "above 1 for location descriptors",
   not to one decimal.
 - **The earlier benchmark (entry 8) is a different test.** It scores a rule
   against a tolerance on the realized error in held-back fields and sweeps
@@ -855,8 +828,11 @@ the fields, or clustered in a few?
   (up to 100 objects per field, so every reference field weighs the same). An
   object's score is its mean distance to the 5 nearest reference objects. It
   is unusual when that score exceeds what all but 1% of reference objects
-  reach against reference objects of other fields. Each well is scored
-  against the control wells other than itself. The design follows
+  reach against the other control wells (calibrated leaving one control well
+  out since the third audit; each tested object is scored against all
+  control wells but one, drawn at random, so both see an equally dense
+  reference). Each well is scored against the control wells other than
+  itself. The design follows
   fiberfeatures' pixel-category fit (reference sampling, provenance, a seed
   check), without its scikit-learn Gaussian mixture: rare states are what a
   mixture tends to absorb, and MorphoCoverage has no scikit-learn dependency.
@@ -871,23 +847,23 @@ Results (`results/objects_vs_fields_rare.csv`, `_unusual.csv`):
 
 | | idr0139, 10 wells | idr0028, 12 wells |
 |---|---|---|
-| unusual objects per well | 1.5% (0.3–2.6%) | 1.1% (0–2.5%) |
-| agreement of refits with other reference samples | 50% (42–73%) | 100% |
-| wells where unusual objects cluster by field (p ≤ 0.05) | 3 of 10 | 5 of 12 |
-| in those wells, fields needed / fields an object count asks for | 3.0 (2.5–3.0) | 1.9 (1.5–2.2) |
+| unusual objects per well | 1.4% (0.3–2.1%) | 1.1% (0–2.6%) |
+| agreement of refits with other reference samples | 56% (43–71%) | 90% (62–100%) |
+| wells where unusual objects cluster by field (p ≤ 0.05) | 2 of 10 | 3 of 12 |
+| in those wells, fields needed / fields an object count asks for | 3.0 (3.0–3.0) | 2.0 (1.9–2.2) |
 
-On idr0028, the clustered wells are MOCK 1A B6, LATS1 1A I23, MOCK 2A K16,
-YAP siRNA 2A N23 and ARAP2 2B C13. In YAP siRNA 2A N23, 7 unusual objects sit
+On idr0028, the clustered wells are LATS1 1A I23, YAP siRNA 2A N23 and
+ARAP2 2B C13; the two MOCK wells clustered before the leave-one-group-out
+calibration (MOCK 1A B6, MOCK 2A K16) no longer do. In YAP siRNA 2A N23, 7 unusual objects sit
 in 3 of 28 fields (71% in one field), where random objects would fill 6.
 Seeing them with 95% chance takes 27 fields from their field incidence (up to
-131 at the 95% bound, the low end of the two-sided interval since J-9 of
-`docs/audit/function_audit_2_2026-09-26.md`; it was 99), against 12 if the
+131 at the 95% bound, the low end of the two-sided interval), against 12 if the
 objects were random.
 
 **What this shows**
 
 - **Rare objects can cluster by field in real data, and then an object count
-  under-asks.** In 5 of 12 idr0028 wells, unusual objects occupy fewer fields
+  under-asks.** In 3 of 12 idr0028 wells, unusual objects occupy fewer fields
   than random objects would. There, seeing them reliably takes about twice
   the fields that the object-count argument predicts. That is the rare-state
   version of entry 9: the mean needs fields counted when fields differ; rare
@@ -904,12 +880,14 @@ objects were random.
   why the inspection list of the report (R5) exists. Named states need
   labels.
 - **idr0139 labels depend on the reference sample** (refits agree on only
-  42–73% of unusual objects there, and the regeneration alone moved the
-  clustered wells from 2 to 3 of 10): its fields hold about 270 objects, of
+  43–71% of unusual objects there, and reseeding the groups alone moves the
+  clustered wells between 2 and 3 of 10): its fields hold about 270 objects, of
   which 100 are sampled. The idr0139 clustering results should not be read
   beyond "some wells cluster". idr0028 fields hold fewer than 100 objects, so
-  every reference object is used and the labels do not depend on the seed.
+  every reference object is used, but the control well left out of each
+  tested object's reference is drawn at random, so its labels depend on the
+  seed too, less so: refits agree on 62–100% (median 90%).
 - **Multiple wells, one test each.** With 12 wells at p ≤ 0.05, about 0.6
-  would be flagged by chance; 5 were.
+  would be flagged by chance; 3 were.
 - **Few fields per idr0139 well.** With 4 fields, clustering can hardly be
   detected, and the fields needed carry wide bounds.

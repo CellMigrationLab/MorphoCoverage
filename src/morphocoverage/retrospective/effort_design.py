@@ -6,6 +6,9 @@ design's variance of the mean weighs each level's component by
 samples, repeats and fields count as acquired; an allocation is projected as
 balanced (every sample with as many fields and observations), and compared
 with the acquired allocation made balanced. See ``effort`` for the formulas.
+
+Shared-private: ``_acquired_se``, ``_allocation_rows``, ``_check_allocations``,
+``_contributions``, ``_design``, ``_interval`` and ``_se`` (used by ``effort``).
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import is_integer, is_number
+from ..statistics import cluster_size
 from .hierarchy import SamplingHierarchy
 from .protocol import FEW_UNITS
 
@@ -26,7 +30,8 @@ def _se(
 ) -> float:
     """Projected SE of the mean for ``samples`` x ``fovs_per_sample`` acquired FOVs, balanced.
 
-    Only a share ``design["yield"]`` of acquired FOVs holds observations, with
+    The repeat term is ``v_repeat / min(repeats, samples)``. Only a share
+    ``design["yield"]`` of acquired FOVs holds observations, with
     ``design["per_fov"]`` observations each on average, as in the acquired
     design; empty FOVs are effort that averages out nothing. Every sample
     holds as many FOVs and observations (``_acquired_se`` has the acquired,
@@ -35,7 +40,8 @@ def _se(
     comp = np.maximum(components, 0.0)
     if design["has_repeat"]:
         v_rep, v_sample, v_fov, v_obs = comp
-        between = v_rep / design["repeats"]
+        # Fewer samples than repeats cover only that many repeats.
+        between = v_rep / min(design["repeats"], samples)
     else:
         v_sample, v_fov, v_obs = comp
         between = 0.0
@@ -153,7 +159,7 @@ def _design(
         "yield": len(per_field) / total_fovs,
         "per_fov": len(qualified) / len(per_field),
         # Sum n_j^2 / N: the cluster size that sets the design effect of unequal FOVs.
-        "cluster_size": float(np.sum(per_field.astype(float) ** 2) / len(qualified)),
+        "cluster_size": cluster_size(per_field),
         "sample_weight": _weight(qualified, hierarchy.sample),
         "repeat_weight": _weight(qualified, repeat) if has_repeat else None,
     }
@@ -232,3 +238,6 @@ def _allocation_rows(
             }
         )
     return projections, comparisons
+
+
+__all__: list[str] = []

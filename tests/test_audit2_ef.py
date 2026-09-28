@@ -29,7 +29,7 @@ from morphocoverage.retrospective import (
 )
 from morphocoverage.retrospective._text import order_phrase, plural
 from morphocoverage.retrospective.criteria import Preservation
-from morphocoverage.retrospective.protocol import _bootstrap
+from morphocoverage.retrospective.protocol import _bootstrap, _exact
 from morphocoverage.retrospective.spatial import EfficiencyResult, efficiency_summary
 from morphocoverage.spatial import empirical_semivariogram
 from morphocoverage.statistics import bootstrap_fields
@@ -266,7 +266,7 @@ def test_e9_one_replayed_order_is_singular():
         orders=[AcquisitionOrder.permuted(0)],
     )
     text = report.summary()
-    assert "over 1 order." in text and "1 orders" not in text
+    assert "in the random order, first met after" in text and "1 orders" not in text
 
 
 def test_e10_the_semivariogram_refuses_infinite_coordinates():
@@ -422,7 +422,10 @@ def test_f7_a_boundary_share_gets_an_exact_interval_over_units():
     block = pd.DataFrame({"unit": list("aabbbcd"), "adequate": [1, 0, 1, 1, 0, 1, 0]})
     units = [block.loc[block["unit"] == u, "adequate"].to_numpy(float) for u in "abcd"]
     shared = bootstrap_fields(units, np.mean, n_boot=500, rng=np.random.default_rng(1))
-    assert _bootstrap(block, 500, np.random.default_rng(1)) == shared[1:]
+    # Audit 3 (F-5): never narrower than the exact interval over the units, within 0-1.
+    exact = _exact(4 / 7, 4)
+    expected = (max(0.0, min(shared[1], exact[0])), min(1.0, max(shared[2], exact[1])))
+    assert _bootstrap(block, 500, np.random.default_rng(1)) == pytest.approx(expected)
 
 
 def test_f8_a_low_ceiling_is_not_called_unjudgeable():

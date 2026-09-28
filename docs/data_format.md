@@ -27,6 +27,9 @@ hold no observation vanish, effort is undercounted and every sampling answer
 is optimistic. If no acquisition record exists,
 `morphocoverage.schema.fov_table_from_observations` rebuilds one from the
 observations. It warns every time, because it cannot know about empty fields.
+`validate_input_tables` called without `fovs` does the same, with a
+`MissingFovTableWarning`, and records `fovs_from_observations=True` on the
+result.
 
 ## Optional columns
 
@@ -36,10 +39,10 @@ observations. It warns every time, because it cannot know about empty fields.
 | `repeat` | both, or FOV table only | string | Biological repeat, `YYYY_MM_DD` or `single` in MorphoBricks; any label is accepted. A default analysis group and part of field identity. Normalisation and the condition contrast work within each repeat. |
 | `technical_repeat` | both, or FOV table only | string | Technical repeat within the biological repeat: a well, a dish, a coverslip. Never a biological repeat. A default analysis group and part of field identity. The overview counts technical repeats. Plots colour points by them and resample them before fields. The contrast shuffles whole technical repeats when each side has at least two. `Setup` derives the hierarchy "field within technical repeat within repeat" from it, for "more fields or more technical repeats?". `single` means one technical repeat per repeat. |
 | other group columns | both, or FOV table only | any | Named with `group_cols`, for example `batch`. Each combination of group values is analysed apart. |
-| `z`, `c`, `t` (or `z0`, `z1`) | observations | integer | Plane, channel and time point within one position. Required when one position spans several files, so the files can be told apart. Never features and never new fields. |
-| acquisition order | FOV table | integer | Named with `acquisition_order_col` (MorphoBricks suggests `acquisition_order`). The recorded order in which fields are replayed. Without it only random orders are replayed. |
-| stage coordinates | FOV table | numeric | Named with `stage_cols` (MorphoBricks suggests `stage_x`, `stage_y`). Used for dispersed orders, stage travel and redundancy distance. |
-| imaged area | FOV table | numeric | Named on `FixedAreaStrategy`. The physical area of each field, for area-based stopping. |
+| `z`, `c`, `t` (or `z0`, `z1`) | observations | integer | Plane, channel and time point within one position. Required when one position spans several files, so the files can be told apart. Never new fields, and never features: naming one in `feature_cols` raises (see [Features measured per plane](#features-measured-per-plane)). Read in lowercase only, so a column `Z` raises as a near miss. |
+| acquisition order | FOV table | numeric, datetime or timedelta | Named with `acquisition_order_col` (MorphoBricks suggests `acquisition_order`). The recorded order in which fields are replayed; text is refused, since it would sort `'10'` before `'2'`. Without it only random orders are replayed. |
+| stage coordinates | FOV table | numeric, finite | Named with `stage_cols` (MorphoBricks suggests `stage_x`, `stage_y`). Used for dispersed orders, stage travel, redundancy distance and spatial blocks; an infinite coordinate raises. |
+| imaged area | FOV table | numeric, positive | Named on `FixedAreaStrategy`. The physical area of each field, for area-based stopping. A missing, infinite, zero or negative area makes the rule not applicable, and a text column raises; a benchmark record's effort refuses all of them. |
 | a rare-state label | observations | boolean or 0/1 | Named with `Setup.rare_label`. An independent label of the rare phenotype, so held-back fields can judge whether it was seen. |
 | `label_id`, `mask_file`, `patch_file` | observations | any | Provenance, kept for tracing an observation back to its image; never features. |
 
@@ -48,12 +51,16 @@ observations. It warns every time, because it cannot know about empty fields.
 - **Exact names.** Column names are lowercase and exact. A near miss raises,
   so a misspelt group cannot silently merge repeats: `Repeat`,
   `Technical_Repeat`, `technical repeat` (a space for the underscore),
-  `technicalRepeat` or `PositionID` (camelCase), `Conditions` (a plural),
-  `condition ` (a trailing space), or a byte-order mark that a spreadsheet
-  wrote before the first header. Name the column in `group_cols` or
-  `fov_col` to use it anyway.
+  `technicalRepeat` or `PositionID` (camelCase), `technical.repeat` (a dot),
+  `Conditions` (a plural), `condition ` (a trailing space), `Repeat.1` (the
+  copy pandas names when a file has two `Repeat` columns), `Z` for `z`, or a
+  byte-order mark that a spreadsheet wrote before the first header. Name the
+  column in `group_cols` or `fov_col` to use it anyway.
 - **Each column name once.** A table with two columns of the same name (as
-  `pd.concat(axis=1)` can make) raises before anything else.
+  `pd.concat(axis=1)` can make) raises before anything else, and so does a
+  column named twice in `feature_cols` or `group_cols`. Features are an
+  ordered list, not a set (whose order changes between runs), and must be real
+  numbers (complex values raise).
 - **One row per field.** Every field appears once in the FOV table, and
   every observation's field must be listed there.
 - **Field identity.** A field is identified by its group columns together with
@@ -62,15 +69,19 @@ observations. It warns every time, because it cannot know about empty fields.
 - **Group values live where they are unambiguous.** `condition`, `repeat` and
   `technical_repeat` may be only in the FOV table. They are then copied onto
   the observations, which is allowed only when the field identifier maps to a
-  single value.
+  single value; when field names restart in each repeat, the copy goes
+  through the group columns the observations do carry (the repeat and the
+  field name together). A MorphoBricks column in the observations but not in
+  the FOV table raises.
 - **No missing identity or group values.** A missing value in a field
   identifier or a group column raises, because the observation's field or
   group would be unknown.
 - **Empty optional columns count as absent.** Producers that write every
   column, as CellPatcher does, leave `position_id` empty when one file is one
   field and `technical_repeat` empty when there are no wells. A column that is
-  empty in every row is therefore read as absent. A column that is only
-  partly empty still raises, since it is ambiguous. A column you name
+  empty in every row is therefore read as absent. When only the observation
+  table's copy is empty, the FOV table's values are used. A column that is
+  only partly empty still raises, since it is ambiguous. A column you name
   explicitly in `group_cols` or `fov_col` is always kept.
 - **Empty fields are effort.** A field with zero observations is a real
   result: the microscope looked and found nothing. Keep it in the FOV table.
@@ -80,8 +91,10 @@ observations. It warns every time, because it cannot know about empty fields.
   as `image_file` or `fov_id`, and each field holds a single `z`, `c` or `t`
   value (on the observations, or in the FOV table) that varies across fields,
   each "field" may be one plane of a position: with several observations per
-  field this raises, with one row per field it is a warning. Supply
-  `position_id`, or pass `fov_col` if each file really is one position.
+  field this raises, with one row per field it is a warning. A FOV-table `z`
+  or `t` counts only when one of its values recurs in several fields, since a
+  stage height or an acquisition time distinct in every field is not a plane.
+  Supply `position_id`, or pass `fov_col` if each file really is one position.
 - **Declare what a row is.** Pass `observation_unit` (`"cell"`, `"nucleus"`,
   `"patch"`, ...) when rows are not ordinary objects. Otherwise every sentence
   says "object" and records that the unit was assumed.
@@ -138,6 +151,9 @@ Warnings do not stop it but are often mistakes:
 - an observation table with no rows;
 - rows that are exact copies of another row (a file read twice), or a
   `label_id` twice in one field;
+- group labels within one table that differ only in spaces, case, or number
+  against text (`'drug'`, `'drug '` and `'Drug'`; `1` and `'1'`), which are
+  analysed as separate groups;
 - features with missing values;
 - repeats without the declared control (checked against the fields in the
   observations when there is no FOV table);
@@ -180,6 +196,47 @@ print(data.group_cols)  # ('condition', 'repeat', 'technical_repeat')
 print(data.fov_key)  # ('condition', 'repeat', 'technical_repeat', 'image_file')
 print(len(data.fovs), "fields,", len(data.objects), "cells")  # 6 fields, 5 cells
 ```
+
+## Features measured per plane
+
+A feature extractor may measure every object once per z-plane, channel or
+time point. The planes are not fields and their coordinate is not a feature,
+so such a table is refused as it is. When the question is how an object
+differs between planes, turn each feature into one feature per plane first,
+then declare the new names (as `feature_cols`, or as `Setup.readout` and
+`Setup.features`):
+
+```python
+import pandas as pd
+from morphocoverage import planes_as_features, validate_input_tables
+
+# Two cells, each measured in planes z = 0 and z = 1 of one field.
+objects = pd.DataFrame(
+    {
+        "condition": ["control"] * 4,
+        "repeat": ["2026_01_01"] * 4,
+        "position_id": ["P1"] * 4,
+        "label_id": [1, 1, 2, 2],
+        "z": [0, 1, 0, 1],
+        "area": [210.0, 190.0, 240.0, 236.0],
+    }
+)
+fovs = pd.DataFrame({"condition": ["control"], "repeat": ["2026_01_01"], "position_id": ["P1"]})
+per_object, features = planes_as_features(objects, fovs, features=["area"])
+print(features)  # ['area_z0', 'area_z1']
+data = validate_input_tables(per_object, fovs=fovs, feature_cols=features, observation_unit="cell")
+print(len(data.fovs), "field,", len(data.objects), "cells")  # 1 field, 2 cells
+```
+
+Objects are matched across planes by `label_id` within the field (`object_col`
+names another identifier), so the same label must name the same object in
+every plane, as a 3D segmentation or a 2D one tracked across planes gives.
+Labels that restart in each plane without tracking do not name one object,
+and nothing in the table can tell; the pivot refuses what it can see: a
+missing identifier, a label twice in one plane of a field, or an object
+missing from a plane that other objects were measured in. `axes=("z", "c")`
+splits along two axes (`area_z0_c1`). The FOV table is unchanged, and each
+field stays one FOV.
 
 ## From a CellPatcher export
 

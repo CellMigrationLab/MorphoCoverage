@@ -47,9 +47,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._checks import is_integer
+from ._areas import area_problem
+from ._checks import check_seed, is_integer
 from ._parallel import worker_pool
-from ._seeds import group_seed
+from ._seeds import group_rng
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups
 from .objectives import ObjectiveConfig
@@ -172,7 +173,9 @@ class AcquisitionOrder:
     seeded spatially dispersed order (greedy farthest point on stage coordinates).
 
     A dispersed order needs stage coordinates, so it is replayed with
-    ``morphocoverage.retrospective.replay_acquisitions(stage_cols=...)``.
+    ``morphocoverage.retrospective.replay_acquisitions(stage_cols=...)``. A
+    seed is a non-negative integer (numpy integers accepted); a negative one
+    is refused here rather than later by numpy.
     """
 
     kind: str
@@ -185,7 +188,7 @@ class AcquisitionOrder:
         elif self.kind in ("permuted", "dispersed"):
             if not is_integer(self.seed):
                 raise TypeError(f"a {self.kind} order needs an integer seed")
-            object.__setattr__(self, "seed", int(self.seed))
+            object.__setattr__(self, "seed", check_seed(self.seed, f"a {self.kind} order's seed"))
         else:
             raise ValueError("kind must be 'recorded', 'permuted' or 'dispersed'")
 
@@ -247,13 +250,13 @@ def permuted_fovs(
     (``AcquisitionOrder.apply``, seeded from the order's seed) and the
     retrospective replay's (seeded from its ``random_state``, the order's seed
     and the split). The rows are put in FOV-key order first and the generator
-    is seeded with ``group_seed(random_state, group, *more)``, so the order
+    is seeded with ``group_rng(random_state, group, *more)``, so the order
     depends only on which FOVs the group holds, never on other groups or on the
     table's row order. Shared-private: used by ``retrospective.replay``, not
     part of the public API.
     """
     canonical = fovs.sort_values(list(fov_key), kind="stable")
-    rng = np.random.default_rng(group_seed(random_state, group, *more))
+    rng = group_rng(random_state, group, *more)
     return canonical.iloc[rng.permutation(len(canonical))]
 
 
@@ -363,31 +366,17 @@ def _group_key(group: Mapping[str, Any]) -> tuple:
 def _area(data: ValidatedInput, area_col: str | None) -> float | None:
     """Total imaged area of the FOVs, or ``None`` when the dataset declares no area column.
 
-    A field with no recorded area raises: summing it as zero would understate
-    the effort at the stop. Areas must be numbers (text such as ``"100"``
-    would be concatenated, not added) and positive and finite, as an imaged
-    area is; anything else raises rather than entering the effort.
+    Areas are checked by ``_areas.area_problem``, the check
+    ``ImagedAreaEstimator`` uses too: a field with no recorded area, or an
+    infinite, zero or negative one, raises here (summing it would misstate the
+    effort at the stop), and so do areas that are not numbers.
     """
     if area_col is None:
         return None
-    areas = data.fovs[area_col]
-    if areas.isna().any():
-        missing = data.fovs.loc[areas.isna(), list(data.fov_key)].head(3).to_dict("records")
-        raise ValueError(f"area_col {area_col!r} is missing for some fields, e.g. {missing}")
-    if not pd.api.types.is_numeric_dtype(areas) or pd.api.types.is_bool_dtype(areas):
-        raise ValueError(
-            f"area_col {area_col!r} holds {areas.dtype} values, not numbers; convert it "
-            f"first, for example with pd.to_numeric(fovs[{area_col!r}])"
-        )
-    values = areas.to_numpy(dtype=float)
-    invalid = ~np.isfinite(values) | (values <= 0)
-    if invalid.any():
-        where = data.fovs.loc[invalid, list(data.fov_key)].head(3).to_dict("records")
-        raise ValueError(
-            f"area_col {area_col!r} has infinite, zero or negative areas for some fields, "
-            f"e.g. {where}; an imaged area is a positive, finite number"
-        )
-    return float(values.sum())
+    problem = area_problem(data.fovs, area_col, data.fov_key)
+    if problem is not None:
+        raise ValueError(problem)
+    return float(data.fovs[area_col].to_numpy(dtype=float).sum())
 
 
 def _record_run(
@@ -505,7 +494,10 @@ def run_benchmark(
     metric_list = list(metrics)
     names = [metric.name for metric in metric_list]
     if len(set(names)) != len(names):
-        raise ValueError(f"outcome metric names must be distinct: {names}")
+        raise ValueError(
+            f"outcome metric names must be distinct: {names}; give two settings of one "
+            "metric different names with label=, e.g. MMDError(..., label='mmd_wide')"
+        )
     if dataset.area_col is not None and dataset.area_col in dataset.feature_cols:
         raise ValueError("the area column is acquisition metadata, not a phenotype feature")
 
@@ -590,3 +582,15 @@ def run_benchmark(
                         )
                     )
     return records
+
+
+__all__ = [
+    "AcquisitionOrder",
+    "BenchmarkDataset",
+    "BenchmarkRecord",
+    "BenchmarkRegistry",
+    "DatasetRole",
+    "leave_one_dataset_out",
+    "records_to_frame",
+    "run_benchmark",
+]

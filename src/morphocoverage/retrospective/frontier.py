@@ -26,7 +26,10 @@ in fields, so 0 is the null result (as good as a fixed count) and a negative
 value is worse. Its interval resamples the declared **independent units**
 (samples or repeats, ``unit_cols``) with replacement; hold-outs, orders and
 draws describe each unit and never narrow it. With fewer than two units there
-is no interval.
+is no interval, and none either when fewer than ``MIN_BOOT_SUCCESS`` (90%) of
+the resamples reached ``alpha`` for both the family and the fixed rule: the
+others would be a selected subset, not the bootstrap distribution (the rule
+of the effort projection's intervals).
 
 Also reported:
 
@@ -70,9 +73,11 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._checks import as_count
 from ..policies import ThresholdPolicy, redecide
 from .adequacy import adequacy_points
 from .criteria import Preservation
+from .effort import MIN_BOOT_SUCCESS
 from .frontier_text import BASELINE, frontier_summary
 from .replay import ReplayResult
 
@@ -373,7 +378,8 @@ class FrontierResult:
       ``effort`` and ``risk``, the baseline's ``baseline_effort``, the
       ``fields_saved`` with ``saved_low`` / ``saved_high`` and
       ``saved_reached`` (the share of unit resamples in which both reached
-      ``alpha``), ``baseline_risk_at_same_effort`` and ``adaptivity``. For a
+      ``alpha``; below ``MIN_BOOT_SUCCESS`` there is no interval),
+      ``baseline_risk_at_same_effort`` and ``adaptivity``. For a
       family with no chosen setting that met ``alpha`` at some setting but not
       from there on, ``met_setting`` / ``met_risk`` (the cheapest within
       ``alpha``) and ``exceeded_setting`` / ``exceeded_risk`` (the costliest
@@ -419,8 +425,7 @@ def frontier(
     missing = [c for c in unit_cols if c not in replay.group_cols]
     if missing:
         raise ValueError(f"unit columns {missing} are not group columns of the replay")
-    if isinstance(n_boot, bool) or not isinstance(n_boot, int) or n_boot < 1:
-        raise ValueError("n_boot must be a positive integer")
+    n_boot = as_count(n_boot, "n_boot")
     keys = _run_keys(replay)
     statuses = _statuses(replay, criterion)
     streams = {
@@ -482,14 +487,15 @@ def frontier(
             reached = chosen is not None and base is not None
             row["fields_saved"] = float(base["effort"] - chosen["effort"]) if reached else None
             draws = boot.get((name, alpha))
-            # An interval only around a score that exists.
-            if reached and draws is not None and np.isfinite(draws).any():
+            row["saved_low"] = row["saved_high"] = row["saved_reached"] = None
+            # An interval only around a score that exists, and only from (nearly) every
+            # resample: the few that reached alpha would be a selected subset.
+            if reached and draws is not None:
                 finite = draws[np.isfinite(draws)]
-                row["saved_low"] = float(np.quantile(finite, 0.025))
-                row["saved_high"] = float(np.quantile(finite, 0.975))
-                row["saved_reached"] = float(np.isfinite(draws).mean())
-            else:
-                row["saved_low"] = row["saved_high"] = row["saved_reached"] = None
+                row["saved_reached"] = float(len(finite) / len(draws))
+                if len(finite) and row["saved_reached"] >= MIN_BOOT_SUCCESS:
+                    row["saved_low"] = float(np.quantile(finite, 0.025))
+                    row["saved_high"] = float(np.quantile(finite, 0.975))
             row["baseline_risk_at_same_effort"] = (
                 None if chosen is None else _interpolate_baseline(baseline_curve, chosen["effort"])
             )
@@ -508,6 +514,7 @@ def frontier(
         "unit_cols": list(unit_cols),
         "units": units,
         "n_boot": n_boot,
+        "min_boot_success": MIN_BOOT_SUCCESS,
         "random_state_frontier": random_state,
     }
     return FrontierResult(curve, pd.DataFrame(scores), runs, settings)
@@ -518,8 +525,10 @@ def transfer(development: FrontierResult, held_out: FrontierResult, alpha: float
 
     One row per family: the chosen setting and its development risk and
     effort, then the held-out risk and effort of the same setting (``None``
-    when the held-out dataset did not run it). For the fixed rule the setting
-    is the number of fields.
+    when the held-out dataset did not run it), at ``held_out_setting``. For
+    the fixed rule the setting is the number of fields ``k``: on held-out
+    streams shorter than ``k`` it acquires the whole stream, so a ``k`` beyond
+    the held-out's longest stream is read at that longest stream.
     """
     rows = []
     scores = development.scores[np.isclose(development.scores["alpha"], alpha)]
@@ -532,14 +541,21 @@ def transfer(development: FrontierResult, held_out: FrontierResult, alpha: float
             "setting": row["setting"],
             "development_risk": row["risk"],
             "development_effort": row["effort"],
+            "held_out_setting": None,
             "held_out_risk": None,
             "held_out_effort": None,
             "held_out_judged": None,
         }
         if row["setting"] is not None and not pd.isna(row["setting"]):
             curve = held_out.curve
-            match = curve[(curve["family"] == row["family"]) & (curve["setting"] == row["setting"])]
+            setting = row["setting"]
+            if row["family"] == BASELINE:
+                fixed = curve.loc[curve["family"] == BASELINE, "setting"]
+                # Fixed k acquires min(k, stream) fields: beyond the longest stream, all of it.
+                setting = min(setting, fixed.max()) if len(fixed) else setting
+            match = curve[(curve["family"] == row["family"]) & (curve["setting"] == setting)]
             if len(match):
+                entry["held_out_setting"] = setting
                 entry["held_out_risk"] = match["risk"].iloc[0]
                 entry["held_out_effort"] = float(match["effort"].iloc[0])
                 entry["held_out_judged"] = int(match["judged"].iloc[0])

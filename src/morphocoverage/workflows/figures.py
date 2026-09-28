@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 from ..plots import plots_of_data
 from ..sampling_unit import FeatureRanking
 from ..sampling_unit.ranking import TOP_FEATURES
-from ._shared import check_tables as _check_tables
+from ._shared import check_workflow_inputs
 from .setup import Setup
 
 
@@ -43,7 +43,7 @@ def plots(
     With ``folder`` each figure is also saved there as
     ``<feature>[_<part>].png``. Returns the figures by feature.
     """
-    _check_tables(objects, fovs, setup)
+    check_workflow_inputs(objects, fovs, setup)
     if features is None:
         chosen = [setup.readout]
         if ranking is not None:

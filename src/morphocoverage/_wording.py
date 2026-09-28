@@ -6,7 +6,8 @@ written the same way everywhere.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import math
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -14,8 +15,35 @@ import pandas as pd
 
 
 def percent(value: float) -> str:
-    """A share as a short percentage; small non-zero shares keep one significant digit."""
-    return f"{100 * value:.0f}%" if value >= 0.01 or value == 0 else f"{100 * value:.1g}%"
+    """A share as a short percentage: ``37%``, ``0.3%``, ``99.5%``; ``undefined`` for NaN.
+
+    Whole percentages round half up (12.5% reads ``13%``). A share that is not
+    0 or 1 never reads ``0%`` or ``100%``: below 1% and above 99% it keeps the
+    digits that tell it apart (1 in 5000 is ``0.02%``, 199 in 200 ``99.5%``).
+    """
+    value = float(value)
+    if math.isnan(value):
+        return "undefined"
+    if value in (0.0, 1.0):
+        return f"{100 * value:.0f}%"
+    share = 100 * value
+    if 0 < share < 1:
+        return f"{share:.1g}%"
+    if 99 < share < 100:
+        missing = round(100 - share, 9)  # 99.9 must not read 99.90 from rounding error
+        digits = max(1, -math.floor(math.log10(missing)))
+        return f"{share:.{digits}f}%"
+    return f"{math.floor(share + 0.5):.0f}%"
+
+
+def rate(value: float) -> str:
+    """A declared rate as it was set: ``2.5%``, ``5%``, ``95%``, ``0.1%`` (never rounded).
+
+    For settings (a tolerance, a confidence level, a target prevalence), which
+    ``percent`` would round (2.5% would read ``3%``). Measured shares go
+    through ``percent``.
+    """
+    return f"{100 * float(value):.10g}%"
 
 
 def number(value: float) -> str:
@@ -25,10 +53,50 @@ def number(value: float) -> str:
 
 
 def count(n: float, word: str, plural: str | None = None) -> str:
-    """``1 field``, ``3 fields``, ``2.5 fields`` (``plural`` defaults to ``word + 's'``)."""
-    many = plural if plural is not None else f"{word}s"
+    """``1 field``, ``3 fields``, ``2.5 fields`` (``plural`` defaults to ``plural(word)``)."""
+    many = plural if plural is not None else _plural(word)
     written = number(n)  # singular when the number as written is 1 (1.04 reads "1 field")
     return f"{written} {word if written == '1' else many}"
+
+
+# Plurals that do not follow the English rules below, for the words this package prints.
+_PLURALS = {
+    "nucleus": "nuclei",
+    "fov_summary": "field summaries",
+    "field summary": "field summaries",
+    "index": "indices",
+}
+
+
+def plural(word: str) -> str:
+    """The plural of a unit's name: ``nuclei``, ``patches``, ``colonies``, ``wells``.
+
+    Known irregular words first, then English rules. A word already ending in
+    ``s`` is taken as plural (``organoids``), since observation labels this
+    package does not know are kept as the caller wrote them.
+    """
+    if word in _PLURALS:
+        return _PLURALS[word]
+    if word.endswith("s"):
+        return word
+    if word.endswith(("x", "z", "ch", "sh")):
+        return f"{word}es"
+    if len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
+        return f"{word[:-1]}ies"
+    return f"{word}s"
+
+
+_plural = plural
+
+
+def listing(items: Sequence[object], limit: int = 5) -> str:
+    """``a, b and c``, or ``a, b, c, d, e and 3 more`` beyond ``limit`` items."""
+    names = [str(item) for item in items]
+    if len(names) > limit:
+        return f"{', '.join(names[:limit])} and {len(names) - limit} more"
+    if len(names) <= 1:
+        return "".join(names)
+    return f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def fields(n: float) -> str:
@@ -66,4 +134,16 @@ def rows_of(frame: pd.DataFrame, group: Mapping[str, Any]) -> pd.DataFrame:
     return frame.loc[mask]
 
 
-__all__ = ["count", "duration", "fields", "number", "ordinal", "percent", "rows_of", "where"]
+__all__ = [
+    "count",
+    "duration",
+    "fields",
+    "listing",
+    "number",
+    "ordinal",
+    "percent",
+    "plural",
+    "rate",
+    "rows_of",
+    "where",
+]

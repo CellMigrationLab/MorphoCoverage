@@ -31,8 +31,30 @@ describes this as reasonable for cells on coverslips and less so for tissue.
 The paper's exponential fit to the spread curve is a visual aid and is not used.
 
 Each strategy is an estimator (``DescriptorPlateauEstimator``,
-``DescriptorSpreadEstimator``) reporting the largest descriptor range or
-spread, in the feature's units, plus a ``ThresholdPolicy`` at ``tolerance``.
+``DescriptorSpreadEstimator``) plus ``ThresholdPolicy`` at ``tolerance``. The
+paper watches two kinds of descriptor settle: where the values lie (the mean
+and the median, ``LOCATION_DESCRIPTORS``) and how widely they spread (the SD
+and the IQR, ``SPREAD_DESCRIPTORS``). So each estimator reports, in the
+feature's units, the largest range (plateau) or spread across resamples
+(spread) of each kind among the chosen descriptors:
+
+- ``max_location_range`` / ``max_location_spread`` over the mean and median,
+  population evidence (the population summary);
+- ``max_scale_range`` / ``max_scale_spread`` over the SD and IQR, distribution
+  evidence (the width of the phenotype distribution, part of its fingerprint);
+- ``max_descriptor_range`` / ``max_descriptor_spread``, the largest over all
+  chosen descriptors, kept with its earlier meaning for threshold sweeps
+  (distribution evidence when an SD or IQR is among them, else population).
+
+A kind is reported only when the chosen descriptors include it, and the
+strategy applies ``tolerance`` to each kind reported. With the paper's four
+descriptors the rule therefore answers the population objective (from the
+location descriptors), the distribution objective (from the spread
+descriptors) and the phenotype objective (both), and its own verdict (stop
+when every descriptor is within tolerance) is unchanged.
+
+Missing values in the feature make every quantity ``not_applicable``: the
+framework does not drop them, and more acquisition does not remove them.
 """
 
 from __future__ import annotations
@@ -43,34 +65,27 @@ from typing import Any
 
 import numpy as np
 
+from .._checks import check_seed, is_integer, is_number
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
-from .base import Estimator, SamplingStrategy, check_order_col, unsupported_observation_unit
+from ..statistics import PAPER_DESCRIPTORS, describe
+from ._descriptor_resamples import (
+    _MAX_RESAMPLED_VALUES,
+    _chunk_sizes,
+    _describe_fov_resamples,
+    _describe_many,
+)
+from .base import (
+    Estimator,
+    SamplingStrategy,
+    _as_ints,
+    check_order_col,
+    unsupported_observation_unit,
+)
 
-PAPER_DESCRIPTORS = ("mean", "median", "sd", "iqr")
 _UNITS = ("object", "fov")
-
-
-def describe(
-    values: np.ndarray, descriptors: tuple[str, ...] = PAPER_DESCRIPTORS
-) -> dict[str, float]:
-    """Descriptors of one sample, as in the paper's Table 1; NaN with fewer than 2 values.
-
-    Quantiles use linear interpolation, matching the companion code's
-    ``np.percentile`` and ``pandas.quantile``; SD uses ``ddof=1``.
-    """
-    if len(values) < 2:
-        return {name: float("nan") for name in descriptors}
-    q1, median, q3 = np.percentile(values, [25, 50, 75])
-    available = {
-        "mean": float(np.mean(values)),
-        "median": float(median),
-        "sd": float(np.std(values, ddof=1)),
-        "iqr": float(q3 - q1),
-    }
-    return {name: available[name] for name in descriptors}
 
 
 def _reported(descriptors: dict[str, float]) -> dict[str, float | None]:
@@ -78,86 +93,9 @@ def _reported(descriptors: dict[str, float]) -> dict[str, float | None]:
     return {name: None if np.isnan(value) else value for name, value in descriptors.items()}
 
 
-def _describe_many(samples: np.ndarray, descriptors: Sequence[str]) -> dict[str, np.ndarray]:
-    """Descriptors for each row of a 2-D array of equally sized samples."""
-    q1, median, q3 = np.percentile(samples, [25, 50, 75], axis=1)
-    available = {
-        "mean": samples.mean(axis=1),
-        "median": median,
-        "sd": samples.std(axis=1, ddof=1),
-        "iqr": q3 - q1,
-    }
-    return {name: available[name] for name in descriptors}
-
-
-# Upper bound on values held at once when resampling whole FOVs.
-_MAX_RESAMPLED_VALUES = 5_000_000
-
-
-def _describe_fov_resamples(
-    grouped: np.ndarray, counts: np.ndarray, draws: np.ndarray, descriptors: Sequence[str]
-) -> dict[str, np.ndarray]:
-    """Descriptors of each resample of whole FOVs, without a Python loop over resamples.
-
-    ``grouped`` holds the values ordered by FOV, ``counts`` the values per FOV
-    and ``draws`` one row of FOV indices per resample. Each resample is the
-    concatenation of its FOVs' values, as in ``describe``; quantiles use the
-    same linear interpolation as ``np.percentile``. Resamples with fewer than
-    2 values give NaN.
-    """
-    n_resamples = len(draws)
-    starts = np.cumsum(counts) - counts
-    chosen = draws.ravel()
-    lengths = counts[chosen]
-    # Index of every value of every chosen FOV, and the resample it belongs to.
-    offsets = np.repeat(starts[chosen] - (np.cumsum(lengths) - lengths), lengths)
-    members = offsets + np.arange(lengths.sum())
-    values = grouped[members]
-    resample = np.repeat(np.repeat(np.arange(n_resamples), draws.shape[1]), lengths)
-    sizes = np.bincount(resample, minlength=n_resamples)
-    defined = sizes >= 2
-    safe = np.maximum(sizes, 1)
-
-    mean = np.bincount(resample, weights=values, minlength=n_resamples) / safe
-    deviations = np.bincount(
-        resample, weights=(values - mean[resample]) ** 2, minlength=n_resamples
-    )
-    sd = np.sqrt(deviations / np.maximum(sizes - 1, 1))
-
-    # Values sorted within each resample: one integer sort on (resample, value rank).
-    by_value = np.argsort(grouped, kind="stable")
-    rank = np.empty_like(by_value)
-    rank[by_value] = np.arange(len(grouped))
-    keys = np.sort(resample * len(grouped) + rank[members])
-    # A trailing NaN keeps indexing valid for resamples made only of empty FOVs.
-    ordered = np.append(grouped[by_value][keys % max(1, len(grouped))], np.nan)
-    first = np.cumsum(sizes) - sizes
-
-    def quantile(q: float) -> np.ndarray:
-        """Linearly interpolated quantile of every resample (``np.percentile``'s default)."""
-        position = q * (safe - 1)
-        low = np.floor(position).astype(np.int64)
-        high = np.minimum(low + 1, safe - 1)
-        a, b = ordered[first + low], ordered[first + high]
-        return a + (b - a) * (position - low)
-
-    available = {
-        "mean": lambda: mean,
-        "sd": lambda: sd,
-        "median": lambda: quantile(0.5),
-        "iqr": lambda: quantile(0.75) - quantile(0.25),
-    }
-    return {name: np.where(defined, available[name](), np.nan) for name in descriptors}
-
-
-def _chunk_sizes(total: int, chunk: int) -> list[int]:
-    """``total`` split into consecutive parts of at most ``chunk``."""
-    return [min(chunk, total - start) for start in range(0, total, chunk)]
-
-
 def _check_tolerance(tolerance: float) -> None:
     """The tolerance is a positive, finite amount in the feature's units."""
-    if not (tolerance > 0 and np.isfinite(tolerance)):
+    if not (is_number(tolerance) and tolerance > 0 and np.isfinite(tolerance)):
         raise ValueError("tolerance must be positive and finite (in the feature's units)")
 
 
@@ -172,69 +110,112 @@ def _check_common(feature: str, descriptors: Sequence[str]) -> None:
 
 
 def _check_plateau(window: int, order_col: str) -> None:
-    """A positive integer window and an order column name."""
-    if isinstance(window, bool) or not isinstance(window, int) or window < 1:
-        raise ValueError("window must be a positive integer number of FOVs")
+    """A positive integer window (numpy integers too) and an order column name."""
+    if not is_integer(window) or window < 1:
+        raise ValueError("window must be a positive integer number of FOVs with objects")
     if not isinstance(order_col, str):
         raise TypeError("order_col must be the FOV table's acquisition-order column")
 
 
 def _check_spread(resampling_unit: str, n_resamples: int, random_state: int) -> None:
-    """A known resampling unit, at least 2 resamples and an integer seed."""
+    """A known resampling unit, at least 2 resamples and a non-negative integer seed."""
     if resampling_unit not in _UNITS:
         raise ValueError(f"resampling_unit must be one of {_UNITS}")
-    if isinstance(n_resamples, bool) or not isinstance(n_resamples, int):
+    if not is_integer(n_resamples):
         raise TypeError("n_resamples must be an integer")
     if n_resamples < 2:
         raise ValueError("n_resamples must be at least 2")
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
+    if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
+    check_seed(random_state)
 
 
+LOCATION_DESCRIPTORS = ("mean", "median")
 SPREAD_DESCRIPTORS = ("sd", "iqr")
 
 
 def component_of(descriptors: Sequence[str]) -> Component:
-    """Which objective component the descriptors are evidence about.
+    """Which objective component the descriptors, taken together, are evidence about.
 
     The paper's procedure watches the mean, median, SD and IQR settle. Location
     descriptors alone summarise the population; once a spread descriptor (SD or
-    IQR) is among them the rule describes the distribution of phenotypes, so
-    it is distribution evidence (the phenotypic fingerprint). The choice is a
-    parameter, so it is recorded in the estimator's provenance.
+    IQR) is among them the combined quantity (``max_descriptor_range`` or
+    ``max_descriptor_spread``) describes the distribution of phenotypes, so it
+    is distribution evidence (the phenotypic fingerprint). The location and
+    scale quantities each have their own component (``_kinds``).
     """
     if any(name in SPREAD_DESCRIPTORS for name in descriptors):
         return Component.DISTRIBUTION
     return Component.POPULATION
 
 
-def _feature_quantity(
-    feature: str, descriptors: Sequence[str], value: float | None, reason: str | None = None
-) -> Quantity:
-    """A quantity in the feature's units: a value, or insufficient data with a reason."""
-    units = f"units of {feature!r}"
-    component = component_of(descriptors)
-    if reason is not None:
-        # More FOVs with objects make the window or resamples computable.
-        return Quantity.insufficient(
-            reason, direction=Direction.LOWER_IS_BETTER, units=units, component=component
-        )
-    return Quantity.available(
-        value, direction=Direction.LOWER_IS_BETTER, units=units, component=component
-    )
+def _kinds(
+    measure: str, descriptors: Sequence[str]
+) -> dict[str, tuple[tuple[str, ...], Component]]:
+    """The quantities a rule reports, by name: their descriptors and their component.
+
+    ``measure`` is ``"range"`` (plateau) or ``"spread"`` (resampled spread).
+    First ``max_descriptor_<measure>`` over every chosen descriptor, then
+    ``max_location_<measure>`` over the mean and median (population evidence)
+    and ``max_scale_<measure>`` over the SD and IQR (distribution evidence),
+    each only when the chosen descriptors include one of its kind.
+    """
+    location = tuple(name for name in descriptors if name in LOCATION_DESCRIPTORS)
+    scale = tuple(name for name in descriptors if name in SPREAD_DESCRIPTORS)
+    found = {f"max_descriptor_{measure}": (tuple(descriptors), component_of(descriptors))}
+    if location:
+        found[f"max_location_{measure}"] = (location, Component.POPULATION)
+    if scale:
+        found[f"max_scale_{measure}"] = (scale, Component.DISTRIBUTION)
+    return found
+
+
+def _quantities(
+    measure: str,
+    feature: str,
+    descriptors: Sequence[str],
+    by_descriptor: dict[str, float] | None = None,
+    *,
+    reason: str | None = None,
+    applicable: bool = True,
+) -> dict[str, Quantity]:
+    """Every quantity of ``_kinds``, in the feature's units, lower is better.
+
+    With ``by_descriptor`` (each descriptor's range or spread) each quantity is
+    the largest over its descriptors. Otherwise every quantity carries
+    ``reason``: ``insufficient_data`` (more FOVs with objects make the window or
+    the resamples computable) or, with ``applicable=False``, ``not_applicable``.
+    """
+    found = {}
+    for name, (names, component) in _kinds(measure, descriptors).items():
+        meta = {
+            "direction": Direction.LOWER_IS_BETTER,
+            "units": f"units of {feature!r}",
+            "component": component,
+        }
+        if by_descriptor is not None:
+            found[name] = Quantity.available(max(by_descriptor[n] for n in names), **meta)
+        elif applicable:
+            found[name] = Quantity.insufficient(reason, **meta)
+        else:
+            found[name] = Quantity.not_applicable(reason, **meta)
+    return found
 
 
 def _not_applicable(
-    quantity: str, feature: str, descriptors: Sequence[str], reason: str
+    measure: str, feature: str, descriptors: Sequence[str], reason: str
 ) -> Evidence:
     """Evidence for data the rule does not apply to; more acquisition will not fix it."""
-    value = Quantity.not_applicable(
-        reason,
-        direction=Direction.LOWER_IS_BETTER,
-        units=f"units of {feature!r}",
-        component=component_of(descriptors),
-    )
-    return Evidence({quantity: value}, {"undefined_reason": reason})
+    quantities = _quantities(measure, feature, descriptors, reason=reason, applicable=False)
+    return Evidence(quantities, {"undefined_reason": reason})
+
+
+def _policies(
+    measure: str, descriptors: Sequence[str], tolerance: float
+) -> tuple[ThresholdPolicy, ...]:
+    """``tolerance`` on the location and on the scale quantity, each when reported."""
+    names = [name for name in _kinds(measure, descriptors) if not name.startswith("max_descriptor")]
+    return tuple(ThresholdPolicy(name, tolerance) for name in names)
 
 
 @dataclass(frozen=True)
@@ -244,12 +225,21 @@ class DescriptorPlateauEstimator(Estimator):
     The descriptors of all visible objects are recomputed after each acquired
     FOV that added objects. Over the last ``window + 1`` such cumulative
     states (the current one and the ``window`` before it), it reports the
-    largest descriptor range (max - min) as ``max_descriptor_range``, in the
-    feature's units. Until ``window + 1`` states with at least 2 objects exist,
-    the quantity is ``insufficient_data``.
+    descriptor ranges (max - min), in the feature's units: the largest over
+    the mean and median as ``max_location_range`` (population), over the SD
+    and IQR as ``max_scale_range`` (distribution), and over all chosen
+    descriptors as ``max_descriptor_range`` (see the module docstring). Until
+    ``window + 1`` states with at least 2 objects exist, the quantities are
+    ``insufficient_data``.
 
-    FOVs without objects add no state: the paper's curve is indexed by number
-    of objects, so empty FOVs must not make descriptors look stable.
+    ``window`` counts FOVs that added objects, not acquired FOVs: FOVs without
+    objects add no state, since the paper's curve is indexed by number of
+    objects and empty FOVs must not make descriptors look stable. With every
+    other FOV empty, a window of 2 spans 5 acquired FOVs (``fovs_in_window``
+    lists the prefix sizes of its states). ``order_col`` must pass
+    ``base.check_order_col`` (complete numbers or times). Missing values in
+    the feature, or rows that are not objects, make the quantities
+    ``not_applicable``.
     """
 
     feature: str
@@ -261,6 +251,7 @@ class DescriptorPlateauEstimator(Estimator):
     def __post_init__(self) -> None:
         _check_common(self.feature, self.descriptors)
         _check_plateau(self.window, self.order_col)
+        _as_ints(self, "window")
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -273,7 +264,7 @@ class DescriptorPlateauEstimator(Estimator):
         }
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
-        """``max_descriptor_range`` over the trailing window of growth steps."""
+        """The descriptor ranges over the trailing window of growth steps."""
         values = data.feature_values(self.feature)
         # The paper's curve is indexed by number of objects, so other rows do not fit.
         reason = unsupported_observation_unit(
@@ -282,7 +273,7 @@ class DescriptorPlateauEstimator(Estimator):
         if reason is None and np.isnan(values).any():
             reason = "missing values in the selected feature"
         if reason is not None:
-            return _not_applicable("max_descriptor_range", self.feature, self.descriptors, reason)
+            return _not_applicable("range", self.feature, self.descriptors, reason)
         check_order_col(data.fovs, self.order_col, "the descriptor-plateau rule")
 
         ordered = data.fovs.sort_values(self.order_col, kind="stable")
@@ -311,10 +302,10 @@ class DescriptorPlateauEstimator(Estimator):
                 reason = "fewer than 2 objects in the window"
         if reason is not None:
             diagnostics["undefined_reason"] = reason
-            quantity = _feature_quantity(self.feature, self.descriptors, None, reason)
+            quantities = _quantities("range", self.feature, self.descriptors, reason=reason)
         else:
-            quantity = _feature_quantity(self.feature, self.descriptors, max(ranges.values()))
-        return Evidence({"max_descriptor_range": quantity}, diagnostics)
+            quantities = _quantities("range", self.feature, self.descriptors, ranges)
+        return Evidence(quantities, diagnostics)
 
 
 @dataclass(frozen=True)
@@ -325,10 +316,20 @@ class DescriptorSpreadEstimator(Estimator):
     data at its current size: objects for ``resampling_unit="object"``, whole
     FOVs (including zero-object FOVs) for ``"fov"``. For each descriptor, the
     spread is max - min across resamples, as in the paper's Fig. 2A, which used
-    100 random samples. It reports the largest as ``max_descriptor_spread``, in
-    the feature's units (``inf`` when a resample has fewer than 2 objects).
-    Because a range grows with the number of resamples, ``n_resamples`` is part
-    of the estimate and has no default.
+    100 random samples. It reports, in the feature's units (``inf`` when a
+    resample has fewer than 2 objects), the largest spread over the mean and
+    median as ``max_location_spread`` (population), over the SD and IQR as
+    ``max_scale_spread`` (distribution), and over all chosen descriptors as
+    ``max_descriptor_spread`` (see the module docstring). Because a range grows
+    with the number of resamples, ``n_resamples`` is part of the estimate and
+    has no default.
+
+    Fewer than 2 objects (object unit), or fewer than 2 acquired FOVs or no
+    objects (FOV unit), give ``insufficient_data``. Missing values in the
+    feature, or rows that are not objects for the object unit, give
+    ``not_applicable``. The object unit resamples objects as independent
+    draws (``assumes_random_object_sampling`` in the diagnostics), as the
+    paper assumes cells are sampled at random from the well.
     """
 
     feature: str
@@ -340,6 +341,7 @@ class DescriptorSpreadEstimator(Estimator):
     def __post_init__(self) -> None:
         _check_common(self.feature, self.descriptors)
         _check_spread(self.resampling_unit, self.n_resamples, self.random_state)
+        _as_ints(self, "n_resamples", "random_state")
 
     @property
     def name(self) -> str:
@@ -392,7 +394,7 @@ class DescriptorSpreadEstimator(Estimator):
         return {name: np.concatenate([part[name] for part in parts]) for name in self.descriptors}
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
-        """``max_descriptor_spread`` across resamples of the visible data."""
+        """The descriptor spreads across resamples of the visible data."""
         values = data.feature_values(self.feature)
         # Resampling objects assumes object rows; the FOV variant resamples whole
         # FOVs and applies to any observation unit.
@@ -404,7 +406,7 @@ class DescriptorSpreadEstimator(Estimator):
         if reason is None and np.isnan(values).any():
             reason = "missing values in the selected feature"
         if reason is not None:
-            return _not_applicable("max_descriptor_spread", self.feature, self.descriptors, reason)
+            return _not_applicable("spread", self.feature, self.descriptors, reason)
         diagnostics: dict[str, Any] = {
             "descriptors": _reported(describe(values, self.descriptors)),
             "assumes_random_object_sampling": self.resampling_unit == "object",
@@ -412,26 +414,28 @@ class DescriptorSpreadEstimator(Estimator):
         resampled = self._resampled_descriptors(data)
         if isinstance(resampled, str):
             diagnostics["undefined_reason"] = resampled
-            quantity = _feature_quantity(self.feature, self.descriptors, None, resampled)
-            return Evidence({"max_descriptor_spread": quantity}, diagnostics)
+            quantities = _quantities("spread", self.feature, self.descriptors, reason=resampled)
+            return Evidence(quantities, diagnostics)
         # A resample with fewer than 2 objects has undefined descriptors: not stable.
         spreads = {
             name: float(np.ptp(series)) if np.isfinite(series).all() else float("inf")
             for name, series in resampled.items()
         }
         diagnostics["resample_spreads"] = spreads
-        quantity = _feature_quantity(self.feature, self.descriptors, max(spreads.values()))
-        return Evidence({"max_descriptor_spread": quantity}, diagnostics)
+        return Evidence(_quantities("spread", self.feature, self.descriptors, spreads), diagnostics)
 
 
 @dataclass(frozen=True)
 class DescriptorPlateauStrategy(SamplingStrategy):
-    """Stop when cumulative descriptors have stayed within ``tolerance`` for ``window`` FOVs.
+    """Stop when cumulative descriptors stay within ``tolerance`` over ``window`` FOVs with objects.
 
     ``DescriptorPlateauEstimator`` plus ``ThresholdPolicy(tolerance)`` on
-    ``max_descriptor_range``: it stops once, over the last ``window + 1``
-    cumulative states, every descriptor's range is at most ``tolerance``, in
-    the feature's units, and continues until enough states exist.
+    ``max_location_range`` (population) and on ``max_scale_range``
+    (distribution), each when the descriptors include its kind: its own
+    verdict is stop once, over the last ``window + 1`` cumulative states,
+    every descriptor's range is at most ``tolerance``, in the feature's units,
+    and it continues until enough states exist. ``window`` counts FOVs that
+    added objects; empty FOVs in between do not count.
     """
 
     feature: str
@@ -445,6 +449,7 @@ class DescriptorPlateauStrategy(SamplingStrategy):
         _check_common(self.feature, self.descriptors)
         _check_tolerance(self.tolerance)
         _check_plateau(self.window, self.order_col)
+        _as_ints(self, "window")
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -465,9 +470,9 @@ class DescriptorPlateauStrategy(SamplingStrategy):
         )
 
     @property
-    def policies(self) -> tuple[ThresholdPolicy]:
-        """``max_descriptor_range <= tolerance``."""
-        return (ThresholdPolicy("max_descriptor_range", self.tolerance),)
+    def policies(self) -> tuple[ThresholdPolicy, ...]:
+        """``max_location_range <= tolerance`` and ``max_scale_range <= tolerance``."""
+        return _policies("range", self.descriptors, self.tolerance)
 
 
 @dataclass(frozen=True)
@@ -475,8 +480,10 @@ class DescriptorSpreadStrategy(SamplingStrategy):
     """Stop when descriptor spread across resamples of the visible data is within ``tolerance``.
 
     ``DescriptorSpreadEstimator`` plus ``ThresholdPolicy(tolerance)`` on
-    ``max_descriptor_spread``: it stops when every descriptor's spread across
-    resamples is at most ``tolerance``, in the feature's units.
+    ``max_location_spread`` (population) and on ``max_scale_spread``
+    (distribution), each when the descriptors include its kind: its own
+    verdict is stop when every descriptor's spread across resamples is at most
+    ``tolerance``, in the feature's units.
     """
 
     feature: str
@@ -490,6 +497,7 @@ class DescriptorSpreadStrategy(SamplingStrategy):
         _check_common(self.feature, self.descriptors)
         _check_tolerance(self.tolerance)
         _check_spread(self.resampling_unit, self.n_resamples, self.random_state)
+        _as_ints(self, "n_resamples", "random_state")
 
     @property
     def name(self) -> str:
@@ -522,6 +530,17 @@ class DescriptorSpreadStrategy(SamplingStrategy):
         )
 
     @property
-    def policies(self) -> tuple[ThresholdPolicy]:
-        """``max_descriptor_spread <= tolerance``."""
-        return (ThresholdPolicy("max_descriptor_spread", self.tolerance),)
+    def policies(self) -> tuple[ThresholdPolicy, ...]:
+        """``max_location_spread <= tolerance`` and ``max_scale_spread <= tolerance``."""
+        return _policies("spread", self.descriptors, self.tolerance)
+
+
+__all__ = [
+    "LOCATION_DESCRIPTORS",
+    "SPREAD_DESCRIPTORS",
+    "DescriptorPlateauEstimator",
+    "DescriptorPlateauStrategy",
+    "DescriptorSpreadEstimator",
+    "DescriptorSpreadStrategy",
+    "component_of",
+]

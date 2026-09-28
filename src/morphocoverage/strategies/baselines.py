@@ -8,7 +8,7 @@ the population component of an objective only.
 ``FixedAreaStrategy`` stops at a fixed physical imaged area, read from an
 FOV-table area column. Area is acquisition metadata rather than framework
 effort, so an estimator reports the visible total; it is more comparable than
-an FOV count when field size differs between acquisitions (roadmap 0.5).
+an FOV count when field size differs between acquisitions.
 """
 
 from __future__ import annotations
@@ -17,9 +17,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
-import pandas as pd
-
+from .._areas import area_problem
 from .._checks import is_integer
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -127,6 +125,7 @@ class FixedObjectStrategy(SamplingStrategy):
 
     target_objects: int
     name: str = "fixed_objects"
+    effort_rule = True  # a fixed amount of effort, not a measure of the data (not a field)
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -223,22 +222,16 @@ class ImagedAreaEstimator(Estimator):
             raise ValueError(f"area_col {self.area_col!r} is not a column of the FOV table")
         if self.area_col in data.feature_cols:
             raise ValueError(f"area_col {self.area_col!r} is metadata, not a phenotype feature")
-        column = data.fovs[self.area_col]
-        if not pd.api.types.is_numeric_dtype(column) or pd.api.types.is_bool_dtype(column):
-            raise ValueError(
-                f"area_col {self.area_col!r} holds {column.dtype} values, not numbers; "
-                "convert it to numeric areas first"
-            )
-        areas = column.to_numpy(dtype=float)
+        reason = area_problem(data.fovs, self.area_col, data.fov_key)  # text areas raise
         meta = {
             "direction": Direction.HIGHER_IS_BETTER,
             "units": f"units of {self.area_col!r}",
             "component": Component.POPULATION,
         }
-        if not np.isfinite(areas).all() or (areas <= 0).any():
-            reason = f"missing, infinite, zero or negative areas in {self.area_col!r}"
+        if reason is not None:
             quantity = Quantity.not_applicable(reason, **meta)
             return Evidence({_AREA: quantity}, {"undefined_reason": reason})
+        areas = data.fovs[self.area_col].to_numpy(dtype=float)
         return Evidence({_AREA: Quantity.available(float(areas.sum()), **meta)})
 
 
@@ -249,6 +242,7 @@ class FixedAreaStrategy(SamplingStrategy):
     target_area: float
     area_col: str
     name: str = "fixed_area"
+    effort_rule = True  # a fixed amount of effort, not a measure of the data (not a field)
 
     def __post_init__(self) -> None:
         _check_area_col(self.area_col)
@@ -271,3 +265,12 @@ class FixedAreaStrategy(SamplingStrategy):
     def policies(self) -> tuple[ThresholdPolicy]:
         """``imaged_area >= target_area``."""
         return (ThresholdPolicy(_AREA, float(self.target_area)),)
+
+
+__all__ = [
+    "FixedAreaStrategy",
+    "FixedFOVStrategy",
+    "FixedObjectStrategy",
+    "FixedObservationStrategy",
+    "ImagedAreaEstimator",
+]

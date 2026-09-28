@@ -1,6 +1,6 @@
 """Regressions of the 2026-09-26 function audit: strategies, transforms and outcomes.
 
-Each test names the finding it pins (docs/audit/function_audit_2026-09-26.md)
+Each test names the finding it pins (the first function audit, docs/audit/README.md)
 and fails on the code before the fix.
 """
 

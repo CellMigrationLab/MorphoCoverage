@@ -1,11 +1,12 @@
 """MorphoCoverage: FOV-aware phenotypic sampling analysis."""
 
 from . import _deprecated
-from .data_check import DataCheck, check_tables, validate_input_tables
+from .data_check import DataCheck, Problem, check_tables, validate_input_tables
 from .evidence import Availability, Component, Direction, Evidence, Quantity
 from .framework import run_strategies
 from .objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from .online import OnlineSession
+from .planes import planes_as_features
 from .policies import DecisionPolicy, Effort, EffortPolicy, ThresholdPolicy, redecide
 from .results import Decision, StrategyResult
 from .schema import ValidatedInput
@@ -51,6 +52,7 @@ __all__ = [
     "OnlineSession",
     "PlannedObjectCountEstimator",
     "PlannedObjectCountStrategy",
+    "Problem",
     "Quantity",
     "RareTarget",
     "SamplingObjective",
@@ -64,6 +66,7 @@ __all__ = [
     "check_tables",
     "evaluate_acquisition_prefixes",
     "plan_objects_to_average",
+    "planes_as_features",
     "redecide",
     "run_strategies",
     "validate_input_tables",

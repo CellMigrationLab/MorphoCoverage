@@ -151,9 +151,10 @@ class StrategyResult:
                 if quantity.value is None:
                     parts.append(f"{name} unavailable ({quantity.reason})")
                 else:
+                    value, threshold = _distinct(quantity.value, parameters["threshold"])
                     parts.append(
-                        f"{name} = {quantity.value:.3g} (stop at {better} "
-                        f"{parameters['threshold']:g}, {quantity.component.value})"
+                        f"{name} = {value} (stop at {better} {threshold}, "
+                        f"{quantity.component.value})"
                     )
             elif "effort" in parameters and "target" in parameters:
                 current = getattr(self, parameters["effort"], None)
@@ -168,7 +169,7 @@ class StrategyResult:
         observations = (
             f"an unknown number of {unit_plural(unit)}"
             if self.n_observations is None
-            else count(self.n_observations, unit, unit_plural(unit))
+            else count(self.n_observations, _SINGULAR_WORDS.get(unit, unit), unit_plural(unit))
         )
         effort = f"after {fovs}, {observations}"
         rules = "; ".join(parts) if parts else "no decision policy"
@@ -225,6 +226,23 @@ def _word(decision: Decision | None) -> str:
     return "undefined" if decision is None else decision.value
 
 
+# Units whose label is not the word a sentence uses for one of them.
+_SINGULAR_WORDS = {"fov_summary": "field summary"}
+
+
+def _distinct(value: float, threshold: float) -> tuple[str, str]:
+    """``value`` and ``threshold`` as text, with the digits that tell them apart.
+
+    Three significant digits, more when those would print a value that differs
+    from the threshold as the threshold itself (0.2504 against 0.25 is not
+    ``0.25 (stop at <= 0.25)``, which reads as a stop).
+    """
+    digits = 3
+    while value != threshold and digits < 17 and f"{value:.{digits}g}" == f"{threshold:.{digits}g}":
+        digits += 1
+    return f"{value:.{digits}g}", f"{threshold:.{max(digits, 6)}g}"
+
+
 def decision_view(results: Sequence[StrategyResult]) -> str:
     """One view of several rules on the same acquisition state: each target, then the overall.
 
@@ -256,7 +274,7 @@ def decision_view(results: Sequence[StrategyResult]) -> str:
         word = COMPONENT_WORDS[component]
         if decided:
             combined = combine_decisions(decided)
-            rules = f"{len(decided)} rule{'s' if len(decided) != 1 else ''}"
+            rules = count(len(decided), "rule")
             parts.append(f"{word}: {_word(combined)} ({rules})")
             if component in required:
                 overall.append(combined)
@@ -277,3 +295,13 @@ def decision_view(results: Sequence[StrategyResult]) -> str:
     else:
         final = _word(combine_decisions(overall))
     return "; ".join([*parts, f"Overall ({objective.objective.value} objective): {final}"])
+
+
+__all__ = [
+    "COMPONENT_WORDS",
+    "Decision",
+    "StrategyResult",
+    "Timing",
+    "combine_decisions",
+    "decision_view",
+]

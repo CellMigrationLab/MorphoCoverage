@@ -5,7 +5,8 @@ Retrospective, strategy-independent outcomes in the sense of ``outcomes.py``:
 those of the reference (the full group, or a held-out reservoir), never with
 a strategy's evidence. They are outcomes, not stopping rules: a two-sample
 distance between early and late FOVs measures stationarity, not
-completeness (docs/proposals/candidate_estimators_roadmap.md, section 6).
+completeness (docs/proposals/candidate_estimators_roadmap.md, "Stationarity is
+not completeness").
 
 Shared settings, explicit on every metric:
 
@@ -20,6 +21,12 @@ Shared settings, explicit on every metric:
 Metric-specific settings (quantiles, kernel bandwidth, subsample size, number
 of projections, seeds) have no defaults: they define the geometry of the
 outcome and belong in its provenance.
+
+Names: a metric's ``name`` (the key of its value in benchmark records) is
+``<family>:<feature,...>``, which does not show the other settings, so two
+settings of one family (two MMD bandwidths) share it. Give each an explicit
+``label=`` (keyword only), which then is the name and enters the parameters;
+without one the name and ``config_id`` are unchanged.
 
 Every metric returns ``None`` (undefined, never NaN) when either sample has
 too few observations or any selected value is missing: missing values are
@@ -50,9 +57,10 @@ and then even a disjoint reservoir of the same population gives a positive
 expected value that shrinks as FOVs are added: objects of one FOV are closer
 to each other than to objects of other FOVs, so the within-sample terms are
 too small. In a simulation with 20 objects per FOV and 30% of the variance
-between FOVs, the null energy distance averaged 0.065 for a 3-FOV stop and
-0.027 for a 10-FOV stop against a 20-FOV reservoir, against 0.000 for
-independent objects. So these values are not zero-centred per run: compare
+between FOVs, the null energy distance of one feature averaged 0.07 for a
+3-FOV stop and 0.03 for a 10-FOV stop against a 20-FOV reservoir, and of two
+independent features 0.11 and 0.04, against 0.000 for independent objects:
+the offset grows with the number of features. So these values are not zero-centred per run: compare
 strategies at matched FOV and observation counts, over repeated orders and
 splits, never against zero. The U-statistics can also be negative (an
 energy distance of -0.2 for a stop at 0 and 1 against a reference at 0.4
@@ -69,15 +77,16 @@ the same statistic, not a resampling of FOVs).
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, ClassVar
 
 import numpy as np
 
 from . import distances
-from .outcomes import OutcomeMetric
+from ._checks import is_integer
+from .outcomes import OutcomeMetric, _check_label
 from .schema import ValidatedInput
-from .transforms import Standardize
+from .transforms import Standardize, constant_columns
 
 
 def _feature_tuple(features: Sequence[str]) -> tuple[str, ...]:
@@ -132,36 +141,41 @@ class _MultivariateOutcome(OutcomeMetric):
 
     features: tuple[str, ...]
     standardize: bool
+    label: str | None = field(default=None, kw_only=True)
+
+    # Short name of the metric family; each subclass sets it.
+    family: ClassVar[str]
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "features", _feature_tuple(self.features))
         if not isinstance(self.standardize, bool):
             raise TypeError("standardize must be True or False")
-
-    @property
-    def label(self) -> str:
-        """Short name of the metric family; subclasses override."""
-        raise NotImplementedError
+        _check_label(self.label)
 
     @property
     def name(self) -> str:
-        """``<label>:<feature,...>``."""
-        return f"{self.label}:{','.join(self.features)}"
+        """``label`` when given, else ``<family>:<feature,...>``."""
+        if self.label is not None:
+            return self.label
+        return f"{self.family}:{','.join(self.features)}"
 
     @property
     def parameters(self) -> dict[str, Any]:
-        """Features and scaling; subclasses add their own settings."""
-        return {"features": list(self.features), "standardize": self.standardize}
+        """Features, scaling and the label if given; subclasses add their own settings."""
+        settings: dict[str, Any] = {
+            "features": list(self.features),
+            "standardize": self.standardize,
+        }
+        if self.label is not None:
+            settings["label"] = self.label
+        return settings
 
 
 @dataclass(frozen=True)
 class CentroidError(_MultivariateOutcome):
     """Root-mean-square difference of the feature means, ``sqrt(mean_j (m_stop - m_ref)^2)``."""
 
-    @property
-    def label(self) -> str:
-        """``centroid_error``."""
-        return "centroid_error"
+    family: ClassVar[str] = "centroid_error"
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """RMS difference of the means; needs one observation at the stop."""
@@ -174,19 +188,29 @@ class CentroidError(_MultivariateOutcome):
 
 @dataclass(frozen=True)
 class CovarianceError(_MultivariateOutcome):
-    """Relative Frobenius error of the covariance matrix, ``|S_stop - S_ref|_F / |S_ref|_F``."""
+    """Relative Frobenius error of the covariance matrix, ``|S_stop - S_ref|_F / |S_ref|_F``.
+
+    ``None`` when no reference feature varies (up to rounding,
+    ``transforms.constant_columns``), since the error is then relative to noise.
+    """
+
+    family: ClassVar[str] = "covariance_error"
 
     @property
-    def label(self) -> str:
-        """``covariance_error``."""
-        return "covariance_error"
+    def min_observations(self) -> int:
+        """A covariance needs two observations."""
+        return 2
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Relative covariance error; needs two observations at the stop."""
-        pair = _samples(self, full, stopped, 2)
+        pair = _samples(self, full, stopped, self.min_observations)
         if pair is None:
             return None
         sample, reference = pair
+        # A reference without spread has no covariance to be relative to; its
+        # covariance can be rounding noise rather than 0 (0.1 repeated).
+        if constant_columns(reference).all():
+            return None
         cov_ref = np.atleast_2d(np.cov(reference, rowvar=False))
         norm = np.linalg.norm(cov_ref)
         if norm == 0:
@@ -212,10 +236,7 @@ class QuantileError(_MultivariateOutcome):
             raise ValueError("quantiles must be a non-empty sequence of values in [0, 1]")
         object.__setattr__(self, "quantiles", quantiles)
 
-    @property
-    def label(self) -> str:
-        """``quantile_error``."""
-        return "quantile_error"
+    family: ClassVar[str] = "quantile_error"
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -238,14 +259,16 @@ class QuantileError(_MultivariateOutcome):
 class FrechetError(_MultivariateOutcome):
     """Fréchet distance between the stop and the reference (``distances.frechet_distance``)."""
 
+    family: ClassVar[str] = "frechet_error"
+
     @property
-    def label(self) -> str:
-        """``frechet_error``."""
-        return "frechet_error"
+    def min_observations(self) -> int:
+        """A Fréchet distance needs a covariance, so two observations."""
+        return 2
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Fréchet distance; needs two observations at the stop."""
-        pair = _samples(self, full, stopped, 2)
+        pair = _samples(self, full, stopped, self.min_observations)
         return None if pair is None else distances.frechet_distance(*pair)
 
 
@@ -259,23 +282,31 @@ class _SubsampledOutcome(_MultivariateOutcome):
     def __post_init__(self) -> None:
         super().__post_init__()
         limit = self.max_observations
-        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int)):
+        if limit is not None and not is_integer(limit):
             raise TypeError("max_observations must be an integer or None")
         if limit is not None and limit < 2:
             raise ValueError("max_observations must be at least 2")
-        if isinstance(self.seed, bool) or not isinstance(self.seed, int):
+        if not is_integer(self.seed):
             raise TypeError("seed must be an integer")
+        # numpy integers are stored as Python ints, so the provenance is JSON.
+        object.__setattr__(self, "max_observations", None if limit is None else int(limit))
+        object.__setattr__(self, "seed", int(self.seed))
 
     @property
     def parameters(self) -> dict[str, Any]:
         """Features, scaling, the subsample limit and its seed."""
         return {**super().parameters, "max_observations": self.max_observations, "seed": self.seed}
 
+    @property
+    def min_observations(self) -> int:
+        """A U-statistic needs two observations."""
+        return 2
+
     def _pair(
         self, full: ValidatedInput, stopped: ValidatedInput
     ) -> tuple[np.ndarray, np.ndarray] | None:
         """Scaled (stop, reference) samples, each subsampled to ``max_observations``."""
-        pair = _samples(self, full, stopped, 2)
+        pair = _samples(self, full, stopped, self.min_observations)
         if pair is None:
             return None
         sample, reference = pair
@@ -297,10 +328,7 @@ class EnergyError(_SubsampledOutcome):
     not against zero.
     """
 
-    @property
-    def label(self) -> str:
-        """``energy_error``."""
-        return "energy_error"
+    family: ClassVar[str] = "energy_error"
 
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Energy distance; needs two observations at the stop."""
@@ -327,10 +355,7 @@ class MMDError(_SubsampledOutcome):
             raise ValueError("bandwidth must be positive and finite")
         object.__setattr__(self, "bandwidth", float(self.bandwidth))
 
-    @property
-    def label(self) -> str:
-        """``mmd_error``."""
-        return "mmd_error"
+    family: ClassVar[str] = "mmd_error"
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -356,16 +381,15 @@ class SlicedWassersteinError(_MultivariateOutcome):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        for value, label in ((self.n_projections, "n_projections"), (self.seed, "seed")):
-            if isinstance(value, bool) or not isinstance(value, int):
-                raise TypeError(f"{label} must be an integer")
+        for value, setting in ((self.n_projections, "n_projections"), (self.seed, "seed")):
+            if not is_integer(value):
+                raise TypeError(f"{setting} must be an integer")
         if self.n_projections < 1:
             raise ValueError("n_projections must be at least 1")
+        object.__setattr__(self, "n_projections", int(self.n_projections))
+        object.__setattr__(self, "seed", int(self.seed))
 
-    @property
-    def label(self) -> str:
-        """``sliced_wasserstein_error``."""
-        return "sliced_wasserstein_error"
+    family: ClassVar[str] = "sliced_wasserstein_error"
 
     @property
     def parameters(self) -> dict[str, Any]:

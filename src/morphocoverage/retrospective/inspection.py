@@ -1,12 +1,13 @@
 """Which fields should I go back and look at? A traceable list with one reason per line.
 
-Roadmap Step 5. ``inspect_fovs`` lists, per analysis group, the FOVs worth
-reopening, each with a plain reason and the numbers behind it, the image file
-and stage position when the FOV table has them, and its observation count
-beside the group median. Each reason is computed independently and reported
-only above its declared threshold; there is no combined score, and no FOV is
-called bad, an outlier or an artifact. An influential FOV may be biologically
-crucial, a technical artifact, or simply large, and only the image can tell.
+Question R5 of ``docs/questions.md``. ``inspect_fovs`` lists, per analysis
+group, the FOVs worth reopening, each with a plain reason and the numbers
+behind it, the image file and stage position when the FOV table has them, and
+its observation count beside the group median. Each reason is computed
+independently and reported only above its declared threshold; there is no
+combined score, and no FOV is called bad, an outlier or an artifact. An
+influential FOV may be biologically crucial, a technical artifact, or simply
+large, and only the image can tell.
 
 Reasons:
 
@@ -23,7 +24,9 @@ Reasons:
   median, at most the median divided by it, or zero.
 - **neighbours** (with stage coordinates): the FOV's mean of some feature
   differs from the mean of its ``n_neighbours`` nearest FOVs on the stage by at
-  least ``neighbour_threshold`` standard deviations of the FOV means.
+  least ``neighbour_threshold`` standard deviations of the FOV means; an
+  empty neighbour has no mean, so the reason says how many of the
+  ``n_neighbours`` it was compared with.
 
 Missing feature values: the influence and neighbour reasons use the
 non-missing values of each feature, every FOV still weighing one; the novelty
@@ -41,27 +44,19 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 
-from .._checks import is_number
+from .._checks import is_integer, is_number
+from .._wording import count, ordinal, percent
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..objectives import ObjectiveConfig, SamplingObjective
 from ..schema import ValidatedInput, fov_positions
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
+from ..sufficiency_text import novelty_definition
 from ._text import unit_plural, where
 
 REASONS = ("new state", "influence", "count", "neighbours")
 _TRACE = ("image_file", "position_id", "mask_file")
 _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
-
-
-def _ordinal_suffix(number: float) -> str:
-    """``st``, ``nd``, ``rd`` or ``th`` for a whole number; ``th`` otherwise (``2.5th``)."""
-    if not float(number).is_integer():
-        return "th"
-    whole = int(number)
-    if whole % 100 in (11, 12, 13):
-        return "th"
-    return {1: "st", 2: "nd", 3: "rd"}.get(whole % 10, "th")
 
 
 @dataclass(frozen=True)
@@ -75,7 +70,7 @@ class Summary:
         if not isinstance(self.feature, str):
             raise TypeError("feature must be a column name")
         if self.statistic != "mean":
-            if isinstance(self.statistic, bool) or not isinstance(self.statistic, int | float):
+            if not is_number(self.statistic):
                 raise ValueError("statistic must be 'mean' or a quantile between 0 and 1")
             if not 0 < float(self.statistic) < 1:
                 raise ValueError("statistic must be 'mean' or a quantile between 0 and 1")
@@ -85,13 +80,21 @@ class Summary:
         """``mean of area`` or ``95th percentile of area``."""
         if self.statistic == "mean":
             return f"mean of {self.feature}"
-        percent = 100 * float(self.statistic)
-        return f"{percent:g}{_ordinal_suffix(percent)} percentile of {self.feature}"
+        share = 100 * float(self.statistic)
+        # A whole percentile reads 1st, 22nd; a fractional one 2.5th.
+        rank = ordinal(int(share)) if share.is_integer() else f"{share:g}th"
+        return f"{rank} percentile of {self.feature}"
 
 
 @dataclass(frozen=True)
 class InspectionResult:
-    """One row per FOV and reason (``fovs``), and the settings used."""
+    """One row per FOV and reason (``fovs``), and the settings used.
+
+    ``settings["n_fovs"]`` counts every inspected field and
+    ``settings["n_fovs_judged"]`` those of the groups where new states were
+    looked for (``None`` without ``novelty``); ``settings["novelty_definition"]``
+    is the definition of new in words.
+    """
 
     fovs: pd.DataFrame
     group_cols: tuple[str, ...]
@@ -169,9 +172,10 @@ def _influence(
                         "position": int(fov),
                         "reason": "influence",
                         "value": float(change),
+                        # Every FOV weighs one in the summary, however many objects it holds.
                         "detail": (
-                            f"removing it {direction} the {summary.label} by "
-                            f"{100 * abs(change):.0f}%"
+                            f"removing it {direction} the field-weighted {summary.label} by "
+                            f"{percent(abs(change))}"
                         ),
                     }
                 )
@@ -182,19 +186,19 @@ def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions, minlength=len(data.fovs))
     median = float(np.median(counts))
-    words = unit_plural(data.observation_unit)
+    unit, words = data.observation_unit, unit_plural(data.observation_unit)
     rows = []
-    for fov, count in enumerate(counts):
-        if count == 0 and median > 0:
+    for fov, held in enumerate(counts):
+        if held == 0 and median > 0:
             detail = f"no {words}; the median is {median:g}"
-        elif median > 0 and (count >= ratio * median or count <= median / ratio):
-            detail = f"{count} {words}; the median is {median:g}"
-        elif median == 0 and count > 0:
+        elif median > 0 and (held >= ratio * median or held <= median / ratio):
+            detail = f"{count(int(held), unit, words)}; the median is {median:g}"
+        elif median == 0 and held > 0:
             # Most fields are empty: the fields with observations are the unusual ones.
-            detail = f"{count} {words}; most fields have none (the median is 0)"
+            detail = f"{count(int(held), unit, words)}; most fields have none (the median is 0)"
         else:
             continue
-        rows.append({"position": fov, "reason": "count", "value": float(count), "detail": detail})
+        rows.append({"position": fov, "reason": "count", "value": float(held), "detail": detail})
     return rows
 
 
@@ -205,6 +209,14 @@ def _neighbours_skipped(fovs: pd.DataFrame, x_col: str, y_col: str, k: int) -> s
     if fovs[[x_col, y_col]].isna().any().any():
         return "stage coordinates are missing"
     return None
+
+
+def _neighbour_words(valued: np.ndarray, k: int) -> str:
+    """``its 4 nearest fields``, or ``3 of its 4 nearest fields (1 without a value)``."""
+    used = int(valued.sum())
+    if used == k:
+        return f"its {k} nearest fields"
+    return f"{used} of its {k} nearest fields ({count(k - used, 'field')} without a value)"
 
 
 def _neighbours(
@@ -228,6 +240,9 @@ def _neighbours(
             others = column[near[fov][mask][:k]]
             if np.isnan(column[fov]) or np.isnan(others).all():
                 continue
+            # An empty neighbour has no mean: the comparison is with the others only.
+            valued = ~np.isnan(others)
+            reach = distances[fov][mask][:k][valued].max()
             # Spread of the other FOVs' means: including the FOV itself would cap
             # its own z at sqrt(n) and hide a lone deviant field in a small group.
             spread = np.nanstd(np.delete(column, fov), ddof=1)
@@ -242,8 +257,8 @@ def _neighbours(
                         "value": float(z),
                         "detail": (
                             f"its mean {feature} is {abs(z):.1f} SD "
-                            f"{'above' if z > 0 else 'below'} its {k} nearest fields "
-                            f"(within {distances[fov][mask][:k].max():.0f} {unit})"
+                            f"{'above' if z > 0 else 'below'} {_neighbour_words(valued, k)} "
+                            f"(within {reach:.0f} {unit})"
                         ),
                     }
                 )
@@ -263,16 +278,16 @@ def _novel(
         return []
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions[flags], minlength=len(data.fovs))
-    words = unit_plural(data.observation_unit)
+    unit, words = data.observation_unit, unit_plural(data.observation_unit)
     return [
         {
             "position": fov,
             "reason": "new state",
-            "value": float(count),
-            "detail": f"{count} {words} of a state no other field shows",
+            "value": float(held),
+            "detail": f"{count(int(held), unit, words)} of a state no other field shows",
         }
-        for fov, count in enumerate(counts)
-        if count
+        for fov, held in enumerate(counts)
+        if held
     ]
 
 
@@ -294,7 +309,7 @@ def _check(
         raise ValueError("count_ratio must be greater than 1, or None to skip the count reason")
     if not is_number(neighbour_threshold) or not 0 < neighbour_threshold < np.inf:
         raise ValueError("neighbour_threshold must be a positive number")
-    if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+    if not is_integer(k) or k < 1:
         raise ValueError("n_neighbours must be a positive integer")
     if stage is not None and (len(stage) != 2 or not all(isinstance(c, str) for c in stage)):
         raise TypeError("stage_cols must be two column names (x, y)")
@@ -360,7 +375,7 @@ def inspect_fovs(
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
     rows, skipped, neighbours_skipped, novelty_skipped = [], [], [], []
     checked: set[str] = set()
-    n_fovs = 0
+    n_fovs = n_judged = 0
     for group, both in iter_analysis_groups(data):
         n_fovs += len(both.fovs)
         group_data = replace(both, feature_cols=tuple(feature_cols))
@@ -371,6 +386,7 @@ def inspect_fovs(
             found += _novel(judged, novelty, where(group), novelty_skipped)
             if len(novelty_skipped) == before:
                 checked.add("new state")
+                n_judged += len(both.fovs)
         if summaries:
             influential, any_checked = _influence(
                 group_data, summaries, float(influence_threshold), where(group), skipped
@@ -418,6 +434,9 @@ def inspect_fovs(
         "summaries": [{"feature": s.feature, "statistic": s.statistic} for s in summaries],
         "novelty": None if novelty is None else dict(novelty.parameters),
         "novelty_cols": None if novelty is None else novelty_cols,
+        "novelty_definition": None
+        if novelty is None
+        else novelty_definition(novelty, novelty_cols),
         "influence_threshold": float(influence_threshold),
         "count_ratio": None if count_ratio is None else float(count_ratio),
         "stage_cols": None if stage_cols is None else list(stage_cols),
@@ -431,6 +450,8 @@ def inspect_fovs(
         # The reasons judged in at least one group, in the order of REASONS.
         "checked": [reason for reason in REASONS if reason in checked],
         "n_fovs": n_fovs,
+        # The fields of the groups where new states were looked for (None without novelty).
+        "n_fovs_judged": None if novelty is None else n_judged,
     }
     return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
 

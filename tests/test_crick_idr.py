@@ -331,4 +331,7 @@ def test_the_held_out_tables_carry_their_ceilings_and_denominators():
     assert (ceiling["stream_fovs"] == 2).all() and ceiling["whole_stream_preserved"].min() == 0
     assert (protocol["eligible"] == 10).all() and protocol["fovs"].max() == 2
     assert set(calibration["strategy"]) == {"scalar_precision_object_upper95", "fixed_fov"}
-    assert calibration["premature"].max() == 1.0
+    # A stop that did not preserve the mean is either premature (a later field of the
+    # stream would have preserved it) or not preserved by the stream at all (F-8).
+    failed = calibration["premature"] + calibration["not_preserved_by_stream"]
+    assert failed.max() == 1.0 and (calibration["premature"] <= failed).all()

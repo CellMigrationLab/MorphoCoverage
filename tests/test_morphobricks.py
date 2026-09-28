@@ -139,10 +139,11 @@ def test_z_c_t_can_be_preserved_as_within_fov_metadata():
     assert data.feature_cols == ("area",)
 
 
-def test_short_name_c_can_still_be_an_explicit_scientific_feature():
+def test_short_name_c_is_a_channel_and_never_a_feature():
+    # Owner decision (audit 3, A-3): z, c and t are within-field coordinates, never features.
     objects = pd.DataFrame({"fov_id": ["F1", "F2"], "c": [1.0, 2.0]})
-    data = validate_input_tables(objects, feature_cols=["c"])
-    assert data.feature_cols == ("c",)
+    with pytest.raises(ValueError, match="within-field coordinate 'c'"):
+        validate_input_tables(objects, feature_cols=["c"])
 
 
 def test_multi_file_position_requires_within_fov_axis_metadata():

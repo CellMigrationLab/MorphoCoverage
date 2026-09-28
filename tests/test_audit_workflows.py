@@ -1,6 +1,6 @@
 """Regressions of the 2026-09-26 function audit: workflows, plots, live and data flow (H, DF).
 
-Each test names the finding it pins (docs/audit/function_audit_2026-09-26.md)
+Each test names the finding it pins (the first function audit, docs/audit/README.md)
 and fails on the code before the fix.
 """
 
@@ -61,16 +61,17 @@ def _pooled_wells():
 
 def test_h1_pooled_repeats_keep_each_well_within_its_repeat(monkeypatch):
     captured = []
-    original = plots_module._bootstrap_repeats
+    original = plots_module.bootstrap_nested
 
-    def spy(repeats, *args, **kwargs):
-        captured.append([[len(unit) for unit in repeat] for repeat in repeats])
-        return original(repeats, *args, **kwargs)
+    def spy(units, *args, **kwargs):
+        captured.append([len(unit) for unit in units])
+        return original(units, *args, **kwargs)
 
-    monkeypatch.setattr(plots_module, "_bootstrap_repeats", spy)
+    monkeypatch.setattr(plots_module, "bootstrap_nested", spy)
     plots_of_data(*_pooled_wells(), features=["x"], n_boot=50)
-    # 9 repeats of 2 wells of 3 fields (resampled repeat first: H-10), not 2 wells of 27
-    assert captured == [[[3, 3]] * 9]
+    # 9 repeats, each with the 6 fields of its 2 wells (the repeats alone resampled: audit
+    # 3, H-2), never 2 wells of 27 fields
+    assert captured == [[6] * 9]
 
 
 def test_h5_the_palette_note_and_limit_say_what_is_drawn():
@@ -168,7 +169,9 @@ def test_h9_criteria_with_the_same_label_each_keep_a_frontier():
     objects, fovs = _acquisition(n_fovs=8, n_objects=6)
     setup = _setup(tolerances=(0.05, 0.0502), stage_cols=None)
     labels = [c.label for c in setup.criteria()]
-    assert labels[0] == labels[1]
+    # Declared rates are written exactly (audit 3, _wording.rate), so the two labels
+    # no longer read the same; each criterion still keeps its own frontier.
+    assert labels == ["the mean of feature_a within 5%", "the mean of feature_a within 5.02%"]
     result = benchmark(
         objects,
         fovs,
@@ -189,7 +192,9 @@ def test_contrast_summary_without_any_object_count_that_fits():
     result = condition_contrast(
         objects, fovs, feature=READOUT, control={"condition": "control"}, n_permutations=20
     )
-    assert result.effects.empty and "JCS effect size" not in result.summary()
+    # The effect size from every object is still given (audit 3, H-19), with no draws.
+    assert result.effects.empty and "from 50 objects" not in result.summary()
+    assert "JCS effect size (treated mean minus control mean" in result.summary()
 
 
 def test_h10_df2_plots_give_the_top_places_to_other_features(monkeypatch):

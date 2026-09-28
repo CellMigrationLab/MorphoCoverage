@@ -25,7 +25,7 @@ Versions:
   was added; the objective is not part of the protocol digest, and the
   frontier reads each rule's own verdict (``StrategyResult.rule_decision``),
   so the scores are unchanged.)
-- 3 (2026-09-26, second audit, ``docs/audit/function_audit_2_2026-09-26.md``): the
+- 3 (2026-09-26, second function audit, ``docs/audit/README.md``): the
   replay changed under the settings, not the settings. Permuted orders are
   drawn per analysis group, from the group's FOVs in key order, seeded from
   ``random_state``, the group identity, the order and the split
@@ -36,6 +36,16 @@ Versions:
   well ``technical_repeat`` (the column's new name; version 2's digest was
   taken when it was ``well``, which is why version 2 no longer matched its
   lock). Every threshold, grid, split count and seed is that of version 2.
+- 4 (2026-09-28, third audit, ``docs/audit/README.md``): again the replay
+  under the settings, not the settings. Each split's reservoir is seeded
+  with ``split_seed(random_state, split)`` (version 3 used
+  ``random_state + split``, so neighbouring seeds shared hold-outs); a
+  subset with too few objects for its metric counts as not preserved; the
+  JCS rules also report location and scale quantities (the families still
+  sweep ``max_descriptor_spread``); a feature with no spread so far is not
+  yet enough data for the JCB rule; the frontier withholds intervals from
+  fewer than 90% of its resamples. Every threshold, grid, split count and
+  seed is that of version 3.
 
 Questions scored (codes of ``docs/questions.md``):
 
@@ -72,8 +82,9 @@ import hashlib
 import json
 
 PROTOCOL = {
-    "version": 3,
+    "version": 4,
     "order_permutation": "per analysis group, FOVs in key order, seeded from random_state",
+    "reservoir_seeding": "split_seed(random_state, split)",
     "prefix_order": "acquisition order",
     "alphas": [0.05, 0.10],
     "n_boot": 2000,

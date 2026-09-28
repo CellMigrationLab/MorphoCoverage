@@ -1,4 +1,4 @@
-"""Regression tests from the microscopist audit (docs/audit/microscopist_audit_2026-09-25.md).
+"""Regression tests from the microscopist audit of 2026-09-25 (docs/audit/README.md).
 
 Each test failed before its fix. They protect plain-language answers, not
 scientific behaviour: a summary must not crash, must not present a curve

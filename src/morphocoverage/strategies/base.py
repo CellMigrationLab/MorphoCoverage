@@ -4,6 +4,10 @@ A strategy is a combination of estimators, which report evidence about the
 visible acquisition, and decision policies, which turn that evidence into
 continue/stop. Strategy families implement ``Estimator``; the framework runs
 the estimators, applies the policies and builds the result.
+
+Shared-private: ``_as_ints`` is used by ``stabilization`` and ``fov_bootstrap``
+to store integer settings given as numpy integers as Python ints; it is
+private to the package and may change with it.
 """
 
 from __future__ import annotations
@@ -179,18 +183,62 @@ def unsupported_observation_unit(
     )
 
 
+def _as_ints(instance: object, *names: str) -> None:
+    """Store a frozen dataclass's named integer settings as Python ints (``None`` kept).
+
+    Checked settings may be numpy integers (``np.int64(3)``); provenance must
+    be JSON, so they are stored as ``int``.
+    """
+    for name in names:
+        value = getattr(instance, name)
+        if value is not None:
+            object.__setattr__(instance, name, int(value))
+
+
 def check_order_col(fovs: pd.DataFrame, order_col: str, purpose: str) -> None:
-    """Refuse an order column that is not in the FOV table or has missing values.
+    """Refuse an order column that is missing, incomplete, categorical or not numbers or times.
 
     A field with no order value has no place in the order: sorting would put it
     last without saying so, and the full and the incremental evaluation could
-    place it differently. ``purpose`` names what needs the order, for the message.
+    place it differently. Text is refused rather than sorted as text, where
+    ``"10"`` comes before ``"2"``; booleans are not an order either. This is the
+    rule ``sequential._check_order_values`` applies to the acquisition order
+    (kept there as its own function), so a pilot or a plateau window follows the
+    order a replay would. A categorical column is refused (``TypeError``): a
+    newly revealed FOV carries only its own category (the framework hides the
+    categories of FOVs not yet seen), so its category order cannot be kept FOV
+    by FOV. ``purpose`` names what needs the order, for the message.
     """
     if order_col not in fovs.columns:
         raise ValueError(f"order_col {order_col!r} is not a column of the FOV table")
-    missing = int(fovs[order_col].isna().sum())
+    values = fovs[order_col]
+    missing = int(values.isna().sum())
     if missing:
         raise ValueError(
             f"order_col {order_col!r} has missing values; {purpose} needs an order value for "
             f"every FOV ({count(missing, 'FOV row')} without one)"
         )
+    dtype, types = values.dtype, pd.api.types
+    if isinstance(dtype, pd.CategoricalDtype):
+        raise TypeError(
+            f"order_col {order_col!r} is categorical, and its category order is lost when FOVs "
+            f"arrive one at a time; give {purpose} its order as numbers or times (for an "
+            "ordered categorical, its .cat.codes)"
+        )
+    numeric = types.is_numeric_dtype(dtype) and not types.is_bool_dtype(dtype)
+    if not (numeric or types.is_datetime64_any_dtype(dtype) or types.is_timedelta64_dtype(dtype)):
+        raise ValueError(
+            f"order_col {order_col!r} holds {dtype} values, not numbers or date-times; text "
+            f"would sort '10' before '2'. Convert it first, for example "
+            f"fovs[{order_col!r}] = pd.to_numeric(fovs[{order_col!r}]) or pd.to_datetime(...)."
+        )
+
+
+__all__ = [
+    "ConstantState",
+    "Estimator",
+    "EstimatorState",
+    "SamplingStrategy",
+    "check_order_col",
+    "unsupported_observation_unit",
+]

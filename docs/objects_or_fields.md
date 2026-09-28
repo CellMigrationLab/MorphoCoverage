@@ -50,8 +50,8 @@ and changed only that one thing.
 3. **The JCB rule misses its own target.** The rule is designed to keep the
    error of an average below 5%, or 2.5% for paired experiments. In the JCS
    dataset, the objects it asks for fit in one picture. That one picture met
-   the 5% target in 8 of 10 wells, but the 2.5% target in only 3 of 10.
-   Across all 308 wells of the plate, it misses the 2.5% target in 77% of
+   the 5% target in 8 of 10 wells, but the 2.5% target in only 2 of 10.
+   Across all 308 wells of the plate, it misses the 2.5% target in 76% of
    wells; across all 1,144 wells of the second dataset, in 7%. The formula
    itself still works if you count pictures instead of objects. But
    with only 4 pictures per well, there is not enough information to say how
@@ -60,7 +60,7 @@ and changed only that one thing.
 4. **The JCS stability check is fooled.** JCS watches the average and the
    spread of values settle down as more objects are added. With pictures, the
    average and the middle value settle more slowly than with random objects;
-   the spread barely changes. In the second dataset you need about 250–320
+   the spread barely changes. In the second dataset you need about 240–345
    objects from pictures to get the stability that 200 random objects give.
 
 5. **A small treatment effect turns into a coin flip.** JCS concluded that
@@ -113,8 +113,8 @@ and changed only that one thing.
 Each function takes the object table and the FOV table (every acquired
 field, including empty ones), analyses each analysis group on its own, and
 has a `summary()` in sentences. `microscopist_report` accepts the results
-and places them in the report: the first four in its first section, the
-clustering in "What is limiting my sampling?".
+and places them in the report: the first three in its Foundation section,
+the unusual objects and their clustering in "What is limiting my sampling?".
 
 ```python
 from morphocoverage.sampling_unit import (

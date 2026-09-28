@@ -1,4 +1,4 @@
-"""Tests for the inspect-these-fields report (roadmap Step 5)."""
+"""Tests for the inspect-these-fields report (R5 of docs/questions.md)."""
 
 import numpy as np
 import pandas as pd
@@ -59,7 +59,8 @@ def test_each_constructed_field_is_listed_for_its_reason_and_no_other_field_is()
     new = result.fovs[result.fovs["reason"] == "new state"].iloc[0]
     assert new["value"] == 8 and new["observations"] == 28
     tail = result.fovs[result.fovs["reason"] == "influence"].iloc[0]
-    assert tail["value"] < -0.1 and "lowers the 97th percentile of feature_b" in tail["detail"]
+    assert tail["value"] < -0.1
+    assert "lowers the field-weighted 97th percentile of feature_b" in tail["detail"]
     dense = result.fovs[result.fovs["reason"] == "count"].iloc[0]
     assert dense["observations"] == 100 and dense["median_observations"] == 20
 

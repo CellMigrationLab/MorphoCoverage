@@ -10,11 +10,12 @@ for these data, says so explicitly instead of being a ``None`` score.
 from __future__ import annotations
 
 import math
-import numbers
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+from ._checks import is_number
 
 # Effort is framework-owned (AGENTS.md section 20); an estimator reporting its
 # own count could disagree with the acquisition record, e.g. by dropping
@@ -91,7 +92,7 @@ class Quantity:
         if not isinstance(self.units, str) or not self.units:
             raise ValueError("units must be a non-empty description")
         if self.availability is Availability.AVAILABLE:
-            if isinstance(self.value, bool) or not isinstance(self.value, numbers.Real):
+            if not is_number(self.value):
                 raise TypeError("an available quantity needs a numeric value")
             if math.isnan(self.value):
                 raise ValueError(
@@ -148,3 +149,13 @@ class Evidence:
     def value(self, name: str) -> float | None:
         """The value of one quantity, ``None`` when it is unavailable."""
         return self.quantities[name].value
+
+
+__all__ = [
+    "RESERVED_QUANTITY_NAMES",
+    "Availability",
+    "Component",
+    "Direction",
+    "Evidence",
+    "Quantity",
+]

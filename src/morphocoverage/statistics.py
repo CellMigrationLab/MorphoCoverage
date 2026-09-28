@@ -40,6 +40,29 @@ def spread_is_zero(sd: float, values: np.ndarray) -> bool:
     return not sd > RELATIVE_TOLERANCE * _scale(values)
 
 
+PAPER_DESCRIPTORS = ("mean", "median", "sd", "iqr")
+
+
+def describe(
+    values: np.ndarray, descriptors: tuple[str, ...] = PAPER_DESCRIPTORS
+) -> dict[str, float]:
+    """Descriptors of one sample, as in Marcotti et al.'s Table 1; NaN with fewer than 2 values.
+
+    Quantiles use linear interpolation, matching the companion code's
+    ``np.percentile`` and ``pandas.quantile``; SD uses ``ddof=1``.
+    """
+    if len(values) < 2:
+        return {name: float("nan") for name in descriptors}
+    q1, median, q3 = np.percentile(values, [25, 50, 75])
+    available = {
+        "mean": float(np.mean(values)),
+        "median": float(median),
+        "sd": float(np.std(values, ddof=1)),
+        "iqr": float(q3 - q1),
+    }
+    return {name: available[name] for name in descriptors}
+
+
 def cohen_d(first: np.ndarray, second: np.ndarray) -> float:
     """Cohen's d with the pooled sample variance, as the lab's Plot&Stats notebook computes it.
 
@@ -70,7 +93,12 @@ def jcs_effect_size(treated: np.ndarray, control: np.ndarray) -> float:
 
 def field_sample(fields: Sequence[np.ndarray], n: int, rng: np.random.Generator) -> np.ndarray:
     """``n`` objects as a microscope stopping at ``n`` has them: whole fields in random order,
-    with a random part of the last field. Needs at least ``n`` objects in total."""
+    with a random part of the last field. Needs at least ``n`` objects in total; ``n = 0``
+    gives an empty sample."""
+    if not is_integer(n) or n < 0:
+        raise ValueError(f"n must be a non-negative integer, not {n!r}")
+    if n == 0:
+        return np.array([], dtype=float)
     total = sum(len(f) for f in fields)
     if total < n:
         raise ValueError(f"asked for {n} objects from fields holding {total}")
@@ -89,7 +117,11 @@ def field_sample(fields: Sequence[np.ndarray], n: int, rng: np.random.Generator)
 def fields_holding(
     fields: Sequence[np.ndarray], n: int, rng: np.random.Generator, draws: int = 50
 ) -> float:
-    """Mean number of fields, in random order, whose objects reach ``n`` objects."""
+    """Mean number of fields, in random order, whose objects reach ``n`` objects (0 for 0)."""
+    if not is_integer(n) or n < 0:
+        raise ValueError(f"n must be a non-negative integer, not {n!r}")
+    if n == 0:
+        return 0.0
     sizes = np.array([len(f) for f in fields])
     if sizes.sum() < n:
         raise ValueError(f"asked for {n} objects from fields holding {int(sizes.sum())}")
@@ -120,6 +152,28 @@ def benjamini_hochberg(p_values: np.ndarray) -> np.ndarray:
     return q
 
 
+def _interval(
+    point: float, draws: np.ndarray, units: int, confidence: float
+) -> tuple[float, float, float]:
+    """The percentile interval of ``draws``, widened for the number of units resampled.
+
+    A percentile bootstrap over ``k`` units under-covers: its variance is too
+    small by ``(k - 1) / k`` and it uses normal rather than t quantiles (a
+    nominal 95% covered 81-85% of the time with 5 wells and 87-89% with 10).
+    Each half-width, from the point to the percentile, is multiplied by
+    ``sqrt(k / (k - 1)) * t_{k-1} / z`` at the two-sided ``confidence`` level,
+    which keeps the interval's asymmetry and brings it close to nominal.
+    """
+    defined = draws[np.isfinite(draws)]
+    if len(defined) < 2 or units < 2 or not math.isfinite(point):
+        return point, float("nan"), float("nan")
+    tail = 100 * (1 - confidence) / 2
+    low, high = np.percentile(defined, [tail, 100 - tail])
+    level = (1 + confidence) / 2
+    widen = math.sqrt(units / (units - 1)) * stats.t.ppf(level, units - 1) / stats.norm.ppf(level)
+    return point, float(point - (point - low) * widen), float(point + (high - point) * widen)
+
+
 def bootstrap_fields(
     fields: Sequence[np.ndarray],
     statistic: Callable[[np.ndarray], float],
@@ -128,23 +182,25 @@ def bootstrap_fields(
     rng: np.random.Generator,
     confidence: float = 0.95,
 ) -> tuple[float, float, float]:
-    """``statistic`` of all objects, and its percentile interval from resampling whole fields.
+    """``statistic`` of all objects, and its interval from resampling whole fields.
 
     Each resample draws as many fields as were acquired, with replacement, and
-    pools their objects; the interval is the ``confidence`` percentile range
-    of the statistic over the ``n_boot`` resamples on which it is defined. A
+    pools their objects. The interval is the ``confidence`` percentile range
+    of the statistic over the ``n_boot`` resamples on which it is defined,
+    widened for the small number of fields holding objects (``_interval``). A
     resample that drew only empty fields has no objects and is left out, so
     with many empty fields the interval is conditional on a resample holding
-    at least one object. Fields without objects take
-    part in the resampling (they were acquired) and contribute no value. NaN
-    bounds when fewer than two fields hold objects.
+    at least one object. Fields without objects take part in the resampling
+    (they were acquired) and contribute no value. NaN bounds when fewer than
+    two fields hold objects.
     """
     if not 0 < confidence < 1:
         raise ValueError("confidence must be between 0 and 1")
     values = [np.asarray(f, dtype=float) for f in fields]
     pooled = np.concatenate(values) if values else np.array([])
     point = float(statistic(pooled)) if len(pooled) else float("nan")
-    if sum(len(f) > 0 for f in values) < 2:
+    filled = sum(len(f) > 0 for f in values)
+    if filled < 2:
         return point, float("nan"), float("nan")
     draws = np.empty(n_boot)
     k = len(values)
@@ -152,12 +208,7 @@ def bootstrap_fields(
         chosen = rng.integers(0, k, size=k)
         sample = np.concatenate([values[i] for i in chosen])
         draws[b] = statistic(sample) if len(sample) else np.nan
-    defined = draws[np.isfinite(draws)]
-    if len(defined) < 2:
-        return point, float("nan"), float("nan")
-    tail = 100 * (1 - confidence) / 2
-    low, high = np.percentile(defined, [tail, 100 - tail])
-    return point, float(low), float(high)
+    return _interval(point, draws, filled, confidence)
 
 
 def bootstrap_nested(
@@ -170,44 +221,34 @@ def bootstrap_nested(
 ) -> tuple[float, float, float]:
     """``statistic`` of all objects, and its interval from resampling whole units.
 
-    ``units`` are the technical repeats (a well, a dish) of one cluster, each a
-    list of its fields' values. Each resample draws as many units as there
-    are, with replacement, and keeps every drawn unit's fields as they are
-    (Ren et al. 2010, "Nonparametric bootstrapping for hierarchical data":
-    resampling the top level with replacement and the lower level without).
-    Resampling the fields again inside each unit would count the
-    field-to-field variance twice: in a check with 10 or 20 wells that
-    interval covered the mean 98% of the time for a nominal 95%. A
-    well-to-well shift widens this interval instead of passing for
-    field-to-field noise. With a single unit this is ``bootstrap_fields`` on
-    its fields. With two or three units no resampling scheme gives a reliable
-    interval (a units-only resample of 2 wells covered 49% of the time), so a
-    caller should say how many units there are. As there, resamples holding
-    no object are left out of the percentiles. NaN bounds when fewer than two
-    fields hold objects.
+    ``units`` are the top-level units of one cluster (technical repeats such
+    as wells, or biological repeats), each a list of its fields' values (all
+    the fields of all its lower levels). Each resample draws as many units as
+    hold objects, with replacement, and keeps every drawn unit's fields as
+    they are (Ren et al. 2010, "Nonparametric bootstrapping for hierarchical
+    data": resample the top level with replacement and the lower levels
+    without). Resampling the lower levels again would count their variance
+    twice. A unit whose fields are all empty holds no information about the
+    statistic and is left out; with a single unit holding objects this is
+    ``bootstrap_fields`` on that unit's fields. The interval is widened for the
+    number of units (``_interval``); with two or three units no resampling
+    scheme gives a reliable interval, so a caller should say how many units
+    there are. NaN bounds when fewer than two fields hold objects.
     """
     if not 0 < confidence < 1:
         raise ValueError("confidence must be between 0 and 1")
-    groups = [[np.asarray(f, dtype=float) for f in unit] for unit in units if len(unit)]
-    if len(groups) == 1:
-        return bootstrap_fields(groups[0], statistic, n_boot=n_boot, rng=rng, confidence=confidence)
-    fields = [f for unit in groups for f in unit]
-    pooled = np.concatenate(fields) if fields else np.array([])
-    point = float(statistic(pooled)) if len(pooled) else float("nan")
-    if sum(len(f) > 0 for f in fields) < 2:
-        return point, float("nan"), float("nan")
+    groups = [[np.asarray(f, dtype=float) for f in unit] for unit in units]
+    groups = [unit for unit in groups if any(len(f) for f in unit)]
+    if len(groups) <= 1:
+        fields = groups[0] if groups else []
+        return bootstrap_fields(fields, statistic, n_boot=n_boot, rng=rng, confidence=confidence)
     pooled_units = [np.concatenate(unit) for unit in groups]
+    point = float(statistic(np.concatenate(pooled_units)))
     draws = np.empty(n_boot)
     for b in range(n_boot):
         chosen = rng.integers(0, len(groups), size=len(groups))
-        sample = np.concatenate([pooled_units[i] for i in chosen])
-        draws[b] = statistic(sample) if len(sample) else np.nan
-    defined = draws[np.isfinite(draws)]
-    if len(defined) < 2:
-        return point, float("nan"), float("nan")
-    tail = 100 * (1 - confidence) / 2
-    low, high = np.percentile(defined, [tail, 100 - tail])
-    return point, float(low), float(high)
+        draws[b] = statistic(np.concatenate([pooled_units[i] for i in chosen]))
+    return _interval(point, draws, len(groups), confidence)
 
 
 def _dense_codes(code: np.ndarray) -> np.ndarray:
@@ -225,14 +266,27 @@ def nested_variance_components(values: np.ndarray, codes: Sequence[np.ndarray]) 
 
     ``codes`` gives, coarsest level first, the integer unit of each value at
     each level (units must nest: every unit of a level lies inside one unit
-    of the level before it). Returns one component per level plus the
-    residual (observation) component, in the same order.
+    of the level before it; a unit number reused under two parents is
+    refused). Returns one component per level plus the residual (observation)
+    component, in the same order. Method-of-moments components are unbiased
+    but can be negative when a level's true variance is small; callers decide
+    how to report them.
     """
     values = np.asarray(values, dtype=float)
     n = len(values)
-    if n < 2 or np.isnan(values).any():
-        raise ValueError("need at least two non-missing values")
+    if n < 2 or not np.isfinite(values).all():
+        raise ValueError("need at least two finite, non-missing values")
     levels = [np.zeros(n, dtype=int), *[np.asarray(c) for c in codes], np.arange(n)]
+    for depth in range(1, len(levels) - 1):
+        parent, child = _dense_codes(levels[depth - 1]), _dense_codes(levels[depth])
+        parents_per_child = np.bincount(
+            np.unique(np.stack([child, parent]), axis=1)[0], minlength=child.max() + 1
+        )
+        if (parents_per_child > 1).any():
+            raise ValueError(
+                f"the units of level {depth} do not nest in those of level {depth - 1}: "
+                "number each unit uniquely (not within its parent)"
+            )
     sizes, totals = [], []
     for code in levels:
         inverse = _dense_codes(code)
@@ -257,7 +311,13 @@ def nested_variance_components(values: np.ndarray, codes: Sequence[np.ndarray]) 
     for level in range(1, depth):
         rows.append([coefficient(level, k) - coefficient(level - 1, k) for k in range(1, depth)])
         rhs.append(totals[level] - totals[level - 1])
-    return np.linalg.solve(np.array(rows), np.array(rhs))
+    try:
+        return np.linalg.solve(np.array(rows), np.array(rhs))
+    except np.linalg.LinAlgError as error:
+        raise ValueError(
+            "the levels cannot be told apart (two levels have the same units, or a level "
+            "has one observation per unit)"
+        ) from error
 
 
 def cluster_size(counts: np.ndarray) -> float:
@@ -296,6 +356,10 @@ def jcb_required_objects(cv_objects: float, target_cv: float) -> int:
     The square is rounded to nine decimals first, so floating-point error never
     adds one object (0.07 / 0.01 squares to 49.000000000000014, which is 49).
     """
+    if not (math.isfinite(cv_objects) and cv_objects >= 0):
+        raise ValueError(f"cv_objects must be a finite number of at least 0, not {cv_objects}")
+    if not (math.isfinite(target_cv) and target_cv > 0):
+        raise ValueError(f"target_cv must be a finite positive number, not {target_cv}")
     return math.ceil(round((cv_objects / target_cv) ** 2, 9))
 
 
@@ -377,8 +441,9 @@ def object_weighted_mean_se(sums: np.ndarray, counts: np.ndarray) -> tuple[float
 
     The variance is a first-order (linearization) approximation. When field
     size and field mean are related it can be several times smaller than the
-    spread of ``m`` over resampled whole fields (0.013 against 0.051 on 8
-    fields of 2 to 150 objects whose crowded fields hold a different state).
+    spread of ``m`` over resampled whole fields (relative to the mean, 0.013
+    against 0.044 on 8 fields of 2 to 150 objects whose crowded fields hold a
+    different state).
 
     Returns ``(m, se, k')``. Needs two fields with objects.
     """
@@ -414,12 +479,14 @@ def field_weighted_mean_se(field_means: np.ndarray) -> tuple[float, float, int]:
 
 
 __all__ = [
+    "PAPER_DESCRIPTORS",
     "RELATIVE_TOLERANCE",
     "benjamini_hochberg",
     "bootstrap_fields",
     "bootstrap_nested",
     "cluster_size",
     "cohen_d",
+    "describe",
     "design_effect",
     "field_sample",
     "field_weighted_mean_se",

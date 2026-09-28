@@ -3,10 +3,10 @@
 
 Every scientific choice the workflows make is a field here or an explicit
 argument of a workflow, visible and recorded; the workflows add the
-computational settings (draws, splits, orders) and two provisional presets that
-their summaries print (``optimise``'s ``protocol_threshold``, ``benchmark``'s
-``alphas``), and run the package's analyses in the order of
-``docs/questions.md``.
+computational settings (draws, splits, orders, resamples) and provisional
+presets (``minimum_detection`` here, ``optimise``'s ``protocol_threshold``,
+``benchmark``'s ``alphas``), which the declaration and the summaries print,
+and run the package's analyses in the order of ``docs/questions.md``.
 A field left at ``None`` switches off the analyses that need it, and the
 report then says "Not assessed" with what it would need.
 
@@ -31,7 +31,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..evidence import Component
+from .._checks import check_seed, is_integer, is_number
+from .._parallel import check_n_jobs
+from .._wording import rate
 from ..metadata import (
     CONDITION_COLUMN,
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -42,18 +44,18 @@ from ..metadata import (
     resolve_fov_col,
 )
 from ..normalize import METHODS as NORMALIZATIONS
-from ..normalize import normalize_to_control
+from ..normalize import control_means, negative_values_sentence, normalize_to_control
 from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from ..outcomes import RareStateDetected, RelativeMeanError
-from ..results import COMPONENT_WORDS
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
 from ..retrospective.overview import normalized_sentence
 from ..schema import resolve_observation_unit, unit_plural
-from ..statistics import fovs_to_detect
-from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator
+from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator, SupportNoveltyStrategy
 from ..strategies.base import SamplingStrategy
+from ..strategies.support_novelty import UPPER_QUANTITY
 from ..transforms import Standardize
+from ._declaration import declaration
 
 
 def default_novelty(features: Sequence[str]) -> SupportNoveltyEstimator:
@@ -74,15 +76,31 @@ class PositiveControl:
     ``selector`` picks the positive-control groups by FOV-table values, for
     example ``{"condition": "YAP"}``. ``fovs_seen`` reference FOVs are seen
     before a positive FOV is judged; ``pair_cols`` pairs positive and
-    reference FOVs (for example by plate); ``planted_objects`` also plants that
+    reference FOVs (for example by plate). By default (``None``) they are
+    paired within each repeat when the FOV table has a repeat column, so a
+    shift between repeats is never read as a detected phenotype;
+    ``pair_cols=()`` pools every repeat, as explicitly asked, and the
+    declaration and the report say so. ``planted_objects`` also plants that
     many positive objects into reference FOVs.
     """
 
     selector: Mapping[str, Any]
     fovs_seen: int
-    pair_cols: tuple[str, ...] = ()
+    pair_cols: tuple[str, ...] | None = None
     planted_objects: int | None = None
     draws: int = 20
+
+    def __post_init__(self) -> None:
+        if self.pair_cols is not None:
+            if isinstance(self.pair_cols, str):
+                raise TypeError("pair_cols must be a sequence of column names, not a string")
+            object.__setattr__(self, "pair_cols", tuple(self.pair_cols))
+
+    def resolved_pair_cols(self, fovs: pd.DataFrame) -> tuple[str, ...]:
+        """``pair_cols`` as declared; by default the repeat column when the FOV table has one."""
+        if self.pair_cols is not None:
+            return self.pair_cols
+        return (REPEAT_COLUMN,) if REPEAT_COLUMN in fovs.columns else ()
 
 
 @dataclass(frozen=True)
@@ -93,8 +111,11 @@ class Setup:
     - ``features``: the representation for unusual observations and novelty
       (explicit columns; never inferred). Empty means the readout only.
     - ``control``: the negative-control groups, for example
-      ``{"condition": "MOCK"}``; it normalizes the JCB rule and is the
-      reference for unusual observations (without it they are not assessed).
+      ``{"condition": "MOCK"}``. Its mean is the reference of the Foundation's
+      JCB object-rule check (``object_rule_check``; the stopping rules use each
+      group's own mean), its observations the reference for unusual
+      observations (without it they are not assessed), and, with ``normalize``,
+      the divisor of the normalised values.
     - ``normalize``: ``"control_mean"`` divides every feature (the readout
       included) by the mean of the control condition's observations of the
       same repeat (``normalize_to_control``); needs ``control`` to name the
@@ -107,6 +128,10 @@ class Setup:
       runs it; so do the other analyses (variability, controls, inspection,
       effort projection). ``None`` keeps the values as given.
     - ``positive``: a ``PositiveControl``, for the detection check.
+    - ``minimum_detection``: the share of positive-control checks the
+      representation must recognize before the adequacy answers are read
+      without a warning (default 0.9, a provisional preset, printed in the
+      declaration).
     - ``tolerances``: the readout's mean within these fractions, the outcomes
       judged on held-back FOVs and the JCB targets; default the paper's 5% and
       2.5%. This is the population-summary target.
@@ -128,9 +153,11 @@ class Setup:
     - ``novelty_target``: with ``novelty``, the chance that one more field
       shows something new that the report asks to rule out (default 5%). The
       report then also judges a report-only rule, "the upper bound of that
-      chance is at most ``novelty_target``", beside ``rules``: it is not one of
-      ``rules``, so the live session does not run it and ``optimise`` and
-      ``benchmark`` do not calibrate it; the declaration says so.
+      chance is at most ``novelty_target``" (``novelty_rule()``), beside
+      ``rules``: unless it is one of ``rules`` (then it is judged once, as one
+      of them), the live session does not run it and ``optimise`` and
+      ``benchmark`` do not calibrate it; the declaration says so. ``None``
+      answers the next-field question without a target and adds no rule.
     - ``few_fovs``: with ``novelty``, the report also counts the fields holding
       a state that fewer than ``few_fovs`` other fields show (seen, but not
       established). It must exceed the definition's ``min_other_fovs``;
@@ -150,13 +177,19 @@ class Setup:
       ``validate_input_tables`` (MorphoBricks defaults when ``None``).
     - ``rules``: the stopping rules to assess, calibrate and run live; by
       default the JCB rule (upper-95 SD, first tolerance) per observation and
-      per FOV.
+      per FOV (the declaration names them and marks the default).
     - ``random_state``: the seed of every random procedure the workflows run
-      (subset draws, hold-outs, replay orders, bootstraps and randomization
-      tests), so a run is reproducible; it is a computational setting, not a
-      scientific one.
+      (subset draws, hold-outs, replay orders, the report's random orders,
+      the default benchmark families' resampling, bootstraps and randomization
+      tests), so a run is reproducible; a non-negative integer, a
+      computational setting, not a scientific one.
     - ``n_jobs``: worker processes for the analyses that can use them (``-1``:
       every CPU); results are identical for every value.
+
+    Per-plane features (a z-stack measured plane by plane) are split before
+    the Setup: ``morphocoverage.planes_as_features`` turns ``area`` into
+    ``area_z0``, ``area_z1``, ... (objects matched by ``label_id``), and those
+    names are the ``readout`` and ``features`` declared here.
     """
 
     readout: str
@@ -169,7 +202,7 @@ class Setup:
     rare: RareTarget | None = None
     rare_label: str | None = None
     novelty: SupportNoveltyEstimator | None = None
-    novelty_target: float = 0.05
+    novelty_target: float | None = 0.05
     few_fovs: int | None = None
     hierarchy: SamplingHierarchy | None = None
     effort_strata: tuple[str, ...] | None = None
@@ -181,6 +214,7 @@ class Setup:
     rules: tuple[SamplingStrategy, ...] | None = None
     random_state: int = 0
     n_jobs: int = 1
+    minimum_detection: float = 0.9
 
     def __post_init__(self) -> None:
         if not isinstance(self.readout, str) or not self.readout:
@@ -237,6 +271,7 @@ class Setup:
                 "a positive control is judged with the definition of new: declare novelty "
                 "(and features), or leave the positive control out"
             )
+        self._check_presets()
         self._check_few_fovs()
         undeclared = sorted(set(self.criterion_columns) - set(self.columns))
         if undeclared:
@@ -275,13 +310,29 @@ class Setup:
         ``sampling_reliability`` judges (the rules read ``columns``)."""
         return [self.readout, *(c for c in self.criterion_columns if c != self.readout)]
 
+    def _check_presets(self) -> None:
+        """The novelty target, the detection preset and the computational settings."""
+        target = self.novelty_target
+        if target is not None and (not is_number(target) or not 0 < float(target) < 1):
+            raise ValueError("novelty_target must be a probability between 0 and 1, or None")
+        if target is not None:
+            object.__setattr__(self, "novelty_target", float(target))
+        detection = self.minimum_detection
+        if not is_number(detection) or not 0 < float(detection) <= 1:
+            raise ValueError("minimum_detection must be a share in (0, 1], such as 0.9")
+        object.__setattr__(self, "minimum_detection", float(detection))
+        object.__setattr__(self, "random_state", check_seed(self.random_state))
+        check_n_jobs(self.n_jobs)
+        object.__setattr__(self, "n_jobs", int(self.n_jobs))
+
     def _check_few_fovs(self) -> None:
         if self.few_fovs is None:
             return
         if self.novelty is None:
             raise ValueError("few_fovs counts states under the definition of new: declare novelty")
-        if isinstance(self.few_fovs, bool) or not isinstance(self.few_fovs, int):
+        if not is_integer(self.few_fovs):
             raise TypeError("few_fovs must be an integer number of fields")
+        object.__setattr__(self, "few_fovs", int(self.few_fovs))
         if self.few_fovs <= self.novelty.min_other_fovs:
             raise ValueError(
                 f"few_fovs ({self.few_fovs}) must exceed the definition of new's min_other_fovs "
@@ -360,16 +411,34 @@ class Setup:
             return list(self.effort_strata)
         return [CONDITION_COLUMN] if CONDITION_COLUMN in fovs.columns else []
 
-    def normalized_sentence(self, fovs: pd.DataFrame) -> str | None:
-        """How the values are normalised and what reads them, or ``None`` when they are not."""
+    def normalized_sentence(
+        self, fovs: pd.DataFrame, objects: pd.DataFrame | None = None
+    ) -> str | None:
+        """How the values are normalised and what reads them, or ``None`` when they are not.
+
+        With ``objects``, also the caution when the control holds negative
+        values of a feature (``normalize.negative_values_sentence``).
+        """
         if self.normalize is None:
             return None
         assert self.control is not None
-        return (
+        text = (
             f"{normalized_sentence(self.control, self.repeat_col(fovs))}, for the outcomes "
             "judged on held-back fields, the condition contrast, the feature ranking and the "
             "plots; the stopping rules and the other analyses read the raw values"
         )
+        if objects is not None:
+            means = control_means(
+                objects,
+                fovs,
+                feature_cols=self.columns,
+                control=self.control,
+                repeat_col=self.repeat_col(fovs),
+                **self.common,
+            )
+            note = negative_values_sentence(means)
+            text += f". Caution: {note}" if note else ""
+        return text
 
     def objective(self) -> ObjectiveConfig:
         """The objective whose components are the declared targets.
@@ -401,7 +470,7 @@ class Setup:
                 RelativeMeanError(self.readout),
                 tolerance,
                 "lower_is_better",
-                f"the mean of {self.readout} within {tolerance:.1%}",
+                f"the mean of {self.readout} within {rate(tolerance)}",
             )
             for tolerance in self.tolerances
         ]
@@ -424,118 +493,43 @@ class Setup:
 
         Printed first by the report. Every answer that follows is read against
         it; a target that is not declared says so, so that "enough" is never
-        read for a target the microscopist did not name.
+        read for a target the microscopist did not name. The presets the
+        workflows apply without being asked (``minimum_detection``, the default
+        stopping rules, the positive control's pairing) are printed too.
         """
-        tolerances = " and ".join(f"{t:.1%}" for t in self.tolerances)
-        units = self.unit_words
-        lines = [
-            (
-                f"Population summary: the mean of {self.readout} over all {units}, within "
-                f"{tolerances} of its value on held-back fields."
-            )
-        ]
-        if self.fingerprint:
-            named = "; ".join(c.description or c.name for c in self.fingerprint)
-            lines.append(f"Phenotypic fingerprint: {named}; judged on held-back fields.")
-        else:
-            lines.append(
-                "Phenotypic fingerprint: not declared (no distribution criterion in "
-                "fingerprint), so the answers below speak of the mean, not of the "
-                "distribution of phenotypes."
-            )
-        if self.rare is not None:
-            lines.append(self._rare_declaration())
-        else:
-            lines.append(
-                "Rare phenotype: not declared (no RareTarget in rare), so no answer below "
-                "says whether a rare state was sampled enough."
-            )
-        lines.append(f"Representation: readout {self.readout}; {self._representation()}.")
-        if self.novelty is not None:
-            lines.append(
-                "Report-only rule: with this definition of new, 'Did I image enough?' also "
-                "judges whether the chance that one more field shows something new is at most "
-                f"{self.novelty_target:.1%} (its upper bound; novelty_target). It is not one of "
-                "the stopping rules (rules): the live decision does not run it, and optimise "
-                "and benchmark do not calibrate it. A state that fewer than "
-                f"{self.resolved_few_fovs} other fields show is counted as seen in few fields "
-                "(few_fovs)."
-            )
-        if self.normalize is not None:
-            lines.append(
-                "Values: every declared feature divided by the mean of the control "
-                f"{dict(self.control or {})} {units} of the same repeat (of the whole table "
-                "without a repeat column) for the outcomes judged on held-back fields, the "
-                "condition contrast, the feature ranking and the plots; every stopping rule "
-                "runs on the raw values, in the report, optimise and benchmark as in the live "
-                "decision, and so do the other analyses."
-            )
-        objective = self.objective()
-        targets = " and ".join(
-            COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components
-        )
-        lines.append(
-            f"Live decision: the {objective.objective.value} objective ({targets}); a rule "
-            "decides only the targets it has evidence about, and a target no rule decides "
-            "stays unsupported rather than assumed adequate."
-        )
-        return tuple(lines)
+        return declaration(self)
 
     @property
     def unit_words(self) -> str:
         """The observation unit in the plural, for sentences (``objects`` when undeclared)."""
         return unit_plural(resolve_observation_unit(self.observation_unit)[0])
 
-    def _representation(self) -> str:
-        """What the declared features are used for; unusual observations need the control."""
-        units = self.unit_words
-        if not self.features:
-            # Unusual observations and novelty read the declared features only (see report).
-            return (
-                f"no feature columns declared, so unusual {units} and new phenotypes are not "
-                "assessed"
-            )
-        new = "not declared" if self.novelty is None else self.novelty.name
-        if self.control is None:
-            return (
-                f"{len(self.features)} declared feature columns for new phenotypes (definition "
-                f"of new: {new}); unusual {units} are not assessed without a control"
-            )
-        return (
-            f"{len(self.features)} declared feature columns for unusual {units} (against the "
-            f"control) and new phenotypes; definition of new: {new}"
+    def novelty_rule(self) -> SupportNoveltyStrategy | None:
+        """The novelty-bound rule ``novelty_target`` adds to the report, or ``None``.
+
+        The rule ``sufficiency_report`` builds from ``novelty`` and
+        ``novelty_target``: stop once the upper bound of the chance that one
+        more field shows something new is at most the target.
+        """
+        if self.novelty is None or self.novelty_target is None:
+            return None
+        novelty = self.novelty
+        return SupportNoveltyStrategy(
+            novelty.epsilon,
+            self.novelty_target,
+            novelty.min_other_fovs,
+            novelty.transform,
+            novelty.min_fovs,
+            novelty.min_novel_observations,
+            UPPER_QUANTITY,
+            novelty.confidence,
         )
 
-    def _rare_declaration(self) -> str:
-        target = self.rare
-        assert target is not None
-        parts = []
-        if target.object_prevalence is not None:
-            parts.append(f"{target.object_prevalence:.1%} of {self.unit_words}")
-        if target.fov_incidence is not None:
-            parts.append(f"{target.fov_incidence:.1%} of fields")
-        fields = target.min_fov_occurrences
-        line = (
-            f"Rare phenotype: {target.phenotype}, present in {' and '.join(parts)}, to be seen "
-            f"in at least {fields} field{'s' if fields != 1 else ''} with "
-            f"{target.detection_probability:.0%} probability."
-        )
-        if target.fov_incidence is not None:
-            needed = fovs_to_detect(target.fov_incidence, target.detection_probability, fields)
-            line += (
-                f" At that field incidence the binomial plan asks for {needed} independent "
-                "representative fields; fields that cluster the state need more."
-            )
-        else:
-            line += (
-                " No field incidence was declared, so no field count is planned: object "
-                "prevalence is never converted to field incidence."
-            )
-        if self.rare_label is not None:
-            line += f" Judged on held-back fields with the label column {self.rare_label!r}."
-        else:
-            line += " No label column: stated and planned for, not judged on held-back fields."
-        return line
+    @property
+    def novelty_rule_declared(self) -> bool:
+        """Whether the novelty-bound rule of ``novelty_target`` is one of ``rules``."""
+        rule = self.novelty_rule()
+        return rule is not None and rule.config_id in {r.config_id for r in self.stopping_rules()}
 
     @property
     def common(self) -> dict[str, Any]:

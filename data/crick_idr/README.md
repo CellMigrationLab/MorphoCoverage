@@ -162,9 +162,10 @@ the repository root, for example `python data/crick_idr/fov_vs_objects.py`.
   and `results/adequacy_idr0028.csv`.
 - `report_steps_idr0028.py` (entry 6; run `reliability_idr0028.py` first):
   `results/protocol_idr0028.csv`, `inspection_idr0028.csv`,
-  `control_idr0028.csv`, `effort_idr0028.csv`, `effort_comparisons_idr0028.csv`,
+  `sufficiency_idr0028.csv`, `next_fov_idr0028.csv`, `control_idr0028.csv`,
+  `effort_idr0028.csv`, `effort_comparisons_idr0028.csv`,
   `order_efficiency_idr0028.csv`, `redundancy_idr0028.csv`,
-  `sampling_profile_idr0028.csv` and the assembled
+  `contrast_idr0028.csv`, `sampling_profile_idr0028.csv` and the assembled
   `microscopist_report_idr0028.txt`.
 - `heldout_idr0139.py` (entry 7): `results/heldout_*_idr0139.csv`.
 - `benchmark.py` (entry 8) with its locked `benchmark_protocol.py`: the

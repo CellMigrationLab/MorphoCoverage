@@ -1,6 +1,6 @@
 """FOV-bootstrap uncertainty of multivariate population summaries.
 
-Roadmap Phase 1 (docs/proposals/candidate_estimators_roadmap.md): how
+Described in ``docs/architecture.md``. How
 uncertain is the current estimate of simple population properties when the
 FOV, not the object, is the sampling unit? The visible FOVs are resampled with
 replacement (whole FOVs, including acquired FOVs with no observations), the
@@ -21,14 +21,18 @@ Summaries:
 - ``"centroid"``: the per-observation mean of each feature (a ratio estimator
   under cluster sampling). For one feature without a transform this extends
   the FOV-unit JCB rule (``ScalarPrecisionStrategy(..., "fov", ...)``) from
-  one mean to a vector of means; the bootstrap SE approaches the analytic
-  ratio-estimator SE times ``sqrt((k - 1) / k)``.
+  one mean to a vector of means. When every visible FOV holds observations,
+  the bootstrap SE approaches the analytic ratio-estimator SE times
+  ``sqrt((k - 1) / k)``. With empty FOVs it does not: the analytic SE counts
+  only the ``k'`` FOVs with objects, while each resample draws a random
+  number of them, which adds variance (8 FOVs of which 4 empty: about 1.01
+  times the analytic SE, not ``sqrt((k' - 1) / k') = 0.87``).
 - ``"covariance"``: every entry of the feature covariance matrix.
 - ``"quantiles"``: the given per-feature quantiles.
 - ``"eigenspectrum"``: the explained-variance fractions of the covariance
-  eigenvalues, largest first (roadmap 1.6).
-- ``"subspace"``: the leading ``n_components`` principal directions (roadmap
-  1.7). Directions have no sign or order within the subspace, so instead of a
+  eigenvalues, largest first.
+- ``"subspace"``: the leading ``n_components`` principal directions.
+  Directions have no sign or order within the subspace, so instead of a
   standard error the estimator reports the root-mean-square, over resamples,
   of the largest principal angle (``scipy.linalg.subspace_angles``, radians)
   between each resample's subspace and the subspace of all visible data.
@@ -36,7 +40,7 @@ Summaries:
   subspace is then genuinely undetermined.
 
 This is a MorphoCoverage method, not a published stopping rule. Its limits,
-stated in the roadmap and not removed by any setting here:
+which no setting here removes:
 
 - it resamples only what has been seen, so an entirely unseen rare component
   contributes zero variance: low uncertainty is not evidence that no unseen
@@ -47,8 +51,8 @@ stated in the roadmap and not removed by any setting here:
 - neighbouring FOVs that are spatially correlated make independent FOV
   resampling optimistic. ``block_col`` names an FOV-table column of spatial
   blocks (for example from ``reservoir.spatial_blocks``); whole blocks are then
-  resampled, so correlation within a block is kept (a spatial block bootstrap,
-  roadmap 8.4). Blocks should be at least as large as the correlation length;
+  resampled, so correlation within a block is kept (a spatial block bootstrap).
+  Blocks should be at least as large as the correlation length;
   correlation between blocks is still ignored, and ``min_fovs`` then also
   requires that many blocks;
 - the value depends on feature scale, so ``transform`` is explicit (``None``
@@ -56,19 +60,22 @@ stated in the roadmap and not removed by any setting here:
   and held fixed across resamples.
 
 Missing feature values make the quantity ``not_applicable`` (more acquisition
-does not remove them). Fewer than ``min_fovs`` visible FOVs with observations,
-or a transform that cannot be fitted, give ``insufficient_data``. Resamples
+does not remove them), as does a transform that can never be fitted on the
+number of selected features (``PCA(3)`` on 2 features: its ``output_width``
+says so). Fewer than ``min_fovs`` visible FOVs with observations, or a
+transform that cannot be fitted yet, give ``insufficient_data``. Resamples
 that draw only FOVs without observations (or, for the covariance, fewer than 2
 observations) have no summary; they are left out and counted in the
-diagnostics. PCA resamples whose covariance has observations but too little
-spread to define the summary (no spread for the eigenspectrum; a zero
-eigenvalue among the leading ``n_components`` for the subspace, whose basis
-would be arbitrary) are genuinely undetermined. When they are more than
+diagnostics (``undefined_resamples``). PCA resamples whose covariance has
+observations but too little spread to define the summary (no spread for the
+eigenspectrum; a zero eigenvalue among the leading ``n_components`` for the
+subspace, whose basis would be arbitrary) are genuinely undetermined. When they are more than
 ``DEGENERATE_TOLERANCE`` (5%) of the resamples the quantity is
 ``insufficient_data``, since dropping them would report certainty that the
 data do not support (two one-object FOVs: half the resamples, and an SE of 0
 if dropped). Below that share they are left out and counted
-(``degenerate_resamples``, ``degenerate_fraction``); this slightly understates
+(``degenerate_resamples``, ``degenerate_fraction``; they are not counted again
+in ``undefined_resamples``); this slightly understates
 the uncertainty. The rule depends on the share, a property of the data,
 not on whether one rare degenerate resample happens to be drawn, which with
 enough resamples always happens: five one-object FOVs repeat one FOV in 0.16%
@@ -93,14 +100,23 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
-from scipy import linalg
 
+from .._checks import check_seed, is_integer
+from .._wording import percent
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from ..transforms import FeatureTransform
-from .base import Estimator, SamplingStrategy
+from ..transforms import Chain, FeatureTransform
+from ._fov_resamples import (  # the public names are re-exported (__all__)
+    _per_fov_sums,
+    centroid_resamples,
+    covariance_resamples,
+    eigenspectrum_resamples,
+    quantile_resamples,
+    subspace_angles_to,
+)
+from .base import Estimator, SamplingStrategy, _as_ints
 
 SUMMARIES = ("centroid", "covariance", "quantiles", "eigenspectrum", "subspace")
 AGGREGATES = ("max", "rms")
@@ -121,92 +137,23 @@ def _check(
     if summary not in SUMMARIES:
         raise ValueError(f"summary must be one of {SUMMARIES}")
     for value, label, minimum in ((n_resamples, "n_resamples", 2), (min_fovs, "min_fovs", 2)):
-        if isinstance(value, bool) or not isinstance(value, int):
+        if not is_integer(value):  # numpy integers too
             raise TypeError(f"{label} must be an integer")
         if value < minimum:
             raise ValueError(f"{label} must be at least {minimum}")
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
+    if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
+    check_seed(random_state)
     if (summary == "quantiles") != (quantiles is not None):
         raise ValueError("quantiles are required for, and only for, summary='quantiles'")
     if quantiles is not None and (not quantiles or not all(0 <= q <= 1 for q in quantiles)):
         raise ValueError("quantiles must be a non-empty sequence of values in [0, 1]")
     if (summary == "subspace") != (n_components is not None):
         raise ValueError("n_components is required for, and only for, summary='subspace'")
-    if n_components is not None and (
-        isinstance(n_components, bool) or not isinstance(n_components, int) or n_components < 1
-    ):
+    if n_components is not None and (not is_integer(n_components) or n_components < 1):
         raise ValueError("n_components must be a positive integer")
     if transform is not None and not isinstance(transform, FeatureTransform):
         raise TypeError("transform must be a FeatureTransform or None (raw feature units)")
-
-
-def _per_fov_sums(values: np.ndarray, positions: np.ndarray, k: int) -> np.ndarray:
-    """Sum of each row of ``values`` over the observations of each of ``k`` FOVs."""
-    sums = np.zeros((k, values.shape[1]))
-    np.add.at(sums, positions, values)
-    return sums
-
-
-def centroid_resamples(counts: np.ndarray, sums: np.ndarray, weights: np.ndarray) -> np.ndarray:
-    """Pooled mean of each resample; ``weights[b, j]`` is how often FOV ``j`` was drawn.
-
-    Rows of resamples without observations are NaN.
-    """
-    n = weights @ counts
-    with np.errstate(invalid="ignore", divide="ignore"):
-        return (weights @ sums) / n[:, None]
-
-
-def covariance_resamples(
-    counts: np.ndarray, sums: np.ndarray, outer: np.ndarray, weights: np.ndarray
-) -> np.ndarray:
-    """Pooled covariance (``ddof=1``) of each resample, flattened; NaN below 2 observations."""
-    n = weights @ counts
-    total, cross = weights @ sums, weights @ outer
-    mean_outer = np.einsum("bi,bj->bij", total, total).reshape(len(weights), -1)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        return (cross - mean_outer / n[:, None]) / (n - 1)[:, None]
-
-
-def quantile_resamples(
-    values: np.ndarray, positions: np.ndarray, weights: np.ndarray, quantiles: Sequence[float]
-) -> np.ndarray:
-    """Per-feature quantiles of the pooled observations of each resample, flattened.
-
-    ``weights[b, j]`` is how often FOV ``j`` was drawn in resample ``b``.
-    Resamples without observations are NaN. One ``np.quantile`` call per
-    resample.
-    """
-    k = weights.shape[1]
-    by_fov = np.argsort(positions, kind="stable")
-    rows_of = np.split(by_fov, np.cumsum(np.bincount(positions, minlength=k))[:-1])
-    out = np.full((len(weights), len(quantiles) * values.shape[1]), np.nan)
-    for b, counts in enumerate(weights.astype(int)):
-        rows = np.concatenate([rows_of[j] for j in np.repeat(np.arange(k), counts)])
-        if len(rows):
-            out[b] = np.quantile(values[rows], quantiles, axis=0).ravel()
-    return out
-
-
-def eigenspectrum_resamples(covariances: np.ndarray, d: int) -> np.ndarray:
-    """Explained-variance fractions, largest first, of each flattened ``d x d`` covariance."""
-    eigenvalues = np.clip(np.linalg.eigvalsh(covariances.reshape(-1, d, d))[:, ::-1], 0, None)
-    # A resample with no spread at all has undefined fractions (NaN, left out later).
-    with np.errstate(invalid="ignore", divide="ignore"):
-        return eigenvalues / eigenvalues.sum(axis=1, keepdims=True)
-
-
-def subspace_angles_to(covariances: np.ndarray, reference: np.ndarray, r: int) -> np.ndarray:
-    """Largest principal angle (radians) between leading ``r``-dimensional subspaces.
-
-    One angle per flattened ``d x d`` matrix in ``covariances``, measured
-    against the leading subspace of ``reference``.
-    """
-    d = len(reference)
-    target = np.linalg.eigh(reference)[1][:, ::-1][:, :r]
-    vectors = np.linalg.eigh(covariances.reshape(-1, d, d))[1][:, :, ::-1][:, :, :r]
-    return np.array([linalg.subspace_angles(v, target).max() for v in vectors])
 
 
 def _meta(units: str, summary: str) -> dict[str, Any]:
@@ -232,6 +179,26 @@ def _visible_blocks(data: ValidatedInput, block_col: str | None) -> int | None:
     if data.fovs[block_col].isna().any():
         raise ValueError(f"block_col {block_col!r} contains missing values")
     return int(data.fovs[block_col].nunique())
+
+
+def _never_fits(transform: FeatureTransform, n_features: int) -> bool:
+    """Whether the transform's declared output width says no fit can ever succeed.
+
+    ``output_width`` is ``None`` both when a width is unknown (the default of
+    ``FeatureTransform``) and when no fit can succeed, so only a transform
+    that declares its width is read: ``PCA(3)`` of 2 features never fits,
+    whatever is acquired, while an unknown width could still fit later. A
+    ``Chain`` is read step by step.
+    """
+    steps = transform.transforms if isinstance(transform, Chain) else (transform,)
+    width: int | None = n_features
+    for step in steps:
+        if type(step).output_width is FeatureTransform.output_width:
+            return False  # an undeclared width: a later fit may succeed
+        width = step.output_width(width)
+        if width is None:
+            return True
+    return False
 
 
 def _pca_reason(estimator: FOVBootstrapEstimator, d: int) -> str | None:
@@ -297,6 +264,7 @@ class FOVBootstrapEstimator(Estimator):
             self.transform,
             self.n_components,
         )
+        _as_ints(self, "n_resamples", "random_state", "min_fovs", "n_components")
 
     @property
     def name(self) -> str:
@@ -439,11 +407,17 @@ class FOVBootstrapEstimator(Estimator):
             if values is not None
             else self.transform.output_width(len(data.feature_cols))
         )
-        if self.summary in ("eigenspectrum", "subspace") and width is not None:
+        never = None
+        if values is None and _never_fits(self.transform, len(data.feature_cols)):
+            never = (
+                f"the {self.transform.name!r} transform can never be fitted on "
+                f"{len(data.feature_cols)} features: {diagnostics['transform']['reason']}"
+            )
+        elif self.summary in ("eigenspectrum", "subspace") and width is not None:
             never = _pca_reason(self, width)
-            if never:
-                quantity = Quantity.not_applicable(never, **_meta(units, self.summary))
-                return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": never})
+        if never:
+            quantity = Quantity.not_applicable(never, **_meta(units, self.summary))
+            return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": never})
         if with_observations < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
         elif blocks is not None and blocks < self.min_fovs:
@@ -461,7 +435,8 @@ class FOVBootstrapEstimator(Estimator):
 
         components, degenerate = self._resampled(values, positions, self._weights(data))
         defined = ~np.isnan(components).any(axis=1)
-        diagnostics["undefined_resamples"] = int((~defined).sum())
+        # Degenerate PCA resamples are NaN too; they are counted once, on their own.
+        diagnostics["undefined_resamples"] = int((~defined).sum()) - degenerate
         if degenerate:
             diagnostics["degenerate_resamples"] = degenerate
             diagnostics["degenerate_fraction"] = degenerate / self.n_resamples
@@ -474,7 +449,8 @@ class FOVBootstrapEstimator(Estimator):
             # one rare degenerate resample.
             reason = (
                 f"{degenerate} of {self.n_resamples} resamples (more than "
-                f"{DEGENERATE_TOLERANCE:.0%}) have too little spread to define the PCA summary"
+                f"{percent(DEGENERATE_TOLERANCE)}) have too little spread to define the PCA "
+                "summary"
             )
             diagnostics["undefined_reason"] = reason
             return Evidence(
@@ -552,6 +528,7 @@ class FOVBootstrapStrategy(SamplingStrategy):
             self.transform,
             self.n_components,
         )
+        _as_ints(self, "n_resamples", "random_state", "min_fovs", "n_components")
 
     @property
     def name(self) -> str:
@@ -591,3 +568,17 @@ class FOVBootstrapStrategy(SamplingStrategy):
         use_max = self.aggregate == "max" and estimator.max_quantity is not None
         quantity = estimator.max_quantity if use_max else estimator.quantity
         return (ThresholdPolicy(quantity, self.tolerance),)
+
+
+__all__ = [
+    "AGGREGATES",
+    "DEGENERATE_TOLERANCE",
+    "SUMMARIES",
+    "FOVBootstrapEstimator",
+    "FOVBootstrapStrategy",
+    "centroid_resamples",
+    "covariance_resamples",
+    "eigenspectrum_resamples",
+    "quantile_resamples",
+    "subspace_angles_to",
+]

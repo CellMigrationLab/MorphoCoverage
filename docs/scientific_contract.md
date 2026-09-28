@@ -42,7 +42,7 @@ Optional metadata may include condition, repeat, sample/well/batch identifiers, 
 
 At minimum: the same spatial position/FOV identifier plus explicitly selected numeric feature columns. One row may represent a cell, nucleus, patch, slice-level measurement, FOV summary, embedding, or another declared observation unit.
 
-If features are generated slice-by-slice or otherwise within a multidimensional acquisition, preserve the relevant lowercase `z`, `c`, and/or `t` metadata on those rows. These dimensions remain nested within the spatial position and are not phenotype features or independent FOVs.
+If features are generated slice-by-slice or otherwise within a multidimensional acquisition, preserve the relevant lowercase `z`, `c`, and/or `t` metadata on those rows. These dimensions remain nested within the spatial position and are not phenotype features or independent FOVs: validation refuses them in `feature_cols`, and a feature compared between planes is split into one feature per plane on explicit request (`planes_as_features`).
 
 An optional object/label/patch identifier may be retained for traceability. The API records `observation_unit`; observation/cell-specific rules must not silently reinterpret other observation types as cells.
 

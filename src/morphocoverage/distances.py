@@ -23,7 +23,7 @@ example by comparing at matched FOV and observation counts.
 from __future__ import annotations
 
 import numpy as np
-from scipy import linalg, stats
+from scipy import stats
 from scipy.spatial import distance
 
 from .statistics import RELATIVE_TOLERANCE
@@ -45,28 +45,46 @@ def _off_diagonal_mean(pairwise: np.ndarray) -> float:
     return float((pairwise.sum() - np.trace(pairwise)) / (n * (n - 1)))
 
 
+def _psd_root(matrix: np.ndarray) -> np.ndarray:
+    """Square root of a symmetric positive semi-definite matrix, by its eigendecomposition.
+
+    Eigenvalues below zero are rounding noise of a singular covariance (fewer
+    observations than features, a constant feature) and are set to zero.
+    """
+    values, vectors = np.linalg.eigh(matrix)
+    return (vectors * np.sqrt(np.clip(values, 0, None))) @ vectors.T
+
+
 def frechet_distance(x: np.ndarray, y: np.ndarray) -> float:
     """Fréchet (2-Wasserstein between Gaussians) distance of the samples' means and covariances.
 
     ``sqrt(|mu_x - mu_y|^2 + Tr(S_x + S_y - 2 (S_x^1/2 S_y S_x^1/2)^1/2))``, with
     sample covariances (``ddof=1``). It ignores structure beyond the second
-    moment. A squared distance below ``RELATIVE_TOLERANCE`` of
-    ``tr(S_x) + tr(S_y) + |mu_x|^2 + |mu_y|^2`` is rounding noise and gives 0.
+    moment. The matrix square roots come from symmetric eigendecompositions
+    (covariances are positive semi-definite), which stay accurate for the
+    singular covariances of a stop with fewer observations than features. The
+    covariance term below ``RELATIVE_TOLERANCE`` of ``tr(S_x) + tr(S_y)`` is
+    rounding noise and counts as 0; the mean term is kept as computed, so the
+    distance does not depend on where the features' origin lies.
     """
     x, y = _pair(x, y, 2)
     cov_x = np.atleast_2d(np.cov(x, rowvar=False))
     cov_y = np.atleast_2d(np.cov(y, rowvar=False))
-    root_x = linalg.sqrtm(cov_x)
-    cross = linalg.sqrtm(root_x @ cov_y @ root_x)
-    trace = np.trace(cov_x + cov_y - 2 * np.real(cross))
-    mean_x, mean_y = x.mean(axis=0), y.mean(axis=0)
-    squared = float(np.sum((mean_x - mean_y) ** 2) + trace)
-    # sqrtm rounding leaves a residual of order 1e-15 of the samples' scale for
-    # identical samples, which the square root would magnify; treat it as zero.
-    # The tolerance is relative only, so the distance is the same in any units
-    # (areas in m^2 are as far apart as in um^2, scaled).
-    scale = float(np.trace(cov_x) + np.trace(cov_y) + mean_x @ mean_x + mean_y @ mean_y)
-    return float(np.sqrt(squared)) if squared > RELATIVE_TOLERANCE * scale else 0.0
+    root_x = _psd_root(cov_x)
+    product = root_x @ cov_y @ root_x
+    eigenvalues = np.linalg.eigvalsh((product + product.T) / 2)
+    cross = float(np.sum(np.sqrt(np.clip(eigenvalues, 0, None))))
+    spread = float(np.trace(cov_x) + np.trace(cov_y))
+    # The square roots leave a residual of order 1e-15 of the spread for equal
+    # covariances, which the final square root would magnify; treat it as zero.
+    # The tolerance is relative to the covariances only: the means' magnitude
+    # (an offset of 1e6 in every feature) must not hide a difference in spread,
+    # and in any units the distance scales with them.
+    covariance_term = spread - 2 * cross
+    if covariance_term <= RELATIVE_TOLERANCE * spread:
+        covariance_term = 0.0
+    squared = float(np.sum((x.mean(axis=0) - y.mean(axis=0)) ** 2)) + covariance_term
+    return float(np.sqrt(squared))
 
 
 def energy_distance(x: np.ndarray, y: np.ndarray) -> float:
@@ -127,3 +145,12 @@ def sliced_wasserstein(x: np.ndarray, y: np.ndarray, directions: np.ndarray) -> 
     return float(
         np.mean([stats.wasserstein_distance(px[:, j], py[:, j]) for j in range(len(directions))])
     )
+
+
+__all__ = [
+    "energy_distance",
+    "frechet_distance",
+    "mmd_squared",
+    "random_directions",
+    "sliced_wasserstein",
+]

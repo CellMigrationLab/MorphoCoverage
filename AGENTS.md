@@ -15,7 +15,7 @@
 | Lint | `ruff check src tests data` and `ruff format --check src tests data` (ruff pinned in `pyproject.toml`; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
-Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; matplotlib only in `morphocoverage.plots`, added 2026-09-26 at the project owner's request for the PlotsOfData-style figures); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
+Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; imported only by `morphocoverage.plots` and `workflows/figures.py`, so importing `morphocoverage.workflows` loads it while the core, `retrospective` and `sampling_unit` do not; added 2026-09-26 at the project owner's request for the PlotsOfData-style figures); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
 
 MorphoCoverage is deliberately independent of CellPatcher, fiberfeatures, Nyxus, CellProfiler, DINO, Torch, microscopy file formats, segmentation tools, and microscope-control software.
 
@@ -27,7 +27,7 @@ The central questions are:
 
 > Is another representative FOV likely to provide enough useful new information to justify acquiring it?
 
-The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`, starting with the premise that the field, not the object, is the sampling unit (R0); new analyses should name the question they answer there.
+The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`, starting with the Foundation: whether the field, not only the object, must be counted as the sampling unit; new analyses should name the question they answer there.
 
 The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Feature observations such as cells, nuclei, patches, slice-level measurements, embeddings, channels and time points are nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
@@ -62,7 +62,7 @@ Scientific rules:
 - **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
 - **Feature rows are generic observations, not necessarily cells.** Record `observation_unit` (for example `cell`, `nucleus`, `patch`, `slice`, `fov_summary`); labels are normalized to lowercase singular form, so `Cells` and `nuclei` mean `cell` and `nucleus`. When no unit is given, rows are assumed to be objects and every result records `observation_unit_declared=False`. FOV count and observation count are different quantities. Object/cell-specific scientific rules must not silently reinterpret arbitrary observations as cells.
 - **Missing phenotype values are allowed at the input boundary.** NaN is preserved; infinity is rejected. The framework never silently imputes or drops missing values. Every estimator/transform that uses affected features must state its missing-data behavior explicitly.
-- **Metadata is not phenotype.** Grouping/acquisition columns such as condition, repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`.
+- **Metadata is not phenotype.** Grouping/acquisition columns such as condition, repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`; validation refuses `z`, `z0`, `z1`, `c` and `t` there, and a feature measured per plane becomes one feature per plane only on explicit request (`planes_as_features`).
 - **Never pool groups silently.** If the caller requests analysis by condition, repeat, or other groups, analyses operate independently within those groups. Pooling must be explicit.
 - **Do not claim that more observations from one FOV equal more independent imaging coverage.** Observation count and FOV count are different quantities and must remain separately visible.
 - **Preserve acquired FOVs with zero phenotype observations.** An observation-only table is not a complete acquisition record; support a first-class FOV table.
@@ -100,7 +100,7 @@ Scientific rules:
 - owning the user's final biological-condition inference workflow;
 - microscope hardware control.
 
-MorphoCoverage does not replace the user's final biological inference workflow. It does describe, in the report, how the declared conditions differ in the acquired fields (`sampling_unit.condition_contrast`, decided by the project owner on 2026-09-26: Cohen's d and the JCS effect size on objects, as the lab's Plot&Stats notebook computes them, and with the field as the unit, plus a randomization test that shuffles condition labels over whole fields), always per repeat and always beside the field-aware version, and worded as what these fields support, never as the inference across independent repeats. It may also use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
+MorphoCoverage does not replace the user's final biological inference workflow. It does describe, in the report, how the declared conditions differ in the acquired fields (`sampling_unit.condition_contrast`, decided by the project owner on 2026-09-26: Cohen's d and the JCS effect size on objects, as the lab's Plot&Stats notebook computes them, and with the field as the unit, plus a randomization test that shuffles condition labels over whole technical repeats when each side has at least two, with no test when a side has one, and over whole fields only without a technical-repeat column), always per repeat and always beside the field-aware version, and worded as what these fields support, never as the inference across independent repeats. It may also use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
 
 Do not add dependencies for those concerns merely to make an example easier.
 
@@ -146,7 +146,7 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 | --- | --- | --- |
 | `condition` | string, always | Default analysis group; always part of FOV identity. |
 | `repeat` | string, always (`YYYY_MM_DD`, or `single`) | Default analysis group; always part of FOV identity. Any label is accepted; the format is not enforced. |
-| `technical_repeat` | string, optional | The technical repeat within a biological repeat (a well, a dish, a coverslip); never a biological repeat. When present: a default analysis group and part of FOV identity, counted in the report's overview, the colour of the plots' points and the unit their intervals and the condition contrast resample or shuffle first, and the sample level of the hierarchy `Setup` derives for "more fields or more technical repeats?". Identified with its `condition` and `repeat`, so well `J23` of two plates is two technical repeats. |
+| `technical_repeat` | string, optional | The technical repeat within a biological repeat (a well, a dish, a coverslip); never a biological repeat. When present: a default analysis group and part of FOV identity, counted in the report's overview, the colour of the plots' points and the unit their intervals and the condition contrast and feature ranking resample or shuffle first (the contrast and the ranking take the FOV table's column whatever `group_cols` says), and the sample level of the hierarchy `Setup` derives for "more fields or more technical repeats?". Identified with its `condition` and `repeat`, so well `J23` of two plates is two technical repeats. |
 | `image_file` | string, always | Storage provenance; fallback FOV identifier only when one file = one spatial position. |
 | `position_id` | string, when needed | Preferred explicit spatial-position identifier when files/planes/scenes do not map 1:1 to FOVs. |
 | `mask_file` | string, if used | Preserved as metadata, never a feature. |
@@ -154,7 +154,7 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 
 The user-facing description of both tables, every mandatory and optional column, and the validation rules is [`docs/data_format.md`](docs/data_format.md); keep it in step with this section, with `schema.validate_input_tables` and with `data_check.check_tables` (which must accept exactly what the validator accepts). `tests/test_data_check.py` checks that agreement, and `tests/test_docs.py` runs the page's example and checks that every shared column is listed.
 
-An optional shared column that is empty in every row (`position_id`, `technical_repeat`: `metadata.EMPTY_MEANS_ABSENT`) is read as absent, because producers that write every column, CellPatcher among them, leave it empty when it does not apply; a partly empty one still raises, and one named explicitly in `group_cols`/`fov_col` is kept. Group metadata such as `condition`/`repeat` may live only in the FOV table when the supplied FOV identifier maps unambiguously to one metadata value; the validator then attaches it to observation rows. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
+An optional shared column that is empty in every row (`position_id`, `technical_repeat`: `metadata.EMPTY_MEANS_ABSENT`) is read as absent, because producers that write every column, CellPatcher among them, leave it empty when it does not apply; a partly empty one still raises, and one named explicitly in `group_cols`/`fov_col` is kept; when only the observation table's copy is empty, the FOV table's values are used. Group metadata such as `condition`/`repeat` may live only in the FOV table when the supplied FOV identifier (with the other group columns, when field names restart in each repeat) maps unambiguously to one metadata value; the validator then attaches it to observation rows. A MorphoBricks column in the observations but not in the FOV table raises. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
 
 ### Outputs
 
@@ -177,9 +177,13 @@ MorphoCoverage currently produces in-memory result objects (`StrategyResult`, `S
 ```text
 src/morphocoverage/
     __init__.py            # public API (__all__); changes need approval (section 15)
-    metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings
+    metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings (the one resolver)
     schema.py              # ValidatedInput and linked-table validation
+    _plane_rules.py        # private: the plane rule (z/c/t planes are not fields, never features)
+    planes.py              # planes_as_features: one feature per plane, objects matched by label_id
     data_check.py          # check_tables: every data problem at once, where and how to fix it
+    _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
+    _data_problems.py      # private: the problems a data check reports (Problem, Collector) and their wording
     objectives.py          # sampling objectives and RareTarget, independent of strategies
     evidence.py            # Evidence and Quantity: estimates with direction, units, component
     policies.py            # decision policies, per-objective combination, redecide
@@ -197,9 +201,11 @@ src/morphocoverage/
     spatial.py             # spatial diagnostics: FOV semivariogram against stage distance
     bounds.py              # Clopper-Pearson bounds and intervals for probabilities from few FOVs
     framework.py           # run_strategies convenience entry point
+    _areas.py              # private: the one check of an imaged-area column (benchmark, fixed-area rule)
+    _deprecated.py         # private: the former cell names, resolved with a DeprecationWarning
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
-    _wording.py            # private: the one way to write percentages, counts, fields, durations, groups
-    _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng)
+    _wording.py            # private: the one way to write percentages, rates, counts, fields, durations, groups
+    _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
     _checks.py             # private: integer and number checks that accept numpy types
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
@@ -209,15 +215,21 @@ src/morphocoverage/
     normalize.py           # features divided by the control condition's mean, repeat by repeat
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
+        __init__.py        # the subpackage's public names
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
         hierarchy.py       # SamplingHierarchy: declared FOV / sample / repeat levels
         reliability.py     # sampling reliability: how often k random FOVs are enough
+        reliability_text.py  # its sentences
         replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
         calibration.py     # stopping-rule calibration: how often a rule's stop was premature
         adequacy.py        # first and sustained apparent and realized adequacy points
         protocol.py        # protocol-level reliability across samples, by independent unit
+        protocol_text.py   # its sentences
+        frontier.py        # the benchmark score: fields saved at matched risk, transfer
+        frontier_text.py   # its sentences
         inspection.py      # inspect-these-fields: one traceable reason per FOV and line
         controls.py        # representation controls: detection and false-alarm rates
+        controls_text.py   # their sentences
         effort.py          # nested variance components and projected SE at equal FOVs
         effort_design.py   # its standard errors and allocations: acquired and balanced designs
         effort_text.py     # the effort projection in words (technical repeats, samples, caveats)
@@ -228,26 +240,36 @@ src/morphocoverage/
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
         _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
+        __init__.py        # the subpackage's public names
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
         contrast.py        # each condition against the control: objects, fields and technical repeats as units
         ranking.py         # which features separate the conditions: BH-gated |d| ranking (as fiberfeatures)
         _units.py          # private: sides, units and the randomization test shared by contrast and ranking
         clustering.py      # unusual (out-of-distribution) objects; state clustering by FOV
+        _outliers.py       # private: the distances and leave-one-group-out thresholds behind unusual_objects
+        _common.py         # private: validation and group helpers shared by the sampling-unit checks
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
+        __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
-        retrospective.py   # report, optimise, benchmark: the analyses in question order
+        _declaration.py    # private: the Setup's declaration in sentences, every preset printed
+        retrospective.py   # report, optimise, document: the analyses in question order
+        benchmarks.py      # benchmark, Family, default_families: the rule families at matched risk
+        _document.py       # private: the assembled report of the workflows, its parts and settings
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
-        _shared.py         # private: rule replays on raw values, outcomes on normalised ones
+        _shared.py         # private: input checks, orders, rule replays on raw values, outcomes on normalised ones
     strategies/
+        __init__.py        # the exported strategies, estimators and policies
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
         _averaging_cv.py   # private: its averaging-CV arithmetic (object and FOV units)
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
+        _descriptor_resamples.py  # private: the resample arithmetic of the descriptor spread
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
         fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
+        _fov_resamples.py  # private: its resample arithmetic, every summary of every resample at once
         rare_planning.py   # binomial FOV-incidence planning for a RareTarget
         rare_incidence.py  # beta-binomial rare-state incidence risk with recurrence
         support_novelty.py # leave-one-FOV-out epsilon-support novelty: estimator and strategy
@@ -259,19 +281,15 @@ tests/
     contract_registry.py   # every packaged strategy, metric and transform under contract
     test_contracts.py      # section 9 scenarios: contracts every strategy and the framework pass
     test_contracts_*.py    # outcome-metric, transform and incremental contracts
+    test_guards.py         # one guard per recurring bug class, package-wide (section 12)
     test_<module>.py       # unit tests per module or strategy family
+    test_audit*.py, test_microscopist_audit.py  # regression tests of the audits' findings (docs/audit/README.md)
+    test_human_errors.py   # the mistakes people make with the tables, and the message each gives
     test_crick_idr.py      # real-data integrity and end-to-end tests
     test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
+    test_docs.py           # the documentation's examples run and print what they say
     test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
     conftest.py            # one BLAS thread per test process
-
-notebooks/                 # example notebooks, one folder each; they call the package API only
-    MorphoCoverage_Workflows_Example/  # report, optimise, benchmark and live on a dataset
-
-data/crick_idr/            # real datasets (CC BY 4.0), ready to use with datasets.load; analyses; README
-docs/                      # scientific aims, contracts, architecture, benchmarking, findings
-docs/proposals/            # design proposals and roadmaps; each Status line says what is implemented
-```
 
 A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.
 
@@ -367,6 +385,7 @@ If acquisition becomes targeted, do not treat targeted FOVs as an unbiased popul
 - Docstrings on public modules/functions/classes.
 - No module above 600 lines: split a growing module along its natural seam (computation and wording, geometry and decision), re-exporting the public names so callers do not change.
 - Statistics shared by several analyses live once, in `morphocoverage.statistics`, and are reused rather than re-derived.
+- The bug classes the audits kept finding are guarded package-wide by `tests/test_guards.py`, so write new code through the shared helpers: percentages and declared rates through `_wording` (`percent`, `rate`), count and number checks through `_checks`, FOV and group identity only through `metadata`'s resolvers, group lookups by `_seeds.group_key` (never the 32-bit `group_identity`, which only seeds), and every new interval with a coverage test. The live session must give the replay's result at every step of every contract scenario, and `check_tables` must accept exactly what the validator accepts.
 - Comments explain scientific assumptions or non-obvious reasoning.
 - Prefer specific exception types and actionable error messages.
 - Do not perform unrelated refactors, dependency upgrades, API renames, or formatting sweeps.
@@ -439,7 +458,7 @@ For substantive work, report briefly:
 
 The sampling objective is separate from the mathematical strategy. Its components are the targets the microscopist declares: the population summary, the phenotypic fingerprint (the `distribution` component) and the rare phenotype with an explicit user target. The objectives are `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare) and `all`. A rule with no evidence about a required component is `unsupported` for the objective and never `stop`; its own verdict is `StrategyResult.rule_decision`, which self-assessments, replays and calibrations read (`docs/sampling_objectives.md`).
 
-MorphoBricks metadata handling is centralized. When available, condition and repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
+MorphoBricks metadata handling is centralized. When available, condition, repeat and technical_repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
 
 Strategies must not reimplement condition/repeat splitting. Each core prospective strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, FOV count, observation count/unit, and measured runtime. Methods that require several groups belong in an explicit planning/comparator layer (as with JCB multi-sample planning), not inside a normal group-local estimator. Retrospective benchmark outcomes may compare groups when the purpose is to test whether a stopping rule preserves the biological analysis. This scope expansion is deliberate: it changes the repository contract so that biological-condition comparisons are permitted **only** as retrospective benchmark outcomes or explicit planning comparators, never as hidden inputs to ordinary prospective estimators.
 
@@ -475,14 +494,14 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | FOV key | The columns that jointly identify one FOV: group columns, condition/repeat, then the FOV column. |
 | Observation | One row of phenotype information nested in an FOV; may be a cell, nucleus, patch, slice, FOV summary, embedding, or another declared unit. |
 | Feature | An explicitly selected numeric descriptor of an object. |
-| Analysis group | FOVs evaluated together; `condition` x `repeat` by default, pooled only on explicit request. |
+| Analysis group | FOVs evaluated together; `condition` x `repeat` x `technical_repeat` (those present) by default, pooled only on explicit request. |
 | Zero-observation FOV | An acquired spatial position with no phenotype observations; it still counts as acquisition effort. |
 | Strategy | A swappable method that assesses the acquisition so far: estimators plus decision policies (section 20). |
 | Estimator | Computes named evidence quantities from the visible acquisition; never decides. |
 | Decision policy | Turns evidence and effort into continue/stop for one objective component. |
-| Component | The part of an objective a quantity or policy addresses: `population` or `rare`. |
+| Component | The part of an objective a quantity or policy addresses: `population`, `distribution` or `rare`. |
 | config_id | A stable hash of an estimator's, policy's or strategy's class and parameters. |
-| Objective | What "enough imaging" means: population representation, rare-phenotype discovery or balanced sampling. |
+| Objective | What "enough imaging" means: `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare) or `all` (section 17). |
 | Feature transform | Preprocessing (standardization, PCA, ...) fitted inside `estimate` on the visible prefix only; its fitted state is recorded as provenance. |
 | Outcome metric | A retrospective, strategy-independent score of a stop against the full acquisition of the same group. |
 | Dataset role | `development` (may be used for tuning) or `held_out` (never tuned on); declared in a `BenchmarkRegistry`. |
@@ -510,4 +529,5 @@ When feature extraction is performed slice-by-slice or frame-by-frame, retain lo
 
 Validation enforces this rather than trusting it:
 - a position spread over several `image_file` values must carry `z`/`c`/`t` values that tell those files apart;
-- when the FOV column was chosen automatically as `image_file` or `fov_id`, and each FOV holds a single value of a `z`/`c`/`t` column that varies across FOVs, validation raises instead of counting planes as FOVs; supply `position_id` or name `fov_col` explicitly.
+- when the FOV column was chosen automatically as `image_file` or `fov_id`, and each FOV holds a single value of a `z`/`c`/`t` column that varies across FOVs, validation raises instead of counting planes as FOVs (a warning with one row per FOV; a FOV-table `z` or `t` counts only when a value recurs in several FOVs, since a stage height distinct in every FOV is not a plane); supply `position_id` or name `fov_col` explicitly;
+- `z`, `z0`, `z1`, `c` and `t` are never features. To compare a feature between planes, `planes_as_features` turns it into one feature per plane (`area_z0`, `area_z1`, ...), objects matched across planes by `label_id` within the field; the field stays one FOV. The live session applies the same rules to every FOV so far.

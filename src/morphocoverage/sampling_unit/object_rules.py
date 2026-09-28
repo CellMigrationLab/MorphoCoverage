@@ -58,18 +58,20 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._seeds import group_identity
+from .._checks import as_count, check_seed
+from .._seeds import group_key, group_rng
 from .._wording import fields as fields_text
-from .._wording import where
-from ..schema import ValidatedInput, unit_plural
+from .._wording import percent, rate, where
+from ..schema import ValidatedInput, fov_values, unit_plural
 from ..statistics import (
+    describe,
     field_sample,
     field_weighted_mean_se,
     jcb_required_objects,
     sd_upper_bound_factor,
+    spread_is_zero,
 )
-from ..strategies.stabilization import describe
-from ._common import check_count, check_seed, fov_values, groups, matching_groups, validated
+from ._common import groups, matching_groups, validated
 
 DESCRIPTORS = ("mean", "median", "SD", "IQR")
 RANDOM_OBJECTS = "random objects"
@@ -78,6 +80,11 @@ _NEGATIVE = (
     "not applicable: the feature takes negative values here or in the control, and an error "
     "relative to the mean depends on where zero lies; the JCB rule applies to non-negative "
     "measurements"
+)
+_ZERO_REFERENCE = "not applicable: the reference mean is 0, so an error relative to it is undefined"
+_CONSTANT = (
+    "the feature does not vary, so the mean of any objects is exact and the rule has "
+    "nothing to average"
 )
 
 
@@ -92,7 +99,11 @@ class ObjectRuleCheck:
     of their mean, both as fractions of the reference mean, their
     ``error_ratio``, whether the real error ``meets_target``, and the FOVs the
     rule asks for with the FOV as the unit (``fov_rule_fovs`` and
-    ``fov_rule_fovs_upper95``).
+    ``fov_rule_fovs_upper95``). Those count fields with observations, since
+    the SD of field means comes from them; ``fov_rule_acquired`` and
+    ``fov_rule_acquired_upper95`` scale them by the acquired fields per field
+    with observations (``fovs`` over ``fovs_with_observations``), the fields
+    a microscope would acquire to get them.
     """
 
     table: pd.DataFrame
@@ -109,29 +120,45 @@ class ObjectRuleCheck:
             )
         ]
         for row in self.table.to_dict("records"):
-            head = f"{where({c: row[c] for c in self.group_cols})}, target {row['target']:.1%}"
+            head = f"{where({c: row[c] for c in self.group_cols})}, target {rate(row['target'])}"
             if row["status"] != "ok":
                 lines.append(f"{head}: {row['status']}.")
                 continue
             verdict = "meets" if row["meets_target"] else "misses"
+            ratio = row["error_ratio"]
+            times = "" if ratio is None or pd.isna(ratio) else f" ({ratio:.1f} times)"
             lines.append(
                 f"{head}: the rule asks for {int(row['rule_objects'])} {words}, which took "
                 f"{row['fovs_used']:.1f} fields. SD / sqrt(n) predicts "
-                f"{row['predicted_error']:.1%}; the real error of that mean is "
-                f"{row['real_error']:.1%} ({row['error_ratio']:.1f} times), so it {verdict} "
-                f"the target. With fields as the unit the rule asks for "
-                f"{fields_text(int(row['fov_rule_fovs']))} "
-                f"({int(row['fov_rule_fovs_upper95'])} from the upper-95 SD) of "
-                f"{int(row['fovs'])} acquired."
+                f"{percent(row['predicted_error'])}; the real error of that mean is "
+                f"{percent(row['real_error'])}{times}, so it {verdict} the target. "
+                + _field_rule(row, words)
             )
         return "\n".join(lines)
+
+
+def _field_rule(row: dict[str, Any], words: str) -> str:
+    """The rule with fields as the unit, in fields with observations and acquired fields."""
+    rule, upper = int(row["fov_rule_fovs"]), int(row["fov_rule_fovs_upper95"])
+    acquired, filled = int(row["fovs"]), int(row["fovs_with_observations"])
+    if filled == acquired:
+        return (
+            f"With fields as the unit the rule asks for {fields_text(rule)} ({upper} from the "
+            f"upper-95 SD) of {acquired} acquired."
+        )
+    return (
+        f"With fields as the unit the rule asks for {rule} fields with {words} ({upper} from "
+        f"the upper-95 SD); {filled} of the {acquired} acquired fields hold {words}, so that "
+        f"is about {fields_text(int(row['fov_rule_acquired']))} to acquire "
+        f"({int(row['fov_rule_acquired_upper95'])} from the upper-95 SD)."
+    )
 
 
 def _reference_means(
     all_groups: list[tuple[dict[str, Any], ValidatedInput]],
     feature: str,
     control: Mapping[str, Any] | None,
-) -> tuple[dict[int, float | None], str, bool]:
+) -> tuple[dict[str, float | None], str, bool]:
     """The mean that normalizes each group, its label, and whether the control has negatives.
 
     The mean is each group's own, or the mean of all control objects: as in
@@ -141,12 +168,12 @@ def _reference_means(
     values_by_group = {}
     for group, data in all_groups:
         values = data.feature_values(feature)
-        values_by_group[group_identity(group)] = values[~np.isnan(values)]
+        values_by_group[group_key(group)] = values[~np.isnan(values)]
     if control is None:
         means = {k: float(v.mean()) if len(v) else None for k, v in values_by_group.items()}
         return means, "each group's own mean", False
     chosen = matching_groups(all_groups, control, "control")
-    pooled = np.concatenate([values_by_group[group_identity(g)] for g in chosen])
+    pooled = np.concatenate([values_by_group[group_key(g)] for g in chosen])
     if not len(pooled):
         raise ValueError("the control groups have no observations of the feature")
     reference = float(pooled.mean())
@@ -199,9 +226,10 @@ def object_rule_check(
     targets = [float(t) for t in targets]
     if not targets or any(not 0 < t < 1 for t in targets):
         raise ValueError("targets must be fractions between 0 and 1, such as 0.05")
-    check_count(n_draws, "n_draws", 2)
-    check_seed(random_state)
+    n_draws = as_count(n_draws, "n_draws", 2)
+    random_state = check_seed(random_state)
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
+    words = unit_plural(data.observation_unit)
     all_groups = groups(data)
     references, label, negative_control = _reference_means(all_groups, feature, control)
     rows = []
@@ -210,19 +238,32 @@ def object_rule_check(
         sizes = np.array([len(v) for v in per_fov], dtype=float)
         sums = np.array([v.sum() for v in per_fov])
         filled = [v for v in per_fov if len(v)]
-        reference = references[group_identity(group)]
-        base = {**group, "fovs": len(per_fov), "observations": int(sizes.sum())}
+        reference = references[group_key(group)]
+        base = {
+            **group,
+            "fovs": len(per_fov),
+            "fovs_with_observations": len(filled),
+            "observations": int(sizes.sum()),
+        }
         negative = negative_control or any(bool((v < 0).any()) for v in filled)
         for target in targets:
             if negative:
                 rows.append({**base, "target": target, "status": _NEGATIVE})
                 continue
-            if len(filled) < 2 or not reference:
-                rows.append({**base, "target": target, "status": "too few FOVs or objects"})
+            if len(filled) < 2:
+                status = f"fewer than 2 fields with {words}"
+                rows.append({**base, "target": target, "status": status})
                 continue
-            sd = float(np.std(np.concatenate(filled) / reference, ddof=1))
+            if reference == 0:
+                rows.append({**base, "target": target, "status": _ZERO_REFERENCE})
+                continue
+            relative = np.concatenate(filled) / reference
+            sd = float(np.std(relative, ddof=1))
+            if spread_is_zero(sd, relative):
+                rows.append({**base, "target": target, "status": _CONSTANT})
+                continue
             n = max(1, jcb_required_objects(sd, target))
-            rng = np.random.default_rng([random_state, group_identity(group), int(target * 1e6)])
+            rng = group_rng(random_state, group, int(target * 1e6))
             means, obtained, used = _fovs_until(sizes, sums / reference, n, n_draws, rng)
             real = float(means.std(ddof=1))
             predicted = float(np.mean(sd / np.sqrt(obtained)))
@@ -232,6 +273,10 @@ def object_rule_check(
             _, fov_se, n_filled = field_weighted_mean_se(np.array([v.mean() for v in filled]))
             fov_sd = fov_se * math.sqrt(n_filled) / reference
             upper = fov_sd * sd_upper_bound_factor(n_filled - 1)
+            fov_rule = max(1, jcb_required_objects(fov_sd, target))
+            fov_rule_upper = max(1, jcb_required_objects(upper, target))
+            # Fields with observations, scaled to the acquired fields that hold that many.
+            per_filled = len(per_fov) / n_filled
             rows.append(
                 {
                     **base,
@@ -246,8 +291,10 @@ def object_rule_check(
                     "real_error": real,
                     "error_ratio": real / predicted if predicted > 0 else None,
                     "meets_target": bool(real <= target),
-                    "fov_rule_fovs": max(1, jcb_required_objects(fov_sd, target)),
-                    "fov_rule_fovs_upper95": max(1, jcb_required_objects(upper, target)),
+                    "fov_rule_fovs": fov_rule,
+                    "fov_rule_fovs_upper95": fov_rule_upper,
+                    "fov_rule_acquired": math.ceil(round(fov_rule * per_filled, 9)),
+                    "fov_rule_acquired_upper95": math.ceil(round(fov_rule_upper * per_filled, 9)),
                 }
             )
     settings = {
@@ -341,20 +388,18 @@ def descriptor_spread_check(
     ``sizes`` default to 10, 20, ... up to twice the threshold; sizes beyond a
     group's observations are skipped. ``n_draws`` is 100 in the paper.
     """
-    check_count(threshold, "threshold", 2)
-    check_count(n_draws, "n_draws", 2)
-    check_seed(random_state)
+    threshold = as_count(threshold, "threshold", 2)
+    n_draws = as_count(n_draws, "n_draws", 2)
+    random_state = check_seed(random_state)
     sizes = list(range(10, 2 * threshold + 1, 10)) if sizes is None else list(sizes)
-    for n in sizes:
-        check_count(n, "every size", 2)
-    sizes = sorted({*sizes, threshold})
+    sizes = sorted({*(as_count(n, "every size", 2) for n in sizes), threshold})
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
     keys = list(data.group_cols)
     rows, threshold_rows, skipped = [], [], []
     for group, group_data in groups(data):
         per_fov = [v for v in fov_values(group_data, group_data.feature_values(feature)) if len(v)]
         pooled = np.concatenate(per_fov) if per_fov else np.array([])
-        rng = np.random.default_rng([random_state, group_identity(group)])
+        rng = group_rng(random_state, group)
         spreads: dict[tuple[str, int], np.ndarray] = {}
         for n in [s for s in sizes if s <= len(pooled)]:
             for how in (RANDOM_OBJECTS, WHOLE_FOVS):

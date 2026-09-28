@@ -3,8 +3,11 @@
 ``criteria_tables`` runs every strategy on the whole acquisition of each
 analysis group (the rule's own verdict, its evidence and its settings) and
 replays the declared acquisition orders to record where each rule first
-stopped; ``sufficiency`` turns the two tables into the answer to "did each
-criterion say enough?".
+stopped, separately for the recorded order and the random (permuted) orders
+(``order_kind``): the recorded order keeps drift and neighbour effects that
+random orders remove, so the two are never pooled into one distribution.
+``sufficiency`` turns the two tables into the answer to "did each criterion
+say enough?".
 """
 
 from __future__ import annotations
@@ -25,29 +28,82 @@ from .benchmark import (
 from .evidence import Availability
 from .framework import run_strategies
 from .objectives import ObjectiveConfig
+from .policies import EffortPolicy
 from .results import StrategyResult
 from .strategies.base import SamplingStrategy
 from .sufficiency_text import _policies
 
 
-def _final_row(result: StrategyResult, group_cols: Sequence[str]) -> dict[str, Any]:
+def is_effort_rule(strategy: SamplingStrategy) -> bool:
+    """Whether ``strategy`` stops at a fixed amount of acquisition effort (FOVs, objects, area).
+
+    Read from the rule's structure, never from its name or its settings text:
+    every policy is an ``EffortPolicy``, or the strategy declares
+    ``effort_rule = True`` (the fixed-object and fixed-area baselines, whose
+    policies are not ``EffortPolicy``). Such a rule's "stop" says its target
+    was reached, not that the data showed the sample to be enough.
+    """
+    if getattr(strategy, "effort_rule", False) is True:
+        return True
+    policies = strategy.policies
+    return bool(policies) and all(isinstance(policy, EffortPolicy) for policy in policies)
+
+
+def _insufficient_reason(result: StrategyResult) -> str | None:
+    """Why the rule cannot decide yet: the reason of a quantity it reads that lacks data."""
+    named = {
+        policy.get("parameters", {}).get("quantity")
+        for policy in result.configuration.get("policies", [])
+    }
+    for name, quantity in result.evidence.quantities.items():
+        if name in named and quantity.availability is Availability.INSUFFICIENT_DATA:
+            return quantity.reason
+    return None
+
+
+def _warnings(diagnostics: Mapping[str, Any]) -> str | None:
+    """The caveats a rule's evidence carries (``field_size_warning``, ``warning``), joined.
+
+    The FOV-unit JCB rule warns when FOV size and FOV mean are related (its
+    CV can then be several times too small) and the JCB rule when the SD
+    exceeds 50% CV; its pilot's own warnings are marked as the pilot's.
+    """
+    found = [diagnostics.get(key) for key in ("field_size_warning", "warning")]
+    pilot = diagnostics.get("pilot")
+    if isinstance(pilot, Mapping):
+        found += [
+            f"pilot: {pilot[key]}" for key in ("field_size_warning", "warning") if pilot.get(key)
+        ]
+    found = [str(text) for text in found if text]
+    return "; ".join(found) if found else None
+
+
+def _final_row(
+    result: StrategyResult, group_cols: Sequence[str], effort_rule: bool = False
+) -> dict[str, Any]:
     """One row of the full-acquisition table."""
+    diagnostics = result.evidence.diagnostics
     row = {column: result.group.get(column) for column in group_cols}
     row.update(
         {
             "strategy": result.strategy,
             "config_id": result.config_id,
             "policies": _policies(result),
+            "effort_rule": effort_rule,
             "n_fovs": result.n_fovs,
             "n_observations": result.n_observations,
             # The rule's own verdict, by its own threshold, whatever the objective asks.
             "verdict": None if result.rule_decision is None else result.rule_decision.value,
-            "undefined_reason": result.evidence.diagnostics.get("undefined_reason"),
-            # The object-unit JCB rule treats objects as independent draws; the
+            "undefined_reason": diagnostics.get("undefined_reason"),
+            # A "continue" only because a quantity it reads has too little data says so.
+            "insufficient_reason": _insufficient_reason(result),
+            # The object-unit JCB and JCS rules treat objects as independent draws; the
             # sentence says so, since that is what makes a stop after one FOV possible.
             "assumes_spatial_uniformity": bool(
-                result.evidence.diagnostics.get("assumes_spatial_uniformity", False)
+                diagnostics.get("assumes_spatial_uniformity", False)
+                or diagnostics.get("assumes_random_object_sampling", False)
             ),
+            "warnings": _warnings(diagnostics),
         }
     )
     for name, quantity in result.evidence.quantities.items():
@@ -62,7 +118,7 @@ def _quantile(values: np.ndarray, q: float) -> float | None:
 
 
 def _stop_summary(records: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
-    """Stop-FOV distribution per group and configuration."""
+    """Stop-FOV distribution per group, configuration and order kind."""
     rows = []
     for key, runs in records.groupby(keys, sort=False, dropna=False):
         stopped = runs[runs["stopped"]]
@@ -105,11 +161,22 @@ def criteria_tables(
     columns: Mapping[str, Any],
     group_cols: list[str],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Decisions on the full acquisition, and the stop-FOV distribution over orders."""
+    """Decisions on the full acquisition, and the stop-FOV distribution over orders.
+
+    The stops table has one row per group, criterion and ``order_kind``
+    (``"recorded"``, ``"permuted"``, in the order declared), each kind
+    summarised on its own.
+    """
     results = run_strategies(
         objects, fovs=fovs, strategies=strategies, objective=objective, **columns
     )
-    final = pd.DataFrame([_final_row(result, group_cols) for result in results])
+    effort = {(rule.name, rule.config_id): is_effort_rule(rule) for rule in strategies}
+    final = pd.DataFrame(
+        [
+            _final_row(result, group_cols, effort[(result.strategy, result.config_id)])
+            for result in results
+        ]
+    )
     dataset = BenchmarkDataset(
         name="sufficiency_report",
         role="development",
@@ -132,10 +199,11 @@ def criteria_tables(
             stop_on="rule",
         )
     )
+    records = records.rename(columns={"order": "order_kind"})
     group_keys = [f"group.{column}" for column in group_cols]
-    stops = _stop_summary(records, [*group_keys, "strategy", "config_id"])
+    stops = _stop_summary(records, [*group_keys, "strategy", "config_id", "order_kind"])
     stops = stops.rename(columns={f"group.{c}": c for c in group_cols})
     return final, stops
 
 
-__all__ = ["criteria_tables", "group_major"]
+__all__ = ["criteria_tables", "group_major", "is_effort_rule"]

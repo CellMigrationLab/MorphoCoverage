@@ -15,9 +15,17 @@ against what actually happened, without any simulation model:
 
 ``calibrate_next_fov_novelty`` reports, per group and ``k``, the mean
 prediction, the mean actual rate, the mean bound and how often the bound held
-(was at least the actual rate). A well-calibrated prediction has mean
-prediction close to the mean actual rate; a valid 95% bound holds in about
-95% of draws or more.
+(was at least the actual rate). The coverage check is ``bound_held``: a valid
+95% bound holds in about 95% of draws or more.
+
+The mean prediction is expected to sit at or above the mean actual rate, by
+construction and not as a flaw: the leave-one-FOV-out prediction judges each
+visible FOV against the ``k - 1`` others, while the actual rate judges a
+remaining FOV against all ``k``, and a larger reference leaves less to call
+new. The gap is largest at small ``k`` (with three recurring states at FOV
+incidences 0.30, 0.095 and 0.04: about 0.17 against 0.14 at ``k = 5``, 0.080
+against 0.072 at ``k = 10``, 0.010 against 0.0095 at ``k = 40``). A
+prediction far below the actual rate is the warning sign.
 
 Limits:
 
@@ -40,7 +48,7 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
-from ._checks import is_integer
+from ._checks import check_seed, is_integer
 from ._seeds import group_rng
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
@@ -82,6 +90,7 @@ def _check_settings(
         )
     if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
+    check_seed(random_state)
     return sorted({int(count) for count in counts})
 
 
@@ -137,8 +146,10 @@ def calibrate_next_fov_novelty(
     no draws and the reason, so no group disappears from the table. ``fovs``
     must list every acquired FOV; FOVs without observations can be drawn and
     count as not new. Each group and FOV count draws from its own generator,
-    seeded from ``random_state``, the group's identity and ``k``, so its row
-    never depends on the other groups or on the other FOV counts requested.
+    seeded from ``random_state``, the group's identity and ``k``, over the
+    group's FOVs in FOV-key order, so its row never depends on the other
+    groups, on the other FOV counts requested or on the row order of the
+    tables.
     """
     counts = _check_settings(novelty, fov_counts, draws, random_state)
     data = validate_input_tables(
@@ -151,6 +162,10 @@ def calibrate_next_fov_novelty(
     )
     rows = []
     for group, group_data in iter_analysis_groups(data):
+        # FOV-key order first, as permuted_fovs and ReservoirSplit do, so the
+        # draws do not depend on the row order of the FOV table.
+        ordered = group_data.fovs.sort_values(list(group_data.fov_key), kind="stable")
+        group_data = restrict_input(group_data, group_data.objects, ordered)
         total = len(group_data.fovs)
         for k in counts:
             if k >= total:

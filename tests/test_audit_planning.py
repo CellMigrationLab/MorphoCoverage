@@ -1,6 +1,6 @@
 """Regressions of the 2026-09-26 function audit: planning, inspection and protocol (F1-F16).
 
-Each test names the finding it pins (docs/audit/function_audit_2026-09-26.md)
+Each test names the finding it pins (the first function audit, docs/audit/README.md)
 and fails on the code before the fix.
 """
 
@@ -19,10 +19,10 @@ from morphocoverage.retrospective import (
     inspect_fovs,
     protocol_reliability,
 )
+from morphocoverage.retrospective._text import median_beyond as _median_beyond
 from morphocoverage.retrospective.effort import _contributions, _se
 from morphocoverage.retrospective.frontier import family, frontier
 from morphocoverage.retrospective.frontier_text import _setting
-from morphocoverage.retrospective.spatial import _median_beyond
 
 
 def test_f1_unequal_fields_weigh_the_field_term_by_their_cluster_size():
@@ -140,7 +140,7 @@ def test_f11_missing_values_never_make_a_field_weigh_less():
     )
     # Every field weighs one: the mean is 2 and leaving out b gives 1.5 (a 25% change).
     detail = result.fovs.set_index("image_file")["detail"]
-    assert detail["b"] == "removing it lowers the mean of x by 25%"
+    assert detail["b"] == "removing it lowers the field-weighted mean of x by 25%"
 
 
 def test_f6_order_medians_are_over_the_same_runs():

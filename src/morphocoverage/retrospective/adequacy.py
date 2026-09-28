@@ -1,7 +1,8 @@
 """Apparent and realized adequacy: when a rule would have stopped, and when it was really enough.
 
-Roadmap Step 3. Four points along one replayed acquisition, each a number of
-FOVs, or ``None`` when not reached within the stream:
+Questions R2 and P4 of ``docs/questions.md``. Four points along one replayed
+acquisition, each a number of FOVs, or ``None`` when not reached within the
+stream:
 
 - ``first_apparent``: the first evaluated prefix whose decision is stop.
 - ``sustained_apparent``: the earliest prefix from which every later evaluated
@@ -16,11 +17,19 @@ FOVs, or ``None`` when not reached within the stream:
   need?". A prefix is evaluable when at least one criterion is not preserved
   (then it is not enough) or all are preserved; a prefix with an undefined
   criterion and no failure is skipped, neither confirming nor breaking it.
+  The last prefix must be evaluable, as the last decision must be stop for
+  ``sustained_apparent``: when every prefix after some field is undefined (a
+  field with a missing value makes every later prefix undefined), nothing
+  says that the later field counts preserved it, so it is not reached.
+  ``last_judged`` gives the last evaluable prefix of each run.
 
 The apparent points use only decisions, the realized points only outcomes;
 they are never mixed. Realized points depend on the order of FOVs, never on
 the strategy. Realized points are reported for all criteria together
-(``ALL_CRITERIA``) and for each criterion on its own.
+(``ALL_CRITERIA``) and for each criterion on its own. The summary names the
+groups the replay skipped (``ReplayResult.skipped``).
+
+Shared-private: ``_unjudged`` (used by ``spatial``).
 """
 
 from __future__ import annotations
@@ -32,7 +41,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._text import order_phrase, rows_of, where
+from ._text import median_beyond, number, order_phrase, rows_of, skipped_lines, where
 from .criteria import Preservation
 from .replay import ReplayResult
 
@@ -92,16 +101,25 @@ def first_realized_adequacy(steps: Sequence[int], statuses: Sequence[str]) -> in
 def sustained_realized_adequacy(steps: Sequence[int], statuses: Sequence[str]) -> int | None:
     """The earliest preserved step after which no evaluable step fails, or ``None``.
 
-    Undefined steps are skipped: they neither start nor break a sustained run.
+    Undefined steps in between are skipped: they neither start nor break a
+    sustained run. An undefined last step leaves the run unconfirmed to the
+    end of the stream, so the point is not reached (``None``).
     """
-    sustained = None
+    sustained, last = None, None
     for step, status in _checked(steps, statuses):
         Preservation(status)
+        last = status
         if status == Preservation.PRESERVED.value:
             sustained = step if sustained is None else sustained
         elif status == Preservation.NOT_PRESERVED.value:
             sustained = None
-    return sustained
+    return None if last == Preservation.UNDEFINED.value else sustained
+
+
+def last_judged_step(steps: Sequence[int], statuses: Sequence[str]) -> int | None:
+    """The last step whose status is not undefined, or ``None`` when every step is."""
+    judged = [s for s, v in _checked(steps, statuses) if v != Preservation.UNDEFINED.value]
+    return judged[-1] if judged else None
 
 
 @dataclass(frozen=True)
@@ -111,16 +129,19 @@ class AdequacyResult:
     ``apparent`` has one row per group, split, order and strategy
     (``first_apparent``, ``sustained_apparent``); ``realized`` one row per
     group, split, order and criterion, including ``ALL_CRITERIA``
-    (``first_realized``, ``sustained_realized``, and ``judged_fovs``, the
+    (``first_realized``, ``sustained_realized``, ``judged_fovs``, the
     number of prefixes whose outcome was not undefined: 0 when the criterion
-    could never be judged, which is not the same as never being preserved).
-    Both carry ``stream_fovs``, the most FOVs the replay could reveal.
+    could never be judged, which is not the same as never being preserved,
+    and ``last_judged``, the last such prefix). Both carry ``stream_fovs``,
+    the most FOVs the replay could reveal. ``skipped`` lists the groups the
+    replay skipped, with the reason.
     """
 
     apparent: pd.DataFrame
     realized: pd.DataFrame
     group_cols: tuple[str, ...]
     settings: dict[str, Any] = field(default_factory=dict)
+    skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def summary(self) -> str:
         """The points in sentences, one block per group."""
@@ -205,6 +226,7 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
                     "first_realized": first_realized_adequacy(steps, statuses),
                     "sustained_realized": sustained_realized_adequacy(steps, statuses),
                     "judged_fovs": sum(s != Preservation.UNDEFINED.value for s in statuses),
+                    "last_judged": last_judged_step(steps, statuses),
                     "stream_fovs": stream,
                 }
             )
@@ -216,28 +238,33 @@ def adequacy_points(replay: ReplayResult) -> AdequacyResult:
     realized_table = pd.DataFrame(
         realized,
         columns=[*runs, "order", "criterion", "first_realized", "sustained_realized"]
-        + ["judged_fovs", "stream_fovs"],
+        + ["judged_fovs", "last_judged", "stream_fovs"],
     )
     for table, columns in (
         (apparent_table, point_columns),
-        (realized_table, ("first_realized", "sustained_realized")),
+        (realized_table, ("first_realized", "sustained_realized", "last_judged")),
     ):
         for column in columns:
             table[column] = table[column].astype("Int64")  # FOV counts, missing as <NA>
-    return AdequacyResult(apparent_table, realized_table, tuple(groups), dict(replay.settings))
+    return AdequacyResult(
+        apparent_table,
+        realized_table,
+        tuple(groups),
+        dict(replay.settings),
+        skipped=replay.skipped.copy(),
+    )
 
 
 def _median_point(values: pd.Series, streams: pd.Series) -> str:
     """The median over runs as "field 12"; a run that never reached it counts as beyond its own
     stream, so the median is "not reached" when half or more of the runs never reached it.
     """
-    filled = values.astype("Float64").to_numpy(dtype=float, na_value=np.inf)
-    median = float(np.median(filled))
-    if not np.isfinite(median):
+    median = median_beyond(values)
+    if median is None:
         return (
             f"not within the fields available (up to {int(streams.max())}) in half or more of runs"
         )
-    return f"field {median:.0f}" if median.is_integer() else f"field {median:.1f}"
+    return f"field {number(median)}"
 
 
 def _tail_point(values: pd.Series, streams: pd.Series) -> str:
@@ -271,6 +298,14 @@ def _unjudged(rows: pd.DataFrame) -> pd.Series:
     return rows["judged_fovs"].fillna(0).astype(int).eq(0)
 
 
+def _tail_unjudged(rows: pd.DataFrame) -> pd.Series:
+    """Judged runs whose last fields could not be judged, so 'reliably' was not confirmed."""
+    if "last_judged" not in rows.columns:
+        return pd.Series(False, index=rows.index)
+    last = rows["last_judged"].astype("Float64")
+    return (last.notna() & (last < rows["stream_fovs"].astype(float))).fillna(False).astype(bool)
+
+
 def _realized_sentence(rows: pd.DataFrame) -> str:
     """When everything wanted was first, and reliably, preserved over the judged runs."""
     unjudged = _unjudged(rows)
@@ -296,6 +331,12 @@ def _realized_sentence(rows: pd.DataFrame) -> str:
         if unjudged.any()
         else ""
     )
+    cut = _tail_unjudged(rows)
+    if cut.any():
+        skipped += (
+            f"; in {int(cut.sum())} of {len(cut)} runs the last fields could not be judged, "
+            "so it was not confirmed reliably there"
+        )
     return f"judged on held-back fields, {text} (medians; {tail}{skipped})."
 
 
@@ -307,6 +348,8 @@ def adequacy_summary(result: AdequacyResult) -> str:
     blocks = []
     frames = [result.apparent[keys], result.realized[keys]]
     all_groups = pd.concat(frames).drop_duplicates() if keys else pd.DataFrame([{}])
+    if keys and all_groups.empty:
+        all_groups = pd.DataFrame(columns=keys)
     for _, group_row in all_groups.iterrows():
         group = {k: group_row[k] for k in keys}
         apparent, realized = rows_of(result.apparent, group), rows_of(result.realized, group)
@@ -340,6 +383,7 @@ def adequacy_summary(result: AdequacyResult) -> str:
             "preserved it; each hold-out is a different set of held-back fields."
         )
         blocks.append("\n".join(lines))
+    blocks += skipped_lines(result.skipped, keys)
     return "\n\n".join(blocks)
 
 
@@ -351,6 +395,9 @@ __all__ = [
     "combined_status",
     "first_apparent_adequacy",
     "first_realized_adequacy",
+    "last_judged_step",
+    "replayed_strategies",
+    "run_decisions",
     "sustained_apparent_adequacy",
     "sustained_realized_adequacy",
 ]

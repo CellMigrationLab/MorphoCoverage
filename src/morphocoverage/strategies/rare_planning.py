@@ -1,6 +1,6 @@
 """Binomial FOV-incidence planning for a rare target: a fixed-FOV rare-state comparator.
 
-Roadmap 7.1 (docs/proposals/candidate_estimators_roadmap.md). If a rare
+Described in ``docs/architecture.md``. If a rare
 state is present in a fraction ``p`` of representative FOVs (the target's
 ``fov_incidence``) and FOVs are independent, the number of FOVs showing it
 after ``n`` FOVs is Binomial(n, p). The required number of FOVs is the
@@ -18,7 +18,7 @@ not an adaptive coverage estimator. Its assumptions:
 - ``fov_incidence`` is the design value supplied by the user. An
   ``object_prevalence`` is never converted into FOV incidence, since that
   needs observations per FOV and within-FOV clustering; such a target gives
-  ``not_applicable`` evidence (roadmap 7.2).
+  ``not_applicable`` evidence.
 - FOVs are independent. If the rare state clusters across neighbouring FOVs,
   the binomial is anti-conservative and overstates detection probability.
 - Detection within a positive FOV is assumed certain.

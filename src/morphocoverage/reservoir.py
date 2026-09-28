@@ -5,7 +5,7 @@ reference contains the prefix, so every error goes to zero as the prefix
 grows, whatever a strategy does. A reservoir split instead sets aside part of
 each analysis group before replay. Strategies see only the stream; outcome
 metrics compare the stop with the reservoir, which does not grow with the
-prefix (docs/proposals/candidate_estimators_roadmap.md, section 4.2).
+prefix (``docs/benchmarking.md``, "Reference").
 
 Splitting rules:
 
@@ -21,8 +21,9 @@ Splitting rules:
   every FOV is its own block, which assumes FOVs are exchangeable; the record
   states which was used.
 - The reservoir is a simple random sample of ``ceil(fraction * n_blocks)``
-  blocks (at most all but one; the product is rounded to 9 decimals first, so
-  ``0.07 * 100`` gives 7, not 8), drawn from ``seed`` and the group identity.
+  blocks (at least one and at most all but one; the product is rounded to 9
+  decimals first, so ``0.07 * 100`` gives 7, not 8), drawn from ``seed`` and
+  the group identity.
   Every block, and so every FOV, has the same chance ``m / n_blocks`` of
   being held out, whatever the block's size, so the reservoir represents the
   same FOV population as the stream on average. ``fraction`` is therefore a
@@ -60,8 +61,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._checks import is_integer
-from ._seeds import group_seed
+from ._checks import check_seed, is_integer
+from ._seeds import group_rng, split_seed
 from .evaluator import objects_in_fovs, restrict_input
 from .outcomes import OutcomeMetric
 from .schema import ValidatedInput
@@ -112,7 +113,8 @@ class ReservoirSplit:
     """Split each analysis group into a replay stream and a fixed evaluation reservoir.
 
     ``fraction`` is the share of each group's blocks held out (rounded up,
-    and at most all but one block), ``seed`` makes the split reproducible, and
+    at least one and at most all but one block), ``seed`` (a non-negative
+    integer; numpy integers accepted) makes the split reproducible, and
     ``block_col`` names an FOV-table column of spatial blocks (``None``: each
     FOV is its own block). Blocks are sampled with equal probability; see the
     module docstring.
@@ -128,7 +130,7 @@ class ReservoirSplit:
         object.__setattr__(self, "fraction", float(self.fraction))
         if not is_integer(self.seed):
             raise TypeError("seed must be an integer")
-        object.__setattr__(self, "seed", int(self.seed))
+        object.__setattr__(self, "seed", check_seed(self.seed, "seed"))
         if self.block_col is not None and not isinstance(self.block_col, str):
             raise TypeError("block_col must be a column name or None")
 
@@ -175,9 +177,9 @@ class ReservoirSplit:
         # block, so large blocks are not under-represented in the reservoir.
         # A size cap would skip large blocks and bias the reference.
         # Rounded first, so floating-point error (0.07 * 100 = 7.000000000000001)
-        # cannot add a block.
-        n_held = min(math.ceil(round(self.fraction * len(labels), 9)), len(labels) - 1)
-        rng = np.random.default_rng(group_seed(self.seed, group))
+        # cannot add a block; at least one, so a tiny fraction still holds one out.
+        n_held = min(max(1, math.ceil(round(self.fraction * len(labels), 9))), len(labels) - 1)
+        rng = group_rng(self.seed, group)
         chosen = rng.choice(len(labels), size=n_held, replace=False)
         held_out = np.isin(block_of_fov, chosen)
         return _subset(data, fovs.loc[~held_out]), _subset(data, fovs.loc[held_out])
@@ -213,9 +215,10 @@ def reference_error_floor(
         raise ValueError("n_splits must be a positive integer")
     if not is_integer(seed):
         raise TypeError("seed must be an integer")
+    check_seed(seed, "seed")
     floors: list[float | None] = []
     for i in range(int(n_splits)):
-        half, other = ReservoirSplit(0.5, int(seed) + i, block_col).split({}, reference)
+        half, other = ReservoirSplit(0.5, split_seed(seed, i), block_col).split({}, reference)
         floors.append(metric.evaluate(other, half))
     return floors
 

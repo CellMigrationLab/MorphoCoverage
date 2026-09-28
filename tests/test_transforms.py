@@ -42,7 +42,7 @@ def test_standardize_refuses_to_guess_a_scale(values, reason):
 def test_pca_matches_numpy_and_has_a_deterministic_sign():
     rng = np.random.default_rng(0)
     values = rng.normal(size=(50, 3)) @ np.array([[3.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 0.1]])
-    data = _data(values, ("a", "b", "c"))
+    data = _data(values, ("a", "b", "d"))
     fitted = PCA(2).fit(data)
     scores = fitted.apply(data)
     centred = values - values.mean(axis=0)
@@ -53,7 +53,7 @@ def test_pca_matches_numpy_and_has_a_deterministic_sign():
     components = np.asarray(fitted.state["components"])
     assert (components[np.arange(2), np.abs(components).argmax(1)] > 0).all()
     # Flipping the data does not flip the reported axes.
-    flipped = PCA(2).fit(_data(-values, ("a", "b", "c")))
+    flipped = PCA(2).fit(_data(-values, ("a", "b", "d")))
     np.testing.assert_allclose(flipped.state["components"], components)
     assert fitted.output_names == ("pc1", "pc2")
 
@@ -103,7 +103,7 @@ def test_config_ids_distinguish_transforms():
 def test_a_fitted_transform_rejects_other_features():
     fitted = Standardize().fit(_data([[1.0, 2.0], [2.0, 5.0]]))
     with pytest.raises(ValueError, match="cannot be applied"):
-        fitted.apply(_data([[1.0, 2.0], [2.0, 5.0]], ("a", "c")))
+        fitted.apply(_data([[1.0, 2.0], [2.0, 5.0]], ("a", "d")))
 
 
 @pytest.mark.parametrize("transform", [Standardize(), PCA(1), Chain([Standardize(), PCA(1)])])
