@@ -61,16 +61,17 @@ def _pooled_wells():
 
 def test_h1_pooled_repeats_keep_each_well_within_its_repeat(monkeypatch):
     captured = []
-    original = plots_module._bootstrap_repeats
+    original = plots_module.bootstrap_nested
 
-    def spy(repeats, *args, **kwargs):
-        captured.append([[len(unit) for unit in repeat] for repeat in repeats])
-        return original(repeats, *args, **kwargs)
+    def spy(units, *args, **kwargs):
+        captured.append([len(unit) for unit in units])
+        return original(units, *args, **kwargs)
 
-    monkeypatch.setattr(plots_module, "_bootstrap_repeats", spy)
+    monkeypatch.setattr(plots_module, "bootstrap_nested", spy)
     plots_of_data(*_pooled_wells(), features=["x"], n_boot=50)
-    # 9 repeats of 2 wells of 3 fields (resampled repeat first: H-10), not 2 wells of 27
-    assert captured == [[[3, 3]] * 9]
+    # 9 repeats, each with the 6 fields of its 2 wells (the repeats alone resampled: audit
+    # 3, H-2), never 2 wells of 27 fields
+    assert captured == [[6] * 9]
 
 
 def test_h5_the_palette_note_and_limit_say_what_is_drawn():
@@ -189,7 +190,9 @@ def test_contrast_summary_without_any_object_count_that_fits():
     result = condition_contrast(
         objects, fovs, feature=READOUT, control={"condition": "control"}, n_permutations=20
     )
-    assert result.effects.empty and "JCS effect size" not in result.summary()
+    # The effect size from every object is still given (audit 3, H-19), with no draws.
+    assert result.effects.empty and "from 50 objects" not in result.summary()
+    assert "JCS effect size (treated mean minus control mean" in result.summary()
 
 
 def test_h10_df2_plots_give_the_top_places_to_other_features(monkeypatch):

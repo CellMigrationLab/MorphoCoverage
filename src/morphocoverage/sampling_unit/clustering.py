@@ -50,12 +50,26 @@ the ``n_neighbors`` nearest reference objects (``scipy.spatial.cKDTree``) after
 ``transforms.Standardize`` fitted on the reference sample, which keeps
 extreme values extreme where a quantile transform would clip them.
 
-Two choices keep the FOV-clustering test honest. The threshold comes from
-reference objects scored against reference objects of **other** fields, so a
-reference field is never its own reference. And a group is never its own
+Two choices keep the FOV-clustering test honest. A group is never its own
 reference: a control group is scored against the other control groups, so
-labels never depend on how the tested group's objects sit in its fields. A
-control group with no other control group to compare with is not scored.
+labels never depend on how the tested group's objects sit in its fields. And
+the threshold is calibrated the way groups are scored, leaving out one group
+at a time: each reference object is scored against the reference objects of
+the **other** reference groups, so a shift between groups (a repeat's batch
+effect, say) raises the threshold as it raises the scores of the groups
+tested, instead of flagging a control group three times as often as the
+share asked for. This holds for every group scored, control or not; a tested
+object is scored against all reference groups but one (drawn at random), so
+it sees as dense a reference as the calibration did. With few reference
+groups the threshold rests on few between-group differences and varies from
+dataset to dataset: under a repeat shift of half an SD, a nominal 1% flagged
+1.2% of control objects on average with six repeats but 2.5% with three
+(median 1.3%). With a
+single reference group (no other group to leave in), the threshold comes from
+reference objects scored against reference objects of other fields of that
+group, and the result says so (``calibration``): a shift between that group
+and the tested one then raises the share flagged. A control group with no
+other control group to compare with is not scored.
 Observations with a missing feature value are not scored, and a group none of
 whose observations has every feature is reported as not assessed.
 """
@@ -69,16 +83,17 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from scipy import stats
-from scipy.spatial import cKDTree
 
-from .._seeds import group_identity
+from .._checks import as_count, check_seed
+from .._seeds import group_key, group_rng
+from .._wording import count, percent, where
 from .._wording import fields as fields_text
-from .._wording import where
 from ..bounds import interval
-from ..schema import ValidatedInput, fov_positions, unit_plural
+from ..schema import fov_positions, unit_plural
 from ..statistics import first_detection_fovs
 from ..transforms import Standardize
-from ._common import check_count, check_seed, groups, matching_groups, validated
+from ._common import groups, matching_groups, validated
+from ._outliers import LEAVE_ONE_FIELD_OUT, reference_sample, score
 
 _LABEL_CODE = "_morphocoverage_state_code"
 # Seed-check agreement below which the labels are called unstable (as in fiberfeatures).
@@ -105,7 +120,8 @@ class FOVClustering:
 
     def summary(self) -> str:
         """Plain sentences, one per group and state."""
-        words = unit_plural(self.settings["observation_unit"])
+        unit = self.settings["observation_unit"]
+        words = unit_plural(unit)
         chance = self.settings["detection_probability"]
         lines = [f"Are the states spread over the fields? Labels {self.settings['label_col']}."]
         for row in self.table.to_dict("records"):
@@ -131,12 +147,14 @@ class FOVClustering:
                 continue
             upper = row["fovs_needed_upper"]
             bound = "" if pd.isna(upper) else f" (up to {int(upper)})"
+            seen = count(int(row["state_objects"]), unit)
+            needed = fields_text(int(row["fovs_needed"]))
             lines.append(
-                f"{head}: {int(row['state_objects'])} {words} ({row['prevalence']:.1%}) in "
+                f"{head}: {seen} ({percent(row['prevalence'])}) in "
                 f"{int(row['fovs_with_state'])} of {fields_text(int(row['fovs']))}{left_out}; "
                 f"random {words} would fill {row['expected_fovs_if_random']:.1f} (clustering ratio "
                 f"{row['clustering_ratio']:.1f}, p = {row['p_clustered']:.2g}). To see it "
-                f"with {chance:.0%} chance: {fields_text(int(row['fovs_needed']))}{bound} from "
+                f"with {percent(chance)} chance: {needed}{bound} from "
                 f"its field incidence, against {fields_text(int(row['fovs_needed_if_random']))} "
                 f"if the {words} were random."
             )
@@ -178,8 +196,8 @@ def fov_clustering(
         raise ValueError(f"label_col {label_col!r} is not a column of objects")
     if not 0 < detection_probability < 1 or not 0 < confidence < 1:
         raise ValueError("detection_probability and confidence must be between 0 and 1")
-    check_count(n_permutations, "n_permutations", 1)
-    check_seed(random_state)
+    n_permutations = as_count(n_permutations, "n_permutations", 1)
+    random_state = check_seed(random_state)
     labels = objects[label_col]
     chosen = list(pd.unique(labels.dropna())) if states is None else list(states)
     codes = pd.Series(np.nan, index=objects.index)
@@ -201,7 +219,7 @@ def fov_clustering(
         # A field whose observations all lack a label was not looked at; a field
         # without observations was, and did not show the state.
         unlabelled = int(np.sum(observed_fields & (sizes == 0)))
-        rng = np.random.default_rng([random_state, group_identity(group)])
+        rng = group_rng(random_state, group)
         for index, state in enumerate(chosen):
             is_state = code == index
             rows.append(
@@ -311,9 +329,11 @@ class UnusualObjects:
       for unusual, ``False`` for typical, missing where not scored.
     - ``distances``: the scores behind the labels, aligned the same way.
     - ``groups``: per analysis group, the reference groups used, the
-      threshold, the scored and unusual observations, and, when
-      ``seed_checks`` were asked for, the agreement (Jaccard index of the
-      unusual objects) of refits with other seeds.
+      threshold and how it was calibrated (``calibration``: leave-one-group-out,
+      or leave-one-field-out with a single reference group), the scored and
+      unusual observations, and, when ``seed_checks`` were asked for, the
+      agreement (Jaccard index of the unusual objects) of refits with other
+      seeds.
     """
 
     labels: pd.Series
@@ -328,9 +348,9 @@ class UnusualObjects:
         lines = [
             (
                 f"Unusual {words}: farther from the reference {dict(self.settings['reference'])} "
-                f"than all but {self.settings['quantile']:.1%} of reference {words} are from "
-                f"other reference fields ({len(self.settings['feature_cols'])} standardized "
-                f"features, {self.settings['n_neighbors']} nearest neighbours)."
+                f"than all but {percent(self.settings['quantile'])} of reference {words} are "
+                f"from the other reference groups ({len(self.settings['feature_cols'])} "
+                f"standardized features, {self.settings['n_neighbors']} nearest neighbours)."
             )
         ]
         for row in self.groups.to_dict("records"):
@@ -342,59 +362,22 @@ class UnusualObjects:
             check = ""
             if not pd.isna(agreement):
                 unstable = agreement < SEED_AGREEMENT_WARNING
-                check = f" Refits with other reference samples agree on {agreement:.0%} of them" + (
-                    ", so treat the labels as unstable." if unstable else "."
+                check = (
+                    f" Refits with other reference samples agree on {percent(agreement)} of them"
+                    + (", so treat the labels as unstable." if unstable else ".")
+                )
+            calibration = ""
+            if row["calibration"] == LEAVE_ONE_FIELD_OUT:
+                calibration = (
+                    " With a single reference group the threshold comes from its fields scored "
+                    "against its other fields, so a shift between that group and this one "
+                    "raises the share."
                 )
             lines.append(
                 f"{head}: {int(row['unusual'])} of {int(row['scored'])} {words} unusual "
-                f"({row['unusual_share']:.1%}).{check}"
+                f"({percent(row['unusual_share'])}).{check}{calibration}"
             )
         return "\n".join(lines)
-
-
-def _reference_sample(
-    group_datas: Sequence[ValidatedInput], per_fov: int, rng: np.random.Generator
-) -> tuple[np.ndarray, np.ndarray]:
-    """Up to ``per_fov`` complete observations of every reference FOV, and their FOV ids."""
-    rows, fov_ids, offset = [], [], 0
-    for data in group_datas:
-        matrix = data.feature_matrix()
-        positions = fov_positions(data, data.fovs)
-        complete = ~np.isnan(matrix).any(axis=1)
-        for j in range(len(data.fovs)):
-            members = np.flatnonzero((positions == j) & complete)
-            if len(members) > per_fov:
-                members = rng.choice(members, size=per_fov, replace=False)
-            rows.append(matrix[np.sort(members)])
-            fov_ids.append(np.full(len(members), offset + j))
-        offset += len(data.fovs)
-    return np.concatenate(rows), np.concatenate(fov_ids)
-
-
-def _score(
-    reference: np.ndarray, fov_ids: np.ndarray, tested: np.ndarray, k: int, quantile: float
-) -> tuple[np.ndarray, float, dict[str, Any]] | str:
-    """Scores of ``tested`` and the threshold from reference FOVs scored against the others."""
-    fitted = Standardize().fit_matrix(reference, tuple(str(i) for i in range(reference.shape[1])))
-    if isinstance(fitted, str):
-        return fitted
-    state, _ = fitted
-    ref = Standardize().apply_matrix(state, reference)
-    tree = cKDTree(ref)
-    largest = int(np.bincount(fov_ids).max())
-    if len(ref) - largest < k:
-        return f"fewer than {k} reference observations outside some reference FOV"
-    # leave-one-FOV-out: the k nearest reference objects from other FOVs
-    distance, index = tree.query(ref, k=min(len(ref), k + largest))
-    other = fov_ids[index] != fov_ids[:, None]
-    reference_scores = np.array([d[o][:k].mean() for d, o in zip(distance, other, strict=True)])
-    threshold = float(np.quantile(reference_scores, 1 - quantile))
-    scores = np.full(len(tested), np.nan)
-    complete = ~np.isnan(tested).any(axis=1)
-    if complete.any():
-        d, _ = tree.query(Standardize().apply_matrix(state, tested[complete]), k=k)
-        scores[complete] = np.asarray(d).reshape(complete.sum(), k).mean(axis=1)
-    return scores, threshold, state
 
 
 def unusual_objects(
@@ -425,14 +408,14 @@ def unusual_objects(
     """
     if not 0 < quantile < 1:
         raise ValueError("quantile must be between 0 and 1")
-    check_count(n_neighbors, "n_neighbors", 1)
-    check_count(per_fov, "per_fov", 1)
-    check_count(seed_checks, "seed_checks", 0)
-    check_seed(random_state)
+    n_neighbors = as_count(n_neighbors, "n_neighbors", 1)
+    per_fov = as_count(per_fov, "per_fov", 1)
+    seed_checks = as_count(seed_checks, "seed_checks", 0)
+    random_state = check_seed(random_state)
     data = validated(objects, fovs, feature_cols, fov_col, group_cols, observation_unit)
     all_groups = groups(data)
     reference_groups = matching_groups(all_groups, reference, "reference")
-    by_identity = {group_identity(g): d for g, d in all_groups}
+    by_key = {group_key(g): d for g, d in all_groups}
     matrix = data.feature_matrix()
     positions_all = np.arange(len(data.objects))
     labels = np.full(len(data.objects), np.nan)
@@ -446,30 +429,30 @@ def unusual_objects(
         count=len(data.objects),
     )
     fov_group = np.empty(len(data.fovs), dtype=np.int64)
-    identities = []
-    for g_index, (group, group_data) in enumerate(all_groups):
-        identities.append(group_identity(group))
+    for g_index, (_, group_data) in enumerate(all_groups):
         members = [row_of[f] for f in zip(*(group_data.fovs[c].tolist() for c in key))]
         fov_group[members] = g_index
     observation_group = fov_group[observation_fov]
     rows = []
     for g_index, (group, _) in enumerate(all_groups):
-        others = [g for g in reference_groups if group_identity(g) != identities[g_index]]
+        others = [g for g in reference_groups if group_key(g) != group_key(group)]
         row: dict[str, Any] = {**group, "reference_groups": [dict(g) for g in others]}
         mine = positions_all[observation_group == g_index]
         if not others:
             rows.append({**row, "status": "no other reference group to score against"})
             continue
-        refs = [by_identity[group_identity(g)] for g in others]
+        refs = [by_key[group_key(g)] for g in others]
         results = []
         for seed in range(random_state, random_state + seed_checks + 1):
-            rng = np.random.default_rng([seed, identities[g_index]])
-            sample, fov_ids = _reference_sample(refs, per_fov, rng)
-            results.append(_score(sample, fov_ids, matrix[mine], n_neighbors, quantile))
+            rng = group_rng(seed, group)
+            sample, fov_ids, group_ids = reference_sample(refs, per_fov, rng)
+            results.append(
+                score(sample, fov_ids, group_ids, matrix[mine], n_neighbors, quantile, rng)
+            )
         if isinstance(results[0], str):
             rows.append({**row, "status": results[0]})
             continue
-        scores, threshold, state = results[0]
+        scores, threshold, state, calibration = results[0]
         if np.isnan(scores).all():
             words = unit_plural(data.observation_unit)
             rows.append(
@@ -495,6 +478,7 @@ def unusual_objects(
                 **row,
                 "status": "ok",
                 "threshold": threshold,
+                "calibration": calibration,
                 "scored": int((~np.isnan(scores)).sum()),
                 "unusual": int(np.nansum(flagged)),
                 "unusual_share": float(np.nanmean(np.where(np.isnan(scores), np.nan, flagged))),

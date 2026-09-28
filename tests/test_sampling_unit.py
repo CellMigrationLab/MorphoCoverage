@@ -618,7 +618,7 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
     assert "with the technical repeat (technical_repeat) as the unit" in text
     assert "in 2 and 2 technical repeats" in text and "on technical-repeat means" in text
     assert "whole technical repeats (technical_repeat; only 6 distinct assignments exist)" in text
-    # Without the column among the groups, fields stay the unit.
+    # Without the column among the groups, the technical repeats stay the unit (audit 3, H-1).
     pooled = condition_contrast(
         objects,
         fovs,
@@ -629,9 +629,8 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
         n_draws=5,
         object_counts=(50,),
     )
-    assert (pooled.table["permutation_unit"] == "field").all()
-    assert np.isnan(pooled.table["d_technical"]).all()
-    assert "Randomization test over whole fields" in pooled.summary()
+    assert (pooled.table["permutation_unit"] == "technical_repeat").all()
+    assert pooled.table["p_value"].tolist() == table["p_value"].tolist()
 
 
 def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
