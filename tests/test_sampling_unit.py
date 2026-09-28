@@ -9,6 +9,7 @@ The expectations are the properties of the construction, not performance.
 from __future__ import annotations
 
 import math
+import re
 import sys
 from pathlib import Path
 
@@ -528,11 +529,14 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
     assert (effects["same_sign"] == 1.0).all()
     whole = effects[effects["sampling"] == "whole FOVs"]
     assert (whole["fields_treated"] >= 2).all() and whole["fields_treated"].max() <= 9
-    text = result.summary()
-    assert "repeat=R1, treated vs control" in text
-    assert "Cohen's d on objects" in text and "on field means" in text
-    assert "Randomization test over whole technical repeats (well" in text
-    assert "JCS effect size" in text and "whole FOVs of resampled technical repeats" in text
+    text = " ".join(result.summary().split())
+    assert "treated vs control · R1" in text
+    assert "d objects d fields" in text
+    assert "Randomization tests over whole technical repeats (well)" in text
+    assert "JCS effect size" in text and "fields of technical repeats (well) drawn with" in text
+    full = " ".join(result.summary(detail="full").split())
+    assert "treated vs control · R1: randomization test over whole technical repeats (well" in full
+    assert re.search(r"whole fields fields resampled", full)
 
 
 def test_a_field_effect_alone_does_not_make_the_conditions_differ_by_fields():
@@ -598,7 +602,7 @@ def test_the_report_places_the_contrast_last():
     text = report.summary(detail="full")
     assert "9. Do the conditions differ, and how confidently?" in text
     assert text.index("8. Could I have sampled") < text.index("9. Do the conditions differ")
-    assert "generalizing it needs independent biological repeats" in text
+    assert "generalizing it needs independent biological repeats" in " ".join(text.split())
     assert "Not assessed" in microscopist_report().sections["conditions"]
 
 
@@ -626,10 +630,12 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
     assert np.isfinite(table["d_technical"]).all() and (table["d_technical"] > 1).all()
     # Two wells a side: the observed split and its mirror are always as extreme.
     assert (table["p_value"] > 0.2).all()
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "with the technical repeat (technical_repeat) as the unit" in text
-    assert "in 2 and 2 technical repeats" in text and "on technical-repeat means" in text
+    assert "tech. repeats d objects d fields d tech. repeats" in text and " 2 vs 2 " in text
     assert "whole technical repeats (technical_repeat; only 6 distinct assignments exist)" in text
+    short = " ".join(result.summary().split())
+    assert "whole technical repeats (technical_repeat), as few as 6 distinct assignments" in short
     # Without the column among the groups, the technical repeats stay the unit (audit 3, H-1).
     pooled = condition_contrast(
         objects,
@@ -671,11 +677,13 @@ def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
     assert ranking["feature"].tolist() == ["x", "y"]
     assert ranking.loc[0, "score"] > 1 and np.isnan(ranking.loc[1, "score"])
     assert result.top() == ["x"] and result.top(0) == []
-    text = result.summary()
+    text = result.summary(detail="full")
     assert "Which features separate the conditions? Each of the 2 declared features" in text
-    assert "1. x: |d|" in text and "passes in 2 of 2 contrasts" in text
+    assert re.search(r"^ +1 +x +\d+\.\d\d .* 2 of 2$", text, re.MULTILINE)
     assert "No contrast passes the gate for 1 feature: y." in text
     assert "Plotted by default: the readout and up to 5 best-ranked other features" in text
+    short = result.summary()
+    assert "1 of 2 features pass the gate" in short and "Plotted by default" in short
     # Deterministic, and the same numbers as the contrast for the readout.
     again = feature_ranking(
         objects, fovs, features=["y", "x"], control={"condition": "control"}, n_permutations=400
@@ -701,7 +709,7 @@ def test_feature_ranking_says_when_few_technical_repeats_cannot_pass_the_gate():
         objects, fovs, features=["x"], control={"condition": "control"}, n_permutations=100
     )
     assert not result.tests["passes_gate"].any() and result.top() == []
-    text = result.summary()
+    text = " ".join(result.summary().split())
     assert "No contrast passes the gate for 1 feature: x." in text
     # Two wells a side: the observed split and its mirror, 2 of 6 assignments.
     assert "with as few as 6 distinct assignments a p-value cannot fall below 0.33" in text

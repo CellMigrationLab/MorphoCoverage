@@ -84,8 +84,9 @@ def test_empty_fields_and_neighbour_differences_are_traceable():
     assert "no objects" in rows.loc[("f15", "count"), "detail"]
     assert "above its 4 nearest fields" in rows.loc[("f18", "neighbours"), "detail"]
     assert rows.loc[("f18", "neighbours"), "stage_x"] == 300.0
-    text = result.summary()
+    text = result.summary(detail="full")
     assert "f18 (stage_x 300.0, stage_y 300.0)" in text
+    assert "f18" in result.summary()
     for word in ("outlier", "artifact", "bad", "score"):
         assert word not in text.lower().replace("none of these is called an error", "")
 
@@ -174,7 +175,11 @@ def test_a_group_whose_stage_neighbours_cannot_be_compared_says_so():
     fovs.loc[3, "stage_x"] = np.nan
     result = _inspect(objects, fovs, stage_cols=("stage_x", "stage_y"))
     assert result.settings["skipped_neighbours"] == [
-        {"group": "condition=control, repeat=R1", "reason": "stage coordinates are missing"}
+        {
+            "group": "condition=control, repeat=R1",
+            "reason": "stage coordinates are missing",
+            "label": "control · R1",
+        }
     ]
     assert "Stage neighbours were not compared" in result.summary()
     assert "neighbour" not in set(result.fovs["reason"])

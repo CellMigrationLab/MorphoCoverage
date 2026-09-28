@@ -29,6 +29,15 @@ _ORDER_PHRASES = {
 }
 
 
+# The same order kinds in a word, for a table's rows or columns.
+_ORDER_NAMES = {"recorded": "recorded", "permuted": "random", "dispersed": "spread out"}
+
+
+def order_name(order: str) -> str:
+    """An order kind in a word, for a table: ``recorded``, ``random``, ``spread out``."""
+    return _ORDER_NAMES.get(order, order)
+
+
 def order_phrase(order: str, *, capital: bool = False) -> str:
     """Where a replay ran, as a sentence opens: ``in random orders``, ``In random orders``."""
     phrase = _ORDER_PHRASES.get(order, order)

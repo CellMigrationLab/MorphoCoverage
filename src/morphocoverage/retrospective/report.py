@@ -45,8 +45,9 @@ be needed, the report says so (P9, not implemented).
 glance" block with each answer's status marker and one-line headline
 (``report_status``, the rules question by question), then each answer in its
 short form where it has one (the opening, ``opening``; question 2,
-``report_enough``), each caveat once; ``summary(detail="full")`` gives every
-sentence, each section's header with its marker.
+``report_enough``; questions 6, 8 and 9 and the closing, ``report_answers``;
+the declaration, ``workflows``), each caveat once; ``summary(detail="full")``
+gives every sentence, each section's header with its marker.
 
 Shared-private: re-exports ``_detection_adjusted_bounds`` and
 ``_false_alarm_rate`` of ``report_profile`` for its callers.
@@ -60,7 +61,7 @@ from typing import Any
 
 import pandas as pd
 
-from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
+from .._style import DASH, PROBLEM, Status, caution_lines, check_detail, headline, wrap
 from .._wording import count, listing, percent
 from ..sampling_unit import (
     ConditionContrast,
@@ -71,6 +72,7 @@ from ..sampling_unit import (
     ObjectRuleCheck,
     UnusualObjects,
 )
+from ..sampling_unit.contrast_text import contrast_parts
 from ..schema import unit_plural
 from ..sufficiency import SufficiencyReport
 from .adequacy import AdequacyResult
@@ -78,9 +80,12 @@ from .calibration import StoppingCalibration
 from .controls import ControlResult
 from .effort import EffortResult
 from .inspection import InspectionResult
+from .inspection_text import inspection_parts
+from .order_text import order_parts
 from .overview import DatasetOverview
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
+from .report_answers import limits_text, short_section
 from .report_enough import enough_full, enough_short
 from .report_profile import (  # noqa: F401  (private helpers re-exported for callers)
     _control_rate,
@@ -205,13 +210,13 @@ class MicroscopistReport:
             text = text or _indent(self.overview)
             blocks.append(f"{self._header('overview', OVERVIEW_TITLE)}\n{text}")
         if self.declaration:
-            blocks.append(
-                f"{DECLARATION_TITLE}\n" + "\n".join(f"  - {line}" for line in self.declaration)
-            )
+            text = self.short.get("declaration") if short else None
+            text = text or "\n".join(wrap(f"- {line}", 2, hang=4) for line in self.declaration)
+            blocks.append(f"{DECLARATION_TITLE}\n{text}")
         for key, title in chosen:
             text = self.short.get(key, self.sections[key]) if short else self.sections[key]
             blocks.append(f"{self._header(key, title)}\n{text}")
-        blocks.append(f"{LIMITS_TITLE}\n{self.limits(questions)}")
+        blocks.append(f"{LIMITS_TITLE}\n{self.limits(questions, detail)}")
         return "\n\n".join(blocks)
 
     def _header(self, key: str, title: str) -> str:
@@ -231,21 +236,13 @@ class MicroscopistReport:
             lines.append(wrap(line, "  ", hang=5))
         return "\n".join(lines)
 
-    def limits(self, questions: Sequence[str] | None = None) -> str:
-        """The questions not assessed (among ``questions``, or all), what each needs, the notes."""
-        missing = [
-            f"  - {title}: not assessed; needs: {_NEEDS[key]}."
-            for key, title in QUESTIONS
-            if (questions is None or key in questions) and self.inputs.get(key) == "not assessed"
-        ]
-        # Assessed is not "everything was checked": each answer holds for what it read.
-        assessed = (
-            "  - Every question was assessed, each on the columns and under the assumptions "
-            "stated with it and in the notes below."
+    def limits(self, questions: Sequence[str] | None = None, detail: str = "full") -> str:
+        """The questions not assessed (among ``questions``, or all), what each needs, the
+        notes (``report_answers.limits_text``; ``detail="short"`` names each need in a few
+        words and leaves out a note a section above already states)."""
+        return limits_text(
+            self, questions, detail, titles=QUESTIONS, needs=_NEEDS, short_titles=SHORT_QUESTIONS
         )
-        lines = missing or [assessed]
-        lines += [f"  - {note}" for note in self.notes]
-        return "\n".join(lines)
 
 
 def _indent(text: str) -> str:
@@ -333,11 +330,12 @@ def microscopist_report(
     if protocol is not None:
         parts["next_time"].append(protocol.summary())
     if inspection is not None:
-        parts["inspect"].append(inspection.summary())
+        parts["inspect"].append(inspection.summary(detail="full"))
+        short["inspect"] = short_section([inspection_parts(inspection, indent=2)])
     if effort is not None:
         parts["effort"].append(effort.summary())
     if efficiency is not None:
-        parts["order"].append(efficiency.summary())
+        parts["order"].append(efficiency.summary(detail="full"))
     profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
     if len(profile):
         parts["profile"].append(
@@ -348,14 +346,20 @@ def microscopist_report(
     for check in (unusual, clustering):
         if check is not None:
             parts["profile"].append(check.summary())
+    generalizing = (
+        "This describes what these fields support about a difference under this feature; "
+        "generalizing it needs independent biological repeats, which is the user's inference."
+    )
     if contrast is not None:
-        parts["conditions"].append(contrast.summary())
-        parts["conditions"].append(
-            "This describes what these fields support about a difference under this feature; "
-            "generalizing it needs independent biological repeats, which is the user's inference."
-        )
+        parts["conditions"].append(contrast.summary(detail="full"))
+        parts["conditions"].append(caution_lines([generalizing], indent=0)[0])
     if ranking is not None:
-        parts["conditions"].append(ranking.summary())
+        parts["conditions"].append(ranking.summary(detail="full"))
+    if contrast is not None or ranking is not None:
+        answers = [contrast_parts(contrast, indent=2)] if contrast is not None else []
+        answers += [ranking.short_parts(indent=2)] if ranking is not None else []
+        closing = [generalizing] if contrast is not None else []
+        short["conditions"] = short_section(answers, *closing)
     # Redundancy alone feeds the profile; question 8 is answered by an order replay.
     frame = (
         "Whether these were the right positions needs every candidate position from an "
@@ -414,7 +418,8 @@ def microscopist_report(
         "analysed apart, and a shift shared by all fields of a group is not new within it."
     )
     if efficiency is not None:
-        parts["order"].append(frame)
+        parts["order"].append(caution_lines([frame], indent=0)[0])
+        short["order"] = short_section([order_parts(efficiency, indent=2)], frame)
     elif redundancy is not None and parts["profile"]:
         parts["profile"].append(frame)
     elif redundancy is not None:

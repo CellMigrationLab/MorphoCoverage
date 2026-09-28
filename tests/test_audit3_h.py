@@ -100,7 +100,10 @@ def test_h1_technical_repeats_are_the_unit_whatever_group_cols_say():
         hits += row["p_value"] <= 0.05
     assert hits == 0  # 20 assignments of 3 wells a side: p never falls below 0.1
     assert result.settings["technical_col"] == "technical_repeat"
-    assert "with the technical repeat (technical_repeat) as the unit" in result.summary()
+    assert "with the technical repeat (technical_repeat) as the unit" in " ".join(
+        result.summary(detail="full").split()
+    )
+    assert "whole technical repeats (technical_repeat)" in " ".join(result.summary().split())
     # The same with the ranking, and with a technical column only in the FOV table.
     objects["y"] = objects["x"]
     ranking = feature_ranking(
@@ -388,9 +391,9 @@ def test_h19_an_untested_contrast_keeps_its_effect_sizes():
     assert "only one technical repeat" in row["status"] and np.isnan(row["p_value"])
     assert np.isfinite(row["effect_full"]) and np.isfinite(row["d_objects"])
     assert len(result.effects) == 4
-    text = result.summary()
-    assert "No randomization test: only one technical repeat" in text
-    assert "Cohen's d on objects" in text and "JCS effect size" in text
+    text = " ".join(result.summary().split())
+    assert "No randomization test in the contrast: only one technical repeat" in text
+    assert "d objects" in text and "JCS effect size" in text
 
 
 def test_j1_groups_whose_seeds_collide_are_still_told_apart():
@@ -431,8 +434,9 @@ def test_j2_j16_shares_are_worded_once_and_modules_list_their_names():
     # No contrast can be tested: the ranking does not speak of BH over 0 tests.
     spec = [("ctrl", "r1", "c0", 1, 0.0, 0.2), ("drug", "r1", "d0", 1, 1.0, 0.2)]
     ranking = feature_ranking(*_tables(spec), features=["x"], control=CONTROL)
-    assert "over the 0 tests" not in ranking.summary()
-    assert "though no contrast could be tested" in ranking.summary()
+    assert "over the 0 tests" not in ranking.summary(detail="full")
+    assert "though no contrast could be tested" in " ".join(ranking.summary(detail="full").split())
+    assert "no contrast could be tested" in " ".join(ranking.summary().split())
     import morphocoverage.sampling_unit as package
 
     for name in ("clustering", "contrast", "object_rules", "ranking", "variability"):

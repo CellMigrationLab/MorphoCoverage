@@ -37,14 +37,14 @@ from scipy.spatial import distance as _distances
 
 from .._checks import as_count, check_seed
 from .._seeds import group_rng
-from .._wording import count, duration
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..schema import ValidatedInput
 from ..spatial import fov_means, fov_semivariogram
 from ._text import fields as fields_text
-from ._text import median_beyond, order_phrase, percent, skipped_lines, where
+from ._text import median_beyond
 from .adequacy import ALL_CRITERIA, AdequacyResult, _unjudged, adequacy_points
+from .order_text import efficiency_summary
 from .replay import ReplayResult
 from .stage import dispersed_order, stage_travel
 
@@ -67,9 +67,10 @@ class EfficiencyResult:
     settings: dict[str, Any] = field(default_factory=dict)
     skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
-    def summary(self) -> str:
-        """The order comparison in sentences."""
-        return efficiency_summary(self)
+    def summary(self, detail: str = "short") -> str:
+        """The order comparison: one table per order kind (``detail="short"``) or per group
+        and order kind (``"full"``); see ``order_text``."""
+        return efficiency_summary(self, detail)
 
 
 def _time(
@@ -213,92 +214,6 @@ def _check_same_replay(replay: ReplayResult, adequacy: AdequacyResult) -> None:
             "other data or other outcomes); pass adequacy_points(replay) of this replay, "
             "or leave adequacy out"
         )
-
-
-def _distance(value: float, unit: str) -> str:
-    if unit == "µm" and value >= 1000:
-        return f"{value / 1000:.1f} mm"
-    return f"{value:.0f} {unit}"
-
-
-def _available(row: Any) -> str:
-    """``the 12 fields``, or ``the 12 to 24 fields`` when the streams differ in length."""
-    longest = getattr(row, "longest_stream_fovs", row.stream_fovs)
-    longest = row.stream_fovs if pd.isna(longest) else int(longest)
-    span = f"{row.stream_fovs}" if longest == row.stream_fovs else f"{row.stream_fovs} to {longest}"
-    return f"the {span} fields"
-
-
-def efficiency_summary(result: EfficiencyResult) -> str:
-    """ "Your raster needed 28 fields and 7 mm; spreading them out ..." in sentences."""
-    keys = list(result.group_cols)
-    unit = result.settings.get("stage_unit", "µm")
-    # The realized points are for every criterion together.
-    judged = (
-        "for this criterion"
-        if len(result.settings.get("labels", {})) <= 1
-        else ("for all the criteria together")
-    )
-    blocks = []
-    for key, rows in (
-        result.table.groupby(keys, sort=False, dropna=False) if keys else [((), result.table)]
-    ):
-        key = key if isinstance(key, tuple) else (key,)
-        group = dict(zip(keys, key, strict=True))
-        lines = [f"{where(group)}: could the same positions have been visited in a better order?"]
-        for row in rows.itertuples(index=False):
-            label = order_phrase(row.order, capital=True)
-            unjudged = int(getattr(row, "unjudged", 0) or 0)
-            left_out = (
-                f"; {unjudged} of {count(row.runs, 'run')} could not be judged and are left out"
-                if unjudged
-                else ""
-            )
-            if unjudged == row.runs:
-                lines.append(
-                    f"  {label}: could not be judged at any field count "
-                    f"(the outcome was undefined in every run)."
-                )
-                continue
-            if row.median_fovs is None or pd.isna(row.median_fovs):
-                lines.append(
-                    f"  {label}: not reliably enough within {_available(row)} in half or more "
-                    f"of runs (never in {percent(1 - row.reached)} of runs{left_out})."
-                )
-                continue
-            travel = (
-                ""
-                if row.median_travel is None or pd.isna(row.median_travel)
-                else f" and {_distance(row.median_travel, unit)} of stage travel"
-            )
-            time = (
-                ""
-                if row.median_time is None or pd.isna(row.median_time)
-                else f" (about {duration(row.median_time)})"
-            )
-            fields = fields_text(row.median_fovs)
-            # The median hides runs that never got there; a protocol must serve those too.
-            missed = (
-                f" (never within {_available(row)} in {percent(1 - row.reached)} of runs{left_out})"
-                if row.reached < 1
-                else (f" ({left_out.removeprefix('; ')})" if left_out else "")
-            )
-            lines.append(f"  {label}: reliably enough after {fields}{travel}{time}{missed}.")
-        reached = rows[rows["median_fovs"].notna()]
-        if len(reached) == len(rows) and len(rows) > 1:
-            spread = float(reached["median_fovs"].max() - reached["median_fovs"].min())
-            if spread <= 1:
-                lines.append(
-                    f"  The orders do not differ by more than one field {judged}: "
-                    "a null result, not a preference for any order."
-                )
-        lines.append(
-            "  Medians over hold-outs and orders; stage travel is the straight-line path "
-            "between successive fields."
-        )
-        blocks.append("\n".join(lines))
-    blocks += skipped_lines(result.skipped, keys)
-    return "\n\n".join(blocks)
 
 
 # The share of position shuffles at or above which a redundancy distance is not called

@@ -1,5 +1,7 @@
 """Tests for acquisition-order efficiency (P8 of docs/questions.md)."""
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -89,8 +91,10 @@ def test_a_gradient_is_covered_sooner_by_dispersed_orders_with_more_travel_per_f
     per_field = table["median_travel"] / table["median_fovs"]
     assert per_field["dispersed"] > per_field["recorded"]
     text = result.summary()
-    assert "Spreading the same positions out" in text and "In the recorded order" in text
-    assert "min)" in text  # timing given
+    assert re.search(r"^  spread out ", text, re.MULTILINE)
+    assert re.search(r"^  recorded ", text, re.MULTILINE)
+    assert " min" in text  # timing given
+    assert "about" in result.summary(detail="full") and " min" in result.summary(detail="full")
     assert (result.runs["travel_total"] >= result.runs["travel_to_sustained"].fillna(0)).all()
 
 

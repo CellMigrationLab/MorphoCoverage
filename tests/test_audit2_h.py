@@ -181,7 +181,7 @@ def test_h5_the_ranking_floor_is_the_smallest_attainable_p():
     result = feature_ranking(objects, fovs, features=["x"], control=CONTROL, n_permutations=1999)
     # 20 assignments of 3 wells a side; the split and its mirror: 2/20.
     assert result.tests["p_value"].iloc[0] == pytest.approx(0.1)
-    text = result.summary()
+    text = " ".join(result.summary().split())
     assert "with as few as 20 distinct assignments a p-value cannot fall below 0.1," in text
     assert "cannot pass the gate however large the difference" in text
 
@@ -215,7 +215,10 @@ def test_h6_the_contrast_scores_a_perfect_separation_as_the_ranking_does():
     assert ranking.tests["d_fields"].iloc[0] == row["d_fields"]
     # Two perfect assignments (the split and its mirror) of 924: p is 2/924, exact.
     assert row["p_value"] > 0 and "do not vary" not in contrast.summary()
-    assert "on field means infinite (no variation within either side)" in contrast.summary()
+    assert "An infinite d is a perfect separation: no variation within either side" in " ".join(
+        contrast.summary().split()
+    )
+    assert "inf" in contrast.summary(detail="full")
 
 
 def test_h7_unlabelled_fields_are_not_fields_without_the_state():
@@ -385,7 +388,7 @@ def test_h15_untested_features_are_listed_as_untested():
         "fields_independent": True,
     }
     result = feature_ranking(objects, fovs, features=["x", "y", "w"], n_permutations=199, **common)
-    text = result.summary()
+    text = " ".join(result.summary().split())
     assert "No contrast passes the gate for 1 feature: w." in text
     assert (
         "Not ranked because no contrast could be tested (1 feature): y (fewer than 2 fields "

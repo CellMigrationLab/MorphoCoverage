@@ -58,7 +58,8 @@ def test_g3_bonferroni_counts_the_contrasts_tested():
     result = condition_contrast(
         objects[objects["image_file"].isin(kept["image_file"])], kept, **COMMON
     )
-    assert "Bonferroni over 1 comparison:" in result.summary()
+    assert "Bonferroni over 1 comparison:" in " ".join(result.summary(detail="full").split())
+    assert "Bonferroni-corrected over 1 comparison." in " ".join(result.summary().split())
 
 
 def test_g4_the_jcs_line_is_kept_without_a_repeat_column():
