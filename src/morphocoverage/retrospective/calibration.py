@@ -8,14 +8,21 @@ stream), the rule's first stop is found and the prefix at that stop is judged
 against the reservoir:
 
 - **correct**: stopped, and what you wanted was preserved at the stop;
-- **premature**: stopped too early: not preserved at the stop, though the
-  whole stream was not shown to fail it (it preserved it by its last field,
-  or could not judge it there);
-- **not preserved by the stream**: stopped, not preserved at the stop, and not
-  preserved by every available field together either. More fields of this
-  stream would not have helped, so such a stop is not called too early: the
-  criterion may be out of reach of these fields, or of the held-back
-  reference (compare the reliability ceiling);
+- **not preserved at the stop**: stopped, and what you wanted was not
+  preserved there. This is the headline risk of letting the rule stop, and
+  it splits in two:
+- **premature**: not preserved at the stop, though the whole stream was not
+  shown to fail it (it preserved it by its last field, or could not judge it
+  there);
+- **not preserved by the stream**: not preserved at the stop, and not
+  preserved by every available field together either. The held-back
+  reference is itself a finite sample, so its noise alone can put the whole
+  stream outside the tolerance: in simulated wells whose more fields did fix
+  the stop, a third to a half of the wrong stops landed here. So "more
+  fields of this stream would not have helped" cannot be told from
+  reference noise, and the premature share is a lower bound on the stops
+  that came too early, the total not preserved at the stop an upper bound
+  (compare the reliability ceiling);
 - **undefined at the stop**: stopped, and the outcome could not be computed;
 - **never stopped**: the stream ended first; whether it was preserved at the
   end of the stream is reported separately, and said in the summary, so a
@@ -42,8 +49,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import count
+from .._wording import count, number
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
+from ..statistics import median_standard_error
 from ._text import fields, order_phrase, percent, skipped_lines, where
 from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy, run_decisions
 from .criteria import Preservation
@@ -70,7 +78,9 @@ SUMMARY_COLUMNS = (
     "runs",
     "stopped",
     "median_stop_fovs",
+    "median_stop_fovs_mc_se",
     "correct",
+    "not_preserved_at_stop",
     "premature",
     "not_preserved_by_stream",
     "undefined_at_stop",
@@ -89,7 +99,12 @@ class StoppingCalibration:
     shares over runs (``SUMMARY_COLUMNS`` after the group columns). ``stopped``,
     ``correct``, ``premature``, ``not_preserved_by_stream``,
     ``undefined_at_stop`` and ``never_stopped`` are shares of all runs (the
-    four kinds of stop add up to ``stopped``); ``never_stopped_preserved_at_end``
+    four kinds of stop add up to ``stopped``); ``not_preserved_at_stop`` is
+    ``premature`` plus ``not_preserved_by_stream``, the headline risk, of which
+    ``premature`` is the lower bound of the stops that came too early and
+    ``not_preserved_at_stop`` the upper bound; ``median_stop_fovs_mc_se`` is
+    the Monte Carlo standard error of the median stop over the runs that
+    stopped (``statistics.median_standard_error``); ``never_stopped_preserved_at_end``
     is a share of the runs that never stopped (``None`` when all stopped).
     ``skipped`` lists the groups the replay skipped, with the reason.
     """
@@ -176,7 +191,9 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
                 "runs": len(block),
                 "stopped": _share(stopped),
                 "median_stop_fovs": float(np.median(stops)) if len(stops) else None,
+                "median_stop_fovs_mc_se": median_standard_error(stops.to_numpy()),
                 "correct": _share(stopped & (at_stop == Preservation.PRESERVED.value)),
+                "not_preserved_at_stop": _share(failed),
                 "premature": _share(failed & ~out_of_reach),
                 "not_preserved_by_stream": _share(out_of_reach),
                 "undefined_at_stop": _share(stopped & (at_stop == Preservation.UNDEFINED.value)),
@@ -190,6 +207,37 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows, columns=[*groups, *SUMMARY_COLUMNS])
+
+
+def _median_se(value: object) -> str:
+    """`` (Monte Carlo SE 1.2)`` beside a median stop, or '' when it has none."""
+    if value is None or pd.isna(value):
+        return ""
+    return f" (Monte Carlo SE {number(float(value))})"
+
+
+def _failed_stops(row: Any) -> str:
+    """The stops that did not preserve the criterion, with their premature split as bounds.
+
+    The total not preserved at the stop is the headline; how many of them
+    later fields of this stream fixed (premature) is a lower bound on the
+    stops that came too early, since the held-back reference's own noise can
+    put the whole stream outside the tolerance too.
+    """
+    reach = getattr(row, "not_preserved_by_stream", 0)
+    reach = 0.0 if reach is None or pd.isna(reach) else float(reach)
+    premature = float(row.premature)
+    total = getattr(row, "not_preserved_at_stop", None)
+    total = premature + reach if total is None or pd.isna(total) else float(total)
+    text = f"{percent(total)} of acquisitions stopped where it was not preserved"
+    if total <= 0 or reach <= 0:
+        return text + ("" if total <= 0 else ", all of them too early")
+    return (
+        f"{text}; between {percent(premature)} and {percent(total)} stopped too early "
+        f"(in {percent(premature)} every available field was not shown to fail it; in the "
+        f"other {percent(reach)} not even every available field together preserved it, "
+        "which the held-back fields' own noise can also cause)"
+    )
 
 
 def calibration_summary(result: StoppingCalibration) -> str:
@@ -221,7 +269,8 @@ def calibration_summary(result: StoppingCalibration) -> str:
                 lines.append(
                     f"  {order_phrase(order)}: it stopped in "
                     f"{percent(first['stopped'])} of {count(first['runs'], 'acquisition')}, "
-                    f"after a median of {fields(first['median_stop_fovs'])}."
+                    f"after a median of {fields(first['median_stop_fovs'])}"
+                    f"{_median_se(first.get('median_stop_fovs_mc_se'))}."
                 )
             several = own["criterion"].nunique() > 2
             for row in own.itertuples(index=False):
@@ -250,17 +299,9 @@ def calibration_summary(result: StoppingCalibration) -> str:
                     if row.undefined_at_stop > 0
                     else ""
                 )
-                reach = getattr(row, "not_preserved_by_stream", 0)
-                beyond = (
-                    f"; {percent(reach)} stopped where not even every available field "
-                    "together preserved it (more fields of this stream would not have helped)"
-                    if reach is not None and not pd.isna(reach) and reach > 0
-                    else ""
-                )
                 lines.append(
-                    f"    for {label}: "
-                    f"{percent(row.premature)} of acquisitions stopped too early, "
-                    f"{percent(row.correct)} stopped with it preserved{beyond}{undefined}{late}."
+                    f"    for {label}: {_failed_stops(row)}, "
+                    f"{percent(row.correct)} stopped with it preserved{undefined}{late}."
                 )
         lines.append(
             "  Judged on held-back fields the rule never saw; each acquisition is one hold-out "

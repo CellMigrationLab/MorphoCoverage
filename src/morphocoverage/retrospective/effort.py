@@ -17,9 +17,14 @@ truncated at zero only for projections.
 
 **Intervals** come from a hierarchical bootstrap: independent units are
 resampled with replacement, then the samples within each, then the FOVs
-within each sample; the observations of a FOV stay together. Resampling every
-level is known to overstate the lower-level components somewhat; the
-intervals are approximate, and with few independent units they are wide. A
+within each sample; the observations of a FOV stay together. Every level is
+put in a canonical order (units by their key, values sorted within a field)
+before resampling, so the row order of the tables never changes a draw.
+Resampling every level is known to overstate the lower-level components
+somewhat, and a percentile interval over few units under-covers (72-93%
+for a nominal 95% with 3 to 8 wells), so each interval is widened for the
+number of independent units (``statistics._interval``); the intervals are
+approximate, and with few independent units they are wide. A
 resample whose levels cannot be separated (one that draws only single-field
 samples, say) is counted, never silently left out; when fewer than
 ``MIN_BOOT_SUCCESS`` of the resamples can be estimated, the estimable ones
@@ -195,11 +200,16 @@ def _stratum_levels(
 
 
 def _tree(frame: pd.DataFrame, columns: list[str]) -> np.ndarray | list:
-    """Nested lists of per-FOV value arrays, coarsest level first."""
+    """Nested lists of per-FOV value arrays, coarsest level first, in a canonical order.
+
+    Units are sorted by their key and a field's values sorted, so the
+    resampling draws the same units whatever the row order of the tables
+    (the components do not depend on the order of values within a field).
+    """
     if not columns:
-        return frame["value"].to_numpy(dtype=float)
+        return np.sort(frame["value"].to_numpy(dtype=float))
     head, rest = columns[0], columns[1:]
-    return [_tree(part, rest) for _, part in frame.groupby(head, sort=False, dropna=False)]
+    return [_tree(part, rest) for _, part in frame.groupby(head, sort=True, dropna=False)]
 
 
 def _resample(tree: np.ndarray | list, rng: np.random.Generator) -> np.ndarray | list:
@@ -294,7 +304,7 @@ def _component_rows(
     shares = _contributions(estimate, design)
     rows = []
     for index, name in enumerate(names):
-        low, high = _interval(boots[:, index])
+        low, high = _interval(boots[:, index], float(estimate[index]), fixed["units"])
         rows.append(
             {
                 **fixed["where"],

@@ -8,11 +8,15 @@ import pandas as pd
 
 from ._text import fields, percent
 from .effort import MIN_BOOT_SUCCESS
+from .protocol_text import FEW_UNITS
 
 if TYPE_CHECKING:
     from .frontier import FrontierResult
 
 BASELINE = "fixed fields"
+# Units from which the widened interval of the fields saved came close to its level in
+# simulation (0.64 at 5 units, 0.80 at 12, 0.95 at 20 for a nominal 95%).
+_MANY_UNITS = 20
 
 
 def _setting(value: object) -> str:
@@ -70,12 +74,17 @@ def _unscored(rows: pd.DataFrame, base: object) -> list[str]:
     return lines
 
 
-def _interval(row: object, saved: float) -> str:
+def _interval(row: object, saved: float, units: int | None = None) -> str:
     """The interval of the fields saved in the verdict's direction, with its notes, or ''.
 
     No interval when fewer than ``MIN_BOOT_SUCCESS`` of the resamples reached
-    the risk for both: the others are a selected subset.
+    the risk for both (the others are a selected subset), nor with fewer than
+    ``FEW_UNITS`` independent units, below which no resampling of the units
+    gives an interval near its level. The interval is widened for the number
+    of units and still approximate, and says so.
     """
+    if units is not None and units < FEW_UNITS:
+        return ""
     reached = getattr(row, "saved_reached", None)
     reached = None if reached is None or pd.isna(reached) else float(reached)
     if reached is not None and reached < MIN_BOOT_SUCCESS:
@@ -88,12 +97,14 @@ def _interval(row: object, saved: float) -> str:
     # The interval reads in the verdict's direction: fields saved, or fields it costs.
     if saved < -0.05:
         interval = (
-            f", {percent(0.95)} interval {_number(-row.saved_high)} to {_number(-row.saved_low)}"
+            f", approximate {percent(0.95)} interval {_number(-row.saved_high)} to "
+            f"{_number(-row.saved_low)}"
         )
     else:
         of = "" if saved > 0.05 else " of the fields saved"
         interval = (
-            f", {percent(0.95)} interval{of} {_number(row.saved_low)} to {_number(row.saved_high)}"
+            f", approximate {percent(0.95)} interval{of} {_number(row.saved_low)} to "
+            f"{_number(row.saved_high)}"
         )
     notes = []
     # A saving (or cost) whose interval includes no change is not resolved.
@@ -143,7 +154,7 @@ def frontier_summary(result: FrontierResult) -> str:
                 if saved < -0.05
                 else "does as well as the fixed count, no better"
             )
-            interval = _interval(row, saved)
+            interval = _interval(row, saved, units)
             adaptive = (
                 ""
                 if row.adaptivity is None or pd.isna(row.adaptivity)
@@ -156,11 +167,26 @@ def frontier_summary(result: FrontierResult) -> str:
             )
         unit_cols = result.settings.get("unit_cols") or []
         named = f" ({', '.join(unit_cols)})" if unit_cols else ""
-        resampled = (
-            f"Intervals resample the {units} units{named}, treated as independent"
-            if units >= 2
-            else f"No interval: there is a single unit{named} to resample"
-        )
+        if units >= FEW_UNITS:
+            resampled = (
+                f"Intervals resample the {units} units{named}, treated as independent, "
+                "widened for their number (approximate"
+                + (
+                    ""
+                    if units >= _MANY_UNITS
+                    else f": with fewer than {_MANY_UNITS} units "
+                    "they cover the truth less often than stated"
+                )
+                + ")"
+            )
+        elif units >= 2:
+            resampled = (
+                f"No interval: only {units} units{named} to resample, and at least "
+                f"{FEW_UNITS} are needed for one near its level"
+            )
+        else:
+            resampled = f"No interval: there is a single unit{named} to resample"
+
         lines.append(
             f"  {resampled}; hold-outs and orders are not independent experiments. Risk is "
             "judged on held-back fields."

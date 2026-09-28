@@ -160,7 +160,12 @@ class MicroscopistReport:
             for key, title in QUESTIONS
             if (questions is None or key in questions) and self.inputs.get(key) == "not assessed"
         ]
-        lines = missing or ["  - Every question was assessed."]
+        # Assessed is not "everything was checked": each answer holds for what it read.
+        assessed = (
+            "  - Every question was assessed, each on the columns and under the assumptions "
+            "stated with it and in the notes below."
+        )
+        lines = missing or [assessed]
         lines += [f"  - {note}" for note in self.notes]
         return "\n".join(lines)
 

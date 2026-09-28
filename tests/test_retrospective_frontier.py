@@ -298,10 +298,11 @@ def test_the_interval_reads_in_the_direction_of_the_verdict():
             row("level", 1.0, 0.0, -0.1, 0.0),
         ]
     )
-    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"label": "x"}).summary()
-    assert "costs 1.3 more fields, 95% interval 1.2 to 1.3" in text
-    assert "saves 0.5 fields, 95% interval 0.2 to 0.8" in text
-    assert "no better, 95% interval of the fields saved -0.1 to 0.0" in text
+    settings = {"label": "x", "units": 6}  # an interval is printed from 5 units (audit 4)
+    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), settings).summary()
+    assert "costs 1.3 more fields, approximate 95% interval 1.2 to 1.3" in text
+    assert "saves 0.5 fields, approximate 95% interval 0.2 to 0.8" in text
+    assert "no better, approximate 95% interval of the fields saved -0.1 to 0.0" in text
 
 
 def test_the_summary_states_the_efforts_it_subtracts():

@@ -18,8 +18,11 @@ Design, per analysis group (one sample):
    grew would make the curve partly a curve of reference quality.
 4. Per split, the share of draws that preserved the criterion is this
    sample's conditional reliability at ``k``; the curve reports its mean and
-   spread over splits, the metric's distribution, and the information gain
-   of ``k`` over the previous listed ``k``.
+   spread over splits, the Monte Carlo standard error of that mean (the
+   spread over splits divided by the square root of their number: how far
+   the printed share would move under another ``random_state``), the
+   metric's distribution, and the information gain of ``k`` over the
+   previous listed ``k``.
 
 A draw of FOVs without any observations, or with fewer than the metric needs
 (one object has no covariance), is acquired effort and counts as not
@@ -50,6 +53,11 @@ Limits, stated with every result:
   same rule, in the same words.
 - Everything is conditional on the criteria: the metric, its tolerance and
   the features it reads.
+- The curve is conservative by construction: the held-back reference is
+  itself a finite sample, and its own error adds to that of the ``k``
+  fields, so "enough in X%" understates how often ``k`` fields preserve the
+  sample's true value (with a 30% reservoir, 62% against 74% at 8 fields in
+  simulated wells), and a field count read from it errs high.
 
 Shares are rounded to 12 decimals, so a share of exactly 90% is 0.9 and not
 0.8999999999999999 from the averaging over splits.
@@ -84,6 +92,7 @@ CURVE_COLUMNS = (
     "defined_splits",
     "preserved",
     "preserved_split_sd",
+    "preserved_mc_se",
     "defined_draws",
     "undefined_draws",
     "metric_median",
@@ -277,11 +286,15 @@ def _curve_row(runs: pd.DataFrame) -> dict[str, Any]:
     )
     values = defined["value"].to_numpy(dtype=float)
     spread = round(float(per_split.std(ddof=1)), _DIGITS) if len(per_split) > 1 else None
+    # The Monte Carlo error of the printed mean over splits: another random_state (or
+    # relabelled groups, which the old seeding reseeded) draws other hold-outs and draws.
+    mc_se = None if spread is None else round(spread / np.sqrt(len(per_split)), _DIGITS)
     return {
         "splits": int(runs["split"].nunique()),
         "defined_splits": len(per_split),
         "preserved": round(float(per_split.mean()), _DIGITS) if len(per_split) else None,
         "preserved_split_sd": spread,
+        "preserved_mc_se": mc_se,
         "defined_draws": len(defined),
         "undefined_draws": len(runs) - len(defined),
         "metric_median": float(np.median(values)) if len(values) else None,
@@ -436,6 +449,7 @@ def _beyond_every_stream(
                         "defined_splits": 0,
                         "preserved": None,
                         "preserved_split_sd": None,
+                        "preserved_mc_se": None,
                         "defined_draws": 0,
                         "undefined_draws": 0,
                         "metric_median": None,

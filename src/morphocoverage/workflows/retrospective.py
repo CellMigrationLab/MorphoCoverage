@@ -215,6 +215,7 @@ def report(
         # "New" is judged on the declared features only, as in the controls and the
         # inspection; the rules read the readout.
         novelty_cols=list(setup.features) if setup.novelty is not None else None,
+        n_jobs=setup.n_jobs,
         **common,
     )
     results["sufficiency"] = report_only(sufficiency, setup)
@@ -367,6 +368,7 @@ def optimise(
                 feature_cols=[setup.readout],
                 stage_cols=setup.stage_cols,
                 bin_edges=list(redundancy_bins),
+                random_state=setup.random_state,
                 **common,
             )
     if hierarchy is not None:

@@ -62,9 +62,11 @@ def test_the_actual_rate_is_the_remaining_fovs_judged_against_the_drawn_ones():
     # that does not contain them, so the actual rate is known by construction.
     order = group_rng(7, {"condition": "c"}, 4).permutation(12)
     has_state = objects.groupby("image_file")["a"].max() > 5
-    remaining = [f"f{j}" for j in order[4:]]
+    # The draws index the FOVs in FOV-key order (f0, f1, f10, f11, f2, ...).
+    names = sorted(f"f{j}" for j in range(12))
+    remaining = [names[j] for j in order[4:]]
     assert table["actual"].iloc[0] == pytest.approx(has_state.reindex(remaining).mean())
-    drawn = [f"f{j}" for j in order[:4]]
+    drawn = [names[j] for j in order[:4]]
     assert table["predicted"].iloc[0] == pytest.approx(has_state.reindex(drawn).mean())
 
 

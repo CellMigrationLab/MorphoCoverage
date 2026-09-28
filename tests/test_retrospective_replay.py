@@ -239,11 +239,16 @@ def _row(calibration, config_id, criterion=MEAN_A.name):
 
 def test_a_rule_that_stops_at_once_and_one_that_never_stops():
     at_once, never = FixedFOVStrategy(1), FixedFOVStrategy(1000)
-    calibration = stopping_calibration(_replay("multimodal", [at_once, never]))
+    # 4 splits: the 2 hold-outs of the label-independent seeds (audit 4, P9-2) both
+    # happened to match one field's mean.
+    calibration = stopping_calibration(_replay("multimodal", [at_once, never], n_splits=4))
     first = _row(calibration, at_once.config_id)
     assert first["stopped"] == 1 and first["median_stop_fovs"] == 1
-    assert first["premature"] > 0  # one FOV of a multimodal sample does not always match
-    assert np.isclose(first["correct"] + first["premature"] + first["undefined_at_stop"], 1)
+    # One FOV of a multimodal sample does not always match (audit 4, P2-9: the stops not
+    # preserved are premature or not preserved by the stream, and all four kinds add up).
+    assert first["not_preserved_at_stop"] > 0
+    kinds = ["correct", "premature", "not_preserved_by_stream", "undefined_at_stop"]
+    assert np.isclose(sum(first[k] for k in kinds), 1)
     last = _row(calibration, never.config_id)
     assert last["never_stopped"] == 1 and last["stopped"] == 0
     assert last["median_stop_fovs"] is None or pd.isna(last["median_stop_fovs"])
@@ -285,7 +290,7 @@ def test_calibration_and_adequacy_speak_plainly():
     replay = _replay("homogeneous", [FixedFOVStrategy(3), FixedFOVStrategy(1000)])
     calibration = stopping_calibration(replay).summary()
     assert "fixed_fov (target_fovs=3)" in calibration
-    assert "stopped too early" in calibration and "never stopped" in calibration
+    assert "stopped where it was not preserved" in calibration and "never stopped" in calibration
     adequacy = adequacy_points(replay).summary()
     assert "reliably" in adequacy and "would have first said stop" in adequacy
     for text in (calibration, adequacy):

@@ -59,8 +59,11 @@ def _stops_clause(stops: Mapping[str, Any]) -> str:
         return f"not met at any point in {where or count(orders, kind)}"
     first = f"first met after {count(stops['stop_fov_median'], 'FOV')}"
     if met > 1:
+        se = stops.get("stop_fov_median_mc_se")
+        se = "" if se is None or pd.isna(se) else f"; Monte Carlo SE {number(se)}"
         first += (
-            f" (median; 10-90%: {number(stops['stop_fov_p10'])}-{number(stops['stop_fov_p90'])})"
+            f" (median{se}; 10-90%: {number(stops['stop_fov_p10'])}-"
+            f"{number(stops['stop_fov_p90'])})"
         )
     share = f"all {count(orders, kind)}" if met == orders else f"{met} of {count(orders, kind)}"
     return f"in {where or share}, {first}"

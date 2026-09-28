@@ -286,7 +286,9 @@ def test_f7_order_efficiency_leaves_unjudged_runs_out():
 
 def _calibration():
     objects, fovs = _tables(n_fovs=16, scale=3.0)
-    tight = OutcomeCriterion(RelativeMeanError("f"), 0.0005, "lower_is_better", "the mean")
+    # A tolerance no stream of these fields meets (0.0005 was met by one hold-out once
+    # the reservoirs stopped depending on the group's labels, audit 4 P9-2).
+    tight = OutcomeCriterion(RelativeMeanError("f"), 0.0002, "lower_is_better", "the mean")
     replay = _replay(
         objects,
         fovs,
@@ -307,8 +309,10 @@ def test_f8_a_stop_the_whole_stream_could_not_fix_is_not_too_early():
     total = stops[["correct", "premature", "not_preserved_by_stream", "undefined_at_stop"]]
     assert total.sum() == pytest.approx(stops["stopped"])
     text = result.summary()
-    assert "0% of acquisitions stopped too early" in text
-    assert "100% stopped where not even every available field together preserved it" in text
+    # Audit 4, P2-9: the total not preserved is the headline, the split its bounds.
+    assert "100% of acquisitions stopped where it was not preserved" in text
+    assert "between 0% and 100% stopped too early" in text
+    assert "not even every available field together preserved it" in text
 
 
 def test_f9_a_rule_that_never_stopped_says_whether_the_last_field_had_it():
@@ -435,7 +439,8 @@ def test_f16_reliability_says_what_it_rests_on_at_the_edges():
 
 def test_f17_identical_split_shares_print_no_rounding_noise():
     text = _ninety_percent_result().summary()
-    assert "enough in 90% of random acquisitions (±0% across hold-outs)" in text
+    # With the Monte Carlo error of the share (audit 4, P9-2), also without noise.
+    assert "enough in 90% of random acquisitions (Monte Carlo SE 0%; ±0% across hold-outs)" in text
     assert "e-" not in text
 
 

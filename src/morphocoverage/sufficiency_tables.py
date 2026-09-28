@@ -30,6 +30,7 @@ from .framework import run_strategies
 from .objectives import ObjectiveConfig
 from .policies import EffortPolicy
 from .results import StrategyResult
+from .statistics import median_standard_error
 from .strategies.base import SamplingStrategy
 from .sufficiency_text import _policies
 
@@ -131,6 +132,8 @@ def _stop_summary(records: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
                 "orders": len(runs),
                 "never_stopped": int((~runs["stopped"]).sum()),
                 "stop_fov_median": float(np.median(stop)) if len(stop) else None,
+                # How far the median would move under another seed (a Monte Carlo error).
+                "stop_fov_median_mc_se": median_standard_error(stop),
                 # Observed stop counts, never interpolated between runs.
                 "stop_fov_p10": _quantile(stop, 0.1),
                 "stop_fov_p90": _quantile(stop, 0.9),
@@ -160,12 +163,14 @@ def criteria_tables(
     acquisition_order_col: str | None,
     columns: Mapping[str, Any],
     group_cols: list[str],
+    n_jobs: int = 1,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Decisions on the full acquisition, and the stop-FOV distribution over orders.
 
     The stops table has one row per group, criterion and ``order_kind``
     (``"recorded"``, ``"permuted"``, in the order declared), each kind
-    summarised on its own.
+    summarised on its own. ``n_jobs`` replays the groups in worker processes
+    (``run_benchmark``).
     """
     results = run_strategies(
         objects, fovs=fovs, strategies=strategies, objective=objective, **columns
@@ -197,6 +202,7 @@ def criteria_tables(
             orders=orders,
             # The verdict above is the rule's own; its stop points must be too.
             stop_on="rule",
+            n_jobs=n_jobs,
         )
     )
     records = records.rename(columns={"order": "order_kind"})

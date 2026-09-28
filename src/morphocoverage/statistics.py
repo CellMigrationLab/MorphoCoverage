@@ -478,6 +478,21 @@ def field_weighted_mean_se(field_means: np.ndarray) -> tuple[float, float, int]:
     return float(means.mean()), float(means.std(ddof=1)) / math.sqrt(k), k
 
 
+def median_standard_error(values: np.ndarray) -> float | None:
+    """The Monte Carlo standard error of the median of ``values``, or None below two values.
+
+    ``sqrt(pi / 2) * SD / sqrt(n)``, the large-sample standard error of the
+    median of a normal sample: an approximation, used to say how much a
+    median over a few random orders or draws would move under another seed
+    (a median stop of 8 fields over 5 orders with SD 3 moves by about 1.7).
+    """
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if len(finite) < 2:
+        return None
+    return float(math.sqrt(math.pi / 2) * finite.std(ddof=1) / math.sqrt(len(finite)))
+
+
 __all__ = [
     "PAPER_DESCRIPTORS",
     "RELATIVE_TOLERANCE",
@@ -496,6 +511,7 @@ __all__ = [
     "jcb_required_objects",
     "jcs_effect_size",
     "mean_is_zero",
+    "median_standard_error",
     "nested_variance_components",
     "object_weighted_mean_se",
     "sd_upper_bound_factor",

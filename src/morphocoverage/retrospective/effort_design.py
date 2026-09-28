@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import is_integer, is_number
+from ..statistics import _interval as _widened
 from ..statistics import cluster_size
 from .hierarchy import SamplingHierarchy
 from .protocol import FEW_UNITS
@@ -131,12 +132,26 @@ def _allocations(
     return [current, *[a for a in chosen if a != current]]
 
 
-def _interval(draws: np.ndarray) -> tuple[float | None, float | None]:
-    """The 95% percentile interval of the finite draws, or ``(None, None)`` without any."""
+def _interval(
+    draws: np.ndarray, point: float, units: int, floor: float | None = None
+) -> tuple[float | None, float | None]:
+    """The approximate 95% interval of ``point`` from the finite draws, or ``(None, None)``.
+
+    The percentile interval of the draws widened for the ``units``
+    independent units resampled (``statistics._interval``): a plain
+    percentile interval over 3 to 8 units covered 72-93% for a nominal 95%.
+    ``floor`` bounds the widened low end (0 for a standard error or a ratio of
+    them, which cannot be negative). None without two finite draws, two units
+    or a finite point.
+    """
     finite = draws[np.isfinite(draws)]
-    if not len(finite):
+    if len(finite) < 2 or point is None or not np.isfinite(point):
         return None, None
-    low, high = np.quantile(finite, [0.025, 0.975])
+    _, low, high = _widened(float(point), finite, int(units), 0.95)
+    if not (np.isfinite(low) and np.isfinite(high)):
+        return None, None
+    if floor is not None:
+        low = max(low, floor)
     return float(low), float(high)
 
 
@@ -178,7 +193,9 @@ def _allocation_rows(
     samples, total_fovs = design["samples"], design["total_fovs"]
     current = (samples, total_fovs / samples)
     acquired = _acquired_se(estimate, design)
-    low, high = _interval(np.array([_acquired_se(b, design) for b in boots]))
+    low, high = _interval(
+        np.array([_acquired_se(b, design) for b in boots]), acquired, units, floor=0.0
+    )
     projections = [
         {
             **where,
@@ -200,7 +217,7 @@ def _allocation_rows(
         se = _se(estimate, design, s, f)
         boot_se = np.array([_se(b, design, s, f) for b in boots])
         same_total = abs(s * f - total_fovs) < 0.5
-        low, high = _interval(boot_se)
+        low, high = _interval(boot_se, se, units, floor=0.0)
         projections.append(
             {
                 **where,
@@ -217,14 +234,15 @@ def _allocation_rows(
         )
         if (s, f) == current:
             continue
-        low, high = _interval(boot_se / np.where(base > 0, base, np.nan))
+        ratio = se / balanced if balanced > 0 else None
+        low, high = _interval(boot_se / np.where(base > 0, base, np.nan), ratio, units, 0.0)
         resolved = same_total and low is not None and (high < 1 or low > 1) and units >= FEW_UNITS
         comparisons.append(
             {
                 **where,
                 "samples": s,
                 "fovs_per_sample": f,
-                "ratio": se / balanced if balanced > 0 else None,
+                "ratio": ratio,
                 "ratio_low": low,
                 "ratio_high": high,
                 "same_total": same_total,
