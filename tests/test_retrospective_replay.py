@@ -295,6 +295,9 @@ def test_calibration_and_adequacy_speak_plainly():
     assert "fixed 3 fields" in short and "not preserved" in short and "never stopped" in short
     adequacy = adequacy_points(replay).summary()
     assert "reliably" in adequacy and "would have first said stop" in adequacy
+    assert "fixed 3 fields" in adequacy and "never" in adequacy
+    full = adequacy_points(replay).summary(detail="full")
+    assert "would have first said stop" in full and "first preserved at" in full
     for text in (calibration, short, adequacy):
         for word in ("reservoir", "criterion", "prefix", "config_id"):
             assert word not in text

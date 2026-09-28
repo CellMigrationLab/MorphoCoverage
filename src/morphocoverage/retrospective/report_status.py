@@ -39,21 +39,35 @@ question:
   labelled state is clustered in a few fields (p <= 0.05) in some group; ✅
   when something was measured and nothing is clustered.
 - **4. Next time** (``next_time_status``): per declared criterion, the
-  smallest field count at which every eligible sample was adequately
-  represented (``protocol_reliability``); ❌ when no criterion reached that in
-  any listed count, ⚠️ when some criteria did not or fewer than 5
-  independent units stand behind the counts, ✅ otherwise. Reliability curves
-  alone (no protocol): ✅, per group only.
-- **5. What did the extra fields buy?** (``bought_status``): ⚠️ when some
-  replayed acquisitions never reliably preserved everything wanted, ✅
-  otherwise.
+  fewest listed fields from which every sample that could be judged was
+  adequately represented at every larger count, in every stratum
+  (``protocol_text.served_from``); the headline gives the largest of these
+  over the criteria that reached one. ❌ when no criterion reached one and
+  some samples needed more fields than could be judged; ⚠️ when some criteria
+  did not reach one (not reached; not shown: every unserved sample capped
+  by its held-back fields; or not judged at any depth) or fewer than
+  ``FEW_UNITS`` (5) independent units stand behind the counts; ✅
+  otherwise. Reliability curves alone (no protocol): the fewest listed
+  fields from which ``RELIABLE_SHARE`` (90%) of random acquisitions were
+  enough in every group, per criterion; ❌ when no
+  criterion reached it, ⚠️ otherwise, since nothing was checked across
+  samples (a count that served these samples is not yet a protocol).
+- **5. What did the extra fields buy?** (``bought_status``): over the
+  replayed acquisitions that could be judged, ⚠️ when some never had
+  everything wanted reliably confirmed by held-back fields, ✅ otherwise;
+  the headline gives the median field from which it was, and the field by
+  which 90% of runs had it.
 - **6. Which fields should I look at?** (``inspect_status``): ⚠️ when fields
   are listed (the headline counts them, their groups and each reason), or
   when none is but some reason could not be judged in some group; ➖ when no
   reason could be judged anywhere; ✅ when none is listed and every reason
   turned on was judged.
 - **7. More fields or more samples?** (``effort_status``): ⚠️ when the
-  comparison cannot tell in some stratum (too few samples), ✅ otherwise.
+  comparison cannot tell in some stratum (too few samples, or no
+  allocation's interval excludes no change), ✅ when a better split of the
+  same total of fields is resolved in every stratum. The headline names the
+  samples per stratum and in how many strata most of the variance of the
+  mean lies between samples.
 - **8. Could I have sampled more efficiently?** (``order_status``): ⚠️ when
   the orders differ by more than one field in some group, or some replayed
   runs never reached the criterion; ✅ otherwise. The headline says whether
@@ -93,16 +107,20 @@ from ..sampling_unit.contrast_text import P_ALPHA
 from ..schema import unit_plural
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
-from .adequacy import ALL_CRITERIA
 from .calibration import PREMATURE_CAUTION
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
+from .report_status_plan import (
+    FEW_UNITS,
+    RELIABLE_SHARE,
+    bought_status,
+    effort_status,
+    next_time_status,
+)
 
 # Above this false-alarm rate of the declared reference, the control answer asks the reader
 # to look (a provisional preset, as minimum_detection).
 FALSE_ALARM_CAUTION = 0.1
-# Fewer independent units than this make a protocol's field count uncertain.
-FEW_UNITS = 5
 # The reasons of question 6 in a word or two, for its headline.
 _REASONS = {"count": "unusual count", "neighbours": "unlike neighbours"}
 
@@ -312,54 +330,6 @@ def profile_status(profile: pd.DataFrame, clustering: Sequence[Any] = ()) -> Ans
     return (Status.CAUTION if clustered else Status.OK), "; ".join(parts)
 
 
-def next_time_status(reliability: Any, protocol: Any) -> Answer:
-    """4. How many fields should I image next time? (see the module)."""
-    if protocol is None:
-        if reliability is None:
-            return Status.NOT_ASSESSED, "not assessed"
-        return Status.OK, "reliability per group; no protocol across samples"
-    labels = protocol.settings.get("labels", {})
-    table = protocol.table
-    parts, reached = [], 0
-    criteria = list(dict.fromkeys(table["criterion"])) if len(table) else []
-    for criterion in criteria:
-        rows = table[table["criterion"].eq(criterion) & (table["eligible"] > 0)]
-        every = rows[rows["adequate"] == rows["eligible"]]
-        name = labels.get(criterion, criterion)
-        if len(every):
-            reached += 1
-            parts.append(f"{name}: {count(int(every['fovs'].min()), 'field')}")
-        else:
-            parts.append(f"{name}: not reached")
-    if not criteria:
-        return Status.NOT_ASSESSED, "not assessed"
-    units = int(table["units"].min()) if "units" in table and len(table) else 0
-    if reached == 0:
-        status = Status.PROBLEM
-    elif reached < len(criteria) or units < FEW_UNITS:
-        status = Status.CAUTION
-    else:
-        status = Status.OK
-    few = f" (from {count(units, 'independent unit')})" if units < FEW_UNITS else ""
-    return status, "; ".join(parts) + few
-
-
-def bought_status(adequacy: Any) -> Answer:
-    """5. What did the extra fields buy? (see the module)."""
-    if adequacy is None:
-        return Status.NOT_ASSESSED, "not assessed"
-    rows = adequacy.realized[adequacy.realized["criterion"] == ALL_CRITERIA]
-    if rows.empty:
-        return Status.NOT_ASSESSED, "not assessed"
-    sustained = rows["sustained_realized"].dropna().astype(float)
-    if sustained.empty:
-        return Status.CAUTION, "everything wanted was never reliably preserved"
-    head = f"everything wanted reliably preserved from field {number(sustained.median())} (median)"
-    if len(sustained) < len(rows):
-        return Status.CAUTION, f"{head}; never in {percent(1 - len(sustained) / len(rows))} of runs"
-    return Status.OK, head
-
-
 def inspect_status(inspection: Any) -> Answer:
     """6. Which fields should I look at? (see the module)."""
     if inspection is None:
@@ -383,18 +353,6 @@ def inspect_status(inspection: Any) -> Answer:
         Status.CAUTION,
         f"{count(fields, 'field')} to reopen in {count(groups, 'group')} ({reasons})",
     )
-
-
-def effort_status(effort: Any) -> Answer:
-    """7. More fields or more samples? (see the module)."""
-    if effort is None or effort.comparisons.empty:
-        return Status.NOT_ASSESSED, "not assessed"
-    strata = effort.comparisons.groupby("stratum", sort=False)["resolved"].any()
-    resolved, total = int(strata.sum()), len(strata)
-    if resolved == total:
-        return Status.OK, f"a better allocation resolved in {among(resolved, total, 'stratum')}"
-    units = count(int(effort.comparisons["units"].min()), "sample")
-    return Status.CAUTION, f"cannot tell in {among(total - resolved, total, 'stratum')} ({units})"
 
 
 def order_status(efficiency: Any) -> Answer:
@@ -499,6 +457,7 @@ def question_statuses(
 __all__ = [
     "FALSE_ALARM_CAUTION",
     "FEW_UNITS",
+    "RELIABLE_SHARE",
     "bought_status",
     "calibration_status",
     "conditions_status",

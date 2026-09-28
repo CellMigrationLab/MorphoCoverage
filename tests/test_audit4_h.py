@@ -192,7 +192,7 @@ def test_p9_2_retyped_labels_keep_their_draws_and_shares_carry_their_monte_carlo
     pd.testing.assert_frame_equal(as_numbers.curve[columns], as_text.curve[columns])
     row = as_numbers.curve.iloc[0]
     assert row["preserved_mc_se"] == pytest.approx(row["preserved_split_sd"] / 2)
-    assert "Monte Carlo SE" in as_numbers.summary()
+    assert "Monte Carlo SE" in as_numbers.summary(detail="full")
 
 
 def test_p9_6_benchmark_warns_when_a_grid_does_not_bracket_the_data():

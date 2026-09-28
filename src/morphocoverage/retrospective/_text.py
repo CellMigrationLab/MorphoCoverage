@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from .._seeds import group_identity  # noqa: F401  (re-exported for the summaries)
-from .._style import rule_label
+from .._style import group_label, rule_label
 from .._wording import fields, number, percent, plural, rows_of, where  # noqa: F401  (re-exported)
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..schema import unit_plural  # noqa: F401  (re-exported for the summaries)
@@ -88,6 +88,17 @@ def skipped_lines(skipped: pd.DataFrame | None, keys: Sequence[str]) -> list[str
     shown = [k for k in keys if k in skipped.columns]
     return [
         f"{where({k: row[k] for k in shown})}: skipped, {row['reason']}."
+        for _, row in skipped.iterrows()
+    ]
+
+
+def skipped_labels(skipped: pd.DataFrame | None, keys: Sequence[str]) -> list[str]:
+    """``MOCK · 1A: skipped, <reason>.``: ``skipped_lines`` with the groups by their values."""
+    if skipped is None or skipped.empty or "reason" not in skipped.columns:
+        return []
+    shown = [k for k in keys if k in skipped.columns]
+    return [
+        f"{group_label({k: row[k] for k in shown})}: skipped, {row['reason']}."
         for _, row in skipped.iterrows()
     ]
 

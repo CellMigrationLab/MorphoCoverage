@@ -319,9 +319,12 @@ def test_f2_repeated_hold_outs_are_counted_as_distinct_and_warned_about():
         block_col="block",
     )
     assert result.ceiling["distinct_holdouts"].tolist() == [3]
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "in 10 splits over 3 distinct hold-outs" in text
     assert "Warning: the 10 splits repeat hold-outs" in text
+    short = " ".join(result.summary().split())
+    assert "in 10 splits over 3 distinct hold-outs" in short
+    assert "10 splits repeat hold-outs" in short
 
 
 def test_f3_a_group_without_two_fields_gets_a_row_with_a_reason():
@@ -464,9 +467,11 @@ def test_f8_a_low_ceiling_is_not_called_unjudgeable():
         strata=["condition", "repeat"],
     )
     assert result.difficulty["ceiling"].notna().all()
-    text = result.summary()
-    assert "could not judge" not in text
+    text = " ".join(result.summary(detail="full").split())
+    short = " ".join(result.summary().split())
+    assert "could not judge" not in text and "could not judge" not in short
     assert "even every available field together was enough in fewer than 90%" in text
+    assert "even every available field together was enough in fewer than 90%" in short
 
 
 def test_f9_a_left_out_unit_with_too_few_fields_is_named_not_counted_as_zero_of_zero():
@@ -480,9 +485,11 @@ def test_f9_a_left_out_unit_with_too_few_fields_is_named_not_counted_as_zero_of_
     )
     left_out = result.validation.set_index("left_out")
     assert left_out.loc["P3", "chosen_fovs"] == 10 and left_out.loc["P3", "eligible"] == 0
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "Not checked on 1 plate whose samples had fewer fields than" in text
     assert "P3 (chosen 10)" in text
+    short = " ".join(result.summary().split())
+    assert "not checked on 1 plate with fewer fields" in short and "P3 (chosen 10)" in short
 
 
 def test_f10_infinite_stage_coordinates_are_refused():
@@ -590,9 +597,10 @@ def test_f15_a_single_field_group_is_skipped_with_a_reason_and_one_split_is_sing
     )
     assert set(result.curve["condition"]) == {"A"}
     assert result.skipped[["condition", "fovs"]].values.tolist() == [["B", 1]]
-    text = result.summary()
-    assert "condition=B, repeat=r1: skipped, only 1 field: at least two are needed" in text
-    assert "in 1 split over 1 distinct hold-out;" in text and "1 hold-outs" not in text
+    for detail in ("short", "full"):
+        text = " ".join(result.summary(detail=detail).split())
+        assert "B · r1: skipped, only 1 field: at least two are needed" in text
+        assert "in 1 split over 1 distinct hold-out;" in text and "1 hold-outs" not in text
 
 
 def test_f16_order_phrases_are_defined_once():

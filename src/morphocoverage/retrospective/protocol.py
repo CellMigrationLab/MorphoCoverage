@@ -91,9 +91,10 @@ class ProtocolResult:
     strata: tuple[str, ...]
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The protocol answer in sentences, per stratum and criterion."""
-        return protocol_summary(self)
+    def summary(self, detail: str = "short") -> str:
+        """The protocol answer: ``"short"`` one table across criteria, ``"full"`` every field
+        count per stratum and criterion (``protocol_text``); each caveat once, at the end."""
+        return protocol_summary(self, detail)
 
 
 def _check(

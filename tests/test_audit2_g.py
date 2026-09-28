@@ -31,6 +31,11 @@ WELLS = SamplingHierarchy(fov="image_file", sample="well")
 V_SAMPLE, V_FIELD, V_OBJECT = 1.0, 0.2, 1.0
 
 
+def _full(result):
+    """The full summary with its line breaks as spaces (the text is wrapped)."""
+    return " ".join(result.summary(detail="full").split())
+
+
 def _wells(fields, cells, seed=0, repeats=None):
     """Tables of wells with ``fields[s]`` fields of ``cells[s]`` objects (0: empty fields)."""
     rng = np.random.default_rng(seed)
@@ -88,13 +93,14 @@ def test_g1_the_acquired_error_uses_the_sizes_of_unequal_samples():
     comparisons = result.comparisons
     assert (comparisons["balanced_se"] == balanced).all()
     assert (comparisons["acquired_se"] == acquired).all()
-    assert "The acquired samples differ in size" in result.summary()
-    assert "made balanced" in result.summary() or "cannot tell" in result.summary()
+    assert "The acquired samples differ in size" in _full(result)
+    assert "made balanced" in _full(result) or "cannot tell" in _full(result)
+    assert "The acquired samples differ in size" in " ".join(result.summary().split())
     even, even_fovs = _wells([5] * 6, [10] * 6)
     same = effort_projection(even, even_fovs, feature="x", hierarchy=WELLS, strata=[], n_boot=20)
     rows = same.projections[same.projections["current"]]
     assert rows["se"].iloc[0] == pytest.approx(rows["se"].iloc[1])
-    assert "differ in size" not in same.summary()
+    assert "differ in size" not in _full(same) and "differ in size" not in same.summary()
 
 
 def test_g2_samples_and_units_are_counted_among_those_with_observations():
@@ -103,9 +109,11 @@ def test_g2_samples_and_units_are_counted_among_those_with_observations():
     row = result.components.iloc[0]
     assert (row["units"], row["samples"], row["samples_acquired"], row["fovs"]) == (3, 3, 8, 48)
     assert not result.comparisons["resolved"].any()
-    text = result.summary()
+    text = _full(result)
     assert "cannot tell from these data (only 3 samples)" in text
     assert "5 of 8 samples held no objects with a value" in text
+    short = " ".join(result.summary().split())
+    assert "only 3 samples" in short and "5 of 8 samples held no objects with a value" in short
 
 
 def test_g3_the_repeat_is_left_out_for_the_reason_that_holds():
@@ -133,9 +141,11 @@ def test_g4_failed_resamples_are_counted_and_withhold_the_interval():
     assert rows["low"].isna().all() and rows["high"].isna().all()
     assert result.comparisons["ratio_low"].isna().all()
     assert not result.comparisons["resolved"].any()
-    text = result.summary()
+    text = _full(result)
     assert f"not established: no interval, as {failed} of 500 resamples" in text
     assert "cannot tell from these data (no interval" in text
+    short = " ".join(result.summary().split())
+    assert f"no interval, as {failed} of 500 resamples" in short
     # A design whose resamples all separate the levels keeps its interval.
     fine, fine_fovs = _wells([4] * 6, [20] * 6)
     kept = effort_projection(fine, fine_fovs, feature="x", hierarchy=WELLS, strata=[], n_boot=50)
@@ -194,7 +204,7 @@ def test_g7_most_of_the_uncertainty_only_above_half():
     objects = pd.concat(object_rows, ignore_index=True).merge(fovs, on="image_file")
     result = effort_projection(objects, fovs, feature="x", hierarchy=WELLS, strata=[], n_boot=50)
     assert result.components["share"].max() < 0.5
-    text = result.summary()
+    text = _full(result)
     assert "The largest part of the uncertainty of the mean is" in text
     assert "Most of the uncertainty" not in text
 

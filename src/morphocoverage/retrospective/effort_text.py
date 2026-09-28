@@ -7,12 +7,22 @@ the sentences call it a technical repeat.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._wording import count, percent
+from .._style import (
+    caution_lines,
+    check_detail,
+    group_columns,
+    group_label,
+    merge_numbers,
+    number_pattern,
+    table,
+    wrap,
+)
+from .._wording import count, listing, percent
 from ._text import sample_word, unit_plural, unit_word
 from .protocol import FEW_UNITS
 
@@ -198,47 +208,239 @@ def _counts_lines(first: Mapping[str, Any], samples: str, observations: str) -> 
     return lines
 
 
-def effort_summary(result: EffortResult) -> str:
-    """ "More fields or more samples?" in sentences, per stratum."""
-    feature = result.settings.get("feature", "the measurement")
+def _stratum_group(result: EffortResult, rows: pd.DataFrame) -> dict[str, Any]:
+    """The stratum's columns and values (``{"condition": "MOCK"}``), empty when pooled."""
+    first = rows.iloc[0]
+    return {c: first[c] for c in result.settings.get("strata", []) if c in rows.columns}
+
+
+def _label(result: EffortResult, rows: pd.DataFrame) -> str:
+    """The stratum as the summaries name it: ``MOCK``, or ``all samples`` when pooled."""
+    group = _stratum_group(result, rows)
+    return group_label(group) if group else "all samples"
+
+
+def _words(result: EffortResult) -> dict[str, Any]:
     hierarchy = result.settings.get("hierarchy", {})
     observations = unit_plural(result.settings.get("observation_unit", "object"))
-    words = level_words(hierarchy, observations)
-    samples = sample_word(hierarchy)
-    repeat = hierarchy.get("biological_repeat")
+    return {
+        "feature": result.settings.get("feature", "the measurement"),
+        "hierarchy": hierarchy,
+        "observations": observations,
+        "levels": level_words(hierarchy, observations),
+        "samples": sample_word(hierarchy),
+        "repeat": hierarchy.get("biological_repeat"),
+    }
+
+
+def _stratum_lines(result: EffortResult, stratum: str, rows: pd.DataFrame) -> list[str]:
+    """One stratum in sentences, as the full summary gives it."""
+    w = _words(result)
+    samples = w["samples"]
+    lines = [
+        f"{_label(result, rows)}: more fields or more {samples}s, for the mean {w['feature']}?"
+    ]
+    first = rows.iloc[0]
+    shares = rows.dropna(subset=["share"]).sort_values("share", ascending=False)
+    units = int(first["units"])
+    unit = unit_word(w["hierarchy"], str(first["unit"]))
+    dropped = _repeat_line(first, w["repeat"], samples, w["observations"])
+    if dropped:
+        lines.append(dropped)
+    if len(shares):
+        top = shares.iloc[0]
+        # "Most" only for more than half: the largest of three shares can be 40%.
+        lead = "Most of" if top["share"] > 0.5 else "The largest part of"
+        lines.append(
+            f"  {lead} the uncertainty of the mean is "
+            f"{w['levels'].get(top['level'], top['level'])} ({percent(top['share'])} of its "
+            f"variance with the acquired design{share_caveat(top, units, unit)})."
+        )
+    projections = result.projections[result.projections["stratum"] == stratum]
+    imbalance = _imbalance_line(projections, first, samples, w["observations"])
+    if imbalance:
+        lines.append(imbalance)
+    compared = result.comparisons[result.comparisons["stratum"] == stratum]
+    lines.append(_allocation_line(compared, first, units, unit, samples))
+    lines += _counts_lines(first, samples, w["observations"])
+    return lines
+
+
+def _comparison_table(compared: pd.DataFrame, samples: str) -> str | None:
+    """The allocations compared with the acquired one, balanced: one row each."""
+    if not len(compared):
+        return None
+    rows = []
+    for row in compared.itertuples(index=False):
+        interval = "–" if pd.isna(row.ratio_low) else f"{row.ratio_low:.3g}-{row.ratio_high:.3g}"
+        rows.append(
+            [
+                row.samples,
+                f"{row.fovs_per_sample:.3g}",
+                f"{row.ratio:.3g}",
+                interval,
+                "yes" if bool(row.same_total) else "no",
+                "yes" if bool(row.resolved) else "no",
+            ]
+        )
+    columns = [f"{samples}s", "fields each", "SE ratio", "95% interval", "same total", "resolved"]
+    return table(rows, columns, indent=4, align="rrrrll")
+
+
+def effort_summary(result: EffortResult, detail: str = "short") -> str:
+    """ "More fields or more samples?": short, one table over the strata, or full, per stratum."""
+    if check_detail(detail) == "full":
+        lines, cautions = effort_full_parts(result)
+    else:
+        lines, cautions = effort_short_parts(result, indent=0)
+    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+
+
+def effort_full_parts(result: EffortResult, indent: int = 0) -> tuple[list[str], list[str]]:
+    """Every stratum's sentences, with the allocations compared in a table, under ``indent``."""
+    pad = " " * indent
+    samples = _words(result)["samples"]
     blocks = []
     for stratum, rows in result.components.groupby("stratum", sort=False):
-        lines = [f"{stratum}: more fields or more {samples}s, for the mean {feature}?"]
-        first = rows.iloc[0]
-        shares = rows.dropna(subset=["share"]).sort_values("share", ascending=False)
-        units = int(first["units"])
-        unit = unit_word(hierarchy, str(first["unit"]))
-        dropped = _repeat_line(first, repeat, samples, observations)
-        if dropped:
-            lines.append(dropped)
-        if len(shares):
-            top = shares.iloc[0]
-            # "Most" only for more than half: the largest of three shares can be 40%.
-            lead = "Most of" if top["share"] > 0.5 else "The largest part of"
-            lines.append(
-                f"  {lead} the uncertainty of the mean is "
-                f"{words.get(top['level'], top['level'])} ({percent(top['share'])} of its "
-                f"variance with the acquired design{share_caveat(top, units, unit)})."
-            )
-        projections = result.projections[result.projections["stratum"] == stratum]
-        imbalance = _imbalance_line(projections, first, samples, observations)
-        if imbalance:
-            lines.append(imbalance)
+        lines = _stratum_lines(result, stratum, rows)
         compared = result.comparisons[result.comparisons["stratum"] == stratum]
-        lines.append(_allocation_line(compared, first, units, unit, samples))
-        lines += _counts_lines(first, samples, observations)
-        blocks.append("\n".join(lines))
+        shown = _comparison_table(compared, samples)
+        if shown:
+            lines.append(
+                "  Allocations compared: the standard error against the acquired design made "
+                "balanced (resolved: its 95% interval excludes no change)."
+            )
+            lines.append(shown)
+        blocks.append(lines)
     for row in result.skipped.itertuples(index=False):
-        blocks.append(
-            f"{row.stratum}: more fields or more {samples}s, for the mean {feature}? "
-            f"Not estimable: {row.reason}."
+        blocks.append([f"{_skipped_label(result, row)}: {_not_estimable(result, row)}"])
+    lines = []
+    for block in blocks:
+        if lines:
+            lines.append("")
+        lines += [_rewrap(line, pad) for line in block]
+    return lines, []
+
+
+def _rewrap(line: str, pad: str) -> str:
+    """A sentence of the summary wrapped at its own indent (tables kept as they are)."""
+    if "\n" in line:
+        return "\n".join(pad + part for part in line.splitlines())
+    depth = len(line) - len(line.lstrip())
+    return wrap(line.strip(), pad + " " * depth, hang=len(pad) + depth + 2)
+
+
+def _skipped_label(result: EffortResult, row: Any) -> str:
+    group = {c: getattr(row, c) for c in result.settings.get("strata", []) if hasattr(row, c)}
+    return group_label(group) if group else str(row.stratum)
+
+
+def _not_estimable(result: EffortResult, row: Any) -> str:
+    w = _words(result)
+    return (
+        f"more fields or more {w['samples']}s, for the mean {w['feature']}? "
+        f"Not estimable: {row.reason}."
+    )
+
+
+def _allocation_cell(
+    compared: pd.DataFrame, first: Mapping[str, Any], units: int, unit: str, samples: str
+) -> tuple[str, str | None]:
+    """The short table's answer, and why the data cannot tell (``None`` when they can)."""
+    resolved = compared[compared["resolved"]]
+    if len(compared) and len(resolved):
+        best = resolved.sort_values("ratio").iloc[0]
+        change = 1 - best["ratio"]
+        direction = "smaller" if change > 0 else "larger"
+        answer = (
+            f"{best['samples']} {samples}s of about {best['fovs_per_sample']:.3g} fields: "
+            f"{percent(abs(change))} {direction} SE"
         )
-    return "\n\n".join(blocks)
+        return answer, None
+    reason = _allocation_line(compared, first, units, unit, samples)
+    return "cannot tell", reason.split("cannot tell from these data (", 1)[1][:-2]
+
+
+def effort_short_parts(result: EffortResult, indent: int = 2) -> tuple[list[str], list[str]]:
+    """One table over the strata, the skipped strata, and every caveat once (see ``effort``)."""
+    w = _words(result)
+    samples = w["samples"]
+    pad = " " * indent
+    rows, notes, reasons, shares = [], {}, {}, {}
+    strata = result.components.groupby("stratum", sort=False)
+    labels = []
+    for stratum, own in strata:
+        label = _label(result, own)
+        labels.append(label)
+        first = own.iloc[0]
+        units = int(first["units"])
+        unit = unit_word(w["hierarchy"], str(first["unit"]))
+        ranked = own.dropna(subset=["share"]).sort_values("share", ascending=False)
+        largest = "–"
+        if len(ranked):
+            top = ranked.iloc[0]
+            place = w["levels"].get(top["level"], top["level"])
+            largest = f"{percent(top['share'])} {place}"
+            caveat = share_caveat(top, units, unit).removeprefix("; not established: ")
+            if caveat:
+                shares.setdefault(caveat, []).append(label)
+        compared = result.comparisons[result.comparisons["stratum"] == stratum]
+        answer, reason = _allocation_cell(compared, first, units, unit, samples)
+        if reason:
+            reasons.setdefault(reason, []).append(label)
+        rows.append([label, count(units, unit), largest, answer])
+        projections = result.projections[result.projections["stratum"] == stratum]
+        extra = [
+            _repeat_line(first, w["repeat"], samples, w["observations"]),
+            _imbalance_line(projections, first, samples, w["observations"]),
+            *_counts_lines(first, samples, w["observations"]),
+        ]
+        for text in extra:
+            if text:
+                notes.setdefault(number_pattern(text.strip()), []).append((label, text.strip()))
+    lines, cautions = [], []
+    total = len(labels)
+    if rows:
+        lines.append(
+            wrap(
+                f"For the mean {w['feature']}: where most of the uncertainty of the mean sits "
+                f"(its share of the variance with the acquired design), and whether more fields "
+                f"or more {samples}s would help at the same total of fields:",
+                indent,
+                hang=indent + 2,
+            )
+        )
+        strata_cols = [c for c in result.settings.get("strata", [])]
+        head = group_columns(strata_cols) if strata_cols else "stratum"
+        columns = [head, "independent units", "largest share", f"more fields or {samples}s?"]
+        lines.append(table(rows, columns, indent=indent + 2))
+    for reasons_of, lead in (
+        (shares, "the largest share is not established"),
+        (reasons, f"cannot tell whether more fields or more {samples}s would help"),
+    ):
+        for reason, where in reasons_of.items():
+            cautions.append(f"{lead}{_where(where, total)}: {reason}")
+    for alike in notes.values():
+        texts = [text for _, text in alike]
+        merged = merge_numbers(texts) if len(texts) > 1 else texts[0]
+        cautions.append(f"{_where([label for label, _ in alike], total, lead=False)}{merged}")
+    for row in result.skipped.itertuples(index=False):
+        lines.append(
+            wrap(
+                f"{_skipped_label(result, row)}: {_not_estimable(result, row)}",
+                pad,
+                hang=indent + 2,
+            )
+        )
+    return lines, cautions
+
+
+def _where(labels: Sequence[str], total: int, *, lead: bool = True) -> str:
+    """`` in MOCK and YAP`` (or ``In MOCK and YAP: ``), nothing when it holds everywhere."""
+    if total <= 1 or len(labels) == total:
+        return ""
+    named = listing(list(labels), limit=3)
+    return f" in {named}" if lead else f"In {named}: "
 
 
 __all__ = [

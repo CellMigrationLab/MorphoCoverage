@@ -45,9 +45,10 @@ be needed, the report says so (P9, not implemented).
 glance" block with each answer's status marker and one-line headline
 (``report_status``, the rules question by question), then each answer in its
 short form where it has one (the opening, ``opening``; question 2,
-``report_enough``; questions 6, 8 and 9 and the closing, ``report_answers``;
-the declaration, ``workflows``), each caveat once; ``summary(detail="full")``
-gives every sentence, each section's header with its marker.
+``report_enough``; questions 4, 5 and 7, ``report_plan``; questions 6, 8 and
+9 and the closing, ``report_answers``; the declaration, ``workflows``), each
+caveat once; ``summary(detail="full")`` gives every sentence, each section's
+header with its marker.
 
 Shared-private: re-exports ``_detection_adjusted_bounds`` and
 ``_false_alarm_rate`` of ``report_profile`` for its callers.
@@ -87,6 +88,7 @@ from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
 from .report_answers import limits_text, short_section
 from .report_enough import enough_full, enough_short
+from .report_plan import bought_short, effort_short, next_time_short
 from .report_profile import (  # noqa: F401  (private helpers re-exported for callers)
     _control_rate,
     _detection_adjusted_bounds,
@@ -324,16 +326,23 @@ def microscopist_report(
     if parts["enough"]:
         short["enough"] = enough_short(sufficiency, calibration, controls)
     if adequacy is not None:
-        parts["bought"].append(adequacy.summary())
+        parts["bought"].append(adequacy.summary(detail="full"))
     if reliability is not None:
-        parts["next_time"].append(reliability.summary())
+        parts["next_time"].append(reliability.summary(detail="full"))
     if protocol is not None:
-        parts["next_time"].append(protocol.summary())
+        parts["next_time"].append(protocol.summary(detail="full"))
     if inspection is not None:
         parts["inspect"].append(inspection.summary(detail="full"))
         short["inspect"] = short_section([inspection_parts(inspection, indent=2)])
     if effort is not None:
-        parts["effort"].append(effort.summary())
+        parts["effort"].append(effort.summary(detail="full"))
+    for key, text in (
+        ("next_time", next_time_short(reliability, protocol)),
+        ("bought", bought_short(adequacy)),
+        ("effort", effort_short(effort)),
+    ):
+        if text:
+            short[key] = text
     if efficiency is not None:
         parts["order"].append(efficiency.summary(detail="full"))
     profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
@@ -405,9 +414,10 @@ def microscopist_report(
                     parts[key].insert(
                         0, f"{weak}, so the answers below cannot exclude a phenotype like it."
                     )
-            if "enough" in short:
-                line = f"{PROBLEM} {weak}, so the answers below cannot exclude a phenotype like it."
-                short["enough"] = f"{wrap(line, 2, hang=5)}\n{short['enough']}"
+            line = f"{PROBLEM} {weak}, so the answers below cannot exclude a phenotype like it."
+            for key in weakened:
+                if key in short:
+                    short[key] = f"{wrap(line, 2, hang=5)}\n{short[key]}"
             # The notes close the report: the adequacy answers are above them.
             notes.append(
                 f"{weak}, so the adequacy answers (questions 2, 4 and 5) cannot exclude a "

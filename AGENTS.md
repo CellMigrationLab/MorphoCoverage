@@ -249,6 +249,7 @@ src/morphocoverage/
         report.py          # the microscopist's report, question by question
         report_profile.py  # its sampling profile, one helper per source, and the control rates
         report_status.py   # the status marker and headline of every answer, question by question
+        report_status_plan.py  # the status of the planning answers 4, 5 and 7 (re-exported by report_status)
         report_enough.py   # question 2, short and full: sufficiency, detection-adjusted bound, calibration
         report_answers.py  # questions 6, 8 and 9 in short, caveats pooled; the closing "cannot tell me"
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
