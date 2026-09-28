@@ -61,10 +61,28 @@ def _insufficient_reason(result: StrategyResult) -> str | None:
     return None
 
 
+def _warnings(diagnostics: Mapping[str, Any]) -> str | None:
+    """The caveats a rule's evidence carries (``field_size_warning``, ``warning``), joined.
+
+    The FOV-unit JCB rule warns when FOV size and FOV mean are related (its
+    CV can then be several times too small) and the JCB rule when the SD
+    exceeds 50% CV; its pilot's own warnings are marked as the pilot's.
+    """
+    found = [diagnostics.get(key) for key in ("field_size_warning", "warning")]
+    pilot = diagnostics.get("pilot")
+    if isinstance(pilot, Mapping):
+        found += [
+            f"pilot: {pilot[key]}" for key in ("field_size_warning", "warning") if pilot.get(key)
+        ]
+    found = [str(text) for text in found if text]
+    return "; ".join(found) if found else None
+
+
 def _final_row(
     result: StrategyResult, group_cols: Sequence[str], effort_rule: bool = False
 ) -> dict[str, Any]:
     """One row of the full-acquisition table."""
+    diagnostics = result.evidence.diagnostics
     row = {column: result.group.get(column) for column in group_cols}
     row.update(
         {
@@ -76,14 +94,16 @@ def _final_row(
             "n_observations": result.n_observations,
             # The rule's own verdict, by its own threshold, whatever the objective asks.
             "verdict": None if result.rule_decision is None else result.rule_decision.value,
-            "undefined_reason": result.evidence.diagnostics.get("undefined_reason"),
+            "undefined_reason": diagnostics.get("undefined_reason"),
             # A "continue" only because a quantity it reads has too little data says so.
             "insufficient_reason": _insufficient_reason(result),
-            # The object-unit JCB rule treats objects as independent draws; the
+            # The object-unit JCB and JCS rules treat objects as independent draws; the
             # sentence says so, since that is what makes a stop after one FOV possible.
             "assumes_spatial_uniformity": bool(
-                result.evidence.diagnostics.get("assumes_spatial_uniformity", False)
+                diagnostics.get("assumes_spatial_uniformity", False)
+                or diagnostics.get("assumes_random_object_sampling", False)
             ),
+            "warnings": _warnings(diagnostics),
         }
     )
     for name, quantity in result.evidence.quantities.items():

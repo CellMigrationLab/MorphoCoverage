@@ -49,10 +49,17 @@ procedure when a separate control normalization is required.
 Estimation and decision are separate. ``ScalarPrecisionEstimator`` reports the
 averaging CV (and, with a pilot, the averaging CV the pilot projects for the
 visible effort); ``ScalarPrecisionStrategy`` applies the paper's target to it
-with a ``ThresholdPolicy``. The projected CV reaches the target exactly when
-the visible effort reaches the pilot's required number of objects
-(``required_objects``) or FOVs (``required_fovs``), so the stopping rule is the
-paper's.
+with a ``ThresholdPolicy``. The projected CV reaches the target when the
+visible effort reaches the pilot's required number of objects
+(``required_objects``) or, up to floating-point rounding, of FOVs
+(``required_fovs``: at a rounding boundary the projection can need one FOV
+more than that count), so the stopping rule is the paper's.
+
+A feature with no spread so far (a saturated intensity, the same integer
+count in every object) gives an averaging CV of 0, which says nothing about
+averaging noise: the quantity is ``insufficient_data`` until objects (object
+unit) or FOV means (FOV unit) differ, in every variant, as the planning path
+refuses such a pilot.
 """
 
 from __future__ import annotations
@@ -67,13 +74,17 @@ import pandas as pd
 
 from .. import _deprecated
 from .._checks import is_integer
+from .._wording import plural
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
 from ..statistics import RELATIVE_TOLERANCE, sd_upper_bound_factor  # noqa: F401  (re-exported)
-from ._averaging_cv import (  # noqa: F401  (the public names are re-exported)
+from ._averaging_cv import (  # the public names are re-exported (__all__)
     _field_size_check,
+    _FovSummary,
+    _merged_moments,
+    _no_spread,
     _object_cv_from_moments,
     fov_averaging_cv,
     object_averaging_cv,
@@ -147,8 +158,11 @@ class ScalarPrecisionEstimator(Estimator):
       requirement can change as acquisition goes on.
 
     Too few objects or FOVs, or a zero mean so far (only zeros), give
-    ``insufficient_data``. Missing or negative values make the CV undefined
-    (``not_applicable``), as does a pilot that cannot define the requirement.
+    ``insufficient_data``, as does no spread so far (every object alike for the
+    object unit, every FOV mean alike for the FOV unit, up to rounding: a CV
+    of 0 says nothing about averaging noise). Missing or negative
+    values make the CV undefined (``not_applicable``), as does a pilot that
+    cannot define the requirement.
 
     With the FOV unit the diagnostics also give ``ratio_design_effect``, the
     FOV-unit variance of the mean over that of as many random objects (the
@@ -214,6 +228,7 @@ class ScalarPrecisionEstimator(Estimator):
             counts,
             has_negative=bool((values < 0).any()),
             cells=lambda: object_averaging_cv(values),
+            unit=data.observation_unit,
         )
 
     def _precision_from(
@@ -223,13 +238,18 @@ class ScalarPrecisionEstimator(Estimator):
         *,
         has_negative: bool,
         cells: Callable[[], dict[str, float]],
+        unit: str,
     ) -> dict[str, Any] | tuple[str, str]:
         """The estimate from per-FOV sums and counts; ``cells()`` gives the object-level CVs.
 
         Conditions that no further FOV can change (missing or negative values)
         are ``not_applicable`` whatever the effort so far; those more FOVs can
         change are ``insufficient_data``. In the FOV unit, empty FOVs carry no
-        between-FOV information, so at least two FOVs must hold objects.
+        between-FOV information, so at least two FOVs must hold objects. No
+        spread so far is also not yet enough data: a CV of 0 would stop the
+        rule after two objects of a saturated or integer feature, although a
+        later FOV can show the spread. ``unit`` names the observation rows in
+        the wording.
         """
         if np.isnan(sums).any():
             return "not_applicable", "missing values in the selected scalar feature"
@@ -251,8 +271,14 @@ class ScalarPrecisionEstimator(Estimator):
         object_cvs = cells() if n_objects >= 2 else None
         if self.resampling_unit == "object":
             estimate: dict[str, Any] = dict(object_cvs)
+            if _no_spread(estimate["cv_objects"] * estimate["mean"], estimate["mean"]):
+                return "insufficient_data", f"no spread among the {plural(unit)} so far"
         else:
             estimate = fov_averaging_cv(sums, counts)
+            if _no_spread(estimate["cv_mean"] * estimate["mean"], estimate["mean"]):
+                # Every FOV has the same mean: the ratio-estimator SE is 0 whatever the
+                # objects within the FOVs, and a later FOV can differ.
+                return "insufficient_data", "no spread among the FOV means so far"
             # Values are non-negative here, so a between-object CV at rounding level is a
             # constant feature: its design effect would be rounding noise over noise.
             if object_cvs is not None and object_cvs["cv_objects"] > RELATIVE_TOLERANCE:
@@ -262,8 +288,8 @@ class ScalarPrecisionEstimator(Estimator):
                 estimate.update(_field_size_check(sums, counts))
         if object_cvs is not None and object_cvs["cv_objects"] > _MAX_TRUSTED_CV:
             estimate["warning"] = (
-                "between-cell SD exceeds 50% CV; the paper advises acquiring more data "
-                "and repeating the estimate"
+                f"the SD between {plural(unit)} exceeds 50% CV; the paper advises acquiring "
+                "more data and repeating the estimate"
             )
         # The data this estimate came from: kept for the pilot's provenance, and
         # dropped from the visible estimate's diagnostics (the framework owns effort).
@@ -272,21 +298,16 @@ class ScalarPrecisionEstimator(Estimator):
         return estimate
 
     def _check_order_col(self, fovs: pd.DataFrame) -> None:
-        """With a pilot, the order column must be in the FOV table, complete and not categorical.
+        """With a pilot, the order column must pass ``base.check_order_col``.
 
-        A newly revealed FOV carries only its own category (the framework hides
-        the categories of FOVs not yet seen), so the category order cannot be
-        kept FOV by FOV and the incremental pilot would differ from the full one.
+        It must be in the FOV table, complete, and numbers or times: not text
+        (``"10"`` sorts before ``"2"``) and not categorical (a newly revealed
+        FOV carries only its own category, so the incremental pilot would
+        differ from the full one).
         """
         if self.pilot_fovs is None:
             return
         check_order_col(fovs, self.order_col, "the pilot")
-        if isinstance(fovs[self.order_col].dtype, pd.CategoricalDtype):
-            raise TypeError(
-                f"order_col {self.order_col!r} is categorical, and its category order is lost "
-                "when FOVs arrive one at a time; give the pilot order as numbers or times "
-                "(for an ordered categorical, its .cat.codes)"
-            )
 
     def _unit_reason(self, data: ValidatedInput) -> str | None:
         """The published criterion averages objects; the FOV-unit variant any observation."""
@@ -303,14 +324,20 @@ class ScalarPrecisionEstimator(Estimator):
         reason = self._unit_reason(data)
         if reason is not None:
             return self._evidence(
-                ("not_applicable", reason), None, len(data.objects), len(data.fovs)
+                ("not_applicable", reason),
+                None,
+                len(data.objects),
+                len(data.fovs),
+                data.observation_unit,
             )
         current = self._precision(data, data.fovs)
         pilot = None
         if self.pilot_fovs is not None and len(data.fovs) >= self.pilot_fovs:
             ordered = data.fovs.sort_values(self.order_col, kind="stable")
             pilot = self._precision(data, ordered.iloc[: self.pilot_fovs])
-        return self._evidence(current, pilot, len(data.objects), len(data.fovs))
+        return self._evidence(
+            current, pilot, len(data.objects), len(data.fovs), data.observation_unit
+        )
 
     def _evidence(
         self,
@@ -318,10 +345,11 @@ class ScalarPrecisionEstimator(Estimator):
         pilot: dict[str, Any] | tuple[str, str] | None,
         n_objects: int,
         n_fovs: int,
+        unit: str,
     ) -> Evidence:
         """Quantities and diagnostics from the current and (if complete) pilot estimates."""
         diagnostics: dict[str, Any] = {
-            "scalar_parameter": f"mean of {self.feature!r} over objects",
+            "scalar_parameter": f"mean of {self.feature!r} over {plural(unit)}",
             "assumes_spatial_uniformity": self.resampling_unit == "object",
         }
         quantities: dict[str, Quantity] = {}
@@ -380,32 +408,7 @@ class ScalarPrecisionEstimator(Estimator):
         self._check_order_col(template.fovs)
         if self._unit_reason(template) is not None:
             return None
-        return _ScalarPrecisionState(self)
-
-
-@dataclass(frozen=True)
-class _FovSummary:
-    """Sufficient statistics of one acquired FOV for the averaging-CV criterion."""
-
-    count: int
-    total: float
-    mean: float
-    m2: float
-    has_negative: bool
-
-
-def _merged_moments(fovs: list[_FovSummary]) -> tuple[int, float, float]:
-    """Object count, mean and sum of squared deviations over FOVs (Chan et al. merge)."""
-    n, mean, m2 = 0, 0.0, 0.0
-    for fov in fovs:
-        if fov.count == 0:
-            continue
-        combined = n + fov.count
-        delta = fov.mean - mean
-        mean += delta * fov.count / combined
-        m2 += fov.m2 + delta**2 * n * fov.count / combined
-        n = combined
-    return n, mean, m2
+        return _ScalarPrecisionState(self, template.observation_unit)
 
 
 class _ScalarPrecisionState(EstimatorState):
@@ -416,8 +419,9 @@ class _ScalarPrecisionState(EstimatorState):
     instead of computed over all values at once.
     """
 
-    def __init__(self, estimator: ScalarPrecisionEstimator) -> None:
+    def __init__(self, estimator: ScalarPrecisionEstimator, unit: str) -> None:
         self.estimator = estimator
+        self.unit = unit  # the group's observation unit, fixed for the session
         self.fovs: list[_FovSummary] = []
         self.order: pd.Series | None = None  # order_col of every FOV, in arrival order
 
@@ -432,7 +436,11 @@ class _ScalarPrecisionState(EstimatorState):
             return _object_cv_from_moments(n, mean, math.sqrt(m2 / (n - 1)))
 
         return self.estimator._precision_from(
-            sums, counts, has_negative=any(fov.has_negative for fov in fovs), cells=cells
+            sums,
+            counts,
+            has_negative=any(fov.has_negative for fov in fovs),
+            cells=cells,
+            unit=self.unit,
         )
 
     def update(self, new: ValidatedInput) -> Evidence:
@@ -460,12 +468,11 @@ class _ScalarPrecisionState(EstimatorState):
         current = self._precision(self.fovs)
         pilot = None
         if estimator.pilot_fovs is not None and len(self.fovs) >= estimator.pilot_fovs:
-            # The full recomputation's sort (pandas, stable: ties by arrival), so an ordered
-            # categorical sorts by its categories on both paths.
+            # The full recomputation's sort (pandas, stable: ties by arrival).
             ordered = self.order.sort_values(kind="stable").index[: estimator.pilot_fovs]
             pilot = self._precision([self.fovs[i] for i in ordered])
         n_objects = sum(fov.count for fov in self.fovs)
-        return estimator._evidence(current, pilot, n_objects, len(self.fovs))
+        return estimator._evidence(current, pilot, n_objects, len(self.fovs), self.unit)
 
 
 @dataclass(frozen=True)
@@ -560,6 +567,16 @@ class ScalarPrecisionStrategy(SamplingStrategy):
         """The paper's target applied to the running or pilot-projected averaging CV."""
         quantity = "averaging_cv" if self.pilot_fovs is None else "pilot_projected_averaging_cv"
         return (ThresholdPolicy(quantity, self.target_cv),)
+
+
+__all__ = [
+    "ScalarPrecisionEstimator",
+    "ScalarPrecisionStrategy",
+    "fov_averaging_cv",
+    "object_averaging_cv",
+    "required_fovs",
+    "required_objects",
+]
 
 
 # Former object names, resolved with a DeprecationWarning (see morphocoverage._deprecated).

@@ -91,8 +91,11 @@ def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]])
         head = f"{criterion}: yes, its threshold was met by the {acquired} acquired FOVs"
     if final.get("assumes_spatial_uniformity"):
         head += " (treats observations as independent draws: assumes a spatially uniform sample)"
+    # The rule's own caveats (FOV size related to FOV mean, SD above 50% CV) follow its answer.
+    warnings = final.get("warnings")
+    caution = f" Caution: {warnings}." if isinstance(warnings, str) and warnings else ""
     if not stops:
-        return f"{head}."
+        return f"{head}.{caution}"
     clauses = "; ".join(_stops_clause(row) for row in stops)
     ever_met = any(int(row["orders"]) > int(row["never_stopped"]) for row in stops)
     lost = (
@@ -100,7 +103,7 @@ def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]])
         if final["verdict"] == "continue" and ever_met
         else ""
     )
-    return f"{head}; {clauses}{lost}."
+    return f"{head}; {clauses}{lost}.{caution}"
 
 
 def novelty_definition(
