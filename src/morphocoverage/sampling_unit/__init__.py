@@ -20,7 +20,8 @@ report, before its questions (``docs/questions.md``):
   repeat, with Cohen's d and the JCS effect size computed on objects (as the
   lab's Plot&Stats notebook does) and with the field as the unit, and a
   randomization test that shuffles condition labels over whole technical
-  repeats or fields (REPORT, R7);
+  repeats (or a nested well column of ``group_cols``), over whole fields only
+  when they are declared independent (``fields_independent``) (REPORT, R7);
 - ``feature_ranking``: the same tests for every declared feature, gated by
   Benjamini-Hochberg q-values and ranked by |d| as fiberfeatures scores a
   feature set, to choose which features the report plots (REPORT, R7).

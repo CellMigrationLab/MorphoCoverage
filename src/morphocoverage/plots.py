@@ -20,7 +20,8 @@ count their variance twice. Acquired fields without observations take part,
 as in ``statistics.bootstrap_fields``, when the FOV table places them in the
 cluster. The title says how many units a cluster's interval resamples, and
 warns when one has only 2 or 3, which no resampling turns into a reliable
-interval.
+interval, or a single technical repeat, whose interval shows field-to-field
+variation only.
 
 Every column of FOV identity that the figure does not place (condition,
 repeat or technical repeat) is pooled within a cluster, never merged: with
@@ -370,7 +371,10 @@ def _title(
     ``clusters`` holds, per cluster, its top-level units and each one's
     technical repeats (``_cluster_units``): the interval line says how many
     units are resampled, and a fourth line warns when a cluster has only 2 or
-    3, which no resampling turns into a reliable interval.
+    3, which no resampling turns into a reliable interval, or a single
+    technical repeat, whose interval resamples its fields and so shows
+    field-to-field variation only (it covered the repeat's median about half
+    the time with a well SD above the field SD).
     """
     repeats = ""
     if layout.pooled_repeats:
@@ -406,6 +410,11 @@ def _title(
             )
             if any(n in (2, 3) for n in single):
                 caveat = "\nwith only 2-3 technical repeats a cluster's interval is not reliable"
+            if any(n == 1 for n in single):
+                caveat += (
+                    "\none technical repeat: the interval shows field-to-field variation "
+                    "only, not well-to-well"
+                )
         else:
             phrases.append("whole fields")
     resampled = " or, in a cluster of one, ".join(phrases)

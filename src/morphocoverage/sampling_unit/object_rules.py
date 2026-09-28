@@ -12,10 +12,16 @@ as a microscope does. Nothing else changes. Both are retrospective: they use
 every acquired FOV of the group.
 
 **``object_rule_check``** (JCB). Values are divided by a reference mean: the
-mean of every object of the declared control groups, as the paper normalizes
-"by calculating the average of all the control samples" and as its
-supplementary spreadsheet and R code compute it, or each group's own mean when
-no control is declared. The rule's number of objects is
+mean of every object of the declared control groups of the same repeat (the
+``repeat`` column, when present), as the paper normalizes "by calculating the
+average of all the control samples" within an experiment and as
+``normalize_to_control`` does, or each group's own mean when no control is
+declared. A control mean pooled over repeats would judge a repeat against
+another day's level: with a 2x batch shift the rule asked for 12-14 objects
+in one repeat and 43-56 in the other where each repeat's own control gives
+24-32 in both. A repeat without control objects is reported as not
+applicable, and the summary warns when the repeats' control means differ by
+more than 1.5x (a batch shift or a change of units). The rule's number of objects is
 ``ceil((SD / (reference * target)) ** 2)``, with the SD of every object of
 the group; with hundreds of objects the paper's point and upper-95 estimates
 agree, so the point estimate is used. Whole FOVs are then drawn at random
@@ -60,8 +66,9 @@ import pandas as pd
 
 from .._checks import as_count, check_seed
 from .._seeds import group_key, group_rng
+from .._wording import count, percent, rate, where
 from .._wording import fields as fields_text
-from .._wording import percent, rate, where
+from ..metadata import REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_values, unit_plural
 from ..statistics import (
     describe,
@@ -71,7 +78,7 @@ from ..statistics import (
     sd_upper_bound_factor,
     spread_is_zero,
 )
-from ._common import groups, matching_groups, validated
+from ._common import canonical_fields, groups, matching_groups, validated
 
 DESCRIPTORS = ("mean", "median", "SD", "IQR")
 RANDOM_OBJECTS = "random objects"
@@ -82,6 +89,12 @@ _NEGATIVE = (
     "measurements"
 )
 _ZERO_REFERENCE = "not applicable: the reference mean is 0, so an error relative to it is undefined"
+# Repeat control means differing by more than this factor are flagged (D3).
+REFERENCE_SHIFT = 1.5
+_NO_REFERENCE = (
+    "not applicable: no control object in this group's repeat, so there is no reference mean "
+    "of the same repeat"
+)
 _CONSTANT = (
     "the feature does not vary, so the mean of any objects is exact and the rule has "
     "nothing to average"
@@ -119,6 +132,9 @@ class ObjectRuleCheck:
                 f"{self.settings['feature']}; reference mean: {self.settings['reference']}."
             )
         ]
+        shift = self.settings.get("reference_shift")
+        if shift:
+            lines.append(f"Caution: {shift}.")
         for row in self.table.to_dict("records"):
             head = f"{where({c: row[c] for c in self.group_cols})}, target {rate(row['target'])}"
             if row["status"] != "ok":
@@ -147,8 +163,8 @@ def _field_rule(row: dict[str, Any], words: str) -> str:
             f"upper-95 SD) of {acquired} acquired."
         )
     return (
-        f"With fields as the unit the rule asks for {rule} fields with {words} ({upper} from "
-        f"the upper-95 SD); {filled} of the {acquired} acquired fields hold {words}, so that "
+        f"With fields as the unit the rule asks for {count(rule, 'field')} with {words} ({upper} "
+        f"from the upper-95 SD); {filled} of the {acquired} acquired fields hold {words}, so that "
         f"is about {fields_text(int(row['fov_rule_acquired']))} to acquire "
         f"({int(row['fov_rule_acquired_upper95'])} from the upper-95 SD)."
     )
@@ -158,12 +174,17 @@ def _reference_means(
     all_groups: list[tuple[dict[str, Any], ValidatedInput]],
     feature: str,
     control: Mapping[str, Any] | None,
-) -> tuple[dict[str, float | None], str, bool]:
-    """The mean that normalizes each group, its label, and whether the control has negatives.
+    repeat_col: str | None,
+) -> tuple[dict[str, float | None], str, dict[str, bool], str | None]:
+    """The mean that normalizes each group, its label, per group whether its control has
+    negatives, and a caution when the repeats' control means differ by more than 1.5x.
 
-    The mean is each group's own, or the mean of all control objects: as in
-    the JCB supplementary spreadsheet and R code, the control mean pools
-    every control object, so control groups weigh by their object counts.
+    The mean is each group's own, or the mean of the control objects of the
+    repeats the group spans (its own repeat, unless ``group_cols`` pool the
+    repeats): as in the JCB supplementary spreadsheet and R code within one
+    experiment, the control mean pools every control object of the repeat, so
+    control groups weigh by their object counts. ``None`` for a group whose
+    repeats hold no control object.
     """
     values_by_group = {}
     for group, data in all_groups:
@@ -171,14 +192,54 @@ def _reference_means(
         values_by_group[group_key(group)] = values[~np.isnan(values)]
     if control is None:
         means = {k: float(v.mean()) if len(v) else None for k, v in values_by_group.items()}
-        return means, "each group's own mean", False
-    chosen = matching_groups(all_groups, control, "control")
-    pooled = np.concatenate([values_by_group[group_key(g)] for g in chosen])
-    if not len(pooled):
+        return means, "each group's own mean", dict.fromkeys(means, False), None
+    chosen = {group_key(g) for g in matching_groups(all_groups, control, "control")}
+
+    def repeats_of(data: ValidatedInput) -> list[Any]:
+        return data.fovs[repeat_col].drop_duplicates().tolist() if repeat_col else [None]
+
+    by_repeat: dict[str, list[np.ndarray]] = {}
+    for group, data in all_groups:
+        if group_key(group) in chosen:
+            for repeat in repeats_of(data):
+                by_repeat.setdefault(repr(repeat), []).append(values_by_group[group_key(group)])
+    pooled = {r: np.concatenate(v) for r, v in by_repeat.items()}
+    if not any(len(v) for v in pooled.values()):
         raise ValueError("the control groups have no observations of the feature")
-    reference = float(pooled.mean())
-    label = f"mean of all objects of {len(chosen)} control group(s) {dict(control)}"
-    return dict.fromkeys(values_by_group, reference), label, bool((pooled < 0).any())
+    means, negative = {}, {}
+    for group, data in all_groups:
+        parts = [pooled[repr(r)] for r in repeats_of(data) if repr(r) in pooled]
+        values = np.concatenate(parts) if parts else np.array([])
+        means[group_key(group)] = float(values.mean()) if len(values) else None
+        negative[group_key(group)] = bool((values < 0).any())
+    within = f" of the same {repeat_col}" if repeat_col else ""
+    label = f"mean of all objects of the control groups {dict(control)}{within}"
+    names = {repr(r): str(r) for _, d in all_groups for r in repeats_of(d)}
+    return means, label, negative, _shift({names[r]: v for r, v in pooled.items()}, repeat_col)
+
+
+def _shift(pooled: dict[str, np.ndarray], repeat_col: str | None) -> str | None:
+    """A caution when the repeats' control means differ by more than ``REFERENCE_SHIFT``."""
+    levels = {r: float(v.mean()) for r, v in pooled.items() if len(v)}
+    if len(levels) < 2 or min(levels.values()) <= 0:
+        return None
+    low, high = min(levels, key=levels.get), max(levels, key=levels.get)
+    ratio = levels[high] / levels[low]
+    if ratio <= REFERENCE_SHIFT:
+        return None
+    return (
+        f"the control means of the repeats differ by {ratio:.1f}x ({repeat_col}={low}: "
+        f"{levels[low]:.3g}, {repeat_col}={high}: {levels[high]:.3g}); each repeat is judged "
+        "against its own control, but a shift that large may be a batch effect or a change "
+        "of units (a feature exported in other units in one repeat)"
+    )
+
+
+def _canonical_fov_values(data: ValidatedInput, feature: str) -> list[np.ndarray]:
+    """The feature's values per field, fields by FOV key and values sorted, so no draw
+    depends on the tables' row order (``canonical_fields``)."""
+    values = fov_values(data, data.feature_values(feature))
+    return [np.sort(values[i]) for i in canonical_fields(data)]
 
 
 def _fovs_until(
@@ -213,13 +274,16 @@ def object_rule_check(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    repeat_col: str | None = REPEAT_COLUMN,
 ) -> ObjectRuleCheck:
     """The JCB number of objects, and the averaging error it really gives from whole FOVs.
 
     ``targets`` are averaging errors as fractions of the reference mean: the
     paper's 5% for independent samples and 2.5% for paired ones. ``control``
-    selects the control groups whose mean normalizes every group, for example
-    ``{"condition": "MOCK"}``; ``None`` uses each group's own mean. ``fovs``
+    selects the control groups whose mean normalizes every group of the same
+    repeat (``repeat_col``; the default may be absent, and ``None`` pools the
+    control objects of every repeat), for example ``{"condition": "MOCK"}``;
+    ``None`` uses each group's own mean. ``fovs``
     lists every acquired FOV; FOVs without observations can be drawn and add
     no objects. Other arguments are those of ``validate_input_tables``.
     """
@@ -231,10 +295,19 @@ def object_rule_check(
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
     words = unit_plural(data.observation_unit)
     all_groups = groups(data)
-    references, label, negative_control = _reference_means(all_groups, feature, control)
+    if repeat_col is not None and repeat_col not in data.fovs.columns:
+        if repeat_col != REPEAT_COLUMN:
+            raise ValueError(
+                f"repeat_col {repeat_col!r} is not a column of the FOV table; name the "
+                "biological-repeat column, or pass repeat_col=None to pool every repeat's control"
+            )
+        repeat_col = None  # the default is absent: one implicit repeat
+    references, label, negative_control, shift = _reference_means(
+        all_groups, feature, control, repeat_col
+    )
     rows = []
     for group, group_data in all_groups:
-        per_fov = fov_values(group_data, group_data.feature_values(feature))
+        per_fov = _canonical_fov_values(group_data, feature)
         sizes = np.array([len(v) for v in per_fov], dtype=float)
         sums = np.array([v.sum() for v in per_fov])
         filled = [v for v in per_fov if len(v)]
@@ -245,8 +318,11 @@ def object_rule_check(
             "fovs_with_observations": len(filled),
             "observations": int(sizes.sum()),
         }
-        negative = negative_control or any(bool((v < 0).any()) for v in filled)
+        negative = negative_control[group_key(group)] or any(bool((v < 0).any()) for v in filled)
         for target in targets:
+            if reference is None and control is not None:
+                rows.append({**base, "target": target, "status": _NO_REFERENCE})
+                continue
             if negative:
                 rows.append({**base, "target": target, "status": _NEGATIVE})
                 continue
@@ -302,6 +378,8 @@ def object_rule_check(
         "targets": targets,
         "control": None if control is None else dict(control),
         "reference": label,
+        "repeat_col": repeat_col,
+        "reference_shift": shift,
         "n_draws": n_draws,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
@@ -397,7 +475,7 @@ def descriptor_spread_check(
     keys = list(data.group_cols)
     rows, threshold_rows, skipped = [], [], []
     for group, group_data in groups(data):
-        per_fov = [v for v in fov_values(group_data, group_data.feature_values(feature)) if len(v)]
+        per_fov = [v for v in _canonical_fov_values(group_data, feature) if len(v)]
         pooled = np.concatenate(per_fov) if per_fov else np.array([])
         rng = group_rng(random_state, group)
         spreads: dict[tuple[str, int], np.ndarray] = {}

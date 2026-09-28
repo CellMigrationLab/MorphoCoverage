@@ -111,8 +111,8 @@ class Setup:
     - ``features``: the representation for unusual observations and novelty
       (explicit columns; never inferred). Empty means the readout only.
     - ``control``: the negative-control groups, for example
-      ``{"condition": "MOCK"}``. Its mean is the reference of the Foundation's
-      JCB object-rule check (``object_rule_check``; the stopping rules use each
+      ``{"condition": "MOCK"}``. Its mean in each repeat is the reference of the
+      Foundation's JCB object-rule check (``object_rule_check``; the stopping rules use each
       group's own mean), its observations the reference for unusual
       observations (without it they are not assessed), and, with ``normalize``,
       the divisor of the normalised values.
@@ -173,6 +173,12 @@ class Setup:
       (``resolved_effort_strata``).
     - ``acquisition_order_col``, ``stage_cols``: acquisition order and stage
       coordinates, when recorded.
+    - ``fields_independent``: declares that the fields are independent draws
+      of their condition (default ``False``). The condition contrast and the
+      feature ranking shuffle the technical repeats (``technical_repeat``),
+      else a group column nested within condition x repeat (a well column in
+      ``group_cols``); without either they give no p-value, since fields of
+      one dish or well are not independent draws, unless this is ``True``.
     - ``fov_col``, ``group_cols``, ``observation_unit``: as for
       ``validate_input_tables`` (MorphoBricks defaults when ``None``).
     - ``rules``: the stopping rules to assess, calibrate and run live; by
@@ -215,6 +221,7 @@ class Setup:
     random_state: int = 0
     n_jobs: int = 1
     minimum_detection: float = 0.9
+    fields_independent: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.readout, str) or not self.readout:
@@ -232,6 +239,9 @@ class Setup:
             object.__setattr__(self, "group_cols", tuple(self.group_cols))
         if self.rules is not None:
             object.__setattr__(self, "rules", tuple(self.rules))
+        if not isinstance(self.fields_independent, (bool, np.bool_)):
+            raise TypeError("fields_independent must be True or False")
+        object.__setattr__(self, "fields_independent", bool(self.fields_independent))
         if isinstance(self.fingerprint, OutcomeCriterion):
             raise TypeError("fingerprint must be a sequence of OutcomeCriterion, not one")
         object.__setattr__(self, "fingerprint", tuple(self.fingerprint))

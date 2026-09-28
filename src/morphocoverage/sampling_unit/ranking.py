@@ -6,10 +6,14 @@ every feature is tested for every condition against the declared control,
 within each repeat, with the same statistics as question 9
 (``condition_contrast``): Cohen's d on field means and a randomization test
 over whole technical repeats (the FOV table's technical-repeat column,
-whatever ``group_cols`` says) when each side holds at least two, else,
-without the technical-repeat column, over whole fields (exact when every
-assignment can be enumerated; a side with a single technical repeat is not
-tested, and the ranking does not gate on it). The p-values of all
+whatever ``group_cols`` says, or else a group column nested within
+condition x repeat, such as ``well``) when each side holds at least two
+(exact when every assignment can be enumerated; a side with a single
+technical repeat is not tested, and the ranking does not gate on it).
+Without such a unit there is no test, since fields of one dish or well are
+not independent draws (with three unrecorded wells a side and no effect, a
+null feature was ranked in 95% of datasets), unless ``fields_independent``
+declares them independent: whole fields are then shuffled. The p-values of all
 feature-and-contrast tests are
 Benjamini-Hochberg corrected together; a test passes the gate when its
 q-value is at most ``alpha``. A feature's score is the largest |d| among its
@@ -25,11 +29,18 @@ distinct label assignments exist and the p-value cannot fall below their
 share (twice their share with as many on each side, since the sides swapped
 give the same |d|), so with three technical repeats a side no test passes a
 5% gate; the summary then says so rather than ranking nothing silently. The
-same holds for a test over very few fields (3 a side: a floor of 0.1).
+same holds for a test over very few fields (3 a side: a floor of 0.1). A
+floor below the gate can still be out of reach after the correction: over
+``m`` tests a lone contrast at floor ``p`` gets ``q = m p``, and the summary
+gives that q and how many tests must reach the floor for one to pass. It
+also flags a feature whose passing contrasts for one condition have opposite
+signs in different repeats (a shift between repeats or wells, not a
+consistent effect).
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -45,16 +56,24 @@ from ..statistics import benjamini_hochberg
 from ._common import groups, validated
 from ._units import (
     FIELD,
+    NOT_INDEPENDENT,
     check_arguments,
     contrasts_of,
     control_label,
     describe_groups,
+    opposite_signs,
     randomization_test,
     resolve_columns,
+    resolve_unit,
     side_units,
     sides,
 )
 
+_UNITS_OUT = ", so those technical repeats cannot pass the gate however large the difference"
+_FIELDS_OUT = (
+    ", above the gate of {alpha:g}, so those tests cannot pass it however large the difference"
+)
+_UNKNOWN_WELLS = "the fields' wells or dishes are unknown"
 EFFECT_CAP = 20.0
 GATE_ALPHA = 0.05
 TOP_FEATURES = 5
@@ -86,35 +105,35 @@ class FeatureRanking:
         """Sentences on the smallest p-value the tests can give, where it limits the gate.
 
         Tests over whole technical repeats are always described, since their
-        few assignments set the floor; tests over whole fields only when so
-        few fields were shuffled that the floor lies above the gate.
+        few assignments set the floor; tests over whole fields only when the
+        floor limits the gate. A floor below the gate can still be out of
+        reach once corrected: Benjamini-Hochberg over ``m`` tests gives a lone
+        contrast at floor ``p`` the q-value ``m p``, and ``k`` contrasts at the
+        floor ``m p / k``, so the sentence gives the smallest q a lone contrast
+        can reach and how many tests must reach the floor for one to pass.
         """
         alpha = self.settings["alpha"]
         if self.tests.empty:
             return []
         tested = self.tests[self.tests["p_value"].notna()]
+        m = len(tested)
         lines = []
         by_unit = tested[tested["permutation_unit"] != FIELD]
         if len(by_unit):
             worst = by_unit.loc[by_unit["p_floor"].idxmax()]
             floor = float(worst["p_floor"])
-            # Only a floor above the gate makes a test unable to pass it.
-            consequence = (
-                ", so those technical repeats cannot pass the gate however large the difference"
-                if floor > alpha
-                else ""
-            )
             lines.append(
                 f"  {len(by_unit)} of the tests shuffled whole technical repeats; with as few as "
                 f"{int(worst['distinct_assignments'])} distinct assignments a "
-                f"p-value cannot fall below {floor:.2g}{consequence}."
+                f"p-value cannot fall below {floor:.2g}{_consequence(floor, m, alpha, _UNITS_OUT)}."
             )
-        by_field = tested[(tested["permutation_unit"] == FIELD) & (tested["p_floor"] > alpha)]
+        by_field = tested[(tested["permutation_unit"] == FIELD) & (tested["p_floor"] * m > alpha)]
         if len(by_field):
+            floor = float(by_field["p_floor"].max())
             lines.append(
                 f"  {len(by_field)} of the tests shuffled so few whole fields that a p-value "
-                f"cannot fall below {float(by_field['p_floor'].max()):.2g}, above the gate of "
-                f"{alpha:g}, so those tests cannot pass it however large the difference."
+                f"cannot fall below {floor:.2g}"
+                f"{_consequence(floor, m, alpha, _FIELDS_OUT.format(alpha=alpha))}."
             )
         return lines
 
@@ -129,8 +148,10 @@ class FeatureRanking:
         alpha = self.settings["alpha"]
         n_tests = int(self.tests["p_value"].notna().sum()) if len(self.tests) else 0
         units = "fields"
-        if self.settings["technical_col"]:
-            units = f"technical repeats ({self.settings['technical_col']}) or fields"
+        if self.settings.get("unit"):
+            units = f"technical repeats ({self.settings['unit']})"
+        elif not self.settings.get("fields_independent"):
+            units = "fields, where the fields are declared independent draws,"
         head = (
             f"Which features separate the conditions? Each of the "
             f"{self.settings['n_features']} declared features, every condition against the "
@@ -176,12 +197,39 @@ class FeatureRanking:
             reasons = []
             for feature in untested:
                 statuses = self.tests.loc[self.tests["feature"] == feature, "status"]
-                reasons.append(f"{feature} ({'; '.join(dict.fromkeys(statuses))})")
+                # The long independence reason is explained once, below.
+                shown = [_UNKNOWN_WELLS if st == NOT_INDEPENDENT else st for st in statuses]
+                reasons.append(f"{feature} ({'; '.join(dict.fromkeys(shown))})")
             lines.append(
                 f"  Not ranked because no contrast could be tested "
                 f"({count(len(untested), 'feature')}): {_listed(reasons)}."
             )
         lines += self._floors()
+        lines += opposite_signs(
+            self.tests[self.tests["passes_gate"]],
+            ["feature", "condition"],
+            self.settings["repeat_col"],
+            lambda key: f"{key[0]} passes the gate for {key[1]}",
+        )
+        if (self.tests["status"] == NOT_INDEPENDENT).any():
+            lines.append(
+                "  Not tested where the fields' wells or dishes are unknown (fields of one dish "
+                "or well are not independent draws): record the technical_repeat column (or "
+                "name the well column in group_cols), or pass fields_independent=True "
+                "(Setup.fields_independent) if the fields are independent draws."
+            )
+        elif (
+            self.settings.get("fields_independent")
+            and ((self.tests["permutation_unit"] == FIELD) & self.tests["p_value"].notna()).any()
+        ):
+            lines.append(
+                "  Tests over whole fields treat the fields as independent draws, as declared "
+                "(fields_independent); if they came from a few wells or dishes, those tests "
+                "test the wells, not the condition."
+            )
+        note = self.settings.get("unit_note")
+        if note:
+            lines.append(f"  Note: {note}.")
         if not ranked.empty:
             lines.append(
                 f"  Plotted by default: the readout and up to {TOP_FEATURES} best-ranked other "
@@ -205,20 +253,23 @@ def feature_ranking(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    fields_independent: bool = False,
 ) -> FeatureRanking:
     """Rank ``features`` by how confidently they separate each condition from the control.
 
     Arguments follow ``condition_contrast``: ``control`` names the control
     condition by FOV-table value, ``repeat_col`` separates the repeats,
     ``technical_col`` names the FOV-table column of the technical repeats
-    (the units whatever ``group_cols`` says), ``alpha`` is the
-    Benjamini-Hochberg gate. See the module.
+    (the units whatever ``group_cols`` says; without it a nested group
+    column), ``fields_independent`` declares the fields independent draws
+    when no unit exists, ``alpha`` is the Benjamini-Hochberg gate. See the
+    module.
     """
     features = list(dict.fromkeys(features))
     if not features:
         raise ValueError("features must name at least one column")
     n_permutations, random_state = check_arguments(
-        control, condition_col, n_permutations, random_state
+        control, condition_col, n_permutations, random_state, fields_independent
     )
     if not is_number(alpha) or not 0 < alpha < 1:
         raise ValueError("alpha must be between 0 and 1")
@@ -228,6 +279,7 @@ def feature_ranking(
     )
     all_groups = groups(data)
     described = describe_groups(all_groups, condition_col, repeat_col, control)
+    unit, unit_note = resolve_unit(data, described, condition_col, repeat_col, technical_col)
     settings: dict[str, Any] = {
         "features": features,
         "n_features": len(features),
@@ -235,6 +287,9 @@ def feature_ranking(
         "condition_col": condition_col,
         "repeat_col": repeat_col,
         "technical_col": technical_col,
+        "unit": unit,
+        "unit_note": unit_note,
+        "fields_independent": bool(fields_independent),
         "n_permutations": n_permutations,
         "alpha": alpha,
         "random_state": random_state,
@@ -266,7 +321,11 @@ def feature_ranking(
             rng = group_rng(random_state, {**base, "feature": feature})
             # Acquired fields, as condition_contrast counts them.
             row.update({"fields": t_acquired, "control_fields": c_acquired})
-            row.update(randomization_test(t_units, c_units, technical_col, n_permutations, rng))
+            row.update(
+                randomization_test(
+                    t_units, c_units, unit, n_permutations, rng, bool(fields_independent)
+                )
+            )
             rows.append(row)
     tests = pd.DataFrame(rows)
     tests["q_value"] = benjamini_hochberg(tests["p_value"].to_numpy(dtype=float))
@@ -287,6 +346,23 @@ _EMPTY = {
     "p_exact": False,
     "p_floor": np.nan,
 }
+
+
+def _consequence(floor: float, m: int, alpha: float, out_of_reach: str) -> str:
+    """Why tests at ``floor`` cannot pass the gate (``out_of_reach`` when the floor itself
+    lies above it), or pass only in numbers after the correction (empty otherwise)."""
+    if floor > alpha:
+        return out_of_reach
+    lone = floor * m
+    if lone <= alpha:
+        return ""
+    needed = math.ceil(lone / alpha - 1e-9)
+    return (
+        f"; corrected over the {m} tests, a lone contrast at that floor gets q = "
+        f"{min(lone, 1.0):.2g}, above the gate of {alpha:g}, so a lone contrast at the floor "
+        f"cannot pass: one at the floor passes only if at least {needed} of the {m} tests "
+        "reach it"
+    )
 
 
 def _listed(names: list[str]) -> str:

@@ -206,8 +206,9 @@ def _rare(setup: Setup) -> str:
         )
     if setup.rare_label is not None:
         line += (
-            f" Judged on held-back fields with the label column {setup.rare_label!r}, and its "
-            "clustering in few fields reported with the sampling profile."
+            f" Judged on held-back fields with the label column {setup.rare_label!r} by "
+            "optimise and benchmark; the report shows its clustering in few fields with the "
+            "sampling profile."
         )
     else:
         line += " No label column: stated and planned for, not judged on held-back fields."
