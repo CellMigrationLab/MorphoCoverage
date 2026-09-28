@@ -8,6 +8,7 @@ from test_retrospective_inspection import FEATURES as INSPECTED
 from test_retrospective_inspection import _acquisition
 
 from morphocoverage._wording import percent
+from morphocoverage.bounds import lower_bound
 from morphocoverage.retrospective import (
     RepresentationControl,
     SamplingHierarchy,
@@ -365,11 +366,14 @@ def test_g13_the_adjusted_bound_uses_the_rate_against_every_reference_field():
         fovs_seen=6,
         draws=10,
     )
-    detection = float(controls.pooled.set_index("candidate").loc["positive_lofo", "rate"])
+    row = controls.pooled.set_index("candidate").loc["positive_lofo"]
+    detection = float(row["rate"])
     text = _detection_adjusted_bounds(_sufficiency(), controls)
     # Audit 3 (G-1, J-2): against the reference fields of an analysis group, via percent().
     assert f"({percent(detection)} of its fields recognized against the reference" in text
-    assert f"up to {percent(min(1.0, 0.12 / detection))} of FOVs" in text
+    # Audit 4 (P3-9): divided by the rate's one-sided 95% lower bound, not its point estimate.
+    low = lower_bound(int(row["judged_new"]), int(row["candidates"]), 0.95)
+    assert f"up to {percent(min(1.0, 0.12 / low))} of FOVs" in text
 
 
 def test_g14_a_sampling_frame_caveat_alone_does_not_assess_question_3():

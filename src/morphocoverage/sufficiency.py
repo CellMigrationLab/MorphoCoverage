@@ -80,6 +80,7 @@ from .calibration import calibrate_next_fov_novelty
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups
 from .evidence import Availability
+from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from .objectives import ObjectiveConfig, SamplingObjective
 from .schema import ValidatedInput, fov_positions
 from .statistics import fovs_to_detect
@@ -251,6 +252,15 @@ def _seen_in_few(
     return row
 
 
+def _technical_repeats(group_data: ValidatedInput) -> int | None:
+    """The technical repeats (each with its condition and repeat) of the group's fields."""
+    fovs = group_data.fovs
+    if TECHNICAL_REPEAT_COLUMN not in fovs.columns:
+        return None
+    columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN) if c in fovs]
+    return len(fovs[columns].drop_duplicates())
+
+
 def _next_fov_tables(
     data: ValidatedInput,
     novelty: SupportNoveltyEstimator,
@@ -276,6 +286,8 @@ def _next_fov_tables(
             "fovs_imaged": k,
             "fovs_without_observations": k - with_observations,
             "confidence": novelty.confidence,
+            "min_novel_observations": novelty.min_novel_observations,
+            "technical_repeats": _technical_repeats(group_data),
         }
         if chance.availability is not Availability.AVAILABLE:
             row.update(
@@ -313,6 +325,13 @@ def _next_fov_tables(
         # -ln(1 - confidence) / k (3 / k at 95%, the rule of three), whatever
         # else was new.
         row["unseen_state_max_frequency"] = upper_bound(0, k, novelty.confidence)
+        # Pooled technical repeats cluster a state in their fields (P3-8): they are
+        # the independent draws, and none of them showed the state.
+        technical = row["technical_repeats"]
+        many = technical is not None and technical > 1
+        row["unseen_state_max_technical_share"] = (
+            upper_bound(0, technical, novelty.confidence) if many else None
+        )
         row["extra_fovs_to_rule_out_target"] = (
             None
             if target is None
@@ -333,6 +352,7 @@ def _next_fov_tables(
         "extra_fovs_if_nothing_new",
         "extra_fovs_at_current_rate",
         "extra_fovs_to_rule_out_target",
+        "technical_repeats",
     )
     for column in counts:
         table[column] = table[column].astype("Int64")  # counts, missing as <NA>

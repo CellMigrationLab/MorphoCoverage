@@ -50,7 +50,7 @@ from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._document import pooling_reason
-from .setup import Setup
+from .setup import Setup, default_novelty
 
 
 def order_seeds(random_state: int, n: int) -> list[int]:
@@ -299,19 +299,29 @@ def control_checks(
         )
         results["unusual"] = unusual
         label = unusual_label(objects, setup)
+        # The label flags a share of ordinary objects by construction, so a field holds
+        # the state only with the novelty rule's m of them, and the control groups'
+        # own incidence is printed beside it (P6-1).
+        novelty = setup.novelty or default_novelty(setup.features)
         results["clustering"] = fov_clustering(
             objects.assign(**{label: unusual.labels}),
             fovs,
             label_col=label,
             states=[True],
             random_state=setup.random_state,
+            min_objects_per_fov=novelty.min_novel_observations,
+            reference=setup.control,
             **common,
         )
     return results
 
 
 def rare_clustering(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> FOVClustering:
-    """R4 for the declared rare phenotype: are its labelled objects clustered in few fields?"""
+    """R4 for the declared rare phenotype: are its labelled objects clustered in few fields?
+
+    The fields to see it are planned for the declared target: seen in at least
+    ``rare.min_fov_occurrences`` fields with ``rare.detection_probability``.
+    """
     assert setup.rare is not None and setup.rare_label is not None
     return fov_clustering(
         objects,
@@ -320,6 +330,7 @@ def rare_clustering(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> 
         states=[True],
         detection_probability=setup.rare.detection_probability,
         random_state=setup.random_state,
+        min_fov_occurrences=setup.rare.min_fov_occurrences,
         **setup.common,
     )
 

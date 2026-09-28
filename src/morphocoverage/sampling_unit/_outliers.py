@@ -106,6 +106,7 @@ def score(
     k: int,
     quantile: float,
     rng: np.random.Generator,
+    names: Sequence[str] | None = None,
 ) -> tuple[np.ndarray, float, dict[str, Any], str] | str:
     """Scores of ``tested``, the threshold, the fitted state and how it was calibrated.
 
@@ -113,9 +114,11 @@ def score(
     against the other reference groups, the tested objects being scored
     against all reference groups but one (``_leave_one_group_out``); with a
     single reference group, reference objects are scored against the other
-    fields of that group and tested objects against all of it.
+    fields of that group and tested objects against all of it. ``names`` are
+    the feature columns, so a reason (a constant feature) names them.
     """
-    fitted = Standardize().fit_matrix(reference, tuple(str(i) for i in range(reference.shape[1])))
+    columns = tuple(names) if names is not None else tuple(map(str, range(reference.shape[1])))
+    fitted = Standardize().fit_matrix(reference, columns)
     if isinstance(fitted, str):
         return fitted
     state, _ = fitted

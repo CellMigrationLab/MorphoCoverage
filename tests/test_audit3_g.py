@@ -110,7 +110,10 @@ def test_g1_false_alarms_are_measured_within_the_inspections_groups(synthetic):
     assert (int(reference["judged_new"]), int(reference["candidates"])) == (flagged, 90)
     assert flagged > 0
     positive = controls.pooled.set_index("candidate").loc["positive_lofo"]
-    assert int(positive["candidates"]) == 90 * 5  # every drug field against each control well
+    # Every drug field holding cells against each control well; since audit 4 (P1-2) the
+    # 15 empty drug fields are counted apart, never judged as misses.
+    assert int(positive["candidates"]) == 75 * 5
+    assert controls.settings["positive_empty"] == 15
     # Measured over each whole stratum, as before, on request.
     pooled = _syn_control(objects, fovs, lofo_group_cols=[])
     assert pooled.pooled.set_index("candidate").loc["reference_lofo", "judged_new"] < flagged
@@ -305,7 +308,8 @@ def test_g10_small_shares_are_not_written_as_zero_percent():
         group_cols=("g",),
     )
     text = _detection_adjusted_bounds(sufficiency, _pooled(positive_lofo=(19, 20)))
-    assert "up to 0.4% of FOVs (the 0.4% bound above divided by 95%)" in text
+    # Audit 4 (P3-9): divided by the one-sided lower bound of 19 of 20 (78%), not by 95%.
+    assert "up to 0.5% of FOVs (the 0.4% bound above divided by 78%)" in text
     compared = pd.DataFrame(
         {
             "samples": [40],
@@ -508,7 +512,7 @@ def test_i_note_empty_reference_fields_do_not_leave_checks_unjudged(synthetic):
     result = _syn_control(objects, fovs, pair_cols=[], fovs_seen=5, draws=4)
     pooled = result.pooled.set_index("candidate")
     assert (pooled["not_judged"] == 0).all()
-    assert int(pooled.loc["positive", "candidates"]) == 4 * 90
+    assert int(pooled.loc["positive", "candidates"]) == 4 * 75  # drug fields with cells (P1-2)
     assert "(after 5 reference fields with cells)" in result.summary()
 
 

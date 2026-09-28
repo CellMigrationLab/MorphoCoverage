@@ -33,12 +33,26 @@ rate after a whole group was acquired, which the report uses to adjust the
 unseen-state bound). Both are measured in every stratum that has the fields
 they need, also where the rates after ``fovs_seen`` fields cannot be.
 
+**Planted, leave one field out.** With ``planted_objects``, the same
+planting is also judged as the unseen-state bound judges a field: each
+reference field of an analysis group, with that many objects of a random
+positive field added, against the other reference fields of its group
+(``planted_lofo``). It is the detection rate of a small state in an
+ordinary field, and the report adjusts the unseen-state bound by it
+(``report_profile``): the whole-field rate describes whole-field phenotypes
+only (97% whole-field against 19% for 5 planted objects on one dataset).
+
 **Seen fields hold observations.** The ``fovs_seen`` reference fields of a
 draw are drawn among the reference fields holding observations: an empty
 field adds nothing to the reference, and with it among the seen fields the
 definition of new often could not be judged at all (with ``fovs_seen`` equal
 to the estimator's ``min_fovs``, any empty seen field left the whole draw
-unjudged). Empty fields remain candidates, and are never new.
+unjudged). Empty reference fields remain candidates, and are never new.
+**Positive fields are judged only when they hold observations**: an empty
+positive field cannot show the phenotype, and counting it as a miss made
+the detection rate the share of positive fields with observations (67% at
+30% empty fields, although every field with cells was recognized). Their
+number is reported apart (``settings["positive_empty"]``).
 
 "New" is the ``SupportNoveltyEstimator`` definition the report uses
 (``novel_fovs_against``, transform fitted on the seen FOVs only). Reference and
@@ -70,7 +84,14 @@ from ..sufficiency_text import novelty_definition
 from ._text import unit_plural, where
 from .controls_text import control_summary
 
-CANDIDATES = ("reference", "positive", "planted", "reference_lofo", "positive_lofo")
+CANDIDATES = (
+    "reference",
+    "positive",
+    "planted",
+    "reference_lofo",
+    "positive_lofo",
+    "planted_lofo",
+)
 
 
 def _selector(value: Mapping[str, Any] | None, label: str) -> dict[str, tuple] | None:
@@ -145,13 +166,16 @@ class ControlResult:
     ``table`` has one row per stratum (``pair_cols`` values) and candidate
     (``reference``: false alarms; ``positive``: whole positive FOVs;
     ``planted``: reference FOVs with planted positive objects;
-    ``reference_lofo`` and ``positive_lofo``: judged leave one field out, see
-    the module), with ``judged_new``, ``candidates`` and ``rate``; ``pooled``
+    ``reference_lofo``, ``positive_lofo`` and ``planted_lofo``: judged leave
+    one field out, see the module), with ``judged_new``, ``candidates`` and
+    ``rate``; ``pooled``
     the same over strata. ``status`` is ``"assessed"``, ``"positive only"``
     or ``"not assessed"`` (from the ``positive`` and ``reference`` rows).
     ``settings["planted_skipped"]`` lists the strata where no objects could
-    be planted, with the reason; ``settings["lofo_group_cols"]`` the analysis
-    groups the leave-one-field-out rates were measured within, and
+    be planted, with the reason; ``settings["positive_empty"]`` counts the
+    positive fields without observations, which are not judged;
+    ``settings["lofo_group_cols"]`` the analysis groups the
+    leave-one-field-out rates were measured within, and
     ``settings["novelty_definition"]`` the definition of new in words, so a
     report combines the rates only with answers judged the same way.
     """
@@ -252,6 +276,26 @@ def _leave_one_out(
                 counts["positive_lofo"][0] += int(np.sum(flags))
                 counts["positive_lofo"][1] += len(flags)
     return {kind: (new, total, unjudged) for kind, (new, total, unjudged) in counts.items()}
+
+
+def _planted_leave_one_out(
+    novelty: SupportNoveltyEstimator,
+    subsets: FovSubsets,
+    groups: list[np.ndarray],
+    donors: list[pd.DataFrame],
+    size: int,
+    rng: np.random.Generator,
+) -> list[tuple]:
+    """The ``planted_lofo`` checks: each reference field of a group, with ``size`` objects
+    of a random positive field planted, against the other reference fields of its group."""
+    jobs = []
+    for rows in groups:
+        for host in rows:
+            planted = _planted(subsets, np.array([host]), donors, size, rng)
+            if planted is not None:
+                seen = subsets.take(rows[rows != host])
+                jobs.append((novelty, seen, {"planted_lofo": planted}))
+    return jobs
 
 
 def _planting_skipped(donors: list[pd.DataFrame], size: int) -> str | None:
@@ -396,6 +440,7 @@ def representation_control(
     subsets = FovSubsets(data)
     observed = np.bincount(subsets.positions[subsets.positions >= 0], minlength=len(data.fovs)) > 0
     rows, skipped, planted_skipped = [], [], []
+    positive_empty = 0
     # Every random choice is made here, in stratum and draw order; only the
     # novelty checks, which use none, go to worker processes. One stratum's
     # draws at a time keeps memory to one stratum.
@@ -407,23 +452,38 @@ def representation_control(
             for column, value in stratum.items():
                 inside &= data.fovs[column].eq(value)
             base = np.flatnonzero((inside & base_mask).to_numpy())
-            positive = np.flatnonzero((inside & positive_mask).to_numpy())
+            declared = np.flatnonzero((inside & positive_mask).to_numpy())
+            # An empty positive field cannot show the phenotype: it is counted apart,
+            # never as a miss (P1-2).
+            positive = declared[observed[declared]]
+            positive_empty += len(declared) - len(positive)
             label = where(stratum) if stratum else "all FOVs"
             counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
             # Judged as inspect_fovs judges a field, within its analysis group; measured
             # wherever the fields exist, also in a stratum the draws below cannot use.
+            reference_groups = _groups_of(data.fovs, base, lofo_cols)
             lofo = _leave_one_out(
-                novelty,
-                subsets,
-                _groups_of(data.fovs, base, lofo_cols),
-                positive,
-                control.reference is not None,
+                novelty, subsets, reference_groups, positive, control.reference is not None
             )
+            planted_lofo = []
+            if control.planted_objects is not None and len(positive):
+                donors = [data.objects.loc[subsets.positions == row] for row in positive]
+                if _planting_skipped(donors, control.planted_objects) is None:
+                    # Its own generator, so the draws below keep their random choices.
+                    jobs = _planted_leave_one_out(
+                        novelty,
+                        subsets,
+                        reference_groups,
+                        donors,
+                        control.planted_objects,
+                        group_rng(random_state, stratum, 1),
+                    )
+                    planted_lofo = map_units(_judge, jobs, n_jobs, pool)
             # The seen fields hold observations: an empty field adds nothing to the reference.
             seeing = base[observed[base]]
             if len(positive) == 0 or len(seeing) <= fovs_seen:
                 reason = (
-                    "no positive-control FOV"
+                    "no positive-control FOV with observations"
                     if len(positive) == 0
                     else f"{len(seeing)} reference FOVs with {_observations(data)}, not more "
                     f"than the {fovs_seen} seen"
@@ -438,7 +498,7 @@ def representation_control(
                     # Said, not silently absent: the planted rate was declared.
                     planted_skipped.append({**stratum, "stratum": label, "reason": gap})
                 judged = map_units(_judge, jobs, n_jobs, pool)
-            for draw in [*judged, lofo]:
+            for draw in [*judged, lofo, *planted_lofo]:
                 for kind, (new, total, not_judged) in draw.items():
                     counts[kind][0] += new
                     counts[kind][1] += total
@@ -464,6 +524,7 @@ def representation_control(
         "lofo_group_cols": lofo_cols,
         "skipped_strata": skipped,
         "planted_skipped": planted_skipped,
+        "positive_empty": positive_empty,
         "reason": "unusable" if skipped else None,
         "observation_unit": data.observation_unit,
     }

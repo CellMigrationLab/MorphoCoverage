@@ -99,6 +99,9 @@ Choices and limits:
   extreme FOV widen the standardization that judges it: three FOVs near 0
   and one at 100 put it about 2 SD away instead of about 1,000. The
   diagnostics record the fit on all visible FOVs and the number of folds.
+  A mean-and-SD fit is still widened by extreme objects in other FOVs (20
+  debris objects at +60 SD in two FOVs hid a 15-object state at +6 SD in
+  every run); ``transforms.RobustStandardize`` (median and MAD) is not.
 - It only sees states that have appeared: a phenotype absent from every
   visible FOV contributes nothing.
 - Every held-out FOV needs ``min_other_fovs`` other FOVs with observations to
@@ -434,12 +437,17 @@ class SupportNoveltyEstimator(Estimator):
 class SupportNoveltyStrategy(SamplingStrategy):
     """Stop when a leave-one-FOV-out novel fraction is at most ``tolerance``.
 
-    ``SupportNoveltyEstimator`` plus ``ThresholdPolicy`` on ``quantity``: the
-    object-weighted fraction of novel observations (default), the FOV-weighted
-    mean fraction, the fraction of FOVs showing a new state or its upper
-    bound. The
+    ``SupportNoveltyEstimator`` plus ``ThresholdPolicy`` on ``quantity``: by
+    default the upper bound on the chance that one more FOV shows a new state
+    (``lofo_novel_fov_upper``, as ``Setup.novelty_rule`` uses), or the
+    fraction of FOVs showing one, the FOV-weighted mean fraction or the
+    object-weighted fraction of novel observations (``lofo_novel_fraction``,
+    the default until audit 4: two dense homogeneous FOVs make it look
+    settled while sparse FOVs each show a state of their own). The
     resolution, support and minimum FOVs have no defaults. A tolerance of 0 is
     refused for the upper bound, which is positive for any number of FOVs.
+    The bound holds at a number of FOVs fixed in advance: stopping at the
+    first FOV where it passes is premature more often than its level says.
     """
 
     epsilon: float
@@ -448,7 +456,7 @@ class SupportNoveltyStrategy(SamplingStrategy):
     transform: FeatureTransform | None
     min_fovs: int
     min_novel_observations: int = 1
-    quantity: str = QUANTITY
+    quantity: str = UPPER_QUANTITY
     confidence: float = 0.95
     name: str = "support_novelty"
 
