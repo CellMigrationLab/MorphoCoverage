@@ -6,18 +6,28 @@ per source keeps each rule readable.
 
 Rates that compare with ``inspect_fovs`` or with the unseen-state bound of the
 sufficiency report are the control's leave-one-field-out rates
-(``reference_lofo``, ``positive_lofo``): those analyses judge each field
-against every other field, and a rate measured after only ``fovs_seen``
-reference fields can be many times larger (41% against 0% on one plate).
+(``reference_lofo``, ``positive_lofo``), measured within the same analysis
+groups: those analyses judge each field against the other fields of its
+group, and a rate measured after only ``fovs_seen`` reference fields can be
+many times larger (41% against 0% on one plate). A rate is combined with
+another analysis only when both used the same definition of new, on the
+same features, within the same analysis groups; otherwise the report says
+why it was not.
+
+Shared-private: ``_control_rate``, ``_detection_adjusted_bounds`` and
+``_false_alarm_rate`` (used by ``report``).
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 
+from .._wording import number, percent
+from ..bounds import upper_bound
 from ..sufficiency import SufficiencyReport
 from ._text import unit_plural
 from .controls import ControlResult
@@ -25,14 +35,16 @@ from .effort import EffortResult, design_effect
 from .effort_text import level_words, share_caveat, unit_word
 from .inspection import InspectionResult
 
-if TYPE_CHECKING:  # sampling_unit is imported late by the report
+if TYPE_CHECKING:  # the report takes these as results; only their types are needed here
     from ..sampling_unit import FOVClustering, FOVVariability
 
 PROFILE_COLUMNS = ["item", "where", "value", "statement", "source"]
+# Confidence of the upper bound printed with the false-alarm rate.
+_CONFIDENCE = 0.95
 
 
-def _lofo_rate(controls: ControlResult | None, kind: str) -> float | None:
-    """A leave-one-field-out rate of the declared control, when it was measured."""
+def _control_rate(controls: ControlResult | None, kind: str) -> float | None:
+    """A pooled rate of the declared control (``positive``, ``reference_lofo``...), if measured."""
     if controls is None or controls.status == "not assessed":
         return None
     rates = controls.pooled.set_index("candidate")["rate"]
@@ -43,7 +55,35 @@ def _lofo_rate(controls: ControlResult | None, kind: str) -> float | None:
 
 def _false_alarm_rate(controls: ControlResult | None) -> float | None:
     """The declared reference's false-alarm rate, judged as ``inspect_fovs`` judges a field."""
-    return _lofo_rate(controls, "reference_lofo")
+    return _control_rate(controls, "reference_lofo")
+
+
+def _mismatch(
+    controls: ControlResult, definition: str | None, groups: Sequence[str] | None
+) -> str | None:
+    """Why the control's rates do not describe another analysis's judgements, or None.
+
+    The rates hold for one definition of new, on its features, judged within
+    the control's analysis groups; a result that records another definition
+    or other groups is not compared with them. What a result does not record
+    is not checked.
+    """
+    settings = getattr(controls, "settings", {}) or {}
+    own = settings.get("novelty_definition")
+    if own is not None and definition is not None and own != definition:
+        return "the control used another definition of new, or other features"
+    lofo = settings.get("lofo_group_cols")
+    if lofo is not None and groups is not None and list(lofo) != list(groups):
+        return (
+            f"the control's rates were measured within {_groups(lofo)}, this answer within "
+            f"{_groups(groups)}"
+        )
+    return None
+
+
+def _groups(columns: Sequence[str]) -> str:
+    """``the groups condition, repeat``, or ``whole strata`` when there are none."""
+    return f"the groups {', '.join(columns)}" if len(columns) else "whole strata"
 
 
 def _detection_adjusted_bounds(
@@ -56,29 +96,39 @@ def _detection_adjusted_bounds(
     positive control, in a share ``d`` of the fields that show it, is seen
     with probability ``d * f`` per FOV when present in a share ``f``, so the
     same run of FOVs with nothing new bounds ``f`` at ``bound / d`` (at most 1),
-    assuming detection is independent between fields. ``d`` is the rate
-    against every reference field (``positive_lofo``), as the bound is about
-    fields judged against a whole acquisition; it needs a positive control
-    only, so it is given under "positive only" too.
+    assuming detection is independent between fields. ``d`` is the rate of
+    positive fields judged against the reference fields of an analysis group
+    (``positive_lofo``), as the bound is about fields judged against the other
+    fields of their group; it needs a positive control only, so it is given
+    under "positive only" too. It is not given when the sufficiency report
+    records another definition of new or other analysis groups.
     """
     if controls is None or controls.status == "not assessed" or sufficiency.next_fov.empty:
         return None
-    detection = _lofo_rate(controls, "positive_lofo")
+    different = _mismatch(
+        controls,
+        getattr(sufficiency, "novelty_definition", None),
+        getattr(sufficiency, "group_cols", None),
+    )
+    if different is not None:
+        return f"The unseen-state bound is not adjusted for detection: {different}."
+    detection = _control_rate(controls, "positive_lofo")
     if detection is None:
         return (
             "The unseen-state bound is not adjusted for detection: the declared positive "
-            "control could not be judged against every reference field."
+            "control could not be judged against the reference fields of an analysis group."
         )
     if detection <= 0:
         return (
-            "The declared positive control was never recognized against every reference "
-            "field, so the unseen-state bound says nothing about a phenotype seen like it."
+            "The declared positive control was never recognized against the reference fields "
+            "of an analysis group, so the unseen-state bound says nothing about a phenotype "
+            "seen like it."
         )
     keys = list(sufficiency.group_cols)
     heading = (
-        f"Adjusted for the declared control's detection rate ({100 * detection:.0f}% of its "
-        "fields recognized against every reference field): a phenotype seen as well as the "
-        "control, and shown by no FOV yet, could still be in"
+        f"Adjusted for the declared control's detection rate ({percent(detection)} of its "
+        "fields recognized against the reference fields of an analysis group): a phenotype "
+        "seen as well as the control, and shown by no FOV yet, could still be in"
     )
     lines = [heading]
     for row in sufficiency.next_fov.itertuples(index=False):
@@ -88,8 +138,8 @@ def _detection_adjusted_bounds(
         adjusted = min(1.0, float(bound) / detection)
         label = ", ".join(f"{k}={getattr(row, k)}" for k in keys) or "all FOVs (pooled)"
         lines.append(
-            f"  {label}: up to {100 * adjusted:.0f}% of FOVs (the {100 * float(bound):.0f}% "
-            f"bound above divided by {100 * detection:.0f}%), if detection is independent "
+            f"  {label}: up to {percent(adjusted)} of FOVs (the {percent(float(bound))} "
+            f"bound above divided by {percent(detection)}), if detection is independent "
             "between fields."
         )
     return "\n".join(lines) if len(lines) > 1 else None
@@ -105,12 +155,18 @@ def _variability_rows(variability: FOVVariability | None, observations: str) -> 
     effect = ok["design_effect"]
     shares = pd.to_numeric(ok["unusual_fov_share"], errors="coerce").dropna()
     unusual = (
-        f"; {100 * shares.median():.0f}% of fields differ more than random "
+        f"; {percent(shares.median())} of fields differ more than random "
         f"{observations} would (5% expected)"
         if len(shares)
         else ""
     )
     where = f"median of {len(ok)} groups" if len(ok) > 1 else "1 group"
+    # The level named, since the effort projection's design effect is another estimand.
+    level = (
+        f"between the fields of each group ({', '.join(variability.group_cols)})"
+        if variability.group_cols
+        else "between all fields, pooled"
+    )
     return [
         {
             "item": "fields against random objects",
@@ -118,8 +174,8 @@ def _variability_rows(variability: FOVVariability | None, observations: str) -> 
             "value": float(effect.median()),
             "statement": (
                 f"a mean from whole fields varies {effect.median():.1f} times as much as "
-                f"one from as many random {observations} (design effect, range "
-                f"{effect.min():.1f}-{effect.max():.1f}){unusual}"
+                f"one from as many random {observations} (design effect of the variance "
+                f"{level}, range {effect.min():.1f}-{effect.max():.1f}){unusual}"
             ),
             "source": "fov_variability",
         }
@@ -159,23 +215,52 @@ def _clustering_rows(clustering: FOVClustering | None, observations: str) -> lis
 
 
 def _representation_rows(controls: ControlResult | None, observations: str) -> list[dict]:
-    """How well the declared control is seen, and the reference's false alarms."""
+    """How well the declared control is seen, and the reference's false alarms, by method."""
     if controls is None or controls.status == "not assessed":
         return []
-    rates = controls.pooled.set_index("candidate")["rate"]
+    settings = getattr(controls, "settings", {}) or {}
+    seen = settings.get("fovs_seen")
+    after = f" after {seen} reference fields" if seen is not None else ""
+    groups = settings.get("lofo_group_cols")
+    within = f" ({', '.join(groups)})" if groups else ""
     rows = []
-    for kind, words in (
-        ("positive", "declared positive-control fields recognized as different"),
-        ("planted", f"fields with planted positive-control {observations} recognized"),
-        ("reference", "reference fields called different (false alarms)"),
+    for kind, item, words in (
+        (
+            "positive",
+            "representation",
+            f"declared positive-control fields recognized as different{after}",
+        ),
+        (
+            "planted",
+            "representation",
+            f"fields with planted positive-control {observations} recognized{after}",
+        ),
+        ("reference", "representation", f"reference fields called different{after} (false alarms)"),
+        (
+            "reference_lofo",
+            "representation, as inspect_fovs judges",
+            (
+                "reference fields called different against the other reference fields of "
+                f"their analysis group{within} (the false-alarm rate of inspect_fovs)"
+            ),
+        ),
+        (
+            "positive_lofo",
+            "representation, as inspect_fovs judges",
+            (
+                "checks of a positive-control field against the reference fields of an "
+                f"analysis group{within} recognized as different"
+            ),
+        ),
     ):
-        if kind in rates.index and pd.notna(rates[kind]):
+        rate = _control_rate(controls, kind)
+        if rate is not None:
             rows.append(
                 {
-                    "item": "representation",
+                    "item": item,
                     "where": "pooled",
-                    "value": float(rates[kind]),
-                    "statement": f"{100 * rates[kind]:.0f}% of {words}",
+                    "value": rate,
+                    "statement": f"{percent(rate)} of {words}",
                     "source": "representation_control",
                 }
             )
@@ -195,6 +280,7 @@ def _effort_rows(
         effect = design_effect(effort, stratum)
         # fov_variability, when given, states the design effect per group already
         if effect is not None and variability is None:
+            level = words.get(hierarchy.get("fov"), "between fields")
             rows.append(
                 {
                     "item": "field-to-field heterogeneity",
@@ -202,7 +288,8 @@ def _effort_rows(
                     "value": effect,
                     "statement": (
                         f"a mean from whole fields varies {effect:.1f} times as much as one "
-                        f"from the same number of random {observations} (design effect)"
+                        f"from the same number of random {observations} (design effect of the "
+                        f"variance {level})"
                     ),
                     "source": "effort_projection",
                 }
@@ -219,7 +306,7 @@ def _effort_rows(
                     "where": stratum,
                     "value": float(first["share"]),
                     "statement": (
-                        f"{100 * first['share']:.0f}% of the variance of the mean is "
+                        f"{percent(first['share'])} of the variance of the mean is "
                         f"{words.get(first['level'], first['level'])}{caveat}"
                     ),
                     "source": "effort_projection",
@@ -228,8 +315,25 @@ def _effort_rows(
     return rows
 
 
+def _pairs(found: pd.DataFrame) -> str:
+    """``, 12 to 40 pairs of fields closer than that per group``, when the pairs were counted."""
+    if "pairs_closer" not in found.columns:
+        return ""
+    pairs = pd.to_numeric(found["pairs_closer"], errors="coerce").dropna()
+    if not len(pairs):
+        return ""
+    low, high = int(pairs.min()), int(pairs.max())
+    span = f"{low}" if low == high else f"{low} to {high}"
+    return f", from {span} pairs of fields closer than that per group"
+
+
 def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
-    """The distance over which neighbouring fields are alike, when it was measured."""
+    """The distance over which neighbouring fields are alike, when it was measured.
+
+    Each group's distance is a point estimate from the semivariogram, with no
+    test against chance (independent fields can dip below the variance at a
+    short lag), so the statement says so and gives the pairs behind it.
+    """
     if redundancy is None or not len(redundancy):
         return []
     measured = redundancy.dropna(subset=["smallest_lag"])
@@ -242,8 +346,9 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     if len(alike):
         parts.append(
             f"in {len(alike)} of {len(redundancy)} groups, fields closer than about "
-            f"{np.median(alike['redundancy_distance']):.0f} {unit} (median) are more "
-            "alike than random pairs"
+            f"{np.median(alike['redundancy_distance']):.0f} {unit} (the median of point "
+            f"estimates, not tested against chance{_pairs(alike)}) are more alike than "
+            "random pairs"
         )
     if len(always):
         largest = float(always["largest_lag"].max()) if "largest_lag" in always else None
@@ -272,6 +377,44 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     ]
 
 
+def _chance_clause(controls: ControlResult | None, inspection: InspectionResult) -> str:
+    """How many new-state fields the declared reference's false alarms expect, or why not.
+
+    The rate is judged the same way (each field against the other fields of
+    its analysis group) and only for the fields of the groups where new states
+    were looked for. It is the count of reference fields called new over those
+    judged, so the expected count is given from the point estimate to the
+    one-sided upper bound of the rate.
+    """
+    rate = _false_alarm_rate(controls)
+    if rate is None:
+        return ""
+    settings: dict[str, Any] = inspection.settings
+    judged = settings.get("n_fovs_judged", settings.get("n_fovs"))
+    if not judged:
+        return ""
+    different = _mismatch(
+        controls, settings.get("novelty_definition"), getattr(inspection, "group_cols", None)
+    )
+    if different is not None:
+        return f" (not compared with the declared reference's false alarms: {different})"
+    row = controls.pooled.set_index("candidate").loc["reference_lofo"]
+    if "judged_new" not in row.index or "candidates" not in row.index:
+        return (
+            f" (about {number(rate * judged)} of the {judged} fields judged expected by chance "
+            f"at the {percent(rate)} false-alarm rate of the declared reference, each field "
+            "judged against the other fields of its group)"
+        )
+    new, total = int(row["judged_new"]), int(row["candidates"])
+    high = upper_bound(new, total, _CONFIDENCE)
+    return (
+        f" ({number(rate * judged)} to {number(high * judged)} of the {judged} fields judged "
+        f"expected by chance: the declared reference's false-alarm rate, each field judged "
+        f"against the other fields of its group, was {new} of {total} fields "
+        f"({percent(rate)}; at most {percent(high)} at {percent(_CONFIDENCE)} confidence))"
+    )
+
+
 def _new_state_rows(
     inspection: InspectionResult | None, controls: ControlResult | None
 ) -> list[dict]:
@@ -283,18 +426,7 @@ def _new_state_rows(
         return []
     keys = [c for c in inspection.settings.get("fov_key", []) if c in new.columns]
     count = new[keys].drop_duplicates().shape[0]
-    statement = f"new states come from {count} fields"
-    false_alarms = _false_alarm_rate(controls)
-    n_fovs = inspection.settings.get("n_fovs")
-    if false_alarms is not None and n_fovs:
-        # The same definition, judged the same way (each field against every
-        # other), called that share of reference fields new.
-        expected = false_alarms * n_fovs
-        statement += (
-            f" (about {expected:.0f} of {n_fovs} expected by chance at the "
-            f"{100 * false_alarms:.0f}% false-alarm rate of the declared reference, each "
-            "field judged against every other)"
-        )
+    statement = f"new states come from {count} fields" + _chance_clause(controls, inspection)
     return [
         {
             "item": "new states",

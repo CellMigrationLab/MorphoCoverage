@@ -140,7 +140,7 @@ def test_f11_missing_values_never_make_a_field_weigh_less():
     )
     # Every field weighs one: the mean is 2 and leaving out b gives 1.5 (a 25% change).
     detail = result.fovs.set_index("image_file")["detail"]
-    assert detail["b"] == "removing it lowers the mean of x by 25%"
+    assert detail["b"] == "removing it lowers the field-weighted mean of x by 25%"
 
 
 def test_f6_order_medians_are_over_the_same_runs():

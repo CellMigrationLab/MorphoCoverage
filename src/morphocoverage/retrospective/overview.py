@@ -18,6 +18,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._wording import count
 from ..data_check import validate_input_tables
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import fov_positions, unit_plural
@@ -63,11 +64,12 @@ class DatasetOverview:
         empty = f", {c['empty_fields']} of them without {words}" if c["empty_fields"] else ""
         lines = [
             (
-                f"{c['objects']} {words}{declared} in {c['fields']} acquired fields{empty}; "
+                f"{count(c['objects'], unit, words)}{declared} in "
+                f"{count(c['fields'], 'acquired field')}{empty}; "
                 f"a field is identified by {', '.join(self.settings['fov_key'])}."
             ),
             (
-                f"{c['features']} feature column{'s' if c['features'] != 1 else ''}: "
+                f"{count(c['features'], 'feature column')}: "
                 f"{_listed(self.features, max_features_listed)}."
             ),
         ]
@@ -81,9 +83,8 @@ class DatasetOverview:
                 else (f", {int(per.iloc[0])} per condition and repeat" if len(per) else "")
             )
             lines.append(
-                f"{c['technical_repeats']} technical repeat"
-                f"{'s' if c['technical_repeats'] != 1 else ''} ({technical_col}, a well or a "
-                f"dish within a repeat{spread})."
+                f"{count(c['technical_repeats'], 'technical repeat')} ({technical_col}, a well "
+                f"or a dish within a repeat{spread})."
             )
         if condition_col is None and repeat_col is None:
             lines.append(
@@ -94,7 +95,7 @@ class DatasetOverview:
             if condition_col is not None:
                 names = self.layout[condition_col].drop_duplicates().tolist()
                 parts.append(
-                    f"{c['conditions']} condition{'s' if c['conditions'] != 1 else ''} "
+                    f"{count(c['conditions'], 'condition')} "
                     f"({condition_col}: {_listed(names, MAX_VALUES_LISTED)})"
                 )
             else:
@@ -102,7 +103,7 @@ class DatasetOverview:
             if repeat_col is not None:
                 names = self.layout[repeat_col].drop_duplicates().tolist()
                 parts.append(
-                    f"{c['repeats']} repeat{'s' if c['repeats'] != 1 else ''} "
+                    f"{count(c['repeats'], 'repeat')} "
                     f"({repeat_col}: {_listed(names, MAX_VALUES_LISTED)})"
                 )
             else:

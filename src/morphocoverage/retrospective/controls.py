@@ -19,14 +19,26 @@ A declared control tests this on the dataset itself:
 
 **Leave one field out.** The rates above judge a field against ``fovs_seen``
 reference fields, as a stopping rule judges the next field. ``inspect_fovs``
-judges each field against every other field of its group, and the false-alarm
-rate depends strongly on how many fields were seen (41% after 3 fields, 0%
-after 29, on one plate). So the same definition is also measured that way,
-per stratum: each reference field against every other reference field
-(``reference_lofo``, the false-alarm rate of the inspection, which the report
-uses for its "expected by chance" clause) and each positive field against
-every reference field (``positive_lofo``, the detection rate after a whole
-acquisition, which the report uses to adjust the unseen-state bound).
+judges each field against every other field of its analysis group, and the
+false-alarm rate depends strongly on how many fields were seen (41% after 3
+fields, 0% after 29, on one plate). So the same definition is also measured
+that way, within the inspection's analysis groups (``lofo_group_cols``; by
+default the analysis groups of the data, as ``inspect_fovs`` resolves them)
+inside each stratum: each reference field against every other reference
+field of its group (``reference_lofo``, the false-alarm rate of the
+inspection, which the report uses for its "expected by chance" clause), and
+each positive field against the reference fields of each reference group
+(``positive_lofo``, one check per positive field and group: the detection
+rate after a whole group was acquired, which the report uses to adjust the
+unseen-state bound). Both are measured in every stratum that has the fields
+they need, also where the rates after ``fovs_seen`` fields cannot be.
+
+**Seen fields hold observations.** The ``fovs_seen`` reference fields of a
+draw are drawn among the reference fields holding observations: an empty
+field adds nothing to the reference, and with it among the seen fields the
+definition of new often could not be judged at all (with ``fovs_seen`` equal
+to the estimator's ``min_fovs``, any empty seen field left the whole draw
+unjudged). Empty fields remain candidates, and are never new.
 
 "New" is the ``SupportNoveltyEstimator`` definition the report uses
 (``novel_fovs_against``, transform fitted on the seen FOVs only). Reference and
@@ -46,12 +58,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._checks import is_integer
 from .._parallel import check_n_jobs, map_units, worker_pool
+from .._seeds import group_rng
 from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets, restrict_input
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..schema import ValidatedInput, fov_positions
 from ..strategies.support_novelty import SupportNoveltyEstimator
-from ._text import group_identity, percent, unit_plural, where
+from ..sufficiency_text import novelty_definition
+from ._text import percent, unit_plural, where
 
 CANDIDATES = ("reference", "positive", "planted", "reference_lofo", "positive_lofo")
 
@@ -132,7 +148,10 @@ class ControlResult:
     the same over strata. ``status`` is ``"assessed"``, ``"positive only"``
     or ``"not assessed"`` (from the ``positive`` and ``reference`` rows).
     ``settings["planted_skipped"]`` lists the strata where no objects could
-    be planted, with the reason.
+    be planted, with the reason; ``settings["lofo_group_cols"]`` the analysis
+    groups the leave-one-field-out rates were measured within, and
+    ``settings["novelty_definition"]`` the definition of new in words, so a
+    report combines the rates only with answers judged the same way.
     """
 
     table: pd.DataFrame
@@ -198,31 +217,39 @@ def _judge(
 
 def _leave_one_out(
     novelty: SupportNoveltyEstimator,
-    reference: ValidatedInput,
-    positive: ValidatedInput,
+    subsets: FovSubsets,
+    groups: list[np.ndarray],
+    positive: np.ndarray,
     with_reference: bool,
 ) -> dict[str, tuple[int, int, int]]:
-    """Per kind: fields judged new, judged, not judged, each against every other reference field.
+    """Per kind: fields judged new, judged, not judged, within each reference group of ``groups``.
 
-    Reference fields are judged leave one field out, as ``inspect_fovs`` judges
-    a field (a field with a new state is new; empty fields count, as there);
-    positive fields against every reference field.
+    ``groups`` are the reference fields (FOV rows) of each analysis group of
+    the stratum. Reference fields are judged leave one field out within their
+    group, as ``inspect_fovs`` judges a field (a field with a new state is
+    new; empty fields count, as there); each positive field against the
+    reference fields of each group, one check per field and group.
     """
-    counts = {}
-    if with_reference:
-        members = novelty.novel_observation_flags(reference, new_states_only=True)
-        if members is None:
-            counts["reference_lofo"] = (0, 0, len(reference.fovs))
-        else:
-            positions = fov_positions(reference, reference.fovs)
-            new = len(np.unique(positions[members]))
-            counts["reference_lofo"] = (new, len(reference.fovs), 0)
-    flags = novelty.novel_fovs_against(reference, positive)
-    if flags is None:
-        counts["positive_lofo"] = (0, 0, len(positive.fovs))
-    else:
-        counts["positive_lofo"] = (int(np.sum(flags)), len(flags), 0)
-    return counts
+    counts = {kind: [0, 0, 0] for kind in ("reference_lofo", "positive_lofo")}
+    positive_input = subsets.take(positive) if len(positive) else None
+    for rows in groups:
+        reference = subsets.take(rows)
+        if with_reference:
+            members = novelty.novel_observation_flags(reference, new_states_only=True)
+            if members is None:
+                counts["reference_lofo"][2] += len(rows)
+            else:
+                positions = fov_positions(reference, reference.fovs)
+                counts["reference_lofo"][0] += len(np.unique(positions[members]))
+                counts["reference_lofo"][1] += len(rows)
+        if positive_input is not None:
+            flags = novelty.novel_fovs_against(reference, positive_input)
+            if flags is None:
+                counts["positive_lofo"][2] += len(positive)
+            else:
+                counts["positive_lofo"][0] += int(np.sum(flags))
+                counts["positive_lofo"][1] += len(flags)
+    return {kind: (new, total, unjudged) for kind, (new, total, unjudged) in counts.items()}
 
 
 def _planting_skipped(donors: list[pd.DataFrame], size: int) -> str | None:
@@ -231,6 +258,54 @@ def _planting_skipped(donors: list[pd.DataFrame], size: int) -> str | None:
     if largest >= size:
         return None
     return f"no positive-control field holds {size} objects to plant (the largest holds {largest})"
+
+
+def _lofo_columns(data: ValidatedInput, lofo_group_cols: Sequence[str] | None) -> list[str]:
+    """The analysis-group columns the leave-one-field-out rates are measured within.
+
+    By default the analysis groups ``inspect_fovs`` resolves for these tables:
+    the MorphoBricks group columns that identify a FOV here.
+    """
+    if lofo_group_cols is None:
+        return [c for c in MORPHOBRICKS_GROUP_COLUMNS if c in data.fov_key and c != data.fov_col]
+    if isinstance(lofo_group_cols, str):
+        raise TypeError("lofo_group_cols must be a sequence of column names")
+    columns = list(lofo_group_cols)
+    missing = [c for c in columns if c not in data.fovs.columns]
+    if missing:
+        raise ValueError(f"lofo_group_cols missing from the FOV table: {missing}")
+    return columns
+
+
+def _groups_of(fovs: pd.DataFrame, rows: np.ndarray, columns: list[str]) -> list[np.ndarray]:
+    """The FOV rows ``rows`` split by the values of ``columns`` (one part without columns)."""
+    if not len(rows):
+        return []
+    if not columns:
+        return [rows]
+    parts = fovs.iloc[rows].groupby(columns, sort=False, dropna=False).indices
+    return [rows[np.asarray(index)] for index in parts.values()]
+
+
+def _stratum_rows(
+    stratum: Mapping[str, Any],
+    counts: Mapping[str, Sequence[int]],
+) -> list[dict]:
+    """One table row per candidate kind that was measured or could not be judged."""
+    label = where(stratum) if stratum else "all FOVs"
+    return [
+        {
+            **stratum,
+            "stratum": label,
+            "candidate": kind,
+            "judged_new": new,
+            "candidates": total,
+            "not_judged": not_judged,
+            "rate": new / total if total else None,
+        }
+        for kind, (new, total, not_judged) in counts.items()
+        if total or not_judged
+    ]
 
 
 def representation_control(
@@ -248,15 +323,22 @@ def representation_control(
     observation_unit: str | None = None,
     n_jobs: int = 1,
     identity_cols: Sequence[str] = (),
+    lofo_group_cols: Sequence[str] | None = None,
 ) -> ControlResult:
     """Detection and false-alarm rates of ``novelty`` for the declared controls.
 
-    ``fovs_seen`` is how many reference FOVs are "already imaged" in each draw,
-    ``draws`` how many random draws per stratum. See the module docstring.
+    ``fovs_seen`` is how many reference FOVs holding observations are
+    "already imaged" in each draw, ``draws`` how many random draws per
+    stratum. See the module docstring.
     ``identity_cols`` are columns that, with condition, repeat and ``fov_col``,
     identify one FOV (for example ``well`` when position names repeat in every
     well). They only name FOVs: controls are still compared across them, within
     ``pair_cols``.
+    ``lofo_group_cols`` are the analysis groups within which the
+    leave-one-field-out rates are measured: give the ``group_cols`` of the
+    ``inspect_fovs`` (and ``sufficiency_report``) whose answers they are read
+    with; ``None`` (the default) takes the analysis groups these tables
+    resolve to by default, and ``[]`` measures them over each whole stratum.
     ``n_jobs`` runs the novelty checks of the draws in that many worker
     processes (``-1``: every CPU); results are identical for every value
     (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
@@ -267,14 +349,16 @@ def representation_control(
     if not isinstance(control, RepresentationControl):
         raise TypeError("control must be a RepresentationControl")
     for value, label in ((fovs_seen, "fovs_seen"), (draws, "draws")):
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        if not is_integer(value) or value < 1:
             raise ValueError(f"{label} must be a positive integer")
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
+    if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
+    fovs_seen, draws, random_state = int(fovs_seen), int(draws), int(random_state)
     pair_cols = list(pair_cols)
     settings = {
         "control": control.parameters,
         "novelty": dict(novelty.parameters),
+        "novelty_definition": novelty_definition(novelty, list(feature_cols)),
         "pair_cols": pair_cols,
         "fovs_seen": fovs_seen,
         "draws": draws,
@@ -298,6 +382,7 @@ def representation_control(
     missing = [c for c in pair_cols if c not in data.fovs.columns]
     if missing:
         raise ValueError(f"pair_cols missing from the FOV table: {missing}")
+    lofo_cols = _lofo_columns(data, lofo_group_cols)
     positive_mask = _select(data.fovs, control.positive)
     if control.reference is not None:
         base_mask = _select(data.fovs, control.reference)
@@ -307,6 +392,7 @@ def representation_control(
         base_mask = ~positive_mask
     strata = data.fovs[pair_cols].drop_duplicates().to_dict("records") if pair_cols else [{}]
     subsets = FovSubsets(data)
+    observed = np.bincount(subsets.positions[subsets.positions >= 0], minlength=len(data.fovs)) > 0
     rows, skipped, planted_skipped = [], [], []
     # Every random choice is made here, in stratum and draw order; only the
     # novelty checks, which use none, go to worker processes. One stratum's
@@ -314,64 +400,48 @@ def representation_control(
     with worker_pool(n_jobs) as pool:
         for stratum in strata:
             # One generator per stratum, so adding a plate never changes another plate's rates.
-            rng = np.random.default_rng([random_state, group_identity(stratum)])
+            rng = group_rng(random_state, stratum)
             inside = pd.Series(True, index=data.fovs.index)
             for column, value in stratum.items():
                 inside &= data.fovs[column].eq(value)
             base = np.flatnonzero((inside & base_mask).to_numpy())
             positive = np.flatnonzero((inside & positive_mask).to_numpy())
             label = where(stratum) if stratum else "all FOVs"
-            if len(positive) == 0 or len(base) <= fovs_seen:
+            counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
+            # Judged as inspect_fovs judges a field, within its analysis group; measured
+            # wherever the fields exist, also in a stratum the draws below cannot use.
+            lofo = _leave_one_out(
+                novelty,
+                subsets,
+                _groups_of(data.fovs, base, lofo_cols),
+                positive,
+                control.reference is not None,
+            )
+            # The seen fields hold observations: an empty field adds nothing to the reference.
+            seeing = base[observed[base]]
+            if len(positive) == 0 or len(seeing) <= fovs_seen:
                 reason = (
                     "no positive-control FOV"
                     if len(positive) == 0
-                    else f"{len(base)} reference FOVs, not more than the {fovs_seen} seen"
+                    else f"{len(seeing)} reference FOVs with {_observations(data)}, not more "
+                    f"than the {fovs_seen} seen"
                 )
                 skipped.append({**stratum, "stratum": label, "reason": reason})
-                continue
-            positive_input = subsets.take(positive)
-            donors = [data.objects.loc[subsets.positions == row] for row in positive]
-            plant = control.planted_objects is not None
-            if plant:
-                why = _planting_skipped(donors, control.planted_objects)
-                if why is not None:
+                judged = []
+            else:
+                jobs, gap = _draws(
+                    novelty, subsets, data, control, seeing, base, positive, fovs_seen, draws, rng
+                )
+                if gap is not None:
                     # Said, not silently absent: the planted rate was declared.
-                    planted_skipped.append({**stratum, "stratum": label, "reason": why})
-                    plant = False
-            jobs = []
-            for _ in range(draws):
-                order = rng.permutation(len(base))
-                seen = subsets.take(base[order[:fovs_seen]])
-                rest = base[order[fovs_seen:]]
-                candidates = {"positive": positive_input}
-                if control.reference is not None:
-                    candidates["reference"] = subsets.take(rest)
-                if plant:
-                    planted = _planted(subsets, rest, donors, control.planted_objects, rng)
-                    if planted is not None:
-                        candidates["planted"] = planted
-                jobs.append((novelty, seen, candidates))
-            counts = {kind: [0, 0, 0] for kind in CANDIDATES}  # new, judged, not judged
-            lofo = (novelty, subsets.take(base), positive_input, control.reference is not None)
-            judged = map_units(_judge, jobs, n_jobs, pool)
-            for draw in [*judged, _leave_one_out(*lofo)]:
+                    planted_skipped.append({**stratum, "stratum": label, "reason": gap})
+                judged = map_units(_judge, jobs, n_jobs, pool)
+            for draw in [*judged, lofo]:
                 for kind, (new, total, not_judged) in draw.items():
                     counts[kind][0] += new
                     counts[kind][1] += total
                     counts[kind][2] += not_judged
-            for kind, (new, total, not_judged) in counts.items():
-                if total or not_judged:
-                    rows.append(
-                        {
-                            **stratum,
-                            "stratum": label,
-                            "candidate": kind,
-                            "judged_new": new,
-                            "candidates": total,
-                            "not_judged": not_judged,
-                            "rate": new / total if total else None,
-                        }
-                    )
+            rows += _stratum_rows(stratum, counts)
     table = pd.DataFrame(rows, columns=[*pair_cols, *columns])
     pooled = (
         table.groupby("candidate", sort=False)[["judged_new", "candidates", "not_judged"]]
@@ -389,12 +459,61 @@ def representation_control(
         status = "not assessed"
     settings = {
         **settings,
+        "lofo_group_cols": lofo_cols,
         "skipped_strata": skipped,
         "planted_skipped": planted_skipped,
         "reason": "unusable" if skipped else None,
         "observation_unit": data.observation_unit,
     }
     return ControlResult(table, pooled, status, tuple(pair_cols), settings)
+
+
+def _observations(data: ValidatedInput) -> str:
+    """``cells``, ``objects``: the plural of the observation unit."""
+    return unit_plural(data.observation_unit)
+
+
+def _draws(
+    novelty: SupportNoveltyEstimator,
+    subsets: FovSubsets,
+    data: ValidatedInput,
+    control: RepresentationControl,
+    seeing: np.ndarray,
+    base: np.ndarray,
+    positive: np.ndarray,
+    fovs_seen: int,
+    draws: int,
+    rng: np.random.Generator,
+) -> tuple[list[tuple], str | None]:
+    """The novelty checks of one stratum's draws, and why nothing was planted there (or None).
+
+    Each draw sees ``fovs_seen`` reference fields holding observations; the
+    other reference fields, empty ones included, are the reference candidates
+    and the hosts of planted objects.
+    """
+    positive_input = subsets.take(positive)
+    donors = [data.objects.loc[subsets.positions == row] for row in positive]
+    plant = control.planted_objects is not None
+    gap = None
+    if plant:
+        gap = _planting_skipped(donors, control.planted_objects)
+        plant = gap is None
+    jobs = []
+    for _ in range(draws):
+        order = rng.permutation(len(seeing))
+        seen_rows = seeing[order[:fovs_seen]]
+        seen = subsets.take(seen_rows)
+        # The unseen fields holding observations, in the draw's order, then the empty ones.
+        rest = np.concatenate([seeing[order[fovs_seen:]], base[~np.isin(base, seeing)]])
+        candidates = {"positive": positive_input}
+        if control.reference is not None:
+            candidates["reference"] = subsets.take(rest)
+        if plant:
+            planted = _planted(subsets, rest, donors, control.planted_objects, rng)
+            if planted is not None:
+                candidates["planted"] = planted
+        jobs.append((novelty, seen, candidates))
+    return jobs, gap
 
 
 def _unjudged(row: Any) -> str:
@@ -420,8 +539,8 @@ def _fields_rate(row: Any) -> str:
     return f"{percent(row['rate'])} of {total} fields"
 
 
-def _leave_one_out_line(rates: pd.DataFrame) -> str:
-    """The rates judged against every other reference field, or an empty string."""
+def _leave_one_out_line(rates: pd.DataFrame, groups: Sequence[str] | None) -> str:
+    """The rates judged within each analysis group, as inspect_fovs judges, or an empty string."""
     parts = []
     if "reference_lofo" in rates.index:
         parts.append(
@@ -429,12 +548,17 @@ def _leave_one_out_line(rates: pd.DataFrame) -> str:
             " (the false-alarm rate of inspect_fovs)"
         )
     if "positive_lofo" in rates.index:
-        parts.append(f"positive-control fields in {_fields_rate(rates.loc['positive_lofo'])}")
+        positive = rates.loc["positive_lofo"]
+        parts.append(
+            "positive-control fields, each judged against the reference fields of each group, "
+            f"in {_rate(positive['rate'], int(positive['candidates']))}"
+        )
     if not parts:
         return ""
+    within = f"each analysis group ({', '.join(groups)})" if groups else "each stratum"
     return (
-        "  Against every other reference field of their stratum (as inspect_fovs judges a "
-        f"field): {', '.join(parts)}."
+        f"  Against the other reference fields of {within}, as inspect_fovs judges a field: "
+        f"{'; '.join(parts)}."
     )
 
 
@@ -459,7 +583,8 @@ def control_summary(result: ControlResult) -> str:
         )
     rates = result.pooled.set_index("candidate")
     seen = result.settings["fovs_seen"]
-    lines = [f"Can these features see the declared phenotype? (after {seen} reference fields)"]
+    heading = f"(after {seen} reference fields with {cells})"
+    lines = [f"Can these features see the declared phenotype? {heading}"]
     positive = rates.loc["positive"]
     lines.append(
         f"  Fields of the declared positive control were recognized as different in "
@@ -489,7 +614,7 @@ def control_summary(result: ControlResult) -> str:
         lines.append("  False-alarm rate: not assessed (no reference field could be judged).")
     else:
         lines.append("  False-alarm rate: not assessed (no reference control was declared).")
-    lofo = _leave_one_out_line(rates)
+    lofo = _leave_one_out_line(rates, result.settings.get("lofo_group_cols"))
     if lofo:
         lines.append(lofo)
     if len(result.table["stratum"].unique()) > 1:
@@ -506,7 +631,9 @@ def control_summary(result: ControlResult) -> str:
         )
     if skipped:
         lines.append(
-            "  Not judged: " + "; ".join(f"{s['stratum']} ({s['reason']})" for s in skipped) + "."
+            f"  Not judged after {seen} reference fields: "
+            + "; ".join(f"{s['stratum']} ({s['reason']})" for s in skipped)
+            + "."
         )
     lines.append(
         "  This holds for this definition of new and these features, on these controls; "
