@@ -142,7 +142,7 @@ PLANE_FEATURE_ADVICE = (
     "every plane, channel and time point of a position belongs to one field, so its "
     "coordinate is metadata, never a phenotype. Leave it out of feature_cols; to compare "
     "a feature between planes, turn it into one feature per plane with "
-    "morphocoverage.planes_as_features (or Setup(per_plane=('z',)))"
+    "morphocoverage.planes_as_features, then declare the split names (area_z0, ...)"
 )
 
 

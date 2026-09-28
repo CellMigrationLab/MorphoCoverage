@@ -107,7 +107,7 @@ test names carry the finding ids). Added in `6a42b43` (merged in PR #48,
 from commit `2abde25`: nine read the package module by module as the second
 audit did, J read its structure (duplicated logic, private names used across
 modules, misplaced functions, the 600-line rule) and K read every document
-against the code. They reported about 160 numbered findings, four of them
+against the code. They reported about 200 findings, four of them
 high:
 
 - B-1, B-2: the live session read `z`/`c`/`t` only from the observations and
