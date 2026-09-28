@@ -308,18 +308,23 @@ def test_live_updates_end_with_one_view_per_target():
     tables = LiveTables(live_session(setup))
     updates = tables.update(objects, fovs)
     assert updates
-    text = updates[-1].summary()
+    text = " ".join(updates[-1].summary(detail="full").split())
     assert "Population summary:" in text
     assert "Phenotypic fingerprint: no rule decides it" in text
     assert (
         "Overall (phenotype objective): unsupported (no rule decides the phenotypic fingerprint)"
         in text
     )
+    # The short block says the same: not decided, and which target no rule decides.
+    short = " ".join(updates[-1].summary().split())
+    assert short.startswith("➖ field 4 ")
+    assert "not decided: no rule decides the phenotypic fingerprint" in short
+    assert "phenotypic fingerprint ➖ no rule decides it" in short
     assert all(r.decision.value == "unsupported" for r in updates[-1].results)
     assert all(r.rule_decision is not None for r in updates[-1].results)
     # Without a fingerprint the same rules decide the population objective.
     plain = LiveTables(live_session(_setup())).update(objects, fovs)
-    assert "Overall (population objective):" in plain[-1].summary()
+    assert "Overall (population objective):" in plain[-1].summary(detail="full")
 
 
 def test_live_folder_waits_for_an_unterminated_manifest_line(tmp_path):

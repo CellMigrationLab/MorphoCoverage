@@ -75,7 +75,6 @@ from typing import Any
 
 import pandas as pd
 
-from .._wording import count
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     drop_empty_optional_columns,
@@ -85,9 +84,10 @@ from ..metadata import (
 )
 from ..online import OnlineSession
 from ..order_check import OrderCheck
-from ..results import Decision, StrategyResult, decision_view
+from ..results import Decision, StrategyResult
 from ..strategies.base import SamplingStrategy
 from ._live_order import _CheckedSession, _order_check
+from ._live_text import live_summary
 from ._manifest import MANIFEST, OBJECTS_DIR, OBJECTS_FILE, ManifestReader, write_fov
 from .setup import Setup
 
@@ -133,27 +133,20 @@ class LiveUpdate:
     observation_unit: str = "object"
     order_check: OrderCheck | None = None
 
-    def summary(self) -> str:
-        """One line per rule (the decision and why), then one view per target.
+    def summary(self, detail: str = "short") -> str:
+        """The field's block of the live view: ``"short"`` (the default) or ``"full"``.
 
-        Beside every stop, what it rests on: the order check's caution, or the
-        assumption that the fields are a random sample of the well's positions.
+        Short: ``✅ field 8 · MOCK · 1A · B6 — stop: all 3 rules say enough``
+        (``⏳ continue: ...`` while a target is not yet met, with what it still
+        needs), the field's counts, one table of the rules (each one's verdict,
+        evidence and threshold), and at a stop what it rests on (the order
+        check's caution, or the assumption that the fields are a random sample
+        of the well's positions), each caveat once. Full: every rule's
+        ``StrategyResult.explain`` line and every entry of ``decision_view``,
+        one per line with its marker (``workflows._live_text``). A pure function
+        of the update.
         """
-        where = ", ".join(f"{k}={v}" for k, v in self.fov_metadata.items() if k != OBJECTS_FILE)
-        objects = count(self.n_objects, self.observation_unit)
-        head = f"{where}: {objects} (read in {1000 * self.read_seconds:.0f} ms)"
-        lines = [head, *(f"  {r.explain(self.order_check)}" for r in self.results)]
-        if self.results:
-            lines.append(f"  {decision_view(self.results, self.order_check)}")
-        if self.pending_objects:
-            unit = self.observation_unit
-            waiting = (
-                f"1 {unit} row waits for its FOV row"
-                if self.pending_objects == 1
-                else f"{self.pending_objects} {unit} rows wait for their FOV rows"
-            )
-            lines.append(f"  {waiting} (not yet counted in any field)")
-        return "\n".join(lines)
+        return live_summary(self, detail)
 
 
 def _value_kind(values: pd.Series) -> str:
@@ -164,9 +157,10 @@ def _value_kind(values: pd.Series) -> str:
     return "text" if kind == "string" else "other"
 
 
-def print_update(update: LiveUpdate) -> None:
-    """Print one update's summary (the default ``on_update`` of ``watch``)."""
-    print(update.summary(), flush=True)
+def print_update(update: LiveUpdate, detail: str = "short") -> None:
+    """Print one update's summary (the default ``on_update`` of ``watch``; ``detail`` as
+    ``LiveUpdate.summary``)."""
+    print(update.summary(detail), flush=True)
 
 
 class LiveFolder:

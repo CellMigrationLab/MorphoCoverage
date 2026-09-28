@@ -310,9 +310,18 @@ def _distinct(value: float, threshold: float) -> tuple[str, str]:
 
 def stop_caution(order_check: OrderCheck | None, *, rare: bool = False) -> str:
     """What a stop rests on: the caution of ``order_check``, or the assumption without one."""
-    if order_check is not None:
-        return order_check.caution(rare=rare)
-    return f"{RANDOM_SAMPLE_ASSUMPTION}; it {RARE_ASSUMPTION}" if rare else RANDOM_SAMPLE_ASSUMPTION
+    return "; ".join(stop_caution_parts(order_check, rare=rare))
+
+
+def stop_caution_parts(order_check: OrderCheck | None, *, rare: bool = False) -> list[str]:
+    """``stop_caution`` in its parts: what every stop rests on, then (``rare``) what a
+    rare-phenotype stop adds, so that a view printing both kinds of stop states each once."""
+    plain = RANDOM_SAMPLE_ASSUMPTION if order_check is None else order_check.caution()
+    if not rare:
+        return [plain]
+    if order_check is None:
+        return [plain, f"it {RARE_ASSUMPTION}"]
+    return [plain, order_check.caution(rare=True).removeprefix(f"{plain}; ")]
 
 
 def _averaging_cv_note(thresholds: Sequence[float]) -> str:
@@ -379,8 +388,27 @@ def decision_view(results: Sequence[StrategyResult], order_check: OrderCheck | N
     assumption that the fields are a random sample of the well's positions).
     The results must share one objective (one session, one acquisition
     state); the view answers "if the targets disagree, is that obvious?"
-    (``docs/questions.md`` O4).
+    (``docs/questions.md`` O4). The live view prints its entries one per line
+    (``_target_decisions``).
     """
+    return "; ".join(entry.text for entry in _target_decisions(results, order_check))
+
+
+@dataclass(frozen=True)
+class _TargetDecision:
+    """One entry of ``decision_view``: a target (``None`` for the overall), its decision
+    (``UNSUPPORTED`` when no rule decides a required target) and its text."""
+
+    component: Component | None
+    decision: Decision | None
+    text: str
+
+
+def _target_decisions(
+    results: Sequence[StrategyResult], order_check: OrderCheck | None = None
+) -> list[_TargetDecision]:
+    """The entries of ``decision_view``: each target the rules decide or the objective
+    requires, then the overall (shared-private: the live view reads them)."""
     results = list(results)
     if not results:
         raise ValueError("decision_view needs at least one result")
@@ -389,7 +417,7 @@ def decision_view(results: Sequence[StrategyResult], order_check: OrderCheck | N
         raise ValueError("decision_view needs results of one objective")
     objective = results[0].objective
     required = objective.required_components
-    parts, overall = [], []
+    entries, overall = [], []
     for component in Component:
         decided = [
             r.component_decisions[component.value]
@@ -398,22 +426,21 @@ def decision_view(results: Sequence[StrategyResult], order_check: OrderCheck | N
             is not Decision.UNSUPPORTED
         ]
         if decided:
-            parts.append(_component_entry(component, results, decided))
+            text = _component_entry(component, results, decided)
+            entries.append(_TargetDecision(component, combine_decisions(decided), text))
             if component in required:
                 overall.append(combine_decisions(decided))
         elif component in required:
-            parts.append(f"{COMPONENT_WORDS[component]}: no rule decides it")
+            text = f"{COMPONENT_WORDS[component]}: no rule decides it"
+            entries.append(_TargetDecision(component, Decision.UNSUPPORTED, text))
             overall.append(Decision.UNSUPPORTED)
     if Decision.UNSUPPORTED in overall:
         missing = [
-            COMPONENT_WORDS[c].lower()
-            for c in Component
-            if c in required
-            and not any(
-                r.component_decisions.get(c.value, Decision.UNSUPPORTED) is not Decision.UNSUPPORTED
-                for r in results
-            )
+            COMPONENT_WORDS[e.component].lower()
+            for e in entries
+            if e.decision is Decision.UNSUPPORTED and e.component is not None
         ]
+        combined: Decision | None = Decision.UNSUPPORTED
         final = f"unsupported (no rule decides the {', '.join(missing)})"
     else:
         combined = combine_decisions(overall)
@@ -423,7 +450,8 @@ def decision_view(results: Sequence[StrategyResult], order_check: OrderCheck | N
                 r.component_decisions.get(Component.RARE.value) is Decision.STOP for r in results
             )
             final += f"; {stop_caution(order_check, rare=rare)}"
-    return "; ".join([*parts, f"Overall ({objective.objective.value} objective): {final}"])
+    text = f"Overall ({objective.objective.value} objective): {final}"
+    return [*entries, _TargetDecision(None, combined, text)]
 
 
 __all__ = [
@@ -434,4 +462,5 @@ __all__ = [
     "combine_decisions",
     "decision_view",
     "stop_caution",
+    "stop_caution_parts",
 ]
