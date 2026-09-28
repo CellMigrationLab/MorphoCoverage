@@ -16,7 +16,7 @@ from functools import lru_cache
 import numpy as np
 from scipy import stats
 
-from ._checks import is_integer
+from ._checks import is_integer, is_number
 
 # Relative size below which a mean, a spread or a variance is rounding noise
 # of a zero one: a constant such as 0.1 leaves an SD of about 1e-17, not 0.
@@ -169,8 +169,7 @@ def _interval(
         return point, float("nan"), float("nan")
     tail = 100 * (1 - confidence) / 2
     low, high = np.percentile(defined, [tail, 100 - tail])
-    level = (1 + confidence) / 2
-    widen = math.sqrt(units / (units - 1)) * stats.t.ppf(level, units - 1) / stats.norm.ppf(level)
+    widen = small_sample_widening(units, confidence)
     return point, float(point - (point - low) * widen), float(point + (high - point) * widen)
 
 
@@ -478,6 +477,57 @@ def field_weighted_mean_se(field_means: np.ndarray) -> tuple[float, float, int]:
     return float(means.mean()), float(means.std(ddof=1)) / math.sqrt(k), k
 
 
+def small_sample_widening(units: int, confidence: float = 0.95) -> float:
+    """``sqrt(k / (k - 1)) * t_{k-1} / z``: the widening of a bootstrap over ``k`` units.
+
+    A bootstrap over ``k`` resampled units understates the variance by
+    ``(k - 1) / k`` and uses normal rather than t quantiles, so its percentile
+    half-widths (``_interval``) and its standard errors (the FOV bootstrap's
+    stopping SE) are multiplied by this factor at the two-sided ``confidence``
+    level (1.70 for 5 units, 1.20 for 10, 1.08 for 20 at 95%). Needs 2 units.
+    """
+    if not is_integer(units) or units < 2:
+        raise ValueError("the widening needs an integer number of units, at least 2")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
+    level = (1 + confidence) / 2
+    return float(
+        math.sqrt(units / (units - 1)) * stats.t.ppf(level, units - 1) / stats.norm.ppf(level)
+    )
+
+
+def kish_effective_fields(counts: np.ndarray) -> float:
+    """Kish's effective number of fields, ``(sum N_j) ** 2 / sum N_j ** 2``.
+
+    ``counts`` are the object counts ``N_j`` of the fields (empty fields add
+    nothing). Equal counts give the number of fields holding objects; one
+    crowded field among sparse ones gives about 1 (1000 and 5 objects: 1.01),
+    since the object-weighted mean is then that field's mean. It is the degrees
+    of freedom basis of the FOV-unit JCB bound (effective fields minus one);
+    0 when no field holds objects.
+    """
+    counts = np.asarray(counts, dtype=float)
+    squares = float(np.sum(counts**2))
+    # Rounded, so equal counts give their exact number of fields.
+    return round(float(np.sum(counts)) ** 2 / squares, 9) if squares > 0 else 0.0
+
+
+@lru_cache(maxsize=4096)
+def effective_sd_upper_bound_factor(df: float, confidence: float = 0.95) -> float:
+    """``sd_upper_bound_factor`` for a real number of degrees of freedom of at least 1.
+
+    The same chi-square bound, ``sqrt(df / chi2.ppf((1 - confidence) / 2, df))``,
+    for a degrees-of-freedom basis that need not be whole, such as Kish's
+    effective number of fields minus one (``kish_effective_fields``); at an
+    integer it equals ``sd_upper_bound_factor``.
+    """
+    if not (is_number(df) and df >= 1):
+        raise ValueError("df must be a number of at least 1")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
+    return math.sqrt(df / stats.chi2.ppf((1 - confidence) / 2, df))
+
+
 __all__ = [
     "PAPER_DESCRIPTORS",
     "RELATIVE_TOLERANCE",
@@ -488,6 +538,7 @@ __all__ = [
     "cohen_d",
     "describe",
     "design_effect",
+    "effective_sd_upper_bound_factor",
     "field_sample",
     "field_weighted_mean_se",
     "fields_holding",
@@ -495,10 +546,12 @@ __all__ = [
     "fovs_to_detect",
     "jcb_required_objects",
     "jcs_effect_size",
+    "kish_effective_fields",
     "mean_is_zero",
     "nested_variance_components",
     "object_weighted_mean_se",
     "sd_upper_bound_factor",
+    "small_sample_widening",
     "spread_is_zero",
     "srs_relative_rmse",
 ]

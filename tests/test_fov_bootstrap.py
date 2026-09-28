@@ -18,6 +18,7 @@ from morphocoverage import (
 from morphocoverage.evaluator import objects_in_fovs, restrict_input
 from morphocoverage.reservoir import spatial_blocks
 from morphocoverage.schema import fov_positions
+from morphocoverage.statistics import small_sample_widening
 from morphocoverage.strategies import FOVBootstrapEstimator, FOVBootstrapStrategy
 from morphocoverage.strategies.fov_bootstrap import (
     centroid_resamples,
@@ -91,6 +92,8 @@ def test_centroid_se_matches_the_ratio_estimator_with_equal_fovs():
         np.bincount(positions, weights=values, minlength=k), np.bincount(positions, minlength=k)
     )
     expected = analytic["cv_mean"] * analytic["mean"] * np.sqrt((k - 1) / k)
+    # The reported SE is the raw one widened for k FOVs (audit 4, P4-4).
+    expected *= small_sample_widening(k)
     assert _estimate(data, n=20000).value == pytest.approx(expected, rel=0.03)
 
 
@@ -370,32 +373,39 @@ def test_unequal_blocks_resample_as_clusters_and_report_their_sizes():
     # Documented behaviour (external audit): blocks are drawn with equal
     # probability, as clusters, so unequal occupancy enters the SE. 9 FOVs at 0
     # in one block and 1 FOV at 10 in another: resamples AA, AB, BA, BB give
-    # means 0, 1, 1, 10, an SE of sqrt(16.5) ~ 4.06, against about 0.95 for FOVs.
+    # means 0, 1, 1, 10, an SE of sqrt(16.5) ~ 4.06, against about 0.95 for FOVs (raw
+    # SEs; the reported ones are widened for 2 blocks and 10 FOVs, audit 4, P4-4).
     fovs = pd.DataFrame({"image_file": [f"f{i}" for i in range(10)], "block": ["A"] * 9 + ["B"]})
     objects = pd.DataFrame({"image_file": fovs["image_file"], "x": [0.0] * 9 + [10.0]})
     data = validate_input_tables(objects, fovs=fovs, feature_cols=["x"])
     blocks = FOVBootstrapEstimator("centroid", None, 20000, 0, 2, None, None, "block")
     evidence = blocks.estimate(data, objective=POPULATION)
-    assert evidence.value("fov_bootstrap_centroid_se") == pytest.approx(np.sqrt(16.5), rel=0.03)
+    assert evidence.value("fov_bootstrap_centroid_se") == pytest.approx(
+        np.sqrt(16.5) * small_sample_widening(2), rel=0.03
+    )
     assert evidence.diagnostics["block_sizes"] == {"min": 1, "max": 9}
+    assert evidence.diagnostics["resampling_units"] == 2
     fovs_only = FOVBootstrapEstimator("centroid", None, 20000, 0, 2)
     assert fovs_only.estimate(data, objective=POPULATION).value(
         "fov_bootstrap_centroid_se"
-    ) == pytest.approx(0.95, abs=0.03)
+    ) == pytest.approx(0.95 * small_sample_widening(10), abs=0.04)
 
 
 @pytest.mark.parametrize("n_stable", [1, 10, 100])
 def test_stable_features_do_not_make_the_strategy_stop_earlier(n_stable):
-    # External re-audit: the RMS over components falls as perfectly stable
+    # External re-audit: the RMS over components falls as nearly stable
     # features are added, although one feature keeps the same uncertainty.
     # The largest component SE, the default stopping quantity, does not.
+    # (Nearly, not exactly: a feature without spread so far is not yet enough data for
+    # the bootstrap, audit 4, P4-1.)
     objects = pd.DataFrame(
         {"image_file": [f"f{i}" for i in range(8)], "x": [-4, -3, -2, -1, 1, 2, 3, 4]}
     )
     one = validate_input_tables(objects, feature_cols=["x"])
     stable = [f"stable{j}" for j in range(n_stable)]
+    nearly = np.outer(objects["x"].to_numpy() * 1e-7, np.ones(n_stable))
     many = validate_input_tables(
-        pd.concat([objects, pd.DataFrame(0.0, index=objects.index, columns=stable)], axis=1),
+        pd.concat([objects, pd.DataFrame(nearly, index=objects.index, columns=stable)], axis=1),
         feature_cols=["x", *stable],
     )
     estimator = FOVBootstrapEstimator("centroid", None, 2000, 0, 2)

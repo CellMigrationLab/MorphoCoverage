@@ -28,7 +28,7 @@ from morphocoverage.strategies import (
     FixedAreaStrategy,
     FOVBootstrapEstimator,
     ScalarPrecisionEstimator,
-    stabilization,
+    _descriptor_resamples,
 )
 from morphocoverage.strategies.incidence_coverage import (
     chao2,
@@ -106,12 +106,14 @@ def test_c1_empty_fields_leave_the_fov_unit_cv_and_its_bound_unchanged():
         assert padded["cv_mean"] == pytest.approx(alone["cv_mean"])
         assert padded["cv_mean_upper_95"] == pytest.approx(alone["cv_mean_upper_95"])
         assert padded["fovs_with_objects"] == 3
-    # The factor and the degrees of freedom count the 3 fields with objects.
+    # The factor counts the 3 fields with objects; the bound's degrees of freedom are
+    # Kish's effective number of those fields minus one (audit 4, Q3).
     mean = sums.sum() / counts.sum()
     residual = np.sum((sums - mean * counts) ** 2)
     assert alone["cv_mean"] == pytest.approx(math.sqrt(3 / 2 * residual) / counts.sum() / mean)
+    kish = counts.sum() ** 2 / (counts**2).sum()
     assert alone["cv_mean_upper_95"] == pytest.approx(
-        alone["cv_mean"] * statistics.sd_upper_bound_factor(2)
+        alone["cv_mean"] * statistics.effective_sd_upper_bound_factor(kish - 1)
     )
     # Empty fields are still effort: the same CV over more acquired fields asks for more.
     assert required_fovs(alone["cv_mean"], 13, 0.05) > required_fovs(alone["cv_mean"], 3, 0.05)
@@ -250,7 +252,8 @@ def test_c6_a_constant_feature_has_no_design_effect_on_either_path():
 
 
 def test_c7_the_pilot_is_documented_and_reported_as_reselected_by_its_order():
-    objects, fovs = _tables([[7.0], [], [4.0, 6.0], [5.5, 6.5]])
+    # Pilot fields of equal size: 2 effective fields (Kish) are needed (audit 4, Q3).
+    objects, fovs = _tables([[7.0, 8.0], [], [4.0, 6.0], [5.5, 6.5]])
     fovs["plan_rank"] = [3, 4, 1, 2]
     strategy = ScalarPrecisionStrategy(
         "area", 0.05, "fov", "point", pilot_fovs=2, order_col="plan_rank"
@@ -402,7 +405,7 @@ def test_c17_object_resampling_is_chunked_and_gives_the_same_spreads(monkeypatch
     )
     estimator = DescriptorSpreadEstimator("area", "object", 100, 0)
     whole = estimator.estimate(data, objective=POPULATION)
-    monkeypatch.setattr(stabilization, "_MAX_RESAMPLED_VALUES", 12_000)
+    monkeypatch.setattr(_descriptor_resamples, "_MAX_RESAMPLED_VALUES", 12_000)
     tracemalloc.start()
     chunked = estimator.estimate(data, objective=POPULATION)
     peak = tracemalloc.get_traced_memory()[1]

@@ -3,8 +3,9 @@
 Pure functions of plain arrays: the paper's descriptors of many equally sized
 object resamples, or of many resamples of whole FOVs, at once.
 
-Shared-private: every name here is used by ``stabilization``; they are private
-to the package and may change with it.
+Shared-private: ``_object_resamples`` and ``_fov_resamples`` are used by
+``stabilization``; every name here is private to the package and may change
+with it.
 """
 
 from __future__ import annotations
@@ -89,3 +90,47 @@ def _describe_fov_resamples(
 def _chunk_sizes(total: int, chunk: int) -> list[int]:
     """``total`` split into consecutive parts of at most ``chunk``."""
     return [min(chunk, total - start) for start in range(0, total, chunk)]
+
+
+def _object_resamples(
+    values: np.ndarray, n_resamples: int, rng: np.random.Generator, descriptors: Sequence[str]
+) -> dict[str, np.ndarray]:
+    """Descriptors of ``n_resamples`` resamples of the objects, with replacement, at full size.
+
+    ``values`` come in the caller's canonical order (sorted), which the draws
+    index. Memory is bounded as for whole FOVs: each chunk holds its
+    resamples' values at once, and drawing chunk by chunk from one generator
+    gives the same draws as all at once.
+    """
+    chunk = max(1, int(_MAX_RESAMPLED_VALUES // len(values)))
+    parts = [
+        _describe_many(values[rng.integers(0, len(values), size=(size, len(values)))], descriptors)
+        for size in _chunk_sizes(n_resamples, chunk)
+    ]
+    return {name: np.concatenate([p[name] for p in parts]) for name in descriptors}
+
+
+def _fov_resamples(
+    values: np.ndarray,
+    positions: np.ndarray,
+    k: int,
+    n_resamples: int,
+    rng: np.random.Generator,
+    descriptors: Sequence[str],
+) -> dict[str, np.ndarray]:
+    """Descriptors of ``n_resamples`` resamples of all ``k`` FOVs, whole FOVs with replacement.
+
+    ``positions`` gives each value's FOV in the caller's canonical FOV order,
+    which the draws index; within a FOV the values are ordered by value, so
+    the table's row order cannot change a resample. Memory is bounded: each
+    chunk materializes its resamples' values at once.
+    """
+    by_fov = np.lexsort((values, positions))  # values grouped by FOV, each FOV by value
+    counts = np.bincount(positions, minlength=k)
+    draws = rng.integers(0, k, size=(n_resamples, k))
+    chunk = max(1, int(_MAX_RESAMPLED_VALUES // max(1, len(values))))
+    parts = [
+        _describe_fov_resamples(values[by_fov], counts, draws[i : i + chunk], descriptors)
+        for i in range(0, len(draws), chunk)
+    ]
+    return {name: np.concatenate([part[name] for part in parts]) for name in descriptors}

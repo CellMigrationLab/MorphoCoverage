@@ -54,7 +54,30 @@ descriptors) and the phenotype objective (both), and its own verdict (stop
 when every descriptor is within tolerance) is unchanged.
 
 Missing values in the feature make every quantity ``not_applicable``: the
-framework does not drop them, and more acquisition does not remove them.
+framework does not drop them, and more acquisition does not remove them. No
+spread so far (every visible object alike: a zero count, a saturated
+intensity) makes them ``insufficient_data`` in both rules, as in the JCB rule:
+a range or spread of 0 says nothing, and a later FOV can differ (audit 4,
+P4-1: the rules stopped at 1-3 FOVs on counts of 0, well mean 0.137).
+
+What a stop means:
+
+- The plateau's ``tolerance`` bounds how much the cumulative descriptors
+  changed over the last ``window`` FOVs with objects, not their error
+  against the well. The range over the window shrinks roughly as
+  ``window / k`` whatever the data: at a tolerance of 5% of the mean and a
+  window of 3 the rule stopped at a median of 7-10 FOVs, and the location
+  error exceeded the tolerance at 40% of stops in homogeneous wells, 65% with
+  a subpopulation in 10% of FOVs, and at every stop in a raster over a
+  gradient or under drift (P4-5). Its evidence says so in ``warning``.
+- The per-FOV spread needs ``MIN_SPREAD_FOVS`` (5) FOVs with objects: with 2
+  the resamples can only repeat them, so the spread is smallest there (a
+  median of 27% of the mean, against 39-43% at 3-5 FOVs; P4-6).
+
+Resamples are drawn in a canonical order (objects by value; FOVs by their
+key, compared as text, their objects by value), so row order, which carries
+no information, never changes a spread (it moved a per-object stop by up to
+12 FOVs, P4-11).
 """
 
 from __future__ import annotations
@@ -66,26 +89,45 @@ from typing import Any
 import numpy as np
 
 from .._checks import check_seed, is_integer, is_number
+from .._wording import plural
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput, fov_positions
-from ..statistics import PAPER_DESCRIPTORS, describe
-from ._descriptor_resamples import (
-    _MAX_RESAMPLED_VALUES,
-    _chunk_sizes,
-    _describe_fov_resamples,
-    _describe_many,
-)
+from ..statistics import PAPER_DESCRIPTORS, describe, spread_is_zero
+from ._descriptor_resamples import _fov_resamples, _object_resamples
 from .base import (
     Estimator,
     SamplingStrategy,
     _as_ints,
+    _canonical_fovs,
     check_order_col,
     unsupported_observation_unit,
 )
 
 _UNITS = ("object", "fov")
+# Fewest FOVs with objects for the per-FOV spread (the meaning of the bootstrap's min_fovs).
+MIN_SPREAD_FOVS = 5
+
+
+def _no_spread_reason(values: np.ndarray, unit: str) -> str | None:
+    """``insufficient_data``'s reason when the visible values are all alike, else ``None``.
+
+    Up to rounding (``statistics.spread_is_zero``): a constant so far says
+    nothing about how settled the descriptors are.
+    """
+    if len(values) >= 2 and spread_is_zero(float(np.std(values)), values):
+        return f"no spread among the {plural(unit)} so far"
+    return None
+
+
+# The plateau's caution beside its quantities (audit 4, P4-5).
+_PLATEAU_CAUTION = (
+    "the tolerance bounds how much the descriptors changed over the last {window} FOVs with "
+    "objects, not their error against the well: at a tolerance of 5% of the mean and a window "
+    "of 3, the location error exceeded the tolerance at 40% of stops in homogeneous wells and "
+    "at every stop in a raster over a spatial gradient"
+)
 
 
 def _reported(descriptors: dict[str, float]) -> dict[str, float | None]:
@@ -239,7 +281,9 @@ class DescriptorPlateauEstimator(Estimator):
     lists the prefix sizes of its states). ``order_col`` must pass
     ``base.check_order_col`` (complete numbers or times). Missing values in
     the feature, or rows that are not objects, make the quantities
-    ``not_applicable``.
+    ``not_applicable``; no spread among the visible objects so far makes them
+    ``insufficient_data``. The ranges bound the change over the window, not
+    the error against the well (the module docstring; ``warning`` says so).
     """
 
     feature: str
@@ -293,6 +337,8 @@ class DescriptorPlateauEstimator(Estimator):
         reason = None
         if len(states) < self.window + 1:
             reason = f"fewer than {self.window + 1} acquired FOVs with objects"
+        elif (constant := _no_spread_reason(values, data.observation_unit)) is not None:
+            reason = constant
         else:
             ranges = {
                 name: float(np.ptp([state[name] for state in states])) for name in self.descriptors
@@ -304,6 +350,7 @@ class DescriptorPlateauEstimator(Estimator):
             diagnostics["undefined_reason"] = reason
             quantities = _quantities("range", self.feature, self.descriptors, reason=reason)
         else:
+            diagnostics["warning"] = _PLATEAU_CAUTION.format(window=self.window)
             quantities = _quantities("range", self.feature, self.descriptors, ranges)
         return Evidence(quantities, diagnostics)
 
@@ -324,12 +371,15 @@ class DescriptorSpreadEstimator(Estimator):
     with the number of resamples, ``n_resamples`` is part of the estimate and
     has no default.
 
-    Fewer than 2 objects (object unit), or fewer than 2 acquired FOVs or no
-    objects (FOV unit), give ``insufficient_data``. Missing values in the
+    Fewer than 2 objects (object unit), fewer than ``MIN_SPREAD_FOVS`` (5)
+    acquired FOVs with objects (FOV unit), or no spread among the visible
+    objects so far, give ``insufficient_data``. Missing values in the
     feature, or rows that are not objects for the object unit, give
     ``not_applicable``. The object unit resamples objects as independent
     draws (``assumes_random_object_sampling`` in the diagnostics), as the
-    paper assumes cells are sampled at random from the well.
+    paper assumes cells are sampled at random from the well. Resamples are
+    drawn in a canonical order (the module docstring), so row order never
+    changes them.
     """
 
     feature: str
@@ -360,38 +410,37 @@ class DescriptorSpreadEstimator(Estimator):
         }
 
     def _resampled_descriptors(self, data: ValidatedInput) -> dict[str, np.ndarray] | str:
-        """Descriptors of each resample, or the reason resampling is not yet possible."""
+        """Descriptors of each resample, or the reason resampling is not yet possible.
+
+        Draws index the values in a canonical order (objects sorted by value;
+        FOVs by ``base._canonical_fovs``, their objects by value), so the
+        table's row order cannot change a resample: every descriptor of a
+        resample is a function of the values it holds.
+        """
         rng = np.random.default_rng(self.random_state)
         values = data.feature_values(self.feature)
         if self.resampling_unit == "object":
             if len(values) < 2:
                 return "fewer than 2 objects"
-            # Bound memory as for whole FOVs: each chunk holds its resamples' values at once.
-            # Drawing chunk by chunk from one generator gives the same draws as all at once.
-            chunk = max(1, int(_MAX_RESAMPLED_VALUES // len(values)))
-            parts = [
-                _describe_many(
-                    values[rng.integers(0, len(values), size=(size, len(values)))],
-                    self.descriptors,
-                )
-                for size in _chunk_sizes(self.n_resamples, chunk)
-            ]
-            return {name: np.concatenate([p[name] for p in parts]) for name in self.descriptors}
+            constant = _no_spread_reason(values, data.observation_unit)
+            if constant is not None:
+                return constant
+            return _object_resamples(np.sort(values), self.n_resamples, rng, self.descriptors)
 
         k = len(data.fovs)
-        if k < 2 or len(values) == 0:
-            return "fewer than 2 acquired FOVs or no objects"
-        positions = fov_positions(data, data.fovs)
-        by_fov = np.argsort(positions, kind="stable")  # values grouped by FOV
-        counts = np.bincount(positions, minlength=k)
-        draws = rng.integers(0, k, size=(self.n_resamples, k))
-        # Bound memory: each chunk materializes its resamples' values at once.
-        chunk = max(1, int(_MAX_RESAMPLED_VALUES // max(1, len(values))))
-        parts = [
-            _describe_fov_resamples(values[by_fov], counts, draws[i : i + chunk], self.descriptors)
-            for i in range(0, len(draws), chunk)
-        ]
-        return {name: np.concatenate([part[name] for part in parts]) for name in self.descriptors}
+        rank = np.empty(k, dtype=int)
+        rank[_canonical_fovs(data)] = np.arange(k)
+        positions = rank[fov_positions(data, data.fovs)]  # each object's FOV, canonical
+        filled = len(np.unique(positions))
+        if filled < MIN_SPREAD_FOVS:
+            return (
+                f"fewer than {MIN_SPREAD_FOVS} acquired FOVs with objects (with 2 the resamples "
+                "can only repeat them, so the spread is smallest there)"
+            )
+        constant = _no_spread_reason(values, data.observation_unit)
+        if constant is not None:
+            return constant
+        return _fov_resamples(values, positions, k, self.n_resamples, rng, self.descriptors)
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """The descriptor spreads across resamples of the visible data."""
@@ -435,7 +484,10 @@ class DescriptorPlateauStrategy(SamplingStrategy):
     verdict is stop once, over the last ``window + 1`` cumulative states,
     every descriptor's range is at most ``tolerance``, in the feature's units,
     and it continues until enough states exist. ``window`` counts FOVs that
-    added objects; empty FOVs in between do not count.
+    added objects; empty FOVs in between do not count. A stop says the
+    descriptors changed by at most ``tolerance`` over the window, not that
+    they are within ``tolerance`` of the well's: see the module docstring for
+    how often they were not.
     """
 
     feature: str

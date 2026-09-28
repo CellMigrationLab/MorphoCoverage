@@ -22,11 +22,12 @@ Summaries:
   under cluster sampling). For one feature without a transform this extends
   the FOV-unit JCB rule (``ScalarPrecisionStrategy(..., "fov", ...)``) from
   one mean to a vector of means. When every visible FOV holds observations,
-  the bootstrap SE approaches the analytic ratio-estimator SE times
+  the raw bootstrap SE approaches the analytic ratio-estimator SE times
   ``sqrt((k - 1) / k)``. With empty FOVs it does not: the analytic SE counts
   only the ``k'`` FOVs with objects, while each resample draws a random
   number of them, which adds variance (8 FOVs of which 4 empty: about 1.01
-  times the analytic SE, not ``sqrt((k' - 1) / k') = 0.87``).
+  times the analytic SE, not ``sqrt((k' - 1) / k') = 0.87``). The reported
+  SE is the raw one widened (see "Small samples" below).
 - ``"covariance"``: every entry of the feature covariance matrix.
 - ``"quantiles"``: the given per-feature quantiles.
 - ``"eigenspectrum"``: the explained-variance fractions of the covariance
@@ -46,7 +47,7 @@ which no setting here removes:
   contributes zero variance: low uncertainty is not evidence that no unseen
   phenotype remains;
 - with few FOVs the bootstrap is discrete and understates variance (by about
-  ``(k - 1) / k``), hence the explicit ``min_fovs``;
+  ``(k - 1) / k``), hence the explicit ``min_fovs`` and the widening below;
 - tail quantiles are poorly supported by few FOVs or observations;
 - neighbouring FOVs that are spatially correlated make independent FOV
   resampling optimistic. ``block_col`` names an FOV-table column of spatial
@@ -58,6 +59,27 @@ which no setting here removes:
 - the value depends on feature scale, so ``transform`` is explicit (``None``
   means raw feature units). The transform is fitted once on the visible data
   and held fixed across resamples.
+
+Small samples: every reported quantity (the SEs and the subspace angle) is
+the raw bootstrap value times ``statistics.small_sample_widening(k')``,
+``sqrt(k' / (k' - 1)) * t_{k'-1} / z`` at 95%, over the ``k'`` resampled
+units holding observations (FOVs, or blocks with ``block_col``), the
+widening every whole-field bootstrap interval of the package gets (audit 3,
+E-2). Without it the rule stopped at exactly 2 FOVs in half of homogeneous
+wells, 20-24% of its stops more than 9.8% off the well mean at a tolerance of
+5% of the mean (audit 4, P4-4). ``small_sample_widening`` and
+``resampling_units`` are in the diagnostics, and ``monte_carlo_se`` gives the
+resampling error of the stopping quantity (its value over ``sqrt(2 (B -
+1))`` for ``B`` defined resamples). Resamples draw the FOVs in a canonical
+order (``base._canonical_fovs``; blocks by value), so the FOV table's row
+order never changes them.
+
+A selected feature without spread so far makes the quantity
+``insufficient_data``, as for the JCB rule: for the centroid, FOV means that
+are all alike (the feature's SE is then 0 whatever the well holds: a count
+of 0 in every FOV so far, a saturated intensity), for the covariance and the
+quantiles, observations that are all alike (audit 4, P4-1). The PCA
+summaries have their own rule for too little spread (below).
 
 Missing feature values make the quantity ``not_applicable`` (more acquisition
 does not remove them), as does a transform that can never be fitted on the
@@ -88,26 +110,35 @@ resample is part of its uncertainty. With blocks of very different
 occupancy (for example grid objects cut by the sample edge) that size
 variation can dominate the standard error even when the design sampled
 FOVs, not blocks: 9 FOVs at 0 in one block and 1 FOV at 10 in another give a
-centroid SE of about 4.1, against 0.95 for the FOV bootstrap. Use many
+centroid SE of about 4.1, against 0.95 for the FOV bootstrap (raw, before the
+widening below). Use many
 blocks of similar occupancy; ``block_sizes`` in the diagnostics reports the
 smallest and largest visible block.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 
-from .._checks import check_seed, is_integer
-from .._wording import percent
+from .._wording import listing, percent
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from ..transforms import Chain, FeatureTransform
+from ..statistics import small_sample_widening
+from ..transforms import FeatureTransform
+from ._fov_bootstrap_checks import (
+    SUMMARIES,
+    _check,
+    _constant_features,
+    _feature_selection,
+    _never_fits,
+    _pca_reason,
+    _visible_blocks,
+)
 from ._fov_resamples import (  # the public names are re-exported (__all__)
     _per_fov_sums,
     centroid_resamples,
@@ -116,44 +147,11 @@ from ._fov_resamples import (  # the public names are re-exported (__all__)
     quantile_resamples,
     subspace_angles_to,
 )
-from .base import Estimator, SamplingStrategy, _as_ints
+from .base import Estimator, SamplingStrategy, _as_ints, _canonical_fovs
 
-SUMMARIES = ("centroid", "covariance", "quantiles", "eigenspectrum", "subspace")
 AGGREGATES = ("max", "rms")
 # Largest share of PCA resamples without enough spread that is left out.
 DEGENERATE_TOLERANCE = 0.05
-
-
-def _check(
-    summary: str,
-    n_resamples: int,
-    random_state: int,
-    min_fovs: int,
-    quantiles: Sequence[float] | None,
-    transform: FeatureTransform | None,
-    n_components: int | None,
-) -> None:
-    """Validate the settings shared by the estimator and the strategy."""
-    if summary not in SUMMARIES:
-        raise ValueError(f"summary must be one of {SUMMARIES}")
-    for value, label, minimum in ((n_resamples, "n_resamples", 2), (min_fovs, "min_fovs", 2)):
-        if not is_integer(value):  # numpy integers too
-            raise TypeError(f"{label} must be an integer")
-        if value < minimum:
-            raise ValueError(f"{label} must be at least {minimum}")
-    if not is_integer(random_state):
-        raise TypeError("random_state must be an integer seed")
-    check_seed(random_state)
-    if (summary == "quantiles") != (quantiles is not None):
-        raise ValueError("quantiles are required for, and only for, summary='quantiles'")
-    if quantiles is not None and (not quantiles or not all(0 <= q <= 1 for q in quantiles)):
-        raise ValueError("quantiles must be a non-empty sequence of values in [0, 1]")
-    if (summary == "subspace") != (n_components is not None):
-        raise ValueError("n_components is required for, and only for, summary='subspace'")
-    if n_components is not None and (not is_integer(n_components) or n_components < 1):
-        raise ValueError("n_components must be a positive integer")
-    if transform is not None and not isinstance(transform, FeatureTransform):
-        raise TypeError("transform must be a FeatureTransform or None (raw feature units)")
 
 
 def _meta(units: str, summary: str) -> dict[str, Any]:
@@ -168,60 +166,6 @@ def _meta(units: str, summary: str) -> dict[str, Any]:
         "units": units,
         "component": Component.POPULATION if summary == "centroid" else Component.DISTRIBUTION,
     }
-
-
-def _visible_blocks(data: ValidatedInput, block_col: str | None) -> int | None:
-    """Number of visible spatial blocks, or ``None`` without blocks; checks the column."""
-    if block_col is None:
-        return None
-    if block_col not in data.fovs.columns:
-        raise ValueError(f"block_col {block_col!r} is not a column of the FOV table")
-    if data.fovs[block_col].isna().any():
-        raise ValueError(f"block_col {block_col!r} contains missing values")
-    return int(data.fovs[block_col].nunique())
-
-
-def _never_fits(transform: FeatureTransform, n_features: int) -> bool:
-    """Whether the transform's declared output width says no fit can ever succeed.
-
-    ``output_width`` is ``None`` both when a width is unknown (the default of
-    ``FeatureTransform``) and when no fit can succeed, so only a transform
-    that declares its width is read: ``PCA(3)`` of 2 features never fits,
-    whatever is acquired, while an unknown width could still fit later. A
-    ``Chain`` is read step by step.
-    """
-    steps = transform.transforms if isinstance(transform, Chain) else (transform,)
-    width: int | None = n_features
-    for step in steps:
-        if type(step).output_width is FeatureTransform.output_width:
-            return False  # an undeclared width: a later fit may succeed
-        width = step.output_width(width)
-        if width is None:
-            return True
-    return False
-
-
-def _pca_reason(estimator: FOVBootstrapEstimator, d: int) -> str | None:
-    """Why a PCA summary is undefined for ``d`` (transformed) features, if it is."""
-    if d < 2:
-        return "PCA summaries need at least 2 features"
-    if estimator.summary == "subspace" and estimator.n_components >= d:
-        return f"n_components={estimator.n_components} must be below the {d} features"
-    return None
-
-
-def _feature_selection(features: Sequence[str] | None) -> tuple[str, ...] | None:
-    """``features`` as a tuple of distinct column names, or ``None`` for every feature column."""
-    if features is None:
-        return None
-    if isinstance(features, str):
-        raise TypeError("features must be a sequence of column names, not a string")
-    selected = tuple(features)
-    if not selected or any(not isinstance(f, str) or not f for f in selected):
-        raise ValueError("features must name at least one column")
-    if len(set(selected)) != len(selected):
-        raise ValueError("features must be distinct")
-    return selected
 
 
 @dataclass(frozen=True)
@@ -326,7 +270,9 @@ class FOVBootstrapEstimator(Estimator):
     def _weights(self, data: ValidatedInput) -> np.ndarray:
         """How often each visible FOV enters each resample: FOVs, or whole blocks, drawn."""
         if self.block_col is None:
-            block_of_fov = np.arange(len(data.fovs))
+            # Drawn in the canonical FOV order, so the table's row order cannot move them.
+            block_of_fov = np.empty(len(data.fovs), dtype=int)
+            block_of_fov[_canonical_fovs(data)] = np.arange(len(data.fovs))
         else:
             block_of_fov = np.unique(data.fovs[self.block_col].to_numpy(), return_inverse=True)[1]
         n_blocks = int(block_of_fov.max()) + 1
@@ -335,6 +281,13 @@ class FOVBootstrapEstimator(Estimator):
         block_weights = np.zeros((self.n_resamples, n_blocks))
         np.add.at(block_weights, (np.arange(self.n_resamples)[:, None], draws), 1.0)
         return block_weights[:, block_of_fov]
+
+    def _resampled_units(self, data: ValidatedInput, positions: np.ndarray) -> int:
+        """How many resampled units hold observations: FOVs, or blocks with ``block_col``."""
+        if self.block_col is None:
+            return len(np.unique(positions))
+        blocks = data.fovs[self.block_col].to_numpy()[np.unique(positions)]
+        return len(set(blocks.tolist()))
 
     def _resampled(
         self, values: np.ndarray, positions: np.ndarray, weights: np.ndarray
@@ -414,7 +367,7 @@ class FOVBootstrapEstimator(Estimator):
                 f"{len(data.feature_cols)} features: {diagnostics['transform']['reason']}"
             )
         elif self.summary in ("eigenspectrum", "subspace") and width is not None:
-            never = _pca_reason(self, width)
+            never = _pca_reason(self.summary, self.n_components, width)
         if never:
             quantity = Quantity.not_applicable(never, **_meta(units, self.summary))
             return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": never})
@@ -424,8 +377,14 @@ class FOVBootstrapEstimator(Estimator):
             reason = f"fewer than {self.min_fovs} visible spatial blocks"
         elif values is None:
             reason = f"the transform could not be fitted: {diagnostics['transform']['reason']}"
+        elif constant := _constant_features(data, positions, self.summary):
+            where = "between the FOV means" if self.summary == "centroid" else "among the values"
+            reason = f"no spread {where} of {listing(constant, limit=5)} so far"
         else:
             reason = None
+        resampled = self._resampled_units(data, positions)
+        if reason is None and resampled < 2:
+            reason = "fewer than 2 spatial blocks with observations"
         if reason is not None:
             diagnostics["undefined_reason"] = reason
             return Evidence(
@@ -464,19 +423,27 @@ class FOVBootstrapEstimator(Estimator):
                 self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
                 diagnostics,
             )
+        # The E-2 small-sample widening over the resampled units (audit 4, P4-4).
+        widen = small_sample_widening(resampled)
+        diagnostics["resampling_units"] = resampled
+        diagnostics["small_sample_widening"] = widen
+        # The relative Monte Carlo error of an SD (or RMS) from B draws is 1 / sqrt(2 (B - 1)).
+        monte_carlo = 1 / np.sqrt(2 * (int(defined.sum()) - 1))
         if self.summary == "subspace":
             angles = components[defined, 0]
             diagnostics["max_angle"] = float(angles.max())
-            value = float(np.sqrt(np.mean(angles**2)))
+            value = float(np.sqrt(np.mean(angles**2))) * widen
+            diagnostics["monte_carlo_se"] = value * monte_carlo
             return Evidence(
                 {name: Quantity.available(value, **_meta("radians", self.summary))}, diagnostics
             )
         if self.summary == "eigenspectrum":
             units = "fraction of total variance"
-        se = np.std(components[defined], axis=0, ddof=1)
+        se = np.std(components[defined], axis=0, ddof=1) * widen
         value = float(np.sqrt(np.mean(se**2)))
         diagnostics["max_component_se"] = float(se.max())
         diagnostics["max_component"] = int(se.argmax())
+        diagnostics["monte_carlo_se"] = float(se.max()) * monte_carlo
         quantities = {
             name: Quantity.available(value, **_meta(units, self.summary)),
             self.max_quantity: Quantity.available(float(se.max()), **_meta(units, self.summary)),
