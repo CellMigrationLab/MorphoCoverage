@@ -21,9 +21,13 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from ._input_traps import warn_invalid_rows
 from ._plane_rules import (  # noqa: F401  (re-exported: the plane rule)
     PLANE_FEATURE_ADVICE,
+    PLANE_LEVEL_UNITS,
     _check_planes_as_fields,
+    _check_planes_within_fields,
+    _check_positions_within_fields,
     _check_within_fov_axes,
     _within_fov_axes,
     plane_features,
@@ -40,6 +44,7 @@ from .metadata import (
     resolve_fov_col,
     resolve_group_cols,
     resolve_identity_cols,
+    unambiguous_index,
 )
 
 # Units whose rows are individual detected objects, as the cell-number
@@ -408,6 +413,8 @@ def _validate_input_tables(
                 "give every column its own name"
             )
     observation_unit, unit_declared = resolve_observation_unit(observation_unit)
+    objects = unambiguous_index(objects)
+    fovs = None if fovs is None else unambiguous_index(fovs)
 
     explicit_columns = [*(group_cols or ()), *([fov_col] if fov_col is not None else [])]
     objects, fovs = drop_empty_optional_columns(objects, fovs, explicit_columns)
@@ -431,7 +438,12 @@ def _validate_input_tables(
     _check_within_fov_axes(
         objects, fov_key, feature_cols, fov_col_was_chosen=fov_col is None, fovs=fovs
     )
+    _check_positions_within_fields(
+        objects, fov_key, feature_cols, fov_col_was_chosen=fov_col is None
+    )
+    _check_planes_within_fields(objects, fov_key, feature_cols, observation_unit)
     _check_feature_values(objects, feature_cols)
+    warn_invalid_rows(objects, [*fov_key, *feature_cols], _caller_stacklevel() + 1)
     validated_fovs = _validated_fov_table(objects, fovs, fov_key)
     if fovs is None:
         warnings.warn(

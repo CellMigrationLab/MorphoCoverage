@@ -53,6 +53,7 @@ from ._parallel import worker_pool
 from ._seeds import group_rng
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups
+from .metadata import sorted_by_key
 from .objectives import ObjectiveConfig
 from .outcomes import OutcomeMetric
 from .reservoir import ReservoirSplit
@@ -249,13 +250,14 @@ def permuted_fovs(
     The one permutation behind every permuted acquisition order: the benchmark's
     (``AcquisitionOrder.apply``, seeded from the order's seed) and the
     retrospective replay's (seeded from its ``random_state``, the order's seed
-    and the split). The rows are put in FOV-key order first and the generator
+    and the split). The rows are put in FOV-key order first (by value: a
+    categorical column by its values, never its category order) and the generator
     is seeded with ``group_rng(random_state, group, *more)``, so the order
     depends only on which FOVs the group holds, never on other groups or on the
     table's row order. Shared-private: used by ``retrospective.replay``, not
     part of the public API.
     """
-    canonical = fovs.sort_values(list(fov_key), kind="stable")
+    canonical = sorted_by_key(fovs, fov_key)
     rng = group_rng(random_state, group, *more)
     return canonical.iloc[rng.permutation(len(canonical))]
 

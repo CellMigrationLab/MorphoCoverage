@@ -185,6 +185,7 @@ src/morphocoverage/
     data_check.py          # check_tables: every data problem at once, where and how to fix it
     _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
     _data_problems.py      # private: the problems a data check reports (Problem, Collector) and their wording
+    _input_traps.py        # private: tables that validate but are probably not meant: invalid rows, undeclared groups, unimaged wells
     objectives.py          # sampling objectives and RareTarget, independent of strategies
     evidence.py            # Evidence and Quantity: estimates with direction, units, component
     policies.py            # decision policies, per-objective combination, redecide

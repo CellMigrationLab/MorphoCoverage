@@ -1,6 +1,7 @@
 """Private helpers of the retrospective workflows: inputs, orders, replays and analyses.
 
-- ``check_workflow_inputs`` refuses tables and setups the workflows cannot use;
+- ``check_workflow_inputs`` refuses tables and setups the workflows cannot use, and
+  runs ``check_tables`` so its warnings reach every workflow;
 - ``orders`` builds the replay orders, every random one seeded from
   ``Setup.random_state``;
 - ``replay_rules`` runs the stopping rules on the raw values (as the live
@@ -19,6 +20,7 @@ Shared-private: every name in ``__all__`` is used by ``workflows.retrospective``
 
 from __future__ import annotations
 
+import warnings
 import zlib
 from collections.abc import Sequence
 from dataclasses import replace
@@ -26,7 +28,10 @@ from typing import Any
 
 import pandas as pd
 
+from .._wording import count
 from ..benchmark import AcquisitionOrder
+from ..data_check import DataCheck, Problem
+from ..data_check import check_tables as _check_tables
 from ..metadata import (
     CONDITION_COLUMN,
     REPEAT_COLUMN,
@@ -84,8 +89,15 @@ def orders(
     return chosen
 
 
-def check_workflow_inputs(objects: Any, fovs: Any, setup: Any) -> None:
-    """Refuse inputs the workflows cannot use, before any analysis runs."""
+def check_workflow_inputs(objects: Any, fovs: Any, setup: Any, *, warn: bool = True) -> DataCheck:
+    """Refuse inputs the workflows cannot use, before any analysis runs, and check the rest.
+
+    Returns ``check_tables`` on the setup's columns and control, whose warnings
+    (copied rows, labels that print alike, repeats without a control, ...) a
+    workflow would otherwise never mention. With ``warn`` they are also issued
+    as one ``UserWarning``; ``report`` prints them in its overview instead. Its
+    errors are left to the analyses, which raise with the same report.
+    """
     if fovs is None:
         raise TypeError(
             "the workflows need the FOV table of every acquired field (fovs=None was given); "
@@ -101,6 +113,30 @@ def check_workflow_inputs(objects: Any, fovs: Any, setup: Any) -> None:
             f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
             "phenotype cannot be judged on held-back fields without its labels"
         )
+    check = _check_tables(
+        objects, fovs, feature_cols=setup.columns, control=setup.control, **setup.common
+    )
+    # The declared design the summaries state anyway (an assumed unit, empty fields) is not
+    # repeated as a warning at every call.
+    likely_mistakes = [p for p in check.warnings if not _states_the_design(p)]
+    if warn and likely_mistakes:
+        warnings.warn(
+            f"check_tables found {count(len(likely_mistakes), 'warning')} in these tables: "
+            + "; ".join(problem.title for problem in likely_mistakes)
+            + " Print morphocoverage.check_tables(objects, fovs, ...).summary() for where and "
+            "how to fix each.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return check
+
+
+def _states_the_design(problem: Problem) -> bool:
+    """Whether a data-check warning restates the design (an assumed unit, empty fields)."""
+    empty_fields = " field of the FOV table holds no observation." in problem.title or (
+        " fields of the FOV table hold no observation." in problem.title
+    )
+    return problem.where == "observation_unit=None." or empty_fields
 
 
 class _RevealedFields(OutcomeMetric):
