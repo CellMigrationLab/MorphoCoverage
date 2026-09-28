@@ -4,11 +4,12 @@ For one declared scalar feature, per analysis group:
 
 - **Variance components.** The between-field component ``v_fov`` and the
   within-field component ``v_obs`` of a one-level nested random design, by the
-  method of moments (``retrospective.effort.nested_variance_components``).
+  method of moments (``statistics.nested_variance_components``).
   The intraclass correlation is ``v_fov / (v_fov + v_obs)``, with a negative
   ``v_fov`` estimate set to zero.
 - **Design effect.** ``(m v_fov + v_obs) / (v_fov + v_obs)`` with
-  ``m = sum n_j^2 / N`` over the fields with observations: how much larger the
+  ``m = sum n_j^2 / N`` over the fields with observations
+  (``statistics.design_effect`` and ``statistics.cluster_size``): how much larger the
   variance of a mean from whole fields is than that of a mean from as many
   objects drawn at random. Its square root, the **error ratio**, is how much an
   object-count rule such as ``SD / sqrt(n)`` understates the real standard
@@ -43,10 +44,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .._wording import where
-from ..schema import unit_plural
-from ..statistics import nested_variance_components, spread_is_zero
-from ._common import fov_values, groups, validated
+from .._wording import number, percent, where
+from ..schema import fov_values, unit_plural
+from ..statistics import cluster_size, design_effect, nested_variance_components, spread_is_zero
+from ._common import groups, validated
 
 UNUSUAL_Z = 1.96
 
@@ -76,7 +77,7 @@ class FOVVariability:
             group = {c: row[c] for c in self.group_cols}
             head = (
                 f"{where(group)}: {int(row['fovs'])} fields, {int(row['observations'])} {words} "
-                f"({row['observations_per_fov']:.0f} per field)."
+                f"({_per_field(row['observations_per_fov'])} per field)."
             )
             missing = int(row.get("missing_values") or 0)
             if missing:
@@ -86,19 +87,25 @@ class FOVVariability:
                 continue
             share = row["unusual_fov_share"]
             unusual = (
-                f"{share:.0%} of fields differ more than random {words} would let them "
+                f"{percent(share)} of fields differ more than random {words} would let them "
                 "(about 5% expected)."
                 if share is not None and not pd.isna(share)
                 else f"The {words} do not vary within any field, so fields cannot be "
                 f"compared with random {words}."
             )
             lines.append(
-                f"{head} {row['icc']:.0%} of the variance lies between fields. A mean from "
+                f"{head} {percent(row['icc'])} of the variance lies between fields. A mean from "
                 f"whole fields has {row['design_effect']:.1f} times the variance of one from "
                 f"as many random {words}, so SD / sqrt(n) understates its error "
                 f"{row['error_ratio']:.1f}-fold. {unusual}"
             )
         return "\n".join(lines)
+
+
+def _per_field(value: float) -> str:
+    """Observations per field as read: ``12``, ``0.4``, and never ``0`` when some exist."""
+    written = number(value)
+    return f"{value:.1g}" if written == "0" and value > 0 else written
 
 
 def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -137,7 +144,7 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
     codes = np.repeat(np.arange(len(filled)), [len(f) for f in filled])
     v_fov, v_obs = nested_variance_components(values, [codes])
     v_fov_kept, v_obs_kept = max(float(v_fov), 0.0), max(float(v_obs), 0.0)
-    cluster = float(np.sum(np.array([len(f) for f in filled], float) ** 2) / observations)
+    cluster = cluster_size(sizes)
     total = v_fov_kept + v_obs_kept
     within = np.sqrt(
         sum(((f - f.mean()) ** 2).sum() for f in filled) / (observations - len(filled))
@@ -158,7 +165,7 @@ def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str
                 fov_row["z"] = z
                 fov_row["unusual"] = bool(abs(z) > UNUSUAL_Z)
     scored = [r["unusual"] for r in fov_rows if r["unusual"] is not None]
-    deff = None if constant else (cluster * v_fov_kept + v_obs_kept) / total
+    deff = None if constant else design_effect(v_fov, v_obs, cluster)
     row.update(
         {
             "mean": mean,

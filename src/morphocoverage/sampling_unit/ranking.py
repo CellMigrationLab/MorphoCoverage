@@ -5,7 +5,8 @@ them the way fiberfeatures scores a feature set (its ``gated_effect_size``):
 every feature is tested for every condition against the declared control,
 within each repeat, with the same statistics as question 9
 (``condition_contrast``): Cohen's d on field means and a randomization test
-over whole technical repeats when each side holds at least two, else,
+over whole technical repeats (the FOV table's technical-repeat column,
+whatever ``group_cols`` says) when each side holds at least two, else,
 without the technical-repeat column, over whole fields (exact when every
 assignment can be enumerated; a side with a single technical repeat is not
 tested, and the ranking does not gate on it). The p-values of all
@@ -23,38 +24,35 @@ many p-values sit at their floor. With few technical repeats only a few
 distinct label assignments exist and the p-value cannot fall below their
 share (twice their share with as many on each side, since the sides swapped
 give the same |d|), so with three technical repeats a side no test passes a
-5% gate; the summary then says so rather than ranking nothing silently.
+5% gate; the summary then says so rather than ranking nothing silently. The
+same holds for a test over very few fields (3 a side: a floor of 0.1).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from math import comb
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from .._seeds import group_identity
+from .._checks import is_number
+from .._seeds import group_rng
 from .._wording import count
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..statistics import benjamini_hochberg
-from ._common import check_count, check_seed, groups, validated
+from ._common import groups, validated
 from ._units import (
     FIELD,
+    check_arguments,
     contrasts_of,
+    control_label,
     describe_groups,
-    field_means,
-    permutation_p,
-    relabellings,
+    randomization_test,
     resolve_columns,
-    separation_d,
     side_units,
     sides,
-    smallest_p,
-    technical_counts,
-    untested_reason,
 )
 
 EFFECT_CAP = 20.0
@@ -72,7 +70,8 @@ class FeatureRanking:
       ``condition_contrast``) and technical repeats, ``d_fields``, the
       ``permutation_unit`` (the technical-repeat column or ``field``) with its
       ``distinct_assignments``, ``p_value`` (``p_exact`` when every assignment
-      was enumerated), ``q_value``, ``passes_gate`` and ``status``.
+      was enumerated; ``p_floor`` the smallest it can be), ``q_value``,
+      ``passes_gate`` and ``status``.
     - ``ranking``: one row per feature, best first: ``score`` (the capped |d|
       of the best passing contrast; NaN when none passes), the contrast it
       comes from (``repeat``, ``condition``, ``q_value``), ``passing`` and
@@ -82,6 +81,42 @@ class FeatureRanking:
     tests: pd.DataFrame
     ranking: pd.DataFrame
     settings: dict[str, Any]
+
+    def _floors(self) -> list[str]:
+        """Sentences on the smallest p-value the tests can give, where it limits the gate.
+
+        Tests over whole technical repeats are always described, since their
+        few assignments set the floor; tests over whole fields only when so
+        few fields were shuffled that the floor lies above the gate.
+        """
+        alpha = self.settings["alpha"]
+        if self.tests.empty:
+            return []
+        tested = self.tests[self.tests["p_value"].notna()]
+        lines = []
+        by_unit = tested[tested["permutation_unit"] != FIELD]
+        if len(by_unit):
+            worst = by_unit.loc[by_unit["p_floor"].idxmax()]
+            floor = float(worst["p_floor"])
+            # Only a floor above the gate makes a test unable to pass it.
+            consequence = (
+                ", so those technical repeats cannot pass the gate however large the difference"
+                if floor > alpha
+                else ""
+            )
+            lines.append(
+                f"  {len(by_unit)} of the tests shuffled whole technical repeats; with as few as "
+                f"{int(worst['distinct_assignments'])} distinct assignments a "
+                f"p-value cannot fall below {floor:.2g}{consequence}."
+            )
+        by_field = tested[(tested["permutation_unit"] == FIELD) & (tested["p_floor"] > alpha)]
+        if len(by_field):
+            lines.append(
+                f"  {len(by_field)} of the tests shuffled so few whole fields that a p-value "
+                f"cannot fall below {float(by_field['p_floor'].max()):.2g}, above the gate of "
+                f"{alpha:g}, so those tests cannot pass it however large the difference."
+            )
+        return lines
 
     def top(self, k: int = TOP_FEATURES) -> list[str]:
         """The ``k`` best-ranked features that pass the gate, best first."""
@@ -102,8 +137,13 @@ class FeatureRanking:
             f"control {control}"
             + (f" within each {self.settings['repeat_col']}" if self.settings["repeat_col"] else "")
             + f": Cohen's d on field means and a randomization test over whole {units} as in "
-            f"the contrast above, Benjamini-Hochberg corrected over "
-            f"the {n_tests} tests; a test passes the gate when q <= {alpha:g} (fiberfeatures' "
+            "the contrast above, "
+            + (
+                f"Benjamini-Hochberg corrected over the {count(n_tests, 'test')}"
+                if n_tests
+                else "though no contrast could be tested"
+            )
+            + f"; a test passes the gate when q <= {alpha:g} (fiberfeatures' "
             f"gated effect size). Features are ranked by the largest |d| among their passing "
             f"contrasts (|d| above {EFFECT_CAP:g} counts as {EFFECT_CAP:g})."
         )
@@ -141,26 +181,7 @@ class FeatureRanking:
                 f"  Not ranked because no contrast could be tested "
                 f"({count(len(untested), 'feature')}): {_listed(reasons)}."
             )
-        tested = self.tests[self.tests["p_value"].notna()]
-        by_unit = tested[tested["permutation_unit"] != FIELD]
-        if len(by_unit):
-            floors = [
-                smallest_p(int(t), int(c))
-                for t, c in zip(by_unit["technical"], by_unit["control_technical"], strict=True)
-            ]
-            worst = int(np.argmax(floors))
-            floor = floors[worst]
-            # Only a floor above the gate makes a test unable to pass it.
-            consequence = (
-                ", so those technical repeats cannot pass the gate however large the difference"
-                if floor > alpha
-                else ""
-            )
-            lines.append(
-                f"  {len(by_unit)} of the tests shuffled whole technical repeats; with as few as "
-                f"{int(by_unit['distinct_assignments'].iloc[worst])} distinct assignments a "
-                f"p-value cannot fall below {floor:.2g}{consequence}."
-            )
+        lines += self._floors()
         if not ranked.empty:
             lines.append(
                 f"  Plotted by default: the readout and up to {TOP_FEATURES} best-ranked other "
@@ -189,20 +210,18 @@ def feature_ranking(
 
     Arguments follow ``condition_contrast``: ``control`` names the control
     condition by FOV-table value, ``repeat_col`` separates the repeats,
-    ``technical_col`` names the technical repeats when it is an analysis-group
-    column, ``alpha`` is the Benjamini-Hochberg gate. See the module.
+    ``technical_col`` names the FOV-table column of the technical repeats
+    (the units whatever ``group_cols`` says), ``alpha`` is the
+    Benjamini-Hochberg gate. See the module.
     """
     features = list(dict.fromkeys(features))
     if not features:
         raise ValueError("features must name at least one column")
-    if not isinstance(control, Mapping) or not control:
-        raise ValueError("control must be a non-empty mapping of FOV-table column to value")
-    if condition_col not in control:
-        raise ValueError(f"control must name the condition column {condition_col!r}")
-    if not 0 < alpha < 1:
+    n_permutations, random_state = check_arguments(
+        control, condition_col, n_permutations, random_state
+    )
+    if not is_number(alpha) or not 0 < alpha < 1:
         raise ValueError("alpha must be between 0 and 1")
-    check_count(n_permutations, "n_permutations", 1)
-    check_seed(random_state)
     data = validated(objects, fovs, features, fov_col, group_cols, observation_unit)
     repeat_col, technical_col = resolve_columns(
         data, condition_col, repeat_col, technical_col, control
@@ -230,10 +249,11 @@ def feature_ranking(
     rows = []
     for repeat, condition in contrasts:
         treated, controls = sides(described, repeat, condition)
-        control_label = "/".join(
-            sorted({str(d["condition"]) for d in described if d["group"] in controls})
-        )
-        base = {"repeat": repeat, "condition": condition, "control_condition": control_label}
+        base = {
+            "repeat": repeat,
+            "condition": condition,
+            "control_condition": control_label(described, controls),
+        }
         for feature in features:
             row: dict[str, Any] = {"feature": feature, **base}
             if not controls:
@@ -241,45 +261,12 @@ def feature_ranking(
                     {**row, **_EMPTY, "status": f"no control group in {repeat_col}={repeat}"}
                 )
                 continue
-            t_units, t_acquired = side_units(all_groups, feature, treated)
-            c_units, c_acquired = side_units(all_groups, feature, controls)
-            n_technical = technical_counts(t_units, c_units, technical_col)
-            by_unit = min(n_technical) >= 2
-            t_means, c_means = field_means(t_units), field_means(c_units)
-            row.update(
-                {
-                    # Acquired fields, as condition_contrast counts them.
-                    "fields": t_acquired,
-                    "control_fields": c_acquired,
-                    "technical": n_technical[0],
-                    "control_technical": n_technical[1],
-                    # A perfect separation is an infinite d, capped when ranked.
-                    "d_fields": separation_d(t_means, c_means),
-                    "permutation_unit": technical_col if by_unit else FIELD,
-                    "distinct_assignments": (
-                        comb(sum(n_technical), n_technical[0]) if by_unit else np.nan
-                    ),
-                    "p_value": np.nan,
-                    "p_exact": False,
-                    "status": "ok",
-                }
-            )
-            reason = untested_reason((len(t_means), len(c_means)), n_technical, technical_col)
-            if reason is not None:
-                row["status"] = reason
-                rows.append(row)
-                continue
-            if np.isnan(row["d_fields"]):
-                row["status"] = "the field means do not vary, so there is nothing to test"
-                rows.append(row)
-                continue
-            rng = np.random.default_rng(
-                [random_state, group_identity({**base, "feature": feature})]
-            )
-            row["p_exact"] = relabellings(t_units, c_units, by_unit) <= n_permutations
-            row["p_value"] = permutation_p(
-                t_units, c_units, by_unit, abs(row["d_fields"]), n_permutations, rng
-            )
+            t_units, t_acquired = side_units(all_groups, feature, treated, technical_col)
+            c_units, c_acquired = side_units(all_groups, feature, controls, technical_col)
+            rng = group_rng(random_state, {**base, "feature": feature})
+            # Acquired fields, as condition_contrast counts them.
+            row.update({"fields": t_acquired, "control_fields": c_acquired})
+            row.update(randomization_test(t_units, c_units, technical_col, n_permutations, rng))
             rows.append(row)
     tests = pd.DataFrame(rows)
     tests["q_value"] = benjamini_hochberg(tests["p_value"].to_numpy(dtype=float))
@@ -298,6 +285,7 @@ _EMPTY = {
     "distinct_assignments": np.nan,
     "p_value": np.nan,
     "p_exact": False,
+    "p_floor": np.nan,
 }
 
 

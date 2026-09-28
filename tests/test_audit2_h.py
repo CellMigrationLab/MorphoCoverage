@@ -31,7 +31,7 @@ from morphocoverage.sampling_unit._units import (
     permutation_p,
     separation_d,
 )
-from morphocoverage.statistics import bootstrap_fields, first_detection_fovs
+from morphocoverage.statistics import bootstrap_fields, bootstrap_nested, first_detection_fovs
 
 CONTROL = {"condition": "ctrl"}
 
@@ -129,7 +129,8 @@ def test_h3_one_technical_repeat_on_a_side_gets_no_test():
     text = ranking.summary()
     assert "Not ranked because no contrast could be tested (2 features)" in text
     assert "No contrast passes the gate" not in text
-    # Without the technical-repeat column among the groups, the fields are the units.
+    # Without the technical-repeat column among the groups it is still the unit (audit 3,
+    # H-1): the single treated well gets no test either.
     pooled = condition_contrast(
         objects,
         fovs,
@@ -139,8 +140,8 @@ def test_h3_one_technical_repeat_on_a_side_gets_no_test():
         group_cols=["condition", "repeat"],
         **common,
     )
-    assert pooled.table["permutation_unit"].iloc[0] == "field"
-    assert np.isfinite(pooled.table["p_value"].iloc[0])
+    assert "only one technical repeat" in pooled.table["status"].iloc[0]
+    assert np.isnan(pooled.table["p_value"].iloc[0])
 
 
 def test_h4_a_constant_feature_is_never_separated_or_variable():
@@ -256,8 +257,10 @@ def test_h8_a_misspelt_repeat_or_technical_column_raises():
     with pytest.raises(ValueError, match="repeat_col 'Repeat'"):
         feature_ranking(objects, fovs, features=["x"], repeat_col="Repeat", **common)
     objects["well"], fovs["well"] = objects["technical_repeat"], fovs["technical_repeat"]
-    with pytest.raises(ValueError, match="not an analysis-group column"):
-        feature_ranking(objects, fovs, features=["x"], technical_col="well", **common)
+    # A technical-repeat column of the FOV table is the unit whatever group_cols says
+    # (audit 3, H-1), so naming one outside the groups is no longer refused.
+    named = feature_ranking(objects, fovs, features=["x"], technical_col="well", **common)
+    assert named.settings["technical_col"] == "well"
     # Only the defaults may be absent: without a repeat column, one implicit repeat.
     alone = condition_contrast(
         objects.drop(columns="repeat"),
@@ -289,9 +292,9 @@ def test_h10_pooled_repeats_resample_the_repeats_first():
     # Ten repeats far apart, each one well of tight fields.
     repeats = [[[rng.normal(3 * r, 0.1, 10) for _ in range(6)]] for r in range(10)]
     fields = [f for repeat in repeats for unit in repeat for f in unit]
-    _, low, high = plots_module._bootstrap_repeats(
-        repeats, np.mean, n_boot=400, rng=np.random.default_rng(1), confidence=0.95
-    )
+    # Pooled repeats resample the repeats alone, each with all its fields (audit 3, H-2).
+    units = [[f for unit in repeat for f in unit] for repeat in repeats]
+    _, low, high = bootstrap_nested(units, np.mean, n_boot=400, rng=np.random.default_rng(1))
     _, f_low, f_high = bootstrap_fields(fields, np.mean, n_boot=400, rng=np.random.default_rng(1))
     # Repeat means have SD 9: the mean of 10 has SE 2.9, a 95% interval about 11 wide.
     # Resampling the 60 fields instead treats them as independent: about sqrt(6) narrower.
@@ -303,7 +306,7 @@ def test_h10_pooled_repeats_resample_the_repeats_first():
         .axes[0]
         .get_title(loc="left")
     )
-    assert "resampling biological repeats, then their whole technical repeats" in title
+    assert "resampling whole biological repeats (repeat), each with all its fields" in title
 
 
 def test_h11_jcb_rules_on_negative_values_are_not_applicable():

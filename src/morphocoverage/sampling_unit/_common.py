@@ -1,16 +1,19 @@
-"""Shared helpers of the sampling-unit checks (private)."""
+"""Shared helpers of the sampling-unit checks (private).
+
+Shared-private: ``validated``, ``groups``, ``matching_groups`` and
+``no_match_message`` are used by the modules of ``sampling_unit``.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
-from ..schema import ValidatedInput, fov_positions
+from ..schema import ValidatedInput
 
 
 def validated(
@@ -35,31 +38,6 @@ def validated(
 def groups(data: ValidatedInput) -> list[tuple[dict[str, Any], ValidatedInput]]:
     """The independent analysis groups, as ``(group, data)`` pairs."""
     return list(iter_analysis_groups(data))
-
-
-def fov_values(data: ValidatedInput, values: np.ndarray) -> list[np.ndarray]:
-    """``values`` split by acquired FOV, one array per FOV row (empty for zero-observation FOVs).
-
-    ``values`` is aligned with ``data.objects``; missing values (NaN) are dropped.
-    """
-    positions = fov_positions(data, data.fovs)
-    keep = ~np.isnan(values)
-    positions, values = positions[keep], values[keep]
-    order = np.argsort(positions, kind="stable")
-    counts = np.bincount(positions, minlength=len(data.fovs))
-    return np.split(values[order], np.cumsum(counts)[:-1])
-
-
-def check_seed(random_state: object) -> int:
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
-        raise TypeError("random_state must be an integer seed")
-    return random_state
-
-
-def check_count(value: object, name: str, minimum: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
-        raise ValueError(f"{name} must be an integer of at least {minimum}")
-    return value
 
 
 def matching_groups(

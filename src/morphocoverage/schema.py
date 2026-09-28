@@ -152,6 +152,19 @@ def fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
     return _fov_positions(data, fovs)
 
 
+def fov_values(data: ValidatedInput, values: np.ndarray) -> list[np.ndarray]:
+    """``values`` split by acquired FOV, one array per FOV row (empty for zero-observation FOVs).
+
+    ``values`` is aligned with ``data.objects``; missing values (NaN) are dropped.
+    """
+    positions = fov_positions(data, data.fovs)
+    keep = ~np.isnan(values)
+    positions, values = positions[keep], values[keep]
+    order = np.argsort(positions, kind="stable")
+    counts = np.bincount(positions, minlength=len(data.fovs))
+    return np.split(values[order], np.cumsum(counts)[:-1])
+
+
 def _fov_positions(data: ValidatedInput, fovs: pd.DataFrame) -> np.ndarray:
     key = list(data.fov_key)
     lookup = {fov: i for i, fov in enumerate(zip(*(fovs[c].tolist() for c in key)))}
