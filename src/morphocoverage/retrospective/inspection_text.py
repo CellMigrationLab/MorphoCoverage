@@ -23,7 +23,8 @@ from typing import Any
 
 import pandas as pd
 
-from .._style import caution_lines, check_detail, group_columns, group_label, table, width, wrap
+from .._caveats import caveat_lines
+from .._style import check_detail, group_columns, group_label, table, width, wrap
 from .._wording import count, listing
 from .._wording import fields as fields_text
 
@@ -187,7 +188,7 @@ def _full(result: Any) -> str:
             reasons = "; ".join(own["detail"])
             lines.append(wrap(f"{name}{f' ({extra})' if extra else ''}: {reasons}.", 2, hang=4))
         lines.append(wrap(_NOT_AN_ERROR, 0, hang=2))
-    lines += caution_lines(_skipped(result, full=True), indent=0)
+    lines += caveat_lines(_skipped(result, full=True), indent=0, detail="full")
     return "\n".join(lines)
 
 
@@ -196,7 +197,7 @@ def inspection_summary(result: Any, detail: str = "short") -> str:
     if check_detail(detail) == "full":
         return _full(result)
     lines, cautions = inspection_parts(result)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
 __all__ = ["SHORT_FIELDS", "inspection_parts", "inspection_summary", "reason_counts", "tally"]

@@ -28,6 +28,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._caveats import assumption
 from .._style import among, group_columns, group_label, span, table, wrap
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
@@ -206,9 +207,12 @@ def _clustering_cautions(result: Any, words: str) -> list[str]:
         )
     if _technical(result):
         cautions.append(
-            "the field counts assume fields from independent technical repeats: a state held "
-            "by few technical repeats is clustered in their fields, so seeing it needs fields "
-            "from more technical repeats than the count says (no two-level plan is made)"
+            assumption(
+                "the field counts assume fields from independent technical repeats: a state "
+                "held by few technical repeats is clustered in their fields, so seeing it needs "
+                "fields from more technical repeats than the count says (no two-level plan is "
+                "made)"
+            )
         )
     return cautions
 

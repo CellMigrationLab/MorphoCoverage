@@ -366,7 +366,7 @@ def test_c14_two_field_level_estimands_named_apart_and_the_size_warning():
     # ScalarPrecision (object-weighted ratio estimator) warns that size and phenotype relate.
     result = _run(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
     assert result.diagnostics["field_size_correlation"] > 0.5
-    assert "FOV size and FOV mean are related" in result.diagnostics["field_size_warning"]
+    assert "field size and field mean are related" in result.diagnostics["field_size_warning"]
     rng = np.random.default_rng(1)
     independent = [rng.normal(10 + rng.normal(), 2, n) for n in rng.poisson(30, 20)]
     objects, fovs = _tables(independent)

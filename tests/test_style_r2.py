@@ -114,7 +114,11 @@ def test_reliability_short_is_one_table_across_groups_and_full_keeps_every_share
     for caveat in ("random draws", "conservative by construction", "cannot be read above"):
         assert _flat(short).count(caveat) == 1
         assert caveat in _flat(full)
-    assert short.count(CAUTION) >= 3
+    # They hold for every curve: standing assumptions, listed once, never marked.
+    standing = _flat(short.split("Assumptions:")[1])
+    for caveat in ("random draws", "conservative by construction", "cannot be read above"):
+        assert caveat in standing
+    assert short.count("Assumptions:") == 1 and full.count("Assumptions:") == 1
     # Every share of the curve, and every Monte Carlo SE, is printed in the full form.
     for row in result.curve.itertuples(index=False):
         assert percent(row.preserved) in full

@@ -44,7 +44,8 @@ from typing import Any
 
 import pandas as pd
 
-from .._style import DASH, caution_lines, check_detail, headline, wrap
+from .._caveats import caveat_lines
+from .._style import DASH, check_detail, headline, wrap
 from .._wording import count
 from ..integrity import integrity_checks
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
@@ -289,7 +290,7 @@ class Plan:
             status, answer = calibration_status(calibration)
             if short:
                 lines, cautions = calibration_short_parts(calibration, indent=2)
-                body = "\n".join([*lines, *caution_lines(cautions, indent=2)])
+                body = "\n".join([*lines, *caveat_lines(cautions, indent=2)])
                 glance = self.document.at_a_glance(PLAN_QUESTIONS)
                 line = wrap(headline(status, CALIBRATION_SHORT, answer), "  ", hang=5)
                 text = text.replace(glance, f"{glance}\n{line}", 1)

@@ -52,9 +52,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
 from .._seeds import group_key, group_rng
-from .._style import caution_lines, check_detail
+from .._style import check_detail
 from ..schema import unit_plural
 from ..transforms import Standardize
 from ._common import groups, matching_groups, validated
@@ -88,7 +89,7 @@ class UnusualObjects:
         once) or ``detail="full"`` (with each group's threshold and its calibration)."""
         full = check_detail(detail) == "full"
         text = unusual_full(self) if full else "\n".join(unusual_parts(self)[0])
-        return "\n".join([text, *caution_lines(unusual_parts(self)[1], indent=0)])
+        return "\n".join([text, *caveat_lines(unusual_parts(self)[1], indent=0, detail=detail)])
 
 
 def unusual_objects(

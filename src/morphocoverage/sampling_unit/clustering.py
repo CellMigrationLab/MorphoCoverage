@@ -62,9 +62,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
 from .._seeds import group_key, group_rng
-from .._style import caution_lines, check_detail
+from .._style import check_detail
 from ..bounds import interval
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_positions
@@ -99,7 +100,7 @@ class FOVClustering:
         the groups where it was seen) or ``detail="full"`` (every number), caveats once."""
         full = check_detail(detail) == "full"
         lines, cautions = clustering_parts(self, full=full)
-        return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+        return "\n".join([*lines, *caveat_lines(cautions, indent=0, detail=detail)])
 
 
 def fov_clustering(

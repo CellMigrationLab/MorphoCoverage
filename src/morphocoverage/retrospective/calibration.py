@@ -49,15 +49,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._style import (
-    caution_lines,
-    check_detail,
-    group_columns,
-    group_label,
-    span,
-    table,
-    wrap,
-)
+from .._caveats import assumption, caveat_lines
+from .._style import check_detail, group_columns, group_label, span, table, wrap
 from .._wording import listing, number
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
 from ..statistics import median_standard_error
@@ -342,19 +335,21 @@ def calibration_summary(result: StoppingCalibration) -> str:
                 lines.append(table(cells, header, indent=4))
             blocks.append("\n".join(lines))
     cautions = [
-        (
+        assumption(
             "each acquisition is one hold-out and one order of the same fields, not an "
             "independent experiment"
         )
     ]
     if len(frame) and (frame["not_preserved_by_stream"].fillna(0) > 0).any():
         cautions.append(
-            "'too early' is a range: its low end counts the stops that later fields of the "
-            "stream fixed; in the rest not even every available field together preserved it, "
-            "which the held-back fields' own noise can also cause"
+            assumption(
+                "'too early' is a range: its low end counts the stops that later fields of the "
+                "stream fixed; in the rest not even every available field together preserved "
+                "it, which the held-back fields' own noise can also cause"
+            )
         )
     if len(frame):
-        blocks.append("\n".join(caution_lines(cautions, indent=0)))
+        blocks.append("\n".join(caveat_lines(cautions, indent=0, detail="full")))
     blocks += skipped_lines(result.skipped, keys)
     return "\n\n".join(blocks)
 
@@ -379,7 +374,7 @@ def calibration_short(result: StoppingCalibration) -> str:
     """The calibration across groups: per criterion, each rule's share of stops where the
     criterion was not preserved, by order kind (the range over the groups)."""
     lines, cautions = calibration_short_parts(result)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
 def calibration_short_parts(
@@ -418,16 +413,18 @@ def calibration_short_parts(
         header = ["rule", *(_ORDER_COLUMNS.get(kind, kind) for kind in kinds)]
         lines.append(table(rows, header, indent=indent + 2))
     cautions = [
-        (
+        assumption(
             "judged on held-back fields the rule never saw; each acquisition is one hold-out "
             "and one order of the same fields, not an independent experiment"
         )
     ]
     if (frame["not_preserved_by_stream"].fillna(0) > 0).any():
         cautions.append(
-            "a stop counted as not preserved includes stops where not even every available "
-            "field preserved it, which the held-back fields' own noise can cause: the full "
-            "report splits the two"
+            assumption(
+                "a stop counted as not preserved includes stops where not even every available "
+                "field preserved it, which the held-back fields' own noise can cause: the full "
+                "report splits the two"
+            )
         )
     lines += [
         " " * indent + line for line in skipped_lines(result.skipped, list(result.group_cols))

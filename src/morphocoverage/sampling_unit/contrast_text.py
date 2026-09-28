@@ -26,7 +26,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._style import among, caution_lines, check_detail, span, table, wrap
+from .._caveats import assumption, caveat_lines
+from .._style import among, check_detail, span, table, wrap
 from .._wording import count, listing, number, percent
 from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
@@ -38,8 +39,8 @@ FEW_UNITS_D = 3
 P_ALPHA = 0.05  # the p-value at which contrasts of opposite signs are flagged
 _MEANS_ONLY = (
     "The test and the effect sizes compare means: a difference confined to a subpopulation of "
-    "{words} or to the shape of the distribution is not tested (see the unusual observations "
-    "and the rare label)."
+    "{words} or to the shape of the distribution is not tested (see the unusual {words} and "
+    "the rare label)."
 )
 _DECLARED = (
     "whole fields, treated as independent draws as declared (fields_independent; if they came "
@@ -180,7 +181,7 @@ def _cautions(contrast: Any) -> list[str]:
     if np.isinf(sizes).any():
         cautions.append("an infinite d is a perfect separation: no variation within either side")
     if ((contrast.table["permutation_unit"] == FIELD) & contrast.table["p_value"].notna()).any():
-        cautions.append(f"the tests over {_DECLARED}")
+        cautions.append(assumption(f"the tests over {_DECLARED}"))
     note = settings.get("unit_note")
     if note:
         cautions.append(f"Note: {note}")
@@ -191,7 +192,7 @@ def _cautions(contrast: Any) -> list[str]:
         settings["repeat_col"],
         lambda key: f"{key[0]} differs from the control at p <= {P_ALPHA:g}",
     )
-    cautions.append(_MEANS_ONLY.format(words=words))
+    cautions.append(assumption(_MEANS_ONLY.format(words=words)))
     if not contrast.effects.empty:
         whole = contrast.effects[contrast.effects["sampling"] == WHOLE_FOVS]["resampled"]
         resampled = whole.dropna().unique().tolist()
@@ -202,16 +203,21 @@ def _cautions(contrast: Any) -> list[str]:
                 else ""
             )
             cautions.append(
-                "The whole-field draws take the fields of technical repeats "
-                f"({listing(resampled)}) drawn with replacement, so their same-sign share "
-                f"includes well-to-well variation{partly}; the random-object draws treat "
-                f"{words} as independent draws, so their same-sign share is not a confidence "
-                "in the effect."
+                assumption(
+                    "The whole-field draws take the fields of technical repeats "
+                    f"({listing(resampled)}) drawn with replacement, so their same-sign share "
+                    f"includes well-to-well variation{partly}; the random-object draws treat "
+                    f"{words} as independent draws, so their same-sign share is not a confidence "
+                    "in the effect."
+                )
             )
         else:
             cautions.append(
-                "The draws resample these fields and objects, not wells or repeats: a "
-                "same-sign share describes these fields and is not a confidence in the effect."
+                assumption(
+                    f"The draws resample these fields and {words}, not wells or repeats: a "
+                    "same-sign share describes these fields and is not a confidence in the "
+                    "effect."
+                )
             )
     return cautions
 
@@ -382,7 +388,7 @@ def _full(contrast: Any) -> str:
         )
         draws, names = _draw_rows(contrast)
         lines.append(table(draws, names))
-    lines += caution_lines(_cautions(contrast), indent=0)
+    lines += caveat_lines(_cautions(contrast), indent=0, detail="full")
     return "\n".join(lines)
 
 
@@ -392,7 +398,7 @@ def contrast_summary(contrast: Any, detail: str = "short") -> str:
     if check_detail(detail) == "full":
         return _full(contrast)
     lines, cautions = contrast_parts(contrast)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
 __all__ = ["FEW_UNITS_D", "NO_CONTROL", "P_ALPHA", "contrast_parts", "contrast_summary"]

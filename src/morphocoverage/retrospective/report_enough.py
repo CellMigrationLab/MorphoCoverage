@@ -19,12 +19,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .._style import caution_lines, span, wrap
+from .._caveats import assumption, caveat_lines
+from .._style import span, wrap
 from .._wording import percent
 from ..bounds import lower_bound
 from ..sufficiency_short import short_parts
 from .calibration import calibration_short_parts
-from .report_profile import _CONFIDENCE, _detection, _detection_adjusted_bounds
+from .report_profile import _CONFIDENCE, _detection, _detection_adjusted_bounds, _words
 
 
 def _span(values: list[float]) -> str:
@@ -47,10 +48,11 @@ def detection_line(sufficiency: Any, controls: Any) -> tuple[str | None, list[st
     adjusted = [min(1.0, bound / low) for bound in bounds]
     if kind == "planted_lofo":
         planted = controls.settings["control"]["planted_objects"]
-        what = f"{planted} planted positive-control objects"
+        what = f"{planted} planted positive-control {_words(controls)}"
         cautions = []
     else:
         what = "positive-control fields"
+        # No planted objects declared: a measurement not made on these data, so a caution.
         cautions = [
             (
                 "the detection-adjusted bound holds for whole-field phenotypes like the control "
@@ -58,7 +60,9 @@ def detection_line(sufficiency: Any, controls: Any) -> tuple[str | None, list[st
                 "planted_objects to measure it)"
             )
         ]
-    cautions.append("the detection-adjusted bound assumes detection is independent between fields")
+    cautions.append(
+        assumption("the detection-adjusted bound assumes detection is independent between fields")
+    )
     line = (
         f"Adjusted for detection ({what} recognized in {percent(recognized / checks)} of "
         f"{checks} checks, at least {percent(low)} at {percent(confidence)} confidence): a "
@@ -85,7 +89,7 @@ def enough_short(sufficiency: Any, calibration: Any, controls: Any, indent: int 
         held, held_cautions = calibration_short_parts(calibration, indent=indent)
         lines += held
         cautions += held_cautions
-    return "\n".join([*lines, *caution_lines(cautions, indent=indent)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=indent)])
 
 
 def enough_full(sufficiency: Any, calibration: Any, controls: Any) -> list[str]:

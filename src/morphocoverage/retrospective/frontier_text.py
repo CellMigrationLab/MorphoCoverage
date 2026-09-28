@@ -6,16 +6,8 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from .._style import (
-    Status,
-    caution_lines,
-    check_detail,
-    group_columns,
-    headline,
-    table,
-    worst,
-    wrap,
-)
+from .._caveats import assumption, caveat_lines
+from .._style import Status, check_detail, group_columns, headline, table, worst, wrap
 from .._wording import number
 from ._text import fields, percent
 from .effort import MIN_BOOT_SUCCESS
@@ -129,23 +121,26 @@ def _interval(row: object, saved: float, units: int | None = None) -> str:
     return interval + (f" ({'; '.join(notes)})" if notes else "")
 
 
-def _resampled(result: FrontierResult) -> str:
-    """How the intervals were made (or why there are none), stated once per criterion."""
+def _resampled(result: FrontierResult) -> list[str]:
+    """How the intervals were made (or why there are none), stated once per criterion: a
+    caution when the units are few (a count of these data), else a standing assumption;
+    and that hold-outs and orders are not independent experiments (an assumption)."""
     units = result.settings.get("units", 0)
     unit_cols = result.settings.get("unit_cols") or []
     named = f" ({group_columns(unit_cols)})" if unit_cols else ""
     if units >= FEW_UNITS:
+        few = units < _MANY_UNITS
         resampled = (
             f"Intervals resample the {units} units{named}, treated as independent, "
             "widened for their number (approximate"
             + (
-                ""
-                if units >= _MANY_UNITS
-                else f": with fewer than {_MANY_UNITS} units "
-                "they cover the truth less often than stated"
+                f": with fewer than {_MANY_UNITS} units they cover the truth less often than stated"
+                if few
+                else ""
             )
             + ")"
         )
+        resampled = resampled if few else assumption(resampled)
     elif units >= 2:
         resampled = (
             f"No interval: only {units} units{named} to resample, and at least "
@@ -153,7 +148,7 @@ def _resampled(result: FrontierResult) -> str:
         )
     else:
         resampled = f"No interval: there is a single unit{named} to resample"
-    return f"{resampled}; hold-outs and orders are not independent experiments"
+    return [resampled, assumption("hold-outs and orders are not independent experiments")]
 
 
 def _scored(base: pd.Series) -> bool:
@@ -369,7 +364,7 @@ def frontier_summary(result: FrontierResult, detail: str = "short") -> str:
         for _, rows in result.scores.groupby("alpha", sort=True)
     ]
     if any(scored):
-        lines += caution_lines([_resampled(result)], indent=2)
+        lines += caveat_lines(_resampled(result), indent=2, detail=detail)
     lines.append("  Risk is judged on held-back fields.")
     return "\n".join(lines)
 

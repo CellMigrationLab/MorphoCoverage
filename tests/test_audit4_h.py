@@ -15,6 +15,7 @@ import pytest
 from scenarios import FEATURE_COLS, SCENARIOS
 
 from morphocoverage import ObjectiveConfig, SamplingObjective, ScalarPrecisionStrategy
+from morphocoverage._caveats import is_assumption
 from morphocoverage._seeds import group_rng, group_seed
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
@@ -398,9 +399,15 @@ def test_p1_9_the_limits_say_what_was_not_read_or_not_recorded():
     assert any("No acquisition order (acquisition_order_col)" in n for n in notes)
     placed = Setup(readout="x", stage_cols=("sx", "sy"), acquisition_order_col="t")
     assert coverage_notes({}, placed) == []
-    # Nothing left unassessed still reads as "on the columns stated", never as "everything".
+    # The readout-only note holds for every dataset (an assumption); the missing stage
+    # coordinates and acquisition order are cautions about these data (_caveats).
+    kinds = {n.split(" ")[0]: is_assumption(n) for n in notes}
+    assert kinds == {"The": True, "No": False}
+    # Nothing left unassessed still reads as "on the assumptions stated", never "everything".
     assessed = MicroscopistReport({}, pd.DataFrame(), inputs={})
-    assert "Every question was assessed, each on the columns" in assessed.limits()
+    closing = assessed.limits()
+    assert "Every question could be answered; the assumptions each answer rests on" in closing
+    assert "everything" not in closing
 
 
 def test_p9_4_effort_intervals_do_not_depend_on_the_row_order_of_the_tables():

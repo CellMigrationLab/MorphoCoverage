@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .._style import caution_lines
+from .._caveats import caveat_lines
 from .adequacy_text import adequacy_short_parts
 from .effort_text import effort_short_parts
 from .protocol_text import protocol_short_parts
@@ -35,7 +35,7 @@ def _join(parts: list[tuple[list[str], list[str]]], indent: int) -> str | None:
     lines = []
     for block in blocks:
         lines += ([""] if lines else []) + block
-    return "\n".join([*lines, *caution_lines(cautions, indent=indent)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=indent)])
 
 
 def next_time_short(reliability: Any, protocol: Any, indent: int = 2) -> str | None:

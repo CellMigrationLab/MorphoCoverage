@@ -23,7 +23,8 @@ from typing import Any
 
 import pandas as pd
 
-from .._style import among, caution_lines, group_columns, group_label, span, table, wrap
+from .._caveats import caveat_lines
+from .._style import among, group_columns, group_label, span, table, wrap
 from .._wording import count, listing, number, percent, rate
 from ..schema import unit_plural
 
@@ -69,9 +70,11 @@ def _by_reason(rows: Sequence[Mapping[str, Any]], keys: Sequence[str], what: str
     ]
 
 
-def join(lines: Sequence[str], cautions: Sequence[str], indent: int = 0) -> str:
-    """The lines, then each caveat once as a ⚠️ line under ``indent``."""
-    return "\n".join([*lines, *caution_lines(cautions, indent=indent)])
+def join(
+    lines: Sequence[str], cautions: Sequence[str], indent: int = 0, detail: str = "short"
+) -> str:
+    """The lines, then each caveat once under ``indent`` (``_caveats.caveat_lines``)."""
+    return "\n".join([*lines, *caveat_lines(cautions, indent=indent, detail=detail)])
 
 
 # --- Field variability --------------------------------------------------------
@@ -185,7 +188,7 @@ def variability_full(result: Any, indent: int = 0) -> str:
             hang=indent + 2,
         )
     )
-    return join(lines, _variability_cautions(result, rows, words), indent)
+    return join(lines, _variability_cautions(result, rows, words), indent, "full")
 
 
 # --- The JCB object-count rule ----------------------------------------------------
@@ -338,7 +341,7 @@ def object_rule_full(result: Any, indent: int = 0) -> str:
                 hang=indent + 2,
             )
         )
-    return join(lines, _rule_cautions(result, rows), indent)
+    return join(lines, _rule_cautions(result, rows), indent, "full")
 
 
 # --- The JCS descriptor spread -------------------------------------------------
@@ -445,7 +448,7 @@ def descriptor_spread_full(result: Any, indent: int = 0) -> str:
         cells.append(cell)
     if cells:
         lines.append(table(cells, ["group", *descriptors], indent=indent + 2))
-    return join(lines, _spread_cautions(result, words), indent)
+    return join(lines, _spread_cautions(result, words), indent, "full")
 
 
 __all__ = [

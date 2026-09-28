@@ -22,16 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._style import (
-    caution_lines,
-    check_detail,
-    group_label,
-    merge_numbers,
-    number_pattern,
-    span,
-    table,
-    wrap,
-)
+from .._caveats import caveat_lines
+from .._style import check_detail, group_label, merge_numbers, number_pattern, span, table, wrap
 from .._wording import count, number
 from ._text import column_word, fields, median_beyond, percent, plural, rows_of, sample_word
 
@@ -385,7 +377,7 @@ def protocol_summary(result: ProtocolResult, detail: str = "short") -> str:
         lines, cautions = protocol_full_parts(result)
     else:
         lines, cautions = protocol_short_parts(result, indent=0)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0, detail=detail)])
 
 
 def _none_judged(sample: str, beyond: int, undefined: int) -> str:

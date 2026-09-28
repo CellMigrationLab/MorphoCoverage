@@ -27,8 +27,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._style import among, caution_lines, group_label, once, span, wrap
+from .._caveats import caveat_lines, once
+from .._style import among, group_label, span, wrap
 from .._wording import count, listing, percent
+from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..sampling_unit._state_text import (
     SEED_AGREEMENT_WARNING,
     clustering_parts,
@@ -51,8 +53,10 @@ from .effort_text import level_words, share_caveat, unit_word
 _LARGEST = "largest source of uncertainty of the mean"
 
 
-def _joined(lines: Sequence[str], cautions: Sequence[str], indent: int) -> str:
-    return "\n".join([*lines, *caution_lines(once(cautions), indent=indent)])
+def _joined(
+    lines: Sequence[str], cautions: Sequence[str], indent: int, detail: str = "short"
+) -> str:
+    return "\n".join([*lines, *caveat_lines(once(cautions), indent=indent, detail=detail)])
 
 
 # --- Foundation ------------------------------------------------------------------
@@ -140,9 +144,10 @@ def clustered_states(clustering: Sequence[Any]) -> tuple[list[str], int, int]:
         for state, block in rows.groupby("state", sort=False):
             hits = int((block["p_clustered"] <= 0.05).sum())
             if hits:
+                word = "technical repeat" if TECHNICAL_REPEAT_COLUMN in result.group_cols else ""
                 names.append(
                     f"{state_words(result, state, words)} clustered in {hits} of "
-                    f"{count(len(block), 'group')}"
+                    f"{count(len(block), word or 'group')}"
                 )
             clustered += hits
             seen += len(block)
@@ -161,8 +166,11 @@ def largest_sources(profile: pd.DataFrame) -> tuple[str | None, bool]:
     if not found:
         return None, uncertain
     level, times = Counter(found).most_common(1)[0]
-    where = among(times, len(rows), "stratum")
-    return f"variance of the mean mostly {level} ({where})", uncertain
+    # The strata by their column (``condition=MOCK``: conditions), when there is one.
+    columns = {str(w).split("=")[0] for w in rows["where"] if "=" in str(w) and "," not in str(w)}
+    word = columns.pop() if len(columns) == 1 else "stratum"
+    where = among(times, len(rows), word)
+    return f"most variance {level} in {where}", uncertain
 
 
 def unstable_labels(unusual: Any) -> str | None:
@@ -345,10 +353,10 @@ def profile_full(
     if unusual is not None:
         _, cautions = unusual_parts(unusual)
         text = unusual_full(unusual, indent)
-        blocks.append("\n".join([text, *caution_lines(cautions, indent=indent)]))
+        blocks.append("\n".join([text, *caveat_lines(cautions, indent=indent, detail="full")]))
     if clustering is not None:
         lines, cautions = clustering_parts(clustering, indent, full=True)
-        blocks.append(_joined(lines, cautions, indent))
+        blocks.append(_joined(lines, cautions, indent, "full"))
     if frame:
         blocks.append(wrap(frame, indent, hang=indent + 2))
     return "\n\n".join(blocks)
@@ -379,12 +387,11 @@ def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: An
     if seen and not clustered:
         words = unit_plural(_unit(clustering, unusual))
         parts.append(f"labelled states spread like random {words} in all {seen} groups seen")
-    largest, uncertain = largest_sources(profile)
+    # The main answer only: whether the largest share is established and whether the
+    # unusual labels are stable are cautions of the section (and raise its status).
+    largest, _ = largest_sources(profile)
     if largest:
-        parts.append(f"{largest[:-1]}, not established)" if uncertain else largest)
-    unstable = unstable_labels(unusual)
-    if unstable:
-        parts.append(f"unusual labels unstable in {unstable}")
+        parts.append(largest)
     return parts
 
 

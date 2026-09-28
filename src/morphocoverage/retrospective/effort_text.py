@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
+from .._caveats import caveat_lines
 from .._style import (
-    caution_lines,
     check_detail,
     group_columns,
     group_label,
@@ -293,7 +293,7 @@ def effort_summary(result: EffortResult, detail: str = "short") -> str:
         lines, cautions = effort_full_parts(result)
     else:
         lines, cautions = effort_short_parts(result, indent=0)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0, detail=detail)])
 
 
 def effort_full_parts(result: EffortResult, indent: int = 0) -> tuple[list[str], list[str]]:

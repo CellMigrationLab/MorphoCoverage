@@ -199,7 +199,9 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     # The closing: what was not assessed, in a line each, and the notes as caveats.
     closing = short.split(LIMITS_TITLE)[1]
     assert f"{NOT_ASSESSED} 2. Did I image enough? — not assessed" in closing
-    assert f"{CAUTION} Every answer holds for the stated features" in closing
+    # A standing assumption of every answer: listed under "Assumptions:", not marked.
+    assert "Assumptions: Every answer holds for the stated features" in _flat(closing)
+    assert f"{CAUTION} Every answer holds" not in closing
     limits = report.limits(detail="full")
     assert "2. Did I image enough?: not assessed; needs: run sufficiency_report" in limits
     assert report.limits() == limits

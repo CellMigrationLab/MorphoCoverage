@@ -347,7 +347,7 @@ class ScalarPrecisionEstimator(Estimator):
                 # Variance inflation from treating FOVs, not objects, as the sampling unit.
                 ratio = (estimate["cv_mean"] / object_cvs["cv_mean"]) ** 2
                 estimate["ratio_design_effect"] = ratio
-                estimate.update(_field_size_check(sums, counts))
+                estimate.update(_field_size_check(sums, counts, plural(unit)))
         cautions = []
         if object_cvs is not None and object_cvs["cv_objects"] > _MAX_TRUSTED_CV:
             cautions.append(

@@ -111,7 +111,12 @@ def test_caveats_are_stated_once_at_a_stop_and_wait_while_the_objective_continue
     assert flat.count(RANDOM_SAMPLE_ASSUMPTION) == 1
     assert flat.count(INDEPENDENT) == 1 and "JCB rule, per nucleus, 5% treats" in flat
     assert flat.count("one standard error of 5% of the mean, not a ±5% bound") == 1
-    assert stop.count("⚠️") == 3
+    # No order check ran here: that is a caution about these fields (⚠️); the rules'
+    # independent draws and what an averaging CV is are standing assumptions.
+    assert stop.count("⚠️") == 1
+    assert "⚠️ The acquisition order was not checked, so every stop treats" in stop
+    standing = _flat(stop.split("Assumptions:")[1])
+    assert INDEPENDENT in standing and "not a ±5% bound" in standing
     # While the objective says continue no stop is acted on: its caveats wait (the full
     # form states them beside every rule that says stop, as explain does).
     early = updates[0]

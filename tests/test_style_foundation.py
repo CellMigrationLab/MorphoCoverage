@@ -22,6 +22,7 @@ from morphocoverage import (
     SamplingObjective,
     ScalarPrecisionStrategy,
 )
+from morphocoverage._caveats import caveat_lines
 from morphocoverage._style import (
     CAUTION,
     NOT_ASSESSED,
@@ -29,7 +30,6 @@ from morphocoverage._style import (
     PROBLEM,
     Status,
     among,
-    caution_lines,
     check_detail,
     group_columns,
     group_label,
@@ -262,7 +262,7 @@ def test_numbers_that_differ_become_ranges_and_shared_ones_stay():
 
 
 def test_cautions_are_stated_once_each_with_the_marker():
-    lines = caution_lines(["the fields are a random sample", "the fields are a random sample "])
+    lines = caveat_lines(["the fields are a random sample", "the fields are a random sample "])
     assert lines == [f"  {CAUTION} The fields are a random sample."]
 
 
@@ -316,7 +316,7 @@ def test_question_2_is_fine_only_when_every_rule_is_met_everywhere():
     # The point rule warns in some groups here, and a caution asks the reader to look.
     cautioned = met.final["warning_list"].map(bool).any()
     assert status is (Status.CAUTION if cautioned else Status.OK)
-    assert "every rule met in all 4 groups" in text
+    assert "every rule said enough in every group" in text
     never = _groups_report([ScalarPrecisionStrategy("feature_a", 1e-6, "fov", "point")])
     assert set(never.enough["sampled_enough"]) == {"no"}
     assert enough_status(never)[0] is Status.PROBLEM
@@ -327,7 +327,7 @@ def test_question_2_is_fine_only_when_every_rule_is_met_everywhere():
         ]
     )
     status, text = enough_status(both)
-    assert status is Status.CAUTION and "1 of 2 rules met" in text
+    assert status is Status.CAUTION and "1 of 2 rules said enough in every group" in text
     # A fixed amount of effort says nothing about the data: never a plain "fine".
     assert enough_status(_groups_report([FixedFOVStrategy(2)]))[0] is Status.CAUTION
     assert enough_status(None)[0] is Status.NOT_ASSESSED
@@ -362,7 +362,9 @@ def test_the_full_answer_keeps_every_number_of_every_answer():
     short = report.summary()
     assert "nothing new (≤20%)" in short and "fixed 4 fields" in short
     assert short.count("treat fields as independent, representative draws") == 1
-    assert "Seen in few fields:" in short and "'New' means" in short
+    # Short: what counts as new in one plain line; its exact definition in the full form.
+    assert "Seen in few fields:" in short and "'New': at least 3 similar objects" in short
+    assert "'New' means" not in short and "'New' means" in full
     with pytest.raises(ValueError, match="detail"):
         report.summary(detail="everything")
 

@@ -8,8 +8,9 @@
   assessed with what it needs (short: its "At a glance" line; full: the whole
   need), then the notes, each once, marked by what they are: ❌ a weak
   representation or fields the integrity checks name (every answer counts
-  them as independent), ⚠️ the other limits, and the run's settings as plain
-  lines. The short form leaves out a note that repeats the reason printed in
+  them as independent), ⚠️ a caution about these data (a missing control, no
+  stage coordinates), the standing assumptions under "Assumptions:", and the
+  run's settings as plain lines. The short form leaves out a note that repeats the reason printed in
   a section shown above it.
 """
 
@@ -18,20 +19,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .._style import (
-    NOT_ASSESSED,
-    PROBLEM,
-    Status,
-    caution_lines,
-    check_detail,
-    headline,
-    once,
-    wrap,
-)
+from .._caveats import caveat_lines, once
+from .._style import NOT_ASSESSED, PROBLEM, Status, check_detail, headline, wrap
 
 ASSESSED = (
-    "Every question was assessed, each on the columns and under the assumptions stated with it "
-    "and in the notes below."
+    "Every question could be answered; the assumptions each answer rests on are listed with it."
 )
 # Notes that change how every answer is read: a weak representation, fields that the
 # integrity checks name.
@@ -45,17 +37,18 @@ def short_section(parts: Sequence[tuple[list[str], list[str]]], *cautions: str) 
     for own, own_cautions in parts:
         lines += own
         pooled += own_cautions
-    return "\n".join([*lines, *caution_lines([*pooled, *cautions], indent=2)])
+    return "\n".join([*lines, *caveat_lines([*pooled, *cautions], indent=2)])
 
 
-def _notes(notes: Sequence[str]) -> list[str]:
-    """The notes, each once: problems (❌) first, then limits (⚠️), then the settings."""
+def _notes(notes: Sequence[str], detail: str = "short") -> list[str]:
+    """The notes, each once: problems (❌) first, then the cautions about these data (⚠️)
+    and the standing assumptions ("Assumptions:", ``_caveats``), then the settings."""
     notes = once(notes)
     problems = [n for n in notes if n.startswith(_PROBLEMS)]
     settings = [n for n in notes if n.startswith("Settings:")]
     limits = [n for n in notes if n not in problems and n not in settings]
     lines = [wrap(f"{PROBLEM} {note}", 2, hang=5) for note in problems]
-    lines += caution_lines(limits, indent=2)
+    lines += caveat_lines(limits, indent=2, detail=detail)
     lines += [wrap(note, 2, hang=4) for note in settings]
     return lines
 
@@ -86,7 +79,7 @@ def limits_text(
     # A reason added to an assessed answer is printed in its section and among the notes.
     shown = tuple(title for _, title in chosen)
     notes = [n for n in report.notes if full or not n.startswith(shown)]
-    return "\n".join([*lines, *_notes(notes)])
+    return "\n".join([*lines, *_notes(notes, detail)])
 
 
 __all__ = ["ASSESSED", "limits_text", "short_section"]

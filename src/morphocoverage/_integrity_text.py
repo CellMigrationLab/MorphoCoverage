@@ -19,16 +19,8 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from . import _integrity_match as match
-from ._style import (
-    NOT_ASSESSED,
-    Status,
-    caution_lines,
-    check_detail,
-    group_columns,
-    headline,
-    table,
-    wrap,
-)
+from ._caveats import assumption, caveat_lines
+from ._style import NOT_ASSESSED, Status, check_detail, group_columns, headline, table, wrap
 from ._wording import count, listing
 
 if TYPE_CHECKING:
@@ -68,7 +60,8 @@ def integrity_summary(result: IntegrityResult, detail: str = "short") -> str:
         lines += _finding_table(result) if short else _finding_lines(result)
         lines.append(wrap(_WHAT_TO_DO, 2))
     lines += [wrap(f"{NOT_ASSESSED} {text}", 2, hang=5) for text in _skipped(result)]
-    lines += caution_lines([*_coverage(settings), _out_of_reach(settings)], indent=2)
+    caveats = [*_coverage(settings), _out_of_reach(settings)]
+    lines += caveat_lines(caveats, indent=2, detail=detail)
     return "\n".join(lines)
 
 
@@ -234,8 +227,8 @@ def _coverage(settings: dict[str, Any]) -> list[str]:
 
 
 def _out_of_reach(settings: dict[str, Any]) -> str:
-    """What no exact check can see."""
-    return (
+    """What no exact check can see: a standing assumption of every run of the checks."""
+    return assumption(
         f"Out of reach of these checks: a copy re-rounded to fewer than {match.DIGITS} "
         f"significant digits, a block of fewer than {settings.get('block_length', 10)} "
         "observations, a copy with feature columns swapped or a feature (or a value) "

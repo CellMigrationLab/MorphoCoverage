@@ -34,9 +34,9 @@ from typing import Any
 
 import pandas as pd
 
+from ._caveats import assumption, caveat_lines, is_assumption
 from ._style import (
     among,
-    caution_lines,
     group_columns,
     group_label,
     merge_numbers,
@@ -47,6 +47,8 @@ from ._style import (
     wrap,
 )
 from ._wording import count, listing, number, percent, plural, rows_of
+from .order_check import order_caveat
+from .schema import unit_plural
 
 _MET = ("yes", "target reached")
 
@@ -79,9 +81,15 @@ def _warning_list(row: Mapping[str, Any]) -> list[str]:
     """A rule's cautions one by one (tables written before ``warning_list`` join them)."""
     listed = row.get("warning_list")
     if isinstance(listed, list | tuple):
-        return [str(text) for text in listed if text]
+        return [text if isinstance(text, str) else str(text) for text in listed if text]
     joined = row.get("warnings")
     return [joined] if isinstance(joined, str) and joined else []
+
+
+def _data_warnings(row: Mapping[str, Any]) -> list[str]:
+    """A rule's cautions about these data: its warnings but the standing assumptions it
+    states beside every value (``_style.Assumption``), which never raise a status."""
+    return [text for text in _warning_list(row) if not is_assumption(text)]
 
 
 def _ever_met(stops: pd.DataFrame, row: Mapping[str, Any], keys: Sequence[str]) -> bool:
@@ -112,7 +120,7 @@ def rule_tallies(report: Any) -> list[dict[str, Any]]:
         warned = flagged = lost = 0
         for _, row in own.iterrows():
             stopped = row["verdict"] == "stop"
-            warned += bool(stopped and _warning_list(row))
+            warned += bool(stopped and _data_warnings(row))
             flagged += bool(stopped and _flagged(row))
             lost += bool(row["verdict"] == "continue" and _ever_met(report.stops, row, keys))
         tallies.append(
@@ -266,25 +274,30 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
     if target is not None:
         lines += _target_lines(estimable, target, keys)
         cautions.append(
-            "every novelty bound holds at a number of fields fixed in advance, not at the first "
-            "field where it passes: stopping there is premature more often than "
-            f"{percent(1 - float(estimable['confidence'].iloc[0]))} of the time"
+            assumption(
+                "every novelty bound holds at a number of fields fixed in advance, not at the "
+                "first field where it passes: stopping there is premature more often than "
+                f"{percent(1 - float(estimable['confidence'].iloc[0]))} of the time"
+            )
         )
     cautions[:0] = [
-        (
+        assumption(
             "the next-field bound is approximate: the leave-one-field-out outcomes share their "
             "reference fields"
         ),
-        (
+        assumption(
             "the novelty bounds treat fields as independent, representative draws: neighbouring "
             "fields acquired in a raster over patchy states make them too low"
         ),
     ]
     m = estimable["min_novel_observations"].dropna()
+    words = unit_plural(getattr(report, "observation_unit", None) or "object")
     if len(m) and int(m.max()) > 1:
         cautions.append(
-            f"a state carried by fewer than {int(m.max())} similar observations per field is "
-            "never counted, however many fields hold it"
+            assumption(
+                f"a state carried by fewer than {int(m.max())} similar {words} per field is "
+                "never counted, however many fields hold it"
+            )
         )
     empty = estimable[estimable["fovs_without_observations"].fillna(0).astype(int) > 0]
     if len(empty):
@@ -379,13 +392,17 @@ def _rule_cautions(
         groups = len(own)
         if not tally["data_rule"]:
             cautions.append(
-                f"{label}: a fixed amount of effort reaching its target says nothing about what "
-                "the data show"
+                assumption(
+                    f"{label}: a fixed amount of effort reaching its target says nothing about "
+                    "what the data show"
+                )
             )
         if own["assumes_spatial_uniformity"].astype(bool).any():
             cautions.append(
-                f"{label} treats {plural(unit)} as independent draws: it assumes a spatially "
-                "uniform sample"
+                assumption(
+                    f"{label} treats {plural(unit)} as independent draws: it assumes a "
+                    "spatially uniform sample"
+                )
             )
         found: dict[str, list[tuple[str, str]]] = {}
         for _, row in own.iterrows():
@@ -396,8 +413,9 @@ def _rule_cautions(
             where = among(len(pairs), groups)
             if name_groups and len(pairs) < groups:
                 where += f" ({listing([w for w, _ in pairs], limit=5)})"
-            merged = merge_numbers([t for _, t in pairs])
-            cautions.append(f"{label}, in {where}: {merged}")
+            merged = f"{label}, in {where}: {merge_numbers([t for _, t in pairs])}"
+            standing = all(is_assumption(t) for _, t in pairs)
+            cautions.append(assumption(merged) if standing else merged)
         undefined = own[own["verdict"].isna()]["undefined_reason"].dropna().astype(str)
         waiting = own[own["verdict"].eq("continue")]["insufficient_reason"].dropna().astype(str)
         for reasons, what in ((waiting, "cannot be judged yet"), (undefined, "is undefined")):
@@ -436,11 +454,14 @@ def _stop_cautions(stops: list[tuple[str, str]]) -> list[str]:
         if text.startswith("caution: "):
             flagged = text.removeprefix("caution: ")
             lines.append(f"order check in {listing(mine, limit=3)}: {flagged}")
-        elif text.startswith("treats"):
-            who = "every stop" if len(mine) == len(groups) else f"a stop in {listing(mine, 3)}"
-            lines.append(f"{who} {text}")
-        else:
-            lines.append(text if len(mine) == len(groups) else f"{listing(mine, 3)}: {text}")
+            continue
+        caveat = order_caveat(text)
+        where = "" if len(mine) == len(groups) else f" in {listing(mine, 3)}"
+        if text.startswith("treats"):
+            caveat = caveat.replace("so every stop", f"so every stop{where}", 1)
+        elif where:
+            caveat = type(caveat)(f"{listing(mine, 3)}: {caveat}")
+        lines.append(caveat)
     return lines
 
 
@@ -458,16 +479,27 @@ def short_parts(
         lines += _rules_table(report, tallies, indent)
     novelty, novelty_cautions = _novelty_lines(report, target)
     lines += [wrap(line, indent, hang=indent + 2) for line in novelty]
-    if report.novelty_definition and novelty:
-        definition = f"'New' means {report.novelty_definition}."
+    definition = _new_in_short(report)
+    if definition and novelty:
         lines.append(wrap(definition, indent, hang=indent + 2))
     return lines, [*_rule_cautions(report, tallies), *novelty_cautions]
+
+
+def _new_in_short(report: Any) -> str | None:
+    """What counts as new, in one plain line: its exact definition is the full form's."""
+    if not report.novelty_definition:
+        return None
+    frame = report.next_fov
+    m = frame["min_novel_observations"].dropna() if "min_novel_observations" in frame else []
+    words = unit_plural(getattr(report, "observation_unit", None) or "object")
+    least = f"at least {int(max(m))} similar {words}" if len(m) else f"similar {words}"
+    return f"'New': {least} that no other field shows; the exact definition is in the full report."
 
 
 def short_summary(report: Any, target: float | None = None) -> str:
     """The short form of a ``SufficiencyReport`` (see the module)."""
     lines, cautions = short_parts(report, target)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
 __all__ = ["rule_tallies", "short_parts", "short_summary"]

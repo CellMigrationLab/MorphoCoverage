@@ -28,15 +28,8 @@ from typing import Any
 
 import pandas as pd
 
-from ._style import (
-    caution_lines,
-    group_label,
-    number_pattern,
-    rule_label,
-    table,
-    varying_numbers,
-    wrap,
-)
+from ._caveats import assumption, caveat_lines
+from ._style import group_label, number_pattern, rule_label, table, varying_numbers, wrap
 from ._wording import count, number, percent, rows_of
 from .sufficiency_short import (
     _group,
@@ -253,20 +246,24 @@ def _full_cautions(report: Any, target: float | None) -> list[str]:
     frame = report.next_fov
     if frame.empty:
         return cautions
-    cautions.append("a state below the not-yet-seen bound can remain: rarer states can remain")
+    cautions.append(
+        assumption("a state below the not-yet-seen bound can remain: rarer states can remain")
+    )
     if "few_fovs" in frame and frame["few_fovs"].map(_present).any():
         cautions += [
-            (
+            assumption(
                 "a state seen in few fields (fields counted as new are not among them) is not "
                 "new to the next field but is not established either: it counts as recurrent, "
                 "so look at those fields before calling the sample settled"
             ),
-            "fields that cluster a state need more fields than the planning numbers",
+            assumption("fields that cluster a state need more fields than the planning numbers"),
         ]
     if report.calibration is not None and not report.calibration.empty:
         cautions.append(
-            "the check on this dataset draws random subsets, which break the acquisition order "
-            "and the neighbours, so it cannot reveal neighbour correlation"
+            assumption(
+                "the check on this dataset draws random subsets, which break the acquisition "
+                "order and the neighbours, so it cannot reveal neighbour correlation"
+            )
         )
     return cautions
 
@@ -320,7 +317,7 @@ def full_summary(report: Any, target: float | None = None) -> str:
         *_rule_cautions(report, tallies, name_groups=True),
         *novelty_cautions,
     ]
-    blocks.append("\n".join(caution_lines(cautions, indent=0)))
+    blocks.append("\n".join(caveat_lines(cautions, indent=0, detail="full")))
     return "\n\n".join(block for block in blocks if block)
 
 

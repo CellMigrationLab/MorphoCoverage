@@ -153,8 +153,8 @@ def _summary(objects, fovs, strategies, objective=POPULATION):
 def test_c2_the_sufficiency_sentence_carries_the_rules_own_warnings():
     objects, fovs = _field_size_acquisition()
     text = _summary(objects, fovs, [ScalarPrecisionStrategy("area", 0.1, "fov", "point")])
-    assert "Caution: FOV size and FOV mean are related (Spearman rho -0." in text
-    assert "point SD, in the group: FOV size and FOV mean are related (Spearman rho -0." in text
+    assert "Caution: field size and field mean are related (Spearman rho -0." in text
+    assert "point SD, in the group: field size and field mean are related (Spearman rho -0." in text
     # The paper's advice for a between-object CV above 50% is printed too.
     rng = np.random.default_rng(1)
     wide = _acquisition([list(rng.exponential(10.0, 20)) for _ in range(6)])

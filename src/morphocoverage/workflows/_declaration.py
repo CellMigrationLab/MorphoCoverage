@@ -16,7 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .._style import caution_lines, rule_label, wrap
+from .._caveats import assumption, caveat_lines
+from .._style import rule_label, wrap
 from .._wording import count, listing, percent, rate
 from ..evidence import Component
 from ..order_check import RANDOM_SAMPLE_ASSUMPTION
@@ -334,7 +335,7 @@ def _order_short(setup: Setup) -> tuple[str | None, list[str]]:
         tests.append(f"alike neighbours by {listing(stage)} (Moran's I)")
     line = f"Order check beside every stop: {' and '.join(tests)}."
     return line, [
-        (
+        assumption(
             "a flagged order trend is a caution, never a veto, and finding none does not show "
             f"the fields to be a random sample of the well's positions; {advice}"
         )
@@ -342,7 +343,8 @@ def _order_short(setup: Setup) -> tuple[str | None, list[str]]:
 
 
 def declaration_short(setup: Setup, indent: int = 2) -> str:
-    """The declaration in a line per target and setting, each caveat once as a ⚠️ line.
+    """The declaration in a line per target and setting, each caveat once (a missing
+    declaration as a ⚠️ line, a standing assumption under "Assumptions:").
 
     The report's short form of "What this acquisition was asked to preserve";
     ``declaration(setup)`` keeps every sentence.
@@ -392,9 +394,11 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     if targets:
         cvs = " and ".join(f"{rate(t)} is one standard error of {rate(t)}" for t in targets)
         cautions.append(
-            f"the JCB rules stop on the averaging CV ({cvs} of the mean), not on a "
-            f"±{rate(targets[0])} bound on its error; whether the mean is within {tolerances} "
-            "is judged on held-back fields"
+            assumption(
+                f"the JCB rules stop on the averaging CV ({cvs} of the mean), not on a "
+                f"±{rate(targets[0])} bound on its error; whether the mean is within {tolerances} "
+                "is judged on held-back fields"
+            )
         )
     order, order_cautions = _order_short(setup)
     lines += [order] if order else []
@@ -414,7 +418,7 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         "rule decides stays unsupported, never assumed adequate."
     )
     text = [wrap(line, indent, hang=indent + 2) for line in lines]
-    return "\n".join([*text, *caution_lines(cautions, indent=indent)])
+    return "\n".join([*text, *caveat_lines(cautions, indent=indent)])
 
 
 __all__ = ["declaration", "declaration_short"]

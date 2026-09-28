@@ -155,7 +155,7 @@ def test_the_report_carries_the_integrity_checks_only_when_asked(idr0028):
     checked = report(objects, fovs[wells], setup, integrity=True)
     assert "integrity" not in plain.results
     assert "Data integrity" not in plain.summary(detail="full")
-    assert "➖ Integrity not checked" in plain.summary()
+    assert "➖ Copy checks not run (report(..., integrity=True) runs them)" in plain.summary()
     full = checked.summary(detail="full")
     assert "Data integrity" in full and checked.results["integrity"].findings.empty
     assert "✅ Integrity: nothing found." in checked.summary()

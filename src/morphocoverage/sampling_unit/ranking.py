@@ -48,9 +48,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._caveats import assumption, caveat_lines
 from .._checks import is_number
 from .._seeds import group_rng
-from .._style import caution_lines, check_detail, table, wrap
+from .._style import check_detail, table, wrap
 from .._wording import count
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..statistics import benjamini_hochberg
@@ -257,9 +258,11 @@ class FeatureRanking:
             and ((self.tests["permutation_unit"] == FIELD) & self.tests["p_value"].notna()).any()
         ):
             cautions.append(
-                "Tests over whole fields treat the fields as independent draws, as declared "
-                "(fields_independent); if they came from a few wells or dishes, those tests "
-                "test the wells, not the condition."
+                assumption(
+                    "Tests over whole fields treat the fields as independent draws, as declared "
+                    "(fields_independent); if they came from a few wells or dishes, those tests "
+                    "test the wells, not the condition."
+                )
             )
         note = self.settings.get("unit_note")
         if note:
@@ -287,14 +290,14 @@ class FeatureRanking:
         ``max_rows`` ranked features and every unranked one (``"full"``)."""
         if check_detail(detail) == "short":
             lines, cautions = self.short_parts(max_rows=min(max_rows, TOP_FEATURES))
-            return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+            return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
         lines = [wrap(self._head(), 0, hang=2)]
         if self.tests.empty:
             lines.append(self.settings.get("reason", "No condition to compare with the control."))
             return "\n".join(lines)
         lines += self._table(max_rows, 2)
         lines += [wrap(line, 2, hang=4) for line in self._unranked(short=False)]
-        lines += caution_lines(self._cautions(), indent=2)
+        lines += caveat_lines(self._cautions(), indent=2, detail="full")
         if self.ranking["score"].notna().any():
             lines.append(f"  {_PLOTTED}")
         return "\n".join(lines)

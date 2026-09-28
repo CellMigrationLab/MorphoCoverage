@@ -63,7 +63,8 @@ from typing import Any
 
 import pandas as pd
 
-from .._style import DASH, PROBLEM, Status, caution_lines, check_detail, headline, wrap
+from .._caveats import assumption, caveat_lines, pool_assumptions
+from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
 from .._wording import count, listing, percent
 from ..sampling_unit import (
     ConditionContrast,
@@ -104,7 +105,13 @@ from .report_sampling import (
     unit_full,
     unit_short,
 )
-from .report_status import integrity_status, overview_status, question_statuses, weak_status
+from .report_status import (
+    caveat_status,
+    integrity_status,
+    overview_status,
+    question_statuses,
+    weak_status,
+)
 from .spatial import EfficiencyResult
 
 OVERVIEW_TITLE = "What is in the dataset"
@@ -360,13 +367,13 @@ def microscopist_report(
     profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
     if len(profile) or unusual is not None or clustering is not None:
         parts["profile"].append("profile")  # its text, wrapped at its indent, is set below
-    generalizing = (
+    generalizing = assumption(
         "This describes what these fields support about a difference under this feature; "
         "generalizing it needs independent biological repeats, which is the user's inference."
     )
     if contrast is not None:
         parts["conditions"].append(contrast.summary(detail="full"))
-        parts["conditions"].append(caution_lines([generalizing], indent=0)[0])
+        parts["conditions"].append("\n".join(caveat_lines([generalizing], 0, detail="full")))
     if ranking is not None:
         parts["conditions"].append(ranking.summary(detail="full"))
     if contrast is not None or ranking is not None:
@@ -375,17 +382,17 @@ def microscopist_report(
         closing = [generalizing] if contrast is not None else []
         short["conditions"] = short_section(answers, *closing)
     # Redundancy alone feeds the profile; question 8 is answered by an order replay.
-    frame = (
+    frame = assumption(
         "Whether these were the right positions needs every candidate position from an "
         "overview (not available: sampling-frame bias is not assessed)."
     )
     notes = [
-        "Every answer holds for the stated features, tolerances and definition of new.",
-        (
+        assumption("Every answer holds for the stated features, tolerances and definition of new."),
+        assumption(
             "Replays, draws and hold-outs describe these samples; they are not independent "
             "experiments. Statements across samples count samples or repeats."
         ),
-        (
+        assumption(
             "A field count that preserved this acquisition is not a protocol until it holds on "
             "samples it was not chosen on."
         ),
@@ -429,12 +436,14 @@ def microscopist_report(
                 "phenotype like it."
             )
     notes.append(
-        "Technical drift between repeats, batches or plates is not assessed: groups are "
-        "analysed apart, and a shift shared by all fields of a group is not new within it."
+        assumption(
+            "Technical drift between repeats, batches or plates is not assessed: groups are "
+            "analysed apart, and a shift shared by all fields of a group is not new within it."
+        )
     )
     framed = None
     if efficiency is not None:
-        parts["order"].append(caution_lines([frame], indent=0)[0])
+        parts["order"].append("\n".join(caveat_lines([frame], 0, detail="full")))
         short["order"] = short_section([order_parts(efficiency, indent=2)], frame)
     elif redundancy is not None and parts["profile"]:
         framed = frame  # it closes question 3 (profile_full, profile_short)
@@ -481,7 +490,12 @@ def microscopist_report(
         "contrast": contrast,
         "ranking": ranking,
     }
+    # One "Assumptions:" block per section, after its answers; a caution raises its status.
+    sections = {key: pool_assumptions(text) for key, text in sections.items()}
+    short = {key: pool_assumptions(text) for key, text in short.items()}
     answers = question_statuses(results, profile, minimum_detection)
+    for key, (status, glance) in answers.items():
+        answers[key] = caveat_status(status, short.get(key, sections[key])), glance
     statuses = {key: answers[key][0] for key, _ in QUESTIONS}
     headlines = {key: answers[key][1] for key, _ in QUESTIONS}
     for key, _ in QUESTIONS:

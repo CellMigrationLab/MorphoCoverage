@@ -112,12 +112,14 @@ def next_time_status(reliability: Any, protocol: Any) -> Answer:
         )
     else:
         text = f"no field count served every {sample}"
-    if short:
-        text += f"; not reached for {listing(short, limit=2)}"
-    if shown:
-        text += f"; not shown for {listing(shown, limit=2)} (held-back fields cap it)"
-    if unjudged:
-        text += f"; not judged for {listing(unjudged, limit=2)}"
+    # The targets that were not served, counted: their names are in the section's table.
+    for missed, what in (
+        (short, "not reached"),
+        (shown, "not shown (held-back fields cap it)"),
+        (unjudged, "not judged"),
+    ):
+        if missed:
+            text += f"; {among(len(missed), total, 'target')} {what}"
     if units < FEW_UNITS:
         text += f"; only {count(units, unit, plural(unit))}"
     return status, text

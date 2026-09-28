@@ -19,8 +19,9 @@ same everywhere; the numbers inside go through ``_wording``.
 - ``rule_label``: a stopping rule in words (``"JCB rule, per nucleus, 5%"``),
   from a strategy or from a row of a result table.
 - ``table``: rows as aligned plain text; ``wrap``: text wrapped to 100
-  characters under an indent; ``caution_lines``: caveats stated once each, as
-  ⚠️ lines.
+  characters under an indent.
+- Caveats (cautions about these data and standing assumptions) are printed by
+  ``_caveats`` (``caveat_lines``), with these helpers.
 - ``check_detail``: the ``detail`` argument of every ``summary``
   (``"short"`` or ``"full"``).
 """
@@ -490,22 +491,6 @@ def number_pattern(text: str) -> str:
     return _NUMBER.sub("#", text)
 
 
-def once(items: Iterable[str]) -> list[str]:
-    """The items without repeats, in first-seen order (blank items dropped)."""
-    return [item for item in dict.fromkeys(item.strip() for item in items) if item]
-
-
-def caution_lines(cautions: Iterable[str], indent: int | str = 2) -> list[str]:
-    """Each caveat once, as a wrapped ``⚠️`` line, its first letter capitalised."""
-    prefix = " " * indent if isinstance(indent, int) else indent
-    lines = []
-    for text in once(cautions):
-        sentence = text[0].upper() + text[1:]
-        sentence = sentence if sentence.endswith((".", "?", "!", ")")) else f"{sentence}."
-        lines.append(wrap(sentence, f"{prefix}{CAUTION} ", hang=prefix + "   "))
-    return lines
-
-
 __all__ = [
     "CAUTION",
     "DASH",
@@ -516,14 +501,12 @@ __all__ = [
     "SEPARATOR",
     "Status",
     "among",
-    "caution_lines",
     "check_detail",
     "group_columns",
     "group_label",
     "headline",
     "merge_numbers",
     "number_pattern",
-    "once",
     "rule_label",
     "span",
     "table",

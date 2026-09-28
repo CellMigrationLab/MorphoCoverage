@@ -25,14 +25,15 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._style import CAUTION, Status, caution_lines, worst, wrap
+from .._caveats import ASSUMPTIONS, assumption, caveat_lines, pool_assumptions
+from .._style import CAUTION, Status, worst, wrap
 from .._wording import count, fields, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
 from ..retrospective.report import QUESTIONS, with_opening
 from ..retrospective.report_profile import sampling_profile
 from ..retrospective.report_sampling import states_lines
-from ..retrospective.report_status import profile_status
+from ..retrospective.report_status import caveat_status, profile_status
 from ..sampling_unit._state_text import clustering_parts
 from ..schema import unit_plural
 from ._declaration import declaration_short
@@ -117,7 +118,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
         status, glance = profile_status(rows, [rare])
         words = unit_plural(rare.settings.get("observation_unit", "object"))
         brief = [wrap(f"- {line}", 2, hang=4) for line in states_lines(rare, None, words)]
-        brief_text = "\n".join([*brief, *caution_lines(clustering_parts(rare, 2)[1], indent=2)])
+        brief_text = "\n".join([*brief, *caveat_lines(clustering_parts(rare, 2)[1], indent=2)])
         document = with_text(
             document, "profile", text, rows, status=status, headline=glance, short_text=brief_text
         )
@@ -132,7 +133,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
             "controls",
             paired,
             status=Status.CAUTION,
-            short_text="\n".join(caution_lines([paired], indent=2)),
+            short_text="\n".join(caveat_lines([paired], indent=2)),
         )
     document = _technical_repeats(document, results)
     document = replace(document, notes=(*document.notes, *coverage_notes(results, setup)))
@@ -150,7 +151,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
             "profile",
             text,
             status=Status.CAUTION,
-            short_text="\n".join(caution_lines([text], indent=2)),
+            short_text="\n".join(caveat_lines([text], indent=2)),
         )
     return document
 
@@ -257,7 +258,7 @@ def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any])
         return replace(document, notes=(*document.notes, note))
     outer = [c for c in variability.group_cols if c != technical]
     found = _between_technical_repeats(variability.fovs, technical, outer)
-    note = (
+    note = assumption(
         "Each 'enough' is per technical repeat; the condition mean also varies between "
         "technical repeats, which more fields of one technical repeat cannot reduce "
         "(question 3; optimise, question 7: more fields or more technical repeats?)."
@@ -281,7 +282,7 @@ def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any])
             "of question 2 is per technical repeat and says nothing about this variation, "
             f"which only more technical repeats reduce (optimise, question 7){uncertain}."
         )
-        brief = "\n".join(caution_lines([text], indent=2))
+        brief = "\n".join(caveat_lines([text], indent=2))
         document = with_text(document, "profile", text, status=Status.CAUTION, short_text=brief)
     return replace(document, notes=(*document.notes, note))
 
@@ -298,11 +299,13 @@ def coverage_notes(results: Mapping[str, Any], setup: Setup) -> list[str]:
     others = [f for f in setup.features if f != setup.readout]
     if others and "variability" in results:
         notes.append(
-            f"The Foundation, the stopping rules and the inspection's influence and neighbour "
-            f"reasons read the readout ({setup.readout}) only; the other declared features "
-            f"({listing(others)}) enter novelty, the representation control, the unusual "
-            f"{setup.unit_words} and the feature ranking, so a heavy tail or a between-well "
-            "spread in them is not judged by any stopping rule."
+            assumption(
+                f"The Foundation, the stopping rules and the inspection's influence and neighbour "
+                f"reasons read the readout ({setup.readout}) only; the other declared features "
+                f"({listing(others)}) enter novelty, the representation control, the unusual "
+                f"{setup.unit_words} and the feature ranking, so a heavy tail or a between-well "
+                "spread in them is not judged by any stopping rule."
+            )
         )
     if setup.stage_cols is None:
         notes.append(
@@ -365,10 +368,13 @@ def with_text(
         statuses[key] = status
         headlines[key] = headline or text.split(". ")[0].split("\n")[0].rstrip(".")
     else:
-        sections[key] = f"{sections[key]}\n\n{indented}"
+        # One "Assumptions:" block per section, at its end; a caution raises the status.
+        sections[key] = pool_assumptions(f"{sections[key]}\n\n{indented}")
         if key in short:
-            short[key] = _merged(short[key], brief) if short_text else f"{short[key]}\n\n{brief}"
-        statuses[key] = worst([statuses.get(key, Status.NOT_ASSESSED), status])
+            merged = _merged(short[key], brief) if short_text else f"{short[key]}\n\n{brief}"
+            short[key] = pool_assumptions(merged)
+        raised = worst([statuses.get(key, Status.NOT_ASSESSED), status])
+        statuses[key] = caveat_status(raised, short.get(key, sections[key]))
     profile = document.profile
     if rows is not None and len(rows):
         profile = pd.concat([profile, rows], ignore_index=True) if len(profile) else rows
@@ -406,13 +412,22 @@ def _caution_split(text: str) -> tuple[list[str], list[str]]:
     return lines[:start], cautions
 
 
+def _apart(text: str) -> tuple[str, list[str]]:
+    """A short section without its "Assumptions:" block, and that block's lines."""
+    lines = pool_assumptions(text).splitlines()
+    starts = [i for i, line in enumerate(lines) if line.lstrip().startswith(ASSUMPTIONS)]
+    return ("\n".join(lines[: starts[-1]]), lines[starts[-1] :]) if starts else (text, [])
+
+
 def _merged(short: str, brief: str) -> str:
     """``brief`` added to a short section: its lines before the section's caveats, the caveats
-    of both after them, each once."""
+    of both after them, each once, then the assumptions of both (``pool_assumptions``)."""
+    short, standing = _apart(short)
+    brief, more_standing = _apart(brief)
     body, cautions = _caution_split(short)
     extra, more = _caution_split(brief)
     kept = list(dict.fromkeys([*cautions, *more]))
-    return "\n".join([*body, *extra, *kept])
+    return pool_assumptions("\n".join([*body, *extra, *kept, *standing, *more_standing]))
 
 
 def with_settings(document: MicroscopistReport, sentences: Sequence[str]) -> MicroscopistReport:

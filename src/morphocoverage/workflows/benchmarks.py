@@ -16,16 +16,9 @@ from typing import Any
 
 import pandas as pd
 
+from .._caveats import caveat_lines
 from .._checks import check_seed
-from .._style import (
-    Status,
-    caution_lines,
-    check_detail,
-    group_columns,
-    headline,
-    worst,
-    wrap,
-)
+from .._style import Status, check_detail, group_columns, headline, worst, wrap
 from .._wording import count, listing, percent
 from .._wording import fields as fields_text
 from ..retrospective.frontier import FrontierResult, frontier, sweep
@@ -142,7 +135,7 @@ class Benchmark:
             blocks.append(_short_warnings(self, problems))
         elif problems:
             texts = [_warning(self, *problem) for problem in problems]
-            blocks.append("\n".join(caution_lines(texts, indent=0)))
+            blocks.append("\n".join(caveat_lines(texts, indent=0, detail="full")))
         if self.settings:
             blocks.append(wrap(_benchmark_settings(self.settings)))
         return "\n\n".join(blocks)
@@ -236,7 +229,7 @@ def _short_warnings(result: Benchmark, problems: list[tuple[str, str, str]]) -> 
         f"thresholds are absolute{units}; widen the grid (Family(..., thresholds=...)) and run "
         "the benchmark again"
     )
-    head = caution_lines([text], indent=0)
+    head = caveat_lines([text], indent=0)
     rows = [wrap(f"- {name}{span}: {problem}.", 3, hang=5) for name, span, problem in problems]
     return "\n".join([*head, *rows])
 

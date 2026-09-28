@@ -315,7 +315,7 @@ def opposite_signs(
     Passing contrasts of one condition that differ from the control in
     opposite directions in different repeats read as a shift between repeats,
     wells or dishes, not as a consistent effect; ``what`` words the key. Each
-    caveat is one sentence, for ``_style.caution_lines``.
+    caveat is one sentence, for ``_caveats.caveat_lines``.
     """
     lines = []
     signed = passing[~passing["d_fields"].isna()]

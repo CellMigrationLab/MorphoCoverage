@@ -88,6 +88,7 @@ from typing import Any
 
 import numpy as np
 
+from .._caveats import assumption
 from .._checks import check_seed, is_integer, is_number
 from .._wording import plural
 from ..evidence import Component, Direction, Evidence, Quantity
@@ -350,7 +351,7 @@ class DescriptorPlateauEstimator(Estimator):
             diagnostics["undefined_reason"] = reason
             quantities = _quantities("range", self.feature, self.descriptors, reason=reason)
         else:
-            diagnostics["warning"] = _PLATEAU_CAUTION.format(window=self.window)
+            diagnostics["warning"] = assumption(_PLATEAU_CAUTION.format(window=self.window))
             quantities = _quantities("range", self.feature, self.descriptors, ranges)
         return Evidence(quantities, diagnostics)
 

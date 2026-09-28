@@ -180,8 +180,13 @@ one line per answer (✅ answered and good for the goal, ⚠️ answered but loo
 at this, ❌ a problem that changes how the answers are read, ➖ not assessed;
 the rules per question are in `retrospective/report_status.py`), then each
 answer, with per-group numbers in tables and each caveat stated once at the
-end of its section. `summary(detail="full")` keeps everything, each section
-header with its marker.
+end of its section: a caution found in these data (a non-normal readout,
+only three repeats, no acquisition order to check) as a ⚠️ line, which makes
+the answer at least ⚠️, and the standing assumptions of the methods (true of
+every dataset, such as "hold-outs are not independent experiments") under a
+plain "Assumptions:" heading, which never change the marker.
+`summary(detail="full")` keeps everything, each section header with its
+marker.
 
 Every document opens with **what is in the dataset**: objects, acquired
 fields and empty fields, what one row is, the feature columns (the first 12

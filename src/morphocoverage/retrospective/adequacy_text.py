@@ -26,7 +26,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from .._style import caution_lines, check_detail, group_columns, group_label, span, table, wrap
+from .._caveats import caveat_lines
+from .._style import check_detail, group_columns, group_label, span, table, wrap
 from .._wording import listing
 from ._text import median_beyond, number, order_phrase, rows_of, rule_names, skipped_labels
 
@@ -401,7 +402,7 @@ def adequacy_summary(result: AdequacyResult, detail: str = "short") -> str:
         lines, cautions = adequacy_full_parts(result)
     else:
         lines, cautions = adequacy_short_parts(result, indent=0)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0, detail=detail)])
 
 
 __all__ = [

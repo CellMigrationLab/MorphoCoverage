@@ -14,12 +14,14 @@ default) is compact:
   threshold; a quantity not yet computable says why below it;
 - when more than one target is shown, one line with each target's decision;
 - unless the objective says continue (no stop is acted on yet), when a rule
-  says stop: what the stop rests on (the order check's caution, or the
-  assumption that the fields are a random sample of the well's positions;
-  where a rare-phenotype stop has looked), the rules that treat observations
-  as independent draws, and at an overall stop of the population summary
-  what an averaging CV is: each caveat once, as ⚠️ lines. The full form
-  states them beside every stop, as ``explain`` does.
+  says stop: what the stop rests on, each caveat once (``_caveats``). A flag
+  of the order check, or no check run, is a ⚠️ caution about these fields;
+  the standing assumptions (the fields as a random sample of the well's
+  positions when the check found nothing, where a rare-phenotype stop has
+  looked, the rules that treat observations as independent draws, what an
+  averaging CV is at an overall stop of the population summary) are listed
+  under "Assumptions:". The full form states them beside every stop, as
+  ``explain`` does.
 
 The full form keeps every line the view printed before: the field's
 metadata, every rule's ``StrategyResult.explain`` line and every entry of
@@ -34,13 +36,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .._caveats import assumption, caveat_lines
 from .._style import (
     CAUTION,
     DASH,
     NOT_ASSESSED,
     OK,
     SEPARATOR,
-    caution_lines,
     check_detail,
     group_label,
     rule_label,
@@ -49,6 +51,7 @@ from .._style import (
 )
 from .._wording import count, listing, plural
 from ..evidence import Component
+from ..order_check import order_caveat
 from ..results import (
     COMPONENT_WORDS,
     Decision,
@@ -246,11 +249,12 @@ def _cautions(update: LiveUpdate) -> list[str]:
         overall_stop
         and any(r.component_decisions.get(Component.RARE.value) is Decision.STOP for r in results)
     )
+    # A flag, or no check run, is a caution about these fields; a check that ran and found
+    # nothing leaves the standing random-sample assumption (order_check.order_caveat).
     cautions = stop_caution_parts(update.order_check, rare=rare)
-    if cautions[0].startswith("treats "):
-        cautions[0] = f"each stop {cautions[0]}"
+    cautions[0] = order_caveat(cautions[0])
     if rare:
-        cautions[-1] = f"the rare-phenotype stop: {cautions[-1]}"
+        cautions[-1] = assumption(f"the rare-phenotype stop: {cautions[-1]}")
     independent = [
         _label(r, unit)
         for r in stopped
@@ -259,7 +263,7 @@ def _cautions(update: LiveUpdate) -> list[str]:
     ]
     if independent:
         verb = "treats" if len(independent) == 1 else "treat"
-        cautions.append(f"{listing(independent)} {verb} {INDEPENDENT_DRAWS}")
+        cautions.append(assumption(f"{listing(independent)} {verb} {INDEPENDENT_DRAWS}"))
     population = next((e for e in entries if e.component is Component.POPULATION), None)
     if population is not None and population.decision is Decision.STOP:
         thresholds = [
@@ -271,8 +275,8 @@ def _cautions(update: LiveUpdate) -> list[str]:
             and "threshold" in policy.get("parameters", {})
         ]
         if thresholds:
-            cautions.append(_averaging_cv_note(thresholds))
-    return caution_lines(cautions, indent=2)
+            cautions.append(assumption(_averaging_cv_note(thresholds)))
+    return caveat_lines(cautions, indent=2)
 
 
 def _targets(update: LiveUpdate) -> list[str]:

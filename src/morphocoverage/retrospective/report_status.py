@@ -5,8 +5,25 @@ headline)``: the marker of the answer (``_style``: ✅ answered and good for
 the user's goal, ⚠️ answered but look at this, ❌ a problem that changes how
 the answers are read or acted on, ➖ not assessed) and its answer in one
 line, for the report's "At a glance" block and its section header. Nothing is
-recomputed: the statuses read the result tables. The rules, question by
-question:
+recomputed: the statuses read the result tables.
+
+**Cautions and assumptions** (the project owner's decision, ``_caveats``): ⚠️
+is used only for a caution found in these data (a measured property, count
+or condition of this dataset that should change how the answer is read, such
+as a non-normal readout, field size related to field mean, only three
+repeats or unstable labels; or a missing declaration that kept a check from
+running, such as no acquisition order for the order check). The standing
+assumptions of a method, true of every dataset (the random-sample assumption
+of a stop when the order check ran and found nothing, the approximate
+next-field bound, novelty bounds at a number of fields fixed in advance,
+hold-outs that are not independent experiments, a fixed amount of effort
+that says nothing about the data), are listed once per section under a plain
+"Assumptions:" heading: they are never dropped and never raise a status, so a
+section whose only caveats are assumptions can be ✅. A section that states a
+caution (a ⚠️ line) is at least ⚠️ (``caveat_status``), whatever its rule
+below says.
+
+The rules, question by question:
 
 - **What is in the dataset** (``overview_status``): the data checks
   (``check_tables``) ✅ without a warning, ⚠️ with one, ➖ not run; the
@@ -108,14 +125,17 @@ from typing import Any
 
 import pandas as pd
 
+from .._caveats import has_caution
 from .._style import Status, among, span, worst
 from .._wording import count, listing, percent
+from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..sampling_unit._units import opposite_signs
 from ..sampling_unit.contrast_text import P_ALPHA
 from ..schema import unit_plural
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
 from .calibration import PREMATURE_CAUTION
+from .controls_text import _selected
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
 from .report_sampling import (
@@ -141,12 +161,23 @@ FALSE_ALARM_CAUTION = 0.1
 _REASONS = {"count": "unusual count", "neighbours": "unlike neighbours"}
 
 Answer = tuple[Status, str]
+# How a microscopist gets the checks the opening reports as not run.
+NO_COPY_CHECKS = "copy checks not run (report(..., integrity=True) runs them)"
+_BOTH_RUN = "report(..., integrity=True) runs both)"
+
+
+def caveat_status(status: Status, text: str) -> Status:
+    """``status`` raised to ⚠️ when its section ``text`` states a caution about these data
+    (a ⚠️ line); its assumptions never raise it, and a question not assessed stays so."""
+    if status is Status.NOT_ASSESSED or not has_caution(text):
+        return status
+    return worst([status, Status.CAUTION])
 
 
 def data_check_status(overview: Any) -> Answer:
     """The data checks of the overview: none run, no warning, or the warnings' titles."""
     if overview is None or overview.settings.get("data_checked") is False:
-        return Status.NOT_ASSESSED, "data checks not run (check_tables)"
+        return Status.NOT_ASSESSED, "data checks not run (report() runs them)"
     warnings = list(overview.warnings)
     if not warnings:
         return Status.OK, "data checks: no warning"
@@ -157,7 +188,7 @@ def data_check_status(overview: Any) -> Answer:
 def integrity_status(integrity: Any) -> Answer:
     """The data-integrity checks: not run, nothing found, or the fields they name."""
     if integrity is None:
-        return Status.NOT_ASSESSED, "integrity not checked (integrity_checks)"
+        return Status.NOT_ASSESSED, NO_COPY_CHECKS
     if not integrity.findings.empty:
         fields = integrity.fields_involved()
         found = count(len(integrity.findings), "finding")
@@ -173,6 +204,8 @@ def integrity_status(integrity: Any) -> Answer:
 def overview_status(overview: Any, integrity: Any = None) -> Answer:
     """The opening: the worse of the data checks and the integrity checks."""
     parts = [data_check_status(overview), integrity_status(integrity)]
+    if all(status is Status.NOT_ASSESSED for status, _ in parts) and integrity is None:
+        return Status.NOT_ASSESSED, "data checks and copy checks not run (" + _BOTH_RUN
     return worst(s for s, _ in parts), "; ".join(text for _, text in parts)
 
 
@@ -193,18 +226,19 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
             )
         if len(ok) < len(groups):
             status = Status.CAUTION
-            parts.append(
-                f"variability not estimated in {among(len(groups) - len(ok), len(groups))}"
-            )
+            missing = among(len(groups) - len(ok), len(groups), group_word(variability))
+            parts.append(f"variability not estimated in {missing}")
     if object_rules is not None:
         kept, total = rule_held(object_rules)
+        word = group_word(object_rules)
         if not total:
             parts.append("JCB count rule not applicable")
         elif kept == total:
-            parts.append(f"the JCB count rule still held with whole fields in {among(kept, total)}")
+            held = among(kept, total, word)
+            parts.append(f"the JCB count rule still held with whole fields in {held}")
         else:
             status = Status.CAUTION
-            missed = among(total - kept, total)
+            missed = among(total - kept, total, word)
             parts.append(f"the JCB count rule missed with whole fields in {missed}")
     if descriptor_spread is not None:
         rows = descriptor_spread.at_threshold
@@ -217,7 +251,8 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
             total, missed = 1, int(len(rows) > 0 and bool(rows["objects_to_match"].isna().any()))
         if missed:
             status = Status.CAUTION
-            parts.append(f"descriptors from whole fields never settled in {among(missed, total)}")
+            never = among(missed, total, group_word(descriptor_spread))
+            parts.append(f"descriptors from whole fields never settled in {never}")
     return status, "; ".join(parts) or "assessed"
 
 
@@ -236,21 +271,32 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
             return Status.CAUTION, "a control was declared, but could not be judged"
         return Status.NOT_ASSESSED, "no positive control declared"
     words = unit_plural(controls.settings.get("observation_unit", "object"))
-    planted = (controls.settings.get("control") or {}).get("planted_objects")
+    control = controls.settings.get("control") or {}
+    planted = control.get("planted_objects")
     kind = "planted" if planted and _rate(controls, "planted") is not None else "positive"
     detection = _rate(controls, kind)
     what = f"{planted} planted {words}" if kind == "planted" else "positive-control fields"
     if detection is None:
         return Status.CAUTION, f"{what}: not judged"
-    headline = f"{what} recognized in {percent(detection)} of checks"
     if detection < float(minimum_detection):
-        return Status.PROBLEM, f"weak representation: {headline}"
+        return (
+            Status.PROBLEM,
+            f"weak representation: {what} recognized in {percent(detection)} of checks",
+        )
+    # The headline leads with the positive control itself; the planted rate gates the status.
+    positive = _rate(controls, "positive")
+    name = _selected(control.get("positive")) or "positive-control"
+    headline = (
+        f"{name} fields recognized in {percent(positive)} of checks"
+        if positive is not None
+        else f"{what} recognized in {percent(detection)} of checks"
+    )
     false_alarm = _rate(controls, "reference")
     status = Status.OK
     if false_alarm is None:
         status, headline = Status.CAUTION, f"{headline}; false alarms not assessed"
     else:
-        headline += f", false alarms in {percent(false_alarm)}"
+        headline += f"; false alarms {percent(false_alarm)}"
         if false_alarm > FALSE_ALARM_CAUTION:
             status = Status.CAUTION
     if controls.settings.get("skipped_strata"):
@@ -305,7 +351,7 @@ def enough_status(sufficiency: Any, calibration: Any = None) -> Answer:
         return Status.NOT_ASSESSED, "not assessed"
     late = premature is not None and premature > PREMATURE_CAUTION
     held = (
-        f"held-back check: up to {percent(premature)} of stops not preserved"
+        f"held-back fields: some rules stopped too early (up to {percent(premature)})"
         if premature is not None
         else ""
     )
@@ -317,23 +363,37 @@ def enough_status(sufficiency: Any, calibration: Any = None) -> Answer:
     groups = max(t["groups"] for t in data)
     everywhere = [t for t in data if t["met"] == t["groups"]]
     nowhere = [t for t in data if t["met"] == 0]
+    word = group_word(sufficiency)
     if len(nowhere) == len(data):
-        return Status.PROBLEM, f"no rule met in any of {among(groups, groups)}"
-    parts = [
-        f"every rule met in {among(groups, groups)}"
-        if len(everywhere) == len(data)
-        else f"{len(everywhere)} of {count(len(data), 'rule')} met in {among(groups, groups)}"
-    ]
-    parts += [f"{t['label']} in none" for t in nowhere if len(nowhere) <= 2]
+        return Status.PROBLEM, f"no rule met in any of {among(groups, groups, word)}"
     cautions = any(t["warned"] or t["flagged"] or t["lost"] for t in data)
     status = Status.OK if len(everywhere) == len(data) and not cautions else Status.CAUTION
     if late:
         status = Status.CAUTION
-    if cautions:
-        parts.append("cautions below")
+    # Counted as the table lists them: every rule, the fixed amounts of effort included.
+    enough = [t for t in tallies if t["met"] == t["groups"]]
+    every = f"every {word}" if groups > 1 else f"the {word}"
+    parts = [
+        f"every rule said enough in {every}"
+        if len(enough) == len(tallies)
+        else f"{len(enough)} of {count(len(tallies), 'rule')} said enough in {every}"
+    ]
+    for missed in [t for t in tallies if t["met"] < t["groups"]][:2]:
+        label, met = missed["label"], missed["met"]
+        if label.startswith("nothing new") and not met:
+            parts.append("'nothing new' not yet shown")
+        else:
+            parts.append(f"{label}: in {met} of {missed['groups']}")
     if held and late:
         parts.append(held)
     return status, "; ".join(parts)
+
+
+def group_word(result: Any) -> str:
+    """What one analysis group of ``result`` is, for a headline: a technical repeat when they
+    are kept apart (the declared ``technical_repeat`` column), else a group."""
+    keys = list(getattr(result, "group_cols", ()) or ())
+    return "technical repeat" if TECHNICAL_REPEAT_COLUMN in keys else "group"
 
 
 def weak_status(answer: Answer) -> Answer:
@@ -374,10 +434,8 @@ def inspect_status(inspection: Any) -> Answer:
     reasons = ", ".join(
         f"{_REASONS.get(reason, reason)} in {n}" for reason, n in reason_counts(inspection)
     )
-    return (
-        Status.CAUTION,
-        f"{count(fields, 'field')} to reopen in {count(groups, 'group')} ({reasons})",
-    )
+    where = count(groups, group_word(inspection))
+    return Status.CAUTION, f"{count(fields, 'field')} to reopen in {where} ({reasons})"
 
 
 def order_status(efficiency: Any) -> Answer:
@@ -385,7 +443,7 @@ def order_status(efficiency: Any) -> Answer:
     if efficiency is None or efficiency.table.empty:
         return Status.NOT_ASSESSED, "not assessed"
     compared = group_comparison(efficiency)
-    n = len(compared)
+    n, word = len(compared), group_word(efficiency)
     differ = [c for c in compared if c["verdict"] == "differ"]
     slower = [c for c in compared if c["recorded_slower"]]
     same = sum(c["verdict"] == "same" for c in compared)
@@ -393,17 +451,17 @@ def order_status(efficiency: Any) -> Answer:
     if slower:
         gap = max(c["gap"] for c in slower)
         up_to = f" (up to {count(gap, 'field')})" if gap > 1 else ""
-        text = f"another order needed fewer fields in {among(len(slower), n)}{up_to}"
+        text = f"another order needed fewer fields in {among(len(slower), n, word)}{up_to}"
     elif recorded:
         text = "no order beat the recorded one by more than one field"
         if differ:
-            text += f"; orders differ in {among(len(differ), n)}"
+            text += f"; orders differ in {among(len(differ), n, word)}"
     elif differ:
-        text = f"the orders differ by more than one field in {among(len(differ), n)}"
+        text = f"the orders differ by more than one field in {among(len(differ), n, word)}"
     else:
         text = "no order better by more than one field"
         if same < n:
-            text += f" in {among(same, n)}"
+            text += f" in {among(same, n, word)}"
     unreached = bool((efficiency.table["reached"].fillna(0) < 1).any())
     if unreached:
         text += "; some runs never reliably enough"
@@ -441,7 +499,7 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
         untested = table[table["status"] != "ok"]
         if len(tested):
             differ = int((tested["p_bonferroni"] <= 0.05).sum())
-            parts.append(f"{differ} of {len(tested)} tested differ (Bonferroni p <= 0.05)")
+            parts.append(f"{differ} of {len(tested)} tested differ (Bonferroni p ≤ 0.05)")
         if len(untested):
             status = Status.CAUTION
             which = "untested" if not len(tested) else f"{len(untested)} untested"
@@ -482,14 +540,17 @@ def question_statuses(
 __all__ = [
     "FALSE_ALARM_CAUTION",
     "FEW_UNITS",
+    "NO_COPY_CHECKS",
     "RELIABLE_SHARE",
     "bought_status",
     "calibration_status",
+    "caveat_status",
     "conditions_status",
     "controls_status",
     "data_check_status",
     "effort_status",
     "enough_status",
+    "group_word",
     "inspect_status",
     "integrity_status",
     "next_time_status",

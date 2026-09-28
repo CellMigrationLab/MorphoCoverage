@@ -25,16 +25,8 @@ from typing import Any
 
 import pandas as pd
 
-from .._style import (
-    among,
-    caution_lines,
-    check_detail,
-    group_columns,
-    group_label,
-    span,
-    table,
-    wrap,
-)
+from .._caveats import caveat_lines
+from .._style import among, check_detail, group_columns, group_label, span, table, wrap
 from .._wording import count, duration, listing, number, percent
 from .._wording import fields as fields_text
 from ._text import order_name
@@ -314,7 +306,7 @@ def efficiency_summary(result: Any, detail: str = "short") -> str:
     if check_detail(detail) == "full":
         return _full(result)
     lines, cautions = order_parts(result)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
 __all__ = ["efficiency_summary", "group_comparison", "order_parts"]

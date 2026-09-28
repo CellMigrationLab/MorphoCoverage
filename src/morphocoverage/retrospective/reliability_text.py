@@ -27,9 +27,9 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
+from .._caveats import assumption, caveat_lines
 from .._style import (
     among,
-    caution_lines,
     check_detail,
     group_columns,
     group_label,
@@ -46,8 +46,8 @@ from ._text import percent, skipped_labels
 if TYPE_CHECKING:
     from .reliability import ReliabilityResult
 
-RANDOM_DRAWS = "fields are treated as random draws, as random-position sampling does"
-CONSERVATIVE = (
+RANDOM_DRAWS = assumption("fields are treated as random draws, as random-position sampling does")
+CONSERVATIVE = assumption(
     "the shares are conservative by construction: the held-back fields are a sample too, and "
     "their own error counts against the drawn fields, so a field count read from this curve "
     "errs high"
@@ -193,7 +193,7 @@ def reliability_summary(result: ReliabilityResult, detail: str = "short") -> str
         if check_detail(detail) == "full"
         else reliability_short_parts(result, indent=0)
     )
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0, detail=detail)])
 
 
 def _groups_named(groups: Sequence[Mapping[str, Any]], total: int) -> str:
@@ -323,7 +323,9 @@ def _short_cautions(curves: Sequence[Mapping[str, Any]], total: int) -> list[str
     cautions = []
     judged = [c for c in curves if c["basis"].startswith("Judged")]
     if any(c["ceiling"] is not None for c in curves):
-        cautions.append(f"the last row, all available fields together, is the ceiling: {_CAP}")
+        cautions.append(
+            assumption(f"the last row, all available fields together, is the ceiling: {_CAP}")
+        )
     cautions += _merged([c["missing_text"] for c in curves if c["missing_text"]])
     for text in _merged([c["warning"] for c in curves if c["warning"]]):
         named = _groups_named([c["group"] for c in curves if c["warning"]], total)
@@ -373,7 +375,7 @@ def reliability_full_parts(
             if text:
                 lines.append(wrap(text, indent + 2, hang=indent + 4))
         if curve["warning"]:
-            lines += caution_lines([f"Warning: {curve['warning']}"], indent=indent + 2)
+            lines += caveat_lines([f"Warning: {curve['warning']}"], indent + 2, detail="full")
     skipped = skipped_labels(result.skipped, list(result.group_cols))
     if skipped:
         lines.append("")

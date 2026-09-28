@@ -180,9 +180,12 @@ def test_summary_answers_both_questions_in_words():
         text = " ".join(report.summary(detail=detail).split())
         assert "Each rule by its own threshold" in text and "One more field:" in text
         assert "fixed 5 fields" in text and "target reached" in text
-        assert "'New' means a cluster of at least 3 similar observations" in text
-        assert "with no other FOV within distance 0.5" in text
+    # The exact definition of new is in the full form; the short one says it in one line.
+    short = " ".join(report.summary().split())
+    assert "'New': at least 3 similar objects that no other field shows" in short
     full = " ".join(report.summary(detail="full").split())
+    assert "'New' means a cluster of at least 3 similar observations" in full
+    assert "with no other FOV within distance 0.5" in full
     assert "chance 15% (nominal 95% bound" in full and "2 of 13 fields" in full
     assert "Check on this dataset: from 6 random fields" in full
     assert list(report.calibration["fovs_imaged"]) == [6]
@@ -297,7 +300,7 @@ def test_novelty_cols_keep_the_definition_of_new_apart_from_the_readout():
         assert list(mine[name]) == list(reference[name]), table
         assert list(mine["condition"]) == list(reference["condition"]), table
         assert mine.dtypes.to_dict() == reference.dtypes.to_dict(), table
-    assert "(feature_a and feature_b)" in split.summary()
+    assert "(feature_a and feature_b)" in split.summary(detail="full")
     with pytest.raises(ValueError, match="novelty_cols"):
         sufficiency_report(
             built.objects,

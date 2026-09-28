@@ -27,6 +27,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._caveats import assumption, is_assumption
 from ._seeds import group_key
 from ._style import rule_label
 from ._wording import rows_of
@@ -89,9 +90,17 @@ def _warning_list(diagnostics: Mapping[str, Any]) -> tuple[str, ...]:
     pilot = diagnostics.get("pilot")
     if isinstance(pilot, Mapping):
         found += [
-            f"pilot: {pilot[key]}" for key in ("field_size_warning", "warning") if pilot.get(key)
+            _kept(pilot[key], f"pilot: {pilot[key]}")
+            for key in ("field_size_warning", "warning")
+            if pilot.get(key)
         ]
-    return tuple(str(text) for text in found if text)
+    # A standing assumption a rule states beside every value keeps its kind (_style).
+    return tuple(text if isinstance(text, str) else str(text) for text in found if text)
+
+
+def _kept(text: Any, new: str) -> str:
+    """``new`` with the kind of ``text``: an assumption stays one (``_style.Assumption``)."""
+    return assumption(new) if is_assumption(text) else new
 
 
 def _warnings(diagnostics: Mapping[str, Any]) -> str | None:

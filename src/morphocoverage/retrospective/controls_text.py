@@ -23,7 +23,8 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._style import caution_lines, check_detail, group_columns, group_label, table, wrap
+from .._caveats import assumption, caveat_lines
+from .._style import check_detail, group_columns, group_label, table, wrap
 from .._wording import count
 from ._text import percent, unit_plural
 
@@ -132,10 +133,12 @@ def _cautions(result: ControlResult, cells: str, unjudged: bool) -> list[str]:
             f"{skipped['reason']}"
         )
     cautions.append(
-        "this holds for this definition of new and these features, on these controls; "
-        "a phenotype unlike the control may be seen better or worse: a whole-field "
-        "phenotype says little about a small or sparse state in an ordinary field"
-        + (" (the planted rates measure that)" if "planted" in rates.index else "")
+        assumption(
+            "this holds for this definition of new and these features, on these controls; "
+            "a phenotype unlike the control may be seen better or worse: a whole-field "
+            "phenotype says little about a small or sparse state in an ordinary field"
+            + (" (the planted rates measure that)" if "planted" in rates.index else "")
+        )
     )
     return cautions
 
@@ -273,7 +276,8 @@ def control_full(result: ControlResult, indent: int = 0) -> str:
     empty = _empty_line(result, cells)
     if empty:
         lines.append(wrap(empty, indent, hang=indent + 2))
-    return "\n".join([*lines, *caution_lines(_cautions(result, cells, unjudged), indent=indent)])
+    cautions = _cautions(result, cells, unjudged)
+    return "\n".join([*lines, *caveat_lines(cautions, indent=indent, detail="full")])
 
 
 def control_summary(result: ControlResult, detail: str = "short") -> str:
@@ -281,7 +285,7 @@ def control_summary(result: ControlResult, detail: str = "short") -> str:
     if check_detail(detail) == "full":
         return control_full(result)
     lines, cautions = control_parts(result)
-    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+    return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
 __all__ = ["control_full", "control_parts", "control_summary", "named_stratum"]
