@@ -220,6 +220,7 @@ def report(
         # The order check beside every stop: the readout against order and stage.
         readout=setup.readout,
         stage_cols=setup.stage_cols,
+        n_jobs=setup.n_jobs,
         **common,
     )
     results["sufficiency"] = report_only(sufficiency, setup)
@@ -372,6 +373,7 @@ def optimise(
                 feature_cols=[setup.readout],
                 stage_cols=setup.stage_cols,
                 bin_edges=list(redundancy_bins),
+                random_state=setup.random_state,
                 **common,
             )
     if hierarchy is not None:

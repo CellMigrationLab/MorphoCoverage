@@ -49,7 +49,6 @@ import pandas as pd
 
 from .._checks import as_count, check_seed
 from .._parallel import check_n_jobs, map_units
-from .._seeds import group_identity
 from ..benchmark import AcquisitionOrder, permuted_fovs
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
@@ -134,10 +133,13 @@ def _dispersed_start(
 ) -> int:
     """The first field of a dispersed order: its only free choice.
 
-    Stepping it by the seed (from a group- and split-specific offset) makes
-    seeds below the stream length give distinct orders, never repeated ones.
+    Stepping it by the seed (from a split-specific offset) makes seeds below
+    the stream length give distinct orders, never repeated ones. The offset
+    does not use the group's labels (``_seeds.group_seed``): renaming a group
+    never changes its orders.
     """
-    return (order.seed + group_identity(group) + split) % n_fovs
+    del group  # label-independent, as every group's seeding
+    return (order.seed + split) % n_fovs
 
 
 def _ordered_stream(

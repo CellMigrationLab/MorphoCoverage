@@ -71,6 +71,7 @@ import numpy as np
 import pandas as pd
 
 from ._checks import is_integer
+from ._parallel import check_n_jobs
 from ._wording import rows_of
 from .benchmark import (
     AcquisitionOrder,
@@ -375,6 +376,7 @@ def sufficiency_report(
     novelty_cols: Sequence[str] | None = None,
     readout: str | None = None,
     stage_cols: Sequence[str] | None = None,
+    n_jobs: int = 1,
 ) -> SufficiencyReport:
     """Did we sample enough, and would one more FOV show something new? Per analysis group.
 
@@ -405,8 +407,12 @@ def sufficiency_report(
     was defined for. By default novelty uses every column of ``feature_cols``.
     ``readout`` with ``acquisition_order_col`` or ``stage_cols`` adds the order
     check (``order_check``) beside every stop in the answers.
+    ``n_jobs`` replays the rules' analysis groups in that many worker processes
+    (``-1``: every CPU), the dominant cost with a novelty criterion on large
+    tables; results are identical for every value (``run_benchmark``).
     Other arguments are those of ``run_strategies``.
     """
+    check_n_jobs(n_jobs)
     strategies, orders = list(strategies), list(orders)
     _check_report_inputs(strategies, orders, novelty, novelty_target, calibration)
     if novelty_cols is not None:
@@ -488,6 +494,7 @@ def sufficiency_report(
             readout=readout,
             order_col=declared_order,
             stage_cols=stage_cols,
+            n_jobs=n_jobs,
         )
         for rules, run_columns in runs
         if rules

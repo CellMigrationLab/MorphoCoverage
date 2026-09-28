@@ -26,7 +26,9 @@ Reasons:
   differs from the mean of its ``n_neighbours`` nearest FOVs on the stage by at
   least ``neighbour_threshold`` standard deviations of the FOV means; an
   empty neighbour has no mean, so the reason says how many of the
-  ``n_neighbours`` it was compared with.
+  ``n_neighbours`` it was compared with. Fields tied in distance at the
+  ``n_neighbours``-th place (every regular grid) are taken in the order of
+  the FOV key, never of the table's rows, and the reason says so.
 
 Missing feature values: the influence and neighbour reasons use the
 non-missing values of each feature, every FOV still weighing one; the novelty
@@ -42,7 +44,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.spatial import cKDTree
+from scipy.spatial.distance import cdist
 
 from .._checks import is_integer, is_number
 from .._wording import count, ordinal, percent
@@ -55,6 +57,7 @@ from ..sufficiency_text import novelty_definition
 from ._text import unit_plural, where
 
 REASONS = ("new state", "influence", "count", "neighbours")
+_TIED = "; fields tied in distance taken by field name"
 _TRACE = ("image_file", "position_id", "mask_file")
 _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
@@ -219,6 +222,35 @@ def _neighbour_words(valued: np.ndarray, k: int) -> str:
     return f"{used} of its {k} nearest fields ({count(k - used, 'field')} without a value)"
 
 
+def _nearest(
+    fovs: pd.DataFrame, xy: np.ndarray, fov_key: Sequence[str], k: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Each field's ``k`` nearest other fields, ties in distance broken by field identity.
+
+    On a regular grid several fields sit at the same distance; taking them in
+    row order made which were compared depend on the order of the FOV table.
+    Distances equal to 1e-9 of the largest are ties, broken by the canonical
+    order of the FOV key. Returns the distances and positions of the
+    neighbours, and whether a tie at the k-th distance was broken.
+    """
+    n = len(fovs)
+    keys = fovs[list(fov_key)].astype(str).reset_index(drop=True)
+    rank = np.empty(n, dtype=np.int64)
+    rank[keys.sort_values(list(keys.columns), kind="stable").index.to_numpy()] = np.arange(n)
+    distance = cdist(xy, xy)
+    scale = float(distance.max()) or 1.0
+    rounded = np.round(distance / scale, 9)
+    near = np.empty((n, k), dtype=np.int64)
+    tied = np.zeros(n, dtype=bool)
+    for fov in range(n):
+        # Never the FOV itself, even when another field shares its stage position.
+        others = np.delete(np.arange(n), fov)
+        order = others[np.lexsort((rank[others], rounded[fov, others]))]
+        near[fov] = order[:k]
+        tied[fov] = len(order) > k and rounded[fov, order[k]] == rounded[fov, order[k - 1]]
+    return np.take_along_axis(distance, near, axis=1), near, tied
+
+
 def _neighbours(
     data: ValidatedInput, x_col: str, y_col: str, k: int, threshold: float, unit: str
 ) -> list[dict]:
@@ -229,20 +261,17 @@ def _neighbours(
     positions = fov_positions(data, fovs)
     frame = pd.DataFrame(data.feature_matrix(), columns=list(data.feature_cols))
     means = frame.groupby(positions).mean().reindex(range(len(fovs)))
-    tree = cKDTree(xy)
-    distances, near = tree.query(xy, k=k + 1)
+    distances, near, tied = _nearest(fovs, xy, data.fov_key, k)
     rows = []
     for feature in data.feature_cols:
         column = means[feature].to_numpy(dtype=float)
         for fov in range(len(fovs)):
-            # Neighbours by index, never the FOV itself (stage positions can tie).
-            mask = near[fov] != fov
-            others = column[near[fov][mask][:k]]
+            others = column[near[fov]]
             if np.isnan(column[fov]) or np.isnan(others).all():
                 continue
             # An empty neighbour has no mean: the comparison is with the others only.
             valued = ~np.isnan(others)
-            reach = distances[fov][mask][:k][valued].max()
+            reach = distances[fov][valued].max()
             # Spread of the other FOVs' means: including the FOV itself would cap
             # its own z at sqrt(n) and hide a lone deviant field in a small group.
             spread = np.nanstd(np.delete(column, fov), ddof=1)
@@ -258,7 +287,7 @@ def _neighbours(
                         "detail": (
                             f"its mean {feature} is {abs(z):.1f} SD "
                             f"{'above' if z > 0 else 'below'} {_neighbour_words(valued, k)} "
-                            f"(within {reach:.0f} {unit})"
+                            f"(within {reach:.0f} {unit}{_TIED if tied[fov] else ''})"
                         ),
                     }
                 )

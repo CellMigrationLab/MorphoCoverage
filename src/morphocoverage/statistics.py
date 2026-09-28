@@ -528,6 +528,21 @@ def effective_sd_upper_bound_factor(df: float, confidence: float = 0.95) -> floa
     return math.sqrt(df / stats.chi2.ppf((1 - confidence) / 2, df))
 
 
+def median_standard_error(values: np.ndarray) -> float | None:
+    """The Monte Carlo standard error of the median of ``values``, or None below two values.
+
+    ``sqrt(pi / 2) * SD / sqrt(n)``, the large-sample standard error of the
+    median of a normal sample: an approximation, used to say how much a
+    median over a few random orders or draws would move under another seed
+    (a median stop of 8 fields over 5 orders with SD 3 moves by about 1.7).
+    """
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if len(finite) < 2:
+        return None
+    return float(math.sqrt(math.pi / 2) * finite.std(ddof=1) / math.sqrt(len(finite)))
+
+
 __all__ = [
     "PAPER_DESCRIPTORS",
     "RELATIVE_TOLERANCE",
@@ -548,6 +563,7 @@ __all__ = [
     "jcs_effect_size",
     "kish_effective_fields",
     "mean_is_zero",
+    "median_standard_error",
     "nested_variance_components",
     "object_weighted_mean_se",
     "sd_upper_bound_factor",

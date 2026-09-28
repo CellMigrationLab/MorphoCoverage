@@ -44,6 +44,7 @@ from .objectives import ObjectiveConfig
 from .order_check import OrderCheck, check_acquisition_order
 from .policies import EffortPolicy
 from .results import StrategyResult, stop_caution
+from .statistics import median_standard_error
 from .strategies.base import SamplingStrategy
 from .sufficiency_text import _enough_answer, _policies
 
@@ -146,6 +147,8 @@ def _stop_summary(records: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
                 "orders": len(runs),
                 "never_stopped": int((~runs["stopped"]).sum()),
                 "stop_fov_median": float(np.median(stop)) if len(stop) else None,
+                # How far the median would move under another seed (a Monte Carlo error).
+                "stop_fov_median_mc_se": median_standard_error(stop),
                 # Observed stop counts, never interpolated between runs.
                 "stop_fov_p10": _quantile(stop, 0.1),
                 "stop_fov_p90": _quantile(stop, 0.9),
@@ -235,6 +238,7 @@ def criteria_tables(
     readout: str | None = None,
     order_col: str | None = None,
     stage_cols: Sequence[str] | None = None,
+    n_jobs: int = 1,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Decisions on the full acquisition, and the stop-FOV distribution over orders.
 
@@ -244,6 +248,8 @@ def criteria_tables(
     group's fields, with the declared ``order_col`` (``None`` when the orders
     replayed rest on no recorded order) and ``stage_cols``; the final table's
     ``order_caution`` says what each rule's stop rests on (see the module).
+    summarised on its own. ``n_jobs`` replays the groups in worker processes
+    (``run_benchmark``).
     """
     results = run_strategies(
         objects, fovs=fovs, strategies=strategies, objective=objective, **columns
@@ -275,6 +281,7 @@ def criteria_tables(
             orders=orders,
             # The verdict above is the rule's own; its stop points must be too.
             stop_on="rule",
+            n_jobs=n_jobs,
         )
     )
     records = records.rename(columns={"order": "order_kind"})

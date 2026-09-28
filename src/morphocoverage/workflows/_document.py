@@ -17,13 +17,15 @@ Shared-private: every name in ``__all__`` is used by ``workflows.retrospective``
 
 from __future__ import annotations
 
+import math
+import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._wording import count, fields, listing, percent
+from .._wording import count, fields, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
 from ..retrospective.report import QUESTIONS
@@ -104,6 +106,8 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
             "Positive and reference fields were paired across the whole table (pair_cols=()): "
             "every repeat is pooled, so a shift between repeats can read as detection.",
         )
+    document = _technical_repeats(document, results)
+    document = replace(document, notes=(*document.notes, *coverage_notes(results, setup)))
     pooled = _reference_repeats(results.get("unusual"))
     if pooled > 1:
         units = setup.unit_words
@@ -139,6 +143,131 @@ def _with_integrity(document: MicroscopistReport, integrity: Any) -> Microscopis
         "them as independent fields."
     )
     return replace(document, sections=sections, notes=(*document.notes, note))
+
+
+def _between_technical_repeats(fov_rows: pd.DataFrame, technical: str, outer: list[str]) -> list:
+    """Per condition and repeat with 2 or more technical repeats: the spread of their means
+    against what their fields predict, and the relative SE of the mean over them.
+
+    From the fields' means (every field with observations weighing one): the
+    observed variance of the technical-repeat means against the mean over
+    technical repeats of ``var(field means) / fields``, which is all the
+    fields alone would give. Returns ``(ratio, relative SE)`` pairs.
+    """
+    rows = fov_rows.dropna(subset=["mean"])
+    parts = rows.groupby(outer, sort=False, dropna=False) if outer else [((), rows)]
+    found = []
+    for _, own in parts:
+        per = own.groupby(technical, sort=False)["mean"].agg(["mean", "var", "count"])
+        per = per[per["count"] >= 2]
+        if len(per) < 2:
+            continue
+        predicted = float((per["var"] / per["count"]).mean())
+        observed = float(per["mean"].var(ddof=1))
+        grand = abs(float(per["mean"].mean()))
+        if predicted <= 0 or grand == 0:
+            continue
+        found.append(
+            (math.sqrt(observed / predicted), math.sqrt(observed / len(per)) / grand, len(per))
+        )
+    return found
+
+
+def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any]) -> Any:
+    """What every "enough" leaves out about technical repeats (audit 4, P1-7 and P1-8).
+
+    With technical repeats kept apart, question 3 gets how much their means
+    differ against what their fields predict; with them pooled, question 2
+    says that its groups pool them. Either way a closing note says what an
+    "enough" is per.
+    """
+    overview, variability = results.get("overview"), results.get("variability")
+    if overview is None or variability is None:
+        return document
+    technical = overview.settings.get("technical_col")
+    layout = overview.layout
+    if technical is None or "technical_repeats" not in layout.columns or not len(layout):
+        return document
+    per_group = layout["technical_repeats"].dropna().astype(int)
+    if technical not in variability.group_cols:
+        if not len(per_group) or per_group.max() < 2:
+            return document
+        low, high = int(per_group.min()), int(per_group.max())
+        span = f"{low}" if low == high else f"{low} to {high}"
+        text = (
+            f"Each analysis group pools the technical repeats of its condition and repeat "
+            f"({span} per group: the analysis groups {tuple(variability.group_cols)} leave "
+            f"{technical!r} out), so every answer above counts their fields together, as if "
+            "they came from one sample: fields of one technical repeat are not independent "
+            "draws of the condition, and the variation between technical repeats is not seen "
+            f"by any field count here; add {technical!r} to group_cols to judge each apart."
+        )
+        note = (
+            f"Each 'enough' is for a group that pools technical repeats ({span} per group), "
+            "so it counts fields, not independent technical repeats."
+        )
+        document = with_text(document, "enough", text)
+        return replace(document, notes=(*document.notes, note))
+    outer = [c for c in variability.group_cols if c != technical]
+    found = _between_technical_repeats(variability.fovs, technical, outer)
+    note = (
+        "Each 'enough' is per technical repeat; the condition mean also varies between "
+        "technical repeats, which more fields of one technical repeat cannot reduce "
+        "(question 3; optimise, question 7: more fields or more technical repeats?)."
+    )
+    if found:
+        ratios = sorted(r for r, _, _ in found)
+        errors = sorted(e for _, e, _ in found)
+        ratio, error = statistics.median(ratios), statistics.median(errors)
+        feature = variability.settings.get("feature")
+        few = min(n for _, _, n in found)
+        groups = count(len(found), "condition and repeat group")
+        uncertain = (
+            f"; with {few} technical repeats the spread itself is uncertain" if few < 5 else ""
+        )
+        text = (
+            f"Between technical repeats ({feature}): in {groups} with 2 or more technical "
+            f"repeats, their means spread {number(ratio)} times (median; {number(ratios[0])} "
+            f"to {number(ratios[-1])}) as much as their fields alone predict, and the mean over "
+            f"them has a relative standard error of about {percent(error)} (median; "
+            f"{percent(errors[0])} to {percent(errors[-1])}) from that spread. Every 'enough' "
+            "of question 2 is per technical repeat and says nothing about this variation, "
+            f"which only more technical repeats reduce (optimise, question 7){uncertain}."
+        )
+        document = with_text(document, "profile", text)
+    return replace(document, notes=(*document.notes, note))
+
+
+def coverage_notes(results: Mapping[str, Any], setup: Setup) -> list[str]:
+    """What the assessed questions did not read: columns, stage positions, acquisition order.
+
+    "Every question was assessed" is not "everything was checked" (audit 4,
+    P1-9): the Foundation, the stopping rules and the inspection read the
+    readout only, and without stage coordinates or an acquisition order some
+    checks cannot run at all.
+    """
+    notes = []
+    others = [f for f in setup.features if f != setup.readout]
+    if others and "variability" in results:
+        notes.append(
+            f"The Foundation, the stopping rules and the inspection's influence and neighbour "
+            f"reasons read the readout ({setup.readout}) only; the other declared features "
+            f"({listing(others)}) enter novelty, the representation control, the unusual "
+            f"{setup.unit_words} and the feature ranking, so a heavy tail or a between-well "
+            "spread in them is not judged by any stopping rule."
+        )
+    if setup.stage_cols is None:
+        notes.append(
+            "No stage coordinates (stage_cols): neighbouring fields were not compared, and "
+            "spatial redundancy and dispersed orders were not assessed."
+        )
+    if setup.acquisition_order_col is None:
+        notes.append(
+            "No acquisition order (acquisition_order_col): the recorded order was not "
+            "replayed, and the random orders treat the fields as exchangeable, so a drift or "
+            "a raster along the acquisition is not seen."
+        )
+    return notes
 
 
 def _reference_repeats(unusual: Any) -> int:

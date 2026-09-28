@@ -49,7 +49,10 @@ def default_families(readout: str, n_resamples: int = 200, random_state: int = 0
     The JCB rule and the JCS descriptor spread, each per object and per FOV,
     and the FOV bootstrap of the mean, on ``readout``. The grids reach from a
     setting that never stops to one that stops at the first field on the
-    committed data; widen them if your data need it. ``random_state`` seeds
+    committed data; they are absolute (the JCS spread and the bootstrap's
+    standard error are in the readout's units), so widen them if your data
+    need it: ``Benchmark.summary`` warns for every grid that does not bracket
+    the data it was run on. ``random_state`` seeds
     the resampling rules (the JCS spread and the bootstrap); ``benchmark``
     passes ``Setup.random_state``, and the locked protocol uses 0.
     """
@@ -103,11 +106,92 @@ class Benchmark:
     settings: dict[str, Any] = field(default_factory=dict)
 
     def summary(self) -> str:
-        """Every criterion's scores, in sentences, then the risk levels and settings."""
+        """Every criterion's scores, in sentences, a warning for each grid that does not
+        bracket the data, then the risk levels and settings."""
         blocks = [result.summary() for result in self.frontiers.values()]
+        warnings = grid_warnings(self)
+        if warnings:
+            blocks.append("\n".join(warnings))
         if self.settings:
             blocks.append(_benchmark_settings(self.settings))
         return "\n\n".join(blocks)
+
+
+# A grid brackets the data when its strictest setting rarely stops early and its loosest
+# setting stops: here, when not every setting leaves most acquisitions unstopped, and not
+# every setting stops most of them at the first field the rule may decide.
+_MOST = 0.5
+
+
+def _grid_problem(runs: pd.DataFrame, first_field: int) -> str | None:
+    """Why one family's grid does not bracket these data, or None when it does."""
+    stopped = runs["stopped"].astype(bool)
+    shares = (
+        pd.DataFrame(
+            {
+                "setting": runs["setting"],
+                "never": ~stopped,
+                "first": stopped & (runs["effort"] <= first_field),
+            }
+        )
+        .groupby("setting", sort=False)[["never", "first"]]
+        .mean()
+    )
+    never, at_first = shares["never"], shares["first"]
+    if len(never) and never.min() > _MOST:
+        if never.min() == 1:
+            return "it never stopped at any setting tried"
+        return (
+            f"it never stopped in {percent(never.min())} or more of the acquisitions at "
+            "every setting tried"
+        )
+    if len(at_first) and at_first.min() > _MOST:
+        if at_first.min() == 1:
+            return "it stopped at the first field it could decide at every setting tried"
+        return (
+            f"it stopped at the first field it could decide in {percent(at_first.min())} or "
+            "more of the acquisitions at every setting tried"
+        )
+    return None
+
+
+def grid_warnings(result: Benchmark) -> list[str]:
+    """One warning per family whose threshold grid does not bracket these data.
+
+    A family that never stops at any setting reads as "never got there", as if
+    the rule were worse, when the grid only failed to reach these data: the
+    thresholds are absolute (a spread or a standard error in the readout's
+    units), so a readout in other units (an area in µm², a ratio times 1000)
+    needs another grid. The stops do not depend on the criterion, so the
+    first frontier's runs decide.
+    """
+    if not result.frontiers:
+        return []
+    first = next(iter(result.frontiers.values()))
+    runs = first.runs
+    first_field = int(first.settings.get("min_fovs", 1) or 1)
+    grids = result.settings.get("families", {})
+    readout = result.settings.get("readout")
+    lines = []
+    for name in result.families:
+        problem = _grid_problem(runs[runs["family"] == name], first_field)
+        if problem is None:
+            continue
+        grid = grids.get(name, {})
+        thresholds = grid.get("thresholds") or []
+        span = (
+            f" ({grid.get('quantity')} {min(thresholds):g} to {max(thresholds):g})"
+            if thresholds
+            else ""
+        )
+        units = f" (here in the units of {readout})" if readout else ""
+        lines.append(
+            f"Warning: the grid of {name}{span} does not bracket these data: {problem}. "
+            f"Its thresholds are absolute{units} where the rule thresholds a spread or a "
+            "standard error, so this says nothing about the rule; widen the grid "
+            "(Family(..., thresholds=...)) and run the benchmark again."
+        )
+    return lines
 
 
 def _benchmark_settings(settings: dict[str, Any]) -> str:
@@ -228,6 +312,7 @@ def benchmark(
         for key, criterion in zip(keys, criteria, strict=True)
     }
     settings = {
+        "readout": setup.readout,
         "reservoir_fraction": reservoir_fraction,
         "reservoir_fovs": reservoir_sizes(replay),
         "alphas": list(alphas),
@@ -246,4 +331,4 @@ def benchmark(
     return Benchmark(frontiers, tuple(f.name for f in families), settings)
 
 
-__all__ = ["Benchmark", "Family", "benchmark", "default_families"]
+__all__ = ["Benchmark", "Family", "benchmark", "default_families", "grid_warnings"]

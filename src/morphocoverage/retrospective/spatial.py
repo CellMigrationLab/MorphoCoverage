@@ -17,8 +17,12 @@ sampling-frame bias, P9, not implemented):
   summary does, rather than counted as never enough; groups the replay
   skipped are named.
 - ``redundancy_distance``: from the semivariogram of FOV means, the distance
-  below which neighbouring fields are more alike than random pairs. It states
-  a limitation of closely spaced fields; it is not an adequacy claim.
+  below which neighbouring fields are more alike than random pairs, with a
+  null from shuffling the stage positions among the group's fields: a group
+  is flagged only when its distance is larger than the shuffles give (fields
+  with no spatial structure reach 90% of the variance at a longer lag in
+  about 40% of wells by chance). It states a limitation of closely spaced
+  fields; it is not an adequacy claim.
 """
 
 from __future__ import annotations
@@ -29,10 +33,14 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy.spatial import distance as _distances
 
+from .._checks import as_count, check_seed
+from .._seeds import group_rng
 from .._wording import count, duration
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
+from ..schema import ValidatedInput
 from ..spatial import fov_means, fov_semivariogram
 from ._text import fields as fields_text
 from ._text import median_beyond, order_phrase, percent, skipped_lines, where
@@ -293,6 +301,57 @@ def efficiency_summary(result: EfficiencyResult) -> str:
     return "\n\n".join(blocks)
 
 
+# The share of position shuffles at or above which a redundancy distance is not called
+# beyond chance.
+CHANCE_LEVEL = 0.05
+
+
+def _first_reaching(gamma: np.ndarray, lags: np.ndarray, threshold: float) -> float:
+    """The mean lag of the first bin whose semivariance reaches ``threshold`` (inf if none)."""
+    reached = np.flatnonzero(gamma >= threshold)
+    return float(lags[reached[0]]) if len(reached) else float("inf")
+
+
+def _shuffled_distances(
+    means: np.ndarray,
+    coords: np.ndarray,
+    bin_edges: Sequence[float],
+    threshold: float,
+    n_permutations: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """The redundancy distance with the FOV means shuffled among the stage positions.
+
+    The positions keep their pairs and bins; only which field sits where
+    changes, so any spatial structure is removed and the variance of the
+    means is unchanged. ``inf`` where no bin reaches the threshold.
+    """
+    lags = _distances.pdist(coords)
+    edges = np.asarray(bin_edges, dtype=float)
+    bins = np.searchsorted(edges, lags, side="right") - 1
+    inside = (bins >= 0) & (bins < len(edges) - 1)
+    present, codes = np.unique(bins[inside], return_inverse=True)
+    counts = np.bincount(codes, minlength=len(present))
+    mean_lags = np.bincount(codes, lags[inside], minlength=len(present)) / counts
+    out = np.empty(n_permutations)
+    for b in range(n_permutations):
+        shuffled = means[rng.permutation(len(means))]
+        half = 0.5 * _distances.pdist(shuffled, "sqeuclidean") / means.shape[1]
+        gamma = np.bincount(codes, half[inside], minlength=len(present)) / counts
+        out[b] = _first_reaching(gamma, mean_lags, threshold)
+    return out
+
+
+def _canonical(
+    group_data: ValidatedInput, rows: np.ndarray, means: np.ndarray, coords: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """The means and positions in FOV-key order, so a shuffle never depends on row order."""
+    keys = group_data.fovs.iloc[rows][list(group_data.fov_key)].astype(str)
+    keys = keys.reset_index(drop=True)
+    order = keys.sort_values(list(keys.columns), kind="stable").index.to_numpy()
+    return means[order], coords[order]
+
+
 def redundancy_distance(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -305,6 +364,8 @@ def redundancy_distance(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    n_permutations: int = 199,
+    random_state: int = 0,
 ) -> pd.DataFrame:
     """Per group, the distance below which fields are more alike than random pairs.
 
@@ -312,10 +373,19 @@ def redundancy_distance(
     mean lag at which the semivariance reaches ``share`` of the variance of
     the FOV means (``None`` with no ``reason`` when no bin reaches it: fields
     are then alike at every distance measured, up to ``largest_lag``, the
-    strongest redundancy). The distance is a point estimate, not tested
-    against chance; ``pairs_closer`` counts the pairs of fields closer than
-    it. Also reports the smallest lag measured, since nothing is said below
-    it. A group with fewer than two fields with observations, with a missing
+    strongest redundancy). ``pairs_closer`` counts the pairs of fields closer
+    than it. Also reports the smallest lag measured, since nothing is said
+    below it.
+
+    The distance is tested against chance: the FOV means are shuffled among
+    the group's stage positions ``n_permutations`` times (seeded from
+    ``random_state``, the fields in FOV-key order), and ``null_share`` is the
+    share of shuffles, counting the observed one, whose distance is at least
+    as large (no bin reaching the threshold counts as the largest). Fields
+    without spatial structure give a distance beyond the first bin in about
+    40% of groups, so only ``beyond_chance`` (``null_share`` below
+    ``CHANCE_LEVEL``, 5%) says that closer fields are more alike than chance
+    allows. A group with fewer than two fields with observations, with a missing
     feature value (its FOV means are undefined), with FOV means that do not
     vary at all (no distance can be told from them), or with no pair of fields
     within the bins, has nothing measured: its row holds ``None`` and says why
@@ -324,6 +394,8 @@ def redundancy_distance(
     """
     if not 0 < float(share) <= 1:
         raise ValueError("share must be in (0, 1]")
+    n_permutations = as_count(n_permutations, "n_permutations")
+    random_state = check_seed(random_state)
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -344,6 +416,9 @@ def redundancy_distance(
             "smallest_lag": None,
             "largest_lag": None,
             "fov_mean_variance": None,
+            "null_share": None,
+            "beyond_chance": None,
+            "permutations": n_permutations,
             "share": float(share),
             "unit": stage_unit,
             "reason": None,
@@ -355,7 +430,7 @@ def redundancy_distance(
                 "(missing values are never imputed)"
             )
             continue
-        means, _ = fov_means(group_data)
+        means, fov_rows = fov_means(group_data)
         if len(means) < 2:
             row["reason"] = (
                 f"only {fields_text(len(means))} with observations: the semivariogram needs "
@@ -381,6 +456,27 @@ def redundancy_distance(
             continue
         reached = gamma[gamma["gamma"] >= float(share) * variance]
         distance = float(reached["mean_lag"].iloc[0]) if len(reached) else None
+        coords = group_data.fovs[list(stage_cols)].to_numpy(dtype=float)[fov_rows]
+        ordered_means, ordered_coords = _canonical(group_data, fov_rows, means, coords)
+        null = _shuffled_distances(
+            ordered_means,
+            ordered_coords,
+            bin_edges,
+            float(share) * variance,
+            n_permutations,
+            group_rng(random_state, group),
+        )
+        observed = float("inf") if distance is None else distance
+        # The observed assignment is one of the arrangements: counted, so the share is > 0.
+        tolerance = 1e-9 * max(1.0, abs(observed) if np.isfinite(observed) else 1.0)
+        at_least = int(np.sum(null >= observed - tolerance))
+        null_share = (1 + at_least) / (1 + n_permutations)
+        row.update(
+            {
+                "null_share": float(null_share),
+                "beyond_chance": bool(null_share < CHANCE_LEVEL),
+            }
+        )
         row.update(
             {
                 "redundancy_distance": distance,
@@ -399,6 +495,7 @@ def redundancy_distance(
 
 
 __all__ = [
+    "CHANCE_LEVEL",
     "EfficiencyResult",
     "dispersed_order",
     "efficiency_summary",

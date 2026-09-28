@@ -205,7 +205,9 @@ def test_a_variance_share_from_few_samples_is_marked_as_not_established():
 
 
 def test_a_variance_share_from_many_samples_with_a_clear_component_is_stated_plainly():
-    objects, fovs = _nested(np.random.default_rng(0), 8, 8, 20, v_sample=4.0, v_fov=0.05)
+    # 12 samples: from 8, the interval widened for the number of samples (audit 4,
+    # P3-10) rightly reaches zero for a variance estimated from 8 values.
+    objects, fovs = _nested(np.random.default_rng(0), 12, 8, 20, v_sample=4.0, v_fov=0.05)
     result = effort_projection(
         objects,
         fovs,

@@ -396,6 +396,12 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     if redundancy is None or not len(redundancy):
         return []
     measured = redundancy.dropna(subset=["smallest_lag"])
+    # Only distances beyond the position-shuffle null count (audit 4, P8-2): without
+    # spatial structure, a distance beyond the first bin arises in about 40% of groups.
+    tested = "beyond_chance" in measured.columns
+    chance = measured[~measured["beyond_chance"].fillna(False).astype(bool)] if tested else None
+    if tested:
+        measured = measured[measured["beyond_chance"].fillna(False).astype(bool)]
     always = measured[measured["redundancy_distance"].isna()]
     found = measured.dropna(subset=["redundancy_distance"])
     alike = found[found["redundancy_distance"] > found["smallest_lag"]]
@@ -403,10 +409,15 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     unit = str(redundancy["unit"].iloc[0]) if "unit" in redundancy.columns else "stage units"
     parts = []
     if len(alike):
+        tested_text = (
+            "beyond what shuffling the positions within each group gives"
+            if tested
+            else "not tested against chance"
+        )
         parts.append(
             f"in {len(alike)} of {len(redundancy)} groups, fields closer than about "
             f"{np.median(alike['redundancy_distance']):.0f} {unit} (the median of point "
-            f"estimates, not tested against chance{_pairs(alike)}) are more alike than "
+            f"estimates, {tested_text}{_pairs(alike)}) are more alike than "
             "random pairs"
         )
     if len(always):
@@ -415,6 +426,26 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
         parts.append(
             f"in {len(always)} of {len(redundancy)} groups, fields are more alike than "
             f"random pairs at every distance measured{reach}"
+        )
+    # Groups whose point estimate suggested redundancy that the shuffles do not support.
+    suggested = (
+        chance[
+            chance["null_share"].notna()
+            & (
+                chance["redundancy_distance"].isna()
+                | (chance["redundancy_distance"] > chance["smallest_lag"])
+            )
+        ]
+        if chance is not None
+        else pd.DataFrame()
+    )
+    if len(suggested):
+        typical = float(suggested["null_share"].median())
+        parts.append(
+            f"in {len(suggested)} of {len(redundancy)} groups the point estimate suggested "
+            "that closer fields are more alike, but shuffling their positions within the "
+            f"group gave as large a distance in a median of {percent(typical)} of shuffles, "
+            "so no spatial redundancy is shown there"
         )
     if parts:
         statement = "; ".join(parts)

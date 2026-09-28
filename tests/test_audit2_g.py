@@ -449,7 +449,7 @@ def test_g16_a_saving_whose_interval_includes_zero_is_not_resolved():
         assert ("(not resolved)" in text) != resolved
     costs = pd.DataFrame([baseline, _score(-1.5, -3.0, 0.5)])
     text = FrontierResult(pd.DataFrame(), costs, pd.DataFrame(), {"units": 6}).summary()
-    assert "costs 1.5 more fields, 95% interval -0.5 to 3.0 (not resolved)" in text
+    assert "costs 1.5 more fields, approximate 95% interval -0.5 to 3.0 (not resolved)" in text
 
 
 def test_g18_the_split_modules_keep_the_names_callers_use():
