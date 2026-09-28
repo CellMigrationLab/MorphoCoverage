@@ -271,3 +271,12 @@ class FixedAreaStrategy(SamplingStrategy):
     def policies(self) -> tuple[ThresholdPolicy]:
         """``imaged_area >= target_area``."""
         return (ThresholdPolicy(_AREA, float(self.target_area)),)
+
+
+__all__ = [
+    "FixedAreaStrategy",
+    "FixedFOVStrategy",
+    "FixedObjectStrategy",
+    "FixedObservationStrategy",
+    "ImagedAreaEstimator",
+]

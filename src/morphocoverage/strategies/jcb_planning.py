@@ -35,8 +35,23 @@ Supplementary Data S1 and S3 resolve the control normalization:
   upper SD from 20 cells. Supplementary Data S1 carries cached result cells
   matching those reported values, but its visible 10 control and 10 treated
   inputs recalculate to about 20.38% and 29.77%; tests preserve both facts.
-  A pooled-variance estimate would use ``n_objects - n_samples``; the
-  difference matters only for small pilots.
+
+The spreadsheet arithmetic is kept, and it is biased for small multi-sample
+pilots. Centring on ``n_samples`` sample means leaves ``n_objects -
+n_samples`` degrees of freedom, so the point variance averages ``(n_objects
+- n_samples) / (n_objects - 1)`` of the true within-sample variance, and the
+point plan asks for that share of the objects needed; the upper bound is
+computed on ``n_objects - 1`` degrees of freedom instead of ``n_objects -
+n_samples``, so it covers the true SD less often than 95%. In a check with
+normal values: 2 samples of 3 objects, 79% of the needed objects and 94%
+coverage; 3 of 3, 76% and 90%; 4 of 5, 84% and 91%; 6 of 10, 92% and 93%
+(a pooled-variance estimate on ``n_objects - n_samples`` covered 97-98% in
+all four). With 10 or more objects per sample the difference is small; for
+smaller pilots prefer ``sd_estimate="upper_95"`` and more objects per sample.
+
+Sample columns may be categorical (``read_csv(dtype="category")``): samples
+are the combinations present in the pilot, never unobserved combinations of
+categories.
 """
 
 from __future__ import annotations
@@ -49,6 +64,7 @@ import numpy as np
 import pandas as pd
 
 from .. import _deprecated
+from .._wording import listing
 from ..data_check import validate_input_tables
 from ..evidence import Availability, Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -178,16 +194,32 @@ def plan_objects_to_average(
     if len(values) < 2:
         raise ValueError("planning needs at least 2 pilot cells")
 
+    absent = [column for column in control if column not in data.objects.columns]
+    if absent:
+        raise ValueError(
+            f"control columns {absent} are not columns of the pilot observations (they hold "
+            f"{listing(list(data.objects.columns), limit=8)})"
+        )
     table = data.objects.loc[:, list(sample_cols)].assign(_value=values)
     for column in control:
         if column not in table.columns:
             table[column] = data.objects[column]
     is_control = np.logical_and.reduce([table[c].eq(v).to_numpy() for c, v in control.items()])
-    sample_means = table.groupby(list(sample_cols), sort=True)["_value"].mean()
+    # observed=True: with categorical sample columns, only the samples present in the
+    # pilot, never unobserved combinations of categories (pandas 2 defaults to all).
+    by_sample = table.groupby(list(sample_cols), sort=True, observed=True)["_value"]
+    sample_means = by_sample.mean()
     control_rows = table.loc[is_control]
-    control_means = control_rows.groupby(list(sample_cols))["_value"].mean()
+    control_means = control_rows.groupby(list(sample_cols), observed=True)["_value"].mean()
     if control_means.empty:
-        raise ValueError(f"no pilot sample matches the control {dict(control)}")
+        present = {
+            column: listing([repr(v) for v in table[column].drop_duplicates()], limit=5)
+            for column in control
+        }
+        raise ValueError(
+            f"no pilot sample matches the control {dict(control)}; the pilot holds "
+            + "; ".join(f"{column}: {values}" for column, values in present.items())
+        )
     control_mean = float(control_rows["_value"].mean())
     if not control_mean > 0:
         raise ValueError("the control mean must be positive to express SD as a CV")
@@ -199,7 +231,7 @@ def plan_objects_to_average(
             "planning needs at least one pilot sample with 2 or more cells: with one cell per "
             "sample the within-sample SD is undefined"
         )
-    centred = values - table.groupby(list(sample_cols))["_value"].transform("mean").to_numpy()
+    centred = values - by_sample.transform("mean").to_numpy()
     sd = float(np.std(centred, ddof=1))
     cv = sd / control_mean
     cv_upper = cv * sd_upper_bound_factor(len(values) - 1)

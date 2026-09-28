@@ -56,8 +56,11 @@ def _enough_answer(final: Mapping[str, Any], stops: Mapping[str, Any]) -> str:
         head = f"{criterion}: yes, its threshold was met by the {acquired} acquired FOVs"
     if final.get("assumes_spatial_uniformity"):
         head += " (treats observations as independent draws: assumes a spatially uniform sample)"
+    # The rule's own caveats (FOV size related to FOV mean, SD above 50% CV) follow its answer.
+    warnings = final.get("warnings")
+    caution = f" Caution: {warnings}." if isinstance(warnings, str) and warnings else ""
     if pd.isna(stops["stop_fov_median"]):
-        return f"{head}; not met at any point in {count(orders, 'replayed order')}."
+        return f"{head}; not met at any point in {count(orders, 'replayed order')}.{caution}"
     first = (
         f"first met after {stops['stop_fov_median']:g} FOVs "
         f"(10-90%: {stops['stop_fov_p10']:g}-{stops['stop_fov_p90']:g}) over "
@@ -68,7 +71,7 @@ def _enough_answer(final: Mapping[str, Any], stops: Mapping[str, Any]) -> str:
     lost = (
         "; it was met and then lost as more FOVs arrived" if final["verdict"] == "continue" else ""
     )
-    return f"{head}; {first}{missing}{lost}."
+    return f"{head}; {first}{missing}{lost}.{caution}"
 
 
 def novelty_definition(

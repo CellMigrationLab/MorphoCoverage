@@ -59,9 +59,9 @@ def _replay(objects, fovs, strategies, order="order", feature_cols=("area",)):
 
 
 def _score(result):
-    """The strategy's single evidence quantity."""
-    [quantity] = result.evidence.quantities.values()
-    return quantity.value
+    """The largest range or spread over every descriptor (``max_descriptor_*``)."""
+    [name] = [n for n in result.evidence.quantities if n.startswith("max_descriptor_")]
+    return result.evidence.quantities[name].value
 
 
 def _spread(tolerance, unit, n_resamples=50, seed=0):
@@ -318,10 +318,10 @@ def test_current_practice_rules_are_unsupported_for_rare_discovery():
 def test_descriptor_rules_do_not_silently_drop_missing_values(strategy):
     objects, fovs = _tables([[1.0, float("nan")], [2.0, 3.0], [4.0, 5.0]])
     result = _evaluate(objects, fovs, strategy)
-    [quantity] = result.evidence.quantities.values()
-    assert quantity.availability == "not_applicable"
+    for quantity in result.evidence.quantities.values():
+        assert quantity.availability == "not_applicable"
+        assert "missing values" in quantity.reason
     assert result.rule_decision is None
-    assert "missing values" in quantity.reason
 
 
 @pytest.mark.parametrize(
@@ -341,9 +341,9 @@ def test_cell_stabilization_rules_are_not_applicable_to_slice_observations(strat
         objective=POPULATION,
         observation_unit="slice",
     )
-    [quantity] = result.evidence.quantities.values()
-    assert quantity.availability == "not_applicable"
-    assert "'slice'" in quantity.reason
+    for quantity in result.evidence.quantities.values():
+        assert quantity.availability == "not_applicable"
+        assert "'slice'" in quantity.reason
     assert result.rule_decision is None
 
 

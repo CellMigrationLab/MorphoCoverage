@@ -170,11 +170,14 @@ def test_zero_object_fovs_are_sampled_units_in_the_fov_variant():
     assert result.n_fovs == 3
 
 
-def test_fov_variant_equals_cell_criterion_when_fov_means_do_not_differ():
-    # Identical FOVs carry no between-FOV variance.
+def test_fov_variant_is_not_yet_defined_when_fov_means_do_not_differ():
+    # Identical FOVs carry no between-FOV variance: a CV of 0 would say nothing about
+    # averaging noise, so the FOV unit waits for FOV means that differ (audit 3, C-1).
     objects, fovs = _tables([[1.0, 3.0]] * 4)
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "fov", "point"))
-    assert _cv(result) == pytest.approx(0.0)
+    quantity = result.evidence.quantities["averaging_cv"]
+    assert quantity.availability == "insufficient_data"
+    assert quantity.reason == "no spread among the FOV means so far"
 
 
 def test_spatial_clustering_inflates_only_the_fov_variant():
@@ -191,7 +194,8 @@ def test_spatial_clustering_inflates_only_the_fov_variant():
     assert cell_mixed == pytest.approx(cell_clustered)
     assert _cv(fov_clustered) > 2 * cell_clustered
     assert fov_clustered.diagnostics["ratio_design_effect"] > 5
-    assert _cv(fov_mixed) == pytest.approx(0.0)
+    # Mixed FOVs all have the same mean: no between-FOV spread yet (audit 3, C-1).
+    assert fov_mixed.evidence.quantities["averaging_cv"].availability == "insufficient_data"
 
 
 def test_neighbour_correlation_scenario_shows_design_effect():
@@ -465,7 +469,9 @@ def test_fov_unit_variant_applies_to_any_observation_unit():
         )[0]
         for unit in ("slice", "cell")
     }
-    assert by_unit["slice"].evidence == by_unit["cell"].evidence
+    # The same numbers; only the wording names the rows (slices, cells).
+    assert by_unit["slice"].evidence.quantities == by_unit["cell"].evidence.quantities
+    assert by_unit["slice"].diagnostics["scalar_parameter"] == "mean of 'area' over slices"
     assert by_unit["slice"].evidence.quantities["averaging_cv"].availability == "available"
 
 
