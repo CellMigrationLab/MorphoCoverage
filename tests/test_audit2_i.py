@@ -79,7 +79,8 @@ def _live_verdicts(objects, fovs, setup):
 
 
 def test_i1_every_rule_replay_reads_the_raw_values_as_live():
-    objects, fovs = _tables()
+    # 8 fields per well: the per-field spread needs 5 fields with objects (audit 4, P4-6).
+    objects, fovs = _tables(n_fovs=16)
     raw_setup = _setup(rules=RULES, stage_cols=None)
     setup = _setup(rules=RULES, stage_cols=None, normalize="control_mean")
     prepared = setup.prepared(objects, fovs)

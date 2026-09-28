@@ -195,6 +195,36 @@ def test_field_identity_is_resolved_only_by_metadata():
     assert all(d.startswith(allowed) for d in definers), definers
 
 
+# --- A readout constant so far is not yet enough data --------------------------
+
+# The precision and stabilization rules judge a spread; with no spread so far (a count of 0
+# in every object, a saturated intensity) theirs is 0, which says nothing (audit 3 C-1 for the
+# JCB rule, audit 4 P4-1 for the JCS rules and the FOV bootstrap).
+_READOUT_RULES = (
+    "ScalarPrecisionStrategy",
+    "DescriptorPlateauStrategy",
+    "DescriptorSpreadStrategy",
+    "FOVBootstrapStrategy",
+)
+
+
+def test_no_readout_rule_stops_on_a_readout_constant_so_far():
+    from scenarios import homogeneous
+
+    rules = [s for s in STRATEGIES_UNDER_CONTRACT if type(s).__name__ in _READOUT_RULES]
+    assert {type(s).__name__ for s in rules} == set(_READOUT_RULES)
+    scenario = homogeneous()
+    constant = scenario.objects.assign(**dict.fromkeys(FEATURE_COLS, 255.0))
+    results = replay(type(scenario)("constant", constant, scenario.fovs), rules)
+    stopped = {r.result.strategy for r in results if r.result.rule_decision == "stop"}
+    assert not stopped, f"stopped on a constant readout: {sorted(stopped)}"
+    assert all(
+        q.availability in ("insufficient_data", "not_applicable")
+        for r in results
+        for q in r.result.evidence.quantities.values()
+    )
+
+
 # --- Every interval covers what it says --------------------------------------
 
 

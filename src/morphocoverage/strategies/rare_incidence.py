@@ -34,6 +34,17 @@ detections the rule stops at the ``r = 1`` point, well before the plan for
 Recurrence counts positions, not objects: many labelled objects in one FOV are one
 positive FOV.
 
+How often it stops too early (audit 4, P4-8; 20,000 simulated acquisitions
+with the state at exactly the target, ``p* = 0.05``, and ``max_risk =
+0.05``): it stopped without the state seen in ``r`` FOVs in 5.2% of
+acquisitions for ``r = 1``, 7.7% for ``r = 2`` and 9.6% for ``r = 3`` with a
+uniform prior, in 13.9%, 18.3% and 20.9% with Jeffreys' prior ``(0.5, 0.5)``,
+and in 55-69% when the state came in runs of 5 neighbouring FOVs (the
+binomial plan: 29-55%). So ``max_risk`` is the false-stop rate only for
+``r = 1`` under a uniform prior and independent FOVs; the rule is kept as
+designed and not recalibrated, and its evidence carries this caution in
+``warning``.
+
 Assumptions and limits:
 
 - ``label_col`` marks the rare state independently of the acquisition (an
@@ -67,6 +78,13 @@ from ..schema import ValidatedInput, fov_positions
 from .base import Estimator, SamplingStrategy
 
 QUANTITY = "rare_incidence_risk"
+# The false-stop rates beside every available risk (audit 4, P4-8; the module docstring).
+_CAUTION = (
+    "a posterior risk, not a detection guarantee: with the state at exactly the target "
+    "incidence (5%, max_risk 5%) the rule stopped short of r positive FOVs in 5.2%, 7.7% and "
+    "9.6% of simulated acquisitions for r = 1, 2 and 3 with a uniform prior, 14-21% with "
+    "Jeffreys' prior, and 55-69% when the state came in runs of 5 neighbouring FOVs"
+)
 _META = {
     "direction": Direction.LOWER_IS_BETTER,
     "units": "probability",
@@ -166,6 +184,7 @@ class RareIncidenceEstimator(Estimator):
             "visible_fovs": k,
             "posterior": [self.prior_a + positive, self.prior_b + k - positive],
             "recurrent": positive >= target.min_fov_occurrences,
+            "warning": _CAUTION,
         }
         return Evidence({QUANTITY: Quantity.available(risk, **_META)}, diagnostics)
 
@@ -176,8 +195,11 @@ class RareIncidenceStrategy(SamplingStrategy):
 
     ``RareIncidenceEstimator`` plus ``ThresholdPolicy(max_risk)``.
     ``max_risk`` bounds a posterior probability; ``1 - detection_probability``
-    gives a rule close to, but not the same as, the binomial detection plan
-    (see the module docstring).
+    gives a rule close to, but not the same as, the binomial detection plan.
+    It is the rate of stopping too early only for ``r = 1``, a uniform prior
+    and independent FOVs: more occurrences, Jeffreys' prior or states in runs
+    of neighbouring FOVs raise it (5-21%, and 55-69% in runs, at a nominal 5%;
+    see the module docstring).
     """
 
     label_col: str

@@ -6,8 +6,9 @@ continue/stop. Strategy families implement ``Estimator``; the framework runs
 the estimators, applies the policies and builds the result.
 
 Shared-private: ``_as_ints`` is used by ``stabilization`` and ``fov_bootstrap``
-to store integer settings given as numpy integers as Python ints; it is
-private to the package and may change with it.
+to store integer settings given as numpy integers as Python ints, and
+``_canonical_fovs`` by both to resample FOVs in an order that the table's row
+order cannot change; they are private to the package and may change with it.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from .._wording import count
@@ -232,6 +234,20 @@ def check_order_col(fovs: pd.DataFrame, order_col: str, purpose: str) -> None:
             f"would sort '10' before '2'. Convert it first, for example "
             f"fovs[{order_col!r}] = pd.to_numeric(fovs[{order_col!r}]) or pd.to_datetime(...)."
         )
+
+
+def _canonical_fovs(data: ValidatedInput) -> np.ndarray:
+    """Positions of ``data.fovs`` in a canonical order: by their FOV key, compared as text.
+
+    Resampling draws index the FOVs in this order, so the draws depend on
+    which FOVs were acquired, never on the FOV table's row order (row order
+    carries no information: permuting it moved a finished acquisition's
+    descriptor spread from 24.3 to 27.9 around a tolerance of 25, audit 4,
+    P4-11). Values are compared as text, not as categorical codes, so a
+    categorical column's category order cannot change the order either.
+    """
+    key = data.fovs.loc[:, list(data.fov_key)].astype(str).reset_index(drop=True)
+    return key.sort_values(list(key.columns), kind="stable").index.to_numpy()
 
 
 __all__ = [

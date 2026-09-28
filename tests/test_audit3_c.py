@@ -302,7 +302,9 @@ def _bootstrap_to_analytic(values_per_fov):
     sums = np.array([sum(v) for v in values_per_fov])
     counts = np.array([len(v) for v in values_per_fov], dtype=float)
     analytic = fov_averaging_cv(sums, counts)
-    return boot.value("fov_bootstrap_centroid_se") / (analytic["cv_mean"] * analytic["mean"])
+    # The raw bootstrap SE: the reported one is widened for few FOVs (audit 4, P4-4).
+    raw = boot.value("fov_bootstrap_centroid_se") / boot.diagnostics["small_sample_widening"]
+    return raw / (analytic["cv_mean"] * analytic["mean"])
 
 
 def test_c8_the_bootstrap_to_ratio_se_factor_holds_only_when_every_fov_holds_objects():

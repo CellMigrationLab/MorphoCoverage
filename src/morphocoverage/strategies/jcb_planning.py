@@ -52,6 +52,20 @@ smaller pilots prefer ``sd_estimate="upper_95"`` and more objects per sample.
 Sample columns may be categorical (``read_csv(dtype="category")``): samples
 are the combinations present in the pilot, never unobserved combinations of
 categories.
+
+The paper's upper bound of the SD is the chi-square bound, which holds for
+normal values. From normal pilots of 3 x 10, 3 x 30 and 5 x 40 objects the
+upper-95 plan fell short of the objects actually needed in 5%, 2% and 3% of
+pilots; with 10% of cells at four times the level of the rest (giant or
+mitotic cells) in 19%, 12% and 11%, and for lognormal values (sigma 1) in
+45-49% (audit 4, P4-7). The bound is kept as the paper computes it, and the
+plan carries cautions instead (``ObjectCountPlan.warnings``, shown in the
+planned rule's ``warning``): values far from normal (excess kurtosis above 2
+or bimodality coefficient above 5/9 among the centred pilot values, from 8
+objects, with ``sd_estimate="upper_95"``), and an SD above 50% CV of the
+control mean, for which the paper advises acquiring more data and repeating
+the estimate. A CV is not invariant to an additive offset, so intensities
+must be background-subtracted.
 """
 
 from __future__ import annotations
@@ -64,7 +78,7 @@ import numpy as np
 import pandas as pd
 
 from .. import _deprecated
-from .._wording import listing
+from .._wording import listing, plural
 from ..data_check import validate_input_tables
 from ..evidence import Availability, Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
@@ -72,10 +86,13 @@ from ..policies import DecisionPolicy, Effort
 from ..results import Decision
 from ..schema import OBJECT_LIKE_UNITS, ValidatedInput
 from ..statistics import sd_upper_bound_factor, spread_is_zero
+from ._averaging_cv import _central_sums, _shape_warning
 from .base import Estimator, SamplingStrategy, unsupported_observation_unit
 from .scalar_precision import required_objects
 
 _SD_ESTIMATES = ("point", "upper_95")
+# The paper's advice: an SD estimate above 50% CV calls for more data.
+_MAX_TRUSTED_CV = 0.5
 _REQUIRED = "planned_required_objects"
 _MEASURED = "measured_objects"
 
@@ -86,6 +103,8 @@ class ObjectCountPlan:
 
     ``pilot_samples`` lists the ``sample_cols`` values of every pilot sample,
     so evaluation can refuse groups that were used for planning.
+    ``warnings`` holds the plan's cautions (the module docstring); they are
+    not part of ``parameters``, which define the plan.
     """
 
     feature: str
@@ -101,6 +120,7 @@ class ObjectCountPlan:
     cv: float
     cv_upper_95: float
     required_objects: int
+    warnings: tuple[str, ...] = ()
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -245,6 +265,14 @@ def plan_objects_to_average(
             "objects to average can be planned from it; use a feature that varies between "
             "the objects of a sample, or a larger pilot"
         )
+    warnings = []
+    if sd_estimate == "upper_95":
+        warnings.append(_shape_warning(*_central_sums(centred), plural(data.observation_unit)))
+    if cv > _MAX_TRUSTED_CV:
+        warnings.append(
+            f"the within-sample SD of {feature!r} exceeds 50% CV of the control mean; the paper "
+            "advises acquiring more data and repeating the estimate"
+        )
     return ObjectCountPlan(
         feature=feature,
         target_cv=float(target_cv),
@@ -262,6 +290,7 @@ def plan_objects_to_average(
         cv=cv,
         cv_upper_95=cv_upper,
         required_objects=required,
+        warnings=tuple(text for text in warnings if text),
     )
 
 
@@ -326,12 +355,18 @@ class PlannedObjectCountEstimator(Estimator):
                 {"undefined_reason": reason},
             )
         measured = int(np.count_nonzero(~np.isnan(values)))
+        diagnostics: dict[str, Any] = {
+            "plan": self.plan.parameters,
+            "objects_without_value": len(values) - measured,
+        }
+        if self.plan.warnings:
+            diagnostics["warning"] = "plan: " + "; ".join(self.plan.warnings)
         return Evidence(
             {
                 _REQUIRED: Quantity.available(self.plan.required_objects, direction=lower, **meta),
                 _MEASURED: Quantity.available(measured, direction=higher, **meta),
             },
-            {"plan": self.plan.parameters, "objects_without_value": len(values) - measured},
+            diagnostics,
         )
 
 
