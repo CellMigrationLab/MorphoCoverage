@@ -4,6 +4,8 @@ spatial diagnostics and the retrospective criteria, reliability, protocol and or
 One test per finding, named after it; each fails on the code before the fix.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -364,7 +366,9 @@ def test_f4_unreached_runs_count_as_beyond_their_own_stream_in_the_median():
     assert runs.isna().sum() == len(runs) / 2  # half the runs never reached it
     row = result.table.iloc[0]
     assert row["median_fovs"] is None and row["median_travel"] is None
-    assert "not reliably enough within the 11 fields in half or more of runs" in result.summary()
+    full = result.summary(detail="full")
+    assert "not in half or more of runs" in full and "50% of runs, within 11 fields" in full
+    assert re.search(r"random +never +– +50%", result.summary())
     # A median over reached runs and runs beyond their own stream, never a fill value.
     assert order_efficiency(_replay(threshold=0.2)).table["median_fovs"].iloc[0] >= 1
 
@@ -564,7 +568,9 @@ def test_f14_the_order_comparison_names_every_criterion_and_short_times():
     )
     two = {"labels": {"a": "a", "b": "b"}}
     text = efficiency_summary(EfficiencyResult(pd.DataFrame(), table, (), two))
-    assert "for all the criteria together" in text and "about 20 s" in text
+    assert "for all the criteria together" in text and "20 s" in text
+    full = efficiency_summary(EfficiencyResult(pd.DataFrame(), table, (), two), "full")
+    assert "about 20 s" in full
     one = efficiency_summary(EfficiencyResult(pd.DataFrame(), table, (), {"labels": {"a": "a"}}))
     assert "for this criterion" in one
 

@@ -32,6 +32,7 @@ from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_
 from ..retrospective.report import QUESTIONS, with_opening
 from ..retrospective.report_profile import sampling_profile
 from ..retrospective.report_status import profile_status
+from ._declaration import declaration_short
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -93,6 +94,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
         declaration=setup.declaration(),
         minimum_detection=setup.minimum_detection,
     )
+    document = replace(document, short={**document.short, "declaration": declaration_short(setup)})
     integrity = results.get("integrity")
     if integrity is not None:
         # What the tables hold includes structure to inspect before reading the answers.

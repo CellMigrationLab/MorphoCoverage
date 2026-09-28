@@ -6,6 +6,7 @@ One test per finding; the reproductions behind them were run on data/synthetic.
 from __future__ import annotations
 
 import inspect as source
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -345,7 +346,8 @@ def _counted(counts, stage=False):
 def test_g11_one_observation_is_one_cell_not_one_cells():
     objects, fovs = _counted([1, 12, 15, 14, 13, 16])
     result = inspect_fovs(objects, fovs, feature_cols=["v"], observation_unit="cell")
-    assert "f0: 1 cell; the median is 13.5." in result.summary()
+    assert "f0: 1 cell; the median is 13.5." in result.summary(detail="full")
+    assert re.search(r"f0 +1 cell; the median is 13\.5", result.summary())
 
 
 def test_g12_an_empty_neighbour_is_not_counted_among_the_fields_compared():

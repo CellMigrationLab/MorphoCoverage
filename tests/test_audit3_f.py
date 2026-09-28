@@ -23,6 +23,7 @@ from morphocoverage.retrospective import (
     adequacy,
     adequacy_points,
     order_efficiency,
+    order_text,
     protocol,
     protocol_reliability,
     redundancy_distance,
@@ -31,6 +32,7 @@ from morphocoverage.retrospective import (
     spatial,
     stopping_calibration,
 )
+from morphocoverage.retrospective._text import order_name
 from morphocoverage.retrospective.adequacy import (
     _median_point,
     last_judged_step,
@@ -331,9 +333,14 @@ def test_f10_groups_the_replay_skipped_are_named_in_every_summary():
     one, one_fovs = _tables(n_fovs=1, wells=("A2",))
     replay = _replay(pd.concat([big, one]), pd.concat([big_fovs, one_fovs]), stage_cols=("x", "y"))
     assert replay.skipped["technical_repeat"].tolist() == ["A2"]
-    for result in (adequacy_points(replay), stopping_calibration(replay), order_efficiency(replay)):
+    for result in (adequacy_points(replay), stopping_calibration(replay)):
         assert result.skipped["technical_repeat"].tolist() == ["A2"]
         assert "technical_repeat=A2: skipped, only 1 field" in result.summary()
+    efficiency = order_efficiency(replay)
+    assert efficiency.skipped["technical_repeat"].tolist() == ["A2"]
+    # The order comparison names the group by its values (condition · repeat · well).
+    for detail in ("short", "full"):
+        assert "R1 · A2: skipped, only 1 field" in efficiency.summary(detail=detail)
 
 
 def test_f11_too_few_objects_for_the_metric_is_not_preserved():
@@ -549,8 +556,9 @@ def test_f24_one_order_phrase_one_median_rule_one_skip_rule():
     skipped_replay = _replay(*tables).skipped["reason"].iloc[0]
     skipped_reliability = _reliability(*tables).skipped["reason"].iloc[0]
     assert skipped_replay == skipped_reliability
+    assert not hasattr(order_text, "_ORDER_NAMES")  # the words of an order kind live in _text
     assert (
-        "In the recorded order"
+        f"{order_name('recorded')}  "
         in order_efficiency(
             _replay(
                 objects,

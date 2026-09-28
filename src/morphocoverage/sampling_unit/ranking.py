@@ -50,6 +50,7 @@ import pandas as pd
 
 from .._checks import is_number
 from .._seeds import group_rng
+from .._style import caution_lines, check_detail, table, wrap
 from .._wording import count
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..statistics import benjamini_hochberg
@@ -57,6 +58,7 @@ from ._common import groups, validated
 from ._units import (
     FIELD,
     NOT_INDEPENDENT,
+    UNKNOWN_WELLS_ADVICE,
     check_arguments,
     contrasts_of,
     control_label,
@@ -78,6 +80,7 @@ EFFECT_CAP = 20.0
 GATE_ALPHA = 0.05
 TOP_FEATURES = 5
 MAX_ROWS_LISTED = 24
+_PLOTTED = f"Plotted by default: the readout and up to {TOP_FEATURES} best-ranked other features."
 
 
 @dataclass(frozen=True)
@@ -142,23 +145,26 @@ class FeatureRanking:
         ranked = self.ranking.dropna(subset=["score"])
         return ranked["feature"].head(k).tolist()
 
-    def summary(self, max_rows: int = MAX_ROWS_LISTED) -> str:
-        """The ranking in sentences: how it was made, the ranked features, the unranked ones."""
-        control = self.settings["control"]
-        alpha = self.settings["alpha"]
-        n_tests = int(self.tests["p_value"].notna().sum()) if len(self.tests) else 0
-        units = "fields"
+    def _units(self) -> str:
+        """What the tests shuffle: technical repeats, or fields (declared independent)."""
         if self.settings.get("unit"):
-            units = f"technical repeats ({self.settings['unit']})"
-        elif not self.settings.get("fields_independent"):
-            units = "fields, where the fields are declared independent draws,"
-        head = (
+            return f"technical repeats ({self.settings['unit']})"
+        if not self.settings.get("fields_independent"):
+            return "fields, where the fields are declared independent draws,"
+        return "fields"
+
+    def _head(self) -> str:
+        """How the ranking was made, in one sentence (the full form's first line)."""
+        control, alpha = self.settings["control"], self.settings["alpha"]
+        n_tests = int(self.tests["p_value"].notna().sum()) if len(self.tests) else 0
+        repeat_col = self.settings["repeat_col"]
+        return (
             f"Which features separate the conditions? Each of the "
             f"{self.settings['n_features']} declared features, every condition against the "
             f"control {control}"
-            + (f" within each {self.settings['repeat_col']}" if self.settings["repeat_col"] else "")
-            + f": Cohen's d on field means and a randomization test over whole {units} as in "
-            "the contrast above, "
+            + (f" within each {repeat_col}" if repeat_col else "")
+            + f": Cohen's d on field means and a randomization test over whole {self._units()} "
+            "as in the contrast above, "
             + (
                 f"Benjamini-Hochberg corrected over the {count(n_tests, 'test')}"
                 if n_tests
@@ -168,73 +174,129 @@ class FeatureRanking:
             f"gated effect size). Features are ranked by the largest |d| among their passing "
             f"contrasts (|d| above {EFFECT_CAP:g} counts as {EFFECT_CAP:g})."
         )
-        lines = [head]
-        if self.tests.empty:
-            lines.append(self.settings.get("reason", "No condition to compare with the control."))
-            return "\n".join(lines)
+
+    def _short_head(self) -> str:
+        """The short form's first line: how many features pass, and how they were tested."""
+        n_tests = int(self.tests["p_value"].notna().sum()) if len(self.tests) else 0
+        n = self.settings["n_features"]
+        if not n_tests:
+            return (
+                f"Which features separate the conditions? None is ranked: for the {n} declared "
+                "features no contrast could be tested."
+            )
+        passing = int(self.ranking["score"].notna().sum())
+        label = " · ".join(str(v) for v in self.settings["control"].values())
+        return (
+            f"Which features separate the conditions? {passing} of {count(n, 'feature')} pass "
+            f"the gate (q <= {self.settings['alpha']:g}, Benjamini-Hochberg over "
+            f"{count(n_tests, 'test')}: Cohen's d on field means, each condition against the "
+            f"control ({label}), and a randomization test over whole {self._units()}), ranked "
+            f"by |d| (capped at {EFFECT_CAP:g}):"
+        )
+
+    def _table(self, max_rows: int, indent: int) -> list[str]:
+        """The ranked features, best first, as a table, and how many more are ranked."""
         ranked = self.ranking.dropna(subset=["score"])
+        if ranked.empty:
+            return []
+        rows = []
         for rank, row in enumerate(ranked.head(max_rows).to_dict("records"), start=1):
             where = f"{row['condition']} vs {row['control_condition']}"
             if self.settings["repeat_col"]:
-                where += f", {self.settings['repeat_col']}={row['repeat']}"
-            lines.append(
-                f"  {rank}. {row['feature']}: |d| {row['score']:.2f} ({where}; q = "
-                f"{row['q_value']:.3g}); passes in {int(row['passing'])} of {int(row['tests'])} "
-                f"contrasts"
-            )
+                where += f" · {row['repeat']}"
+            passes = f"{int(row['passing'])} of {int(row['tests'])}"
+            rows.append([rank, row["feature"], f"{row['score']:.2f}", where, _q(row), passes])
+        columns = ["rank", "feature", "|d|", "best contrast", "q", "passes in"]
+        lines = [table(rows, columns, indent=indent, align="rlrllr")]
         if len(ranked) > max_rows:
-            lines.append(f"  and {len(ranked) - max_rows} more ranked features")
-        unranked = self.ranking[self.ranking["score"].isna()]
+            more = f"and {len(ranked) - max_rows} more ranked features"
+            lines.append(" " * indent + more)
+        return lines
+
+    def _unranked(self, short: bool) -> list[str]:
+        """The features tested that failed the gate, and those that could not be tested."""
+        limit = 3 if short else MAX_ROWS_LISTED
+        unranked = self.ranking[self.ranking["score"].isna()] if len(self.ranking) else []
+        if not len(unranked):
+            return []
+        lines = []
         # Tested features that failed the gate are not features that were never tested.
         failing = unranked[unranked["tests"] > 0]["feature"].tolist()
         if failing:
             lines.append(
-                f"  No contrast passes the gate for {count(len(failing), 'feature')}: "
-                f"{_listed(failing)}."
+                f"No contrast passes the gate for {count(len(failing), 'feature')}: "
+                f"{_listed(failing, limit)}."
             )
         untested = unranked[unranked["tests"] == 0]["feature"].tolist()
         if untested:
             reasons = []
             for feature in untested:
                 statuses = self.tests.loc[self.tests["feature"] == feature, "status"]
-                # The long independence reason is explained once, below.
+                # The long independence reason is explained once, with the caveats.
                 shown = [_UNKNOWN_WELLS if st == NOT_INDEPENDENT else st for st in statuses]
                 reasons.append(f"{feature} ({'; '.join(dict.fromkeys(shown))})")
             lines.append(
-                f"  Not ranked because no contrast could be tested "
-                f"({count(len(untested), 'feature')}): {_listed(reasons)}."
+                f"Not ranked because no contrast could be tested "
+                f"({count(len(untested), 'feature')}): {_listed(reasons, limit)}."
             )
-        lines += self._floors()
-        lines += opposite_signs(
+        return lines
+
+    def _cautions(self) -> list[str]:
+        """What limits the ranking, each once: p-value floors, opposite signs, units."""
+        cautions = [line.strip() for line in self._floors()]
+        cautions += opposite_signs(
             self.tests[self.tests["passes_gate"]],
             ["feature", "condition"],
             self.settings["repeat_col"],
             lambda key: f"{key[0]} passes the gate for {key[1]}",
         )
         if (self.tests["status"] == NOT_INDEPENDENT).any():
-            lines.append(
-                "  Not tested where the fields' wells or dishes are unknown (fields of one dish "
-                "or well are not independent draws): record the technical_repeat column (or "
-                "name the well column in group_cols), or pass fields_independent=True "
-                "(Setup.fields_independent) if the fields are independent draws."
-            )
+            cautions.append(UNKNOWN_WELLS_ADVICE)
         elif (
             self.settings.get("fields_independent")
             and ((self.tests["permutation_unit"] == FIELD) & self.tests["p_value"].notna()).any()
         ):
-            lines.append(
-                "  Tests over whole fields treat the fields as independent draws, as declared "
+            cautions.append(
+                "Tests over whole fields treat the fields as independent draws, as declared "
                 "(fields_independent); if they came from a few wells or dishes, those tests "
                 "test the wells, not the condition."
             )
         note = self.settings.get("unit_note")
         if note:
-            lines.append(f"  Note: {note}.")
-        if not ranked.empty:
-            lines.append(
-                f"  Plotted by default: the readout and up to {TOP_FEATURES} best-ranked other "
-                "features."
-            )
+            cautions.append(f"Note: {note}.")
+        return cautions
+
+    def short_parts(
+        self, indent: int = 0, max_rows: int = TOP_FEATURES
+    ) -> tuple[list[str], list[str]]:
+        """The short form under ``indent``: how many pass, the ``max_rows`` best-ranked
+        features in a table, the unranked ones in a line each; and the caveats."""
+        lines = [wrap(self._short_head(), indent, hang=indent + 2)]
+        if self.tests.empty:
+            reason = self.settings.get("reason", "No condition to compare with the control.")
+            return [*lines, wrap(reason, indent, hang=indent + 2)], []
+        lines += self._table(max_rows, indent + 2)
+        lines += [wrap(line, indent, hang=indent + 2) for line in self._unranked(short=True)]
+        if self.ranking["score"].notna().any():
+            lines.append(" " * indent + _PLOTTED)
+        return lines, self._cautions()
+
+    def summary(self, max_rows: int = MAX_ROWS_LISTED, detail: str = "short") -> str:
+        """The ranking: the best-ranked features in a table and each caveat once
+        (``detail="short"``, at most ``TOP_FEATURES`` rows), or how it was made, up to
+        ``max_rows`` ranked features and every unranked one (``"full"``)."""
+        if check_detail(detail) == "short":
+            lines, cautions = self.short_parts(max_rows=min(max_rows, TOP_FEATURES))
+            return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+        lines = [wrap(self._head(), 0, hang=2)]
+        if self.tests.empty:
+            lines.append(self.settings.get("reason", "No condition to compare with the control."))
+            return "\n".join(lines)
+        lines += self._table(max_rows, 2)
+        lines += [wrap(line, 2, hang=4) for line in self._unranked(short=False)]
+        lines += caution_lines(self._cautions(), indent=2)
+        if self.ranking["score"].notna().any():
+            lines.append(f"  {_PLOTTED}")
         return "\n".join(lines)
 
 
@@ -365,11 +427,16 @@ def _consequence(floor: float, m: int, alpha: float, out_of_reach: str) -> str:
     )
 
 
-def _listed(names: list[str]) -> str:
-    """Names joined by commas, the first ``MAX_ROWS_LISTED`` and how many more."""
-    shown = ", ".join(names[:MAX_ROWS_LISTED])
-    more = len(names) - MAX_ROWS_LISTED
+def _listed(names: list[str], limit: int = MAX_ROWS_LISTED) -> str:
+    """Names joined by commas, the first ``limit`` and how many more."""
+    shown = ", ".join(names[:limit])
+    more = len(names) - limit
     return f"{shown} and {more} more" if more > 0 else shown
+
+
+def _q(row: Mapping[str, Any]) -> str:
+    """The q-value of a ranked feature's best contrast, to three significant digits."""
+    return f"{row['q_value']:.3g}"
 
 
 def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:

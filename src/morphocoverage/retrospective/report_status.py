@@ -48,14 +48,25 @@ question:
   replayed acquisitions never reliably preserved everything wanted, ✅
   otherwise.
 - **6. Which fields should I look at?** (``inspect_status``): ⚠️ when fields
-  are listed, ✅ when none is.
+  are listed (the headline counts them, their groups and each reason), or
+  when none is but some reason could not be judged in some group; ➖ when no
+  reason could be judged anywhere; ✅ when none is listed and every reason
+  turned on was judged.
 - **7. More fields or more samples?** (``effort_status``): ⚠️ when the
   comparison cannot tell in some stratum (too few samples), ✅ otherwise.
 - **8. Could I have sampled more efficiently?** (``order_status``): ⚠️ when
   the orders differ by more than one field in some group, or some replayed
-  runs never reached the criterion; ✅ otherwise.
+  runs never reached the criterion; ✅ otherwise. The headline says whether
+  another order than the recorded one needed fewer fields, and in how many
+  groups (``order_text.group_comparison``).
 - **9. Do the conditions differ?** (``conditions_status``): ⚠️ when some
-  contrast has no randomization test (one unit on a side); ✅ otherwise.
+  contrast has no randomization test (one technical repeat or too few fields
+  on a side, wells unknown, no control), when a condition differs from the
+  control at p <= 0.05 in opposite directions in different repeats, or when
+  the feature ranking could test no contrast; ✅ otherwise. The headline gives
+  the contrasts, the range of |d| on field means, how many tested contrasts
+  differ after the Bonferroni correction and how many features pass the
+  ranking's gate.
 
 A text added later to a question (``workflows._document.with_text``) may raise
 its status; it never lowers one. These rules are the first ones: each
@@ -70,18 +81,24 @@ from typing import Any
 
 import pandas as pd
 
-from .._style import Status, among, worst
+from .._style import Status, among, span, worst
 from .._wording import count, listing, number, percent
+from ..sampling_unit._units import opposite_signs
+from ..sampling_unit.contrast_text import P_ALPHA
 from ..schema import unit_plural
 from ..sufficiency_short import rule_tallies
 from .adequacy import ALL_CRITERIA
 from .calibration import PREMATURE_CAUTION
+from .inspection_text import reason_counts, tally
+from .order_text import group_comparison
 
 # Above this false-alarm rate of the declared reference, the control answer asks the reader
 # to look (a provisional preset, as minimum_detection).
 FALSE_ALARM_CAUTION = 0.1
 # Fewer independent units than this make a protocol's field count uncertain.
 FEW_UNITS = 5
+# The reasons of question 6 in a word or two, for its headline.
+_REASONS = {"count": "unusual count", "neighbours": "unlike neighbours"}
 
 Answer = tuple[Status, str]
 
@@ -312,13 +329,25 @@ def inspect_status(inspection: Any) -> Answer:
     """6. Which fields should I look at? (see the module)."""
     if inspection is None:
         return Status.NOT_ASSESSED, "not assessed"
-    listed = inspection.fovs
-    if listed.empty:
-        return Status.OK, "no field to reopen"
-    keys = [*inspection.group_cols]
-    fields = listed.drop_duplicates([*keys, *[c for c in listed.columns if c == "image_file"]])
-    groups = len(listed[keys].drop_duplicates()) if keys else 1
-    return Status.CAUTION, f"{count(len(fields), 'field')} to reopen in {count(groups, 'group')}"
+    settings = inspection.settings
+    skipped = sum(
+        len(settings.get(key, []))
+        for key in ("skipped_summaries", "skipped_neighbours", "skipped_novelty")
+    )
+    if inspection.fovs.empty:
+        if settings.get("checked") == []:
+            return Status.NOT_ASSESSED, "no reason could be judged in any group"
+        if skipped:
+            return Status.CAUTION, "no field stands out; some reasons not judged in some groups"
+        return Status.OK, "no field stands out"
+    fields, groups = tally(inspection)
+    reasons = ", ".join(
+        f"{_REASONS.get(reason, reason)} in {n}" for reason, n in reason_counts(inspection)
+    )
+    return (
+        Status.CAUTION,
+        f"{count(fields, 'field')} to reopen in {count(groups, 'group')} ({reasons})",
+    )
 
 
 def effort_status(effort: Any) -> Answer:
@@ -337,22 +366,47 @@ def order_status(efficiency: Any) -> Answer:
     """8. Could I have sampled more efficiently? (see the module)."""
     if efficiency is None or efficiency.table.empty:
         return Status.NOT_ASSESSED, "not assessed"
-    table, keys = efficiency.table, list(efficiency.group_cols)
-    parts = table.groupby(keys, sort=False, dropna=False) if keys else [((), table)]
-    differ, groups = 0, 0
-    for _, rows in parts:
-        groups += 1
-        fovs = rows["median_fovs"].dropna().astype(float)
-        differ += bool(len(fovs) and fovs.max() - fovs.min() > 1)
-    unreached = bool((table["reached"].fillna(0) < 1).any())
-    text = (
-        f"the orders differ by more than one field in {among(differ, groups)}"
-        if differ
-        else "the orders do not differ by more than one field"
-    )
+    compared = group_comparison(efficiency)
+    n = len(compared)
+    differ = [c for c in compared if c["verdict"] == "differ"]
+    slower = [c for c in compared if c["recorded_slower"]]
+    same = sum(c["verdict"] == "same" for c in compared)
+    recorded = any("recorded" in c["medians"] for c in compared)
+    if slower:
+        gap = max(c["gap"] for c in slower)
+        up_to = f" (up to {count(gap, 'field')})" if gap > 1 else ""
+        text = f"another order needed fewer fields in {among(len(slower), n)}{up_to}"
+    elif recorded:
+        text = "no order beat the recorded one by more than one field"
+        if differ:
+            text += f"; orders differ in {among(len(differ), n)}"
+    elif differ:
+        text = f"the orders differ by more than one field in {among(len(differ), n)}"
+    else:
+        text = "no order better by more than one field"
+        if same < n:
+            text += f" in {among(same, n)}"
+    unreached = bool((efficiency.table["reached"].fillna(0) < 1).any())
     if unreached:
-        text += "; some runs never reached the criterion"
+        text += "; some runs never reliably enough"
     return (Status.CAUTION if differ or unreached else Status.OK), text
+
+
+_UNTESTED = {
+    "only one technical repeat": "one technical repeat on a side",
+    "fewer than 2 fields": "too few fields on a side",
+    "fields of one dish or well": "the fields' wells unknown",
+    "no control group": "no control fields",
+}
+
+
+def _untested_words(statuses: Sequence[str]) -> str:
+    """Why contrasts have no test, in a few words."""
+    words = {
+        next((short for start, short in _UNTESTED.items() if s.startswith(start)), s)
+        for s in statuses
+    }
+    return words.pop() if len(words) == 1 else "too few units on a side"
 
 
 def conditions_status(contrast: Any, ranking: Any) -> Answer:
@@ -360,16 +414,31 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
     if contrast is None and ranking is None:
         return Status.NOT_ASSESSED, "not assessed"
     status, parts = Status.OK, []
-    if contrast is not None:
+    if contrast is not None and len(contrast.table):
         table = contrast.table
-        untested = int((table["status"] != "ok").sum()) if len(table) else 0
-        parts.append(f"{count(len(table), 'contrast')}")
-        if untested:
+        sizes = table["d_fields"].abs().dropna()
+        size = f", |d| on field means {span(sizes)}" if len(sizes) else ""
+        parts.append(f"{count(len(table), 'contrast')}{size}")
+        tested = table[table["status"] == "ok"]
+        untested = table[table["status"] != "ok"]
+        if len(tested):
+            differ = int((tested["p_bonferroni"] <= 0.05).sum())
+            parts.append(f"{differ} of {len(tested)} tested differ (Bonferroni p <= 0.05)")
+        if len(untested):
             status = Status.CAUTION
-            parts.append(f"no randomization test in {untested} (too few units on a side)")
+            which = "untested" if not len(tested) else f"{len(untested)} untested"
+            parts.append(f"{which} ({_untested_words(list(untested['status']))})")
+        passing = tested[tested["p_value"] <= P_ALPHA]
+        if opposite_signs(passing, ["condition"], contrast.settings["repeat_col"], str):
+            status = Status.CAUTION
+            parts.append("opposite signs between repeats")
+    elif contrast is not None:
+        parts.append("no condition to compare with the control")
     if ranking is not None and len(ranking.ranking):
-        passing = int((ranking.ranking["passing"] > 0).sum())
-        parts.append(f"{count(passing, 'feature')} pass the gate")
+        passing = int(ranking.ranking["score"].notna().sum())
+        parts.append(f"{passing} of {count(len(ranking.ranking), 'feature')} pass the gate")
+        if not ranking.ranking["tests"].any():
+            status = Status.CAUTION
     return status, "; ".join(parts)
 
 

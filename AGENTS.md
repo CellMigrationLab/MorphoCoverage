@@ -237,6 +237,7 @@ src/morphocoverage/
         frontier_bootstrap.py  # private: its resampling of independent units, interval withheld below 5 units
         frontier_text.py   # its sentences
         inspection.py      # inspect-these-fields: one traceable reason per FOV and line
+        inspection_text.py # its words: the fields in a table (short), every reason per group (full)
         controls.py        # representation controls: detection and false-alarm rates
         controls_text.py   # their sentences
         effort.py          # nested variance components and projected SE at equal FOVs
@@ -244,10 +245,12 @@ src/morphocoverage/
         effort_text.py     # the effort projection in words (technical repeats, samples, caveats)
         stage.py           # dispersed (farthest-point) orders and stage travel
         spatial.py         # acquisition-order efficiency and redundancy distance
+        order_text.py      # its words: a table per order kind (short), per group and order (full)
         report.py          # the microscopist's report, question by question
         report_profile.py  # its sampling profile, one helper per source, and the control rates
         report_status.py   # the status marker and headline of every answer, question by question
         report_enough.py   # question 2, short and full: sufficiency, detection-adjusted bound, calibration
+        report_answers.py  # questions 6, 8 and 9 in short, caveats pooled; the closing "cannot tell me"
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
         _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
@@ -255,6 +258,7 @@ src/morphocoverage/
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
         contrast.py        # each condition against the control: objects, fields and technical repeats as units
+        contrast_text.py   # its words: a table per contrast and per draw size, each caveat once
         ranking.py         # which features separate the conditions: BH-gated |d| ranking (as fiberfeatures)
         _units.py          # private: sides, units and the randomization test shared by contrast and ranking
         unusual.py         # unusual (out-of-distribution) objects against a declared reference (unusual_objects)

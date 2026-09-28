@@ -47,6 +47,7 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 
 from .._checks import is_integer, is_number
+from .._style import group_label
 from .._wording import count, ordinal, percent
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
@@ -55,6 +56,7 @@ from ..schema import ValidatedInput, fov_positions
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
 from ._text import unit_plural, where
+from .inspection_text import inspection_summary
 
 REASONS = ("new state", "influence", "count", "neighbours")
 _TIED = "; fields tied in distance taken by field name"
@@ -103,9 +105,10 @@ class InspectionResult:
     group_cols: tuple[str, ...]
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The list in sentences, per group."""
-        return inspection_summary(self)
+    def summary(self, detail: str = "short") -> str:
+        """The fields to reopen: a table (``detail="short"``) or every reason per group
+        (``"full"``); see ``inspection_text``."""
+        return inspection_summary(self, detail)
 
 
 def _weighted(values: np.ndarray, weights: np.ndarray, statistic: str) -> float | None:
@@ -439,6 +442,8 @@ def inspect_fovs(
                 float(neighbour_threshold),
                 stage_unit,
             )
+        for entry in (*skipped, *neighbours_skipped, *novelty_skipped):
+            entry.setdefault("label", group_label(group))  # the group as the summaries name it
         if not found:
             continue
         positions = fov_positions(group_data, group_data.fovs)
@@ -483,55 +488,6 @@ def inspect_fovs(
         "n_fovs_judged": None if novelty is None else n_judged,
     }
     return InspectionResult(pd.DataFrame(rows), tuple(data.group_cols), settings)
-
-
-def inspection_summary(result: InspectionResult) -> str:
-    """ "Fields to reopen" in sentences, per group."""
-    keys = list(result.group_cols)
-    note = (
-        "".join(
-            f"\nThe influence on the {s['summary']} was not checked in {s['group']}: "
-            f"it {s['reason']}."
-            for s in result.settings.get("skipped_summaries", [])
-        )
-        + "".join(
-            f"\nStage neighbours were not compared in {s['group']}: {s['reason']}."
-            for s in result.settings.get("skipped_neighbours", [])
-        )
-        + "".join(
-            f"\nNew states were not looked for in {s['group']}: {s['reason']}."
-            for s in result.settings.get("skipped_novelty", [])
-        )
-    )
-    if result.fovs.empty:
-        checked = result.settings.get("checked")
-        if checked is not None and not checked:
-            # Nothing was judged: saying that no field stands out would read as a clean bill.
-            return (
-                "No field was checked: no reason was turned on (summaries, novelty, "
-                "count_ratio or stage_cols), or none could be judged in any group."
-            ) + note
-        which = f" ({', '.join(checked)} checked)" if checked else ""
-        return f"No field stands out under the declared thresholds{which}." + note
-    fov_key = [c for c in result.settings.get("fov_key", []) if c not in keys]
-    trace = [c for c in result.settings.get("trace", []) if c not in fov_key]
-    blocks = []
-    for key, rows in result.fovs.groupby(keys, sort=False) if keys else [((), result.fovs)]:
-        key = key if isinstance(key, tuple) else (key,)
-        place = ", ".join(f"{k}={v}" for k, v in zip(keys, key, strict=True)) or "all FOVs"
-        lines = [f"{place}: fields to reopen before trusting the result"]
-        for _, own in rows.groupby(fov_key, sort=False):
-            first = own.iloc[0]
-            name = " / ".join(str(first[c]) for c in fov_key)
-            extra = ", ".join(f"{c} {first[c]}" for c in trace)
-            reasons = "; ".join(own["detail"])
-            lines.append(f"  {name}{f' ({extra})' if extra else ''}: {reasons}.")
-        lines.append(
-            "  None of these is called an error: look at the images to see whether it is "
-            "biology, technique or simply a large field."
-        )
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks) + note
 
 
 __all__ = ["REASONS", "InspectionResult", "Summary", "inspect_fovs", "inspection_summary"]

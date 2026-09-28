@@ -180,7 +180,7 @@ def test_i5_every_preset_is_printed_and_minimum_detection_reaches_the_report(mon
     rules = [line for line in setup.declaration() if line.startswith("Stopping rules:")]
     assert len(rules) == 1 and "(the default, rules=None" in rules[0]
     chosen = _setup(rules=(FixedFOVStrategy(4),)).declaration()
-    assert any("fixed_fov (target_fovs=4) (rules)" in line for line in chosen)
+    assert any("fixed 4 fields [fixed_fov (target_fovs=4)] (rules)" in line for line in chosen)
     assert "5 random orders" in first.summary()
     # document() keeps the plan's settings sentence (the protocol_threshold preset) and the
     # report's.

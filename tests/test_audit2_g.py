@@ -227,7 +227,11 @@ def test_g8_a_summary_that_is_zero_is_reported_not_dropped():
     )
     skipped = pd.DataFrame(result.settings["skipped_summaries"]).set_index("group")
     assert skipped.loc["condition=A", "reason"].startswith("is 0 here")
-    assert "was not checked in condition=A: it is 0 here" in result.summary()
+    # The group by its value (the section names its column), once per group in full.
+    assert "was not checked in A: it is 0 here" in result.summary(detail="full")
+    assert "was not checked in 2 groups (A and B): it is 0 here" in " ".join(
+        result.summary().split()
+    )
 
 
 def test_g9_a_summary_skipped_in_one_group_names_that_group():
@@ -244,8 +248,9 @@ def test_g9_a_summary_skipped_in_one_group_names_that_group():
     assert [(s["group"], s["summary"]) for s in skipped] == [("condition=B", "mean of w")]
     assert result.settings["checked"] == ["influence"]  # checked in A
     text = result.summary()
-    assert "The influence on the mean of w was not checked in condition=B" in text
+    assert "The influence on the mean of w was not checked in B" in text
     assert "(influence checked)" in text
+    assert "Analysis groups: condition." in result.summary(detail="full")
 
 
 def test_g10_nothing_checked_is_not_called_nothing_stands_out():
