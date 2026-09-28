@@ -86,18 +86,20 @@ def test_a_block_pasted_into_another_field_is_a_repeated_block(idr0028):
     pasted = pd.concat([target.iloc[:5], source.iloc[3:15], target.iloc[5:]])
     result = _check(_replace_field(objects, fovs, 40, pasted), fovs)
     [finding] = result.findings.itertuples()
-    assert finding.check == "repeated block" and finding.observations == 10
+    # The whole run of 12 pasted observations, not the 10 of block_length (P1-11).
+    assert finding.check == "repeated block" and finding.observations == 12
+    assert "12 consecutive observations" in finding.detail
     assert "from observation 4 of the first field and 6 of the second" in finding.detail
 
 
 def test_same_means_from_different_observations_are_a_repeated_summary(idr0028):
     objects, fovs = idr0028
     source = objects[_field(objects, fovs, 0)].copy()
-    # Swap two nuclei's areas: the rows differ, every mean is the same.
-    values = source["Cytoplasm_Intensity_MeanIntensity_YAPTAZ"].to_numpy().copy()
-    values[[0, 1]] = values[[1, 0]]
-    source["Cytoplasm_Intensity_MeanIntensity_YAPTAZ"] = values
-    source = source.iloc[::-1]  # and keep no run of 10 rows in the same order
+    # Shift every nucleus's value by a zero-sum amount: every row differs, every mean is the
+    # same. (Swapping two values kept the other rows, which are now shared observations.)
+    column = "Cytoplasm_Intensity_MeanIntensity_YAPTAZ"
+    shift = np.linspace(-1, 1, len(source)) * source[column].std() / 10
+    source[column] = source[column].to_numpy() + (shift - shift.mean())
     result = _check(_replace_field(objects, fovs, 40, source), fovs)
     assert result.findings["check"].tolist() == ["repeated field summary"]
 

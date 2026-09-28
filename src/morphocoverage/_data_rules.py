@@ -9,12 +9,13 @@ Shared-private: every ``_check_*`` rule, ``_attach``, ``_resolve_fov_col``,
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from ._copy_rules import check_copies
 from ._data_problems import (  # noqa: F401  (re-exported)
     ERROR,
     EXAMPLES,
@@ -370,56 +371,16 @@ def _why_different(seen: Any, listed: Any) -> str:
     return "writes the same number differently"  # '1' against '1.0'
 
 
-def _comparable(objects: pd.DataFrame) -> pd.DataFrame:
-    """``objects`` with cells that cannot be compared as they are (lists, arrays) as their text.
+def _check_copies(
+    c: Collector, objects: pd.DataFrame, key: Sequence[str], feature_cols: Sequence[str] = ()
+) -> None:
+    """Exact copies, observations repeated in every feature of a field, labels twice in one.
 
-    An embedding stored as one list per row is valid (it is not a feature), but
-    ``DataFrame.duplicated`` cannot hash it.
+    The rule lives in ``_copy_rules.check_copies``; the field is the one the
+    validator uses (``key``), so labels that restart in each field, file or
+    plane are fine.
     """
-    comparable = objects.copy()
-    for column in objects.columns[(objects.dtypes == object).to_numpy()]:
-        values = objects[column]
-        if not values.map(lambda value: isinstance(value, Hashable)).all():
-            comparable[column] = values.map(repr)
-    return comparable
-
-
-def _check_copies(c: Collector, objects: pd.DataFrame, key: Sequence[str]) -> None:
-    """Rows that repeat another row exactly, or a ``label_id`` twice in one field.
-
-    The field is the one the validator uses (``key``: the group columns and the
-    resolved field identifier, even one named with ``fov_col``), so labels that
-    restart in each field, file or plane are fine.
-    """
-    try:
-        copies = objects.duplicated(keep="first")
-    except TypeError:  # a column of lists: compared by their text
-        objects = _comparable(objects)
-        copies = objects.duplicated(keep="first")
-    if copies.any():
-        c.warning(
-            f"{count(int(copies.sum()), 'observation')} {'is' if copies.sum() == 1 else 'are'} "
-            "an exact copy of another row.",
-            f"observation table, {_examples(objects, copies, list(objects.columns[:4]))}.",
-            "A file read or appended twice counts every cell twice; remove the copies, or keep "
-            "them if identical rows are real.",
-        )
-        return
-    if "label_id" not in objects.columns or c.has_errors():
-        # A misspelt group column already breaks field identity; labels would repeat.
-        return
-    # A label names one object of one image: the field, and its file or plane when recorded.
-    image = [*key, *MORPHOBRICKS_FOV_CANDIDATES, *WITHIN_FOV_METADATA_COLUMNS]
-    field = [col for col in dict.fromkeys(image) if col in objects.columns]
-    twice = objects.duplicated([*field, "label_id"], keep="first") & objects["label_id"].notna()
-    if field and twice.any():
-        c.warning(
-            f"{count(int(twice.sum()), 'label_id')} {'appears' if twice.sum() == 1 else 'appear'} "
-            "twice in the same field.",
-            f"observation table, {_examples(objects, twice, [*field, 'label_id'])}.",
-            "A label names one segmented object of a field; check for a file appended twice or "
-            "a field identifier shared by two images.",
-        )
+    check_copies(c, objects, key, feature_cols)
 
 
 def _check_label_variants(

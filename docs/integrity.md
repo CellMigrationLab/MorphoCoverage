@@ -30,8 +30,9 @@ Its **statistical screens do not apply**, and were left out:
 
 | Failure | Where it is caught |
 | --- | --- |
-| A row that repeats another row exactly, identifiers included | `check_tables` (a warning) |
-| A `label_id` twice in one field | `check_tables` |
+| A row that repeats another row exactly, identifiers included (rows with no feature value, such as failed segmentations, are left out) | `check_tables` (a warning) |
+| An observation that repeats another of the same field in every feature while another column differs (a merge with a table that has one row per channel, a table appended to itself and saved with a fresh index) | `check_tables` (a warning) |
+| An object label (`label_id`, CellProfiler's `ObjectNumber`, `object_id`, `label`) twice in one field | `check_tables` (a warning, also when a copy warning comes first) |
 | A field listed twice in the FOV table | the validator and `check_tables` (an error) |
 | Plane or tile files counted as fields | the plane rule (validator, live session) |
 | Fields unlike the others (outliers, crowded or empty fields, new states) | `inspect_fovs`, `fov_variability`'s unusual fields |
@@ -44,49 +45,97 @@ look like any field's.
 ## 3. What the new checks catch
 
 `integrity_checks(objects, fovs, feature_cols=...)` compares every acquired
-field with every other one, across groups, on the declared features:
+field with every other one, across groups, on the declared features.
+Observations are compared **to 6 significant digits**, so a copy that went
+through float32 (parquet, HDF5, `.npy`) or a six-digit export still matches:
 
 - **copied field**: the same observations in the same order (a file read or
   exported twice under another name);
 - **reordered copy**: the same observations in another order (a copy that
   was sorted, or merged back in another order);
 - **scaled copy**: the same observations under a change of units,
-  `a * x + b` per feature, matched row for row (pixels against micrometres, a
-  re-export with another intensity scale);
-- **repeated block**: 10 consecutive observations (`block_length`) that
-  appear in two fields, or twice in one (rows pasted into another field);
+  `a * x + b` per feature (`a` may be negative, so a sign convention counts),
+  in any order, with missing values in the same places (pixels against
+  micrometres, a re-export in raw grey levels);
+- **repeated block**: a run of consecutive observations shared, in table
+  order, by two fields (rows pasted into another field, or a copy with an
+  observation dropped or added); the finding gives the whole run and where it
+  starts;
+- **shared observations**: two fields share many observations (at least 10,
+  `block_length`, or half the smaller field) but not in one run: a copy with
+  observations dropped or added and reordered, or a block pasted in another
+  order;
+- **repeated within a field**: a field holds many of its observations twice
+  ("the field holds its observations 1-28 again from observation 29": a table
+  appended to itself, or merged with one that has a row per channel);
 - **repeated field summary**: two fields with the same number of
   observations and the same mean of every feature (to 12 significant digits)
   although their observations differ (a summary row copied).
 
-Each check is exact up to floating-point rounding, so a finding is not a
-probability. A check says **not applicable**, with its reason, when a
-coincidence could produce it: when fewer than half the observations are
-distinct (`min_distinct_share`: quantized or integer features repeat by
-themselves), or, for summaries, when a field holds only integers (counts).
-Fields with fewer than 5 observations (`min_objects`) are not compared as
-copies. There is no global integrity or suspicion score.
+Each finding says what was found, not a probability; there is no global
+integrity or suspicion score. Coincidences are kept out in three ways, each
+stated in the summary with what it set aside:
+
+- a feature is **continuous** when its distinct values are at least half
+  (`min_distinct_share`) of the distinct observations; with no continuous
+  feature (quantized or integer features only) every check says **not
+  applicable**, with its reason. Wide-range integers (pixel areas, raw
+  intensity sums) are continuous;
+- a field is compared **as a whole** only with at least 5 observations
+  (`min_objects`) and 5 distinct values of a continuous feature: two fields of
+  one or two values map onto each other by construction. The summary counts
+  the fields compared and why the others were not;
+- an observation found in **three or more fields** (identical hot pixels,
+  empty background patches) is low-information: it is set aside and counted,
+  so a few repeated background objects neither make copies of every field nor
+  hide a copy of a real one.
+
+Every step is one pass over the table or a sort: each field has a fingerprint
+per feature that no order, change of units, sign flip or six-digit rounding
+changes (the absolute skewness and the kurtosis of its standardised values);
+fields with near-equal fingerprints, found by sorting, are then verified by
+aligning their rows on every standardised feature. No pair of fields is
+compared unless its fingerprints agree, so fields of one fixed size (a
+CellProfiler or CellPatcher grid) cost no more than fields of any size.
+
+**Out of reach**, and said in every summary: a copy re-rounded to fewer than
+6 significant digits (exported with 4 decimals), a block of fewer than 10
+observations and fields of fewer than 5, a copy with two feature columns
+swapped or a feature (or a value) missing in one copy only, and observations
+pasted into two or more other fields (they read as recurring).
 
 ## 4. Where they live
 
 In their own module, `morphocoverage.integrity`, exported at the top level,
 and as an **opt-in** part of the report's overview (`report(...,
 integrity=True)`): what the tables hold includes the structure to inspect
-before reading any answer. They do not change any other analysis.
+before reading any answer. Findings are grouped by check and pair of groups
+(28 copies from one well into another make one line, not 28) and the list is
+capped. They do not change any other analysis, but the report says so: the
+fields they name are listed under "6. Which fields should I look at?" and in
+"What this dataset cannot tell me", since every answer counts them as
+independent fields.
 
 ## 5. How they were validated
 
-- **Synthetic copies** (`tests/test_integrity.py`): into the committed idr0028
-  table, one field is replaced by each kind of copy of another field (an
-  exact copy, a shuffled copy, a copy with one feature scaled and another
-  shifted, 12 rows pasted into another field, a field with two values
-  swapped so the rows differ but every mean is the same). Each is found as
-  exactly one finding of its kind.
+- **Synthetic copies** (`tests/test_integrity.py`, `tests/test_audit4_a.py`):
+  into the committed idr0028 table and into constructed tables, one field is
+  replaced by each kind of copy of another field (exact, shuffled, through
+  float32 or a six-digit export, scaled with a sign flip on one feature, with
+  ties and with missing values, with a row dropped and shuffled, a pasted
+  block in and out of order, a table merged with one row per channel). Each is
+  found as one finding of its kind.
 - **Negative controls**: the committed idr0028 (336 fields, 9550 nuclei) and
   idr0139 (40 fields, 10748 nuclei) tables and `data/synthetic` give no
-  finding on every declared feature, in under a second each.
-- **Not applicable**: a feature taking three integer values makes every copy
-  check and the summary check say why they cannot be read.
+  finding on every declared feature (measured: 0.4 s and 1.0 s). So do
+  fields sharing the same hot-pixel objects, one-row field summaries, 8-bit
+  quantized intensities (not applicable), an integer count beside a
+  continuous area, and the same field imaged twice with 1% noise.
+- **Scale**: 2000 fields of 16 observations (every pair of equal size)
+  finishes in under a second, and 10,000 fields of about 100 observations
+  (10^6 observations, three features) in about 10 s on a shared machine.
+- **Not applicable**: a feature taking three integer values makes every
+  check say why it cannot be read.
 
 ## Not built, on purpose
 
