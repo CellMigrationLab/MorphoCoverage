@@ -2,6 +2,9 @@
 
 Each rule reads the tables, records problems on a ``Collector`` in plain words
 (what is wrong, where, how to fix it) and never raises for bad data.
+
+Shared-private: every ``_check_*`` rule, ``_attach``, ``_resolve_fov_col``,
+``_resolve_groups``, ``_names`` and ``_tables``, used by ``data_check``.
 """
 
 from __future__ import annotations
@@ -13,15 +16,25 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._wording import percent
+from ._wording import count, listing, percent
 from .metadata import (
     EMPTY_MEANS_ABSENT,
     MORPHOBRICKS_FOV_CANDIDATES,
     MORPHOBRICKS_GROUP_COLUMNS,
     REPEAT_COLUMN,
     WITHIN_FOV_METADATA_COLUMNS,
+    attach_mapping,
     canonical_spelling,
     empty_values,
+    near_miss_advice,
+    repeated_names,
+)
+from .metadata import _tables as _linked_tables
+from .schema import (
+    PLANE_FEATURE_ADVICE,
+    feature_dtype_problem,
+    plane_features,
+    unhashable_values,
 )
 
 ERROR = "error"
@@ -37,11 +50,6 @@ class Problem:
     title: str
     where: str
     fix: str
-
-
-def _count(n: int, word: str) -> str:
-    """``1 error``, ``2 errors``."""
-    return f"{n} {word}{'s' if n != 1 else ''}"
 
 
 def _value(value: Any) -> str:
@@ -68,13 +76,12 @@ def _examples(table: pd.DataFrame, rows: pd.Series, columns: Sequence[str]) -> s
         label = label.item() if isinstance(label, np.generic) else label
         shown.append(f"row {label!r} ({values})")
     more = f" and {len(marked) - EXAMPLES} more" if len(marked) > EXAMPLES else ""
-    return f"{_count(len(marked), 'row')}: " + "; ".join(shown) + more
+    return f"{count(len(marked), 'row')}: " + "; ".join(shown) + more
 
 
 def _names(values: Sequence[Any]) -> str:
-    """A short, quoted list of names."""
-    shown = ", ".join(repr(v) for v in list(values)[:8])
-    return shown + (f" and {len(values) - 8} more" if len(values) > 8 else "")
+    """A short, quoted list of names: ``'a', 'b' and 'c'``, ``... and 3 more`` beyond 8."""
+    return listing([repr(v) for v in values], limit=8)
 
 
 class Collector:
@@ -99,11 +106,8 @@ class Collector:
 
 
 def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str, pd.DataFrame]]:
-    """The linked tables, named as the messages name them."""
-    named = [("observation table", objects)]
-    if fovs is not None:
-        named.append(("FOV table", fovs))
-    return named
+    """The linked tables, named as these messages name them (``metadata._tables``)."""
+    return _linked_tables(objects, fovs, ("observation table", "FOV table"))
 
 
 def _check_spellings(
@@ -116,11 +120,16 @@ def _check_spellings(
                 continue
             meant = canonical_spelling(column)
             if meant is not None:
+                kind = (
+                    "the within-field coordinate"
+                    if meant in WITHIN_FOV_METADATA_COLUMNS
+                    else "the MorphoBricks column"
+                )
                 c.error(
-                    f"Column {column!r} looks like the MorphoBricks column {meant!r} "
+                    f"Column {column!r} looks like {kind} {meant!r} "
                     "but is spelt differently, so it would be ignored.",
                     f"{name}, column {column!r}.",
-                    f"Rename it to {meant!r}, or name it in group_cols/fov_col to use it as it is.",
+                    near_miss_advice(column, meant),
                 )
 
 
@@ -174,9 +183,17 @@ def _resolve_groups(
     group_cols: Sequence[str] | None,
     fov_col: str,
 ) -> tuple[list[str], list[str]]:
-    """The analysis groups and the identity columns, after checking both tables hold them."""
+    """The analysis groups and the identity columns, after checking both tables hold them
+    and that ``group_cols`` names each column once."""
     if group_cols is not None:
-        groups = list(group_cols)
+        groups = list(dict.fromkeys(group_cols))
+        repeated = repeated_names(group_cols)
+        if repeated:
+            c.error(
+                "A group column is named more than once.",
+                f"group_cols={list(group_cols)}: {_names(repeated)} repeated.",
+                "Name each group column once.",
+            )
     else:
         groups = [
             g
@@ -226,32 +243,38 @@ def _attach(
         return objects
     enriched = objects.copy()
     enriched.attrs["attached"] = []
-    copied = [col for col in identity if col not in objects.columns and col in fovs.columns]
-    unknown = ~objects[fov_col].isin(fovs[fov_col]) if fov_col in objects.columns else None
-    if copied and unknown is not None and unknown.any():
-        # Their group values cannot be copied, so the field check below would not see them.
-        c.error(
-            "Some observations belong to fields that are not in the FOV table.",
-            f"observation table, {_examples(objects, unknown, [fov_col])}.",
-            f"Add those fields to the FOV table, or check that {fov_col!r} is spelt the same way "
-            "in both tables.",
-        )
+    unknown_reported = False
     for column in identity:
-        if column in objects.columns or column not in fovs.columns:
+        if column in enriched.columns or column not in fovs.columns:
             continue
-        mapping = fovs.loc[:, [fov_col, column]].drop_duplicates()
-        reused = mapping[fov_col].duplicated(keep=False)
+        # Through (repeat, field) when a field name restarts in each repeat, as the validator.
+        key, mapping = attach_mapping(enriched, fovs, column, identity, fov_col)
+        if fov_col in enriched.columns and not unknown_reported:
+            present = pd.MultiIndex.from_frame(enriched[key]) if len(key) > 1 else enriched[fov_col]
+            listed = pd.MultiIndex.from_frame(fovs[key]) if len(key) > 1 else fovs[fov_col]
+            unknown = pd.Series(~np.asarray(present.isin(listed)), index=enriched.index)
+            if unknown.any():
+                # Their group values cannot be copied, so the field check below would not see
+                # them.
+                unknown_reported = True
+                c.error(
+                    "Some observations belong to fields that are not in the FOV table.",
+                    f"observation table, {_examples(enriched, unknown, key)}.",
+                    f"Add those fields to the FOV table, or check that {fov_col!r} is spelt the "
+                    "same way in both tables.",
+                )
+        reused = mapping[key].duplicated(keep=False)
         if reused.any():
             c.error(
                 f"{column!r} is only in the FOV table, and the same {fov_col!r} has several "
                 f"values of {column!r}, so observations cannot be matched to a {column!r}.",
-                f"FOV table, {_examples(mapping, reused, [fov_col, column])}.",
+                f"FOV table, {_examples(mapping, reused, [*key, column])}.",
                 f"Add {column!r} to the observation table, or make {fov_col!r} unique across "
                 f"{column!r} values.",
             )
             continue
         attached = [*enriched.attrs["attached"], column]
-        enriched = enriched.merge(mapping, on=fov_col, how="left").set_axis(enriched.index)
+        enriched = enriched.merge(mapping, on=key, how="left").set_axis(enriched.index)
         enriched.attrs["attached"] = attached
     return enriched
 
@@ -268,7 +291,7 @@ def _check_features(
         )
         return
     # Sorted as text: column names may mix strings and numbers.
-    duplicates = sorted({f for f in feature_cols if list(feature_cols).count(f) > 1}, key=str)
+    duplicates = sorted(repeated_names(feature_cols), key=str)
     if duplicates:
         c.error(
             "A feature column is named twice.",
@@ -282,12 +305,19 @@ def _check_features(
             f"columns {_names(overlap)}.",
             "Give each column one role: remove it from feature_cols or from group_cols/fov_col.",
         )
+    planes = plane_features(feature_cols)
+    if planes:
+        c.error(
+            "A within-field coordinate is named as a feature.",
+            f"feature_cols: {_names(planes)}.",
+            PLANE_FEATURE_ADVICE[0].upper() + PLANE_FEATURE_ADVICE[1:] + ".",
+        )
     missing = [f for f in dict.fromkeys(feature_cols) if f not in objects.columns]
     if missing:
         close = {f: _close_column(f, objects.columns) for f in missing}
         hints = [f"{found!r} for {f!r}" for f, found in close.items() if found is not None]
         c.error(
-            f"{_count(len(missing), 'feature column')} named in feature_cols "
+            f"{count(len(missing), 'feature column')} named in feature_cols "
             f"{'is' if len(missing) == 1 else 'are'} not in the observation table.",
             f"missing: {_names(missing)}"
             + (f"; the table has {', '.join(hints)}" if hints else "")
@@ -299,16 +329,34 @@ def _check_features(
         if feature not in objects.columns:
             continue
         values = objects[feature]
-        if not pd.api.types.is_numeric_dtype(values):
+        problem = feature_dtype_problem(values)
+        if problem == "complex":
+            c.error(
+                f"Feature {feature!r} holds complex numbers.",
+                f"observation table, column {feature!r}.",
+                "Keep one real number per feature: split it into its real and imaginary parts "
+                "(or its modulus and phase), each a feature of its own.",
+            )
+            continue
+        if problem is not None:
             as_numbers = pd.to_numeric(values, errors="coerce")
             bad = as_numbers.isna() & values.notna()
             c.error(
                 f"Feature {feature!r} is not numeric.",
                 "observation table, "
-                + (_examples(objects, bad, [feature]) if bad.any() else "column type")
+                + (
+                    _examples(objects, bad, [feature])
+                    if bad.any()
+                    else "column type (every value is a number, stored as text or objects)"
+                )
                 + ".",
                 "Convert the column to numbers (a decimal point, not a comma; empty cells for "
-                "missing values).",
+                "missing values)"
+                + (
+                    "."
+                    if bad.any()
+                    else f", e.g. objects[{feature!r}] = pd.to_numeric(objects[{feature!r}])."
+                ),
             )
             continue
         numbers = values.to_numpy(dtype=float, na_value=np.nan)
@@ -408,7 +456,7 @@ def _check_copies(c: Collector, objects: pd.DataFrame, key: Sequence[str]) -> No
         copies = objects.duplicated(keep="first")
     if copies.any():
         c.warning(
-            f"{_count(int(copies.sum()), 'observation')} {'is' if copies.sum() == 1 else 'are'} "
+            f"{count(int(copies.sum()), 'observation')} {'is' if copies.sum() == 1 else 'are'} "
             "an exact copy of another row.",
             f"observation table, {_examples(objects, copies, list(objects.columns[:4]))}.",
             "A file read or appended twice counts every cell twice; remove the copies, or keep "
@@ -424,12 +472,53 @@ def _check_copies(c: Collector, objects: pd.DataFrame, key: Sequence[str]) -> No
     twice = objects.duplicated([*field, "label_id"], keep="first") & objects["label_id"].notna()
     if field and twice.any():
         c.warning(
-            f"{_count(int(twice.sum()), 'label_id')} {'appears' if twice.sum() == 1 else 'appear'} "
+            f"{count(int(twice.sum()), 'label_id')} {'appears' if twice.sum() == 1 else 'appear'} "
             "twice in the same field.",
             f"observation table, {_examples(objects, twice, [*field, 'label_id'])}.",
             "A label names one segmented object of a field; check for a file appended twice or "
             "a field identifier shared by two images.",
         )
+
+
+def _check_label_variants(
+    c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, columns: Sequence[str]
+) -> None:
+    """Group labels of one table that differ only in spaces, case, or number against text.
+
+    ``1`` and ``'1'`` (two files read differently), ``'drug'``, ``'drug '`` and
+    ``'Drug'`` (a hand-typed table) are separate groups to the analysis, and
+    print alike in its summaries. They may be real, so this is a warning,
+    given once per column: from the FOV table, which lists every field, else
+    from the observation table.
+    """
+    reported: set[str] = set()
+    for name, table in reversed(_tables(objects, fovs)):
+        for column in dict.fromkeys(columns):
+            if column not in table.columns or column in reported:
+                continue
+            values = table[column].dropna()
+            if unhashable_values(values).any():
+                continue
+            by_loose: dict[str, list] = {}
+            for value in values.drop_duplicates().tolist():
+                by_loose.setdefault(_loose(value), []).append(value)
+            variants = [labels for labels in by_loose.values() if len(labels) > 1]
+            if not variants:
+                continue
+            shown = "; ".join(
+                " against ".join(_value(label) for label in labels)
+                for labels in variants[:EXAMPLES]
+            )
+            more = f" and {len(variants) - EXAMPLES} more" if len(variants) > EXAMPLES else ""
+            reported.add(column)
+            c.warning(
+                f"{column!r} holds labels that differ only in spaces, case, or number against "
+                "text, so each is analysed as a group of its own.",
+                f"{name}, column {column!r}: {shown}{more}.",
+                "If they name one group, write them the same way in every row (strip the spaces, "
+                "use one case, read the column as text in every file); if they are different "
+                "groups, give them names that differ clearly.",
+            )
 
 
 def _check_key_values(
@@ -496,7 +585,7 @@ def _check_fov_table(
     )
     if empty.any():
         c.warning(
-            f"{_count(int(empty.sum()), 'field')} of the FOV table "
+            f"{count(int(empty.sum()), 'field')} of the FOV table "
             f"{'holds' if int(empty.sum()) == 1 else 'hold'} no observation.",
             f"FOV table, {_examples(fovs, empty, key)}.",
             "An empty field is a real result and counts as effort; if an image failed "
@@ -528,6 +617,17 @@ def _check_control(
             f"Name the control by {table} columns, e.g. control={{'condition': 'MOCK'}}.",
         )
         return
+    listed = [k for k, value in control.items() if not pd.api.types.is_scalar(value)]
+    if listed:
+        c.error(
+            "The control gives a column several values, or a value that is not one label.",
+            f"control={dict(control)}, column {_names(listed)}.",
+            "Name one value per column, e.g. control={'condition': 'MOCK'}.",
+        )
+        return
+    read = [*control, *([REPEAT_COLUMN] if REPEAT_COLUMN in fovs.columns else [])]
+    if any(unhashable_values(fovs[column]).any() for column in read):
+        return  # lists in an identity column: reported with the field identity
     is_control = np.ones(len(fovs), dtype=bool)
     for column, value in control.items():
         is_control &= (fovs[column] == value).to_numpy()
@@ -544,7 +644,7 @@ def _check_control(
         lacking = [r for r in fovs[REPEAT_COLUMN].drop_duplicates() if r not in with_control]
         if lacking:
             c.warning(
-                f"{_count(len(lacking), 'repeat')} {'has' if len(lacking) == 1 else 'have'} no "
+                f"{count(len(lacking), 'repeat')} {'has' if len(lacking) == 1 else 'have'} no "
                 f"control field.",
                 f"repeats without {dict(control)}: {_names(lacking)}.",
                 "Normalising to the control and comparing conditions work within a repeat; add "

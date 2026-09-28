@@ -67,3 +67,6 @@ def config_hash(identity: str, parameters: Mapping[str, Any]) -> str:
             f"parameters of {identity} must be JSON-serializable for provenance: {error}"
         ) from None
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
+__all__ = ["class_identity", "config_hash"]

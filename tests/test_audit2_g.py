@@ -198,7 +198,7 @@ def test_g7_most_of_the_uncertainty_only_above_half():
 
 
 def _spots():
-    """Two conditions of 12 fields: 3 fields of A without spots; B's z is negative."""
+    """Two conditions of 12 fields: 3 fields of A without spots; B's w is negative."""
     rng = np.random.default_rng(0)
     fov_rows, object_rows = [], []
     for condition in ("A", "B"):
@@ -208,7 +208,7 @@ def _spots():
             spots = np.zeros(20) if i < 3 else rng.poisson(5, 20).astype(float) + 1
             z = rng.normal(5, 1, 20) if condition == "A" else rng.normal(-3, 1, 20)
             object_rows.append(
-                pd.DataFrame({"image_file": name, "condition": condition, "spots": spots, "z": z})
+                pd.DataFrame({"image_file": name, "condition": condition, "spots": spots, "w": z})
             )
     return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
 
@@ -233,16 +233,16 @@ def test_g9_a_summary_skipped_in_one_group_names_that_group():
     result = inspect_fovs(
         objects,
         fovs,
-        feature_cols=["z"],
+        feature_cols=["w"],
         count_ratio=None,
-        summaries=[Summary("z", "mean")],
+        summaries=[Summary("w", "mean")],
         group_cols=["condition"],
     )
     skipped = result.settings["skipped_summaries"]
-    assert [(s["group"], s["summary"]) for s in skipped] == [("condition=B", "mean of z")]
+    assert [(s["group"], s["summary"]) for s in skipped] == [("condition=B", "mean of w")]
     assert result.settings["checked"] == ["influence"]  # checked in A
     text = result.summary()
-    assert "The influence on the mean of z was not checked in condition=B" in text
+    assert "The influence on the mean of w was not checked in condition=B" in text
     assert "(influence checked)" in text
 
 
@@ -258,8 +258,8 @@ def test_g10_nothing_checked_is_not_called_nothing_stands_out():
     negative = inspect_fovs(
         objects[objects["condition"] == "B"],
         fovs[fovs["condition"] == "B"],
-        feature_cols=["z"],
-        summaries=[Summary("z", "mean")],
+        feature_cols=["w"],
+        summaries=[Summary("w", "mean")],
         count_ratio=None,
     )
     assert negative.summary().startswith("No field was checked")

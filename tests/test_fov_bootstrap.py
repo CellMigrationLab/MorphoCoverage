@@ -352,8 +352,8 @@ def test_a_subspace_needs_spread_in_every_leading_direction():
     # zero eigenvalue, so its second direction would be arbitrary.
     rng = np.random.default_rng(3)
     rows = [(f"f{j}", x, 0.0, 0.0) for j in range(6) for x in rng.normal(size=10)]
-    objects = pd.DataFrame(rows, columns=["image_file", "a", "b", "c"])
-    data = validate_input_tables(objects, feature_cols=["a", "b", "c"])
+    objects = pd.DataFrame(rows, columns=["image_file", "a", "b", "d"])
+    data = validate_input_tables(objects, feature_cols=["a", "b", "d"])
     one = FOVBootstrapEstimator("subspace", None, 50, 0, 2, None, 1).estimate(
         data, objective=POPULATION
     )

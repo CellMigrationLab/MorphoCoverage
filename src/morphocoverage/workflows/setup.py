@@ -45,6 +45,7 @@ from ..normalize import METHODS as NORMALIZATIONS
 from ..normalize import normalize_to_control
 from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from ..outcomes import RareStateDetected, RelativeMeanError
+from ..planes import PLANE_AXES, planes_as_features
 from ..results import COMPONENT_WORDS
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
@@ -157,6 +158,14 @@ class Setup:
       scientific one.
     - ``n_jobs``: worker processes for the analyses that can use them (``-1``:
       every CPU); results are identical for every value.
+    - ``per_plane``: opt-in, the within-field axes (``("z",)``, or ``"c"``,
+      ``"t"``) along which each declared column is split into one feature per
+      plane (``area`` into ``area_z0``, ``area_z1``, ...;
+      ``planes_as_features``), objects matched across planes by ``label_id``
+      within their field. Empty (the default) keeps the columns as declared.
+      With it, ``prepared`` returns the split table and ``plane_table`` the
+      split table with its feature columns, which the analyses read in place
+      of ``columns``; the field stays one FOV.
     """
 
     readout: str
@@ -181,10 +190,17 @@ class Setup:
     rules: tuple[SamplingStrategy, ...] | None = None
     random_state: int = 0
     n_jobs: int = 1
+    per_plane: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.readout, str) or not self.readout:
             raise TypeError("readout must be one column name")
+        if isinstance(self.per_plane, str):
+            raise TypeError(f"per_plane must be a sequence of axes, e.g. ({self.per_plane!r},)")
+        object.__setattr__(self, "per_plane", tuple(self.per_plane))
+        unknown = [a for a in self.per_plane if a not in PLANE_AXES]
+        if unknown or len(set(self.per_plane)) != len(self.per_plane):
+            raise ValueError(f"per_plane names distinct axes among {list(PLANE_AXES)}")
         for name in ("features", "tolerances", "effort_strata"):
             value = getattr(self, name)
             if value is None and name == "effort_strata":
@@ -254,7 +270,9 @@ class Setup:
 
         The stopping rules see exactly these columns in ``report``, ``optimise``,
         ``benchmark`` and ``live_session``, so one rule gives one verdict on the
-        same data whichever workflow runs it.
+        same data whichever workflow runs it. With ``per_plane`` these are the
+        columns as measured, before the split: the split names depend on the
+        planes in the data and come from ``plane_table``.
         """
         return [self.readout, *(f for f in self.features if f != self.readout)]
 
@@ -297,21 +315,36 @@ class Setup:
             return None
         return self.few_fovs if self.few_fovs is not None else self.novelty.min_other_fovs + 2
 
+    def plane_table(
+        self, objects: pd.DataFrame, fovs: pd.DataFrame
+    ) -> tuple[pd.DataFrame, list[str]]:
+        """With ``per_plane``: the observations with each declared column split per plane
+        (``planes_as_features``, objects matched by ``label_id``) and the split feature
+        columns; otherwise ``objects`` and ``columns`` unchanged."""
+        if not self.per_plane:
+            return objects, self.columns
+        return planes_as_features(
+            objects, fovs, features=self.columns, axes=self.per_plane, fov_col=self.fov_col
+        )
+
     def prepared(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
         """The observation table the outcome criteria, the contrast and the plots read.
 
-        With ``normalize="control_mean"`` every declared column is divided by
-        its repeat's control mean; otherwise ``objects`` is returned unchanged.
-        A repeat without a control raises (``normalize_to_control``). The
-        stopping rules and the other analyses read the raw values, as live.
+        With ``per_plane`` the declared columns are first split per plane
+        (``plane_table``). With ``normalize="control_mean"`` every declared
+        (or split) column is then divided by its repeat's control mean;
+        otherwise the table is returned as it is. A repeat without a control
+        raises (``normalize_to_control``). The stopping rules and the other
+        analyses read the raw values, as live.
         """
+        table, columns = self.plane_table(objects, fovs)
         if self.normalize is None:
-            return objects
+            return table
         assert self.control is not None
         return normalize_to_control(
-            objects,
+            table,
             fovs,
-            feature_cols=self.columns,
+            feature_cols=columns,
             control=self.control,
             repeat_col=self.repeat_col(fovs),
             **self.common,

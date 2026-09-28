@@ -149,3 +149,11 @@ class ObjectiveConfig:
     def required_components(self) -> frozenset[Component]:
         """The objective components a decision must cover."""
         return REQUIRED_COMPONENTS[self.objective]
+
+
+__all__ = [
+    "REQUIRED_COMPONENTS",
+    "ObjectiveConfig",
+    "RareTarget",
+    "SamplingObjective",
+]

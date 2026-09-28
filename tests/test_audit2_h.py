@@ -364,11 +364,11 @@ def test_h15_untested_features_are_listed_as_untested():
     empty = {"condition": "drug", "repeat": "r1", "technical_repeat": "drug0"}
     fovs = pd.concat([fovs, pd.DataFrame([{**empty, "position_id": "empty"}])], ignore_index=True)
     objects["y"] = np.where(objects["condition"] == "drug", np.nan, objects["x"])
-    objects["z"] = np.random.default_rng(0).normal(size=len(objects))
+    objects["w"] = np.random.default_rng(0).normal(size=len(objects))
     common = {"control": CONTROL, "technical_col": None}
-    result = feature_ranking(objects, fovs, features=["x", "y", "z"], n_permutations=199, **common)
+    result = feature_ranking(objects, fovs, features=["x", "y", "w"], n_permutations=199, **common)
     text = result.summary()
-    assert "No contrast passes the gate for 1 feature: z." in text
+    assert "No contrast passes the gate for 1 feature: w." in text
     assert (
         "Not ranked because no contrast could be tested (1 feature): y (fewer than 2 fields "
         "with observations on one side)."
