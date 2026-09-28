@@ -57,7 +57,8 @@ def test_a_strong_positive_is_detected_and_rates_are_counted():
     assert set(per["repeat"]) == {"P1", "P2"}
     assert (per["candidates"] == 10 * 12).all()
     text = result.summary()
-    assert "recognized as different in 100%" in text and "false alarms" in text
+    assert "KD fields (positive control)" in text and "100% of 240 checks" in text
+    assert "false alarms" in text
 
 
 def test_a_positive_identical_to_the_reference_is_detected_at_the_false_alarm_rate():
@@ -72,7 +73,7 @@ def test_without_a_reference_the_false_alarm_rate_is_not_assessed():
     result = _control(*_plate(), RepresentationControl(positive={"condition": ["KD"]}))
     assert result.status == "positive only"
     assert "reference" not in set(result.pooled["candidate"])
-    assert "False-alarm rate: not assessed" in result.summary()
+    assert "not assessed (no reference control was declared)" in result.summary()
 
 
 def test_without_a_control_nothing_is_assessed():
@@ -108,10 +109,10 @@ def test_controls_on_different_plates_are_declared_but_not_judged():
     objects = objects[objects["image_file"].isin(unpaired["image_file"])]
     result = _control(objects, unpaired, BOTH)
     assert result.status == "not assessed"
-    text = result.summary()
+    text = " ".join(result.summary().split())
     assert "a control was declared, but no stratum could be judged" in text
-    assert "repeat=P1: no positive-control FOV" not in text  # P1 has positives, no reference
-    assert "repeat=P2: no positive-control FOV" in text
+    assert "repeat P1: no positive-control" not in text  # P1 has positives, no reference
+    assert "repeat P2: no positive-control field with objects" in text
 
 
 def test_missing_values_leave_checks_unjudged_instead_of_crashing():

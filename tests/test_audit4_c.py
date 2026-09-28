@@ -237,6 +237,7 @@ def test_p1_4_the_object_rule_divides_by_the_repeats_own_control_mean():
 def test_p5_6_a_unit_change_in_one_repeat_is_flagged_and_a_repeat_without_control_refused():
     objects, fovs = _shifted(0.1)
     text = object_rule_check(objects, fovs, feature="x", control=CONTROL, n_draws=50).summary()
+    text = " ".join(text.split())
     assert "differ by 10.0x" in text and "change of units" in text
     keep = ~((objects["repeat"] == "r2") & (objects["condition"] == "ctrl"))
     result = object_rule_check(objects[keep], fovs, feature="x", control=CONTROL, n_draws=50)
@@ -312,7 +313,10 @@ def test_p1_12_small_unit_d_plural_and_rare_declaration_wording():
     objects, fovs = _tables(spec, per_field=200)
     fovs = pd.concat([fovs, fovs.assign(position_id=fovs["position_id"] + "_empty")])
     result = object_rule_check(objects, fovs, feature="x", control=CONTROL, n_draws=20)
-    assert "asks for 1 field with" in result.summary()
+    full = result.summary(detail="full")
+    assert "fields with objects" in full and "1 fields" not in full
+    row = result.table.iloc[0]
+    assert f"{int(row['fov_rule_fovs'])} ({int(row['fov_rule_fovs_upper95'])})" in full
     from morphocoverage.objectives import RareTarget
 
     rare = RareTarget(

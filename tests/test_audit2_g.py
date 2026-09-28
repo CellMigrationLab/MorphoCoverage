@@ -299,7 +299,8 @@ def test_g12_a_planting_that_cannot_happen_is_said():
         "no positive-control field holds 30 objects to plant (the largest holds 25)"
         in (gaps[0]["reason"])
     )
-    assert "Planted objects: not measured in repeat=P1" in result.summary()
+    assert "Planted objects: not measured in repeat P1" in result.summary()
+    assert "Planted objects: not measured in repeat P2" in result.summary()
 
 
 def test_g13_the_chance_expectation_uses_the_leave_one_field_out_rate():

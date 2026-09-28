@@ -44,10 +44,11 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .._wording import number, percent, where
-from ..schema import fov_values, unit_plural
+from .._style import check_detail
+from ..schema import fov_values
 from ..statistics import cluster_size, design_effect, nested_variance_components, spread_is_zero
 from ._common import groups, validated
+from ._unit_text import join, variability_full, variability_parts
 
 UNUSUAL_Z = 1.96
 
@@ -69,43 +70,12 @@ class FOVVariability:
     group_cols: tuple[str, ...]
     settings: dict[str, Any]
 
-    def summary(self) -> str:
-        """Plain sentences, one paragraph per group."""
-        words = unit_plural(self.settings["observation_unit"])
-        lines = [f"How variable are the fields? Feature {self.settings['feature']}."]
-        for row in self.groups.to_dict("records"):
-            group = {c: row[c] for c in self.group_cols}
-            head = (
-                f"{where(group)}: {int(row['fovs'])} fields, {int(row['observations'])} {words} "
-                f"({_per_field(row['observations_per_fov'])} per field)."
-            )
-            missing = int(row.get("missing_values") or 0)
-            if missing:
-                head += f" {words.capitalize()} with no value, left out: {missing}."
-            if row["status"] != "ok":
-                lines.append(f"{head} {row['status']}.")
-                continue
-            share = row["unusual_fov_share"]
-            unusual = (
-                f"{percent(share)} of fields differ more than random {words} would let them "
-                "(about 5% expected)."
-                if share is not None and not pd.isna(share)
-                else f"The {words} do not vary within any field, so fields cannot be "
-                f"compared with random {words}."
-            )
-            lines.append(
-                f"{head} {percent(row['icc'])} of the variance lies between fields. A mean from "
-                f"whole fields has {row['design_effect']:.1f} times the variance of one from "
-                f"as many random {words}, so SD / sqrt(n) understates its error "
-                f"{row['error_ratio']:.1f}-fold. {unusual}"
-            )
-        return "\n".join(lines)
-
-
-def _per_field(value: float) -> str:
-    """Observations per field as read: ``12``, ``0.4``, and never ``0`` when some exist."""
-    written = number(value)
-    return f"{value:.1g}" if written == "0" and value > 0 else written
+    def summary(self, detail: str = "short") -> str:
+        """The field variability in words: short (the groups in one table, the answer in one
+        sentence) or ``detail="full"`` (every number of each group)."""
+        if check_detail(detail) == "full":
+            return variability_full(self)
+        return join(*variability_parts(self))
 
 
 def _group_row(per_fov: list[np.ndarray]) -> tuple[dict[str, Any], list[dict[str, Any]]]:

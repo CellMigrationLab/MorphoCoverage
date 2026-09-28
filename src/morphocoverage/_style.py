@@ -48,6 +48,7 @@ DETAILS = ("short", "full")
 WIDTH = 100
 DASH = "—"
 SEPARATOR = " · "
+_KEPT = "\u00a0·\u00a0"  # the separator while wrapping: textwrap never breaks a no-break space
 
 
 class Status(Enum):
@@ -417,17 +418,17 @@ def wrap(text: str, indent: int | str = 0, *, hang: int | str | None = None) -> 
         if not line.strip():
             lines.append("")
             continue
-        # An emoji in the indent takes two columns but counts one character.
-        lines.append(
-            textwrap.fill(
-                line,
-                WIDTH - (width(first) - len(first)),
-                initial_indent=first,
-                subsequent_indent=later,
-                break_long_words=False,
-                break_on_hyphens=False,
-            )
+        # An emoji in the indent takes two columns but counts one character; a group label
+        # ("MOCK · 1A · B6") is never broken, its separators held by no-break spaces.
+        filled = textwrap.fill(
+            line.replace(SEPARATOR, _KEPT),
+            WIDTH - (width(first) - len(first)),
+            initial_indent=first,
+            subsequent_indent=later,
+            break_long_words=False,
+            break_on_hyphens=False,
         )
+        lines.append(filled.replace(_KEPT, SEPARATOR))
     return "\n".join(lines)
 
 

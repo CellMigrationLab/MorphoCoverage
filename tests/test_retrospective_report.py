@@ -172,7 +172,8 @@ def test_a_declared_control_joins_the_first_question_and_the_profile():
         draws=5,
     )
     report = microscopist_report(controls=control)
-    assert "declared positive control were recognized" in report.sections["controls"]
+    assert "KD fields (positive control)" in report.sections["controls"]
+    assert "recognized as different" in report.short["controls"]
     assert "No representation control" not in report.summary()
     assert (report.profile["item"] == "representation").sum() == 2
 

@@ -54,14 +54,12 @@ import pandas as pd
 
 from .._checks import as_count, check_seed
 from .._seeds import group_key, group_rng
-from .._wording import percent, where
+from .._style import caution_lines, check_detail
 from ..schema import unit_plural
 from ..transforms import Standardize
 from ._common import groups, matching_groups, validated
-from ._outliers import LEAVE_ONE_FIELD_OUT, reference_sample, score
-
-# Seed-check agreement below which the labels are called unstable (as in fiberfeatures).
-SEED_AGREEMENT_WARNING = 0.9
+from ._outliers import reference_sample, score
+from ._state_text import SEED_AGREEMENT_WARNING, unusual_full, unusual_parts
 
 
 @dataclass(frozen=True)
@@ -85,42 +83,12 @@ class UnusualObjects:
     group_cols: tuple[str, ...]
     settings: dict[str, Any]
 
-    def summary(self) -> str:
-        """Plain sentences, one per group, with the seed check."""
-        words = unit_plural(self.settings["observation_unit"])
-        lines = [
-            (
-                f"Unusual {words}: farther from the reference {dict(self.settings['reference'])} "
-                f"than all but {percent(self.settings['quantile'])} of reference {words} are "
-                f"from the other reference groups ({len(self.settings['feature_cols'])} "
-                f"standardized features, {self.settings['n_neighbors']} nearest neighbours)."
-            )
-        ]
-        for row in self.groups.to_dict("records"):
-            head = where({c: row[c] for c in self.group_cols})
-            if row["status"] != "ok":
-                lines.append(f"{head}: {row['status']}.")
-                continue
-            agreement = row["seed_agreement"]
-            check = ""
-            if not pd.isna(agreement):
-                unstable = agreement < SEED_AGREEMENT_WARNING
-                check = (
-                    f" Refits with other reference samples agree on {percent(agreement)} of them"
-                    + (", so treat the labels as unstable." if unstable else ".")
-                )
-            calibration = ""
-            if row["calibration"] == LEAVE_ONE_FIELD_OUT:
-                calibration = (
-                    " With a single reference group the threshold comes from its fields scored "
-                    "against its other fields, so a shift between that group and this one "
-                    "raises the share."
-                )
-            lines.append(
-                f"{head}: {int(row['unusual'])} of {int(row['scored'])} {words} unusual "
-                f"({percent(row['unusual_share'])}).{check}{calibration}"
-            )
-        return "\n".join(lines)
+    def summary(self, detail: str = "short") -> str:
+        """The unusual observations in words: short (the groups in one table, each caveat
+        once) or ``detail="full"`` (with each group's threshold and its calibration)."""
+        full = check_detail(detail) == "full"
+        text = unusual_full(self) if full else "\n".join(unusual_parts(self)[0])
+        return "\n".join([text, *caution_lines(unusual_parts(self)[1], indent=0)])
 
 
 def unusual_objects(

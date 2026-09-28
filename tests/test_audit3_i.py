@@ -239,7 +239,8 @@ def test_i7_the_report_clusters_the_declared_rare_label():
     assert clustering.settings["label_col"] == "state"
     assert clustering.settings["states"] == [True]
     profile = result.document.sections["profile"]
-    assert "Labels state." in profile and result.document.inputs["profile"] == "given"
+    assert "Are the state" in profile and result.document.inputs["profile"] == "given"
+    assert "- State objects: clustered in a few fields" in result.document.short["profile"]
     assert "fov_clustering" in set(result.document.profile["source"])
 
 
@@ -313,7 +314,7 @@ def test_i13_the_unusual_labels_are_named_for_the_reader():
     result = report(objects, fovs, _setup(stage_cols=None, observation_unit="cell"))
     assert result.results["clustering"].settings["label_col"] == "unusual cells"
     assert "morphocoverage_unusual" not in result.summary()
-    assert "Labels unusual cells." in result.document.sections["profile"]
+    assert "Are the unusual cells spread over the fields?" in result.document.sections["profile"]
 
 
 def test_i14_livetables_key_is_built_from_the_validator_resolvers():

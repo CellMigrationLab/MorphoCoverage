@@ -69,8 +69,8 @@ def test_objects_or_fields_example_runs(tmp_path, capsys):
         str(script), init_globals={"objects": objects, "fovs": fovs, "features": ["ratio", "b"]}
     )
     printed = capsys.readouterr().out
-    assert "How variable are the fields?" in printed
-    assert "Are the states spread over the fields?" in printed
+    assert "How variable are the fields" in printed
+    assert "spread over the fields?" in printed
 
 
 def test_data_format_example_runs_and_prints_what_it_says(tmp_path, capsys):

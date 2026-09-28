@@ -66,8 +66,8 @@ import pandas as pd
 
 from .._checks import as_count, check_seed
 from .._seeds import group_key, group_rng
-from .._wording import count, percent, rate, where
-from .._wording import fields as fields_text
+from .._style import check_detail, group_label
+from .._wording import where
 from ..metadata import REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_values, unit_plural
 from ..statistics import (
@@ -79,6 +79,13 @@ from ..statistics import (
     spread_is_zero,
 )
 from ._common import canonical_fields, groups, matching_groups, validated
+from ._unit_text import (
+    descriptor_spread_full,
+    descriptor_spread_parts,
+    join,
+    object_rule_full,
+    object_rule_parts,
+)
 
 DESCRIPTORS = ("mean", "median", "SD", "IQR")
 RANDOM_OBJECTS = "random objects"
@@ -123,51 +130,12 @@ class ObjectRuleCheck:
     group_cols: tuple[str, ...]
     settings: dict[str, Any]
 
-    def summary(self) -> str:
-        """Plain sentences, one per group and target."""
-        words = unit_plural(self.settings["observation_unit"])
-        lines = [
-            (
-                f"Would the JCB object-count rule hold with whole fields? Feature "
-                f"{self.settings['feature']}; reference mean: {self.settings['reference']}."
-            )
-        ]
-        shift = self.settings.get("reference_shift")
-        if shift:
-            lines.append(f"Caution: {shift}.")
-        for row in self.table.to_dict("records"):
-            head = f"{where({c: row[c] for c in self.group_cols})}, target {rate(row['target'])}"
-            if row["status"] != "ok":
-                lines.append(f"{head}: {row['status']}.")
-                continue
-            verdict = "meets" if row["meets_target"] else "misses"
-            ratio = row["error_ratio"]
-            times = "" if ratio is None or pd.isna(ratio) else f" ({ratio:.1f} times)"
-            lines.append(
-                f"{head}: the rule asks for {int(row['rule_objects'])} {words}, which took "
-                f"{row['fovs_used']:.1f} fields. SD / sqrt(n) predicts "
-                f"{percent(row['predicted_error'])}; the real error of that mean is "
-                f"{percent(row['real_error'])}{times}, so it {verdict} the target. "
-                + _field_rule(row, words)
-            )
-        return "\n".join(lines)
-
-
-def _field_rule(row: dict[str, Any], words: str) -> str:
-    """The rule with fields as the unit, in fields with observations and acquired fields."""
-    rule, upper = int(row["fov_rule_fovs"]), int(row["fov_rule_fovs_upper95"])
-    acquired, filled = int(row["fovs"]), int(row["fovs_with_observations"])
-    if filled == acquired:
-        return (
-            f"With fields as the unit the rule asks for {fields_text(rule)} ({upper} from the "
-            f"upper-95 SD) of {acquired} acquired."
-        )
-    return (
-        f"With fields as the unit the rule asks for {count(rule, 'field')} with {words} ({upper} "
-        f"from the upper-95 SD); {filled} of the {acquired} acquired fields hold {words}, so that "
-        f"is about {fields_text(int(row['fov_rule_acquired']))} to acquire "
-        f"({int(row['fov_rule_acquired_upper95'])} from the upper-95 SD)."
-    )
+    def summary(self, detail: str = "short") -> str:
+        """The rule with whole fields in words: short (one row per target, ranges over the
+        groups) or ``detail="full"`` (every number of each group and target)."""
+        if check_detail(detail) == "full":
+            return object_rule_full(self)
+        return join(*object_rule_parts(self))
 
 
 def _reference_means(
@@ -406,44 +374,12 @@ class DescriptorSpreadCheck:
     group_cols: tuple[str, ...]
     settings: dict[str, Any]
 
-    def summary(self) -> str:
-        """Plain sentences, one per group."""
-        words = unit_plural(self.settings["observation_unit"])
-        threshold = self.settings["threshold"]
-        lines = [
-            (
-                f"Do descriptors stabilise as fast with whole fields? Feature "
-                f"{self.settings['feature']}, spread over {self.settings['n_draws']} samples "
-                f"of {threshold} {words}."
-            )
-        ]
-        keys = list(self.group_cols)
-        for key, rows in (
-            self.at_threshold.groupby(keys, sort=False) if keys else [((), self.at_threshold)]
-        ):
-            group = where(dict(zip(keys, key, strict=True)))
-            parts = []
-            for row in rows.to_dict("records"):
-                match = row["objects_to_match"]
-                reach = (
-                    f"matched from {int(match)} {words}"
-                    if not pd.isna(match)
-                    else f"not matched within {int(row['largest_size_tried'])}"
-                )
-                ratio = row["ratio"]
-                shown = (
-                    f"{ratio:.1f}x"
-                    if ratio is not None and not pd.isna(ratio)
-                    else "no ratio (random samples never varied)"
-                )
-                parts.append(f"{row['descriptor']} {shown} ({reach})")
-            lines.append(f"{group}: whole fields against random {words}: {'; '.join(parts)}.")
-        for skipped in self.settings.get("skipped_groups", []):
-            lines.append(
-                f"{skipped['group']}: not checked: {skipped['observations']} {words}, fewer than "
-                f"the threshold of {threshold}."
-            )
-        return "\n".join(lines)
+    def summary(self, detail: str = "short") -> str:
+        """The descriptor spread in words: short (one row per descriptor over the groups) or
+        ``detail="full"`` (each group's ratio and match per descriptor)."""
+        if check_detail(detail) == "full":
+            return descriptor_spread_full(self)
+        return join(*descriptor_spread_parts(self))
 
 
 def descriptor_spread_check(
@@ -492,7 +428,9 @@ def descriptor_spread_check(
                     {**group, "n": n, "sampling": how, **dict(zip(DESCRIPTORS, spread.tolist()))}
                 )
         if (RANDOM_OBJECTS, threshold) not in spreads:
-            skipped.append({"group": where(group), "observations": len(pooled)})
+            skipped.append(
+                {"group": where(group), "label": group_label(group), "observations": len(pooled)}
+            )
             continue
         tried = sorted(n for how, n in spreads if how == WHOLE_FOVS)
         for index, name in enumerate(DESCRIPTORS):
