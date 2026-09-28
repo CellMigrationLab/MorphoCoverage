@@ -69,6 +69,39 @@ observation (cell / nucleus / patch / slice / FOV summary / embedding)
 
 and never treats cell count alone as a complete description of acquisition effort. FOVs themselves are not assumed independent; stage coordinates, physical area, and sampling design can matter.
 
+## What the report looks like
+
+`workflows.report(objects, fovs, setup).summary()` opens with a verdict per question, then one short
+section per question: its answer, a table, the cautions found in these data (⚠️) and the standing
+assumptions it rests on. `summary(detail="full")` gives every sentence and number. Markers: ✅ fine,
+⚠️ look at this, ❌ a problem that changes how to read the answers, ➖ not assessed. An excerpt of the
+idr0028 report (`data/crick_idr/results/microscopist_report_idr0028.txt`; the full form is
+`microscopist_report_idr0028_full.txt`):
+
+```text
+Microscopist's report — 9550 nuclei in 336 fields
+
+At a glance
+  ➖ The data — data checks and copy checks not run (report(..., integrity=True) runs both)
+  ✅ Foundation. Why count fields? — a mean from whole fields varies 2.1x as much as from random
+     nuclei (median); the JCB count rule still held with whole fields in all 12 technical repeats
+  ⚠️ 1. Can the features see the phenotype? — YAP fields recognized in 100% of checks; false alarms
+     2%; not judged in repeat 2B (no positive-control field with nuclei)
+  ⚠️ 2. Did I image enough? — 3 of 4 rules said enough in every technical repeat; 'nothing new' not
+     yet shown; held-back fields: some rules stopped too early (up to 60%)
+  …
+
+⚠️ 2. Did I image enough?
+  …
+    rule                       met in    recorded order  random orders: median (10-90%)
+    fixed 8 fields             12 of 12  8               8 (8-8)
+    JCB rule, per nucleus, 5%  12 of 12  1-2             1 (1-2)
+    JCB rule, per field, 5%    12 of 12  3-6             4 (3-5)
+    nothing new (≤5%)          0 of 12   never           never
+  ⚠️ JCB rule, per nucleus, 5%, in 7 of 12 groups: the upper-95 SD bound assumes normal values, …
+  Assumptions: …
+```
+
 ## Current status
 
 MorphoCoverage is a strategy-comparison framework. No default coverage estimator has been chosen.
