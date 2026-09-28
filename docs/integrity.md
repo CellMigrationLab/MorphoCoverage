@@ -30,11 +30,13 @@ Its **statistical screens do not apply**, and were left out:
 
 | Failure | Where it is caught |
 | --- | --- |
-| A row that repeats another row exactly, identifiers included (rows with no feature value, such as failed segmentations, are left out) | `check_tables` (a warning) |
+| A row that repeats another row exactly, identifiers included (rows with no feature value, such as failed segmentations, are left out) | `check_tables` and the live sources (a warning) |
 | An observation that repeats another of the same field in every feature while another column differs (a merge with a table that has one row per channel, a table appended to itself and saved with a fresh index) | `check_tables` (a warning) |
-| An object label (`label_id`, CellProfiler's `ObjectNumber`, `object_id`, `label`) twice in one field | `check_tables` (a warning, also when a copy warning comes first) |
+| An object label (`label_id`, CellProfiler's `ObjectNumber`, `object_id`, `label`) twice in one field | `check_tables` (a warning, also when a copy warning comes first); the live sources warn for a `label_id` twice |
 | A field listed twice in the FOV table | the validator and `check_tables` (an error) |
 | Plane or tile files counted as fields | the plane rule (validator, live session) |
+| Planes of one field counted as new observations of its objects, or several stage positions of a multi-position file counted as one field | the validator (an error; see `docs/data_format.md`) |
+| A manifest line written twice, or a manifest rewritten under the live watcher | `LiveFolder` (a warning; an error) |
 | Fields unlike the others (outliers, crowded or empty fields, new states) | `inspect_fovs`, `fov_variability`'s unusual fields |
 | Between-field variation, including a collapsed one | `fov_variability` (ICC, design effect) |
 

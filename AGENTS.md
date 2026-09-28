@@ -182,8 +182,10 @@ src/morphocoverage/
     _plane_rules.py        # private: the plane rule (z/c/t planes are not fields, never features)
     planes.py              # planes_as_features: one feature per plane, objects matched by label_id
     integrity.py           # exact data-integrity checks: copied, reordered or scaled fields, repeated blocks and summaries
+    _integrity_match.py    # private: its matching at a stated precision, by sorting, with no loop over pairs of fields
     data_check.py          # check_tables: every data problem at once, where and how to fix it
     _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
+    _copy_rules.py         # private: its copy rule: repeated rows, observations repeated within a field, labels twice in a field
     _data_problems.py      # private: the problems a data check reports (Problem, Collector) and their wording
     _input_traps.py        # private: tables that validate but are probably not meant: invalid rows, undeclared groups, unimaged wells
     objectives.py          # sampling objectives and RareTarget, independent of strategies
@@ -229,6 +231,7 @@ src/morphocoverage/
         protocol.py        # protocol-level reliability across samples, by independent unit
         protocol_text.py   # its sentences
         frontier.py        # the benchmark score: fields saved at matched risk, transfer
+        frontier_bootstrap.py  # private: its resampling of independent units, interval withheld below 5 units
         frontier_text.py   # its sentences
         inspection.py      # inspect-these-fields: one traceable reason per FOV and line
         controls.py        # representation controls: detection and false-alarm rates
@@ -249,7 +252,8 @@ src/morphocoverage/
         contrast.py        # each condition against the control: objects, fields and technical repeats as units
         ranking.py         # which features separate the conditions: BH-gated |d| ranking (as fiberfeatures)
         _units.py          # private: sides, units and the randomization test shared by contrast and ranking
-        clustering.py      # unusual (out-of-distribution) objects; state clustering by FOV
+        unusual.py         # unusual (out-of-distribution) objects against a declared reference (unusual_objects)
+        clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered
         _outliers.py       # private: the distances and leave-one-group-out thresholds behind unusual_objects
         _common.py         # private: validation and group helpers shared by the sampling-unit checks
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
@@ -261,6 +265,7 @@ src/morphocoverage/
         _document.py       # private: the assembled report of the workflows, its parts and settings
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
+        _manifest.py       # private: the live folder's files (write_fov, the manifest reader), re-exported by live
         _live_order.py     # private: the live session that runs the order check of each group's fields so far
         _shared.py         # private: input checks, orders, rule replays on raw values, outcomes on normalised ones
     strategies/
@@ -268,11 +273,13 @@ src/morphocoverage/
         base.py            # Estimator interface; SamplingStrategy = estimators + policies
         baselines.py       # fixed-FOV, fixed-area, generic-observation and object-count baselines
         scalar_precision.py  # JCB/Zweifach-style scalar precision baseline
+        _scalar_precision_state.py  # private: its incremental path, per-FOV sufficient statistics for live sessions
         _averaging_cv.py   # private: its averaging-CV arithmetic (object and FOV units)
         stabilization.py   # Marcotti et al.-style descriptor-stabilization baselines
         _descriptor_resamples.py  # private: the resample arithmetic of the descriptor spread
         jcb_planning.py    # JCB multi-sample planning from disjoint pilot samples
         fov_bootstrap.py   # FOV-bootstrap uncertainty of multivariate population summaries
+        _fov_bootstrap_checks.py  # private: the checks of its settings and data
         _fov_resamples.py  # private: its resample arithmetic, every summary of every resample at once
         rare_planning.py   # binomial FOV-incidence planning for a RareTarget
         rare_incidence.py  # beta-binomial rare-state incidence risk with recurrence

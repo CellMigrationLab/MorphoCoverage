@@ -1,14 +1,20 @@
 # Preliminary findings
 
-These are exploratory, retrospective observations made while building the
-framework. They are not benchmark results and not publication claims. Each
-entry states what was run, what it shows, and what it does not show.
+These are retrospective observations made while building the framework,
+not publication claims. Entries 1 to 7, 9 and 10 are exploratory analyses,
+not benchmark results. Entry 8 is the result of the locked benchmark
+(`docs/benchmarking.md`, "The score"), preliminary because it rests on one
+development dataset, one shallow held-out dataset and few independent units.
+Each entry states what was run, what it shows, and what it does not show.
 
 **What the numbers are from.** Every tracked table and number below comes
 from the 2026-09-28 run of `data/crick_idr/run_all.py` after the third audit
 (`docs/audit/README.md`; run times in
 `data/crick_idr/results/logs/run_all.txt`), with the benchmark under protocol
-version 4 (`data/crick_idr/benchmark_protocol.py`).
+version 4 (`data/crick_idr/benchmark_protocol.py`). The fourth, adversarial
+audit changed several rules and analyses and locked protocol version 5;
+until the numbers are regenerated under it, they are those of the third
+audit, and the entries' wording already says what the fourth audit found.
 
 ## 1. Whole FOVs versus random cells in the JCS and JCB settings (2026-09-23)
 
@@ -45,16 +51,17 @@ whole FOVs have the error that random-cell reasoning predicts?
 | | 8 | 264 | 0.53% | 0.34% | 1.5 [1.3–1.7] | 53% |
 | | 14 | 462 | 0.33% | 0.22% | 1.5 [1.3–1.7] | 54% |
 
-Errors are relative RMSE of the well mean, as medians across wells. Every number in this entry is taken from the tracked outputs `data/crick_idr/results/fov_vs_objects_idr0139_fascin.csv` and `fov_vs_objects_idr0028_screenB_yaptaz.csv`, generated from Crick commit `a81d20c` with checksum-verified inputs. The complete plates are stored in the repository (`idr0139_plate`, `idr0028_screenB_plates`), and the tables are regenerated from them.
+Errors are relative RMSE of the well mean, as medians across wells. The spread of the per-well ratios (the IQR, and the share of wells above 1.5) is mostly estimation noise from 4 (or 28) imaged fields per well: simulated wells that all share one ratio give the same spread. It does not show that wells differ, and per-well extremes are not quoted. Every number in this entry is taken from the tracked outputs `data/crick_idr/results/fov_vs_objects_idr0139_fascin.csv` and `fov_vs_objects_idr0028_screenB_yaptaz.csv`, generated from Crick commit `a81d20c` with checksum-verified inputs. The complete plates are stored in the repository (`idr0139_plate`, `idr0028_screenB_plates`), and the tables are regenerated from them.
 
 **What this shows**
 
 - **The random-cell assumption understates sampling error in both datasets.**
   The factor is about 3 (roughly 10× in variance) in the JCS paper's own data,
   and about 1.5 (roughly 2.3× in variance) in idr0028.
-- **The factor does not shrink as more FOVs are acquired.** That is
-  consistent with substantial FOV-level structure rather than a small-sample
-  effect.
+- **The factor is the same at every number of FOVs, by construction.** Both
+  errors carry the same finite-population correction, so their ratio is
+  about the square root of the design effect whatever `k`, with or without
+  FOV-level structure. Its constancy is not evidence; its size is.
 - **It is metric- and dataset-dependent.** An earlier exploratory run on
   idr0028 plate 1A (negative-control wells, mean nuclear YAP/TAZ intensity)
   gave a variance inflation of about 4.7, against about 2.3 for the ratio. So
@@ -68,9 +75,13 @@ Errors are relative RMSE of the well mean, as medians across wells. Every number
     none would miss 5%.
   - With the actual single FOV, **75% of wells miss 2.5% and 35% miss 5%**.
     With 2 FOVs, 46% miss 2.5% and 3% miss 5%.
-  - In the JCB paper's own terms, the 5% target (independent samples) is
-    roughly reached at 1–2 FOVs. The 2.5% target recommended for paired
-    designs is not reached until about 3 FOVs.
+  - These errors are relative to the imaged fields: the reference is the
+    mean of the well's 4 imaged fields, whose finite-population correction
+    shrinks the error of 2 or 3 of them, so they understate the error
+    against the well's other positions. In the JCB paper's own terms,
+    relative to the imaged fields, the 5% target (independent samples) is
+    roughly reached at 1–2 FOVs, and the 2.5% target recommended for paired
+    designs is not reached at 2 FOVs.
 - **Consequences for the ~250–300-cell threshold observed in the JCS case
   study.** The paper presents this as an observation for its example, not a
   universal recommendation, and itself calls the stopping point "somewhat
@@ -220,10 +231,14 @@ reaches 25%:
 
 **What this shows**
 
-- **The bound keeps its promise.** It was at least the true chance of meeting
-  the planted state in the next FOV in 96–100% of cases at every frequency and
-  prefix length. The point prediction overstates the true chance, by about the
-  host false-alarm rate of entry 2.
+- **The bound is conservative here.** It was at least the true chance of
+  meeting the planted state in the next FOV in 96–100% of cases at every
+  frequency and prefix length. That does not show it calibrated: the true
+  chances sit far below it, and a bound that ignores the data,
+  `1 - 0.05 ** (1 / k)` (what the estimator gives when nothing new is seen),
+  holds about as often. Telling the two apart needs settings where the truth
+  approaches the bound (a higher `p`, a larger `k`). The point prediction
+  overstates the true chance, by about the host false-alarm rate of entry 2.
 - **The promise is about the next FOV, not about whether a rare state exists.**
   Stopping when the bound reaches 25% happens at 11 FOVs in every condition,
   because with no new FOV the bound depends only on the number of FOVs. At
@@ -234,7 +249,13 @@ reaches 25%:
   remains (AGENTS.md §3).
 - **The actionable rule is a count of FOVs.** Seeing no new FOV among `k`
   bounds the per-FOV frequency of an unseen state below about `3 / k` (rule
-  of three). Ruling out a state present in 5% of FOVs at 95% needs about 60
+  of three), under two conditions: the state is one this definition of new
+  detects in the fields that hold it, and the fields are independent,
+  representative draws (a random or dispersed order; a raster over a
+  spatial trend breaks it). For a state detected in only part of its fields,
+  such as the whole siLATS1 fields of entry 2, the bound is about
+  `3 / (k × detection rate)`, the detection-adjusted bound of the report
+  (R1). Ruling out a state present in 5% of FOVs at 95% needs about 60
   FOVs with nothing new, more than these wells have (28).
 - **Clustering made no difference here** because FOVs were replayed in random
   order; a clustered state then behaves like a spread one. In a raster or
@@ -447,6 +468,9 @@ development dataset.
 - **More fields or more wells (P10).** For the mean ratio of a condition:
   - in MOCK, 54% of the variance of the mean is between fields within a well;
   - in the knockdowns, 79–99% is between wells, which are on different plates;
+  - neither split is established: the interval of the well component
+    includes zero in every knockdown, and in MOCK it runs to many times its
+    point estimate, as the report says;
   - fields vary 1.6–2.6 times as much as random cells would (design effect,
     with the cluster size of unequal fields).
 
@@ -464,10 +488,11 @@ development dataset.
   ARAP2 2B C17 the orders differ by at most one field, a permitted null result
   (AGENTS.md section 3): the mean is too easy here to tell orders apart. One well where
   the raster is 3 fields slower is not a pattern across 12.
-  - In 5 of 12 wells, fields closer than about 520–780 µm are more alike than
-    random pairs.
-  - The other 7 wells show no such redundancy down to the closest spacing
-    measured (336 µm).
+  - Redundancy between neighbouring fields is not shown. Tested against
+    stage positions shuffled within each well, where there is no spatial
+    structure by construction, 1 of 12 wells shows it beyond chance (the
+    fourth audit). The earlier count of 5 of 12 wells, reported without
+    that null, was the chance level.
 - **Objects or fields (the Foundation).** The report opens with the
   Foundation: per well, fields vary 1.0–3.4 times as much as random nuclei
   would (median 2.1; `fov_variability`), and unusual nuclei cluster by field
@@ -482,7 +507,8 @@ development dataset.
 - **The P10 intervals are approximate.** Simulated nested designs with 8
   samples recover the variance components on average (tested), but the
   bootstrap interval covered the true sample and field components in only
-  88% and 80% of 40 runs, not 95%. Resampling only the samples was worse (68%
+  88% and 80% of 40 runs, not 95% (with 40 runs, a Monte Carlo standard
+  error of about 5 to 6 points). Resampling only the samples was worse (68%
   for the sample component). A stated difference between allocations
   therefore also needs five or more independent units.
 - **The reading test** (`docs/questions.md`, open work) has not been done by
@@ -639,13 +665,15 @@ the fixed count and each rule, so the summary gives no interval there; at
   2.5% it reverses: the per-object JCB rule (upper-95 SD) costs 4.3 fields,
   while JCB per field saves 0.5, because object counts overstate what the
   fields add. Neither difference is resolved over 12 wells.
-- **No development setting transfers to the held-out wells.** At the setting
-  chosen for 5% risk on idr0028, idr0139 gives 27–36% risk. Part of that is
-  idr0139 itself: its 2-field reference cannot confirm the mean within 5% in
-  27% of hold-outs even with every field (entry 7). Stopping at one field
-  (fixed, JCB per object, JCS spread per object) is worse than that floor;
-  stopping at two is exactly at it. Entry 7's conclusion holds: the count
-  does not transfer.
+- **The 1-field settings do not transfer to the held-out wells; the 2-field
+  settings cannot be judged there.** At the setting chosen for 5% risk on
+  idr0028, idr0139 gives 27–36% risk. Its 2-field reference cannot confirm
+  the mean within 5% in 27% of hold-outs even with every field (entry 7), so
+  27% is its floor. Stopping at one field (fixed, JCB per object, JCS spread
+  per object) is worse than that floor. The per-field rules stop at two
+  fields, every stream field, and sit exactly at the floor, so idr0139
+  cannot tell whether they transfer. Entry 7's conclusion holds for one
+  field: that count does not transfer.
 - **For a rare state, the rule that sees the state saves fields; the novelty
   bound does not.** The label rule stops as soon as the state has appeared,
   so easy acquisitions stop early and its stops track the need. The novelty
@@ -733,6 +761,11 @@ medians over wells:
 With hundreds of objects per field, a small between-field share is enough to
 dominate the error of a mean.
 
+The ranges in parentheses, in the JCB table above and the JCS table below,
+are across wells. As in entry 1,
+they are mostly estimation noise from 4 (or 28) imaged fields per well, not
+wells that differ: read the medians.
+
 JCS Fig. 2A at the paper's threshold, whole-field spread divided by
 random-object spread, medians over wells (`results/objects_vs_fields_jcs.csv`):
 
@@ -805,8 +838,9 @@ type, since their nuclei (up to 10,134 per well) have a much lower ratio.
 - **The JCS max − min statistic is noisy.** It is the paper's statistic and
   is kept for faithfulness, but other random streams of the same analysis
   gave median ratios of 1.6 and 1.3 for the mean on idr0139, where this run
-  gives 1.4. Read the ratios as "above 1 for location descriptors",
-  not to one decimal.
+  gives 1.4. The same holds on idr0028, where this run's 1.2 for the mean is
+  the lowest of five seeds (the fourth audit). Read the ratios as "above 1
+  for location descriptors", not to one decimal.
 - **The earlier benchmark (entry 8) is a different test.** It scores a rule
   against a tolerance on the realized error in held-back fields and sweeps
   thresholds. The papers' own targets and thresholds are tested here.
