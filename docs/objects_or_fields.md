@@ -57,16 +57,19 @@ and changed only that one thing.
    dataset, the objects it asks for fit in one picture. That one picture met
    the 5% target in 8 of 10 wells, but the 2.5% target in only 2 of 10.
    Across all 308 wells of the plate, it misses the 2.5% target in 76% of
-   wells; across all 1,144 wells of the second dataset, in 7%. The formula
+   wells; across all 1,144 wells of the second dataset, in 6%. The formula
    itself still works if you count pictures instead of objects. But
    with only 4 pictures per well, there is not enough information to say how
    many pictures you would need.
 
 4. **The JCS stability check is fooled.** JCS watches the average and the
    spread of values settle down as more objects are added. With pictures, the
-   average and the middle value settle more slowly than with random objects;
-   the spread barely changes. In the second dataset you need about 240–345
-   objects from pictures to get the stability that 200 random objects give.
+   average settles more slowly than with random objects in both datasets. In
+   the JCS dataset the middle value does too, while the spread barely
+   changes; in the second dataset the middle value and the standard
+   deviation are only a little less stable, and the interquartile range not
+   at all. There you need about 240–330 objects from
+   pictures to get the stability that 200 random objects give.
 
 5. **A small treatment effect turns into a coin flip.** JCS concluded that
    one compound raised fascin in the nucleus slightly more than its DMSO
@@ -77,11 +80,12 @@ and changed only that one thing.
    leptomycin B, came out right every time either way.
 
 6. **Unusual objects sometimes sit together.** We flagged objects that look
-   unlike the control objects, a stand-in for rare states. In 3 of the 12
-   wells of the second dataset (3 to 4 across seeds), those objects were
-   packed into a few pictures instead of spread across the well; by chance
-   alone, fewer than one well would be. In those wells, seeing them reliably
-   takes about twice as many pictures as counting objects would suggest. In
+   unlike the control objects, a stand-in for rare states. In 4 of the 12
+   wells of the second dataset (3 in the previous run, with other random
+   draws), one of them a control well, those objects were packed into a few
+   pictures instead of spread across the well; by chance alone, fewer than
+   one well would be. In those wells, seeing them reliably takes about twice
+   as many pictures as counting objects would suggest (1.9 times). In
    one well, 7 unusual objects sat in just 3 of 28 pictures: seeing them with
    95% confidence would take about 27 pictures, where counting objects
    suggests 12.
