@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._wording import count, fields, percent
+from .._wording import count, fields, listing, percent
 from ..metadata import REPEAT_COLUMN
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
 from ..retrospective.report import QUESTIONS
@@ -72,8 +72,10 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
 
     ``microscopist_report`` with ``Setup.minimum_detection``, then what it has
     no argument for: the declared rare phenotype's clustering in the sampling
-    profile, how the positive control paired its fields, and whether the
-    unusual observations' reference pools repeats.
+    profile, how the positive control paired its fields, whether the
+    unusual observations' reference pools repeats, and the fields the
+    data-integrity checks name (in the overview, among the fields to look at
+    and in the limits).
     """
     document = microscopist_report(
         **{k: v for k, v in results.items() if k not in _EXTRA_RESULTS},
@@ -87,6 +89,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
         document = replace(
             document, overview="\n\n".join(p for p in (overview, integrity.summary()) if p)
         )
+        document = _with_integrity(document, integrity)
     rare = results.get("rare_clustering")
     if rare is not None:
         rows = sampling_profile(None, None, None, None, clustering=rare)
@@ -113,6 +116,29 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
             "repeats before reading it as biology.",
         )
     return document
+
+
+def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:
+    """The report with the fields the integrity checks name among the fields to look at (6)
+    and in the limits: every answer counts them as independent fields."""
+    involved = integrity.fields_involved()
+    if not involved:
+        return document
+    named = (
+        f"{count(len(involved), 'field')} in {count(len(integrity.findings), 'finding')} "
+        "(fields that hold another field's observations, or their own twice)"
+    )
+    sentence = (
+        f"The data-integrity checks (in the overview) name {named}; every answer here counts "
+        f"them as independent fields, so look at them first: {listing(involved, limit=5)}."
+    )
+    sections = dict(document.sections)
+    sections["inspect"] = f"{sections['inspect']}\n\n  {sentence}"
+    note = (
+        f"Data integrity: the checks in the overview name {named}, and every answer counts "
+        "them as independent fields."
+    )
+    return replace(document, sections=sections, notes=(*document.notes, note))
 
 
 def _reference_repeats(unusual: Any) -> int:

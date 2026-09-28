@@ -246,7 +246,7 @@ def check_tables(
         if _identity_hashable(c, objects, fovs, key):
             objects = _attach(c, objects, fovs, resolved, identity)
             # After the group columns are attached, so the same label in two wells is not a copy.
-            _check_copies(c, objects, key)
+            _check_copies(c, objects, key, feature_cols)
             _check_key_values(c, objects, fovs, key)
             _check_label_variants(c, objects, fovs, identity)
             if fovs is not None:
