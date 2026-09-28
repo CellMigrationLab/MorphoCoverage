@@ -357,6 +357,7 @@ def conditions(
             feature=setup.readout,
             control=setup.control,
             random_state=setup.random_state,
+            fields_independent=setup.fields_independent,
             **setup.common,
         )
     }
@@ -367,6 +368,7 @@ def conditions(
             features=setup.columns,
             control=setup.control,
             random_state=setup.random_state,
+            fields_independent=setup.fields_independent,
             **setup.common,
         )
     return results

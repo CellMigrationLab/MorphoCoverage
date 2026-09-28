@@ -19,26 +19,33 @@ pooled within the repeat, and the summary says so):
   observations, so a field-to-field effect counts once per field; field
   means that do not vary within either side but differ between them are a
   perfect separation, an infinite d (as ``feature_ranking`` scores it);
-- **Cohen's d on technical-repeat means**, when the FOV table has the
-  MorphoBricks ``technical_repeat`` column (a well, a dish), or the column
-  ``technical_col`` names, and each side holds at least two: one value per
-  technical repeat, the unit at which a well-to-well shift counts once. The
-  technical repeat is the unit whatever ``group_cols`` says: analysis groups
-  that pool technical repeats are split by the column;
+- **Cohen's d on technical-repeat means**, when the fields have a unit they
+  share and each side holds at least two: one value per unit, the level at
+  which a well-to-well shift counts once. The unit (``_units.resolve_unit``)
+  is the MorphoBricks ``technical_repeat`` column (a well, a dish), or the
+  column ``technical_col`` names, whatever ``group_cols`` says (analysis
+  groups that pool technical repeats are split by it); without it, the
+  analysis group when ``group_cols`` hold a column beyond the condition and
+  the repeat (``well``, ``Metadata_Well``) nested within condition x repeat
+  with more than one value in some condition. With three or fewer units a
+  side the summary says the d is unstable;
 - **a randomization test over whole units**: condition labels are shuffled
-  ``n_permutations`` times over the technical repeats of the repeat when
-  both sides hold at least two (each keeps its fields together), otherwise,
-  without a technical-repeat column, over its whole fields; the statistic
-  is the absolute Cohen's d on field means, the p-value
-  ``(extreme + 1) / (n + 1)`` as in Plot&Stats, never below the smallest
-  p-value the exact test can give, or exact when the distinct assignments
-  are no more than the shuffles or 20000 (every one is then enumerated),
-  with a Bonferroni factor equal to the number of contrasts tested. With
-  few technical repeats only a few distinct assignments exist, and the
-  summary says how many. A side holding a single technical repeat gets no
-  test: its fields cannot stand in for technical repeats, since a
-  well-to-well shift would then pass for a condition effect; its effect
-  sizes are still reported;
+  ``n_permutations`` times over the units of the repeat when both sides hold
+  at least two (each keeps its fields together); the statistic is the
+  absolute Cohen's d on field means, the p-value ``(extreme + 1) / (n + 1)``
+  as in Plot&Stats, never below the smallest p-value the exact test can
+  give, or exact when the distinct assignments are no more than the shuffles
+  or 20000 (every one is then enumerated), with a Bonferroni factor equal to
+  the number of contrasts tested. With few units only a few distinct
+  assignments exist, and the summary says how many. A side holding a single
+  unit gets no test: its fields cannot stand in for technical repeats, since
+  a well-to-well shift would then pass for a condition effect; its effect
+  sizes are still reported. **Without a unit there is no test** (fields of one
+  dish or well are not independent draws: with no condition effect, 42-57% of
+  field-level tests over one to three unrecorded wells or dishes a side gave
+  p <= 0.05), unless the caller declares ``fields_independent=True``: whole
+  fields are then shuffled, and the summary says the p-value treats them as
+  independent draws;
 - **the JCS effect size** (Marcotti et al. 2026, Eqn 2: the treated mean
   minus the control mean over the control SD) from every object, and from
   ``object_counts`` objects drawn as random objects (the paper's procedure)
@@ -46,12 +53,20 @@ pooled within the repeat, and the summary says so):
   count has, acquired fields without observations included), with the
   median and interquartile band over ``n_draws`` and the share of draws
   whose sign agrees with the full-data effect, as in
-  ``data/crick_idr/jcs_effect_fovs.py``. The statistics themselves live in
-  ``morphocoverage.statistics``.
+  ``data/crick_idr/jcs_effect_fovs.py``. With units on both sides the
+  whole-field draws take the fields of units drawn at random with
+  replacement (a well, then its fields in random order, until the count),
+  so the share reflects well-to-well variation; without, the draws resample
+  these fields only, and the summary says their share is not a confidence
+  in the effect. The statistics themselves live in ``morphocoverage.statistics``.
 
-The check describes what these fields support about a difference between
-conditions under this feature; it is retrospective, and it is not the user's
-biological inference, which needs independent repeats to generalize.
+Every test and effect size compares means: a difference confined to a
+subpopulation or to the shape of the distribution is not tested (the
+summary says so). Draws walk the fields in a canonical order, so the row
+order of the tables never changes a result. The check describes what these
+fields support about a difference between conditions under this feature; it
+is retrospective, and it is not the user's biological inference, which needs
+independent repeats to generalize.
 """
 
 from __future__ import annotations
@@ -65,7 +80,7 @@ import pandas as pd
 
 from .._checks import as_count
 from .._seeds import group_rng
-from .._wording import count, percent
+from .._wording import count, listing, percent
 from .._wording import fields as fields_text
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import unit_plural
@@ -73,12 +88,15 @@ from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import groups, validated
 from ._units import (
     FIELD,
+    NOT_INDEPENDENT,
     check_arguments,
     contrasts_of,
     control_label,
     describe_groups,
+    opposite_signs,
     randomization_test,
     resolve_columns,
+    resolve_unit,
     separation_d,
     side_units,
     sides,
@@ -88,6 +106,9 @@ from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
 _NO_CONTROL = "no control group in"
+# Units a side at or below which a d on unit means is printed as unstable.
+FEW_UNITS_D = 3
+_P_ALPHA = 0.05  # the p-value at which contrasts of opposite signs are flagged
 
 
 @dataclass(frozen=True)
@@ -96,10 +117,11 @@ class ConditionContrast:
 
     - ``table``: one row per repeat and condition: fields and observations on
       each side, technical repeats on each side (``technical``,
-      ``control_technical``; 0 without the column), ``d_objects``,
-      ``d_fields``, ``d_technical``, the randomization ``p_value`` over whole
-      units (``permutation_unit``: the technical-repeat column or ``field``,
-      with the ``distinct_assignments`` that exist for technical repeats) and
+      ``control_technical``: units of ``settings["unit"]``, the
+      technical-repeat column or the nested group column; 0 without a unit),
+      ``d_objects``, ``d_fields``, ``d_technical``, the randomization
+      ``p_value`` over whole units (``permutation_unit``: the unit or
+      ``field``, with the ``distinct_assignments`` that exist for units) and
       its Bonferroni-corrected ``p_bonferroni``, whether the p-value is exact
       (``p_exact``: every assignment enumerated), the smallest p-value the
       test can give (``p_floor``), the JCS effect size from every object
@@ -109,7 +131,12 @@ class ConditionContrast:
       the median and interquartile band of the JCS effect size over the draws,
       the share of draws with the sign of ``effect_full``, and for whole
       fields the mean number of acquired fields the objects took (fields
-      without observations included, as a microscope acquires them).
+      without observations included, as a microscope acquires them) and
+      ``resampled``, the unit whose technical repeats the draws resampled
+      with replacement (``None`` when they resample fields only).
+    - ``settings``: the arguments, with ``unit`` (what the test shuffles
+      beyond fields, ``None`` without one), ``unit_note`` (why a group column
+      was not used as the unit) and ``fields_independent``.
     """
 
     table: pd.DataFrame
@@ -117,12 +144,12 @@ class ConditionContrast:
     settings: dict[str, Any]
 
     def summary(self) -> str:
-        """Plain sentences, one paragraph per contrast."""
+        """Plain sentences, one paragraph per contrast, and what the test and draws cannot say."""
         unit = self.settings["observation_unit"]
         words = unit_plural(unit)
         control = self.settings["control"]
         repeat_col = self.settings["repeat_col"]
-        technical_col = self.settings["technical_col"]
+        shared = self.settings.get("unit")
         head = (
             f"Do the conditions differ, and how confidently? Feature {self.settings['feature']}, "
             f"each condition against the control {control}"
@@ -132,8 +159,8 @@ class ConditionContrast:
             "through fields, with the field as the unit"
             + (
                 f" and, where each side has at least two, with the technical repeat "
-                f"({technical_col}) as the unit."
-                if technical_col
+                f"({shared}) as the unit."
+                if shared
                 else "."
             )
         )
@@ -148,7 +175,7 @@ class ConditionContrast:
                 f"{row['condition']} vs {row['control_condition']}"
             )
             technical = ""
-            if technical_col:
+            if shared:
                 technical = (
                     f" in {int(row['technical'])} and {int(row['control_technical'])} "
                     f"technical repeats"
@@ -162,8 +189,14 @@ class ConditionContrast:
                 lines.append(f"{where}: {counts} {row['status']}.")
                 continue
             technical_d = ""
-            if technical_col:
+            if shared and not pd.isna(row["d_technical"]):
                 technical_d = f"; on technical-repeat means {_number(row['d_technical'])}"
+                fewest = min(int(row["technical"]), int(row["control_technical"]))
+                if fewest <= FEW_UNITS_D:
+                    technical_d += (
+                        f" (from {int(row['technical'])} and {int(row['control_technical'])} "
+                        "means, so unstable: a d from so few values can be very large by chance)"
+                    )
             sizes = (
                 f"Cohen's d on {words} {_number(row['d_objects'])}; on field "
                 f"means {_number(row['d_fields'])}{technical_d}."
@@ -172,14 +205,68 @@ class ConditionContrast:
             effects = self._effects_line(row, words)
             if effects:
                 lines.append(effects)
+        lines += self._cautions(words)
         return "\n".join(lines)
+
+    def _cautions(self, words: str) -> list[str]:
+        """What the tests and the draws do not say, and contrasts of opposite signs."""
+        lines = []
+        note = self.settings.get("unit_note")
+        if note:
+            lines.append(f"  Note: {note}.")
+        if (self.table["status"] == NOT_INDEPENDENT).any():
+            lines.append(
+                "  No test where the fields' wells or dishes are unknown: record the "
+                "technical_repeat column (or name the well column in group_cols) to test over "
+                "wells, or pass fields_independent=True (Setup.fields_independent) if the "
+                "fields are independent draws of the condition."
+            )
+        passing = self.table[self.table["p_value"] <= _P_ALPHA]
+        lines += opposite_signs(
+            passing,
+            ["condition"],
+            self.settings["repeat_col"],
+            lambda key: f"{key[0]} differs from the control at p <= {_P_ALPHA:g}",
+        )
+        lines.append(
+            "  The test and the effect sizes compare means: a difference confined to a "
+            f"subpopulation of {words} or to the shape of the distribution is not tested (see "
+            "the unusual observations and the rare label)."
+        )
+        if not self.effects.empty:
+            whole = self.effects[self.effects["sampling"] == WHOLE_FOVS]["resampled"]
+            resampled = whole.dropna().unique().tolist()
+            if resampled:
+                partly = (
+                    "; where a side has fewer than two, they resample its fields only"
+                    if whole.isna().any()
+                    else ""
+                )
+                lines.append(
+                    "  The whole-field draws take the fields of technical repeats "
+                    f"({listing(resampled)}) drawn with replacement, so their same-sign share "
+                    f"includes well-to-well variation{partly}; the random-object draws treat "
+                    f"{words} as independent draws, so their same-sign share is not a "
+                    "confidence in the effect."
+                )
+            else:
+                lines.append(
+                    "  The draws resample these fields and objects, not wells or repeats: a "
+                    "same-sign share describes these fields and is not a confidence in the "
+                    "effect."
+                )
+        return lines
 
     def _test(self, row: dict[str, Any], n_contrasts: int) -> str:
         """The randomization-test sentence of one contrast, or why it has none."""
         if row["status"] != "ok":
             return f"No randomization test: {row['status']}."
         if row["permutation_unit"] == FIELD:
-            shuffled = "whole fields"
+            shuffled = (
+                "whole fields, treated as independent draws as declared (fields_independent; "
+                "if they came from a few wells or dishes, the p-value tests those wells, not "
+                "the condition)"
+            )
         else:
             shuffled = (
                 f"whole technical repeats ({row['permutation_unit']}; only "
@@ -221,7 +308,10 @@ class ConditionContrast:
                 if sampling not in by.index:
                     continue
                 r = by.loc[sampling]
-                bit = f"{sampling} median {r['median']:.2f} (IQR {r['q25']:.2f} to {r['q75']:.2f})"
+                label = sampling
+                if sampling == WHOLE_FOVS and isinstance(r["resampled"], str):
+                    label = f"whole FOVs of resampled technical repeats ({r['resampled']})"
+                bit = f"{label} median {r['median']:.2f} (IQR {r['q25']:.2f} to {r['q75']:.2f})"
                 if not pd.isna(r["same_sign"]):
                     bit += f", same sign in {percent(r['same_sign'])} of draws"
                 if sampling == WHOLE_FOVS:
@@ -240,10 +330,37 @@ def _number(value: float) -> str:
     return f"{value:.2f}"
 
 
+def _unit_sample(
+    units: list[list[np.ndarray]], n: int, rng: np.random.Generator
+) -> tuple[np.ndarray, int]:
+    """``n`` objects from whole technical repeats drawn with replacement, and the fields taken.
+
+    A unit is drawn at random (with replacement, as from a population of wells
+    like these), its fields are taken whole in random order, with a random
+    part of the last one, until ``n`` objects; fields without observations
+    count as acquired.
+    """
+    filled = [u for u in units if sum(len(f) for f in u)]
+    taken, total, fields = [], 0, 0
+    while total < n:
+        unit = filled[int(rng.integers(len(filled)))]
+        for i in rng.permutation(len(unit)):
+            field, need = unit[i], n - total
+            fields += 1
+            if len(field) >= need:
+                taken.append(rng.choice(field, size=need, replace=False))
+                total = n
+                break
+            taken.append(field)
+            total += len(field)
+    return np.concatenate(taken), fields
+
+
 def _effect_rows(
     base: dict[str, Any],
-    t_fields: list[np.ndarray],
-    c_fields: list[np.ndarray],
+    t_units: list[list[np.ndarray]],
+    c_units: list[list[np.ndarray]],
+    resampled: str | None,
     counts: list[int],
     n_draws: int,
     full: float,
@@ -253,27 +370,42 @@ def _effect_rows(
 
     Whole fields are drawn from every acquired field, those without
     observations included, as a microscope stopping at ``n`` objects acquires
-    them too; so ``fields_treated`` counts acquired fields.
+    them too; so ``fields_treated`` counts acquired fields. With
+    ``resampled`` (the technical-repeat column, when both sides hold at least
+    two) the whole-field draws take the fields of technical repeats drawn with
+    replacement (``_unit_sample``), so their spread includes the well-to-well
+    variation.
     """
+    t_fields = [f for u in t_units for f in u]
+    c_fields = [f for u in c_units for f in u]
     t_objects, c_objects = np.concatenate(t_fields), np.concatenate(c_fields)
     n_max = min(len(t_objects), len(c_objects))
     rows = []
     for n in [n for n in counts if n <= n_max]:
         for sampling in (RANDOM_OBJECTS, WHOLE_FOVS):
-            draws = np.empty(n_draws)
+            draws, used = np.empty(n_draws), np.empty(n_draws)
             for i in range(n_draws):
                 if sampling == RANDOM_OBJECTS:
                     t = rng.choice(t_objects, size=n, replace=False)
                     c = rng.choice(c_objects, size=n, replace=False)
+                elif resampled:
+                    t, used[i] = _unit_sample(t_units, n, rng)
+                    c, _ = _unit_sample(c_units, n, rng)
                 else:
                     t = field_sample(t_fields, n, rng)
                     c = field_sample(c_fields, n, rng)
                 draws[i] = jcs_effect_size(t, c)
             defined = draws[np.isfinite(draws)]
+            fields_treated = np.nan
+            if sampling == WHOLE_FOVS:
+                fields_treated = (
+                    float(used.mean()) if resampled else fields_holding(t_fields, n, rng)
+                )
             rows.append(
                 {
                     **base,
                     "sampling": sampling,
+                    "resampled": resampled if sampling == WHOLE_FOVS else None,
                     "n_objects": n,
                     "median": float(np.median(defined)) if len(defined) else np.nan,
                     "q25": float(np.percentile(defined, 25)) if len(defined) else np.nan,
@@ -283,9 +415,7 @@ def _effect_rows(
                         if len(defined) and np.isfinite(full) and full != 0
                         else np.nan
                     ),
-                    "fields_treated": (
-                        fields_holding(t_fields, n, rng) if sampling == WHOLE_FOVS else np.nan
-                    ),
+                    "fields_treated": fields_treated,
                     "draws": len(defined),
                 }
             )
@@ -308,6 +438,7 @@ def condition_contrast(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    fields_independent: bool = False,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
@@ -321,14 +452,17 @@ def condition_contrast(
     technical-repeat column of the FOV table (by default the MorphoBricks
     ``technical_repeat`` column, when present); its technical repeats are
     compared and shuffled as units whatever ``group_cols`` says, an analysis
-    group holding several being split by it (see the module).
-    ``object_counts`` are the JCS sample sizes; counts above what a side
-    holds are left out.
+    group holding several being split by it (see the module). Without it, a
+    group column nested within condition x repeat (a ``well`` column in
+    ``group_cols``) is the unit; without either, there is no randomization
+    test unless ``fields_independent=True`` declares the fields independent
+    draws, when whole fields are shuffled. ``object_counts`` are the JCS
+    sample sizes; counts above what a side holds are left out.
     """
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
     n_permutations, random_state = check_arguments(
-        control, condition_col, n_permutations, random_state
+        control, condition_col, n_permutations, random_state, fields_independent
     )
     n_draws = as_count(n_draws, "n_draws", 2)
     counts = sorted({as_count(n, "object_counts", 2) for n in object_counts})
@@ -338,12 +472,16 @@ def condition_contrast(
     )
     all_groups = groups(data)
     described = describe_groups(all_groups, condition_col, repeat_col, control)
+    unit, unit_note = resolve_unit(data, described, condition_col, repeat_col, technical_col)
     settings = {
         "feature": feature,
         "control": dict(control),
         "condition_col": condition_col,
         "repeat_col": repeat_col,
         "technical_col": technical_col,
+        "unit": unit,
+        "unit_note": unit_note,
+        "fields_independent": bool(fields_independent),
         "object_counts": counts,
         "n_permutations": n_permutations,
         "n_draws": n_draws,
@@ -374,8 +512,10 @@ def condition_contrast(
         c_fields = [f for u in c_units for f in u]
         t_objects, c_objects = np.concatenate(t_fields), np.concatenate(c_fields)
         rng = group_rng(random_state, base)
-        test = randomization_test(t_units, c_units, technical_col, n_permutations, rng)
-        by_unit = test["permutation_unit"] != FIELD
+        test = randomization_test(
+            t_units, c_units, unit, n_permutations, rng, bool(fields_independent)
+        )
+        by_unit = min(test["technical"], test["control_technical"]) >= 2
         row = {
             **base,
             "fields": t_acquired,
@@ -392,8 +532,9 @@ def condition_contrast(
         }
         rows.append(row)
         # The effect sizes do not depend on the test: computed for every contrast.
+        resampled = unit if by_unit else None
         effect_rows += _effect_rows(
-            base, t_fields, c_fields, counts, n_draws, row["effect_full"], rng
+            base, t_units, c_units, resampled, counts, n_draws, row["effect_full"], rng
         )
     table = pd.DataFrame(rows)[_COLUMNS]
     tested = table["p_value"].notna()

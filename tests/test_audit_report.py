@@ -96,6 +96,7 @@ def test_g5_an_undefined_field_d_gets_no_p_value():
         n_permutations=99,
         n_draws=5,
         object_counts=(4,),
+        fields_independent=True,
     )
     row = result.table.iloc[0]
     assert np.isnan(row["p_value"]) and "do not vary" in row["status"]
@@ -110,6 +111,7 @@ def test_g6_a_perfect_separation_ranks_first_at_the_cap():
         control={"condition": "control"},
         group_cols=["condition"],
         n_permutations=199,
+        fields_independent=True,
     )
     assert result.tests["status"].iloc[0] == "ok"
     assert result.ranking["score"].iloc[0] == 20.0 and result.top() == ["x"]
@@ -122,8 +124,11 @@ def test_g7_the_gate_sentence_follows_the_floor():
     text = feature_ranking(
         objects, fovs, features=["y", "x"], control={"condition": "control"}, n_permutations=400
     ).summary()
-    # 70 assignments, 4 wells a side: the split and its mirror give a floor of 2/70.
-    assert "cannot fall below 0.029." in text and "cannot pass the gate" not in text
+    # 70 assignments, 4 wells a side: the split and its mirror give a floor of 2/70,
+    # under the gate; corrected over the 4 tests a lone contrast there gets q = 0.11
+    # (audit 4 D4), which the sentence now says.
+    assert "cannot fall below 0.029;" in text and "cannot pass the gate" not in text
+    assert "a lone contrast at the floor cannot pass" in text
 
 
 def test_g8_a_group_without_labels_is_not_said_to_lack_the_state():

@@ -31,9 +31,7 @@ from morphocoverage.sampling_unit import (
 )
 from morphocoverage.sampling_unit._units import (
     ENUMERATION_BUDGET,
-    field_means,
     permutation_p,
-    separation_d,
     smallest_p,
 )
 from morphocoverage.statistics import cluster_size, design_effect
@@ -192,7 +190,9 @@ def test_h7_a_field_test_that_cannot_pass_the_gate_is_stated():
     spec = [("ctrl", "r1", "w", 3, 0.0, 0.1), ("drug", "r1", "w", 3, 5.0, 0.1)]
     objects, fovs = _without_technical(*_tables(spec, per_field=30))
     objects["y"] = objects["x"] * 2
-    result = feature_ranking(objects, fovs, features=["x", "y"], control=CONTROL)
+    result = feature_ranking(
+        objects, fovs, features=["x", "y"], control=CONTROL, fields_independent=True
+    )
     assert result.tests["p_floor"].tolist() == pytest.approx([0.1, 0.1])
     text = result.summary()
     assert "2 of the tests shuffled so few whole fields that a p-value cannot fall below 0.1" in (
@@ -297,16 +297,14 @@ def test_h13_a_sparse_group_does_not_read_zero_per_field():
 def test_h14_monte_carlo_p_values_never_fall_below_the_floor():
     t = [[np.array([1.0 + 0.01 * i]) for i in range(7)]]
     c = [[np.array([5.0 + 0.01 * i]) for i in range(7)]]
-    observed = abs(separation_d(field_means(t), field_means(c)))
     # 3432 assignments, more than 2000 shuffles but within the budget: enumerated, exact.
     assert 3432 <= ENUMERATION_BUDGET
-    p = permutation_p(t, c, False, observed, 2000, np.random.default_rng(0))
+    p = permutation_p(t, c, False, 2000, np.random.default_rng(0))
     assert p == pytest.approx(smallest_p(7, 7))
     # Beyond the budget the Monte Carlo p-value is floored at the exact test's smallest p.
     t = [[np.array([1.0 + 0.01 * i]) for i in range(12)]]
     c = [[np.array([5.0 + 0.01 * i]) for i in range(12)]]
-    observed = abs(separation_d(field_means(t), field_means(c)))
-    p = permutation_p(t, c, False, observed, 99, np.random.default_rng(0))
+    p = permutation_p(t, c, False, 99, np.random.default_rng(0))
     assert p == pytest.approx(1 / 100) and p >= smallest_p(12, 12)
 
 

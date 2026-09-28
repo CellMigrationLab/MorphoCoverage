@@ -1,18 +1,33 @@
 """Shared helpers of the condition contrast and the feature ranking (private).
 
-Both compare each condition with the declared control per repeat, with the
-technical repeat (the FOV table's ``technical_repeat`` column, or the column
-``technical_col`` names) as the unit when each side holds at least two, else,
-without that column, the whole field. The technical repeat is the unit
-whatever ``group_cols`` says: an analysis group that pools several technical
-repeats is split by the column, since shuffling its fields as if they were
-independent lets a well-to-well shift pass for a condition effect (with three
-wells a side and no condition effect, 42% of such tests gave p <= 0.05). A
-side with a single technical repeat gets no test (its fields cannot stand in
-for technical repeats). The helpers here check the arguments, resolve the
-columns, describe the analysis groups, gather each side's fields by unit, and
-run the randomization test over those units, exactly when the distinct
-assignments are few enough to enumerate.
+Both compare each condition with the declared control per repeat, with a
+unit that fields share as the shuffled unit (``resolve_unit``):
+
+1. the technical repeat (the FOV table's ``technical_repeat`` column, or the
+   column ``technical_col`` names), whatever ``group_cols`` says: an analysis
+   group that pools several technical repeats is split by the column;
+2. otherwise the analysis group, when ``group_cols`` hold columns beyond the
+   condition and the repeat (a ``well`` or ``Metadata_Well`` column, say),
+   nested within condition x repeat (a group is identified with its
+   condition and repeat, as a technical repeat is), and split some condition
+   of a repeat into more than one group;
+3. otherwise no unit: the fields' wells or dishes are unknown, and there is
+   no test unless the caller declares ``fields_independent=True``, when whole
+   fields are shuffled.
+
+Shuffling the fields of a few wells as if they were independent lets a
+well-to-well shift pass for a condition effect (with three wells a side and
+no condition effect, 42% of such tests gave p <= 0.05; with one dish a side,
+57%). A side with a single unit gets no test (its fields cannot stand in for
+technical repeats). The helpers here check the arguments, resolve the
+columns and the unit, describe the analysis groups, gather each side's
+fields by unit in a canonical order (groups by key, fields by FOV key,
+values sorted), so the row order of the tables never changes a draw, and run
+the randomization test over those units, exactly when the distinct
+assignments are few enough to enumerate. The observed statistic is computed
+by the same code as the shuffled ones, so a large constant offset on a
+feature (an integrated intensity, a background level) cannot move the
+p-value.
 
 Shared-private: every public-looking name here is used by ``contrast`` and
 ``ranking`` (and ``FIELD`` by their summaries).
@@ -20,19 +35,21 @@ Shared-private: every public-looking name here is used by ``contrast`` and
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from itertools import combinations
 from math import comb
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from .._checks import as_count, check_seed
 from .._seeds import group_key
+from .._wording import listing
 from ..metadata import REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
 from ..schema import ValidatedInput, fov_values
 from ..statistics import RELATIVE_TOLERANCE, cohen_d, mean_is_zero
-from ._common import no_match_message
+from ._common import canonical_fields, no_match_message
 
 FIELD = "field"
 # Assignments enumerated exactly, whatever n_permutations asks for: below this many the
@@ -41,14 +58,28 @@ ENUMERATION_BUDGET = 20000
 _CHUNK = 4096  # assignments scored at once
 
 
+# Why a contrast without a unit that fields share gets no test (``untested_reason``).
+NOT_INDEPENDENT = (
+    "fields of one dish or well are not independent draws: no technical-repeat column and "
+    "no group column nested within condition x repeat says which fields share a well, so "
+    "shuffling fields would let a well-to-well shift pass for a condition effect"
+)
+
+
 def check_arguments(
-    control: object, condition_col: str, n_permutations: object, random_state: object
+    control: object,
+    condition_col: str,
+    n_permutations: object,
+    random_state: object,
+    fields_independent: object = False,
 ) -> tuple[int, int]:
     """The checks ``condition_contrast`` and ``feature_ranking`` share; the counts as ``int``."""
     if not isinstance(control, Mapping) or not control:
         raise ValueError("control must be a non-empty mapping of FOV-table column to value")
     if condition_col not in control:
         raise ValueError(f"control must name the condition column {condition_col!r}")
+    if not isinstance(fields_independent, (bool, np.bool_)):
+        raise TypeError("fields_independent must be True or False")
     return as_count(n_permutations, "n_permutations", 1), check_seed(random_state)
 
 
@@ -63,7 +94,7 @@ def resolve_columns(
 
     Only a default may be absent: without the ``repeat`` column the whole
     table is one implicit repeat, and without a ``technical_repeat`` column
-    the fields are the units. A column named explicitly that the FOV table
+    ``resolve_unit`` looks for another unit. A column named explicitly that the FOV table
     does not hold (a misspelling, say) raises, since dropping it would pool
     the repeats or compare fields where technical repeats were meant. The
     technical-repeat column need not be an analysis-group column: groups that
@@ -91,16 +122,16 @@ def resolve_columns(
         if technical_col != TECHNICAL_REPEAT_COLUMN:
             raise ValueError(
                 f"technical_col {technical_col!r} is not a column of the FOV table; name the "
-                "technical-repeat column, or pass technical_col=None to compare fields"
+                "technical-repeat column, or pass technical_col=None to go without one"
             )
-        technical_col = None  # the default is absent: the fields are the units
+        technical_col = None  # the default is absent: resolve_unit looks for another unit
     if technical_col is not None:
         unplaced = int(empty_values(data.fovs[technical_col]).sum())
         if unplaced:
             raise ValueError(
                 f"{unplaced} of the {len(data.fovs)} fields have no {technical_col!r} value, "
                 "so their technical repeat is unknown; fill it in, or pass technical_col=None "
-                "to compare fields"
+                "to go without one"
             )
     return repeat_col, technical_col
 
@@ -150,6 +181,42 @@ def contrasts_of(described: list[dict[str, Any]]) -> list[tuple[Any, Any]]:
     )
 
 
+def resolve_unit(
+    data: ValidatedInput,
+    described: list[dict[str, Any]],
+    condition_col: str,
+    repeat_col: str | None,
+    technical_col: str | None,
+) -> tuple[str | None, str | None]:
+    """The unit the test shuffles, and why a group column was not used (else ``None``).
+
+    The technical-repeat column when there is one. Otherwise the analysis
+    group, named by its columns beyond the condition and the repeat (for
+    example ``well``): nested within condition x repeat, since a group is
+    identified with its condition and repeat as a technical repeat is (wells
+    named ``w1``, ``w2`` in every condition are distinct wells), when some
+    condition of a repeat holds more than one such group. Otherwise ``None``:
+    the fields are the only units, and they are shuffled only when the caller
+    declares them independent.
+    """
+    if technical_col is not None:
+        return technical_col, None
+    extras = [c for c in data.group_cols if c not in (condition_col, repeat_col)]
+    if not extras:
+        return None, None
+    name = "/".join(extras)
+    per_side: dict[tuple[str, str], int] = {}
+    for d in described:
+        side = (repr(d["repeat"]), repr(d["condition"]))
+        per_side[side] = per_side.get(side, 0) + 1
+    if max(per_side.values()) < 2:
+        return None, (
+            f"the group column {name} holds one value per condition and repeat, so it "
+            "cannot serve as a unit to shuffle"
+        )
+    return name, None
+
+
 def sides(
     described: list[dict[str, Any]], repeat: Any, condition: Any
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -179,19 +246,24 @@ def side_units(
     One inner list per unit: per analysis group, one per technical repeat
     when there is a technical-repeat column (a technical repeat is identified
     within its analysis group, so well ``A1`` of two groups is two units),
-    else one per group.
+    else one per group. The order is canonical, never the tables' row order:
+    groups by key, technical repeats by label, fields by FOV key
+    (``canonical_fields``) and each field's values sorted, so every draw made
+    from these arrays is the same for the same data.
     """
     by_key = {group_key(g): d for g, d in all_groups}
     units, acquired = [], 0
-    for group in chosen:
-        data = by_key[group_key(group)]
-        per_field = fov_values(data, data.feature_values(feature))
+    for key in sorted(group_key(group) for group in chosen):
+        data = by_key[key]
+        order = canonical_fields(data)
+        values = fov_values(data, data.feature_values(feature))
+        per_field = [np.sort(values[i]) for i in order]
         acquired += len(data.fovs)
         if technical_col is None:
             units.append(per_field)
             continue
-        labels = data.fovs[technical_col].to_numpy()
-        for label in dict.fromkeys(labels.tolist()):
+        labels = data.fovs[technical_col].to_numpy()[order]
+        for label in sorted(dict.fromkeys(labels.tolist()), key=repr):
             units.append([per_field[i] for i in np.flatnonzero(labels == label)])
     return units, acquired
 
@@ -225,33 +297,67 @@ def separation_d(first: np.ndarray, second: np.ndarray) -> float:
     return d
 
 
+def opposite_signs(
+    passing: pd.DataFrame,
+    by: list[str],
+    repeat_col: str | None,
+    what: Callable[[tuple[Any, ...]], str],
+) -> list[str]:
+    """A caution per ``by`` key whose ``passing`` contrasts have opposite signs of ``d_fields``.
+
+    Passing contrasts of one condition that differ from the control in
+    opposite directions in different repeats read as a shift between repeats,
+    wells or dishes, not as a consistent effect; ``what`` words the key.
+    """
+    lines = []
+    signed = passing[~passing["d_fields"].isna()]
+    for key, block in signed.groupby(by, sort=True):
+        if not {-1.0, 1.0} <= set(np.sign(block["d_fields"].to_numpy(dtype=float)).tolist()):
+            continue
+        records = block.to_dict("records")
+        listed = listing([f"{repeat_col}={r['repeat']} (d {r['d_fields']:.2f})" for r in records])
+        lines.append(
+            f"  Caution: {what(key if isinstance(key, tuple) else (key,))} in opposite "
+            f"directions in {listed}: that reads as a shift between repeats, wells or dishes, "
+            "not as a consistent effect of the condition."
+        )
+    return lines
+
+
 def technical_counts(
-    t_units: list[list[np.ndarray]], c_units: list[list[np.ndarray]], technical_col: str | None
+    t_units: list[list[np.ndarray]], c_units: list[list[np.ndarray]], unit: str | None
 ) -> tuple[int, int]:
-    """Technical repeats with observations on each side; ``(0, 0)`` without the column."""
-    if not technical_col:
+    """Units (technical repeats) with observations on each side; ``(0, 0)`` without a unit."""
+    if not unit:
         return 0, 0
     return len(unit_means(t_units)), len(unit_means(c_units))
 
 
 def untested_reason(
-    n_fields: tuple[int, int], n_technical: tuple[int, int], technical_col: str | None
+    n_fields: tuple[int, int],
+    n_technical: tuple[int, int],
+    unit: str | None,
+    fields_independent: bool = False,
 ) -> str | None:
     """Why a contrast gets no randomization test, or ``None`` when it gets one.
 
-    With the technical-repeat column, a side holding a single technical
-    repeat gets no test: shuffling that side's fields would treat them as
-    independent wells, and a well-to-well shift then passes for a condition
-    effect (in a check with no condition effect, 60% of such tests gave
-    p <= 0.05). One well cannot be compared with another condition's wells.
+    With a unit (``resolve_unit``), a side holding a single one gets no test:
+    shuffling that side's fields would treat them as independent wells, and a
+    well-to-well shift then passes for a condition effect (in a check with no
+    condition effect, 60% of such tests gave p <= 0.05). One well cannot be
+    compared with another condition's wells. Without a unit the fields are
+    shuffled only when the caller declared them independent draws
+    (``fields_independent``); otherwise there is no test (``NOT_INDEPENDENT``).
     """
     if min(n_fields) < 2:
         return "fewer than 2 fields with observations on one side"
-    if technical_col and min(n_technical) == 1:
+    if unit and min(n_technical) == 1:
         return (
-            f"only one technical repeat ({technical_col}) with observations on one side: its "
+            f"only one technical repeat ({unit}) with observations on one side: its "
             "fields cannot stand in for technical repeats, so there is no test"
         )
+    if not unit and not fields_independent:
+        return NOT_INDEPENDENT
     return None
 
 
@@ -306,17 +412,27 @@ def _separations(items: list[np.ndarray], inside: np.ndarray) -> np.ndarray:
     return np.where((n1 < 2) | (n2 < 2), np.nan, d)
 
 
-def _extreme(statistic: np.ndarray, observed: float) -> int:
+def _extreme(statistic: np.ndarray, observed: float, tolerance: float) -> int:
     """How many statistics are at least as extreme as the observed one.
 
-    Ties count, also when rounding put them just below (the observed |d| and
-    a shuffle's are computed differently), and an infinite statistic equals
-    an infinite observed one; NaN never counts.
+    Ties count, also when rounding put them just below (by ``tolerance``,
+    relative), and an infinite statistic equals an infinite observed one;
+    NaN never counts.
     """
     hit = statistic == observed
     if np.isfinite(observed):
-        hit |= statistic >= observed - RELATIVE_TOLERANCE * observed
+        hit |= statistic >= observed - tolerance * observed
     return int(np.count_nonzero(hit))
+
+
+def _tie_tolerance(items: list[np.ndarray]) -> float:
+    """The relative tolerance of a tie between two |d|: ``RELATIVE_TOLERANCE`` scaled by
+    how far the values sit from zero in units of their spread (``max(1, |mean| / SD)``),
+    since centring values with a large offset loses that many digits."""
+    means = np.concatenate(items)
+    spread = float(np.std(means))
+    ratio = float(np.mean(np.abs(means))) / spread if spread > 0 else 1.0
+    return RELATIVE_TOLERANCE * max(1.0, ratio)
 
 
 def _assignments(chosen: Iterator[tuple[int, ...]] | np.ndarray, n: int) -> Iterator[np.ndarray]:
@@ -355,14 +471,17 @@ def permutation_p(
     t_units: list[list[np.ndarray]],
     c_units: list[list[np.ndarray]],
     by_unit: bool,
-    observed: float,
     n_permutations: int,
     rng: np.random.Generator,
 ) -> float:
     """The randomization p-value of the absolute Cohen's d on field means.
 
     The statistic is ``separation_d``, so a shuffle that separates the sides
-    perfectly counts as at least as extreme as a perfectly separated observation.
+    perfectly counts as at least as extreme as a perfectly separated
+    observation. The observed |d| is the statistic of the observed
+    assignment computed by the same code as every shuffle (``_separations``),
+    so it always counts itself, whatever constant the values carry; ties are
+    judged with ``_tie_tolerance``.
 
     ``by_unit`` shuffles whole technical repeats (each keeps its fields; those
     without observations carry no label that matters and are left out);
@@ -371,23 +490,29 @@ def permutation_p(
     ``ENUMERATION_BUDGET``, every one is enumerated and the p-value is exact:
     the share of assignments at least as extreme as the observed one, which
     is among them. Otherwise it is ``(extreme + 1) / (n + 1)`` over
-    ``n_permutations`` random shuffles, as in Plot&Stats, never below the
-    smallest p-value the exact test can give (``smallest_p``).
+    ``n_permutations`` random shuffles, as in Plot&Stats. Either is never
+    below the smallest p-value the exact test can give (``smallest_p``).
     """
     items, n_treated = _shuffled_items(t_units, c_units, by_unit)
     n = len(items)
     total = comb(n, n_treated)
+    floor = smallest_p(n_treated, n - n_treated)
+    observed = float(_separations(items, _membership([list(range(n_treated))], n))[0])
+    if np.isnan(observed):
+        return 1.0  # the observed sides do not separate at all (a flat feature)
+    tolerance = _tie_tolerance(items)
     if is_exact(total, n_permutations):
         extreme = sum(
-            _extreme(_separations(items, inside), observed)
+            _extreme(_separations(items, inside), observed, tolerance)
             for inside in _assignments(combinations(range(n), n_treated), n)
         )
-        return extreme / total
+        return max(extreme / total, floor)
     draws = np.array([rng.permutation(n)[:n_treated] for _ in range(n_permutations)])
     extreme = sum(
-        _extreme(_separations(items, inside), observed) for inside in _assignments(draws, n)
+        _extreme(_separations(items, inside), observed, tolerance)
+        for inside in _assignments(draws, n)
     )
-    return max((extreme + 1) / (n_permutations + 1), smallest_p(n_treated, n - n_treated))
+    return max((extreme + 1) / (n_permutations + 1), floor)
 
 
 def relabellings(
@@ -401,21 +526,24 @@ def relabellings(
 def randomization_test(
     t_units: list[list[np.ndarray]],
     c_units: list[list[np.ndarray]],
-    technical_col: str | None,
+    unit: str | None,
     n_permutations: int,
     rng: np.random.Generator,
+    fields_independent: bool = False,
 ) -> dict[str, Any]:
     """The field-level d and the randomization test of one contrast, as table columns.
 
-    ``technical``/``control_technical`` count the technical repeats with
+    ``unit`` is what ``resolve_unit`` returned. ``technical``/
+    ``control_technical`` count the units (technical repeats) with
     observations, ``d_fields`` is ``separation_d`` on field means, and the
-    test shuffles whole technical repeats when each side holds at least two
-    (``permutation_unit`` is then the column, with its
-    ``distinct_assignments``), else whole fields. ``p_floor`` is the smallest
+    test shuffles whole units when each side holds at least two
+    (``permutation_unit`` is then the unit, with its
+    ``distinct_assignments``), else, without a unit and with
+    ``fields_independent``, whole fields. ``p_floor`` is the smallest
     p-value the test can give with these units (``smallest_p``); ``status``
     is ``"ok"`` or why there is no test (``p_value`` NaN).
     """
-    n_technical = technical_counts(t_units, c_units, technical_col)
+    n_technical = technical_counts(t_units, c_units, unit)
     by_unit = min(n_technical) >= 2
     t_means, c_means = field_means(t_units), field_means(c_units)
     row: dict[str, Any] = {
@@ -423,14 +551,14 @@ def randomization_test(
         "control_technical": n_technical[1],
         # The measure feature_ranking scores: a perfect separation is an infinite d.
         "d_fields": separation_d(t_means, c_means),
-        "permutation_unit": technical_col if by_unit else FIELD,
+        "permutation_unit": unit if by_unit else FIELD,
         "distinct_assignments": comb(sum(n_technical), n_technical[0]) if by_unit else np.nan,
         "p_value": np.nan,
         "p_exact": False,
         "p_floor": np.nan,
         "status": "ok",
     }
-    reason = untested_reason((len(t_means), len(c_means)), n_technical, technical_col)
+    reason = untested_reason((len(t_means), len(c_means)), n_technical, unit, fields_independent)
     if reason is not None:
         row["status"] = reason
         return row
@@ -441,7 +569,5 @@ def randomization_test(
     shuffled = n_technical if by_unit else (len(t_means), len(c_means))
     row["p_floor"] = smallest_p(*shuffled)
     row["p_exact"] = is_exact(relabellings(t_units, c_units, by_unit), n_permutations)
-    row["p_value"] = permutation_p(
-        t_units, c_units, by_unit, abs(row["d_fields"]), n_permutations, rng
-    )
+    row["p_value"] = permutation_p(t_units, c_units, by_unit, n_permutations, rng)
     return row
