@@ -61,10 +61,17 @@ One call to `add_fov` is one independently selected XY acquisition position.
 All observations belonging to that position are supplied together. If features
 were computed slice-by-slice, channel-by-channel or frame-by-frame, the rows
 may carry z/c/t metadata but must share the same FOV/position identity.
-When the FOV column was chosen automatically as `image_file` or `fov_id`, the
-session keeps each field's z/c/t values and applies the validator's
-plane-as-field rule to every field so far, so z-planes sent as separate files
-raise instead of counting as fields. `add_fov` is atomic: a field refused by
+The session resolves the FOV identifier and the group columns as
+`validate_input_tables` does, with the same resolvers, over the new field's
+observations and its `fov_metadata` row: a MorphoBricks column (`condition`,
+`position_id`, ...) in the observations but not in the row is refused, and
+identity values given only in the row are copied onto the observations, which
+all belong to that field. When the
+FOV column was chosen automatically as `image_file` or `fov_id`, the session
+keeps each field's z/c/t values (from the observations, or from the row) and
+applies the validator's plane-as-field rule to every field so far, so
+z-planes sent as separate files raise instead of counting as fields (with one
+observation per field, a warning). `add_fov` is atomic: a field refused by
 validation or by any estimator leaves the session as it was, and can be added
 again once corrected.
 
@@ -74,7 +81,8 @@ the declared feature columns.
 ## Conditions and repeats
 
 The same session can receive FOVs from several analysis groups. With the
-MorphoBricks defaults, `condition × repeat` is resolved automatically and
+MorphoBricks defaults, `condition`, `repeat` and, when present,
+`technical_repeat` are resolved automatically as the analysis groups, and
 each group has independent estimator state.
 
 No evidence is shared between groups unless the caller deliberately chooses a

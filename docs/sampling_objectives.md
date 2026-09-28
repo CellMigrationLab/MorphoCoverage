@@ -34,8 +34,11 @@ Evidence about it is tagged `distribution`: the FOV-bootstrap uncertainty of
 the covariance, the quantiles and the PCA summaries (the centroid stays
 population evidence), the support-novelty quantities (a field showing a state
 no other field supports), the incidence coverage of labelled states, and the
-JCS descriptor rules whenever a spread descriptor (SD or IQR) is among the
-descriptors watched (location descriptors alone are population evidence).
+JCS descriptor rules' range of the spread descriptors (SD, IQR:
+`max_scale_range`, `max_scale_spread`). Their range of the location
+descriptors (mean, median: `max_location_range`, `max_location_spread`) is
+population evidence, so with the paper's four descriptors a JCS rule answers
+both targets.
 
 ## Rare-phenotype discovery
 
@@ -77,11 +80,11 @@ rather than collapsing both into one opaque coverage percentage.
 
 ## How objectives are answered
 
-Estimators report quantities tagged with the component they are evidence about (`population` or `rare`); decision policies decide one component each. The framework combines them:
+Estimators report quantities tagged with the component they are evidence about (`population`, `distribution` or `rare`); decision policies decide one component each. The framework combines them:
 
 - each objective needs a decision for every component in the table above;
 - an objective with several components stops only when every one stops;
-- a required component with no evidence of that kind gives `unsupported`, never `stop`. The current-practice baselines are population rules, so under `rare_discovery` or `distribution` they return `unsupported`, while still reporting their own verdict;
+- a required component with no evidence of that kind gives `unsupported`, never `stop`. Among the current-practice baselines, the JCB rule and the fixed counts are population rules, so under `distribution` they return `unsupported`; the JCS descriptor rules are population evidence from their location descriptors and distribution evidence from their spread descriptors, so with the default descriptors they decide both. Under `rare_discovery` every baseline returns `unsupported`, while still reporting its own verdict;
 - a quantity that needs more data gives `continue`; one that is undefined for the data gives `None`.
 
 Every result therefore carries two decisions. `decision` is the objective's,

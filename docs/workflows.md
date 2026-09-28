@@ -43,21 +43,37 @@ setup = Setup(
 Every field left at `None` switches off the analyses that need it. The report
 then says "Not assessed" and names what would be needed. The stopping rules
 default to the JCB rule (upper-95 SD, first tolerance), per object and per
-field; pass `rules=(...)` to assess others.
+field; pass `rules=(...)` to assess others. `random_state` (default 0) seeds
+every random procedure the workflows run, the report's random orders
+included, and `minimum_detection` (default 0.9, a provisional preset) is the
+share of positive-control checks the representation must recognize before the
+adequacy answers are read without a warning. A `PositiveControl` without
+`pair_cols` pairs its fields with reference fields within each repeat when the
+FOV table has a repeat column; `pair_cols=()` pools the repeats, as an
+explicit request. The declaration prints every such preset.
+
+Features measured plane by plane are split before the `Setup`:
+`morphocoverage.planes_as_features` turns `area` into `area_z0`, `area_z1`,
+... (objects matched by `label_id`), and those names are the `readout` and
+`features` declared here ([`data_format.md`](data_format.md#features-measured-per-plane)).
 
 ### Normalising to the control
 
 `normalize="control_mean"` divides every declared column (the readout and
 the features) by the mean of the control condition's objects of the same
-repeat before any retrospective analysis, as the JCB rule and the lab's
-Plot&Stats notebook express values (`morphocoverage.normalize`). It needs
+repeat, for the analyses that compare values across repeats (below), as the
+JCB rule and the lab's Plot&Stats notebook express values
+(`morphocoverage.normalize`). It needs
 `control` to name the condition column, every repeat must hold control
 objects (a repeat without them raises, since mixing scales inside one
 analysis would be worse than stopping), and the report's overview and the
 declaration say that the values are normalised. A control mean that is zero
 (up to rounding), negative or undefined by missing values is refused, naming
 the feature and the repeat: dividing by it has no meaning or flips the sign of
-every effect, so compare a signed feature (a velocity, a log-ratio) raw. The normalised values are used
+every effect, so compare a signed feature (a velocity, a log-ratio) raw. When
+the control objects hold negative values but their mean is positive, the
+values are still divided, with a warning that they are then not multiples of
+the control, and the sentence on normalised values says so (`Caution: ...`). The normalised values are used
 only where values are compared across repeats: the outcome criteria judged on
 held-back fields, the condition contrast, the feature ranking and the plots.
 Every stopping rule runs on the raw values, in `report`, `optimise` and
@@ -159,8 +175,10 @@ within each condition the biological repeats (the `repeat` column) sit side
 by side, labelled above their cluster, so that a difference between
 conditions can be read against the spread between repeats. Every object is
 a jittered point coloured by technical repeat (`technical_col`, by default
-the MorphoBricks `technical_repeat` column, else the group column below the
-repeat: a well is a technical repeat, never a biological one), and each
+the MorphoBricks `technical_repeat` column; another column, such as a `well`
+group column, is used only when named, `plots(..., technical_col="well")`,
+and an analysis-group column the figure does not place raises: a well is a
+technical repeat, never a biological one), and each
 biological repeat's median (or `summary="mean"`) carries its 95% interval
 from resampling that repeat's whole technical repeats, each with its fields
 as acquired (Ren et al. 2010; whole fields alone when there is one technical
@@ -169,7 +187,9 @@ interval, and the title says so), never objects, so
 it reflects how the data were sampled: a well-to-well shift widens the
 interval instead of passing for field-to-field noise. More than 12 conditions
 are split over several figures, more than 8 biological repeats are pooled
-into one cluster per condition and the title says so, more than 8
+into one cluster per condition and the title says so (a pooled cluster
+resamples its repeats alone, each with all its fields, so the technical
+repeats' variance is not counted twice), more than 8
 technical repeats go uncoloured with a note, and more than 24 features
 raise so that you choose; all four are arguments (`max_conditions`,
 `max_repeats`, `max_technical`, `max_features`), and `max_technical` above 8,
@@ -188,8 +208,10 @@ confidently?": each condition against the control, per repeat, with Cohen's
 d and the JCS effect size computed on objects (the numbers of the lab's
 Plot&Stats notebook) and with the field as the unit, and a randomization test
 that shuffles condition labels over whole technical repeats when each side
-has at least two (a `technical_repeat` column among the group columns), else
-over whole fields. It describes what these fields support; generalizing
+has at least two (the FOV table's `technical_repeat` column, whatever
+`group_cols` says). A side with a single technical repeat gets no test, since
+its fields cannot stand in for wells, and its effect sizes are still
+reported; only without a technical-repeat column are whole fields shuffled. It describes what these fields support; generalizing
 needs independent repeats. With several declared features the section also
 ranks them (`sampling_unit.feature_ranking`), as fiberfeatures scores a
 feature set: the same test for every feature and contrast, Benjamini-Hochberg
@@ -207,6 +229,11 @@ plan = optimise(objects, fovs, setup, fov_counts=[2, 4, 8, 12], reservoir_fracti
 print(plan.summary())                         # questions 4, 5, 7, 8 and the rule calibration
 print(document(result, plan).summary())       # one report with every question
 ```
+
+`document` refuses a report and a plan computed under different setups
+(`n_jobs` aside), since the declaration it prints first must be the one every
+answer was computed under; each part's settings sentence is kept among the
+closing notes.
 
 When the FOV table has a `technical_repeat` column and no `hierarchy` is
 declared, `optimise` derives one (the field within the technical repeat
@@ -241,10 +268,12 @@ print(bench.summary())
 ```
 
 `default_families(setup.readout)` holds the rule families and threshold grids
-of the locked protocol (version 3, whose grids are those of versions 1 and 2): the JCB rule and the JCS descriptor
+of the locked protocol (version 4, whose grids are those of versions 1 to 3): the JCB rule and the JCS descriptor
 spread, each per object and per field, and the FOV bootstrap of the mean
 (on the readout only, whatever other features are declared).
-Pass `families=` to compare others.
+`default_families` takes `random_state` for its resampling rules; `benchmark`
+passes `Setup.random_state`, and the locked protocol uses 0. Pass `families=`
+to compare others.
 
 Tuning belongs on development data and scoring on held-out data
 ([`benchmarking.md`](benchmarking.md)). The workflow does not know a
@@ -327,8 +356,12 @@ the FOV row signals that a field is complete:
   been read raises an error.
 
 `key` names the columns that link an object row to its field. By default it
-is the session's FOV column plus its group columns present in both tables:
-condition, repeat and, when it holds values, `technical_repeat`. A key column holding numbers in one table and text in the other
+is the field identity, resolved with the validator's own resolvers: the
+session's group columns, then the MorphoBricks condition, repeat and, when it
+holds values, `technical_repeat` present in both tables, then the FOV column,
+so well `B02` of two repeats is two fields even when `group_cols` pool the
+repeats. It is resolved once the FOV table has a row, so objects appended
+before the first FOV row wait without fixing it. A key column holding numbers in one table and text in the other
 (`1` against `"1"`) raises an error, because those values never match. Objects
 still waiting for their FOV row are counted in each update's summary.
 

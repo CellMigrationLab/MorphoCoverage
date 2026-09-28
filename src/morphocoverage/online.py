@@ -334,8 +334,10 @@ class OnlineSession:
 
         The FOV identifier and group columns are resolved from both the
         observations and ``fov_metadata``, as ``validate_input_tables`` resolves
-        them: a MorphoBricks column (``position_id``, ``condition``, ...) present
-        in only one of them is refused. When the FOV identifier is resolved
+        them: a MorphoBricks column (``position_id``, ``condition``, ...) on
+        the observations but not in ``fov_metadata`` is refused, and identity
+        values given only in ``fov_metadata`` are copied onto the observations
+        (they all belong to this FOV). When the FOV identifier is resolved
         automatically to ``image_file`` or ``fov_id``, the validator's
         plane-as-FOV rule is applied to all FOVs added so far: FOVs that each
         hold a single, differing ``z``/``c``/``t`` value (on the observations or
