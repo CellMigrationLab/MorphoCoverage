@@ -13,7 +13,9 @@ Column names follow the MorphoBricks shared contract (`AGENTS.md` §5). The
 validator is `morphocoverage.validate_input_tables`; every workflow
 (`report`, `optimise`, `benchmark`, `plots`, `live_session`) calls it, so the
 rules below hold everywhere. Check your tables before a first analysis with
-`morphocoverage.check_tables` (see [Checking your tables](#checking-your-tables)).
+`morphocoverage.check_tables` (see [Checking your tables](#checking-your-tables));
+`report`, `optimise`, `benchmark` and `plots` also run it and pass its
+warnings on (the report prints them at the end of its overview).
 
 ## Mandatory columns
 
@@ -38,13 +40,14 @@ result.
 | `condition` | both, or FOV table only | string | Experimental group. A default analysis group and part of field identity. Needed to declare a control (`Setup.control`), to normalise to it, and for the condition contrast. |
 | `repeat` | both, or FOV table only | string | Biological repeat, `YYYY_MM_DD` or `single` in MorphoBricks; any label is accepted. A default analysis group and part of field identity. Normalisation and the condition contrast work within each repeat. |
 | `technical_repeat` | both, or FOV table only | string | Technical repeat within the biological repeat: a well, a dish, a coverslip. Never a biological repeat. A default analysis group and part of field identity. The overview counts technical repeats. Plots colour points by them and resample them before fields. The contrast shuffles whole technical repeats when each side has at least two. `Setup` derives the hierarchy "field within technical repeat within repeat" from it, for "more fields or more technical repeats?". `single` means one technical repeat per repeat. |
-| other group columns | both, or FOV table only | any | Named with `group_cols`, for example `batch`. Each combination of group values is analysed apart. |
-| `z`, `c`, `t` (or `z0`, `z1`) | observations | integer | Plane, channel and time point within one position. Required when one position spans several files, so the files can be told apart. Never new fields, and never features: naming one in `feature_cols` raises (see [Features measured per plane](#features-measured-per-plane)). Read in lowercase only, so a column `Z` raises as a near miss. |
+| other group columns | both, or FOV table only | any | Named with `group_cols`, for example `batch`. Each combination of group values is analysed apart. Without a `technical_repeat` column, one nested within condition and repeat (a `well` column) is the unit the condition contrast shuffles. |
+| `z`, `c`, `t` (or `z0`, `z1`) | observations | integer | Plane, channel and time point within one position. Required when one position spans several files, so the files can be told apart. Never new fields, and never features: naming one in `feature_cols` raises. Rows of several planes, channels or time points in one field are refused unless each row measures a whole plane (see [Planes are not fields](#rules-the-validator-enforces) and [Features measured per plane](#features-measured-per-plane)). Read in lowercase only, so a column `Z`, `Metadata_Z`, `plane`, `slice`, `channel` or `frame` raises as a near miss. |
 | acquisition order | FOV table | numeric, datetime or timedelta | Named with `acquisition_order_col` (MorphoBricks suggests `acquisition_order`). The recorded order in which fields are replayed; text is refused, since it would sort `'10'` before `'2'`. Without it only random orders are replayed. |
 | stage coordinates | FOV table | numeric, finite | Named with `stage_cols` (MorphoBricks suggests `stage_x`, `stage_y`). Used for dispersed orders, stage travel, redundancy distance and spatial blocks; an infinite coordinate raises. |
 | imaged area | FOV table | numeric, positive | Named on `FixedAreaStrategy`. The physical area of each field, for area-based stopping. A missing, infinite, zero or negative area makes the rule not applicable, and a text column raises; a benchmark record's effort refuses all of them. |
 | a rare-state label | observations | boolean or 0/1 | Named with `Setup.rare_label`. An independent label of the rare phenotype, so held-back fields can judge whether it was seen. |
-| `label_id`, `mask_file`, `patch_file` | observations | any | Provenance, kept for tracing an observation back to its image; never features. |
+| `label_id`, `mask_file`, `patch_file` | observations | any | Provenance, kept for tracing an observation back to its image; never features. `check_tables` also reads CellProfiler's `ObjectNumber`, `object_id` or `label` as the object label. |
+| `valid`, `reason` | observations | boolean, text | CellPatcher marks a patch it could not cut with `valid=False`. Such rows are still analysed as observations, so the validator warns (`InvalidRowsWarning`); filter them out first if they are not meant. |
 
 ## Rules the validator enforces
 
@@ -54,8 +57,13 @@ result.
   `technicalRepeat` or `PositionID` (camelCase), `technical.repeat` (a dot),
   `Conditions` (a plural), `condition ` (a trailing space), `Repeat.1` (the
   copy pandas names when a file has two `Repeat` columns), `Z` for `z`, or a
-  byte-order mark that a spreadsheet wrote before the first header. Name the
-  column in `group_cols` or `fov_col` to use it anyway.
+  byte-order mark that a spreadsheet wrote before the first header.
+  CellProfiler's `Metadata_` prefix before such a name (`Metadata_Z`,
+  `Metadata_condition`) and the other names of a plane, channel or time
+  point (`plane`, `slice`, `channel`, `frame`, `timepoint`, ...) are near
+  misses too, since such a column would otherwise be ignored and its planes
+  counted as fields. Name the column in `group_cols` or `fov_col` to use it
+  anyway.
 - **Each column name once.** A table with two columns of the same name (as
   `pd.concat(axis=1)` can make) raises before anything else, and so does a
   column named twice in `feature_cols` or `group_cols`. Features are an
@@ -94,7 +102,21 @@ result.
   field this raises, with one row per field it is a warning. A FOV-table `z`
   or `t` counts only when one of its values recurs in several fields, since a
   stage height or an acquisition time distinct in every field is not a plane.
-  Supply `position_id`, or pass `fov_col` if each file really is one position.
+  File names that differ only by a plane, channel or frame token (`pos_z01.tif`
+  and `pos_z02.tif`, Operetta's `...p01-ch1sk1...`) give a warning. Supply
+  `position_id`, or pass `fov_col` if each file really is one position.
+- **Planes within a field are not new observations.** When the rows of one
+  field carry several values of `z`, `c` or `t` (or `z0`), an object measured
+  in five planes would count as five objects, so the table is refused, unless
+  `observation_unit` is `"slice"`, `"plane"` or `"frame"` (each row measures a
+  whole plane). Turn each feature into one per plane with
+  [`planes_as_features`](#features-measured-per-plane), keep one plane, or
+  declare the plane-level unit.
+- **One field is one stage position.** When the field identifier was chosen
+  automatically and a position-like column (`series`, `scene`, `site`,
+  `position`, with or without `Metadata_`) varies within a field, one file
+  holds several positions (a `.nd2`, `.czi` or `.lif`), and the table is
+  refused: supply `position_id`, one value per stage position.
 - **Declare what a row is.** Pass `observation_unit` (`"cell"`, `"nucleus"`,
   `"patch"`, ...) when rows are not ordinary objects. Otherwise every sentence
   says "object" and records that the unit was assumed.
@@ -149,16 +171,30 @@ Warnings do not stop it but are often mistakes:
 - fields with no observation, so you can confirm that they are real empty
   fields and not failed images;
 - an observation table with no rows;
-- rows that are exact copies of another row (a file read twice), or a
-  `label_id` twice in one field;
-- group labels within one table that differ only in spaces, case, or number
-  against text (`'drug'`, `'drug '` and `'Drug'`; `1` and `'1'`), which are
-  analysed as separate groups;
+- rows that are exact copies of another row (a file read twice; rows with no
+  feature value, such as failed segmentations, are left out);
+- observations that repeat another of the same field in every feature while
+  another column differs (a merge with a table that has one row per channel,
+  or a table appended to itself with a fresh index);
+- an object label (`label_id`, `ObjectNumber`, `object_id` or `label`) twice
+  in one field, and, for fields named by multi-position files (`.nd2`,
+  `.czi`, `.lif`, ...), a `label_id` that repeats within one file;
+- group labels within one table that differ only in spaces, case, zero
+  padding or number against text (`'drug'`, `'drug '` and `'Drug'`; `'B2'`
+  and `'B02'`; `1` and `'1'`), which are analysed as separate groups;
+- a column that is not an analysis group but looks like one: constant within
+  each field and splitting a group into blocks (an undeclared `well` or
+  `plate` column, whose fields are then pooled);
+- a technical repeat (a well) that holds no observation in any field, which
+  was probably never imaged;
+- a plate well named in several conditions of one repeat (a plate-map
+  typo, or different plates with the same well names);
 - features with missing values;
 - repeats without the declared control (checked against the fields in the
   observations when there is no FOV table);
-- one row per file with its own `z`, `c` or `t`, which may be planes counted
-  as fields.
+- one row per file with its own `z`, `c` or `t`, or file names that differ
+  only by a plane token, which may be planes counted as fields;
+- observations marked `valid=False` by CellPatcher.
 
 `data/synthetic` holds a small acquisition whose answers are known, and
 `tests/test_human_errors.py` breaks it in each of these ways; read the test
@@ -234,9 +270,14 @@ every plane, as a 3D segmentation or a 2D one tracked across planes gives.
 Labels that restart in each plane without tracking do not name one object,
 and nothing in the table can tell; the pivot refuses what it can see: a
 missing identifier, a label twice in one plane of a field, or an object
-missing from a plane that other objects were measured in. `axes=("z", "c")`
-splits along two axes (`area_z0_c1`). The FOV table is unchanged, and each
-field stays one FOV.
+missing from a plane that other objects were measured in. An object that
+spans only some planes of a stack (or stacks of different depth) can be kept
+with `allow_missing_planes=True` (opt-in): its features in the missing planes
+are missing values (NaN), treated as any missing value. CellPatcher writes a
+patch's plane as `z0` (with `z1 = z0 + 1`); without a `z` column, `z0` is the
+`z` axis (names still say `area_z0`), and a patch spanning several planes is
+refused. `axes=("z", "c")` splits along two axes (`area_z0_c1`). The FOV
+table is unchanged, and each field stays one FOV.
 
 ## From a CellPatcher export
 

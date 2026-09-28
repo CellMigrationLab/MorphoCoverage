@@ -13,9 +13,11 @@ slice. The detailed numbers, the methods and their limits are in
 ## The question
 
 Two published guides tell microscopists how many objects they need: Zweifach
-in JCB (2024) and Marcotti and colleagues in JCS (2026). Both say, in effect,
-"measure a few hundred cells and you are done; imaging more wastes time and
-money."
+in JCB (2024) and Marcotti and colleagues in JCS (2026). The JCB guide gives a
+formula for the number of objects to average, which on our data asks for 2
+to 8 objects in one dataset and 28 to 112 in the other. The JCS guide
+observes, in its case study, that a few hundred cells were enough and that
+imaging more wastes time and money.
 
 Both guides assume the objects are picked at random from the whole well. The
 JCS paper makes its case by imaging the whole well first, then picking cells
@@ -36,18 +38,21 @@ and changed only that one thing.
    each other more than objects from across the well. As a result, 250
    objects from one or two pictures tell you less than 250 objects picked at
    random. In the JCS dataset, an average taken from pictures was typically
-   about twice as uncertain as the JCB formula promises, and up to four times
-   in some wells. In the second dataset (idr0028) it was about one and a half
-   times.
+   about twice as uncertain as the JCB formula promises. In the second dataset
+   (idr0028) it was about one and a half times. The differences between wells
+   are mostly the noise of measuring this from 4 (or 28) pictures per well,
+   not wells that differ, so read the typical value only.
 
 2. **Whether that matters depends on the picture.** In the second dataset
    each picture holds only about 30 objects, so 200 objects means about 8
-   pictures spread over the well. That behaves almost like random objects,
-   and the papers' advice works. In the JCS dataset each picture holds about
+   pictures spread over the well. The error is still about one and a half
+   times what random objects give, but it stays small enough for the 5%
+   target, and the papers' advice works. In the JCS dataset each picture holds about
    270 objects, so 250 objects is just one or two pictures, and the advice
    breaks down.
 
-3. **The JCB rule misses its own target.** The rule is designed to keep the
+3. **The JCB rule misses its target when its objects come as whole
+   pictures.** The rule is designed to keep the
    error of an average below 5%, or 2.5% for paired experiments. In the JCS
    dataset, the objects it asks for fit in one picture. That one picture met
    the 5% target in 8 of 10 wells, but the 2.5% target in only 2 of 10.
@@ -71,10 +76,11 @@ and changed only that one thing.
    only 66% with 500 objects. The large effect of the positive control,
    leptomycin B, came out right every time either way.
 
-6. **Unusual objects often sit together.** We flagged objects that look
-   unlike the control objects, a stand-in for rare states. In 5 of the 12
-   wells of the second dataset, those objects were packed into a few pictures
-   instead of spread across the well. In those wells, seeing them reliably
+6. **Unusual objects sometimes sit together.** We flagged objects that look
+   unlike the control objects, a stand-in for rare states. In 3 of the 12
+   wells of the second dataset (3 to 4 across seeds), those objects were
+   packed into a few pictures instead of spread across the well; by chance
+   alone, fewer than one well would be. In those wells, seeing them reliably
    takes about twice as many pictures as counting objects would suggest. In
    one well, 7 unusual objects sat in just 3 of 28 pictures: seeing them with
    95% confidence would take about 27 pictures, where counting objects

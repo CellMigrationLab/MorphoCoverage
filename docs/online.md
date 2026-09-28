@@ -52,7 +52,14 @@ arrive ([`workflows.md`](workflows.md#online-continue-or-stop-while-the-microsco
 
 In both sources, the FOV row (a manifest line, or a row of the FOV table) is
 the signal that a field is complete. Its objects are added together, through
-`add_fov`.
+`add_fov`. `watch(until_stop=True)` returns once every rule says stop in every
+group seen so far (`until_stop="latest_group"`: in the latest field's group),
+and fields are added one at a time, so a backlog is not added past the stop.
+A manifest that is rewritten or truncated under the watcher raises, a line
+repeated exactly is skipped with a warning, a field with rows copied or a
+`label_id` twice is added with a warning, and `LiveTables` refuses a key that
+names two fields (file names that restart in each well without a well
+column in the key).
 
 ## What one update means
 
