@@ -11,18 +11,24 @@ framework combines component decisions per objective:
 - overall: ``UNSUPPORTED`` if any required component is, else ``None`` if any
   is undefined, ``STOP`` if all stop, otherwise ``CONTINUE``. ``balanced``
   therefore stops only when both population and rare components stop.
+
+Both combinations are ``results.combine_decisions``. ``describe`` and
+``strategy_config_id`` (the provenance entry of an estimator or policy, and the
+id of an estimator-plus-policy combination) live here rather than in
+``strategies.base`` because ``redecide`` rebuilds a strategy's configuration
+from them without importing the strategies; ``strategies.base`` imports them
+from here.
 """
 
 from __future__ import annotations
 
 import math
-import numbers
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
-from ._checks import is_integer
+from ._checks import is_integer, is_number
 from .evidence import Availability, Component, Direction, Evidence
 from .objectives import ObjectiveConfig
 from .provenance import class_identity, config_hash
@@ -105,7 +111,7 @@ class ThresholdPolicy(DecisionPolicy):
     def __post_init__(self) -> None:
         if not isinstance(self.quantity, str) or not self.quantity:
             raise TypeError("quantity must be the name of an evidence quantity")
-        if isinstance(self.threshold, bool) or not isinstance(self.threshold, numbers.Real):
+        if not is_number(self.threshold):
             raise TypeError("threshold must be a number")
         if not math.isfinite(self.threshold):
             raise ValueError("threshold must be finite")
@@ -183,11 +189,6 @@ class EffortPolicy(DecisionPolicy):
         return self.component, Decision.STOP if reached else Decision.CONTINUE
 
 
-def _combine(decisions: Sequence[Decision | None]) -> Decision | None:
-    """Undefined if any decision is, stop if all stop, otherwise continue."""
-    return combine_decisions(decisions)
-
-
 def decide(
     evidence: Evidence,
     effort: Effort,
@@ -221,7 +222,7 @@ def decide(
         by_component.setdefault(component, []).append(decision)
 
     per_component: dict[Component, Decision | None] = {
-        component: _combine(decisions) for component, decisions in by_component.items()
+        component: combine_decisions(decisions) for component, decisions in by_component.items()
     }
     required = objective.required_components
     for component in required:
@@ -231,7 +232,7 @@ def decide(
     if Decision.UNSUPPORTED in required_decisions:
         overall: Decision | None = Decision.UNSUPPORTED
     else:
-        overall = _combine(required_decisions)
+        overall = combine_decisions(required_decisions)
     ordered = {c.value: per_component[c] for c in Component if c in per_component}
     return overall, ordered
 
@@ -290,3 +291,15 @@ def redecide(
         parameters=configuration,
         configuration=configuration,
     )
+
+
+__all__ = [
+    "DecisionPolicy",
+    "Effort",
+    "EffortPolicy",
+    "ThresholdPolicy",
+    "decide",
+    "describe",
+    "redecide",
+    "strategy_config_id",
+]

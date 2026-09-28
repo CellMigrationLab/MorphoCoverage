@@ -25,14 +25,21 @@ def run_strategies(
     observation_unit: str | None = None,
     n_jobs: int = 1,
 ) -> list[StrategyResult]:
-    """Validate one phenotype-observation table and run strategies within resolved groups.
+    """Validate the observation and FOV tables and run strategies within resolved groups.
 
-    By default, canonical MorphoBricks condition and repeat columns are kept
-    separate when available. Pass group_cols=[] only when intentional pooling
-    is scientifically appropriate. ``n_jobs`` runs every (group, strategy)
-    pair in that many worker processes (``-1``: every CPU); results are
-    identical for every value, apart from timings
-    (bit for bit when BLAS is single-threaded; see ``morphocoverage._parallel``).
+    The tables are validated by ``validate_input_tables`` (its arguments).
+    Pass ``fovs``, the table of every acquired FOV: without it the FOVs are
+    those seen in the observations, so acquired FOVs without observations are
+    missing and every count of effort is optimistic (a warning says so). By
+    default, the canonical MorphoBricks ``condition``, ``repeat`` and, when
+    present, ``technical_repeat`` columns are kept separate. Pass
+    ``group_cols=[]`` only when intentional pooling is scientifically
+    appropriate. Each strategy returns one ``StrategyResult`` per analysis
+    group, groups in order of first appearance in the FOV table and
+    strategies in the given order within each. ``n_jobs`` runs every (group,
+    strategy) pair in that many worker processes (``-1``: every CPU); results
+    are identical for every value, apart from timings (bit for bit when BLAS
+    is single-threaded; see ``morphocoverage._parallel``).
     """
     data = validate_input_tables(
         objects,

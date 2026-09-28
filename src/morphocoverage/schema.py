@@ -1,19 +1,32 @@
-"""Validation for the representation-agnostic MorphoCoverage input contract."""
+"""Validation for the representation-agnostic MorphoCoverage input contract.
+
+Without a FOV table the validator warns with ``MissingFovTableWarning`` (a
+``UserWarning``), once per calling line of the user's code.
+
+Shared-private: ``_validate_input_tables`` (the validator itself, which
+``data_check.validate_input_tables`` wraps), ``_within_fov_axes`` and
+``_check_within_fov_axes`` (the plane rule, which ``online`` applies to every
+FOV so far).
+"""
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 import warnings
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
-from ._wording import plural
+from ._wording import count, plural
 from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
     WITHIN_FOV_METADATA_COLUMNS,
+    _tables,
+    attach_mapping,
     check_canonical_spellings,
     column_names,
     drop_empty_optional_columns,
@@ -81,6 +94,10 @@ class ValidatedInput:
     patches, slices, embeddings, FOV summaries, or another declared unit.
     ``observation_unit`` records that meaning. The attribute remains named
     ``objects`` for backwards compatibility with the early public API.
+
+    ``fovs_from_observations`` is ``True`` when no FOV table was supplied and
+    ``fovs`` lists only the FOVs seen in the observations: acquired FOVs
+    without observations are then missing, so effort is undercounted.
     """
 
     objects: pd.DataFrame
@@ -91,6 +108,7 @@ class ValidatedInput:
     fov_key: tuple[str, ...]
     observation_unit: str = DEFAULT_OBSERVATION_UNIT
     observation_unit_declared: bool = False
+    fovs_from_observations: bool = False
     # The feature matrix and FOV positions, computed once per input: selecting columns from a
     # DataFrame costs about a millisecond, and resampling analyses read the same
     # input thousands of times. Inputs are treated as immutable; the framework
@@ -202,8 +220,11 @@ def _attach_fov_metadata(
             continue
         if fov_col not in enriched.columns or fov_col not in fovs.columns:
             continue
-        mapping = fovs.loc[:, [fov_col, column]].drop_duplicates()
-        unknown = ~enriched[fov_col].isin(fovs[fov_col])
+        # Through (repeat, field) when a field name restarts in each repeat (attach_mapping).
+        key, mapping = attach_mapping(enriched, fovs, column, columns, fov_col)
+        listed = pd.MultiIndex.from_frame(fovs[key]) if len(key) > 1 else fovs[fov_col]
+        present = pd.MultiIndex.from_frame(enriched[key]) if len(key) > 1 else enriched[fov_col]
+        unknown = ~np.asarray(present.isin(listed))
         if unknown.any():
             # Otherwise the join leaves NaN group values and the error names those.
             examples = sorted(map(str, enriched.loc[unknown, fov_col].unique()))[:5]
@@ -211,14 +232,14 @@ def _attach_fov_metadata(
                 f"observations of FOVs absent from the supplied fovs table, e.g. "
                 f"{fov_col} {examples}; every observation's FOV must be listed in fovs"
             )
-        if mapping.duplicated(fov_col).any():
+        if mapping.duplicated(key).any():
             raise ValueError(
                 f"cannot attach {column!r} from the FOV table because {fov_col!r} "
                 "is reused across different metadata values; include the grouping "
                 "column in the observation table or use a globally unique FOV identifier"
             )
         # A left merge keeps the observations' order but not their index labels.
-        enriched = enriched.merge(mapping, on=fov_col, how="left", validate="many_to_one").set_axis(
+        enriched = enriched.merge(mapping, on=key, how="left", validate="many_to_one").set_axis(
             enriched.index
         )
     return enriched
@@ -296,6 +317,12 @@ def _check_planes_as_fields(
     field that is refused. With one row per field (per-plane summaries) the
     pattern is also what one summary per real position with a varying ``z``
     would look like, so it is a warning, not a refusal.
+
+    In the FOV table a ``z`` or ``t`` may also be a stage coordinate of the
+    position (an autofocus height, an acquisition time), distinct in every
+    field. Planes of positions share their values (``z`` 0, 1, 2 at every
+    position), so a FOV-table column is read as planes only when one of its
+    values recurs in several fields.
     """
     fov_col = key[-1]
     sources = [(axis, objects) for axis in axes]
@@ -303,7 +330,10 @@ def _check_planes_as_fields(
         sources += [
             (axis, fovs)
             for axis in WITHIN_FOV_METADATA_COLUMNS
-            if axis in fovs.columns and axis not in objects.columns and axis not in feature_cols
+            if axis in fovs.columns
+            and axis not in objects.columns
+            and axis not in feature_cols
+            and fovs[axis].dropna().duplicated().any()
         ]
     if not sources:
         return
@@ -331,14 +361,52 @@ def _check_planes_as_fields(
         return
 
 
+# Why a within-field coordinate is never a feature, and what to do instead (both rule sets).
+PLANE_FEATURE_ADVICE = (
+    "every plane, channel and time point of a position belongs to one field, so its "
+    "coordinate is metadata, never a phenotype. Leave it out of feature_cols; to compare "
+    "a feature between planes, turn it into one feature per plane with "
+    "morphocoverage.planes_as_features (or Setup(per_plane=('z',)))"
+)
+
+
+def plane_features(feature_cols: Sequence[object]) -> list:
+    """The within-field coordinates (``z``, ``z0``, ``z1``, ``c``, ``t``) named as features."""
+    return [f for f in dict.fromkeys(feature_cols) if f in WITHIN_FOV_METADATA_COLUMNS]
+
+
+def feature_dtype_problem(values: pd.Series) -> str | None:
+    """Why a feature column cannot be read as real numbers (``"complex"``, ``"not numeric"``).
+
+    ``None`` when it can: a numeric column, or a column without any value (a
+    header-only CSV is read as text columns, yet holds no text).
+    """
+    if pd.api.types.is_complex_dtype(values.dtype):
+        return "complex"
+    if pd.api.types.is_numeric_dtype(values.dtype):
+        return None
+    if not isinstance(values.dtype, pd.CategoricalDtype) and bool(values.isna().all()):
+        return None
+    return "not numeric"
+
+
 def _check_column_roles(
     feature_cols: tuple[str, ...], identity_cols: tuple[str, ...], fov_col: str
 ) -> None:
-    """Each column plays one role: phenotype feature, group/identity, or FOV identifier."""
+    """Each column plays one role: phenotype feature, group/identity, or FOV identifier.
+
+    A within-field coordinate (``z``, ``c``, ``t``, ``z0``, ``z1``) is never a
+    feature (``PLANE_FEATURE_ADVICE``).
+    """
     if not feature_cols:
         raise ValueError("feature_cols must contain at least one explicitly selected feature")
     if len(set(feature_cols)) != len(feature_cols):
         raise ValueError("feature_cols contains duplicate column names")
+    planes = plane_features(feature_cols)
+    if planes:
+        raise ValueError(
+            f"feature_cols names the within-field coordinate {planes[0]!r}: {PLANE_FEATURE_ADVICE}"
+        )
     if fov_col in feature_cols:
         raise ValueError("fov_col cannot also be a phenotype feature")
     if fov_col in identity_cols:
@@ -348,20 +416,42 @@ def _check_column_roles(
         raise ValueError(f"group columns cannot also be phenotype features: {sorted(overlap)}")
 
 
-def _check_observation_values(
-    objects: pd.DataFrame, fov_key: tuple[str, ...], feature_cols: tuple[str, ...]
+def unhashable_values(values: pd.Series) -> pd.Series:
+    """Which entries cannot identify a field or group (lists, arrays, dicts)."""
+    if values.dtype != object:
+        return pd.Series(False, index=values.index)
+    return values.map(lambda value: not isinstance(value, Hashable)).astype(bool)
+
+
+def _check_hashable_identity(
+    objects: pd.DataFrame, fovs: pd.DataFrame | None, columns: Sequence[str]
 ) -> None:
-    """Identity columns are complete (no missing or blank value); features are numeric and never
-    infinite (NaN is allowed)."""
+    """Refuse identity columns holding lists or arrays: they cannot be matched or grouped."""
+    for name, table in _tables(objects, fovs):
+        for column in dict.fromkeys(columns):
+            if column in table.columns and unhashable_values(table[column]).any():
+                raise TypeError(
+                    f"{name}[{column!r}] holds values such as lists, which cannot identify a "
+                    "field or group; store one text or number per row"
+                )
+
+
+def _check_identity_values(objects: pd.DataFrame, fov_key: tuple[str, ...]) -> None:
+    """Identity columns are complete: no missing or blank value."""
     for column in fov_key:
         if empty_values(objects[column]).any():
             kind = "FOV identifiers" if column == fov_key[-1] else "group values"
             raise ValueError(f"objects[{column!r}] contains missing {kind}")
+
+
+def _check_feature_values(objects: pd.DataFrame, feature_cols: tuple[str, ...]) -> None:
+    """Features are real numbers (``feature_dtype_problem``) and never infinite (NaN is
+    allowed)."""
     # Column by column, the first problem wins, as a per-column loop would find
     # it; but the numeric columns are checked for infinity in one array.
-    dtypes = objects.dtypes
-    numeric = [pd.api.types.is_numeric_dtype(dtypes[column]) for column in feature_cols]
-    first_bad = numeric.index(False) if False in numeric else len(feature_cols)
+    problems = [feature_dtype_problem(objects[column]) for column in feature_cols]
+    bad = [i for i, problem in enumerate(problems) if problem is not None]
+    first_bad = bad[0] if bad else len(feature_cols)
     checked = list(feature_cols[:first_bad])
     if checked:
         values = objects.loc[:, checked].to_numpy(dtype=float, na_value=np.nan)
@@ -370,7 +460,10 @@ def _check_observation_values(
             column = checked[int(np.argmax(infinite))]
             raise ValueError(f"feature column {column!r} contains infinite values")
     if first_bad < len(feature_cols):
-        raise TypeError(f"feature column {feature_cols[first_bad]!r} must be numeric")
+        column = feature_cols[first_bad]
+        if problems[first_bad] == "complex":
+            raise TypeError(f"feature column {column!r} must be real numbers, not complex")
+        raise TypeError(f"feature column {column!r} must be numeric")
 
 
 def _validated_fov_table(
@@ -418,23 +511,10 @@ def _validate_input_tables(
 ) -> ValidatedInput:
     """Validate linked observation/FOV tables using MorphoBricks conventions (first error raises).
 
-    ``objects`` is retained as the argument name for backwards compatibility,
-    but rows may represent any declared phenotype observation unit. Feature
-    columns are always explicit; numeric metadata is never inferred.
-
-    NaN feature values are accepted and preserved so heterogeneous real-world
-    feature tables can be loaded. MorphoCoverage never silently imputes or
-    removes them; estimators/transforms must define their own missing-data
-    behavior. Positive/negative infinity remains invalid.
-
-    ``observation_unit`` says what one row is (``"cell"``, ``"patch"``, ...).
-    When omitted, rows are assumed to be objects and the result records
-    ``observation_unit_declared=False``.
-
-    An optional MorphoBricks group column (``technical_repeat``) that holds no
-    value in either table is read as absent, since producers that always
-    write every column leave it empty; a partly empty one is refused, and
-    one named in ``group_cols`` is kept (and then refused when empty).
+    The rules are those listed by the public ``validate_input_tables``, which
+    runs this and attaches the ``check_tables`` report to the error. Without
+    ``fovs`` the FOV table is rebuilt from the observations, with a warning
+    (``MissingFovTableWarning``) and ``fovs_from_observations=True``.
     """
     if not isinstance(objects, pd.DataFrame):
         raise TypeError("objects must be a pandas DataFrame")
@@ -462,6 +542,7 @@ def _validate_input_tables(
         metadata_to_attach.extend(
             column for column in group_cols if column not in metadata_to_attach
         )
+    _check_hashable_identity(objects, fovs, [resolved_fov_col, *metadata_to_attach])
     objects = _attach_fov_metadata(objects, fovs, resolved_fov_col, metadata_to_attach)
     resolved_group_cols = resolve_group_cols(objects, fovs, group_cols)
     identity_cols = resolve_identity_cols(objects, fovs, resolved_group_cols, resolved_fov_col)
@@ -469,11 +550,22 @@ def _validate_input_tables(
 
     _check_column_roles(feature_cols, identity_cols, resolved_fov_col)
     _require_columns(objects, [*fov_key, *feature_cols], "objects")
+    # Missing identifiers first: the plane rule would otherwise name only their symptom.
+    _check_identity_values(objects, fov_key)
     _check_within_fov_axes(
         objects, fov_key, feature_cols, fov_col_was_chosen=fov_col is None, fovs=fovs
     )
-    _check_observation_values(objects, fov_key, feature_cols)
+    _check_feature_values(objects, feature_cols)
     validated_fovs = _validated_fov_table(objects, fovs, fov_key)
+    if fovs is None:
+        warnings.warn(
+            f"no FOV table was given, so it is rebuilt from the observations "
+            f"({count(len(validated_fovs), 'FOV')}): acquired FOVs without observations are "
+            "missing, so effort is undercounted and sampling answers are optimistic. Pass "
+            "fovs=, the table of every acquired FOV.",
+            MissingFovTableWarning,
+            stacklevel=_caller_stacklevel(),
+        )
 
     return ValidatedInput(
         objects=objects.copy(),
@@ -484,7 +576,30 @@ def _validate_input_tables(
         fov_key=fov_key,
         observation_unit=observation_unit,
         observation_unit_declared=unit_declared,
+        fovs_from_observations=fovs is None,
     )
+
+
+class MissingFovTableWarning(UserWarning):
+    """No FOV table was given: acquired FOVs without observations are missing."""
+
+
+_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__)) + os.sep
+
+
+def _caller_stacklevel() -> int:
+    """The ``stacklevel`` that makes a warning name the first caller outside the package.
+
+    Called by the function that warns. A warning raised through several
+    package functions (``run_strategies`` validating, an analysis validating
+    twice) then points at the user's line, so it is shown once per line.
+    """
+    frame = sys._getframe(1)
+    level = 1
+    while frame is not None and os.path.abspath(frame.f_code.co_filename).startswith(_PACKAGE_DIR):
+        frame = frame.f_back
+        level += 1
+    return level
 
 
 def fov_table_from_observations(
@@ -540,3 +655,20 @@ def __getattr__(name: str) -> object:
 
         return validate_input_tables
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = [
+    "DEFAULT_OBSERVATION_UNIT",
+    "OBJECT_LIKE_UNITS",
+    "PLANE_FEATURE_ADVICE",
+    "MissingFovTableWarning",
+    "ValidatedInput",
+    "feature_dtype_problem",
+    "fov_positions",
+    "fov_table_from_observations",
+    "normalize_observation_unit",
+    "plane_features",
+    "resolve_observation_unit",
+    "unhashable_values",
+    "unit_plural",
+]

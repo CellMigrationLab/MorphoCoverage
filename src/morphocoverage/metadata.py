@@ -1,4 +1,12 @@
-"""MorphoBricks metadata conventions shared across repositories."""
+"""MorphoBricks metadata conventions shared across repositories.
+
+Column resolution (the FOV identifier, the analysis groups, the identity
+columns), near-miss spellings of the shared columns and of the within-field
+coordinates, and the optional shared columns a producer leaves empty.
+
+Shared-private: ``_tables`` (the linked tables with their names in messages; used
+by ``schema``, and by ``_data_rules`` with its own names).
+"""
 
 from __future__ import annotations
 
@@ -58,6 +66,13 @@ def column_names(columns: object, name: str) -> tuple | None:
             f"{name} must be a sequence of column names, not a string; "
             f"pass a list: {name}=[{columns!r}]"
         )
+    if isinstance(columns, (set, frozenset)):
+        # A set has no fixed order: the feature matrix and the group order would
+        # then change from one Python process to the next.
+        raise TypeError(
+            f"{name} must be an ordered sequence of column names, not a set, whose order "
+            f"changes between runs; pass a list, e.g. {name}=sorted(...)"
+        )
     if not isinstance(columns, Iterable):
         raise TypeError(f"{name} must be a sequence of column names, not {type(columns).__name__}")
     # numpy names (from an array) as Python ones, so group labels print as plain names.
@@ -66,6 +81,17 @@ def column_names(columns: object, name: str) -> tuple | None:
     if unusable:
         raise TypeError(f"{name} must hold column names; {unusable[0]!r} cannot be one")
     return names
+
+
+def repeated_names(names: Sequence[Hashable]) -> list:
+    """The names that occur more than once in ``names``, each once, in order of first repeat."""
+    seen: set = set()
+    repeated: dict = {}
+    for name in names:
+        if name in seen:
+            repeated[name] = None
+        seen.add(name)
+    return list(repeated)
 
 
 def empty_values(values: pd.Series) -> pd.Series:
@@ -95,39 +121,157 @@ def column_has_values(table: pd.DataFrame, column: str) -> bool:
     return column in table.columns and not bool(empty_values(table[column]).all())
 
 
+def empty_optional_columns(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    explicit_columns: Sequence[str],
+) -> dict[str, list[str]]:
+    """The ``EMPTY_MEANS_ABSENT`` columns read as absent, with the tables they are empty in.
+
+    Keys are the columns, values the tables (``"objects"``, ``"fovs"``) in
+    which the column exists but holds no value in any row; a table without
+    rows counts only when no table has a value of the column. A column named
+    explicitly (``group_cols``, ``fov_col``) is never listed.
+    """
+    empty: dict[str, list[str]] = {}
+    for column in EMPTY_MEANS_ABSENT:
+        if column in explicit_columns:
+            continue
+        present = [(name, t) for name, t in _tables(objects, fovs) if column in t.columns]
+        where = [name for name, t in present if not column_has_values(t, column)]
+        if len(where) < len(present):
+            # The other table has values: a table without rows (a live session's
+            # first field, an empty subset) says nothing about the column.
+            where = [name for name, t in present if name in where and len(t)]
+        if where:
+            empty[column] = where
+    return empty
+
+
 def drop_empty_optional_columns(
     objects: pd.DataFrame,
     fovs: pd.DataFrame | None,
     explicit_columns: Sequence[str],
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
-    """The tables without the ``EMPTY_MEANS_ABSENT`` columns that hold no value in any of them.
+    """The tables without the ``EMPTY_MEANS_ABSENT`` columns that hold no value in them.
 
-    A column named explicitly (``group_cols``, ``fov_col``) is kept, so an
-    empty column the caller asked for is still refused downstream.
+    Such a column is read as absent from each table that holds no value of it
+    (``empty_optional_columns``): from both when it is empty in both, from one
+    table only when the other has values. A producer that writes every column
+    (CellPatcher writes ``technical_repeat`` and ``position_id``) leaves the
+    feature table's copy empty while the FOV table knows the wells or the
+    positions: the FOV table's values are then used, attached to the
+    observations like any FOV-level group column (``technical_repeat``), or,
+    for ``position_id``, through the file identifier both tables hold
+    (``image_file``, else ``fov_id``) when each of its values is one
+    position (``_attach_position_ids``). A column named explicitly
+    (``group_cols``, ``fov_col``) is kept, so an empty column the caller
+    asked for is still refused downstream.
     """
-    for column in EMPTY_MEANS_ABSENT:
-        if column in explicit_columns:
-            continue
-        present = [t for t in (objects, fovs) if t is not None and column in t.columns]
-        if present and not any(column_has_values(t, column) for t in present):
-            if column in objects.columns:
-                objects = objects.drop(columns=column)
-            if fovs is not None and column in fovs.columns:
-                fovs = fovs.drop(columns=column)
+    for column, where in empty_optional_columns(objects, fovs, explicit_columns).items():
+        if "objects" in where:
+            objects = objects.drop(columns=column)
+        if "fovs" in where:
+            assert fovs is not None
+            fovs = fovs.drop(columns=column)
+        if column == "position_id" and where == ["objects"]:
+            objects = _attach_position_ids(objects, fovs)
     return objects, fovs
 
 
-def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str, pd.DataFrame]]:
-    """The linked tables present, with the names used in error messages."""
-    tables = [("objects", objects)]
+def _attach_position_ids(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> pd.DataFrame:
+    """``objects`` with the FOV table's ``position_id``, when the join is unambiguous.
+
+    The join runs through the first of ``image_file`` and ``fov_id`` that both
+    tables hold, together with the group columns both tables hold (so file
+    names that restart in each repeat are matched within their repeat). It is
+    made only when every observation's file is listed and each listed file
+    has one ``position_id``; otherwise ``objects`` is returned as it is and
+    ``position_id``, now only in the FOV table, is refused with the other
+    errors.
+    """
+    if fovs is None or "position_id" not in fovs.columns:
+        return objects
+    joins = [
+        c for c in MORPHOBRICKS_FOV_CANDIDATES[1:] if c in objects.columns and c in fovs.columns
+    ]
+    if not joins:
+        return objects
+    key = [c for c in MORPHOBRICKS_GROUP_COLUMNS if c in objects.columns and c in fovs.columns]
+    key.append(joins[0])
+    try:
+        mapping = fovs.loc[:, [*key, "position_id"]].drop_duplicates()
+        listed = pd.MultiIndex.from_frame(objects[key]).isin(pd.MultiIndex.from_frame(fovs[key]))
+    except TypeError:  # identifiers that cannot be compared (lists) are refused later
+        return objects
+    if mapping.duplicated(key).any() or not listed.all():
+        return objects
+    return objects.merge(mapping, on=key, how="left", validate="many_to_one").set_axis(
+        objects.index
+    )
+
+
+def attach_mapping(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    column: str,
+    identity: Sequence[str],
+    fov_col: str,
+) -> tuple[list[str], pd.DataFrame]:
+    """How an FOV-table-only ``column`` is attached to the observations: the join key and
+    the FOV table's (key, ``column``) pairs.
+
+    The key is ``fov_col``. When one ``fov_col`` value has several values of
+    ``column`` (a field name that restarts in each repeat, ``f1`` in every
+    plate), the identity columns (other than ``column``) that both tables hold
+    are added in front: ``f1`` still names one field within its repeat, so a
+    condition listed only in the FOV table is attached through (repeat,
+    field). The caller refuses the join when the pairs still repeat a key.
+    """
+    key = [fov_col]
+    mapping = fovs.loc[:, [fov_col, column]].drop_duplicates()
+    if mapping.duplicated(fov_col).any():
+        shared = [
+            c
+            for c in dict.fromkeys(identity)
+            if c not in (column, fov_col) and c in objects.columns and c in fovs.columns
+        ]
+        if shared:
+            key = [*shared, fov_col]
+            mapping = fovs.loc[:, [*key, column]].drop_duplicates()
+    return key, mapping
+
+
+def _tables(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    names: tuple[str, str] = ("objects", "fovs"),
+) -> list[tuple[str, pd.DataFrame]]:
+    """The linked tables present, each with its name in messages (``names``)."""
+    tables = [(names[0], objects)]
     if fovs is not None:
-        tables.append(("fovs", fovs))
+        tables.append((names[1], fovs))
     return tables
 
 
+# A copy of a column that pandas renamed on reading ("repeat.1" for a second "repeat").
+_PANDAS_COPY = re.compile(r"\.\d+$")
+
+
 def _squashed(name: str) -> str:
-    """Lowercase, no separators, no plural ``s``: ``Position_IDs`` becomes ``positionid``."""
-    return re.sub(r"[\s_-]+", "", name.lower()).removesuffix("s")
+    """Lowercase, no separators (spaces, ``_``, ``-``, ``.``), no plural ``s`` and no pandas
+    copy suffix: ``Position_IDs`` becomes ``positionid``, ``technical.repeat``
+    ``technicalrepeat`` and ``Repeat.1`` ``repeat``."""
+    return re.sub(r"[\s_.-]+", "", _PANDAS_COPY.sub("", name).lower()).removesuffix("s")
+
+
+def _plain_spelling(name: str) -> str:
+    """Lowercase, without whitespace or a pandas copy suffix: ``Z``, `` z`` and ``z.1`` are ``z``.
+
+    The within-field coordinates are single letters (and ``z0``, ``z1``), so
+    only case and spaces are forgiven: ``zs`` or ``c_`` stay other columns.
+    """
+    return re.sub(r"\s+", "", _PANDAS_COPY.sub("", name)).lower()
 
 
 # The canonical names by their squashed form, for ``canonical_spelling``.
@@ -137,20 +281,44 @@ _CANONICAL_BY_SQUASHED = {
 
 
 def canonical_spelling(column: object) -> str | None:
-    """The MorphoBricks column that ``column`` misspells, or ``None``.
+    """The MorphoBricks column or within-field coordinate that ``column`` misspells, or ``None``.
 
-    A near miss differs only in case, in spaces, hyphens, camelCase or no
-    separator for underscores, in a plural ``s``, in surrounding whitespace,
-    or in a byte-order mark that a spreadsheet wrote before the first header
-    (``Repeat``, ``technical repeat``, ``technicalRepeat``, ``PositionID``,
-    ``Conditions``, ``condition ``, ``\ufeffcondition``). Such a column would
-    otherwise be ignored and its groups pooled without a word. The exact name
-    is not a near miss.
+    A near miss of a shared column differs only in case, in spaces, hyphens,
+    dots, camelCase or no separator for underscores, in a plural ``s``, in
+    surrounding whitespace, in a byte-order mark that a spreadsheet wrote
+    before the first header, or in the ``.1`` pandas gives a second column of
+    the same name (``Repeat``, ``technical repeat``, ``technical.repeat``,
+    ``technicalRepeat``, ``PositionID``, ``Conditions``, ``condition ``,
+    ``\ufeffcondition``, ``Repeat.1``). A near miss of a within-field
+    coordinate (``z``, ``z0``, ``z1``, ``c``, ``t``) differs only in case or
+    whitespace (``Z``, ``T ``). Such a column would otherwise be ignored: its
+    groups pooled, or its planes counted as fields, without a word. The exact
+    name is not a near miss.
     """
     if not isinstance(column, str):
         return None
-    meant = _CANONICAL_BY_SQUASHED.get(_squashed(column.replace("\ufeff", "")))
+    cleaned = column.replace("\ufeff", "").replace("\u200b", "")
+    meant = _CANONICAL_BY_SQUASHED.get(_squashed(cleaned))
+    if meant is None and _plain_spelling(cleaned) in WITHIN_FOV_METADATA_COLUMNS:
+        meant = _plain_spelling(cleaned)
     return meant if meant is not None and meant != column else None
+
+
+def near_miss_advice(column: str, meant: str) -> str:
+    """How to fix a near-miss spelling ``column`` of ``meant`` (``canonical_spelling``)."""
+    if meant in WITHIN_FOV_METADATA_COLUMNS:
+        return (
+            f"Rename it to {meant!r} (the within-field coordinates are read in lowercase only), "
+            "or, if it is not a plane, channel or time coordinate, give it another name."
+        )
+    if _PANDAS_COPY.search(column):
+        base = _PANDAS_COPY.sub("", column)
+        rename = f" (named {meant!r})" if base != meant else ""
+        return (
+            f"pandas names the second of two {base!r} columns {column!r}: keep one of them"
+            f"{rename}, or name it in group_cols/fov_col to use it as it is."
+        )
+    return f"Rename it to {meant!r}, or name it in group_cols/fov_col to use it as it is."
 
 
 def check_canonical_spellings(
@@ -158,17 +326,21 @@ def check_canonical_spellings(
     fovs: pd.DataFrame | None,
     explicit_columns: Sequence[str],
 ) -> None:
-    """Reject near-miss spellings such as Repeat that would bypass defaults."""
+    """Reject near-miss spellings such as Repeat, or Z, that would bypass defaults."""
     for table_name, table in _tables(objects, fovs):
         for column in table.columns:
             if column in explicit_columns:
                 continue
             meant = canonical_spelling(column)
             if meant is not None:
+                kind = (
+                    "within-field coordinate"
+                    if meant in WITHIN_FOV_METADATA_COLUMNS
+                    else "MorphoBricks column"
+                )
                 raise ValueError(
                     f"{table_name} has column {column!r}, a non-canonical spelling of "
-                    f"MorphoBricks column {meant!r}. Rename it to "
-                    f"{meant!r} or name it explicitly via fov_col/group_cols."
+                    f"{kind} {meant!r}. {near_miss_advice(column, meant)}"
                 )
 
 
@@ -207,8 +379,11 @@ def resolve_fov_col(
     2. image_file -- valid when one file corresponds to exactly one position;
     3. fov_id -- generic fallback.
 
-    A candidate present in only one linked table is an error, never a reason
-    to fall back to the next candidate.
+    The first candidate present is used, even when its values are missing
+    (they are then refused), except ``position_id`` when it is empty in every
+    row (``drop_empty_optional_columns`` has then removed it). A candidate
+    present in only one linked table is an error, never a reason to fall back
+    to the next candidate.
     """
     if fov_col is not None:
         if not isinstance(fov_col, str):
@@ -231,9 +406,18 @@ def resolve_group_cols(
     fovs: pd.DataFrame | None,
     group_cols: Sequence[str] | None,
 ) -> tuple[str, ...]:
-    """Resolve analysis groups using canonical MorphoBricks columns when implicit."""
+    """Resolve analysis groups using canonical MorphoBricks columns when implicit.
+
+    Explicit ``group_cols`` must name each column once.
+    """
     if group_cols is not None:
-        return column_names(group_cols, "group_cols")
+        names = column_names(group_cols, "group_cols")
+        repeated = repeated_names(names)
+        if repeated:
+            raise ValueError(
+                f"group_cols names {repeated[0]!r} more than once; name each group column once"
+            )
+        return names
 
     return tuple(
         column
@@ -256,3 +440,29 @@ def resolve_identity_cols(
         if _canonical_presence(objects, fovs, column):
             identity.append(column)
     return tuple(identity)
+
+
+__all__ = [
+    "CONDITION_COLUMN",
+    "EMPTY_MEANS_ABSENT",
+    "MORPHOBRICKS_FOV_CANDIDATES",
+    "MORPHOBRICKS_GROUP_COLUMNS",
+    "MORPHOBRICKS_SHARED_COLUMNS",
+    "OPTIONAL_GROUP_COLUMNS",
+    "REPEAT_COLUMN",
+    "TECHNICAL_REPEAT_COLUMN",
+    "WITHIN_FOV_METADATA_COLUMNS",
+    "attach_mapping",
+    "canonical_spelling",
+    "check_canonical_spellings",
+    "column_has_values",
+    "column_names",
+    "drop_empty_optional_columns",
+    "empty_optional_columns",
+    "empty_values",
+    "near_miss_advice",
+    "repeated_names",
+    "resolve_fov_col",
+    "resolve_group_cols",
+    "resolve_identity_cols",
+]

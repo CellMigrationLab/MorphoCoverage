@@ -1,4 +1,4 @@
-"""Strategy execution utilities."""
+"""Strategy execution utilities: analysis groups, isolated inputs, timing and results."""
 
 from __future__ import annotations
 
@@ -58,6 +58,7 @@ def restrict_input(
         fov_key=data.fov_key,
         observation_unit=data.observation_unit,
         observation_unit_declared=data.observation_unit_declared,
+        fovs_from_observations=data.fovs_from_observations,
     )
 
 
@@ -384,3 +385,14 @@ def _evaluate_unit(
     group: dict[str, object] | None,
 ) -> StrategyResult:
     return evaluate_strategy(strategy, group_data, objective=objective, group=group)
+
+
+__all__ = [
+    "FovSubsets",
+    "IncrementalReplay",
+    "evaluate_strategies",
+    "evaluate_strategy",
+    "iter_analysis_groups",
+    "objects_in_fovs",
+    "restrict_input",
+]

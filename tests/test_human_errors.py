@@ -243,7 +243,7 @@ MISTAKES = [
         "the control misspelt",
         lambda o, f: (o, f),
         "refused",
-        ("No field matches the control {'condition': 'Control'}.", "'control', 'drug'"),
+        ("No field matches the control {'condition': 'Control'}.", "'control' and 'drug'"),
         {"control": {"condition": "Control"}},
     ),
     Mistake(

@@ -61,17 +61,20 @@ def test_b1_live_plane_rule_reads_z_from_the_fov_table():
     message = r"holds a single 'z' value \(in the FOV table\)"
     with pytest.raises(ValueError, match=message):
         validate_input_tables(objects, feature_cols=["f"], fovs=fovs)
+    # Live, a z is read as planes once one of its values recurs in another field
+    # (audit 3, A-14: a stage z distinct in every field is a focus height): the
+    # first four files hold z 0-3, and the fifth, z=0 again, is refused.
     session = _session()
-    first, second = fovs.iloc[0], fovs.iloc[1]
-    session.add_fov(objects[objects.image_file == first.image_file], first.to_dict())
+    _feed(session, objects, fovs.iloc[:4])
+    fifth = fovs.iloc[4]
     with pytest.raises(ValueError, match=message):
-        session.add_fov(objects[objects.image_file == second.image_file], second.to_dict())
-    # Refused atomically: the session still holds the first FOV only.
+        session.add_fov(objects[objects.image_file == fifth.image_file], fifth.to_dict())
+    # Refused atomically: the session still holds the first four FOVs only.
     [result] = session.add_fov(
-        objects[objects.image_file == second.image_file].assign(image_file="other.tif"),
-        {**second.to_dict(), "image_file": "other.tif", "z": first.z},
+        objects[objects.image_file == fifth.image_file].assign(image_file="other.tif"),
+        {**fifth.to_dict(), "image_file": "other.tif", "z": 99},
     )
-    assert result.n_fovs == 2
+    assert result.n_fovs == 5
 
     # One row per field: the validator warns, and so does the live session.
     one, fovs = _plane_files(rows_per_file=1)

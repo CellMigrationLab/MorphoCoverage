@@ -184,6 +184,11 @@ class Setup:
       computational setting, not a scientific one.
     - ``n_jobs``: worker processes for the analyses that can use them (``-1``:
       every CPU); results are identical for every value.
+
+    Per-plane features (a z-stack measured plane by plane) are split before
+    the Setup: ``morphocoverage.planes_as_features`` turns ``area`` into
+    ``area_z0``, ``area_z1``, ... (objects matched by ``label_id``), and those
+    names are the ``readout`` and ``features`` declared here.
     """
 
     readout: str
