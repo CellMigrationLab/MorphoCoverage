@@ -182,9 +182,14 @@ class CovarianceError(_MultivariateOutcome):
         """``covariance_error``."""
         return "covariance_error"
 
+    @property
+    def min_observations(self) -> int:
+        """A covariance needs two observations."""
+        return 2
+
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Relative covariance error; needs two observations at the stop."""
-        pair = _samples(self, full, stopped, 2)
+        pair = _samples(self, full, stopped, self.min_observations)
         if pair is None:
             return None
         sample, reference = pair
@@ -244,9 +249,14 @@ class FrechetError(_MultivariateOutcome):
         """``frechet_error``."""
         return "frechet_error"
 
+    @property
+    def min_observations(self) -> int:
+        """A Fréchet distance needs a covariance, so two observations."""
+        return 2
+
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Fréchet distance; needs two observations at the stop."""
-        pair = _samples(self, full, stopped, 2)
+        pair = _samples(self, full, stopped, self.min_observations)
         return None if pair is None else distances.frechet_distance(*pair)
 
 
@@ -272,11 +282,16 @@ class _SubsampledOutcome(_MultivariateOutcome):
         """Features, scaling, the subsample limit and its seed."""
         return {**super().parameters, "max_observations": self.max_observations, "seed": self.seed}
 
+    @property
+    def min_observations(self) -> int:
+        """A U-statistic needs two observations."""
+        return 2
+
     def _pair(
         self, full: ValidatedInput, stopped: ValidatedInput
     ) -> tuple[np.ndarray, np.ndarray] | None:
         """Scaled (stop, reference) samples, each subsampled to ``max_observations``."""
-        pair = _samples(self, full, stopped, 2)
+        pair = _samples(self, full, stopped, self.min_observations)
         if pair is None:
             return None
         sample, reference = pair

@@ -51,6 +51,17 @@ class OutcomeMetric(ABC):
         """Stable hash of the metric class and its parameters."""
         return config_hash(class_identity(type(self)), self.parameters)
 
+    @property
+    def min_observations(self) -> int:
+        """The fewest observations a stop needs for the metric to be computed (default 1).
+
+        ``OutcomeCriterion.assess`` counts a stop with fewer observations as
+        not preserved, as it does an empty one, when the reference itself can
+        be judged: too few observations to compute the metric is too few to
+        preserve it. A covariance, for example, needs 2.
+        """
+        return 1
+
     @abstractmethod
     def evaluate(self, full: ValidatedInput, stopped: ValidatedInput) -> float | None:
         """Outcome of stopping at ``stopped``, judged against ``full``; ``None`` if undefined."""

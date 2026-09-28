@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from .._checks import is_integer, is_number
 from ..outcomes import OutcomeMetric
 from ..schema import ValidatedInput
 
@@ -48,8 +49,9 @@ class OutcomeCriterion:
     ``value <= threshold``) or ``"higher_is_better"`` (for example
     ``RareStateDetected``: preserved when ``value >= threshold``). An undefined
     metric value (``None``) is never preserved; ``assess`` counts a subset with
-    no observations as not preserved when the reference itself can be judged.
-    ``description`` is the plain
+    too few observations for the metric (none, or fewer than the metric's
+    ``min_observations``: one object has no covariance) as not preserved when
+    the reference itself can be judged. ``description`` is the plain
     wording reports use, for example "the well mean of YAP/TAZ ratio within
     5%"; without it they use ``name``.
     """
@@ -64,8 +66,13 @@ class OutcomeCriterion:
             raise TypeError("description must be text or None")
         if not isinstance(self.metric, OutcomeMetric):
             raise TypeError("metric must be an OutcomeMetric")
-        if isinstance(self.threshold, bool) or not isinstance(self.threshold, int | float):
+        if not is_number(self.threshold):
             raise TypeError("threshold must be a number")
+        minimum = self.metric.min_observations
+        if not is_integer(minimum) or minimum < 1:
+            raise ValueError(
+                f"the metric's min_observations must be an integer of at least 1, not {minimum!r}"
+            )
         if not math.isfinite(self.threshold):
             raise ValueError("threshold must be finite")
         if self.direction not in _DIRECTIONS:
@@ -112,15 +119,20 @@ class OutcomeCriterion:
         """Whether ``subset`` preserves ``reference`` under this criterion, and the value.
 
         FOVs without observations are acquired effort, not missing data: a
-        subset with no observations at all cannot preserve a reference that
+        subset with no observations at all, or fewer than the metric needs
+        (``OutcomeMetric.min_observations``), cannot preserve a reference that
         has some, so when the metric is undefined for that reason the answer
-        is not preserved rather than undefined. When the reference itself
-        makes the metric undefined (a missing value in it, a rare state it
-        does not show), no subset could have been judged, so the answer stays
-        undefined: the metric of the reference against itself decides which.
+        is not preserved rather than undefined. Otherwise a few fields holding
+        a single object would leave the denominator of a reliability as
+        undefined draws instead of counting as the failures they are. When the
+        reference itself makes the metric undefined (a missing value in it, a
+        rare state it does not show), no subset could have been judged, so the
+        answer stays undefined: the metric of the reference against itself
+        decides which.
         """
         value = self.metric.evaluate(reference, subset)
-        if value is None and len(subset.objects) == 0 and len(reference.objects) > 0:
+        too_few = len(subset.objects) < self.metric.min_observations
+        if value is None and too_few and len(reference.objects) > 0:
             if self.metric.evaluate(reference, reference) is None:
                 return Preservation.UNDEFINED, None
             return Preservation.NOT_PRESERVED, None

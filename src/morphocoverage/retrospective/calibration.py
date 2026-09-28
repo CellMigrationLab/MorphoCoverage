@@ -8,11 +8,18 @@ stream), the rule's first stop is found and the prefix at that stop is judged
 against the reservoir:
 
 - **correct**: stopped, and what you wanted was preserved at the stop;
-- **premature**: stopped, and it was not preserved;
+- **premature**: stopped too early: not preserved at the stop, though the
+  whole stream was not shown to fail it (it preserved it by its last field,
+  or could not judge it there);
+- **not preserved by the stream**: stopped, not preserved at the stop, and not
+  preserved by every available field together either. More fields of this
+  stream would not have helped, so such a stop is not called too early: the
+  criterion may be out of reach of these fields, or of the held-back
+  reference (compare the reliability ceiling);
 - **undefined at the stop**: stopped, and the outcome could not be computed;
 - **never stopped**: the stream ended first; whether it was preserved at the
-  end of the stream is reported separately, so a rule that stops late or never
-  is visible as well as one that stops early.
+  end of the stream is reported separately, and said in the summary, so a
+  rule that stops late or never is visible as well as one that stops early.
 
 Shares are over replayed acquisitions (splits x orders). Those are not
 independent replicates of the sample; they describe this sample's behaviour
@@ -23,7 +30,8 @@ here undefined stops stay in the denominator, as "could not be judged").
 
 The next-FOV novelty shuffle check (``calibrate_next_fov_novelty``) is a
 different calibration, of a probability rather than of a stop, and is
-re-exported here.
+re-exported here. The summary names the groups the replay skipped
+(``ReplayResult.skipped``).
 """
 
 from __future__ import annotations
@@ -34,8 +42,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._wording import count
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
-from ._text import fields, order_phrase, percent, where
+from ._text import fields, order_phrase, percent, skipped_lines, where
 from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy, run_decisions
 from .criteria import Preservation
 from .replay import ReplayResult
@@ -63,6 +72,7 @@ SUMMARY_COLUMNS = (
     "median_stop_fovs",
     "correct",
     "premature",
+    "not_preserved_by_stream",
     "undefined_at_stop",
     "never_stopped",
     "never_stopped_preserved_at_end",
@@ -77,15 +87,18 @@ class StoppingCalibration:
     ``runs`` has one row per replayed acquisition, strategy and criterion
     (including ``ALL_CRITERIA``, every criterion at once); ``table`` the
     shares over runs (``SUMMARY_COLUMNS`` after the group columns). ``stopped``,
-    ``correct``, ``premature``, ``undefined_at_stop`` and ``never_stopped`` are
-    shares of all runs; ``never_stopped_preserved_at_end`` is a share of the
-    runs that never stopped (``None`` when all stopped).
+    ``correct``, ``premature``, ``not_preserved_by_stream``,
+    ``undefined_at_stop`` and ``never_stopped`` are shares of all runs (the
+    four kinds of stop add up to ``stopped``); ``never_stopped_preserved_at_end``
+    is a share of the runs that never stopped (``None`` when all stopped).
+    ``skipped`` lists the groups the replay skipped, with the reason.
     """
 
     runs: pd.DataFrame
     table: pd.DataFrame
     group_cols: tuple[str, ...]
     settings: dict[str, Any] = field(default_factory=dict)
+    skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def summary(self) -> str:
         """The calibration in sentences, per group, strategy and order kind."""
@@ -133,7 +146,13 @@ def stopping_calibration(replay: ReplayResult) -> StoppingCalibration:
             )
     runs = pd.DataFrame(rows, columns=[*groups, *RUN_COLUMNS])
     runs["stop_fovs"] = runs["stop_fovs"].astype("Int64")
-    return StoppingCalibration(runs, _table(runs, groups), tuple(groups), dict(replay.settings))
+    return StoppingCalibration(
+        runs,
+        _table(runs, groups),
+        tuple(groups),
+        dict(replay.settings),
+        skipped=replay.skipped.copy(),
+    )
 
 
 def _share(mask: pd.Series) -> float:
@@ -146,6 +165,9 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
     for key, block in runs.groupby(keys, sort=False, dropna=False):
         stopped = block["stopped"].astype(bool)
         at_stop = block["status_at_stop"]
+        failed = stopped & (at_stop == Preservation.NOT_PRESERVED.value)
+        # Not preserved by every field of the stream either: no later stop would have helped.
+        out_of_reach = failed & (block["status_at_end"] == Preservation.NOT_PRESERVED.value)
         never = block[~stopped]
         stops = block.loc[stopped, "stop_fovs"].astype(float)
         rows.append(
@@ -155,7 +177,8 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
                 "stopped": _share(stopped),
                 "median_stop_fovs": float(np.median(stops)) if len(stops) else None,
                 "correct": _share(stopped & (at_stop == Preservation.PRESERVED.value)),
-                "premature": _share(stopped & (at_stop == Preservation.NOT_PRESERVED.value)),
+                "premature": _share(failed & ~out_of_reach),
+                "not_preserved_by_stream": _share(out_of_reach),
                 "undefined_at_stop": _share(stopped & (at_stop == Preservation.UNDEFINED.value)),
                 "never_stopped": _share(~stopped),
                 "never_stopped_preserved_at_end": (
@@ -191,18 +214,29 @@ def calibration_summary(result: StoppingCalibration) -> str:
                     )
                 lines.append(
                     f"  {order_phrase(order)}: it never stopped within the "
-                    f"{first['stream_fovs']} fields available ({first['runs']} acquisitions"
-                    f"{short})."
+                    f"{first['stream_fovs']} fields available "
+                    f"({count(first['runs'], 'acquisition')}{short})."
                 )
             else:
                 lines.append(
                     f"  {order_phrase(order)}: it stopped in "
-                    f"{percent(first['stopped'])} of {first['runs']} acquisitions, after a "
-                    f"median of {fields(first['median_stop_fovs'])}."
+                    f"{percent(first['stopped'])} of {count(first['runs'], 'acquisition')}, "
+                    f"after a median of {fields(first['median_stop_fovs'])}."
                 )
             several = own["criterion"].nunique() > 2
             for row in own.itertuples(index=False):
-                if row.stopped == 0 or (row.criterion == ALL_CRITERIA and not several):
+                if row.criterion == ALL_CRITERIA and not several:
+                    continue
+                label = labels.get(row.criterion, row.criterion)
+                if row.stopped == 0:
+                    if row.never_stopped_preserved_at_end is not None and not pd.isna(
+                        row.never_stopped_preserved_at_end
+                    ):
+                        lines.append(
+                            f"    for {label}: "
+                            f"{percent(row.never_stopped_preserved_at_end)} of those "
+                            "acquisitions had it by the last field."
+                        )
                     continue
                 late = ""
                 if row.never_stopped > 0 and row.never_stopped_preserved_at_end is not None:
@@ -216,16 +250,24 @@ def calibration_summary(result: StoppingCalibration) -> str:
                     if row.undefined_at_stop > 0
                     else ""
                 )
+                reach = getattr(row, "not_preserved_by_stream", 0)
+                beyond = (
+                    f"; {percent(reach)} stopped where not even every available field "
+                    "together preserved it (more fields of this stream would not have helped)"
+                    if reach is not None and not pd.isna(reach) and reach > 0
+                    else ""
+                )
                 lines.append(
-                    f"    for {labels.get(row.criterion, row.criterion)}: "
+                    f"    for {label}: "
                     f"{percent(row.premature)} of acquisitions stopped too early, "
-                    f"{percent(row.correct)} stopped with it preserved{undefined}{late}."
+                    f"{percent(row.correct)} stopped with it preserved{beyond}{undefined}{late}."
                 )
         lines.append(
             "  Judged on held-back fields the rule never saw; each acquisition is one hold-out "
             "and one order of the same fields, not an independent experiment."
         )
         blocks.append("\n".join(lines))
+    blocks += skipped_lines(result.skipped, keys)
     return "\n\n".join(blocks)
 
 

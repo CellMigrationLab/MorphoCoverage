@@ -89,7 +89,7 @@ def test_a_gradient_is_covered_sooner_by_dispersed_orders_with_more_travel_per_f
     per_field = table["median_travel"] / table["median_fovs"]
     assert per_field["dispersed"] > per_field["recorded"]
     text = result.summary()
-    assert "spreading the same positions out" in text and "your recorded order" in text
+    assert "Spreading the same positions out" in text and "In the recorded order" in text
     assert "min)" in text  # timing given
     assert (result.runs["travel_total"] >= result.runs["travel_to_sustained"].fillna(0)).all()
 

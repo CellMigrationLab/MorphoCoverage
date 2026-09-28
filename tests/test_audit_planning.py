@@ -19,10 +19,10 @@ from morphocoverage.retrospective import (
     inspect_fovs,
     protocol_reliability,
 )
+from morphocoverage.retrospective._text import median_beyond as _median_beyond
 from morphocoverage.retrospective.effort import _contributions, _se
 from morphocoverage.retrospective.frontier import family, frontier
 from morphocoverage.retrospective.frontier_text import _setting
-from morphocoverage.retrospective.spatial import _median_beyond
 
 
 def test_f1_unequal_fields_weigh_the_field_term_by_their_cluster_size():

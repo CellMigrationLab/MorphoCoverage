@@ -4,18 +4,23 @@ Question P2 of ``docs/questions.md``. It starts from each sample's reliability
 curve (``sampling_reliability``, one analysis group per sample). A sample
 counts as **adequately represented** at ``k`` FOVs when its reliability reaches
 ``threshold`` (for example ``preserved >= 0.9``: in at least 90% of random
-acquisitions of ``k`` FOVs, what you wanted was preserved in held-back FOVs).
+acquisitions of ``k`` FOVs, what you wanted was preserved in held-back FOVs;
+a reliability of exactly 90% reaches it, whatever the rounding of its average).
 
 Reported, per stratum (for example per condition; pooling across strata is an
 explicit choice), criterion and ``k``:
 
 - how many samples were adequately represented, out of how many could be
-  evaluated at that depth, and how many could not (``k`` beyond their stream);
+  evaluated at that depth, and how many could not, apart: ``k`` beyond their
+  stream (``beyond_stream``), or a criterion that could not be judged against
+  any of their held-back fields (``undefined``);
 - the same per independent unit (biological repeat when declared, otherwise
   sample), from the declared ``SamplingHierarchy``;
 - each sample's difficulty: the fewest listed FOVs from which it stays
   adequately represented at every larger listed count, with the difficult
-  samples named;
+  samples named. The median over samples counts a sample that never got
+  there within the counts it could be judged at as needing more than all of
+  them, so it is not the median of the easy samples only;
 - a leave-one-unit-out check of a protocol chosen on the other units: the
   fewest FOVs at which at least ``protocol_share`` of their samples were
   adequate, and how the left-out unit fared at that number.
@@ -23,12 +28,17 @@ explicit choice), criterion and ``k``:
 **Uncertainty counts independent units.** Subset draws and reservoir splits
 estimate each sample's own behaviour; they are not replicates. The interval on
 each share comes from resampling the declared independent units with
-replacement (``n`` equal to the number of units), so it does not narrow when
-more draws or splits are run for the same samples. When every sample (or
-none) is adequate, resampling can only return that share again, so the
-interval is instead the exact Clopper-Pearson interval over the units (5 of 5
-units is compatible with a true share of about 48%). With few units the
-interval is wide, and the summary says so.
+replacement (``statistics.bootstrap_fields``, each unit's samples as one field,
+widened for few units), so it does not narrow when more draws or splits are
+run for the same samples. It is never narrower than the exact Clopper-Pearson
+interval of the share over the units (the share times the number of units as
+the count, in the beta-quantile form that allows a fractional count): when
+every sample (or none) is adequate, resampling can only return that share
+again, and the interval is then that exact one (5 of 5 units is compatible
+with a true share of about 48%); just below, 19 of 20 samples in 5 units, it
+is no narrower, rather than jumping to a much narrower bootstrap range. It is
+clipped to 0-100%. With few units the interval is wide, and the summary says
+so.
 """
 
 from __future__ import annotations
@@ -39,16 +49,19 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
+from .._checks import as_count, check_seed
 from .._seeds import group_rng
-from .._wording import count
-from ..bounds import interval
 from ..statistics import bootstrap_fields
-from ._text import fields, percent, plural, rows_of, sample_word
 from .hierarchy import SamplingHierarchy
+from .protocol_text import FEW_UNITS, protocol_summary
 from .reliability import ReliabilityResult
 
-FEW_UNITS = 5
+_CONFIDENCE = 0.95
+# Reliabilities are shares of draws averaged over splits; a share of exactly the
+# threshold must count as reaching it whatever the rounding of that average.
+_TOLERANCE = 1e-9
 
 
 @dataclass(frozen=True)
@@ -56,9 +69,12 @@ class ProtocolResult:
     """Protocol curves, per-unit shares, sample difficulty and a leave-one-unit-out check.
 
     - ``table``: per stratum, criterion and ``fovs``: ``eligible`` samples,
-      ``adequate`` samples, ``not_evaluated`` samples, ``share`` adequate, and
-      ``share_low`` / ``share_high``, a percentile interval from resampling
-      ``units`` independent units.
+      ``adequate`` samples, ``not_evaluated`` samples (``beyond_stream``: fewer
+      fields than ``fovs``; ``undefined``: the criterion could not be judged
+      there), ``partly_judged`` samples, ``share`` adequate, and
+      ``share_low`` / ``share_high``, its 95% interval over the ``units``
+      independent units (module docstring); ``all_units`` counts the units
+      of the stratum.
     - ``per_unit``: the same counts per independent unit.
     - ``difficulty``: per sample, ``fields_needed`` (``<NA>`` when not reached
       within the listed counts it could be evaluated at) and ``max_fovs``.
@@ -89,6 +105,7 @@ def _check(
     n_boot: int,
     random_state: int,
 ) -> tuple[list[str], list[str], list[str]]:
+    """The sample, unit and stratum columns, after refusing any invalid argument."""
     if not isinstance(per_sample, ReliabilityResult):
         raise TypeError("per_sample must be a ReliabilityResult from sampling_reliability")
     if not isinstance(hierarchy, SamplingHierarchy):
@@ -96,10 +113,8 @@ def _check(
     for value, label in ((threshold, "threshold"), (protocol_share, "protocol_share")):
         if isinstance(value, bool) or not 0 < float(value) <= 1:
             raise ValueError(f"{label} must be a share in (0, 1]")
-    if isinstance(n_boot, bool) or not isinstance(n_boot, int) or n_boot < 1:
-        raise ValueError("n_boot must be a positive integer")
-    if isinstance(random_state, bool) or not isinstance(random_state, int):
-        raise TypeError("random_state must be an integer seed")
+    as_count(n_boot, "n_boot")
+    check_seed(random_state)
     if isinstance(strata, str):
         # A bare name would be iterated letter by letter.
         raise TypeError("strata must be a sequence of column names, for example ['condition']")
@@ -121,7 +136,13 @@ def _check(
 def _samples(
     per_sample: ReliabilityResult, sample_cols: list[str], strata: list[str], threshold: float
 ) -> pd.DataFrame:
-    """One row per sample, criterion and FOV count, with the adequacy flag."""
+    """One row per sample, criterion and FOV count, with the adequacy flag.
+
+    ``beyond_stream`` marks a sample that had fewer fields than the count
+    (``splits`` 0 in the curve, or, for a curve without it, a count above its
+    stream); a sample neither adequate-or-not nor beyond its stream could not
+    be judged there.
+    """
     curve = per_sample.curve
     identity = [*strata, *sample_cols]
     if curve.groupby(identity + ["criterion", "fovs"], dropna=False).size().max() > 1:
@@ -130,7 +151,12 @@ def _samples(
             "a sample in the hierarchy, or add them as strata"
         )
     rows = curve[[*identity, "criterion", "fovs", "preserved", "stream_fovs"]].copy()
-    rows["adequate"] = rows["preserved"].astype(float) >= float(threshold)
+    rows["adequate"] = rows["preserved"].astype(float) >= float(threshold) - _TOLERANCE
+    if "splits" in curve.columns:
+        beyond = pd.to_numeric(curve["splits"], errors="coerce").eq(0)
+    else:
+        beyond = curve["fovs"].astype(float) > curve["stream_fovs"].astype(float)
+    rows["beyond_stream"] = (beyond & rows["preserved"].isna()).to_numpy()
     # How many hold-outs could judge the sample at this depth: a reliability
     # judged on 3 of 10 hold-outs (a rare state absent from the others' reservoir)
     # is named, not silently counted like a fully judged one.
@@ -143,19 +169,39 @@ def _samples(
 
 
 def _unit_ids(frame: pd.DataFrame, unit_cols: list[str]) -> pd.Series:
+    """Each row's independent unit as one label, for example ``P1 / 2024_01_05``."""
     return frame[unit_cols].astype(str).agg(" / ".join, axis=1)
+
+
+def _exact(share: float, units: int) -> tuple[float, float]:
+    """The Clopper-Pearson interval of ``share`` with ``units`` trials.
+
+    ``share * units`` is the count; the beta quantiles allow a fractional
+    one, and for a whole count this is ``bounds.interval``. Each end is a
+    one-sided bound at ``(1 + confidence) / 2``; at 0 or 1 that end is closed.
+    """
+    tail = (1 - _CONFIDENCE) / 2
+    successes = share * units
+    low = 0.0 if successes <= 0 else float(stats.beta.ppf(tail, successes, units - successes + 1))
+    high = (
+        1.0
+        if successes >= units
+        else float(stats.beta.ppf(1 - tail, successes + 1, units - successes))
+    )
+    return low, high
 
 
 def _bootstrap(
     block: pd.DataFrame, n_boot: int, rng: np.random.Generator
 ) -> tuple[float | None, float | None]:
-    """95% interval of the pooled share of adequate samples, resampling whole units.
+    """95% interval of the pooled share of adequate samples, over whole units.
 
-    The percentile interval of ``statistics.bootstrap_fields`` over the units
-    (each unit's samples as one field). At a share of 0 or 1 every resample
+    The interval of ``statistics.bootstrap_fields`` over the units (each
+    unit's samples as one field, widened for few units), never narrower than
+    the exact Clopper-Pearson interval of the share over the units
+    (``_exact``) and clipped to [0, 1]. At a share of 0 or 1 every resample
     returns that share, a zero-width interval that would look exact, so the
-    exact Clopper-Pearson interval over the units is given instead. One unit
-    gives no interval.
+    exact interval alone is given. One unit gives no interval.
     """
     adequacy = block.groupby("unit")["adequate"]
     units = [own.to_numpy(dtype=float) for _, own in adequacy]
@@ -163,10 +209,13 @@ def _bootstrap(
         # One unit gives a zero-width interval that would look exact.
         return None, None
     share = float(block["adequate"].mean())
+    exact_low, exact_high = _exact(share, len(units))
     if share in (0.0, 1.0):
-        return interval(int(share) * len(units), len(units), 0.95)
-    _, low, high = bootstrap_fields(units, np.mean, n_boot=n_boot, rng=rng, confidence=0.95)
-    return (None, None) if np.isnan(low) else (low, high)
+        return exact_low, exact_high
+    _, low, high = bootstrap_fields(units, np.mean, n_boot=n_boot, rng=rng, confidence=_CONFIDENCE)
+    if np.isnan(low):
+        return exact_low, exact_high
+    return max(0.0, min(low, exact_low)), min(1.0, max(high, exact_high))
 
 
 def _fields_needed(rows: pd.DataFrame) -> int | None:
@@ -196,6 +245,21 @@ def _chosen(block: pd.DataFrame, protocol_share: float) -> int | None:
     return chosen
 
 
+_TABLE_COLUMNS = (
+    "eligible",
+    "adequate",
+    "partly_judged",
+    "not_evaluated",
+    "beyond_stream",
+    "undefined",
+    "share",
+    "share_low",
+    "share_high",
+    "units",
+    "all_units",
+)
+
+
 def protocol_reliability(
     per_sample: ReliabilityResult,
     hierarchy: SamplingHierarchy,
@@ -209,15 +273,18 @@ def protocol_reliability(
     """How many samples are adequately represented at each FOV count, counted by independent unit.
 
     ``threshold`` is the per-sample reliability that counts as adequate
-    (provisional preset 0.9). ``strata`` names analysis-group columns kept
-    apart (for example ``["condition"]``); ``[]`` pools every sample, which
-    must be asked for. ``protocol_share`` is the share of samples a protocol
-    should serve, used only for the leave-one-unit-out check. ``n_boot`` and
-    ``random_state`` set the resampling of independent units.
+    (provisional preset 0.9; a reliability of at least ``threshold`` is
+    adequate). ``strata`` names analysis-group columns kept apart (for
+    example ``["condition"]``); ``[]`` pools every sample, which must be asked
+    for. ``protocol_share`` is the share of samples a protocol should serve,
+    used only for the leave-one-unit-out check. ``n_boot`` and
+    ``random_state`` set the resampling of independent units (numpy integers
+    accepted); each stratum has its own generator.
     """
     sample_cols, unit_cols, strata = _check(
         per_sample, hierarchy, threshold, strata, protocol_share, n_boot, random_state
     )
+    n_boot, random_state = int(n_boot), int(random_state)
     samples = _samples(per_sample, sample_cols, strata, threshold)
     samples["unit"] = _unit_ids(samples, unit_cols)
     table, per_unit, difficulty, validation = [], [], [], []
@@ -232,6 +299,7 @@ def protocol_reliability(
         for k, rows in block.groupby("fovs", sort=True):
             eligible = rows[rows["preserved"].notna()]
             low, high = _bootstrap(eligible, n_boot, rng)
+            beyond = int(rows["beyond_stream"].sum())
             table.append(
                 {
                     **where,
@@ -240,6 +308,8 @@ def protocol_reliability(
                     "adequate": int(eligible["adequate"].sum()),
                     "partly_judged": int(eligible["partly_judged"].sum()),
                     "not_evaluated": n_samples - len(eligible),
+                    "beyond_stream": beyond,
+                    "undefined": n_samples - len(eligible) - beyond,
                     "share": float(eligible["adequate"].mean()) if len(eligible) else None,
                     "share_low": low,
                     "share_high": high,
@@ -284,12 +354,17 @@ def protocol_reliability(
                     "adequate": int(at["adequate"].sum()),
                 }
             )
-    difficulty_table = pd.DataFrame(difficulty)
-    if len(difficulty_table):
-        difficulty_table["fields_needed"] = difficulty_table["fields_needed"].astype("Int64")
-    validation_table = pd.DataFrame(validation)
-    if len(validation_table):
-        validation_table["chosen_fovs"] = validation_table["chosen_fovs"].astype("Int64")
+    # Explicit columns, so a result with nothing eligible anywhere still has them.
+    stratum_cols = [*strata, "criterion"]
+    difficulty_table = pd.DataFrame(
+        difficulty, columns=[*stratum_cols, *sample_cols, "unit", "fields_needed", "max_fovs"]
+    )
+    difficulty_table["fields_needed"] = difficulty_table["fields_needed"].astype("Int64")
+    validation_table = pd.DataFrame(
+        validation,
+        columns=[*stratum_cols, "left_out", "chosen_fovs", "eligible", "adequate"],
+    )
+    validation_table["chosen_fovs"] = validation_table["chosen_fovs"].astype("Int64")
     settings = {
         **dict(per_sample.settings),
         "threshold": float(threshold),
@@ -300,8 +375,10 @@ def protocol_reliability(
         "random_state_protocol": random_state,
     }
     return ProtocolResult(
-        table=pd.DataFrame(table),
-        per_unit=pd.DataFrame(per_unit),
+        table=pd.DataFrame(table, columns=[*stratum_cols, "fovs", *_TABLE_COLUMNS]),
+        per_unit=pd.DataFrame(
+            per_unit, columns=[*stratum_cols, "fovs", "unit", "eligible", "adequate"]
+        ),
         difficulty=_with_ceiling(difficulty_table, per_sample, sample_cols, strata, threshold),
         validation=validation_table,
         sample_cols=tuple(sample_cols),
@@ -327,6 +404,8 @@ def _with_ceiling(
     Without a ceiling table the columns are missing values.
     """
     if not len(difficulty):
+        difficulty["ceiling"] = pd.Series(dtype=float)
+        difficulty["ceiling_below_threshold"] = pd.Series(dtype="boolean")
         return difficulty
     identity = [*strata, *sample_cols, "criterion"]
     ceiling = per_sample.ceiling
@@ -342,145 +421,6 @@ def _with_ceiling(
     flags = [None if pd.isna(c) else bool(b) for c, b in pairs]
     difficulty["ceiling_below_threshold"] = pd.array(flags, dtype="boolean")
     return difficulty
-
-
-def protocol_summary(result: ProtocolResult) -> str:
-    """ "For experiments like this one" in sentences."""
-    labels = result.settings.get("labels", {})
-    hierarchy = result.settings.get("hierarchy", {})
-    # The column's own name, readable: "plate", "technical repeat".
-    unit = str(result.settings.get("independent_unit", "unit")).replace("_", " ")
-    units_word, sample = plural(unit), sample_word(hierarchy)
-    samples_word = plural(sample)
-    threshold = percent(result.settings.get("threshold", 0.9))
-    blocks = []
-    keys = [*result.strata, "criterion"]
-    for key, rows in result.table.groupby(keys, sort=False, dropna=False):
-        key = key if isinstance(key, tuple) else (key,)
-        where = dict(zip(keys, key, strict=True))
-        stratum = ", ".join(f"{k}={where[k]}" for k in result.strata) or "all samples"
-        criterion = labels.get(where["criterion"], where["criterion"])
-        n_samples = int(rows["eligible"].max() + rows["not_evaluated"].min())
-        n_units = int(rows["all_units"].max())
-        lines = [
-            (
-                f"{stratum}: fields per {sample} for {criterion} "
-                f"({count(n_samples, sample, samples_word)} in "
-                f"{count(n_units, unit, units_word)}; a {sample} "
-                f"counts when {threshold} of random acquisitions were enough)"
-            )
-        ]
-        units = rows_of(result.per_unit, where)
-        for row in rows.sort_values("fovs").itertuples(index=False):
-            if row.eligible == 0:
-                lines.append(f"  {fields(row.fovs)}: no {sample} had that many fields to judge")
-                continue
-            per = units[units["fovs"] == row.fovs]
-            by_unit = ", ".join(f"{u.adequate} of {u.eligible}" for u in per.itertuples())
-            missing = (
-                f"; {row.not_evaluated} could not be judged at this depth"
-                if row.not_evaluated
-                else ""
-            )
-            partly = getattr(row, "partly_judged", 0)
-            if partly:
-                missing += (
-                    f"; {partly} judged on only some of the hold-outs (the others could not "
-                    "judge the criterion)"
-                )
-            interval = (
-                ""
-                if row.share_low is None or pd.isna(row.share_low)
-                else f"; plausible range {percent(row.share_low)}–{percent(row.share_high)}"
-            )
-            lines.append(
-                f"  {fields(row.fovs)}: enough for {row.adequate} of {row.eligible} "
-                f"{samples_word} ({units_word}: {by_unit}{interval}){missing}"
-            )
-        hard = rows_of(result.difficulty, where)
-        never = hard[hard["max_fovs"].isna()]
-        needs_more = hard[hard["fields_needed"].isna() & hard["max_fovs"].notna()]
-        # A sample whose held-back fields were not enough even with every field is
-        # capped by its reference, not short of fields; it is named apart.
-        capped = hard["ceiling_below_threshold"].fillna(False).astype(bool) if len(hard) else None
-        if len(hard):
-            known = hard["fields_needed"].dropna().astype(int)
-            if len(known):
-                median = float(np.median(known))
-                shown = f"{median:.0f}" if median.is_integer() else f"{median:.1f}"
-                lines.append(
-                    f"  Fields needed per {sample}: median {shown}, "
-                    f"range {known.min()}–{known.max()}."
-                )
-            short = needs_more[~capped.loc[needs_more.index]]
-            if len(short):
-                named = "; ".join(
-                    ", ".join(str(r[c]) for c in result.sample_cols)
-                    + f" (more than {r['max_fovs']})"
-                    for _, r in short.iterrows()
-                )
-                lines.append(f"  Needs more fields than could be judged: {named}.")
-            reference_capped = hard[capped]
-            if len(reference_capped):
-                named = "; ".join(
-                    ", ".join(str(r[c]) for c in result.sample_cols)
-                    + f" (all fields enough in {percent(float(r['ceiling']))} of hold-outs)"
-                    for _, r in reference_capped.iterrows()
-                )
-                lines.append(
-                    f"  For {len(reference_capped)} of {len(hard)} {samples_word} even every "
-                    f"available field together was enough in fewer than {threshold} of "
-                    "hold-outs: the held-back fields are themselves a sample and cap what can "
-                    "be shown, so these are not counted as needing more fields: "
-                    f"{named}."
-                )
-            if len(never):
-                named = "; ".join(
-                    ", ".join(str(r[c]) for c in result.sample_cols) for _, r in never.iterrows()
-                )
-                lines.append(f"  Could not be judged at any depth: {named}.")
-        check = rows_of(result.validation, where)
-        if len(check):
-            chosen = check.dropna(subset=["chosen_fovs"])
-            # A left-out unit whose samples have fewer fields than the chosen number
-            # was not checked: it is named, never counted as "0 of 0".
-            unchecked = chosen[chosen["eligible"] == 0]
-            checked = chosen[chosen["eligible"] > 0]
-            if len(checked):
-                served = int(checked["adequate"].sum())
-                total = int(checked["eligible"].sum())
-                lines.append(
-                    f"  Choosing the number on the other {units_word} and checking it on the "
-                    f"one left out: enough for {served} of {total} {samples_word}."
-                )
-            if len(unchecked):
-                named = "; ".join(
-                    f"{r['left_out']} (chosen {int(r['chosen_fovs'])})"
-                    for _, r in unchecked.iterrows()
-                )
-                lines.append(
-                    f"  Not checked on {count(len(unchecked), unit, units_word)} whose "
-                    f"{samples_word} had fewer fields than the number chosen on the others: "
-                    f"{named}."
-                )
-            unchosen = len(check) - len(chosen)
-            if unchosen and n_units < 2:
-                lines.append(
-                    f"  With a single {unit}, no number can be chosen on other {unit}s and "
-                    "checked on it."
-                )
-            elif unchosen:
-                lines.append(
-                    f"  For {count(unchosen, unit, units_word)}, the others reached no number "
-                    f"that served enough {samples_word}, so nothing was checked there."
-                )
-        if n_units < FEW_UNITS:
-            lines.append(
-                f"  Uncertainty is large with only {count(n_units, unit, units_word)}: add "
-                "more before fixing a protocol."
-            )
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
 
 
 __all__ = ["FEW_UNITS", "ProtocolResult", "protocol_reliability", "protocol_summary"]

@@ -417,7 +417,7 @@ def test_f15a_replay_skips_a_single_field_group_with_its_reason():
     )
     assert set(result.decisions.condition) == {"a"}
     assert result.skipped.condition.tolist() == ["b"]
-    assert "only 1 FOV" in result.skipped.reason.iloc[0]
+    assert "only 1 field" in result.skipped.reason.iloc[0]
     with pytest.raises(ValueError, match="no analysis group"):
         replay_acquisitions(
             objects[objects.condition == "b"],
