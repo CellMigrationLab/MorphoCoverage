@@ -107,7 +107,7 @@ def test_f4_checks_that_could_not_be_judged_are_counted_not_printed_as_nan():
     objects.loc[rows, "feature_a"] = np.nan
     text = _control(objects, fovs, BOTH).summary()
     assert "nan" not in text.lower()
-    assert "repeat=P1: not judged" in text and "could not be judged" in text
+    assert "1 not judged" in text and "could not be judged" in text
 
 
 def test_f5_f11_f13_inspection_says_what_it_could_not_look_for():

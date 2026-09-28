@@ -158,8 +158,9 @@ def test_g8_a_group_without_labels_is_not_said_to_lack_the_state():
         states=[True],
         group_cols=["condition"],
     ).summary()
-    assert "condition=MOCK, unusual: none of the objects of its 8 fields is labelled" in text
-    assert "condition=KD, unusual: not seen among 240 labelled objects in 8 fields" in text
+    text = " ".join(text.split())
+    assert "Not looked for in MOCK (none of the objects of its 8 fields is labelled)" in text
+    assert "Not seen in KD (240 labelled objects in 8 fields)" in text
 
 
 def test_g11_g12_spread_ratios_and_small_groups_are_stated():
@@ -175,8 +176,10 @@ def test_g11_g12_spread_ratios_and_small_groups_are_stated():
     text = descriptor_spread_check(
         objects, fovs, feature="x", threshold=200, group_cols=["condition"]
     ).summary()
-    assert "nanx" not in text and "no ratio (random samples never varied)" in text
-    assert "condition=B: not checked: 30 objects, fewer than the threshold of 200." in text
+    text = " ".join(text.split())
+    assert "nanx" not in text and "no ratio" in text
+    assert "the random-object samples never varied" in text
+    assert "JCS check in B: not checked: 30 objects, fewer than the threshold of 200." in text
 
 
 def test_g9_g10_g14_the_report_marks_questions_by_what_answers_them():

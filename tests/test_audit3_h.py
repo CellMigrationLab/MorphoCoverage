@@ -272,9 +272,13 @@ def test_h11_the_field_rule_is_also_given_in_acquired_fields():
     row = result.table.iloc[0]
     assert row["fovs_with_observations"] == 20 and row["fovs"] == 40
     assert row["fov_rule_acquired"] == 2 * row["fov_rule_fovs"]
-    text = result.summary()
-    assert f"asks for {int(row['fov_rule_fovs'])} fields with objects" in text
-    assert "20 of the 40 acquired fields hold objects, so that is about" in text
+    text = result.summary(detail="full")
+    rule = f"{int(row['fov_rule_fovs'])} ({int(row['fov_rule_fovs_upper95'])})"
+    acquired = f"{int(row['fov_rule_acquired'])} ({int(row['fov_rule_acquired_upper95'])})"
+    assert "fields with objects" in text and "20 of 40" in text
+    assert rule in text and acquired in text
+    # The short form gives the fields to acquire.
+    assert acquired in result.summary()
 
 
 def test_h12_a_zero_control_mean_is_not_too_few_fields():
@@ -293,8 +297,9 @@ def test_h13_a_sparse_group_does_not_read_zero_per_field():
     rng = np.random.default_rng(0)
     fovs = pd.DataFrame({"position_id": [f"f{j}" for j in range(50)]})
     rows = [{"position_id": f"f{j}", "x": v} for j in range(10) for v in rng.normal(j, 1, 2)]
-    text = fov_variability(pd.DataFrame(rows), fovs, feature="x").summary()
-    assert "(0.4 per field)" in text and "(0 per field)" not in text
+    text = fov_variability(pd.DataFrame(rows), fovs, feature="x").summary(detail="full")
+    row = next(line for line in text.splitlines() if line.startswith("  all fields (pooled)"))
+    assert row.split()[5] == "0.4"  # fields, objects, then per field
 
 
 def test_h14_monte_carlo_p_values_never_fall_below_the_floor():
@@ -430,7 +435,8 @@ def test_j2_j16_shares_are_worded_once_and_modules_list_their_names():
     fovs = objects[["position_id"]]
     text = fov_clustering(objects, fovs, label_col="state", states=["rare"], n_permutations=9)
     line = text.summary()
-    assert "1 object (1%)" in line and "1 objects" not in line
+    assert "1 (1%)" in line and "1 objects" not in line
+    assert "Are the state 'rare' objects spread over the fields?" in line
     # No contrast can be tested: the ranking does not speak of BH over 0 tests.
     spec = [("ctrl", "r1", "c0", 1, 0.0, 0.2), ("drug", "r1", "d0", 1, 1.0, 0.2)]
     ranking = feature_ranking(*_tables(spec), features=["x"], control=CONTROL)

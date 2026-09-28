@@ -25,13 +25,16 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._style import Status, worst
+from .._style import CAUTION, Status, caution_lines, worst, wrap
 from .._wording import count, fields, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
 from ..retrospective.report import QUESTIONS, with_opening
 from ..retrospective.report_profile import sampling_profile
+from ..retrospective.report_sampling import states_lines
 from ..retrospective.report_status import profile_status
+from ..sampling_unit._state_text import clustering_parts
+from ..schema import unit_plural
 from ._declaration import declaration_short
 
 if TYPE_CHECKING:
@@ -110,31 +113,44 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     if rare is not None:
         rows = sampling_profile(None, None, None, None, clustering=rare)
         lines = "\n".join(f"{r.statement} [{r.where}; {r.source}]" for r in rows.itertuples())
-        text = "\n\n".join(part for part in (lines, rare.summary()) if part)
+        text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
         status, glance = profile_status(rows, [rare])
-        document = with_text(document, "profile", text, rows, status=status, headline=glance)
+        words = unit_plural(rare.settings.get("observation_unit", "object"))
+        brief = [wrap(f"- {line}", 2, hang=4) for line in states_lines(rare, None, words)]
+        brief_text = "\n".join([*brief, *caution_lines(clustering_parts(rare, 2)[1], indent=2)])
+        document = with_text(
+            document, "profile", text, rows, status=status, headline=glance, short_text=brief_text
+        )
     controls = results.get("controls")
     if controls is not None and controls.status != "not assessed" and not controls.pair_cols:
+        paired = (
+            "Positive and reference fields were paired across the whole table (pair_cols=()): "
+            "every repeat is pooled, so a shift between repeats can read as detection."
+        )
         document = with_text(
             document,
             "controls",
-            "Positive and reference fields were paired across the whole table (pair_cols=()): "
-            "every repeat is pooled, so a shift between repeats can read as detection.",
+            paired,
             status=Status.CAUTION,
+            short_text="\n".join(caution_lines([paired], indent=2)),
         )
     document = _technical_repeats(document, results)
     document = replace(document, notes=(*document.notes, *coverage_notes(results, setup)))
     pooled = _reference_repeats(results.get("unusual"))
     if pooled > 1:
         units = setup.unit_words
-        document = with_text(
-            document,
-            "profile",
+        text = (
             f"The reference of the unusual {units} pools the control {units} of "
             f"{count(pooled, 'repeat')}: a shift shared by one repeat (a staining or plating "
             f"batch) makes its {units} read as unusual, so compare the unusual share between "
-            "repeats before reading it as biology.",
+            "repeats before reading it as biology."
+        )
+        document = with_text(
+            document,
+            "profile",
+            text,
             status=Status.CAUTION,
+            short_text="\n".join(caution_lines([text], indent=2)),
         )
     return document
 
@@ -265,7 +281,8 @@ def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any])
             "of question 2 is per technical repeat and says nothing about this variation, "
             f"which only more technical repeats reduce (optimise, question 7){uncertain}."
         )
-        document = with_text(document, "profile", text, status=Status.CAUTION)
+        brief = "\n".join(caution_lines([text], indent=2))
+        document = with_text(document, "profile", text, status=Status.CAUTION, short_text=brief)
     return replace(document, notes=(*document.notes, note))
 
 
@@ -323,6 +340,7 @@ def with_text(
     *,
     status: Status = Status.OK,
     headline: str | None = None,
+    short_text: str | None = None,
 ) -> MicroscopistReport:
     """The report with ``text`` added to question ``key`` (and ``rows`` to its profile).
 
@@ -331,21 +349,25 @@ def with_text(
     one-line answer and ``status`` its status. Added to an assessed answer,
     the text follows it in the full and in the short form, and ``status``
     (``report_status``: a caution the text states) can only raise its
-    status, never lower it.
+    status, never lower it. ``short_text``, already indented as the report
+    prints it, stands for ``text`` in the short form (a ⚠️ line for a caveat).
     """
     indented = "\n".join(f"  {line}" if line else line for line in text.splitlines())
+    brief = short_text if short_text is not None else indented
     sections, inputs = dict(document.sections), dict(document.inputs)
     short, statuses = dict(document.short), dict(document.statuses)
     headlines = dict(document.headlines)
     if inputs.get(key) == "not assessed":
         sections[key], inputs[key] = indented, "given"
         short.pop(key, None)
+        if short_text is not None:
+            short[key] = short_text
         statuses[key] = status
         headlines[key] = headline or text.split(". ")[0].split("\n")[0].rstrip(".")
     else:
         sections[key] = f"{sections[key]}\n\n{indented}"
         if key in short:
-            short[key] = f"{short[key]}\n\n{indented}"
+            short[key] = _merged(short[key], brief) if short_text else f"{short[key]}\n\n{brief}"
         statuses[key] = worst([statuses.get(key, Status.NOT_ASSESSED), status])
     profile = document.profile
     if rows is not None and len(rows):
@@ -359,6 +381,38 @@ def with_text(
         statuses=statuses,
         headlines=headlines,
     )
+
+
+def _caution_split(text: str) -> tuple[list[str], list[str]]:
+    """A short section's lines before its closing ⚠️ block, and that block's caveats (each
+    with its continuation lines, three columns deeper)."""
+    lines = text.splitlines()
+    start, depth = None, None
+    for index, line in enumerate(lines):
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if stripped.startswith(CAUTION):
+            start = index if start is None else start
+            depth = indent + 3
+        elif start is not None and indent != depth:
+            start = None
+    start = len(lines) if start is None else start
+    cautions: list[str] = []
+    for line in lines[start:]:
+        if line.lstrip().startswith(CAUTION):
+            cautions.append(line)
+        else:
+            cautions[-1] += "\n" + line
+    return lines[:start], cautions
+
+
+def _merged(short: str, brief: str) -> str:
+    """``brief`` added to a short section: its lines before the section's caveats, the caveats
+    of both after them, each once."""
+    body, cautions = _caution_split(short)
+    extra, more = _caution_split(brief)
+    kept = list(dict.fromkeys([*cautions, *more]))
+    return "\n".join([*body, *extra, *kept])
 
 
 def with_settings(document: MicroscopistReport, sentences: Sequence[str]) -> MicroscopistReport:

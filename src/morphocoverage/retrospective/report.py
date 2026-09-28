@@ -44,11 +44,12 @@ be needed, the report says so (P9, not implemented).
 ``MicroscopistReport.summary()`` is short by default: a title line, an "At a
 glance" block with each answer's status marker and one-line headline
 (``report_status``, the rules question by question), then each answer in its
-short form where it has one (the opening, ``opening``; question 2,
-``report_enough``; questions 4, 5 and 7, ``report_plan``; questions 6, 8 and
-9 and the closing, ``report_answers``; the declaration, ``workflows``), each
-caveat once; ``summary(detail="full")`` gives every sentence, each section's
-header with its marker.
+short form where it has one (the opening, ``opening``; the Foundation and
+questions 1 and 3, ``report_sampling``; question 2, ``report_enough``;
+questions 4, 5 and 7, ``report_plan``; questions 6, 8 and 9 and the closing,
+``report_answers``; the declaration, ``workflows``), each caveat once;
+``summary(detail="full")`` gives every sentence, each section's header with
+its marker.
 
 Shared-private: re-exports ``_detection_adjusted_bounds`` and
 ``_false_alarm_rate`` of ``report_profile`` for its callers.
@@ -94,6 +95,14 @@ from .report_profile import (  # noqa: F401  (private helpers re-exported for ca
     _detection_adjusted_bounds,
     _false_alarm_rate,
     sampling_profile,
+)
+from .report_sampling import (
+    controls_full,
+    controls_short,
+    profile_full,
+    profile_short,
+    unit_full,
+    unit_short,
 )
 from .report_status import integrity_status, overview_status, question_statuses, weak_status
 from .spatial import EfficiencyResult
@@ -316,13 +325,16 @@ def microscopist_report(
     ):
         _check(value, kind, name)
     parts: dict[str, list[str]] = {key: [] for key, _ in QUESTIONS}
+    short = {}
     for check in (variability, object_rules, descriptor_spread):
         if check is not None:
-            parts["unit"].append(check.summary())
+            parts["unit"].append(check.summary(detail="full"))
+    if parts["unit"]:
+        short["unit"] = unit_short(variability, object_rules, descriptor_spread)
     if controls is not None:
-        parts["controls"].append(controls.summary())
+        parts["controls"].append(controls.summary(detail="full"))
+        short["controls"] = controls_short(controls)
     parts["enough"] += enough_full(sufficiency, calibration, controls)
-    short = {}
     if parts["enough"]:
         short["enough"] = enough_short(sufficiency, calibration, controls)
     if adequacy is not None:
@@ -346,15 +358,8 @@ def microscopist_report(
     if efficiency is not None:
         parts["order"].append(efficiency.summary(detail="full"))
     profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
-    if len(profile):
-        parts["profile"].append(
-            "\n".join(
-                f"{row.statement} [{row.where}; {row.source}]" for row in profile.itertuples()
-            )
-        )
-    for check in (unusual, clustering):
-        if check is not None:
-            parts["profile"].append(check.summary())
+    if len(profile) or unusual is not None or clustering is not None:
+        parts["profile"].append("profile")  # its text, wrapped at its indent, is set below
     generalizing = (
         "This describes what these fields support about a difference under this feature; "
         "generalizing it needs independent biological repeats, which is the user's inference."
@@ -427,19 +432,36 @@ def microscopist_report(
         "Technical drift between repeats, batches or plates is not assessed: groups are "
         "analysed apart, and a shift shared by all fields of a group is not new within it."
     )
+    framed = None
     if efficiency is not None:
         parts["order"].append(caution_lines([frame], indent=0)[0])
         short["order"] = short_section([order_parts(efficiency, indent=2)], frame)
     elif redundancy is not None and parts["profile"]:
-        parts["profile"].append(frame)
+        framed = frame  # it closes question 3 (profile_full, profile_short)
     elif redundancy is not None:
         # A caveat alone does not assess question 3: it stays "not assessed", and
         # the caveat is kept with the notes.
         notes.append(frame)
+    if parts["profile"]:
+        short["profile"] = profile_short(
+            profile,
+            variability=variability,
+            effort=effort,
+            unusual=unusual,
+            clustering=clustering,
+            frame=framed,
+        )
     sections = {
         key: _indent("\n\n".join(texts)) if texts else f"  Not assessed: {_NEEDS[key]}."
         for key, texts in parts.items()
     }
+    # The Foundation, 1 and 3 are wrapped at the indent they are printed at.
+    if parts["unit"]:
+        sections["unit"] = unit_full(variability, object_rules, descriptor_spread)
+    if controls is not None:
+        sections["controls"] = controls_full(controls)
+    if parts["profile"]:
+        sections["profile"] = profile_full(profile, unusual, clustering, framed)
     inputs = {key: ("given" if parts[key] else "not assessed") for key, _ in QUESTIONS}
     results = {
         "variability": variability,
@@ -449,6 +471,7 @@ def microscopist_report(
         "sufficiency": sufficiency,
         "calibration": calibration,
         "clustering": clustering,
+        "unusual": unusual,
         "reliability": reliability,
         "protocol": protocol,
         "adequacy": adequacy,

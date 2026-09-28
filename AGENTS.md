@@ -252,6 +252,7 @@ src/morphocoverage/
         report_status_plan.py  # the status of the planning answers 4, 5 and 7 (re-exported by report_status)
         report_enough.py   # question 2, short and full: sufficiency, detection-adjusted bound, calibration
         report_answers.py  # questions 6, 8 and 9 in short, caveats pooled; the closing "cannot tell me"
+        report_sampling.py  # the Foundation and questions 1 and 3, short and full, and the counts their headlines read
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
         _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
@@ -266,6 +267,8 @@ src/morphocoverage/
         clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered
         _outliers.py       # private: the distances and leave-one-group-out thresholds behind unusual_objects
         _common.py         # private: validation and group helpers shared by the sampling-unit checks
+        _unit_text.py      # private: the Foundation's checks in words, short and full (variability, JCB rule, JCS spread)
+        _state_text.py     # private: unusual objects and state clustering in words, short and full
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once

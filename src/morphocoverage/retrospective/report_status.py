@@ -15,13 +15,16 @@ question:
   worse of the two.
 - **Foundation** (``unit_status``): ⚠️ when the JCB object-count rule missed
   its target with whole fields in some group, when whole-field samples never
-  stayed within the random-object descriptor spread, or when a group's
-  variability could not be estimated; ✅ otherwise.
+  stayed within the random-object descriptor spread in some group, or when a
+  group's variability could not be estimated; ✅ otherwise. Headline: how
+  much more a mean from whole fields varies (the median design effect), and
+  in how many groups the JCB rule held with whole fields.
 - **1. Controls** (``controls_status``): ❌ when the declared positive
   control (the planted objects when declared) was recognized in fewer than
   ``minimum_detection`` of checks (weak representation); ⚠️ when a stratum
-  could not be judged, the false-alarm rate was not assessed or is above
-  ``FALSE_ALARM_CAUTION``; ➖ without a control; ✅ otherwise.
+  could not be judged (named, with the reason), the false-alarm rate was not
+  assessed or is above ``FALSE_ALARM_CAUTION``; ➖ without a control; ✅
+  otherwise.
 - **2. Did I image enough?** (``enough_status``): over the rules that judge
   the data (not the fixed amounts of effort), each by its own threshold: ❌
   when none was met in any group; ✅ when every one was met in every group,
@@ -36,8 +39,13 @@ question:
   (``weak_status``), as for questions 4 and 5: a "nothing new" or an
   "enough" cannot exclude a phenotype like the control.
 - **3. What is limiting my sampling?** (``profile_status``): ⚠️ when a
-  labelled state is clustered in a few fields (p <= 0.05) in some group; ✅
-  when something was measured and nothing is clustered.
+  labelled state is clustered in a few fields (p <= 0.05) in some group,
+  when the unusual-object labels are unstable (refits agree on fewer than
+  90% of them) in some group, or when the largest source of the variance of
+  the mean is not established (few samples, an interval including zero) in
+  some stratum; ✅ when something was measured and none of these holds.
+  Headline: the design effect of whole fields, the clustered states, and
+  where most of the variance of the mean lies.
 - **4. Next time** (``next_time_status``): per declared criterion, the
   fewest listed fields from which every sample that could be judged was
   adequately represented at every larger count, in every stratum
@@ -101,7 +109,7 @@ from typing import Any
 import pandas as pd
 
 from .._style import Status, among, span, worst
-from .._wording import count, listing, number, percent
+from .._wording import count, listing, percent
 from ..sampling_unit._units import opposite_signs
 from ..sampling_unit.contrast_text import P_ALPHA
 from ..schema import unit_plural
@@ -110,6 +118,14 @@ from ._text import rule_names
 from .calibration import PREMATURE_CAUTION
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
+from .report_sampling import (
+    clustered_states,
+    largest_sources,
+    profile_answer,
+    rule_held,
+    skipped_strata,
+    unstable_labels,
+)
 from .report_status_plan import (
     FEW_UNITS,
     RELIABLE_SHARE,
@@ -166,28 +182,42 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
         return Status.NOT_ASSESSED, "not assessed"
     status, parts = Status.OK, []
     if variability is not None:
-        ok = variability.groups[variability.groups["status"] == "ok"]
+        groups = variability.groups
+        ok = groups[groups["status"] == "ok"]
         if len(ok):
             words = unit_plural(variability.settings.get("observation_unit", "object"))
             effect = statistics.median(ok["design_effect"].astype(float))
-            parts.append(f"whole fields {number(effect)}x the variance of random {words} (median)")
-        if len(ok) < len(variability.groups):
+            parts.append(
+                f"a mean from whole fields varies {effect:.1f}x as much as from random "
+                f"{words} (median)"
+            )
+        if len(ok) < len(groups):
             status = Status.CAUTION
-            parts.append(f"not estimated in {len(variability.groups) - len(ok)} groups")
+            parts.append(
+                f"variability not estimated in {among(len(groups) - len(ok), len(groups))}"
+            )
     if object_rules is not None:
-        checked = object_rules.table[object_rules.table["status"] == "ok"]
-        held = int(checked["meets_target"].astype(bool).sum())
-        parts.append(
-            f"JCB count rule held with whole fields in {held} of {count(len(checked), 'check')}"
-        )
-        if held < len(checked):
+        kept, total = rule_held(object_rules)
+        if not total:
+            parts.append("JCB count rule not applicable")
+        elif kept == total:
+            parts.append(f"the JCB count rule still held with whole fields in {among(kept, total)}")
+        else:
             status = Status.CAUTION
+            missed = among(total - kept, total)
+            parts.append(f"the JCB count rule missed with whole fields in {missed}")
     if descriptor_spread is not None:
         rows = descriptor_spread.at_threshold
-        never = int(rows["objects_to_match"].isna().sum()) if len(rows) else 0
-        if never:
+        keys = list(descriptor_spread.group_cols)
+        if len(rows) and keys:
+            total = len(rows[keys].drop_duplicates())
+            never = rows[rows["objects_to_match"].isna()][keys].drop_duplicates()
+            missed = len(never)
+        else:
+            total, missed = 1, int(len(rows) > 0 and bool(rows["objects_to_match"].isna().any()))
+        if missed:
             status = Status.CAUTION
-            parts.append(f"whole fields never matched the JCS spread in {never} of {len(rows)}")
+            parts.append(f"descriptors from whole fields never settled in {among(missed, total)}")
     return status, "; ".join(parts) or "assessed"
 
 
@@ -205,10 +235,11 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
         if declared:
             return Status.CAUTION, "a control was declared, but could not be judged"
         return Status.NOT_ASSESSED, "no positive control declared"
+    words = unit_plural(controls.settings.get("observation_unit", "object"))
     planted = (controls.settings.get("control") or {}).get("planted_objects")
     kind = "planted" if planted and _rate(controls, "planted") is not None else "positive"
     detection = _rate(controls, kind)
-    what = f"{planted} planted objects" if kind == "planted" else "positive-control fields"
+    what = f"{planted} planted {words}" if kind == "planted" else "positive-control fields"
     if detection is None:
         return Status.CAUTION, f"{what}: not judged"
     headline = f"{what} recognized in {percent(detection)} of checks"
@@ -219,13 +250,12 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
     if false_alarm is None:
         status, headline = Status.CAUTION, f"{headline}; false alarms not assessed"
     else:
-        headline += f"; false alarms {percent(false_alarm)}"
+        headline += f", false alarms in {percent(false_alarm)}"
         if false_alarm > FALSE_ALARM_CAUTION:
             status = Status.CAUTION
-    skipped = controls.settings.get("skipped_strata", [])
-    if skipped:
+    if controls.settings.get("skipped_strata"):
         status = Status.CAUTION
-        headline += f"; not judged in {listing([s['stratum'] for s in skipped], limit=2)}"
+        headline += f"; {skipped_strata(controls)}"
     return status, headline
 
 
@@ -312,22 +342,17 @@ def weak_status(answer: Answer) -> Answer:
     return worst([status, Status.PROBLEM]), f"weak representation; {headline}"
 
 
-def profile_status(profile: pd.DataFrame, clustering: Sequence[Any] = ()) -> Answer:
+def profile_status(
+    profile: pd.DataFrame, clustering: Sequence[Any] = (), unusual: Any = None
+) -> Answer:
     """3. What is limiting my sampling? (see the module)."""
-    clustered, seen = 0, 0
-    for result in clustering:
-        if result is None:
-            continue
-        table = result.table
-        rows = table[table["fovs_with_state"] > 0] if "fovs_with_state" in table else table
-        seen += len(rows)
-        clustered += int((rows["p_clustered"] <= 0.05).sum()) if "p_clustered" in rows else 0
+    _, clustered, seen = clustered_states(clustering)
     if not len(profile) and not seen:
         return Status.NOT_ASSESSED, "not assessed"
-    parts = [f"{count(len(profile), 'measured quantity', 'measured quantities')}"]
-    if seen:
-        parts.append(f"labelled states clustered in a few fields in {clustered} of {seen} groups")
-    return (Status.CAUTION if clustered else Status.OK), "; ".join(parts)
+    parts = profile_answer(profile, clustering, unusual)
+    _, uncertain = largest_sources(profile)
+    status = Status.CAUTION if clustered or uncertain or unstable_labels(unusual) else Status.OK
+    return status, "; ".join(parts) or f"{count(len(profile), 'quantity', 'quantities')} measured"
 
 
 def inspect_status(inspection: Any) -> Answer:
@@ -444,7 +469,7 @@ def question_statuses(
         "unit": unit_status(get("variability"), get("object_rules"), get("descriptor_spread")),
         "controls": controls_status(get("controls"), minimum_detection),
         "enough": enough_status(get("sufficiency"), get("calibration")),
-        "profile": profile_status(profile, [get("clustering")]),
+        "profile": profile_status(profile, [get("clustering")], get("unusual")),
         "next_time": next_time_status(get("reliability"), get("protocol")),
         "bought": bought_status(get("adequacy")),
         "inspect": inspect_status(get("inspection")),

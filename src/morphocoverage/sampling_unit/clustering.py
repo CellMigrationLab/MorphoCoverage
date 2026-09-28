@@ -64,13 +64,13 @@ from scipy import stats
 
 from .._checks import as_count, check_seed
 from .._seeds import group_key, group_rng
-from .._wording import count, percent, where
-from .._wording import fields as fields_text
+from .._style import caution_lines, check_detail
 from ..bounds import interval
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
-from ..schema import ValidatedInput, fov_positions, unit_plural
+from ..schema import ValidatedInput, fov_positions
 from ..statistics import fovs_to_detect
 from ._common import groups, matching_groups, validated
+from ._state_text import clustering_parts
 from .unusual import UnusualObjects, unusual_objects
 
 _LABEL_CODE = "_morphocoverage_state_code"
@@ -94,98 +94,12 @@ class FOVClustering:
             return self.settings["label_col"] if state else f"not {self.settings['label_col']}"
         return f"state {state!r}"
 
-    def summary(self) -> str:
-        """Plain sentences, one per group and state."""
-        unit = self.settings["observation_unit"]
-        words = unit_plural(unit)
-        lines = [f"Are the states spread over the fields? Labels {self.settings['label_col']}."]
-        for row in self.table.to_dict("records"):
-            head = f"{where({c: row[c] for c in self.group_cols})}, {self.state_name(row['state'])}"
-            if not row["labelled"]:
-                lines.append(
-                    f"{head}: none of the {words} of its "
-                    f"{fields_text(int(row['fovs_acquired']))} is labelled, so it was not "
-                    "looked for."
-                )
-                continue
-            unlabelled = int(row["fovs_unlabelled"])
-            left_out = (
-                f" ({fields_text(unlabelled)} whose {words} carry no label left out)"
-                if unlabelled
-                else ""
-            )
-            if not row["state_objects"]:
-                lines.append(
-                    f"{head}: not seen among {int(row['labelled'])} labelled {words} in "
-                    f"{fields_text(int(row['fovs']))}{left_out}."
-                )
-                continue
-            seen = count(int(row["state_objects"]), unit)
-            lines.append(
-                f"{head}: {seen} ({percent(row['prevalence'])}) in "
-                f"{int(row['fovs_with_state'])} of {fields_text(int(row['fovs']))}{left_out}; "
-                f"random {words} would fill {row['expected_fovs_if_random']:.1f} (clustering ratio "
-                f"{row['clustering_ratio']:.1f}, p = {row['p_clustered']:.2g}).{self._plan(row)}"
-            )
-        lines += self._technical_lines()
-        return "\n".join(lines)
-
-    def _plan(self, row: Mapping[str, Any]) -> str:
-        """The fields holding the state, the reference's floor, and the fields to see it."""
-        words = unit_plural(self.settings["observation_unit"])
-        m = int(self.settings.get("min_objects_per_fov", 1))
-        k = int(self.settings.get("min_fov_occurrences", 1))
-        holding = int(row.get("fovs_holding_state", row["fovs_with_state"]))
-        parts = [f"{holding} of {fields_text(int(row['fovs']))}"] if m > 1 else []
-        reference = row.get("reference_fovs")
-        if reference is not None and not pd.isna(reference) and int(reference):
-            held, total = int(row["reference_fovs_holding"]), int(reference)
-            parts.append(
-                f"{held} of {fields_text(total)} of the reference groups "
-                f"({percent(held / total)}, the share ordinary fields reach)"
-            )
-        text = ""
-        if parts:
-            subject = f"at least {m} of its {words}" if m > 1 else "it"
-            subject = f"Fields holding {subject}"
-            text = f" {subject}: {'; '.join(parts)}."
-        if pd.isna(row["fovs_needed"]):
-            return f"{text} No field holds at least {m} of them, so no field count is given."
-        upper = row["fovs_needed_upper"]
-        bound = "" if pd.isna(upper) else f" (up to {int(upper)})"
-        target = f" in at least {fields_text(k)}" if k > 1 else ""
-        chance = percent(self.settings["detection_probability"])
-        return (
-            f"{text} To see it{target} with {chance} chance: "
-            f"{fields_text(int(row['fovs_needed']))}{bound} from its field incidence, against "
-            f"{fields_text(int(row['fovs_needed_if_random']))} if the {words} were random."
-        )
-
-    def _technical_lines(self) -> list[str]:
-        """The technical repeats holding each state, per condition and repeat (P6-5)."""
-        if "technical_repeats" not in self.table.columns:
-            return []
-        rows = self.table.dropna(subset=["technical_repeats"])
-        keys = [c for c in self.group_cols if c != TECHNICAL_REPEAT_COLUMN]
-        lines = []
-        for _, block in rows.groupby([*keys, "state"] if keys else ["state"], sort=False):
-            if not (block["state_objects"].fillna(0) > 0).any():
-                continue
-            first = block.iloc[0]
-            held, total = block["technical_repeats_holding"].sum(), block["technical_repeats"].sum()
-            head = where({c: first[c] for c in keys}) if keys else "All groups"
-            lines.append(
-                f"{head}, {self.state_name(first['state'])}: held by {int(held)} of "
-                f"{count(int(total), 'technical repeat')}."
-            )
-        if not lines:
-            return []
-        lines.append(
-            "The field counts assume fields from independent technical repeats: a state held "
-            "by few technical repeats is clustered in their fields, so seeing it needs fields "
-            "from more technical repeats than the count says (no two-level plan is made)."
-        )
-        return lines
+    def summary(self, detail: str = "short") -> str:
+        """The states over the fields in words: short (per state one answer and one table of
+        the groups where it was seen) or ``detail="full"`` (every number), caveats once."""
+        full = check_detail(detail) == "full"
+        lines, cautions = clustering_parts(self, full=full)
+        return "\n".join([*lines, *caution_lines(cautions, indent=0)])
 
 
 def fov_clustering(

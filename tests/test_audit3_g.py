@@ -518,7 +518,7 @@ def test_i_note_empty_reference_fields_do_not_leave_checks_unjudged(synthetic):
     pooled = result.pooled.set_index("candidate")
     assert (pooled["not_judged"] == 0).all()
     assert int(pooled.loc["positive", "candidates"]) == 4 * 75  # drug fields with cells (P1-2)
-    assert "(after 5 reference fields with cells)" in result.summary()
+    assert "After 5 reference fields with cells" in result.summary()
 
 
 def test_j_shared_helpers_and_declared_privates():

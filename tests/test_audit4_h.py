@@ -299,10 +299,9 @@ def test_p8_2_redundancy_distance_is_tested_against_shuffled_positions():
     assert table.loc["flat", "null_share"] > 0.05
     # The report counts only the group beyond chance and says the other is within it.
     report = microscopist_report(redundancy=table.reset_index())
-    assert "in 1 of 2 groups, fields closer than about" in report.sections["profile"]
-    assert (
-        "beyond what shuffling the positions within each group gives" in report.sections["profile"]
-    )
+    profile = " ".join(report.sections["profile"].split())
+    assert "in 1 of 2 groups, fields closer than about" in profile
+    assert "beyond what shuffling the positions within each group gives" in profile
     # A point estimate the shuffles do not support is named as such, not as redundancy.
     doubtful = table.reset_index().assign(
         redundancy_distance=[1200.0, 1200.0], beyond_chance=[False, True], null_share=[0.4, 0.01]
