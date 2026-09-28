@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from .setup import Setup
 
 # Results of the report that ``microscopist_report`` does not take; ``assemble`` adds them.
-_EXTRA_RESULTS = ("rare_clustering",)
+_EXTRA_RESULTS = ("rare_clustering", "integrity")
 
 
 def pooling_reason(analyses: str, setup: Setup, pooled: Sequence[str]) -> str:
@@ -80,6 +80,13 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
         declaration=setup.declaration(),
         minimum_detection=setup.minimum_detection,
     )
+    integrity = results.get("integrity")
+    if integrity is not None:
+        # What the tables hold includes structure to inspect before reading the answers.
+        overview = document.overview or ""
+        document = replace(
+            document, overview="\n\n".join(p for p in (overview, integrity.summary()) if p)
+        )
     rare = results.get("rare_clustering")
     if rare is not None:
         rows = sampling_profile(None, None, None, None, clustering=rare)

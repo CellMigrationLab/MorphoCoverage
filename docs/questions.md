@@ -278,3 +278,7 @@ extension, which changes the sampling distribution and needs its own design.
     spatial ICC, pMoSS, biological-fidelity outcomes, continual-monitoring
     methods) and the benchmark they must pass:
     `docs/proposals/candidate_estimators_roadmap.md`.
+21. A calibrated near-duplicate detector (fields whose distributions are
+    near-identical but not identical), opt-in and calibrated on imaging
+    datasets before any threshold is used; the exact integrity checks are in
+    `docs/integrity.md`.

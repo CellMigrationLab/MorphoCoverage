@@ -161,6 +161,12 @@ hierarchy, a replay), and the notes to read the answers with. Missing
 columns never stop the report: without `condition` or `repeat` every field is
 one group and the sections that need them say so.
 
+With `report(objects, fovs, setup, integrity=True)` the overview also gives
+the exact data-integrity checks (`integrity_checks`): a field copied under
+another name, in another order or in other units, a block of rows pasted into
+another field, a field summary written twice. A finding is structure to
+inspect, not a judgment; see `docs/integrity.md`.
+
 ## Plots: every object a point, the interval from fields
 
 ```python

@@ -44,6 +44,7 @@ from typing import Any
 
 import pandas as pd
 
+from ..integrity import integrity_checks
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
     MicroscopistReport,
@@ -121,7 +122,9 @@ class Report:
         return self.results.get("ranking")
 
 
-def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
+def report(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, *, integrity: bool = False
+) -> Report:
     """REPORT on a finished acquisition: what can be trusted, and what cannot.
 
     Runs, as the setup allows: ``fov_variability`` and, with a control,
@@ -142,6 +145,10 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
     against the control need the control's columns (and, for the contrast, the
     condition and the repeat) kept apart by the analysis groups; with
     ``group_cols`` that pool them they are "not assessed", with the reason.
+
+    With ``integrity=True`` (opt-in) the overview also reports the exact
+    data-integrity checks (``integrity_checks``: copied, reordered or scaled
+    fields, repeated blocks and field summaries) on every declared column.
     """
     check_workflow_inputs(objects, fovs, setup)
     common = setup.common
@@ -185,6 +192,8 @@ def report(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Report:
             # The leave-one-field-out rates within the inspection's analysis groups.
             lofo_group_cols=common["group_cols"],
         )
+    if integrity:
+        results["integrity"] = integrity_checks(objects, fovs, feature_cols=setup.columns, **common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     results.update(conditions(setup.prepared(objects, fovs), fovs, setup, reasons))

@@ -181,6 +181,7 @@ src/morphocoverage/
     schema.py              # ValidatedInput and linked-table validation
     _plane_rules.py        # private: the plane rule (z/c/t planes are not fields, never features)
     planes.py              # planes_as_features: one feature per plane, objects matched by label_id
+    integrity.py           # exact data-integrity checks: copied, reordered or scaled fields, repeated blocks and summaries
     data_check.py          # check_tables: every data problem at once, where and how to fix it
     _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
     _data_problems.py      # private: the problems a data check reports (Problem, Collector) and their wording
