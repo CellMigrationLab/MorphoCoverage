@@ -4,11 +4,13 @@ Each rule reads the tables, records problems on a ``Collector`` in plain words
 (what is wrong, where, how to fix it) and never raises for bad data.
 
 Shared-private: every ``_check_*`` rule, ``_attach``, ``_resolve_fov_col``,
-``_resolve_groups``, ``_names`` and ``_tables``, used by ``data_check``.
+``_resolve_groups``, ``_names`` and ``_tables``, used by ``data_check``; ``_loose``
+(labels that print alike) by ``retrospective.overview``.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -336,12 +338,13 @@ def _close_column(name: Any, columns: Sequence[Any]) -> Any | None:
 
 
 def _loose(value: Any) -> str:
-    """A value compared loosely: without surrounding spaces or case, a number by its value."""
+    """A value compared loosely: no outer spaces, case or zero padding (B02 is b2); a number
+    by its value."""
     text = str(value).strip().casefold()
     try:
         return repr(float(text))
     except ValueError:
-        return text
+        return re.sub(r"^([a-z]+)0+(?=\d)", r"\1", text)
 
 
 def _near_values(objects: pd.DataFrame, fovs: pd.DataFrame, key: Sequence[str]) -> str:
@@ -368,6 +371,8 @@ def _why_different(seen: Any, listed: Any) -> str:
         return "is text in one table and a number in the other"
     if str(seen).strip().casefold() == str(listed).strip().casefold():
         return "differs only in spaces or case"
+    if not re.fullmatch(r"[-+.\deE]+", str(seen).strip()):
+        return "writes the same label with and without zero padding"  # 'B2' against 'B02'
     return "writes the same number differently"  # '1' against '1.0'
 
 
@@ -386,7 +391,7 @@ def _check_copies(
 def _check_label_variants(
     c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, columns: Sequence[str]
 ) -> None:
-    """Group labels of one table that differ only in spaces, case, or number against text.
+    """Group labels of one table that differ only in spaces, case, padding, or number vs text.
 
     ``1`` and ``'1'`` (two files read differently), ``'drug'``, ``'drug '`` and
     ``'Drug'`` (a hand-typed table) are separate groups to the analysis, and
@@ -415,8 +420,8 @@ def _check_label_variants(
             more = f" and {len(variants) - EXAMPLES} more" if len(variants) > EXAMPLES else ""
             reported.add(column)
             c.warning(
-                f"{column!r} holds labels that differ only in spaces, case, or number against "
-                "text, so each is analysed as a group of its own.",
+                f"{column!r} holds labels that differ only in spaces, case, zero padding or number "
+                "against text, so each is analysed as a group of its own.",
                 f"{name}, column {column!r}: {shown}{more}.",
                 "If they name one group, write them the same way in every row (strip the spaces, "
                 "use one case, read the column as text in every file); if they are different "

@@ -17,7 +17,10 @@ object in every plane, as a 3D segmentation, or a 2D one tracked across
 planes, provides. Labels that restart in each plane without being tracked do
 not name one object, and nothing in the table can tell; the pivot refuses
 only what it can see: a missing identifier, a label twice in one plane of a
-field, or an object missing from a plane.
+field, or an object missing from a plane (kept as a missing value, NaN, on
+request: ``allow_missing_planes=True``, for objects that span a few planes of
+a stack or stacks of different depth). CellPatcher writes a patch's plane as
+``z0`` (with ``z1 = z0 + 1``); without a ``z`` column that is the ``z`` axis.
 """
 
 from __future__ import annotations
@@ -51,6 +54,7 @@ def planes_as_features(
     axes: Sequence[str] = ("z",),
     object_col: str = "label_id",
     fov_col: str | None = None,
+    allow_missing_planes: bool = False,
 ) -> tuple[pd.DataFrame, list[str]]:
     """The observation table with each feature split per plane, and the new feature names.
 
@@ -67,18 +71,29 @@ def planes_as_features(
     feature by feature in the order of ``features`` and planes in sorted
     order. The second value lists those names, to pass as ``feature_cols``.
 
+    The ``z`` axis is read from CellPatcher's ``z0`` when the table has no
+    ``z`` column (or with ``axes=("z0",)``); the names still say ``z``
+    (``area_z0``), and a patch that spans several planes (``z1 - z0`` other
+    than 1) is refused.
+
     Refused, with the reason: ``object_col``, an axis or a feature that is not
-    a column; a missing ``object_col`` or axis value; a feature that is not
-    numeric; a label twice in one plane of one field (objects cannot be
-    matched across planes one to one); an object missing from a plane that
-    other objects were measured in; a new name that is already a column.
+    a column; a missing ``object_col`` or axis value; an axis written as text
+    in some rows and as numbers in others; a feature that is not numeric; a
+    label twice in one plane of one field (objects cannot be matched across
+    planes one to one); an object missing from a plane that other objects
+    were measured in, unless ``allow_missing_planes=True`` (opt-in), which
+    keeps its features in that plane as missing values (NaN) that every
+    analysis then treats as it treats any missing value; a new name that is
+    already a column.
     """
     if not isinstance(objects, pd.DataFrame):
         raise TypeError("objects must be a pandas DataFrame")
     if fovs is not None and not isinstance(fovs, pd.DataFrame):
         raise TypeError("fovs must be a pandas DataFrame when provided")
     features = list(column_names(features, "features") or ())
-    axes = list(column_names(axes, "axes") or ())
+    axes = _plane_columns(objects, list(column_names(axes, "axes") or ()))
+    if not isinstance(allow_missing_planes, bool):
+        raise TypeError("allow_missing_planes must be True or False")
     _check_arguments(objects, features, axes, object_col)
 
     explicit = [fov_col] if fov_col is not None else []
@@ -95,7 +110,7 @@ def planes_as_features(
             raise ValueError(f"{name} {overlap} identify the field or the object; name others")
 
     planes = _planes(table, axes)
-    _check_one_row_per_plane(table, field, object_col, axes, planes)
+    _check_one_row_per_plane(table, field, object_col, axes, planes, allow_missing_planes)
     wide, names = _wide(table, field, object_col, axes, features, planes)
     kept = [c for c in table.columns if c not in {*field, object_col, *axes, *features}]
     constant = _constant_columns(table, [*field, object_col], kept)
@@ -109,6 +124,27 @@ def planes_as_features(
     return result.reset_index(drop=True), names
 
 
+def _plane_columns(objects: pd.DataFrame, axes: list) -> list:
+    """The columns the ``axes`` are read from: CellPatcher's ``z0`` for ``z`` without a ``z``.
+
+    Refuses a ``z0`` whose patches span several planes (``z1 - z0`` other than 1).
+    """
+    columns = [
+        "z0" if axis == "z" and "z" not in objects.columns and "z0" in objects.columns else axis
+        for axis in axes
+    ]
+    if "z0" in columns and "z1" in objects.columns:
+        span = pd.to_numeric(objects["z1"], errors="coerce") - pd.to_numeric(
+            objects["z0"], errors="coerce"
+        )
+        if (span.dropna() != 1).any():
+            raise ValueError(
+                "some patches span several planes (z1 - z0 is not 1), so z0 does not name one "
+                "plane; split them per plane first (one row per plane, z1 = z0 + 1)"
+            )
+    return columns
+
+
 def _check_arguments(objects: pd.DataFrame, features: list, axes: list, object_col: object) -> None:
     """The named columns exist, the axes are within-field axes, the features numbers."""
     if not features:
@@ -119,9 +155,9 @@ def _check_arguments(objects: pd.DataFrame, features: list, axes: list, object_c
         repeated = repeated_names(names)
         if repeated:
             raise ValueError(f"{name} names {repeated[0]!r} more than once")
-    unknown = [a for a in axes if a not in PLANE_AXES]
+    unknown = [a for a in axes if a not in (*PLANE_AXES, "z0")]
     if unknown:
-        raise ValueError(f"axes must be among {list(PLANE_AXES)}, not {unknown}")
+        raise ValueError(f"axes must be among {list(PLANE_AXES)} (or 'z0'), not {unknown}")
     if not isinstance(object_col, str):
         raise TypeError("object_col must be the name of the column identifying each object")
     if object_col not in objects.columns:
@@ -140,6 +176,19 @@ def _check_arguments(objects: pd.DataFrame, features: list, axes: list, object_c
         if objects[axis].isna().any():
             raise ValueError(
                 f"objects[{axis!r}] is missing in some rows, so their plane is unknown"
+            )
+        # A number written as text beside numbers ('0' against 0) names one plane twice; a
+        # label such as 'max' (a projection) beside numbers is a plane of its own.
+        is_text = objects[axis].map(lambda value: isinstance(value, str)).astype(bool)
+        as_number = pd.to_numeric(objects[axis].where(is_text), errors="coerce")
+        numeric_text = is_text & as_number.notna()
+        if numeric_text.any() and not is_text.all():
+            written = objects.loc[numeric_text, axis].iloc[0]
+            number = objects.loc[~is_text, axis].iloc[0]
+            raise ValueError(
+                f"objects[{axis!r}] is text in some rows and a number in others ({written!r} "
+                f"against {_label(number)}), so one plane would have two names; read the "
+                "column as numbers in every file"
             )
     for feature in features:
         if feature not in objects.columns:
@@ -160,9 +209,15 @@ def _planes(table: pd.DataFrame, axes: list) -> list[tuple]:
 
 
 def _check_one_row_per_plane(
-    table: pd.DataFrame, field: list, object_col: str, axes: list, planes: list
+    table: pd.DataFrame,
+    field: list,
+    object_col: str,
+    axes: list,
+    planes: list,
+    allow_missing: bool = False,
 ) -> None:
-    """Every object has exactly one row in every plane of the table, within its field."""
+    """Every object has at most one row in each plane of its field, and one in every plane
+    of the table unless ``allow_missing``."""
     key = [*field, object_col]
     twice = table.duplicated([*key, *axes], keep=False)
     if twice.any():
@@ -174,7 +229,10 @@ def _check_one_row_per_plane(
         )
     counts = table.groupby(key, sort=False, dropna=False).size()
     short = counts[counts < len(planes)]
-    if len(short):
+    single = bool(len(short)) and bool(
+        table.groupby(field, sort=False, dropna=False)[axes].nunique().max().max() == 1
+    )
+    if len(short) and (single or not allow_missing):
         first = short.index[0]
         values = first if isinstance(first, tuple) else (first,)
         example = pd.Series(dict(zip(key, values, strict=True)))
@@ -183,7 +241,6 @@ def _check_one_row_per_plane(
             rows = rows[rows[column].isna()] if pd.isna(value) else rows[rows[column] == value]
         seen = set(rows.loc[:, axes].itertuples(index=False, name=None))
         missing = next(plane for plane in planes if plane not in seen)
-        single = table.groupby(field, sort=False, dropna=False)[axes].nunique().max().max() == 1
         hint = (
             f" Each field holds a single plane: the field identifier {field[-1]!r} names planes, "
             "not stage positions; supply 'position_id' or name fov_col."
@@ -193,7 +250,8 @@ def _check_one_row_per_plane(
         raise ValueError(
             f"{_where(example, field, object_col)} has no row at {_at(list(missing), axes)}, "
             f"which other objects were measured in ({count(len(short), 'object')} miss a "
-            f"plane); every object must be measured in every plane.{hint}"
+            f"plane); every object must be measured in every plane, or pass "
+            f"allow_missing_planes=True to keep a missing plane as NaN.{hint}"
         )
 
 
@@ -201,7 +259,11 @@ def _wide(
     table: pd.DataFrame, field: list, object_col: str, axes: list, features: list, planes: list
 ) -> tuple[pd.DataFrame, list[str]]:
     """One row per object, one column per feature and plane, and the new names in order."""
-    labels = {plane: "_".join(f"{a}{_label(v)}" for a, v in zip(axes, plane)) for plane in planes}
+    # CellPatcher's z0 is the z axis, and named so.
+    names_of = ["z" if axis == "z0" else axis for axis in axes]
+    labels = {
+        plane: "_".join(f"{a}{_label(v)}" for a, v in zip(names_of, plane)) for plane in planes
+    }
     if len(set(labels.values())) != len(labels):
         raise ValueError(
             f"plane values {list(labels)} give the same name twice (1 and 1.0?); make the "

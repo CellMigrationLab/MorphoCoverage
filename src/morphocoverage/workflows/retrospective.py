@@ -150,7 +150,7 @@ def report(
     data-integrity checks (``integrity_checks``: copied, reordered or scaled
     fields, repeated blocks and field summaries) on every declared column.
     """
-    check_workflow_inputs(objects, fovs, setup)
+    data_check = check_workflow_inputs(objects, fovs, setup, warn=False)
     common = setup.common
     readout = setup.readout
     reasons: dict[str, str] = {}
@@ -160,6 +160,8 @@ def report(
             fovs,
             feature_cols=setup.columns,
             normalized=setup.normalized_sentence(fovs, objects),
+            control=setup.control,
+            data_check=data_check,
             **common,
         ),
         "variability": fov_variability(objects, fovs, feature=readout, **common),

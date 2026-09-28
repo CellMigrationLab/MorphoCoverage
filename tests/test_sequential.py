@@ -220,6 +220,7 @@ def test_slice_by_slice_stack_is_revealed_as_one_position():
         feature_cols=["area"],
         acquisition_order_col="order",
         objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        observation_unit="slice",  # one row per plane (audit 4, D18)
     )
 
     assert [item.result.n_fovs for item in results] == [1, 2]

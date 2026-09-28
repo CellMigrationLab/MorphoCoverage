@@ -3,7 +3,11 @@
 A z-stack, a set of channels or a time series at one stage position is one
 field of view. These checks, applied by the validator (``schema``) and the live
 session (``online``), refuse or warn when plane files would be counted as
-fields, and keep plane coordinates out of the features.
+fields (a ``z``/``c``/``t`` column, or file names that differ only by a plane
+token), refuse the planes of one field counted as new observations of its
+objects (``_check_planes_within_fields``) and several stage positions counted
+as one field (``_check_positions_within_fields``), and keep plane coordinates
+out of the features.
 
 Shared-private: every name here is used by ``schema``, ``online`` and
 ``_data_rules``; ``schema`` re-exports them.
@@ -11,13 +15,30 @@ Shared-private: every name here is used by ``schema``, ``online`` and
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections.abc import Sequence
 
 import pandas as pd
 
+from ._wording import count
 from .metadata import (
     WITHIN_FOV_METADATA_COLUMNS,
+    position_like,
+)
+
+# Observation units whose rows each measure one plane, channel or frame (not an
+# object), so that a field holding rows of several planes is what they describe.
+PLANE_LEVEL_UNITS = frozenset({"slice", "plane", "frame"})
+
+# A plane, channel or frame token in a file name: ``_z03``, ``-t1``, ``_ch2``,
+# ``_plane4`` between separators, and the Operetta/Harmony ``p01``, ``-ch1`` and
+# ``sk1`` of ``r01c01f01p01-ch1sk1fk1fl1.tiff``. A bare ``c`` is not a token: ``_C02``
+# is as often plate well C02 (no plate row is T or Z).
+_PLANE_TOKEN = re.compile(
+    r"(?:(?<=[_\-. ])|^)(?:z|t|ch|plane|slice|frame|tp)_?\d+(?=[_\-. ]|$)"
+    r"|(?<=f\d\d)p\d+(?=-ch\d)|-ch\d+(?=sk\d)|(?<=\d)sk\d+(?=fk\d)",
+    re.IGNORECASE,
 )
 
 
@@ -75,6 +96,126 @@ def _check_within_fov_axes(
                 )
     if fov_col_was_chosen and fov_col in ("image_file", "fov_id"):
         _check_planes_as_fields(objects, fovs, key, axes, feature_cols)
+    if fov_col_was_chosen and fov_col == "image_file":
+        listed = fovs is not None and all(column in fovs.columns for column in key)
+        _check_plane_file_names(fovs if listed else objects, key)
+
+
+def _check_plane_file_names(table: pd.DataFrame, key: list[str]) -> None:
+    """Warn when ``image_file`` names differ only by a plane, channel or frame token.
+
+    ``pos_z01.tif`` and ``pos_z02.tif`` in one group are then two fields
+    although they may be two planes of one stage position, when the plane is
+    written only in the file name (no ``z`` column says so). A warning, not a
+    refusal: a token can also be part of a real position's name.
+    """
+    files = table.loc[:, key].drop_duplicates()
+    names = files[key[-1]].tolist()
+    if not names or not all(isinstance(name, str) for name in names):
+        return
+    stems = [_PLANE_TOKEN.sub("", name) for name in names]
+    collapsed = files.assign(_stem=stems).groupby([*key[:-1], "_stem"], dropna=False, sort=False)[
+        key[-1]
+    ]
+    per_stem = collapsed.nunique()
+    if not (per_stem > 1).any():
+        return
+    # Two names, and no count: the live session checks every field so far, and an unchanged
+    # message is shown once.
+    first, second = sorted(collapsed.unique()[per_stem > 1].iloc[0])[:2]
+    warnings.warn(
+        f"the image_file names that differ only by a plane, channel or frame token ({first!r} "
+        f"and {second!r}, ...) are counted as separate fields, so each may be one "
+        "plane/channel/frame of a position rather than a spatial FOV. Supply 'position_id' "
+        "(the same for every plane of one stage position), or pass fov_col='image_file' "
+        "explicitly if each file really is one position.",
+        UserWarning,
+        stacklevel=4,
+    )
+
+
+def _check_planes_within_fields(
+    objects: pd.DataFrame,
+    fov_key: tuple[str, ...],
+    feature_cols: Sequence[str],
+    observation_unit: str,
+) -> None:
+    """Refuse a field whose rows come from several planes, channels or frames (D18).
+
+    An object measured in each of five z-planes of one field is one object,
+    not five: counted as five, every rule on objects (the JCB cell count, the
+    object spread) sees five times the cells it has. Unless the declared unit
+    is a plane-level measurement (``PLANE_LEVEL_UNITS``), a ``z``/``c``/``t``
+    column (never a feature) with several values in one field is refused,
+    pointing to ``planes_as_features``, a single-plane filter or a plane-level
+    unit.
+    """
+    if observation_unit in PLANE_LEVEL_UNITS or objects.empty:
+        return
+    key = list(fov_key)
+    for axis in _within_fov_axes(objects, feature_cols):
+        per_field = objects.groupby(key, dropna=False, sort=False)[axis].nunique()
+        several = per_field[per_field > 1]
+        if several.empty:
+            continue
+        field = several.index[0]
+        values = field if isinstance(field, tuple) else (field,)
+        where = ", ".join(f"{c}={v!r}" for c, v in zip(key, values, strict=True))
+        split = "z" if axis in ("z0", "z1") else axis
+        raise ValueError(
+            f"{count(len(several), 'field')} {'holds' if len(several) == 1 else 'hold'} rows "
+            f"of several {axis!r} values (the field "
+            f"{where} holds {count(int(several.iloc[0]), axis + ' value')}), so an object "
+            f"measured in every plane, channel or frame would count once per plane "
+            f"({count(len(objects), 'row')} as {observation_unit} observations). A field is one "
+            "stage position and its planes are not new observations. Turn each feature into "
+            f"one per plane with morphocoverage.planes_as_features(..., axes=({split!r},)), "
+            f"keep one plane (objects[objects[{axis!r}] == ...]), or, if each row measures a "
+            "whole plane, declare observation_unit='slice'. A column that is an object's own "
+            f"position (a 3D centroid) needs another name than {axis!r}."
+        )
+
+
+def _check_positions_within_fields(
+    objects: pd.DataFrame,
+    fov_key: tuple[str, ...],
+    feature_cols: Sequence[str],
+    *,
+    fov_col_was_chosen: bool,
+) -> None:
+    """Refuse an automatically chosen field that holds several stage positions.
+
+    A multi-position file (one ``.nd2`` or ``.czi`` per well, its positions a
+    ``series``, ``scene`` or ``site`` column) is several fields under one
+    ``image_file``: counted as one, the well's positions are pooled into one
+    field. A position-like column (``metadata.position_like``) that is neither
+    a feature nor part of the field key and varies within a field is refused;
+    ``position_id``, or an explicit ``fov_col``, says what a field is.
+    """
+    if not fov_col_was_chosen:
+        return
+    key = list(fov_key)
+    candidates = [
+        column
+        for column in objects.columns
+        if position_like(column) and column not in feature_cols and column not in key
+    ]
+    for column in candidates:
+        try:
+            per_field = objects.groupby(key, dropna=False, sort=False)[column].nunique()
+        except TypeError:  # lists or arrays: not a position index
+            continue
+        several = per_field[per_field > 1]
+        if several.empty:
+            continue
+        raise ValueError(
+            f"{count(len(several), key[-1] + ' value')} "
+            f"{'holds' if len(several) == 1 else 'hold'} several {column!r} values (up to "
+            f"{int(several.max())}), so one field identifier covers several stage positions, as "
+            "in a multi-position file (.nd2, .czi, .lif). Supply 'position_id', one value per "
+            f"stage position (for example the file and the {column!r} together); if {column!r} "
+            "is not a stage position, rename it, or pass fov_col explicitly."
+        )
 
 
 def _check_planes_as_fields(

@@ -59,6 +59,7 @@ from ._seeds import group_rng
 from .data_check import validate_input_tables
 from .evaluator import iter_analysis_groups, objects_in_fovs, restrict_input
 from .evidence import Availability
+from .metadata import sorted_by_key
 from .objectives import ObjectiveConfig, SamplingObjective
 from .schema import ValidatedInput
 from .strategies.support_novelty import FOV_QUANTITY, UPPER_QUANTITY, SupportNoveltyEstimator
@@ -170,7 +171,7 @@ def calibrate_next_fov_novelty(
     for group, group_data in iter_analysis_groups(data):
         # FOV-key order first, as permuted_fovs and ReservoirSplit do, so the
         # draws do not depend on the row order of the FOV table.
-        ordered = group_data.fovs.sort_values(list(group_data.fov_key), kind="stable")
+        ordered = sorted_by_key(group_data.fovs, group_data.fov_key)
         group_data = restrict_input(group_data, group_data.objects, ordered)
         total = len(group_data.fovs)
         for k in counts:

@@ -6,8 +6,12 @@ row is, which feature columns are the phenotype representation, which
 conditions and repeats exist, how many technical repeats (wells, dishes:
 the ``technical_repeat`` column) each holds, how the fields fall across them,
 and whether the values were normalised to the control. Long feature lists are cut after
-``max_features_listed`` names. Everything here is counted from the validated
-tables; nothing is estimated.
+``max_features_listed`` names. The declared control condition is listed first,
+then the other conditions and the repeats in sorted order (never in the order
+of the table's rows); labels that print alike (``'drug'`` and ``'drug '``) are
+printed with their quotes. With a ``data_check`` (``check_tables``, which the
+workflows run) its warnings are listed too. Everything here is counted from
+the validated tables; nothing is estimated.
 """
 
 from __future__ import annotations
@@ -18,18 +22,31 @@ from typing import Any
 
 import pandas as pd
 
+from .._data_rules import _loose
 from .._wording import count
-from ..data_check import validate_input_tables
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..data_check import DataCheck, Problem, validate_input_tables
+from ..metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
+    TECHNICAL_REPEAT_COLUMN,
+    WITHIN_FOV_METADATA_COLUMNS,
+    sorted_labels,
+)
 from ..schema import fov_positions, unit_plural
 
 MAX_FEATURES_LISTED = 12
 MAX_VALUES_LISTED = 12
 
 
+def _shown(names: Sequence[Any]) -> list[str]:
+    """The names as text, all quoted when two of them would print alike (``drug``, ``drug ``)."""
+    loose = [_loose(n) for n in dict.fromkeys(names)]
+    alike = len(set(loose)) < len(loose)
+    return [repr(n) if alike else str(n) for n in names]
+
+
 def _listed(names: Sequence[Any], limit: int) -> str:
-    """The first ``limit`` names, then how many more."""
-    names = [str(n) for n in names]
+    """The first ``limit`` names, then how many more; quoted when two would print alike."""
+    names = _shown(names)
     if len(names) <= limit:
         return ", ".join(names)
     return ", ".join(names[:limit]) + f" and {len(names) - limit} more"
@@ -46,14 +63,17 @@ class DatasetOverview:
       when neither the condition nor the repeat column exists).
     - ``features``: the feature column names, in order.
     - ``settings``: the observation unit and whether it was declared, the
-      condition, repeat and technical-repeat columns, and the normalisation
-      applied.
+      condition, repeat and technical-repeat columns, the analysis groups,
+      the values each within-field coordinate takes per field, and the
+      normalisation applied.
+    - ``warnings``: the data check's warnings (``check_tables``), when one was given.
     """
 
     counts: dict[str, int]
     layout: pd.DataFrame
     features: tuple[str, ...]
     settings: dict[str, Any]
+    warnings: tuple[Problem, ...] = ()
 
     def summary(self, max_features_listed: int = MAX_FEATURES_LISTED) -> str:
         """Plain sentences and a fields-by-condition-and-repeat table when there is one."""
@@ -86,7 +106,18 @@ class DatasetOverview:
                 f"{count(c['technical_repeats'], 'technical repeat')} ({technical_col}, a well "
                 f"or a dish within a repeat{spread})."
             )
-        if condition_col is None and repeat_col is None:
+        for axis, (low, high) in self.settings.get("planes", {}).items():
+            lines.append(
+                f"{axis!r} takes {low} to {high} values per field: {words} of several planes, "
+                "channels or frames of one field (declared as plane-level rows)."
+            )
+        group_cols = self.settings.get("group_cols", ())
+        if condition_col is None and repeat_col is None and group_cols:
+            lines.append(
+                f"No condition or repeat column; the analysis groups are {', '.join(group_cols)} "
+                f"({count(c['groups'], 'group')}), each analysed apart."
+            )
+        elif condition_col is None and repeat_col is None:
             lines.append(
                 "No condition or repeat column: every field is one group (all fields pooled)."
             )
@@ -118,6 +149,8 @@ class DatasetOverview:
                     columns.append("technical repeats")
                     keys.append("technical_repeats")
                 lines.append("  " + "  ".join([*header, *columns]))
+                for col in header:
+                    table[col] = _shown(table[col].tolist())
                 for row in table.itertuples(index=False):
                     row = row._asdict()
                     cells = [str(row[col]) for col in header] + [str(row[key]) for key in keys]
@@ -131,7 +164,26 @@ class DatasetOverview:
             lines.append(f"Values: {normalized}.")
         else:
             lines.append("Values: as given (not normalised).")
+        if self.warnings:
+            lines.append(
+                f"The data check found {count(len(self.warnings), 'warning')} (check_tables says "
+                "where and how to fix each):"
+            )
+            lines += [f"  - {problem.title}" for problem in self.warnings]
         return "\n".join(lines)
+
+
+def _within_field_values(data: Any) -> dict[str, tuple[int, int]]:
+    """For each within-field coordinate that varies within a field: its fewest and most values."""
+    planes = {}
+    key = list(data.fov_key)
+    for axis in WITHIN_FOV_METADATA_COLUMNS:
+        if axis not in data.objects.columns or axis in data.feature_cols:
+            continue
+        per_field = data.objects.groupby(key, sort=False, dropna=False)[axis].nunique()
+        if len(per_field) and int(per_field.max()) > 1:
+            planes[axis] = (int(per_field.min()), int(per_field.max()))
+    return planes
 
 
 def dataset_overview(
@@ -146,12 +198,15 @@ def dataset_overview(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    control: Mapping[str, Any] | None = None,
+    data_check: DataCheck | None = None,
 ) -> DatasetOverview:
     """Count what the tables hold (see the module). ``normalized`` is a sentence to print.
 
     Each column argument is used when the FOV table has it; a technical
     repeat is counted within its condition and repeat (well J23 of two
-    plates is two technical repeats).
+    plates is two technical repeats). ``control`` (``{"condition": ...}``)
+    puts the control condition first; ``data_check`` adds its warnings.
     """
     data = validate_input_tables(
         objects,
@@ -180,6 +235,14 @@ def dataset_overview(
     if keys:
         layout = table.groupby(keys, sort=False, dropna=False).agg(**aggregations).reset_index()
         layout["empty_fields"] = layout["empty_fields"].astype(int)
+        # The control first, then sorted labels: the row order of the tables is not data.
+        first = dict(control or {}).get(condition_col)
+        ranks = [
+            layout[col].map({v: i for i, v in enumerate(sorted_labels(layout[col], first))})
+            for col in keys
+        ]
+        order = sorted(range(len(layout)), key=lambda i: tuple(int(r.iloc[i]) for r in ranks))
+        layout = layout.iloc[order].reset_index(drop=True)
     else:
         layout = pd.DataFrame(columns=list(aggregations))
     if technical_col is None:
@@ -194,6 +257,9 @@ def dataset_overview(
         "conditions": int(table[condition_col].nunique(dropna=False)) if condition_col else 0,
         "repeats": int(table[repeat_col].nunique(dropna=False)) if repeat_col else 0,
         "technical_repeats": technical_repeats,
+        "groups": len(data.fovs.loc[:, list(data.group_cols)].drop_duplicates())
+        if data.group_cols
+        else 1,
     }
     settings: dict[str, Any] = {
         "observation_unit": data.observation_unit,
@@ -202,9 +268,12 @@ def dataset_overview(
         "condition_col": condition_col,
         "repeat_col": repeat_col,
         "technical_col": technical_col,
+        "group_cols": tuple(data.group_cols),
+        "planes": _within_field_values(data),
         "normalized": normalized,
     }
-    return DatasetOverview(counts, layout, tuple(data.feature_cols), settings)
+    warnings = tuple(data_check.warnings) if data_check is not None else ()
+    return DatasetOverview(counts, layout, tuple(data.feature_cols), settings, warnings)
 
 
 def normalized_sentence(control: Mapping[str, Any], repeat_col: str | None) -> str:
