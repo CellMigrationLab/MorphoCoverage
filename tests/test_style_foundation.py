@@ -402,7 +402,9 @@ def test_the_opening_marks_the_data_checks_and_the_integrity():
     assert full.startswith(f"{PROBLEM} {OVERVIEW_TITLE}\n")
     for number in (str(len(objects)), str(len(fovs))):
         assert number in opening and number in full
-    assert "Data integrity (exact checks" in full
+    # The full opening carries the integrity summary in full, with its own marker.
+    assert f"{PROBLEM} Data integrity — " in full and "Exact checks for copied data" in full
+    assert f"{PROBLEM} {PROBLEM}" not in full
 
 
 def test_the_short_report_opens_with_a_title_and_one_line_per_question():

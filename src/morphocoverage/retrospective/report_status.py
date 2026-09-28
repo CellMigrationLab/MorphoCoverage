@@ -56,6 +56,11 @@ question:
   runs never reached the criterion; ✅ otherwise.
 - **9. Do the conditions differ?** (``conditions_status``): ⚠️ when some
   contrast has no randomization test (one unit on a side); ✅ otherwise.
+- **optimise's rule check** (``calibration_status``, P5 and P6: how reliable
+  is each stopping rule?): ⚠️ when some rule stopped where a criterion was
+  not preserved in held-back fields in more than ``PREMATURE_CAUTION`` of the
+  acquisitions of a group and order kind, ✅ otherwise, ➖ with no replayed
+  stop.
 
 A text added later to a question (``workflows._document.with_text``) may raise
 its status; it never lowers one. These rules are the first ones: each
@@ -74,6 +79,7 @@ from .._style import Status, among, worst
 from .._wording import count, listing, number, percent
 from ..schema import unit_plural
 from ..sufficiency_short import rule_tallies
+from ._text import rule_names
 from .adequacy import ALL_CRITERIA
 from .calibration import PREMATURE_CAUTION
 
@@ -108,8 +114,7 @@ def integrity_status(integrity: Any) -> Answer:
             Status.PROBLEM,
             f"integrity: {found} in {count(len(fields), 'field')}; check them first",
         )
-    checks = integrity.checks
-    if len(checks) and (checks["status"] == "not applicable").all():
+    if integrity.status is Status.NOT_ASSESSED:  # no check applied to these features
         return Status.NOT_ASSESSED, "integrity checks not applicable"
     return Status.OK, "integrity: nothing found"
 
@@ -195,6 +200,36 @@ def _premature(calibration: Any) -> float | None:
         return None
     shares = calibration.table["not_preserved_at_stop"].dropna()
     return float(shares.max()) if len(shares) else None
+
+
+def calibration_status(calibration: Any) -> Answer:
+    """``optimise``'s rule check (P5, P6): how often each rule's stop lost a criterion.
+
+    ➖ without a calibration or with nothing replayed; ⚠️ when some rule stopped
+    where a criterion was not preserved in held-back fields in more than
+    ``PREMATURE_CAUTION`` of the acquisitions of a group and order kind; ✅
+    otherwise. The headline names the rule with the largest share.
+    """
+    premature = _premature(calibration)
+    if premature is None:
+        return Status.NOT_ASSESSED, "not assessed (no replayed stop)"
+    table = calibration.table
+    worst_row = table.loc[table["not_preserved_at_stop"].astype(float).idxmax()]
+    names = rule_names(calibration.settings)
+    rule = names.get(worst_row["config_id"], worst_row["strategy"])
+    kinds = {"recorded": "the recorded order", "permuted": "random orders"}
+    kind = kinds.get(worst_row["order"], f"{worst_row['order']} orders")
+    if premature > PREMATURE_CAUTION:
+        text = (
+            f"{rule}: in some group up to {percent(premature)} of its stops did not preserve "
+            f"a criterion in held-back fields ({kind})"
+        )
+        return Status.CAUTION, text
+    text = (
+        f"at most {percent(premature)} of any rule's stops did not preserve a criterion in "
+        "held-back fields"
+    )
+    return Status.OK, text
 
 
 def enough_status(sufficiency: Any, calibration: Any = None) -> Answer:
@@ -396,6 +431,7 @@ __all__ = [
     "FALSE_ALARM_CAUTION",
     "FEW_UNITS",
     "bought_status",
+    "calibration_status",
     "conditions_status",
     "controls_status",
     "data_check_status",

@@ -137,7 +137,7 @@ def test_i4_settings_print_the_fields_held_back_and_the_recorded_order():
     low, high = plan.settings["reservoir_fovs"]
     # 25% of the three fields of each well rounds up to one field.
     assert (low, high) == (1, 1)
-    text = plan.summary()
+    text = " ".join(plan.summary().split())  # the settings are wrapped
     assert "1 field of each group held back (reservoir_fraction 25%, rounded up" in text
     assert "the recorded order, 1 random and 0 dispersed orders" in text
     result = benchmark(
@@ -150,8 +150,9 @@ def test_i4_settings_print_the_fields_held_back_and_the_recorded_order():
         permuted_orders=1,
         n_boot=20,
     )
-    assert "1 field of each group held back" in result.summary()
-    assert "the recorded order and 1 random orders" in result.summary()
+    text = " ".join(result.summary().split())
+    assert "1 field of each group held back" in text
+    assert "the recorded order and 1 random orders" in text
 
 
 def test_i5_every_preset_is_printed_and_minimum_detection_reaches_the_report(monkeypatch):
@@ -207,6 +208,7 @@ def test_i5_every_preset_is_printed_and_minimum_detection_reaches_the_report(mon
         n_boot=20,
         min_fovs=2,
     ).summary()
+    text = " ".join(text.split())  # the settings are wrapped
     assert "from 20 bootstrap resamples (n_boot)" in text
     assert "rules evaluated from 2 fields on (min_fovs)" in text
     assert "JCB per object (averaging_cv 0.0025 to 0.4, 9 settings)" in text

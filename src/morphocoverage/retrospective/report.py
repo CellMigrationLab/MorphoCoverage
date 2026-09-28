@@ -482,7 +482,7 @@ def opening(overview: DatasetOverview, integrity: Any = None) -> dict[str, Any]:
         involved = integrity.fields_involved()
         if involved:
             line = f"{line[:-1]}: {listing(involved, limit=3)}."
-        full = f"{full}\n\n{status.marker} {integrity.summary()}"
+        full = f"{full}\n\n{integrity.summary(detail='full')}"
     overall, glance = overview_status(overview, integrity)
     counts = overview.counts
     unit = overview.settings["observation_unit"]

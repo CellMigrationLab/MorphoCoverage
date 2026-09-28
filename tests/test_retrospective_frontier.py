@@ -163,9 +163,11 @@ def test_an_adaptive_rule_saves_fields_and_its_stops_follow_the_need(mixed):
     assert score["saved_low"] <= score["fields_saved"] <= score["saved_high"]
     assert score["adaptivity"] > 0.3
     assert score["baseline_risk_at_same_effort"] > score["risk"]
-    text = result.summary()
+    text = result.summary(detail="full")
     assert "a fixed number of fields needed" in text and "oracle at" in text
     assert "saves" in text and "treated as independent" in text
+    short = result.summary()
+    assert "a fixed count needs" in short and "oracle at" in short and "saves" in short
 
 
 def test_more_replays_of_the_same_units_do_not_narrow_the_interval(mixed):
@@ -299,7 +301,11 @@ def test_the_interval_reads_in_the_direction_of_the_verdict():
         ]
     )
     settings = {"label": "x", "units": 6}  # an interval is printed from 5 units (audit 4)
-    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), settings).summary()
+    result = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), settings)
+    text = " ".join(result.summary(detail="full").split())
+    short = result.summary()
+    assert "costs 1.3 (1.2 to 1.3)" in short and "saves 0.5 (0.2 to 0.8)" in short
+    assert "as well, no better (-0.1 to 0.0)" in short
     assert "costs 1.3 more fields, approximate 95% interval 1.2 to 1.3" in text
     assert "saves 0.5 fields, approximate 95% interval 0.2 to 0.8" in text
     assert "no better, approximate 95% interval of the fields saved -0.1 to 0.0" in text
@@ -338,7 +344,11 @@ def test_the_summary_states_the_efforts_it_subtracts():
         ]
     )
     settings = {"label": "x", "units": 12, "unit_cols": ["condition", "repeat", "well"]}
-    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), settings).summary()
+    result = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), settings)
+    text = " ".join(result.summary(detail="full").split())
     assert "needed 7 fields, 6.5 on average" in text
     assert "80% of the resamples" in text
-    assert "12 units (condition, repeat, well)" in text
+    assert "12 units (condition · repeat · well)" in text
+    short = " ".join(result.summary().split())
+    assert "a fixed count needs 7 fields, 6.5 on average" in short
+    assert "80% of the resamples" in short

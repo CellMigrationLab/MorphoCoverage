@@ -352,9 +352,13 @@ def _setup(arguments):
 def test_each_mistake_is_caught_and_explained(mistake):
     objects, fovs = mistake.make(CLEAN[0].copy(), CLEAN[1].copy())
     check = _check(objects, fovs, mistake.arguments)
-    text = check.summary()
+    # The full form says where each problem is; wrapped lines are joined to compare.
+    text = " ".join(check.summary(detail="full").split())
     for words in mistake.says:
-        assert words in text, f"{mistake.name}: {words!r} not in\n{text}"
+        assert " ".join(words.split()) in text, f"{mistake.name}: {words!r} not in\n{text}"
+    short = " ".join(check.summary().split())
+    for problem in check.problems:  # the short form names every problem and its fix
+        assert " ".join(problem.title.split()) in short and " ".join(problem.fix.split()) in short
     if mistake.kind == "refused":
         assert not check.ok
         control_only = mistake.arguments is not None and set(mistake.arguments) == {"control"}

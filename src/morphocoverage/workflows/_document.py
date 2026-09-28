@@ -100,7 +100,8 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
         if overview is not None:
             document = with_opening(document, overview, integrity)
         else:
-            text = "\n\n".join(p for p in (document.overview, integrity.summary()) if p)
+            full = integrity.summary(detail="full")
+            text = "\n\n".join(p for p in (document.overview, full) if p)
             document = replace(document, overview=text)
         document = _with_integrity(document, integrity)
     rare = results.get("rare_clustering")

@@ -327,9 +327,10 @@ class FrontierResult:
     runs: pd.DataFrame
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The score in sentences, per risk level."""
-        return frontier_summary(self)
+    def summary(self, detail: str = "short") -> str:
+        """The score per risk level: ``"short"``, a table of the families per level;
+        ``"full"``, every family in sentences (``frontier_text.frontier_summary``)."""
+        return frontier_summary(self, detail)
 
 
 def frontier(

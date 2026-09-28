@@ -6,6 +6,17 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from .._style import (
+    Status,
+    caution_lines,
+    check_detail,
+    group_columns,
+    headline,
+    table,
+    worst,
+    wrap,
+)
+from .._wording import number
 from ._text import fields, percent
 from .effort import MIN_BOOT_SUCCESS
 from .protocol_text import FEW_UNITS
@@ -17,6 +28,7 @@ BASELINE = "fixed fields"
 # Units from which the widened interval of the fields saved came close to its level in
 # simulation (0.64 at 5 units, 0.80 at 12, 0.95 at 20 for a nominal 95%).
 _MANY_UNITS = 20
+_NEVER = "never got there at any setting tried"
 
 
 def _setting(value: object) -> str:
@@ -117,82 +129,249 @@ def _interval(row: object, saved: float, units: int | None = None) -> str:
     return interval + (f" ({'; '.join(notes)})" if notes else "")
 
 
-def frontier_summary(result: FrontierResult) -> str:
-    """ "At most 5% too-early stops: a fixed count needs ..., this rule saves ..." in sentences."""
-    label = result.settings.get("label", result.settings.get("criterion"))
+def _resampled(result: FrontierResult) -> str:
+    """How the intervals were made (or why there are none), stated once per criterion."""
     units = result.settings.get("units", 0)
-    blocks = []
-    for alpha, rows in result.scores.groupby("alpha", sort=True):
-        lines = [f"For {label}, stopping too early in at most {percent(alpha)} of acquisitions:"]
-        base = rows[rows["family"] == BASELINE].iloc[0]
-        if base["effort"] is None or pd.isna(base["effort"]):
-            # The families are still listed, with their own effort and risk.
-            baseline = next(rows[rows["family"] == BASELINE].itertuples(index=False))
-            lines += _unscored(rows, baseline)
-            blocks.append("\n".join(lines))
+    unit_cols = result.settings.get("unit_cols") or []
+    named = f" ({group_columns(unit_cols)})" if unit_cols else ""
+    if units >= FEW_UNITS:
+        resampled = (
+            f"Intervals resample the {units} units{named}, treated as independent, "
+            "widened for their number (approximate"
+            + (
+                ""
+                if units >= _MANY_UNITS
+                else f": with fewer than {_MANY_UNITS} units "
+                "they cover the truth less often than stated"
+            )
+            + ")"
+        )
+    elif units >= 2:
+        resampled = (
+            f"No interval: only {units} units{named} to resample, and at least "
+            f"{FEW_UNITS} are needed for one near its level"
+        )
+    else:
+        resampled = f"No interval: there is a single unit{named} to resample"
+    return f"{resampled}; hold-outs and orders are not independent experiments"
+
+
+def _scored(base: pd.Series) -> bool:
+    return not (base["effort"] is None or pd.isna(base["effort"]))
+
+
+def _full_lines(rows: pd.DataFrame, units: int) -> list[str]:
+    """One risk level in sentences: the fixed count, then each family (today's wording)."""
+    base = rows[rows["family"] == BASELINE].iloc[0]
+    if not _scored(base):
+        # The families are still listed, with their own effort and risk.
+        baseline = next(rows[rows["family"] == BASELINE].itertuples(index=False))
+        return _unscored(rows, baseline)
+    # Fields saved subtract mean efforts; when streams shorter than the fixed count
+    # stop early, the baseline's mean effort is below its setting, and the text says so.
+    mean_effort = (
+        ""
+        if abs(float(base["effort"]) - float(base["setting"])) < 0.05
+        else f", {_number(base['effort'])} on average as some acquisitions had fewer"
+    )
+    needed = fields(int(base["setting"]))
+    lines = [
+        f"  a fixed number of fields needed {needed}{mean_effort} (risk {percent(base['risk'])})."
+    ]
+    for row in rows[rows["family"] != BASELINE].itertuples(index=False):
+        if row.effort is None or pd.isna(row.effort):
+            lines.append(_not_chosen(row))
             continue
-        # Fields saved subtract mean efforts; when streams shorter than the fixed count
-        # stop early, the baseline's mean effort is below its setting, and the text says so.
-        mean_effort = (
+        saved = row.fields_saved
+        verdict = (
+            f"saves {_number(saved)} fields"
+            if saved > 0.05
+            else f"costs {_number(-saved)} more fields"
+            if saved < -0.05
+            else "does as well as the fixed count, no better"
+        )
+        interval = _interval(row, saved, units)
+        adaptivity = getattr(row, "adaptivity", None)
+        adaptive = (
+            ""
+            if adaptivity is None or pd.isna(adaptivity)
+            else f"; its stops follow the fields each acquisition needed with Spearman "
+            f"{adaptivity:.2f}"
+        )
+        lines.append(
+            f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
+            f"(risk {percent(row.risk)}); it {verdict}{interval}{adaptive}."
+        )
+    return lines
+
+
+def _against(row: object, units: int) -> tuple[str, str | None]:
+    """The short table's verdict cell (``saves 0.9 (0.2 to 1.0)``) and a note, or None."""
+    saved = float(row.fields_saved)
+    if saved > 0.05:
+        verdict = f"saves {_number(saved)}"
+    elif saved < -0.05:
+        verdict = f"costs {_number(-saved)}"
+    else:
+        verdict = "as well, no better"
+    interval = _interval(row, saved, units)
+    if not interval.startswith(", approximate"):
+        return verdict, interval.removeprefix(", ") or None
+    # ", approximate 95% interval[ of the fields saved] a to b[ (notes)]"
+    body = interval.split(" interval", 1)[1].removeprefix(" of the fields saved")
+    span, _, notes = body.strip().partition(" (")
+    notes = notes.rstrip(")")
+    resolved = "not resolved" in notes
+    rest = [n for n in notes.split("; ") if n and n != "not resolved"]
+    cell = f"{verdict} ({span}{', not resolved' if resolved else ''})"
+    return cell, ("; ".join(rest) or None)
+
+
+def _short_rows(rows: pd.DataFrame, units: int) -> tuple[list[list[str]], list[str]]:
+    """The families of one risk level as table rows, and the notes under the table."""
+    table_rows, notes = [], []
+    base = rows[rows["family"] == BASELINE].iloc[0]
+    for row in rows[rows["family"] != BASELINE].itertuples(index=False):
+        if row.effort is None or pd.isna(row.effort):
+            lapse = _lapse(row)
+            table_rows.append([row.family, "–", "–", "no lasting setting" if lapse else _NEVER])
+            if lapse:
+                notes.append(f"{row.family} {lapse}")
+            continue
+        name = f"{row.family} at {_setting(row.setting)}"
+        if not _scored(base):
+            cell, note = "no fixed count to compare", None
+        else:
+            cell, note = _against(row, units)
+        table_rows.append([name, number(row.effort), percent(row.risk), cell])
+        if note:
+            notes.append(f"{row.family}: {note}")
+    return table_rows, notes
+
+
+def _baseline_text(rows: pd.DataFrame) -> str:
+    """``a fixed count needs 2 fields (risk 4%)``, or why no rule is scored at this level."""
+    base = rows[rows["family"] == BASELINE].iloc[0]
+    if _scored(base):
+        mean = (
             ""
             if abs(float(base["effort"]) - float(base["setting"])) < 0.05
-            else f", {_number(base['effort'])} on average as some acquisitions had fewer"
+            else f", {_number(base['effort'])} on average"
         )
-        lines.append(
-            f"  a fixed number of fields needed {fields(int(base['setting']))}{mean_effort} "
-            f"(risk {percent(base['risk'])})."
-        )
-        for row in rows[rows["family"] != BASELINE].itertuples(index=False):
-            if row.effort is None or pd.isna(row.effort):
-                lines.append(_not_chosen(row))
-                continue
-            saved = row.fields_saved
-            verdict = (
-                f"saves {_number(saved)} fields"
-                if saved > 0.05
-                else f"costs {_number(-saved)} more fields"
-                if saved < -0.05
-                else "does as well as the fixed count, no better"
-            )
-            interval = _interval(row, saved, units)
-            adaptive = (
-                ""
-                if row.adaptivity is None or pd.isna(row.adaptivity)
-                else f"; its stops follow the fields each acquisition needed with Spearman "
-                f"{row.adaptivity:.2f}"
-            )
-            lines.append(
-                f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
-                f"(risk {percent(row.risk)}); it {verdict}{interval}{adaptive}."
-            )
-        unit_cols = result.settings.get("unit_cols") or []
-        named = f" ({', '.join(unit_cols)})" if unit_cols else ""
-        if units >= FEW_UNITS:
-            resampled = (
-                f"Intervals resample the {units} units{named}, treated as independent, "
-                "widened for their number (approximate"
-                + (
-                    ""
-                    if units >= _MANY_UNITS
-                    else f": with fewer than {_MANY_UNITS} units "
-                    "they cover the truth less often than stated"
-                )
-                + ")"
-            )
-        elif units >= 2:
-            resampled = (
-                f"No interval: only {units} units{named} to resample, and at least "
-                f"{FEW_UNITS} are needed for one near its level"
-            )
+        needed = fields(int(base["setting"]))
+        return f"a fixed count needs {needed}{mean} (risk {percent(base['risk'])})"
+    lapse = _lapse(next(rows[rows["family"] == BASELINE].itertuples(index=False)))
+    if lapse is not None:
+        return f"a fixed count {lapse}; no rule is scored against it"
+    return "a fixed count never got there within the fields available; no rule is scored"
+
+
+def _best(rows: pd.DataFrame) -> object | None:
+    """The family that saves most at this level, or None when none got there."""
+    scored = rows[(rows["family"] != BASELINE) & rows["effort"].notna()]
+    if scored.empty or "fields_saved" not in scored:
+        return None
+    ordered = scored.sort_values("fields_saved", ascending=False, kind="stable")
+    return next(ordered.itertuples(index=False))
+
+
+def level_status(rows: pd.DataFrame, units: int) -> tuple[Status, str]:
+    """One risk level's status and phrase (see ``frontier_status``)."""
+    base = rows[rows["family"] == BASELINE].iloc[0]
+    if not _scored(base):
+        return Status.NOT_ASSESSED, "not scored (a fixed count never met it lastingly)"
+    fixed = fields(int(base["setting"]))
+    best = _best(rows)
+    if best is None:
+        return Status.OK, f"no rule got there; a fixed {fixed} did"
+    saved = float(best.fields_saved)
+    low = getattr(best, "saved_low", None)
+    has_interval = units >= FEW_UNITS and not (low is None or pd.isna(low))
+    reached = getattr(best, "saved_reached", None)
+    if reached is not None and not pd.isna(reached) and reached < MIN_BOOT_SUCCESS:
+        has_interval = False
+    if saved > 0.05:
+        if has_interval and low > 0:
+            return Status.OK, f"{best.family} saves {_number(saved)} of {fixed}"
+        why = "not resolved" if has_interval else "no interval"
+        return Status.CAUTION, f"{best.family} may save {_number(saved)} fields ({why})"
+    if not has_interval:
+        return Status.CAUTION, f"no rule beats a fixed {fixed} (no interval)"
+    return Status.OK, f"no rule beats a fixed {fixed}"
+
+
+def frontier_status(result: FrontierResult) -> tuple[Status, str]:
+    """The criterion's status and one-line answer, over its risk levels.
+
+    Per risk level: ➖ when a fixed count never met it lastingly (no rule is
+    scored); ✅ when the family that saves most does so with an interval
+    above 0, or when no family saves fields (the null result) with an
+    interval; ⚠️ when the best saving is not resolved (its interval includes
+    0) or has no interval (fewer than ``FEW_UNITS`` units, or too few
+    resamples reached the level). The worst over the levels; levels with the
+    same phrase are named once.
+    """
+    units = result.settings.get("units", 0)
+    levels = list(result.scores.groupby("alpha", sort=True))
+    parts = [level_status(rows, units) for _, rows in levels]
+    if not parts:
+        return Status.NOT_ASSESSED, "not scored"
+    phrases: dict[str, list[str]] = {}
+    for (alpha, _), (_, phrase) in zip(levels, parts, strict=True):
+        phrases.setdefault(phrase, []).append(f"≤{percent(alpha)}")
+    text = "; ".join(f"at {' and '.join(at)} risk, {what}" for what, at in phrases.items())
+    return worst(status for status, _ in parts), text
+
+
+def _label(result: FrontierResult) -> str:
+    return str(result.settings.get("label", result.settings.get("criterion")))
+
+
+def frontier_summary(result: FrontierResult, detail: str = "short") -> str:
+    """The score per risk level: ``"short"``, one table of the families per level (levels
+    with the same answer merged); ``"full"``, every family in sentences. Both open with the
+    criterion's status and close with how the intervals were made, once."""
+    short = check_detail(detail) == "short"
+    label = _label(result)
+    units = result.settings.get("units", 0)
+    status, answer = frontier_status(result)
+    lines = [wrap(headline(status, f"For {label}", answer), 0, hang=3)]
+    shown: list[list] = []
+    for alpha, rows in result.scores.groupby("alpha", sort=True):
+        if not short:
+            lines.append(f"  Stopping too early in at most {percent(alpha)} of acquisitions:")
+            lines += [wrap(line, 2, hang=4) for line in _full_lines(rows, units)]
+            continue
+        table_rows, notes = _short_rows(rows, units)
+        body = [_baseline_text(rows), table_rows, notes]
+        if shown and shown[-1][1:] == [body]:
+            shown[-1][0].append(percent(alpha))
         else:
-            resampled = f"No interval: there is a single unit{named} to resample"
-
+            shown.append([[percent(alpha)], body])
+    for levels, (baseline, table_rows, notes) in shown:
+        levels_text = " or ".join(levels)
         lines.append(
-            f"  {resampled}; hold-outs and orders are not independent experiments. Risk is "
-            "judged on held-back fields."
+            wrap(
+                f"Stopping too early in at most {levels_text} of acquisitions: {baseline}.",
+                2,
+                hang=4,
+            )
         )
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
+        if table_rows and all(cells[-1] == _NEVER for cells in table_rows):
+            lines.append("    No rule got there at any setting tried.")
+        elif table_rows:
+            header = ["rule", "fields", "risk", "against the fixed count (95% interval)"]
+            lines.append(table(table_rows, header, indent=4, align="lrrl"))
+        lines += [wrap(f"{note}.", 4, hang=6) for note in notes]
+    # How the intervals were made, where some level was scored against a fixed count.
+    scored = [
+        _scored(rows[rows["family"] == BASELINE].iloc[0])
+        for _, rows in result.scores.groupby("alpha", sort=True)
+    ]
+    if any(scored):
+        lines += caution_lines([_resampled(result)], indent=2)
+    lines.append("  Risk is judged on held-back fields.")
+    return "\n".join(lines)
 
 
-__all__ = ["BASELINE", "frontier_summary"]
+__all__ = ["BASELINE", "frontier_status", "frontier_summary", "level_status"]
