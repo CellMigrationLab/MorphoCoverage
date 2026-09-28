@@ -35,8 +35,14 @@ Limits:
 - The actual rate is measured on the group's remaining FOVs only. With few
   remaining FOVs it is noisy, which lowers how often the bound appears to
   hold; ``remaining_fovs`` says how many there were.
-- Neighbouring FOVs are often correlated, which the bound ignores; this is
-  one thing the check can reveal.
+- Neighbouring FOVs are often correlated, which the bound ignores, and the
+  check cannot reveal it: random subsets break adjacency, so a raster over
+  spatially patchy states (states persisting over a few neighbouring fields)
+  can make the bound fail for the fields acquired next while the check reports
+  it holding. The acquisition-order check (``morphocoverage.order_check``,
+  printed beside every stop when ``acquisition_order_col`` or ``stage_cols``
+  are declared) flags a trend or spatial autocorrelation of the readout;
+  acquire in a random or dispersed order to make the check's premise true.
 - The check is for this dataset and these settings (``epsilon``, transform,
   ``min_novel_observations``); it does not transfer to other settings.
 """

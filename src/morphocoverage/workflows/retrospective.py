@@ -215,6 +215,9 @@ def report(
         # "New" is judged on the declared features only, as in the controls and the
         # inspection; the rules read the readout.
         novelty_cols=list(setup.features) if setup.novelty is not None else None,
+        # The order check beside every stop: the readout against order and stage.
+        readout=setup.readout,
+        stage_cols=setup.stage_cols,
         **common,
     )
     results["sufficiency"] = report_only(sufficiency, setup)

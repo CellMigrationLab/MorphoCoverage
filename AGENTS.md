@@ -193,6 +193,7 @@ src/morphocoverage/
     evaluator.py           # group iteration, isolation, timing, framework-built results
     sequential.py          # leakage-safe acquisition-prefix replay
     online.py              # live OnlineSession: add one newly acquired spatial FOV at a time
+    order_check.py         # acquisition-order check beside every stop: readout trend with order, Moran's I on the stage (flags, never vetoes)
     outcomes.py            # retrospective group-local outcome metrics, strategy-independent
     multivariate_outcomes.py  # distribution-level outcome metrics (centroid ... MMD)
     distances.py           # pure two-sample distance primitives (energy, MMD, Fréchet, SW)
@@ -259,6 +260,7 @@ src/morphocoverage/
         _document.py       # private: the assembled report of the workflows, its parts and settings
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
+        _live_order.py     # private: the live session that runs the order check of each group's fields so far
         _shared.py         # private: input checks, orders, rule replays on raw values, outcomes on normalised ones
     strategies/
         __init__.py        # the exported strategies, estimators and policies

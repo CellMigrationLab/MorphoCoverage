@@ -288,7 +288,8 @@ def test_a9_counts_are_singular_for_one():
         group_cols=[],
         observation_unit="fov_summary",
     )
-    assert result.explain().endswith("after 1 FOV, 1 field summary")
+    # A stop then says what it rests on (audit 4, Q2).
+    assert "after 1 FOV, 1 field summary; treats the fields as a random sample" in result.explain()
 
 
 def test_a10_group_identity_is_the_same_for_numpy_and_python_values():

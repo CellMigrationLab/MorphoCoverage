@@ -400,6 +400,8 @@ def sufficiency_report(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     novelty_cols: Sequence[str] | None = None,
+    readout: str | None = None,
+    stage_cols: Sequence[str] | None = None,
 ) -> SufficiencyReport:
     """Did we sample enough, and would one more FOV show something new? Per analysis group.
 
@@ -428,6 +430,8 @@ def sufficiency_report(
     the columns "new" is judged on, when they differ from the columns the
     rules read: for example the rules on a readout, novelty on the features it
     was defined for. By default novelty uses every column of ``feature_cols``.
+    ``readout`` with ``acquisition_order_col`` or ``stage_cols`` adds the order
+    check (``order_check``) beside every stop in the answers.
     Other arguments are those of ``run_strategies``.
     """
     strategies, orders = list(strategies), list(orders)
@@ -464,6 +468,7 @@ def sufficiency_report(
             )
         )
     _check_distinct([*strategies, *novelty_rules], added=bool(novelty_rules))
+    declared_order = acquisition_order_col
     if acquisition_order_col is None:
         if any(order.kind == "recorded" for order in orders):
             raise ValueError("the recorded order needs acquisition_order_col")
@@ -507,6 +512,9 @@ def sufficiency_report(
             acquisition_order_col,
             run_columns,
             resolved_groups,
+            readout=readout,
+            order_col=declared_order,
+            stage_cols=stage_cols,
         )
         for rules, run_columns in runs
         if rules
