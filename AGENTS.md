@@ -210,11 +210,14 @@ src/morphocoverage/
     _deprecated.py         # private: the former cell names, resolved with a DeprecationWarning
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     _wording.py            # private: the one way to write percentages, rates, counts, fields, durations, groups
+    _style.py              # private: the one text style: markers and Status, rule and group labels, tables, wrapping
     _seeds.py              # private: per-group seeds (group_identity, group_seed, group_rng, split_seed) and group_key
     _checks.py             # private: integer and number checks that accept numpy types
     calibration.py         # shuffle check of the next-FOV new-phenotype prediction
     sufficiency.py         # did we sample enough; would one more FOV show something new
-    sufficiency_text.py    # the sentences of the sufficiency report
+    sufficiency_text.py    # the sentences of the sufficiency report (its answer columns)
+    sufficiency_short.py   # its short summary: the rules in one table across groups, each caveat once
+    sufficiency_full.py    # its full summary: every number, group by group, each caveat once
     sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops
     statistics.py          # shared statistics, written once: effect sizes, tolerances, whole-field sampling and bootstrap, variance components, design effect, JCB counts, detection counts, field-level JCB estimands
     normalize.py           # features divided by the control condition's mean, repeat by repeat
@@ -243,6 +246,8 @@ src/morphocoverage/
         spatial.py         # acquisition-order efficiency and redundancy distance
         report.py          # the microscopist's report, question by question
         report_profile.py  # its sampling profile, one helper per source, and the control rates
+        report_status.py   # the status marker and headline of every answer, question by question
+        report_enough.py   # question 2, short and full: sufficiency, detection-adjusted bound, calibration
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
         _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md

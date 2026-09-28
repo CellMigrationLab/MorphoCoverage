@@ -152,8 +152,10 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
         objects.loc[group.index[group["image_file"].isin(first_two)], "state"] = True
     setup = _setup(fingerprint=(_fingerprint(),), rare=_rare(), rare_label="state")
     result = report(objects, fovs, setup)
-    text = result.summary()
-    assert text.startswith("What is in the dataset") and DECLARATION_TITLE in text
+    assert result.summary().startswith("Microscopist's report — ")
+    text = result.summary(detail="full")
+    opening = f"{result.document.statuses['overview'].marker} What is in the dataset"
+    assert text.startswith(opening) and DECLARATION_TITLE in text
     fingerprint_line = text.index("Phenotypic fingerprint: the covariance")
     assert fingerprint_line < text.index("Foundation: why count")
     plan = optimise(
@@ -169,12 +171,12 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     )
     curve = plan.results["reliability"].curve
     assert set(curve["criterion"]) == {c.name for c in setup.criteria()}
-    text = plan.summary()
+    text = plan.summary(detail="full")
     assert text.startswith(DECLARATION_TITLE)
     assert "how many fields do you need for the covariance of the features within 50%?" in text
     assert "the rare phenotype (planted) seen in at least 1 field" in text
-    merged = document(result, plan).summary()
-    assert merged.startswith("What is in the dataset") and DECLARATION_TITLE in merged
+    merged = document(result, plan).summary(detail="full")
+    assert merged.startswith(opening) and DECLARATION_TITLE in merged
     with pytest.raises(ValueError, match="rare_label"):
         report(objects.drop(columns="state"), fovs, setup)
 
@@ -187,19 +189,23 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
         positive=PositiveControl({"condition": "drug"}, fovs_seen=4, pair_cols=("repeat",)),
     )
     result = report(objects, fovs, setup)
-    text = result.summary()
+    text = result.summary(detail="full")
     assert "Foundation: why count fields" in text and "3. What is limiting" in text
     assert "4. How many fields" not in text  # a planning answer never enters the report
     # A control condition and another condition: the contrast runs, per repeat.
     assert "9. Do the conditions differ" in text and "drug vs control" in text
     assert list(result.results["contrast"].table["repeat"]) == ["R1", "R2"]
-    assert text.startswith("What is in the dataset") and "What this dataset cannot tell me" in text
+    opening = f"{result.document.statuses['overview'].marker} What is in the dataset"
+    assert text.startswith(opening) and "What this dataset cannot tell me" in text
     assert result.results["overview"].counts["fields"] == len(fovs)
     # Normalised to the control: the contrast reads the normalised values (the control
     # mean of the readout is 1 in every repeat); the other analyses the raw values.
     normalised_setup = _setup(normalize="control_mean")
     normalised = report(objects, fovs, normalised_setup)
-    assert "Values: every feature divided by the mean of the control" in normalised.summary()
+    assert "Values: every feature divided by the mean of the control" in normalised.summary(
+        detail="full"
+    )
+    assert "values: every feature divided by the mean of the control" in normalised.summary()
     prepared = normalised_setup.prepared(objects, fovs)
     control = prepared[prepared["condition"] == "control"]
     assert control.groupby("repeat")[READOUT].mean().tolist() == pytest.approx([1.0, 1.0])
@@ -213,7 +219,7 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     )
     pd.testing.assert_frame_equal(objects, before[0])
     pd.testing.assert_frame_equal(fovs, before[1])
-    assert report(objects, fovs, setup).summary() == text  # deterministic
+    assert report(objects, fovs, setup).summary(detail="full") == text  # deterministic
 
 
 def test_report_without_optional_declarations_says_what_is_missing():
@@ -526,9 +532,10 @@ def test_a_technical_repeat_column_derives_the_hierarchy_and_ranks_the_features(
     result = report(objects, fovs, setup)
     assert result.ranking is not None and set(result.ranking.tests["feature"]) == set(FEATURE_COLS)
     assert (result.ranking.tests["permutation_unit"] == "technical_repeat").all()
-    text = result.summary()
+    text = result.summary(detail="full")
     assert "technical repeats (technical_repeat, a well or a dish" in text
     assert "Which features separate the conditions?" in text
+    assert "technical repeat" in result.summary().split("What is in the dataset")[1]
     figures = plots(objects, fovs, setup, ranking=result.ranking, n_boot=10)
     expected = [READOUT, *[f for f in result.ranking.top() if f != READOUT]]
     assert list(figures) == expected

@@ -28,9 +28,12 @@ observation table and the FOV table of every acquired position:
    ``calibration`` (optional) checks the prediction against this dataset by
    shuffling (``morphocoverage.calibration``).
 
-``summary()`` puts both answers into sentences, one block per group; the
-wording lives in ``sufficiency_text`` and the criteria tables in
-``sufficiency_tables``.
+``summary()`` puts both answers into a short summary (one table of the
+rules across groups, each caveat once; ``sufficiency_short``) and
+``summary(detail="full")`` into every number, one block per group, each caveat
+once (``sufficiency_full``); the sentences, one per group and rule, are the
+``answer`` columns of the tables (``sufficiency_text``), and the criteria
+tables live in ``sufficiency_tables``.
 
 Reading it:
 
@@ -72,6 +75,7 @@ import pandas as pd
 
 from ._checks import is_integer
 from ._parallel import check_n_jobs
+from ._style import check_detail
 from ._wording import rows_of
 from .benchmark import (
     AcquisitionOrder,
@@ -92,11 +96,12 @@ from .strategies.support_novelty import (
     SupportNoveltyEstimator,
     SupportNoveltyStrategy,
 )
+from .sufficiency_full import full_summary
+from .sufficiency_short import short_summary
 from .sufficiency_tables import criteria_tables, enough_table, group_major
 from .sufficiency_text import (
     _next_fov_answer,
     novelty_definition,
-    report_summary,
 )
 
 _ROW_ORDER = "_report_row_order"
@@ -140,10 +145,17 @@ class SufficiencyReport:
     stops: pd.DataFrame
     group_cols: tuple[str, ...] = ()
     novelty_definition: str | None = None
+    observation_unit: str | None = None
+    novelty_target: float | None = None
 
-    def summary(self) -> str:
-        """Both answers in plain sentences, one block per analysis group."""
-        return report_summary(self.enough, self.next_fov, self.group_cols, self.novelty_definition)
+    def summary(self, detail: str = "short") -> str:
+        """Both answers: ``"short"``, one table of the rules across groups, the novelty answers
+        in a few lines and each caveat once (``sufficiency_short``); ``"full"``, every number,
+        one block per analysis group, each caveat once (``sufficiency_full``). The sentences
+        per group and rule are the ``answer`` columns of ``enough`` and ``next_fov``."""
+        if check_detail(detail) == "short":
+            return short_summary(self)
+        return full_summary(self)
 
 
 def _seen_in_few(
@@ -545,6 +557,8 @@ def sufficiency_report(
             if novelty is None
             else novelty_definition(novelty, novelty_columns["feature_cols"])
         ),
+        observation_unit=data.observation_unit,
+        novelty_target=novelty_target,
     )
 
 

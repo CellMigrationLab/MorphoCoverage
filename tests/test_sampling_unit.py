@@ -409,9 +409,10 @@ def test_the_report_opens_with_the_sampling_unit_and_profiles_clustering():
         object_rules=object_rule_check(objects, fovs, feature="x", n_draws=200),
         clustering=fov_clustering(objects, fovs, label_col="state", states=["rare"]),
     )
-    text = report.summary()
+    text = report.summary(detail="full")
     unit = text.split("1. Can these features")[0]
-    assert unit.startswith("Foundation: why count fields, and not only objects?")
+    marker = report.statuses["unit"].marker
+    assert unit.startswith(f"{marker} Foundation: why count fields, and not only objects?")
     assert "How variable are the fields?" in unit
     assert "Would the JCB object-count rule hold" in unit
     items = set(report.profile["item"])
@@ -594,7 +595,7 @@ def test_the_report_places_the_contrast_last():
         object_counts=(50,),
     )
     report = microscopist_report(contrast=contrast)
-    text = report.summary()
+    text = report.summary(detail="full")
     assert "9. Do the conditions differ, and how confidently?" in text
     assert text.index("8. Could I have sampled") < text.index("9. Do the conditions differ")
     assert "generalizing it needs independent biological repeats" in text

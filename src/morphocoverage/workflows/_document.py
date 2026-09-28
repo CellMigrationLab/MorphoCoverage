@@ -25,11 +25,13 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
+from .._style import Status, worst
 from .._wording import count, fields, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
-from ..retrospective.report import QUESTIONS
+from ..retrospective.report import QUESTIONS, with_opening
 from ..retrospective.report_profile import sampling_profile
+from ..retrospective.report_status import profile_status
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -59,14 +61,21 @@ def with_reasons(document: MicroscopistReport, reasons: Mapping[str, str]) -> Mi
         return document
     titles = dict(QUESTIONS)
     sections, notes = dict(document.sections), list(document.notes)
+    short, headlines = dict(document.short), dict(document.headlines)
     for key, reason in reasons.items():
         sentence = f"{reason[:1].upper()}{reason[1:]}."
         if document.inputs.get(key) == "not assessed":
             sections[key] = f"  {sentence}"
+            # The reason is the answer's one line: what it could not assess, and what it needs.
+            headlines[key] = reason
         else:
             sections[key] = f"{sections[key]}\n\n  {sentence}"
+            if key in short:
+                short[key] = f"{short[key]}\n\n  {sentence}"
             notes.append(f"{titles[key]} {sentence}")
-    return replace(document, sections=sections, notes=tuple(notes))
+    return replace(
+        document, sections=sections, notes=tuple(notes), short=short, headlines=headlines
+    )
 
 
 def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
@@ -87,17 +96,20 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     integrity = results.get("integrity")
     if integrity is not None:
         # What the tables hold includes structure to inspect before reading the answers.
-        overview = document.overview or ""
-        document = replace(
-            document, overview="\n\n".join(p for p in (overview, integrity.summary()) if p)
-        )
+        overview = results.get("overview")
+        if overview is not None:
+            document = with_opening(document, overview, integrity)
+        else:
+            text = "\n\n".join(p for p in (document.overview, integrity.summary()) if p)
+            document = replace(document, overview=text)
         document = _with_integrity(document, integrity)
     rare = results.get("rare_clustering")
     if rare is not None:
         rows = sampling_profile(None, None, None, None, clustering=rare)
         lines = "\n".join(f"{r.statement} [{r.where}; {r.source}]" for r in rows.itertuples())
         text = "\n\n".join(part for part in (lines, rare.summary()) if part)
-        document = with_text(document, "profile", text, rows)
+        status, glance = profile_status(rows, [rare])
+        document = with_text(document, "profile", text, rows, status=status, headline=glance)
     controls = results.get("controls")
     if controls is not None and controls.status != "not assessed" and not controls.pair_cols:
         document = with_text(
@@ -105,6 +117,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
             "controls",
             "Positive and reference fields were paired across the whole table (pair_cols=()): "
             "every repeat is pooled, so a shift between repeats can read as detection.",
+            status=Status.CAUTION,
         )
     document = _technical_repeats(document, results)
     document = replace(document, notes=(*document.notes, *coverage_notes(results, setup)))
@@ -118,6 +131,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
             f"{count(pooled, 'repeat')}: a shift shared by one repeat (a staining or plating "
             f"batch) makes its {units} read as unusual, so compare the unusual share between "
             "repeats before reading it as biology.",
+            status=Status.CAUTION,
         )
     return document
 
@@ -136,13 +150,27 @@ def _with_integrity(document: MicroscopistReport, integrity: Any) -> Microscopis
         f"The data-integrity checks (in the overview) name {named}; every answer here counts "
         f"them as independent fields, so look at them first: {listing(involved, limit=5)}."
     )
-    sections = dict(document.sections)
+    # Appended whether or not the fields were inspected: the question stays "not assessed"
+    # without an inspection, and its status asks the reader to look either way.
+    sections, short = dict(document.sections), dict(document.short)
     sections["inspect"] = f"{sections['inspect']}\n\n  {sentence}"
+    if "inspect" in short:
+        short["inspect"] = f"{short['inspect']}\n\n  {sentence}"
+    statuses = {**document.statuses, "inspect": Status.CAUTION}
+    headlines = dict(document.headlines)
+    headlines["inspect"] = "; ".join(
+        part
+        for part in (headlines.get("inspect"), f"integrity names {count(len(involved), 'field')}")
+        if part
+    )
+    document = replace(
+        document, sections=sections, short=short, statuses=statuses, headlines=headlines
+    )
     note = (
         f"Data integrity: the checks in the overview name {named}, and every answer counts "
         "them as independent fields."
     )
-    return replace(document, sections=sections, notes=(*document.notes, note))
+    return replace(document, notes=(*document.notes, note))
 
 
 def _between_technical_repeats(fov_rows: pd.DataFrame, technical: str, outer: list[str]) -> list:
@@ -206,7 +234,7 @@ def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any])
             f"Each 'enough' is for a group that pools technical repeats ({span} per group), "
             "so it counts fields, not independent technical repeats."
         )
-        document = with_text(document, "enough", text)
+        document = with_text(document, "enough", text, status=Status.CAUTION)
         return replace(document, notes=(*document.notes, note))
     outer = [c for c in variability.group_cols if c != technical]
     found = _between_technical_repeats(variability.fovs, technical, outer)
@@ -234,7 +262,7 @@ def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any])
             "of question 2 is per technical repeat and says nothing about this variation, "
             f"which only more technical repeats reduce (optimise, question 7){uncertain}."
         )
-        document = with_text(document, "profile", text)
+        document = with_text(document, "profile", text, status=Status.CAUTION)
     return replace(document, notes=(*document.notes, note))
 
 
@@ -285,23 +313,49 @@ def _reference_repeats(unusual: Any) -> int:
 
 
 def with_text(
-    document: MicroscopistReport, key: str, text: str, rows: pd.DataFrame | None = None
+    document: MicroscopistReport,
+    key: str,
+    text: str,
+    rows: pd.DataFrame | None = None,
+    *,
+    status: Status = Status.OK,
+    headline: str | None = None,
 ) -> MicroscopistReport:
     """The report with ``text`` added to question ``key`` (and ``rows`` to its profile).
 
     A question not assessed so far is assessed by it: the text replaces the
-    generic need.
+    generic need, ``headline`` (or the text's first sentence) becomes its
+    one-line answer and ``status`` its status. Added to an assessed answer,
+    the text follows it in the full and in the short form, and ``status``
+    (``report_status``: a caution the text states) can only raise its
+    status, never lower it.
     """
     indented = "\n".join(f"  {line}" if line else line for line in text.splitlines())
     sections, inputs = dict(document.sections), dict(document.inputs)
+    short, statuses = dict(document.short), dict(document.statuses)
+    headlines = dict(document.headlines)
     if inputs.get(key) == "not assessed":
         sections[key], inputs[key] = indented, "given"
+        short.pop(key, None)
+        statuses[key] = status
+        headlines[key] = headline or text.split(". ")[0].split("\n")[0].rstrip(".")
     else:
         sections[key] = f"{sections[key]}\n\n{indented}"
+        if key in short:
+            short[key] = f"{short[key]}\n\n{indented}"
+        statuses[key] = worst([statuses.get(key, Status.NOT_ASSESSED), status])
     profile = document.profile
     if rows is not None and len(rows):
         profile = pd.concat([profile, rows], ignore_index=True) if len(profile) else rows
-    return replace(document, sections=sections, inputs=inputs, profile=profile)
+    return replace(
+        document,
+        sections=sections,
+        inputs=inputs,
+        profile=profile,
+        short=short,
+        statuses=statuses,
+        headlines=headlines,
+    )
 
 
 def with_settings(document: MicroscopistReport, sentences: Sequence[str]) -> MicroscopistReport:

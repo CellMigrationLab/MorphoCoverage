@@ -41,6 +41,13 @@ describes this acquisition under these features; it is not a biological
 conclusion. Where the sampling frame (candidate positions) would
 be needed, the report says so (P9, not implemented).
 
+``MicroscopistReport.summary()`` is short by default: a title line, an "At a
+glance" block with each answer's status marker and one-line headline
+(``report_status``, the rules question by question), then each answer in its
+short form where it has one (the opening, ``opening``; question 2,
+``report_enough``), each caveat once; ``summary(detail="full")`` gives every
+sentence, each section's header with its marker.
+
 Shared-private: re-exports ``_detection_adjusted_bounds`` and
 ``_false_alarm_rate`` of ``report_profile`` for its callers.
 """
@@ -48,11 +55,13 @@ Shared-private: re-exports ``_detection_adjusted_bounds`` and
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from typing import Any
 
 import pandas as pd
 
-from .._wording import percent
+from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
+from .._wording import count, listing, percent
 from ..sampling_unit import (
     ConditionContrast,
     DescriptorSpreadCheck,
@@ -62,6 +71,7 @@ from ..sampling_unit import (
     ObjectRuleCheck,
     UnusualObjects,
 )
+from ..schema import unit_plural
 from ..sufficiency import SufficiencyReport
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
@@ -71,17 +81,21 @@ from .inspection import InspectionResult
 from .overview import DatasetOverview
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
+from .report_enough import enough_full, enough_short
 from .report_profile import (  # noqa: F401  (private helpers re-exported for callers)
     _control_rate,
     _detection_adjusted_bounds,
     _false_alarm_rate,
     sampling_profile,
 )
+from .report_status import integrity_status, overview_status, question_statuses, weak_status
 from .spatial import EfficiencyResult
 
 OVERVIEW_TITLE = "What is in the dataset"
 DECLARATION_TITLE = "What this acquisition was asked to preserve"
 LIMITS_TITLE = "What this dataset cannot tell me"
+REPORT_TITLE = "Microscopist's report"
+GLANCE_TITLE = "At a glance"
 
 QUESTIONS = (
     ("unit", "Foundation: why count fields, and not only objects?"),
@@ -95,6 +109,35 @@ QUESTIONS = (
     ("order", "8. Could I have sampled more efficiently?"),
     ("conditions", "9. Do the conditions differ, and how confidently?"),
 )
+
+# The questions as the "At a glance" block names them.
+SHORT_QUESTIONS = {
+    "overview": "The data",
+    "unit": "Foundation. Why count fields?",
+    "controls": "1. Can the features see the phenotype?",
+    "enough": "2. Did I image enough?",
+    "profile": "3. What limits my sampling?",
+    "next_time": "4. How many fields next time?",
+    "bought": "5. What did the extra fields buy?",
+    "inspect": "6. Which fields should I look at?",
+    "effort": "7. More fields or more samples?",
+    "order": "8. A better order?",
+    "conditions": "9. Do the conditions differ?",
+}
+
+# What a question not assessed needs, in a few words for its "At a glance" line.
+_SHORT_NEEDS = {
+    "unit": "needs fov_variability",
+    "controls": "needs a declared positive control",
+    "enough": "needs sufficiency_report or a stopping calibration",
+    "profile": "needs the controls, variability, clustering or effort analyses",
+    "next_time": "needs sampling_reliability and protocol_reliability",
+    "bought": "needs adequacy_points on a replay",
+    "inspect": "needs inspect_fovs",
+    "effort": "needs technical repeats or a sampling hierarchy",
+    "order": "needs stage coordinates and an order replay",
+    "conditions": "needs a control condition and condition_contrast",
+}
 
 _NEEDS = {
     "unit": "run fov_variability (and object_rule_check or descriptor_spread_check) "
@@ -116,7 +159,14 @@ _NEEDS = {
 
 @dataclass(frozen=True)
 class MicroscopistReport:
-    """The answers by question (``sections``) and the sampling profile (``profile``)."""
+    """The answers by question (``sections``) and the sampling profile (``profile``).
+
+    ``sections`` hold the full text of each question, ``short`` the short form
+    of the questions that have one (and of the opening, ``"overview"``; the
+    others print their full text in both), ``statuses`` and ``headlines`` each
+    answer's marker and one-line answer (``report_status``), keyed like
+    ``sections`` and ``"overview"``.
+    """
 
     sections: dict[str, str]
     profile: pd.DataFrame
@@ -124,34 +174,62 @@ class MicroscopistReport:
     inputs: dict[str, str] = field(default_factory=dict)
     declaration: tuple[str, ...] = ()
     overview: str | None = None
+    short: dict[str, str] = field(default_factory=dict)
+    statuses: dict[str, Status] = field(default_factory=dict)
+    headlines: dict[str, str] = field(default_factory=dict)
+    title: str = REPORT_TITLE
 
-    def summary(self, questions: Sequence[str] | None = None) -> str:
+    def summary(self, questions: Sequence[str] | None = None, detail: str = "short") -> str:
         """The whole report, question by question, or only the ``questions`` keys given.
 
-        The dataset overview and the declaration of what the acquisition was
-        asked to preserve, when given, come first, and the closing section,
-        "What this dataset cannot tell me" (R6 of ``docs/questions.md``), lists
-        every question not assessed with what it needs and the notes to read
-        the answers with, whatever ``questions`` selects.
+        ``detail="short"`` (the default) opens with a title line and an "At a
+        glance" block, one line per answer with its marker, then gives each
+        answer in its short form; ``"full"`` gives every sentence, each
+        section's header with its marker. The dataset overview and the
+        declaration of what the acquisition was asked to preserve, when given,
+        come first, and the closing section, "What this dataset cannot tell
+        me" (R6 of ``docs/questions.md``), lists every question not assessed
+        with what it needs and the notes to read the answers with, whatever
+        ``questions`` selects.
         """
+        short = check_detail(detail) == "short"
         keys = [key for key, _ in QUESTIONS]
         if questions is not None:
             unknown = sorted(set(questions) - set(keys))
             if unknown:
                 raise ValueError(f"unknown report questions {unknown}; choose from {keys}")
-        blocks = []
+        chosen = [(k, t) for k, t in QUESTIONS if questions is None or k in questions]
+        blocks = [self.title, self.at_a_glance([k for k, _ in chosen])] if short else []
         if self.overview:
-            blocks.append(f"{OVERVIEW_TITLE}\n{_indent(self.overview)}")
+            text = self.short.get("overview") if short else None
+            text = text or _indent(self.overview)
+            blocks.append(f"{self._header('overview', OVERVIEW_TITLE)}\n{text}")
         if self.declaration:
             blocks.append(
                 f"{DECLARATION_TITLE}\n" + "\n".join(f"  - {line}" for line in self.declaration)
             )
-        for key, title in QUESTIONS:
-            if questions is not None and key not in questions:
-                continue
-            blocks.append(f"{title}\n{self.sections[key]}")
+        for key, title in chosen:
+            text = self.short.get(key, self.sections[key]) if short else self.sections[key]
+            blocks.append(f"{self._header(key, title)}\n{text}")
         blocks.append(f"{LIMITS_TITLE}\n{self.limits(questions)}")
         return "\n\n".join(blocks)
+
+    def _header(self, key: str, title: str) -> str:
+        """A section's title with its marker, when the answer has a status."""
+        status = self.statuses.get(key)
+        return title if status is None else headline(status, title)
+
+    def at_a_glance(self, keys: Sequence[str] | None = None) -> str:
+        """One line per answer: ``<marker> <n>. <short question> — <headline>``."""
+        lines = [GLANCE_TITLE]
+        chosen = [k for k, _ in QUESTIONS if keys is None or k in keys]
+        for key in ["overview", *chosen]:
+            status = self.statuses.get(key)
+            if status is None:
+                continue
+            line = headline(status, SHORT_QUESTIONS[key], self.headlines.get(key))
+            lines.append(wrap(line, "  ", hang=5))
+        return "\n".join(lines)
 
     def limits(self, questions: Sequence[str] | None = None) -> str:
         """The questions not assessed (among ``questions``, or all), what each needs, the notes."""
@@ -244,13 +322,10 @@ def microscopist_report(
             parts["unit"].append(check.summary())
     if controls is not None:
         parts["controls"].append(controls.summary())
-    if sufficiency is not None:
-        parts["enough"].append(sufficiency.summary())
-        adjusted = _detection_adjusted_bounds(sufficiency, controls)
-        if adjusted:
-            parts["enough"].append(adjusted)
-    if calibration is not None:
-        parts["enough"].append(calibration.summary())
+    parts["enough"] += enough_full(sufficiency, calibration, controls)
+    short = {}
+    if parts["enough"]:
+        short["enough"] = enough_short(sufficiency, calibration, controls)
     if adequacy is not None:
         parts["bought"].append(adequacy.summary())
     if reliability is not None:
@@ -297,6 +372,7 @@ def microscopist_report(
             "samples it was not chosen on."
         ),
     ]
+    weakened: list[str] = []
     if controls is None or controls.status == "not assessed":
         notes.append(
             "No representation control: a 'nothing new' answer says nothing about phenotypes "
@@ -321,9 +397,13 @@ def microscopist_report(
             )
             for key in ("enough", "next_time", "bought"):
                 if parts[key]:
+                    weakened.append(key)
                     parts[key].insert(
                         0, f"{weak}, so the answers below cannot exclude a phenotype like it."
                     )
+            if "enough" in short:
+                line = f"{PROBLEM} {weak}, so the answers below cannot exclude a phenotype like it."
+                short["enough"] = f"{wrap(line, 2, hang=5)}\n{short['enough']}"
             # The notes close the report: the adequacy answers are above them.
             notes.append(
                 f"{weak}, so the adequacy answers (questions 2, 4 and 5) cannot exclude a "
@@ -346,21 +426,104 @@ def microscopist_report(
         for key, texts in parts.items()
     }
     inputs = {key: ("given" if parts[key] else "not assessed") for key, _ in QUESTIONS}
-    return MicroscopistReport(
+    results = {
+        "variability": variability,
+        "object_rules": object_rules,
+        "descriptor_spread": descriptor_spread,
+        "controls": controls,
+        "sufficiency": sufficiency,
+        "calibration": calibration,
+        "clustering": clustering,
+        "reliability": reliability,
+        "protocol": protocol,
+        "adequacy": adequacy,
+        "inspection": inspection,
+        "effort": effort,
+        "efficiency": efficiency,
+        "contrast": contrast,
+        "ranking": ranking,
+    }
+    answers = question_statuses(results, profile, minimum_detection)
+    statuses = {key: answers[key][0] for key, _ in QUESTIONS}
+    headlines = {key: answers[key][1] for key, _ in QUESTIONS}
+    for key, _ in QUESTIONS:
+        if not parts[key]:
+            statuses[key] = Status.NOT_ASSESSED
+            headlines[key] = f"not assessed; {_SHORT_NEEDS[key]}"
+    for key in weakened:
+        statuses[key], headlines[key] = weak_status(answers[key])
+    document = MicroscopistReport(
         sections,
         profile,
         tuple(notes),
         inputs,
         tuple(declaration),
-        None if overview is None else overview.summary(),
+        None,
+        short,
+        statuses,
+        headlines,
+    )
+    return with_opening(document, overview) if overview is not None else document
+
+
+def opening(overview: DatasetOverview, integrity: Any = None) -> dict[str, Any]:
+    """The report's opening, "What is in the dataset", short and full, with its status.
+
+    The overview (``DatasetOverview.summary``) with its data-check marker, and
+    the data-integrity checks as one marked line (short) or their summary
+    (full); ``integrity`` is an ``IntegrityResult``, or ``None`` when the
+    checks were not run (the short form says so).
+    """
+    status, text = integrity_status(integrity)
+    line = f"{status.marker} {text[:1].upper()}{text[1:]}."
+    short = "\n".join(wrap(text, 2, hang=4) for text in overview.short_lines())
+    full = overview.summary(detail="full")
+    if integrity is not None:
+        involved = integrity.fields_involved()
+        if involved:
+            line = f"{line[:-1]}: {listing(involved, limit=3)}."
+        full = f"{full}\n\n{status.marker} {integrity.summary()}"
+    overall, glance = overview_status(overview, integrity)
+    counts = overview.counts
+    unit = overview.settings["observation_unit"]
+    title = (
+        f"{REPORT_TITLE} {DASH} {count(counts['objects'], unit, unit_plural(unit))} in "
+        f"{count(counts['fields'], 'field')}"
+    )
+    return {
+        "short": f"{short}\n{wrap(line, 2, hang=5)}",
+        "full": full,
+        "status": overall,
+        "headline": glance,
+        "title": title,
+    }
+
+
+def with_opening(
+    document: MicroscopistReport, overview: DatasetOverview, integrity: Any = None
+) -> MicroscopistReport:
+    """The report with ``opening(overview, integrity)`` as its first section and title."""
+    parts = opening(overview, integrity)
+    return replace(
+        document,
+        overview=parts["full"],
+        short={**document.short, "overview": parts["short"]},
+        statuses={**document.statuses, "overview": parts["status"]},
+        headlines={**document.headlines, "overview": parts["headline"]},
+        title=parts["title"],
     )
 
 
 __all__ = [
     "DECLARATION_TITLE",
+    "GLANCE_TITLE",
     "LIMITS_TITLE",
     "OVERVIEW_TITLE",
     "QUESTIONS",
+    "REPORT_TITLE",
+    "SHORT_QUESTIONS",
     "MicroscopistReport",
     "microscopist_report",
+    "opening",
+    "with_opening",
 ]

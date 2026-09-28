@@ -49,10 +49,19 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import count, number
+from .._style import (
+    caution_lines,
+    check_detail,
+    group_columns,
+    group_label,
+    span,
+    table,
+    wrap,
+)
+from .._wording import listing, number
 from ..calibration import calibrate_next_fov_novelty, pool_calibration
 from ..statistics import median_standard_error
-from ._text import fields, order_phrase, percent, skipped_lines, where
+from ._text import fields, percent, rule_names, skipped_lines
 from .adequacy import ALL_CRITERIA, combined_status, first_apparent_adequacy, run_decisions
 from .criteria import Preservation
 from .replay import ReplayResult
@@ -115,8 +124,11 @@ class StoppingCalibration:
     settings: dict[str, Any] = field(default_factory=dict)
     skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
-    def summary(self) -> str:
-        """The calibration in sentences, per group, strategy and order kind."""
+    def summary(self, detail: str = "short") -> str:
+        """``"short"``: one table per criterion, rules by order kind, shares over the groups;
+        ``"full"``: the calibration in sentences, per group, strategy and order kind."""
+        if check_detail(detail) == "short":
+            return calibration_short(self)
         return calibration_summary(self)
 
 
@@ -209,114 +221,228 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=[*groups, *SUMMARY_COLUMNS])
 
 
-def _median_se(value: object) -> str:
-    """`` (Monte Carlo SE 1.2)`` beside a median stop, or '' when it has none."""
-    if value is None or pd.isna(value):
-        return ""
-    return f" (Monte Carlo SE {number(float(value))})"
-
-
-def _failed_stops(row: Any) -> str:
-    """The stops that did not preserve the criterion, with their premature split as bounds.
+def _not_preserved_cell(row: Any) -> str:
+    """The stops that did not preserve the criterion, with how many of them were too early.
 
     The total not preserved at the stop is the headline; how many of them
     later fields of this stream fixed (premature) is a lower bound on the
     stops that came too early, since the held-back reference's own noise can
-    put the whole stream outside the tolerance too.
+    put the whole stream outside the tolerance too: the cell gives the range.
     """
     reach = getattr(row, "not_preserved_by_stream", 0)
     reach = 0.0 if reach is None or pd.isna(reach) else float(reach)
     premature = float(row.premature)
     total = getattr(row, "not_preserved_at_stop", None)
     total = premature + reach if total is None or pd.isna(total) else float(total)
-    text = f"{percent(total)} of acquisitions stopped where it was not preserved"
-    if total <= 0 or reach <= 0:
-        return text + ("" if total <= 0 else ", all of them too early")
-    return (
-        f"{text}; between {percent(premature)} and {percent(total)} stopped too early "
-        f"(in {percent(premature)} every available field was not shown to fail it; in the "
-        f"other {percent(reach)} not even every available field together preserved it, "
-        "which the held-back fields' own noise can also cause)"
-    )
+    if total <= 0:
+        return percent(total)
+    if reach <= 0:
+        return f"{percent(total)}, all too early"
+    return f"{percent(total)}, {percent(premature)}-{percent(total)} too early"
+
+
+def _never_cell(row: Any, min_fovs: int) -> str | None:
+    """The acquisitions that never stopped, and how many had the criterion at their end."""
+    if not row.never_stopped > 0:
+        return None
+    text = percent(row.never_stopped)
+    at_end = row.never_stopped_preserved_at_end
+    if at_end is not None and not pd.isna(at_end):
+        text += f", {percent(at_end)} had it by the last field"
+    if row.stopped == 0 and row.stream_fovs < min_fovs:
+        text += (
+            f" (within {fields(row.stream_fovs)}: fewer than the {min_fovs} fields it waits "
+            "for before deciding)"
+        )
+    return text
+
+
+def _calibration_row(row: Any, label: str | None, min_fovs: int) -> list[Any]:
+    """One order kind (and criterion) of one rule and group, as table cells."""
+    stopped = row.stopped > 0
+    se = getattr(row, "median_stop_fovs_mc_se", None)
+    median = None
+    if stopped:
+        median = number(row.median_stop_fovs)
+        median += "" if se is None or pd.isna(se) else f" ({number(float(se))})"
+    preserved = None
+    if stopped:
+        preserved = percent(row.correct)
+        if row.undefined_at_stop > 0:
+            preserved += f"; {percent(row.undefined_at_stop)} not judged"
+    cells = [_ORDER_COLUMNS.get(row.order, row.order)]
+    cells += [label] if label is not None else []
+    cells += [
+        f"{percent(row.stopped)} of {row.runs}",
+        median,
+        _not_preserved_cell(row) if stopped else None,
+        preserved,
+        _never_cell(row, min_fovs),
+    ]
+    return cells
 
 
 def calibration_summary(result: StoppingCalibration) -> str:
-    """ "If you had let this rule stop the acquisition" in sentences."""
+    """ "If you had let this rule stop the acquisition": the full form, in tables.
+
+    Per group (``MOCK · 1A · B6``, the columns named once) and rule (by its
+    readable name; the strategies with their settings and config ids are
+    listed once), one row per order kind (and criterion, when several are
+    judged): the acquisitions that stopped and their median stop with its
+    Monte Carlo SE, the stops where the criterion was not preserved (with the
+    range that came too early), the stops that preserved it, and the
+    acquisitions that never stopped, with how many had it by their last
+    field. What every row rests on is said once, at the end.
+    """
     keys = list(result.group_cols)
+    frame = result.table
     labels = {ALL_CRITERIA: "everything you wanted", **result.settings.get("labels", {})}
-    names = result.settings.get("strategy_names", {})
+    names, full = rule_names(result.settings), rule_names(result.settings, detail="full")
+    min_fovs = int(result.settings.get("min_fovs", 1) or 1)
     blocks = []
-    for key, rows in result.table.groupby([*keys, "config_id"], sort=False, dropna=False):
-        key = key if isinstance(key, tuple) else (key,)
-        group = dict(zip(keys, key[: len(keys)], strict=True))
-        name = names.get(key[-1], rows["strategy"].iloc[0])
-        lines = [f"{where(group)}: if you had let {name} stop the acquisition"]
-        for order, own in rows.groupby("order", sort=False):
-            first = own.iloc[0]
-            if first["stopped"] == 0:
-                short = ""
-                if first["stream_fovs"] < result.settings.get("min_fovs", 1):
-                    short = (
-                        f"; fewer than the {result.settings['min_fovs']} fields it waits for "
-                        "before deciding"
+    if len(frame):
+        head = [f"Analysis groups: {group_columns(keys)}."] if keys else []
+        configs = list(dict.fromkeys(frame["config_id"]))
+        listed = "; ".join(full.get(c, str(c)) for c in configs)
+        head.append(wrap(f"Rules: {listed}.", 0, hang=2))
+        criteria = list(dict.fromkeys(frame["criterion"]))
+        several = len(criteria) > 2
+        if not several:
+            criteria = [c for c in criteria if c != ALL_CRITERIA] or criteria
+            judged = listing([labels.get(c, c) for c in criteria])
+            head.append(
+                wrap(
+                    f"If you had let each rule stop the acquisition, judged on held-back fields "
+                    f"the rule never saw, for {judged}:",
+                    0,
+                    hang=2,
+                )
+            )
+        else:
+            head.append(
+                "If you had let each rule stop the acquisition, judged on held-back fields the "
+                "rule never saw:"
+            )
+        blocks.append("\n".join(head))
+        header = ["order", *(["for"] if several else []), "stopped", "median (MC SE)"]
+        header += ["not preserved", "preserved", "never stopped"]
+        parts = frame.groupby(keys, sort=False, dropna=False) if keys else [((), frame)]
+        for key, rows in parts:
+            key = key if isinstance(key, tuple) else (key,)
+            lines = [f"{group_label(dict(zip(keys, key, strict=True)))}:"]
+            for config, mine in rows.groupby("config_id", sort=False):
+                lines.append(f"  {names.get(config, mine['strategy'].iloc[0])}:")
+                cells = [
+                    _calibration_row(
+                        row, labels.get(row.criterion, row.criterion) if several else None, min_fovs
                     )
-                lines.append(
-                    f"  {order_phrase(order)}: it never stopped within the "
-                    f"{first['stream_fovs']} fields available "
-                    f"({count(first['runs'], 'acquisition')}{short})."
-                )
-            else:
-                lines.append(
-                    f"  {order_phrase(order)}: it stopped in "
-                    f"{percent(first['stopped'])} of {count(first['runs'], 'acquisition')}, "
-                    f"after a median of {fields(first['median_stop_fovs'])}"
-                    f"{_median_se(first.get('median_stop_fovs_mc_se'))}."
-                )
-            several = own["criterion"].nunique() > 2
-            for row in own.itertuples(index=False):
-                if row.criterion == ALL_CRITERIA and not several:
-                    continue
-                label = labels.get(row.criterion, row.criterion)
-                if row.stopped == 0:
-                    if row.never_stopped_preserved_at_end is not None and not pd.isna(
-                        row.never_stopped_preserved_at_end
-                    ):
-                        lines.append(
-                            f"    for {label}: "
-                            f"{percent(row.never_stopped_preserved_at_end)} of those "
-                            "acquisitions had it by the last field."
-                        )
-                    continue
-                late = ""
-                if row.never_stopped > 0 and row.never_stopped_preserved_at_end is not None:
-                    late = (
-                        f"; never stopped in {percent(row.never_stopped)}, and "
-                        f"{percent(row.never_stopped_preserved_at_end)} of those had it by "
-                        "the last field"
-                    )
-                undefined = (
-                    f"; {percent(row.undefined_at_stop)} could not be judged"
-                    if row.undefined_at_stop > 0
-                    else ""
-                )
-                lines.append(
-                    f"    for {label}: {_failed_stops(row)}, "
-                    f"{percent(row.correct)} stopped with it preserved{undefined}{late}."
-                )
-        lines.append(
-            "  Judged on held-back fields the rule never saw; each acquisition is one hold-out "
-            "and one order of the same fields, not an independent experiment."
+                    for row in mine.itertuples(index=False)
+                    if row.criterion in criteria
+                ]
+                lines.append(table(cells, header, indent=4))
+            blocks.append("\n".join(lines))
+    cautions = [
+        (
+            "each acquisition is one hold-out and one order of the same fields, not an "
+            "independent experiment"
         )
-        blocks.append("\n".join(lines))
+    ]
+    if len(frame) and (frame["not_preserved_by_stream"].fillna(0) > 0).any():
+        cautions.append(
+            "'too early' is a range: its low end counts the stops that later fields of the "
+            "stream fixed; in the rest not even every available field together preserved it, "
+            "which the held-back fields' own noise can also cause"
+        )
+    if len(frame):
+        blocks.append("\n".join(caution_lines(cautions, indent=0)))
     blocks += skipped_lines(result.skipped, keys)
     return "\n\n".join(blocks)
 
 
+_ORDER_COLUMNS = {"recorded": "recorded", "permuted": "random", "dispersed": "spread out"}
+# Above this share of stops where the criterion was not preserved, the report's status for
+# "Did I image enough?" asks the reader to look (report_status; a provisional preset).
+PREMATURE_CAUTION = 0.1
+
+
+def _share_cell(rows: pd.DataFrame) -> str:
+    """The share of stops that did not preserve the criterion, over the groups."""
+    stopped = rows[rows["stopped"] > 0]
+    if stopped.empty:
+        return "never stopped"
+    text = span(stopped["not_preserved_at_stop"], "percent")
+    never = len(rows) - len(stopped)
+    return f"{text}; {never} never stopped" if never else text
+
+
+def calibration_short(result: StoppingCalibration) -> str:
+    """The calibration across groups: per criterion, each rule's share of stops where the
+    criterion was not preserved, by order kind (the range over the groups)."""
+    lines, cautions = calibration_short_parts(result)
+    return "\n".join([*lines, *caution_lines(cautions, indent=0)])
+
+
+def calibration_short_parts(
+    result: StoppingCalibration, indent: int = 0
+) -> tuple[list[str], list[str]]:
+    """The short form's lines (under ``indent``) and its caveats, apart (see
+    ``calibration_short``)."""
+    frame = result.table
+    if frame.empty:
+        return skipped_lines(result.skipped, list(result.group_cols)), []
+    labels = {ALL_CRITERIA: "everything you wanted", **result.settings.get("labels", {})}
+    names = rule_names(result.settings)
+    criteria = list(dict.fromkeys(frame["criterion"]))
+    if len(criteria) <= 2:
+        criteria = [c for c in criteria if c != ALL_CRITERIA] or criteria
+    groups = len(frame[list(result.group_cols)].drop_duplicates()) if result.group_cols else 1
+    kinds = list(dict.fromkeys(frame["order"]))
+    lines = []
+    for criterion in criteria:
+        own = frame[frame["criterion"].eq(criterion)]
+        rows = []
+        for config, mine in own.groupby("config_id", sort=False):
+            cells = [names.get(config, mine["strategy"].iloc[0])]
+            cells += [_share_cell(mine[mine["order"].eq(kind)]) for kind in kinds]
+            rows.append(cells)
+        over = "" if groups == 1 else f", the range over {groups} groups"
+        lines.append(
+            wrap(
+                f"If you had let each rule stop the acquisition: the share of acquisitions that "
+                f"stopped where {labels.get(criterion, criterion)} was not preserved in held-back "
+                f"fields{over}:",
+                indent,
+                hang=indent + 2,
+            )
+        )
+        header = ["rule", *(_ORDER_COLUMNS.get(kind, kind) for kind in kinds)]
+        lines.append(table(rows, header, indent=indent + 2))
+    cautions = [
+        (
+            "judged on held-back fields the rule never saw; each acquisition is one hold-out "
+            "and one order of the same fields, not an independent experiment"
+        )
+    ]
+    if (frame["not_preserved_by_stream"].fillna(0) > 0).any():
+        cautions.append(
+            "a stop counted as not preserved includes stops where not even every available "
+            "field preserved it, which the held-back fields' own noise can cause: the full "
+            "report splits the two"
+        )
+    lines += [
+        " " * indent + line for line in skipped_lines(result.skipped, list(result.group_cols))
+    ]
+    return lines, cautions
+
+
 __all__ = [
+    "PREMATURE_CAUTION",
     "RUN_COLUMNS",
     "SUMMARY_COLUMNS",
     "StoppingCalibration",
     "calibrate_next_fov_novelty",
+    "calibration_short",
+    "calibration_short_parts",
     "calibration_summary",
     "pool_calibration",
     "stopping_calibration",

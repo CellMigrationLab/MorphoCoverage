@@ -109,9 +109,10 @@ class Report:
     not_assessed: dict[str, str] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The report questions, in sentences, then the settings of the run."""
-        parts = [self.document.summary(REPORT_QUESTIONS)]
+    def summary(self, detail: str = "short") -> str:
+        """The report questions (``detail``: ``"short"`` or ``"full"``, as
+        ``MicroscopistReport.summary``), then the settings of the run."""
+        parts = [self.document.summary(REPORT_QUESTIONS, detail=detail)]
         if self.settings:
             parts.append(report_settings(self.settings))
         return "\n\n".join(parts)
@@ -260,14 +261,15 @@ class Plan:
     not_assessed: dict[str, str] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The planning questions, with the calibration of each stopping rule, in sentences."""
-        parts = [self.document.summary(PLAN_QUESTIONS)]
+    def summary(self, detail: str = "short") -> str:
+        """The planning questions, with the calibration of each stopping rule (``detail``:
+        ``"short"`` or ``"full"``, as ``MicroscopistReport.summary``)."""
+        parts = [self.document.summary(PLAN_QUESTIONS, detail=detail)]
         calibration = self.results.get("calibration")
         if calibration is not None:
             parts.append(
                 "Would a simple rule have been sufficient, and how reliable is each stopping "
-                "rule? (P5, P6)\n" + calibration.summary()
+                "rule? (P5, P6)\n" + calibration.summary(detail=detail)
             )
         if self.settings:
             parts.append(plan_settings(self.settings))

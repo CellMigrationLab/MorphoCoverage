@@ -7,6 +7,8 @@ scripts are in the audit's P1, P2, P3, P8 and P9 folders.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -145,11 +147,10 @@ def test_p2_9_calibration_headlines_the_stops_not_preserved_with_bounds():
     total = row["premature"] + row["not_preserved_by_stream"]
     assert total == pytest.approx(row["not_preserved_at_stop"])
     text = calibration_summary(StoppingCalibration(runs, table, (), {"labels": {}}))
-    assert "60% of acquisitions stopped where it was not preserved" in text
-    assert "between 20% and 60% stopped too early" in text
-    assert "held-back fields' own noise can also cause" in text
+    assert "60%, 20%-60% too early" in text
+    assert "held-back fields' own noise can also cause" in " ".join(text.split())
     # A median stop carries its Monte Carlo error.
-    assert "after a median of 4 fields (Monte Carlo SE" in text
+    assert "median (MC SE)" in text and re.search(r"  4 \(\d", text)
 
 
 def test_p9_2_retyped_labels_keep_their_draws_and_shares_carry_their_monte_carlo_error():

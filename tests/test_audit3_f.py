@@ -4,6 +4,8 @@ protocol, adequacy, calibration and acquisition-order efficiency.
 One test per finding, named after it; each fails on the code before the fix.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -308,18 +310,20 @@ def test_f8_a_stop_the_whole_stream_could_not_fix_is_not_too_early():
     assert stops["premature"] == 0 and stops["not_preserved_by_stream"] == 1.0
     total = stops[["correct", "premature", "not_preserved_by_stream", "undefined_at_stop"]]
     assert total.sum() == pytest.approx(stops["stopped"])
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     # Audit 4, P2-9: the total not preserved is the headline, the split its bounds.
-    assert "100% of acquisitions stopped where it was not preserved" in text
-    assert "between 0% and 100% stopped too early" in text
+    assert "100%, 0%-100% too early" in text
     assert "not even every available field together preserved it" in text
+    # The short form keeps the headline share and says that the split is in the full form.
+    short = result.summary()
+    assert "100%" in short and "not even every available field preserved it" in short
 
 
 def test_f9_a_rule_that_never_stopped_says_whether_the_last_field_had_it():
-    text = _calibration().summary()
-    never = text.split("target_fovs=50")[1]
-    assert "it never stopped within" in never
-    assert "for the mean: 0% of those acquisitions had it by the last field" in never
+    text = _calibration().summary(detail="full")
+    never = text.split("fixed 50 fields:")[1].split("\n\n")[0]
+    assert re.search(r"0% of \d+ .*100%, 0% had it by the last field", never)
+    assert "fixed 50 fields" in _calibration().summary() and "never stopped" in never
 
 
 def test_f10_groups_the_replay_skipped_are_named_in_every_summary():

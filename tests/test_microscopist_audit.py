@@ -6,6 +6,8 @@ capped by its reference as a field requirement, must not present a variance
 share from three samples as established, and must name what it counts.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -50,9 +52,10 @@ def test_sufficiency_summary_works_without_a_novelty_definition():
         objective=POPULATION,
         orders=[AcquisitionOrder.permuted(0)],
     )
-    text = report.summary()
-    assert "condition=control, repeat=R1:" in text
-    assert "Did each criterion say enough?" in text and "one more FOV" not in text
+    text = report.summary(detail="full")
+    assert "control · R1 — " in text and "Analysis groups: condition · repeat." in text
+    assert "Each rule by its own threshold" in text and "One more field" not in text
+    assert "One more field" not in report.summary()
 
 
 def test_the_unseen_state_bound_names_the_fovs_without_observations():
@@ -72,9 +75,13 @@ def test_the_unseen_state_bound_names_the_fovs_without_observations():
         novelty=SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3),
     )
     assert report.next_fov["fovs_without_observations"].iloc[0] == 10
-    text = report.summary()
-    assert "about 3 / 13" in text
-    assert "The count includes 10 FOVs without observations, which cannot show a state." in text
+    answer = report.next_fov["answer"].iloc[0]
+    assert "about 3 / 13" in answer
+    assert "The count includes 10 FOVs without observations, which cannot show a state." in answer
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "about 3 / 13" in full and "13 fields (10 fields without observations)" in full
+    short = " ".join(report.summary().split())
+    assert "include fields without observations, which cannot show a state" in short
 
 
 def _reliability(name="homogeneous", counts=(2, 5)):
@@ -246,9 +253,12 @@ def gradient_replay():
 
 
 def test_dispersed_orders_are_named_in_every_summary(gradient_replay):
-    calibration = stopping_calibration(gradient_replay).summary()
+    calibration = stopping_calibration(gradient_replay).summary(detail="full")
     adequacy = adequacy_points(gradient_replay).summary()
-    assert "  spreading the same positions out: it stopped" in calibration
+    # The full form names the dispersed orders "spread out" in its tables' order column.
+    assert re.search(r"\n +spread out +\d+% of \d+", calibration)
+    short = stopping_calibration(gradient_replay).summary()
+    assert "spread out" in short and "dispersed" not in short
     assert "  Spreading the same positions out: judged on held-back fields" in adequacy
     assert "\n  dispersed:" not in calibration and "\n  dispersed:" not in adequacy
 
@@ -342,11 +352,14 @@ def test_a_state_seen_in_two_neighbouring_fovs_is_reported_as_seen_in_few():
     )
     row = report.next_fov.iloc[0]
     assert row["fovs_with_new"] == 0 and row["fovs_with_state_in_few"] == 2
-    text = report.summary()
     assert (
         "Seen in few FOVs: 2 of 40 FOVs hold a state that other FOVs show too, but fewer "
-        "than 3 of them" in text
+        "than 3 of them" in row["answer"]
     )
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "Seen in few fields: 2 of 40 fields hold a state seen in 2 to 3 fields" in full
+    short = " ".join(report.summary().split())
+    assert "look at those fields before calling the sample settled" in short
     with pytest.raises(ValueError, match="few_fovs must exceed"):
         sufficiency_report(
             built.objects,
@@ -555,10 +568,17 @@ def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
     assert row["fovs_to_see_again_low_end"] == fovs_to_detect(
         row["few_state_incidence_low"], 0.95, 1
     )
-    text = report.summary()
-    assert "Planning for such a state: these FOVs together are 5% of FOVs (95% interval" in text
-    assert "image about 59 independent representative FOVs, up to" in text
-    assert "Fields that cluster the state need more." in text
+    answer = row["answer"]
+    assert "Planning for such a state: these FOVs together are 5% of FOVs (95% interval" in answer
+    assert "image about 59 independent representative FOVs, up to" in answer
+    assert "Fields that cluster the state need more." in answer
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "together 5% of fields (95% interval" in full
+    assert "about 59 independent representative fields, up to" in full
+    assert "Fields that cluster a state need more fields than the planning numbers." in full
+    short = " ".join(report.summary().split())
+    assert "takes about 59 independent representative fields" in short
+    assert "fields that cluster the state need more" in short
 
 
 def test_the_unseen_state_bound_is_divided_by_the_controls_detection_rate():

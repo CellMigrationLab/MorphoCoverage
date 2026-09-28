@@ -288,12 +288,14 @@ def test_all_criteria_together_is_never_easier_than_either():
 
 def test_calibration_and_adequacy_speak_plainly():
     replay = _replay("homogeneous", [FixedFOVStrategy(3), FixedFOVStrategy(1000)])
-    calibration = stopping_calibration(replay).summary()
+    calibration = stopping_calibration(replay).summary(detail="full")
     assert "fixed_fov (target_fovs=3)" in calibration
-    assert "stopped where it was not preserved" in calibration and "never stopped" in calibration
+    assert "not preserved" in calibration and "never stopped" in calibration
+    short = stopping_calibration(replay).summary()
+    assert "fixed 3 fields" in short and "not preserved" in short and "never stopped" in short
     adequacy = adequacy_points(replay).summary()
     assert "reliably" in adequacy and "would have first said stop" in adequacy
-    for text in (calibration, adequacy):
+    for text in (calibration, short, adequacy):
         for word in ("reservoir", "criterion", "prefix", "config_id"):
             assert word not in text
 

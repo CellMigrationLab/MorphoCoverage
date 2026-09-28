@@ -170,9 +170,18 @@ verdict whichever workflow runs it.
 from morphocoverage.workflows import report
 
 result = report(objects, fovs, setup)        # fovs lists every acquired field
-print(result.summary())                      # overview, declaration, Foundation, questions 1 to 3, 6, 9, limits
+print(result.summary())                      # title, At a glance, overview, declaration, answers, limits
+print(result.summary(detail="full"))         # every sentence and number
 result.results["sufficiency"]                # each analysis, for further use
 ```
+
+`summary()` is short by default: a title line, an **At a glance** block with
+one line per answer (✅ answered and good for the goal, ⚠️ answered but look
+at this, ❌ a problem that changes how the answers are read, ➖ not assessed;
+the rules per question are in `retrospective/report_status.py`), then each
+answer, with per-group numbers in tables and each caveat stated once at the
+end of its section. `summary(detail="full")` keeps everything, each section
+header with its marker.
 
 Every document opens with **what is in the dataset**: objects, acquired
 fields and empty fields, what one row is, the feature columns (the first 12

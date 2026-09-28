@@ -213,10 +213,11 @@ def test_e5_effort_rules_are_recognised_by_their_structure():
     )
     assert not is_effort_rule(lookalike)
     report = _report("unequal_fov_area", [area])
-    assert (
-        "fixed_area (imaged_area >= 50000): its target was reached"
-        in (report.enough["answer"].iloc[0])
-    )
+    answer = report.enough["answer"].iloc[0]
+    assert answer.startswith("fixed imaged area 50000 (fixed_area: imaged_area >= 50000; config ")
+    assert "): its target was reached" in answer
+    short = " ".join(report.summary().split())  # the short form wraps its lines
+    assert "Fixed imaged area 50000: a fixed amount of effort reaching its target" in short
 
 
 def test_e6_effort_rules_say_target_reached_not_yes():
@@ -342,4 +343,5 @@ def test_j8_the_pooled_group_label_and_feature_list_use_the_shared_wording():
     text = novelty_definition(novelty, ["a", "b", "c", "d", "e"])
     assert "on 5 features (a, b, c and 2 more)" in text
     report = _report("homogeneous", [FixedFOVStrategy(3)], group_cols=[])
-    assert report.summary().startswith("all FOVs (pooled):")
+    # The pooled group is named once, by the shared style (``_style.group_label``).
+    assert "\n\nall fields (pooled) — 20 fields acquired:\n" in report.summary(detail="full")

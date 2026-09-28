@@ -171,7 +171,8 @@ def test_e4_seen_in_few_counts_recurrent_states_only_not_the_new_ones():
     assert counts[False] == (2, 0)
     # One state shared by two fields is not new but seen in few.
     assert counts[True] == (0, 2)
-    assert "FOVs counted as new above are not included" in report.summary()
+    assert "FOVs counted as new above are not included" in report.next_fov["answer"].iloc[0]
+    assert "fields counted as new are not among them" in report.summary(detail="full")
 
 
 def test_e5_plot_interval_says_how_many_technical_repeats_and_warns_with_two_or_three():
@@ -265,8 +266,11 @@ def test_e9_one_replayed_order_is_singular():
         objective=POPULATION,
         orders=[AcquisitionOrder.permuted(0)],
     )
-    text = report.summary()
-    assert "in the random order, first met after" in text and "1 orders" not in text
+    answers = " ".join(report.enough["answer"])
+    assert "in the random order, first met after" in answers and "1 orders" not in answers
+    for detail in ("short", "full"):
+        assert "1 orders" not in report.summary(detail=detail)
+    assert "1 random order: median" in report.summary(detail="full")
 
 
 def test_e10_the_semivariogram_refuses_infinite_coordinates():
