@@ -70,7 +70,7 @@ class Summary:
         if not isinstance(self.feature, str):
             raise TypeError("feature must be a column name")
         if self.statistic != "mean":
-            if isinstance(self.statistic, bool) or not isinstance(self.statistic, int | float):
+            if not is_number(self.statistic):
                 raise ValueError("statistic must be 'mean' or a quantile between 0 and 1")
             if not 0 < float(self.statistic) < 1:
                 raise ValueError("statistic must be 'mean' or a quantile between 0 and 1")

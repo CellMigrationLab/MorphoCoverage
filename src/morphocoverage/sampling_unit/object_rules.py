@@ -61,7 +61,7 @@ import pandas as pd
 from .._checks import as_count, check_seed
 from .._seeds import group_key, group_rng
 from .._wording import fields as fields_text
-from .._wording import where
+from .._wording import percent, rate, where
 from ..schema import ValidatedInput, fov_values, unit_plural
 from ..statistics import (
     describe,
@@ -120,7 +120,7 @@ class ObjectRuleCheck:
             )
         ]
         for row in self.table.to_dict("records"):
-            head = f"{where({c: row[c] for c in self.group_cols})}, target {row['target']:.1%}"
+            head = f"{where({c: row[c] for c in self.group_cols})}, target {rate(row['target'])}"
             if row["status"] != "ok":
                 lines.append(f"{head}: {row['status']}.")
                 continue
@@ -130,8 +130,8 @@ class ObjectRuleCheck:
             lines.append(
                 f"{head}: the rule asks for {int(row['rule_objects'])} {words}, which took "
                 f"{row['fovs_used']:.1f} fields. SD / sqrt(n) predicts "
-                f"{row['predicted_error']:.1%}; the real error of that mean is "
-                f"{row['real_error']:.1%}{times}, so it {verdict} the target. "
+                f"{percent(row['predicted_error'])}; the real error of that mean is "
+                f"{percent(row['real_error'])}{times}, so it {verdict} the target. "
                 + _field_rule(row, words)
             )
         return "\n".join(lines)

@@ -169,7 +169,9 @@ def test_h9_criteria_with_the_same_label_each_keep_a_frontier():
     objects, fovs = _acquisition(n_fovs=8, n_objects=6)
     setup = _setup(tolerances=(0.05, 0.0502), stage_cols=None)
     labels = [c.label for c in setup.criteria()]
-    assert labels[0] == labels[1]
+    # Declared rates are written exactly (audit 3, _wording.rate), so the two labels
+    # no longer read the same; each criterion still keeps its own frontier.
+    assert labels == ["the mean of feature_a within 5%", "the mean of feature_a within 5.02%"]
     result = benchmark(
         objects,
         fovs,

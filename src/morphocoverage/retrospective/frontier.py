@@ -73,6 +73,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._checks import as_count
 from ..policies import ThresholdPolicy, redecide
 from .adequacy import adequacy_points
 from .criteria import Preservation
@@ -424,8 +425,7 @@ def frontier(
     missing = [c for c in unit_cols if c not in replay.group_cols]
     if missing:
         raise ValueError(f"unit columns {missing} are not group columns of the replay")
-    if isinstance(n_boot, bool) or not isinstance(n_boot, int) or n_boot < 1:
-        raise ValueError("n_boot must be a positive integer")
+    n_boot = as_count(n_boot, "n_boot")
     keys = _run_keys(replay)
     statuses = _statuses(replay, criterion)
     streams = {

@@ -33,6 +33,7 @@ import pandas as pd
 
 from .._checks import check_seed, is_integer, is_number
 from .._parallel import check_n_jobs
+from .._wording import rate
 from ..metadata import (
     CONDITION_COLUMN,
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -469,7 +470,7 @@ class Setup:
                 RelativeMeanError(self.readout),
                 tolerance,
                 "lower_is_better",
-                f"the mean of {self.readout} within {tolerance:.1%}",
+                f"the mean of {self.readout} within {rate(tolerance)}",
             )
             for tolerance in self.tolerances
         ]

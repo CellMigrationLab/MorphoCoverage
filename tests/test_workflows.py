@@ -91,7 +91,7 @@ def test_setup_declares_what_to_preserve_and_refuses_undeclared_targets():
     plain = Setup(readout=READOUT)
     declared = plain.declaration()
     assert declared[0].startswith(f"Population summary: the mean of {READOUT}")
-    assert "5.0% and 2.5%" in declared[0]
+    assert "5% and 2.5%" in declared[0]
     assert declared[1].startswith("Phenotypic fingerprint: not declared")
     assert declared[2].startswith("Rare phenotype: not declared")
     assert [c.name for c in plain.criteria()] == [

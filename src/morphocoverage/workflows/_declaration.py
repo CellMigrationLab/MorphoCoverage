@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .._wording import count, listing, percent
+from .._wording import count, listing, percent, rate
 from ..evidence import Component
 from ..results import COMPONENT_WORDS
 from ..retrospective.replay import strategy_label
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 def declaration(setup: Setup) -> tuple[str, ...]:
     """What ``setup`` asks the acquisition to preserve, in sentences (see the module)."""
-    tolerances = " and ".join(f"{t:.1%}" for t in setup.tolerances)
+    tolerances = " and ".join(rate(t) for t in setup.tolerances)
     units = setup.unit_words
     lines = [
         (
@@ -118,7 +118,7 @@ def _novelty(setup: Setup) -> str:
             "target (novelty_target=None), and no novelty rule is added to 'Did I image "
             f"enough?'. {few}"
         )
-    target = f"{setup.novelty_target:.1%}"
+    target = rate(setup.novelty_target)
     if setup.novelty_rule_declared:
         judged = (
             "judged once in the report"
@@ -172,7 +172,7 @@ def _rules(setup: Setup) -> str:
         unit = resolve_observation_unit(setup.observation_unit)[0]
         named += (
             f" (the default, rules=None: the JCB rule per {unit} and per field at "
-            f"{setup.tolerances[0]:.1%})"
+            f"{rate(setup.tolerances[0])})"
         )
     else:
         named += " (rules)"
@@ -184,14 +184,14 @@ def _rare(setup: Setup) -> str:
     assert target is not None
     parts = []
     if target.object_prevalence is not None:
-        parts.append(f"{target.object_prevalence:.1%} of {setup.unit_words}")
+        parts.append(f"{rate(target.object_prevalence)} of {setup.unit_words}")
     if target.fov_incidence is not None:
-        parts.append(f"{target.fov_incidence:.1%} of fields")
+        parts.append(f"{rate(target.fov_incidence)} of fields")
     fields = target.min_fov_occurrences
     line = (
         f"Rare phenotype: {target.phenotype}, present in {' and '.join(parts)}, to be seen "
         f"in at least {count(fields, 'field')} with "
-        f"{target.detection_probability:.0%} probability."
+        f"{rate(target.detection_probability)} probability."
     )
     if target.fov_incidence is not None:
         needed = fovs_to_detect(target.fov_incidence, target.detection_probability, fields)

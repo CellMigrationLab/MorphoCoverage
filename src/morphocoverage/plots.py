@@ -62,7 +62,7 @@ from matplotlib.figure import Figure
 
 from ._checks import is_integer
 from ._seeds import group_rng
-from ._wording import ordinal
+from ._wording import ordinal, rate
 from .data_check import validate_input_tables
 from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -411,7 +411,7 @@ def _title(
     resampled = " or, in a cluster of one, ".join(phrases)
     return (
         f"{feature}{part}{repeats}\nevery {unit} a point{coloured}\n"
-        f"{summary} with its {level:.0%} interval from resampling {resampled}{caveat}"
+        f"{summary} with its {rate(level)} interval from resampling {resampled}{caveat}"
     )
 
 

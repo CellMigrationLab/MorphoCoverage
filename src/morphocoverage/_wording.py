@@ -36,6 +36,16 @@ def percent(value: float) -> str:
     return f"{math.floor(share + 0.5):.0f}%"
 
 
+def rate(value: float) -> str:
+    """A declared rate as it was set: ``2.5%``, ``5%``, ``95%``, ``0.1%`` (never rounded).
+
+    For settings (a tolerance, a confidence level, a target prevalence), which
+    ``percent`` would round (2.5% would read ``3%``). Measured shares go
+    through ``percent``.
+    """
+    return f"{100 * float(value):.10g}%"
+
+
 def number(value: float) -> str:
     """A count or median as a person reads it: ``7``, ``7.5``, ``1234567``; one decimal at most."""
     value = round(float(value), 1)
@@ -133,6 +143,7 @@ __all__ = [
     "ordinal",
     "percent",
     "plural",
+    "rate",
     "rows_of",
     "where",
 ]
