@@ -104,6 +104,11 @@ def _detection(controls: ControlResult) -> tuple[str, int, int] | None:
     return None
 
 
+def _words(controls: ControlResult) -> str:
+    """The control's observation unit, plural: ``nuclei`` (``objects`` when none declared)."""
+    return unit_plural(controls.settings.get("observation_unit") or "object")
+
+
 def _detection_adjusted_bounds(
     sufficiency: SufficiencyReport, controls: ControlResult | None
 ) -> str | None:
@@ -154,7 +159,8 @@ def _detection_adjusted_bounds(
     if kind == "planted_lofo":
         planted = controls.settings["control"]["planted_objects"]
         what = (
-            f"for {planted} planted positive-control objects: {percent(detection)} of ordinary "
+            f"for {planted} planted positive-control {_words(controls)}: {percent(detection)} of "
+            "ordinary "
             "reference fields with them recognized against the other reference fields of "
             "their analysis group"
         )

@@ -76,9 +76,9 @@ def test_p7_2_a_copy_through_float32_or_six_digits_is_a_copied_field():
         result = _checks(_replace(objects, fovs, 7, source), fovs)
         assert _found(result) == ["copied field"]
         assert "to 6 significant digits" in result.findings["detail"].iloc[0]
-    clean = _checks(objects, fovs).summary()
+    clean = " ".join(_checks(objects, fovs).summary().split())
     assert "no field repeats another" not in clean
-    assert "Nothing was found by these checks." in clean
+    assert clean.startswith("✅ Data integrity — nothing found by the exact copy checks")
     assert "re-rounded to fewer than 6 significant digits" in clean
 
 
@@ -160,8 +160,12 @@ def test_p7_8_findings_are_grouped_capped_and_named_among_the_fields_to_look_at(
         if fovs["technical_repeat"].iloc[i] == "W1":
             copied = _replace(copied, fovs, i, _rows(objects, fovs, i - 1))
     result = _checks(copied, fovs)
-    lines = [line for line in result.summary().splitlines() if line.startswith("  - ")]
+    full = result.summary(detail="full")
+    lines = [line for line in full.splitlines() if line.startswith("  - ")]
     assert len(lines) == 1 and "3 pairs of fields between" in lines[0]
+    # The short form: one table row for the check and pair of wells.
+    rows = [line for line in result.summary().splitlines() if "copied field" in line]
+    assert len(rows) == 1 and "3 pairs" in rows[0]
     document = _with_integrity(microscopist_report(), result)
     assert "name 6 fields in 3 findings" in document.sections["inspect"]
     assert any("Data integrity" in note for note in document.notes)
@@ -215,7 +219,7 @@ def test_p7_12_a_repeated_block_reports_its_run_and_tiny_copies_are_not_called_d
     tiny, tiny_fovs = _tables(n_fields=40, size=3)
     copy = _replace(tiny, tiny_fovs, 1, _rows(tiny, tiny_fovs, 0))
     result = _checks(copy, tiny_fovs)
-    assert "although the observations differ" not in result.summary()
+    assert "although the observations differ" not in result.summary(detail="full")
     assert "40 fields held fewer than 5 observations" in result.summary()
 
 
@@ -233,9 +237,10 @@ def test_p7_14_the_summary_states_what_the_checks_cannot_see():
     source[["area", "intensity"]] = source[["intensity", "area"]].to_numpy()  # columns swapped
     result = _checks(_replace(objects, fovs, 3, source), fovs)
     assert result.findings.empty
-    text = result.summary()
-    assert "a block of fewer than 10 observations" in text
-    assert "feature columns swapped" in text
+    for text in (result.summary(), result.summary(detail="full")):
+        text = " ".join(text.split())
+        assert "a block of fewer than 10 observations" in text
+        assert "feature columns swapped" in text
 
 
 def test_p7_15_frame_columns_and_failed_segmentations_are_worded_honestly():
@@ -269,7 +274,7 @@ def test_p5_4_a_merge_with_one_row_per_channel_is_reported():
     assert any("repeat another observation of the same field in every feature" in t for t in titles)
     result = _checks(merged, fovs)
     assert set(_found(result)) == {"repeated within a field"} and len(result.findings) == 12
-    assert "Nothing was found" not in result.summary()
+    assert "nothing found" not in result.summary()
 
 
 def test_p1_11_a_pasted_block_reports_its_whole_run():

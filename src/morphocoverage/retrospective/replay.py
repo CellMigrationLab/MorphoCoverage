@@ -50,6 +50,7 @@ import pandas as pd
 from .._checks import as_count, check_seed
 from .._parallel import check_n_jobs, map_units
 from .._seeds import group_identity
+from .._style import rule_label
 from ..benchmark import AcquisitionOrder, permuted_fovs
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
@@ -475,6 +476,9 @@ def replay_acquisitions(
         "labels": {c.name: c.label for c in criteria},
         "strategies": {s.config_id: s.configuration for s in strategies},
         "strategy_names": {s.config_id: strategy_label(s) for s in strategies},
+        # Readable names for the summaries (``_style.rule_label``).
+        "rule_labels": {s.config_id: rule_label(s, data.observation_unit) for s in strategies},
+        "observation_unit": data.observation_unit,
         "strategy_kinds": {s.config_id: s.name for s in strategies},
         "objective": objective.objective.value,
         "orders": [{"kind": o.kind, "seed": o.seed} for o in orders],

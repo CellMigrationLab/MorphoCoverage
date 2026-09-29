@@ -39,11 +39,14 @@ into the full microscopist's report, with the settings of both.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from typing import Any
 
 import pandas as pd
 
+from .._caveats import caveat_lines
+from .._style import DASH, check_detail, headline, wrap
+from .._wording import count
 from ..integrity import integrity_checks
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
@@ -61,10 +64,14 @@ from ..retrospective import (
     sampling_reliability,
     stopping_calibration,
 )
+from ..retrospective.calibration import calibration_short_parts
+from ..retrospective.report import LIMITS_TITLE
+from ..retrospective.report_status import calibration_status
 from ..sampling_unit import (
     FeatureRanking,
     fov_variability,
 )
+from ..schema import resolve_observation_unit
 from ..sufficiency import sufficiency_report
 from ._document import (
     assemble,
@@ -89,6 +96,12 @@ from ._shared import orders as _orders
 from .benchmarks import Benchmark, Family, benchmark, default_families
 from .setup import Setup
 
+PLAN_TITLE = "Plan for the next experiment"
+CALIBRATION_TITLE = (
+    "Would a simple rule have been sufficient, and how reliable is each stopping rule? (P5, P6)"
+)
+# The rule check as the "At a glance" block names it.
+CALIBRATION_SHORT = "Rules. How reliable was each stopping rule?"
 REPORT_QUESTIONS = ("unit", "controls", "enough", "profile", "inspect", "conditions")
 PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
 # The random orders in which the report replays each rule for "Did I image enough?".
@@ -109,9 +122,10 @@ class Report:
     not_assessed: dict[str, str] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The report questions, in sentences, then the settings of the run."""
-        parts = [self.document.summary(REPORT_QUESTIONS)]
+    def summary(self, detail: str = "short") -> str:
+        """The report questions (``detail``: ``"short"`` or ``"full"``, as
+        ``MicroscopistReport.summary``), then the settings of the run."""
+        parts = [self.document.summary(REPORT_QUESTIONS, detail=detail)]
         if self.settings:
             parts.append(report_settings(self.settings))
         return "\n\n".join(parts)
@@ -260,18 +274,35 @@ class Plan:
     not_assessed: dict[str, str] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The planning questions, with the calibration of each stopping rule, in sentences."""
-        parts = [self.document.summary(PLAN_QUESTIONS)]
+    def summary(self, detail: str = "short") -> str:
+        """The planning questions, with the calibration of each stopping rule (``detail``:
+        ``"short"`` or ``"full"``, as ``MicroscopistReport.summary``), then the settings.
+
+        The rule check ("Would a simple rule have been sufficient, and how reliable
+        is each stopping rule?", P5 and P6) is a section of its own, before "What
+        this dataset cannot tell me", with its status (``calibration_status``) in
+        the "At a glance" block of the short form.
+        """
+        short = check_detail(detail) == "short"
+        text = self.document.summary(PLAN_QUESTIONS, detail=detail)
         calibration = self.results.get("calibration")
         if calibration is not None:
-            parts.append(
-                "Would a simple rule have been sufficient, and how reliable is each stopping "
-                "rule? (P5, P6)\n" + calibration.summary()
-            )
+            status, answer = calibration_status(calibration)
+            if short:
+                lines, cautions = calibration_short_parts(calibration, indent=2)
+                body = "\n".join([*lines, *caveat_lines(cautions, indent=2)])
+                glance = self.document.at_a_glance(PLAN_QUESTIONS)
+                line = wrap(headline(status, CALIBRATION_SHORT, answer), "  ", hang=5)
+                text = text.replace(glance, f"{glance}\n{line}", 1)
+            else:
+                full = calibration.summary(detail="full")
+                body = "\n".join(f"  {row}" if row else row for row in full.splitlines())
+            section = f"{headline(status, CALIBRATION_TITLE)}\n{body}"
+            head, limits, tail = text.rpartition(f"\n\n{LIMITS_TITLE}\n")
+            text = f"{head}\n\n{section}{limits}{tail}" if limits else f"{text}\n\n{section}"
         if self.settings:
-            parts.append(plan_settings(self.settings))
-        return "\n\n".join(parts)
+            text = f"{text}\n\n{wrap(plan_settings(self.settings))}"
+        return text
 
 
 def optimise(
@@ -398,7 +429,13 @@ def optimise(
         "dispersed_orders": dispersed_orders if setup.stage_cols is not None else 0,
         "random_state": setup.random_state,
     }
-    return Plan(results, with_reasons(document, reasons), setup, reasons, settings)
+    unit = resolve_observation_unit(setup.observation_unit)[0]
+    title = (
+        f"{PLAN_TITLE} {DASH} {count(len(objects), unit, setup.unit_words)} in "
+        f"{count(len(fovs), 'field')}"
+    )
+    document = replace(with_reasons(document, reasons), title=title)
+    return Plan(results, document, setup, reasons, settings)
 
 
 def _same_setup(first: Setup, other: Setup) -> bool:

@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .._caveats import assumption, caveat_lines
+from .._style import rule_label, wrap
 from .._wording import count, listing, percent, rate
 from ..evidence import Component
 from ..order_check import RANDOM_SAMPLE_ASSUMPTION
@@ -172,9 +174,12 @@ def _positive(setup: Setup) -> str:
 
 def _rules(setup: Setup) -> str:
     """The stopping rules the workflows assess, calibrate and run live; the default says so."""
-    named = listing([strategy_label(rule) for rule in setup.stopping_rules()], limit=10)
+    unit = resolve_observation_unit(setup.observation_unit)[0]
+    named = listing(
+        [f"{rule_label(rule, unit)} [{strategy_label(rule)}]" for rule in setup.stopping_rules()],
+        limit=10,
+    )
     if setup.rules is None:
-        unit = resolve_observation_unit(setup.observation_unit)[0]
         named += (
             f" (the default, rules=None: the JCB rule per {unit} and per field at "
             f"{rate(setup.tolerances[0])})"
@@ -258,4 +263,162 @@ def _rare(setup: Setup) -> str:
     return line
 
 
-__all__ = ["declaration"]
+def _rare_short(setup: Setup) -> tuple[str | None, list[str]]:
+    """The rare phenotype in one line, and its caveats."""
+    target = setup.rare
+    if target is None:
+        return None, [
+            (
+                "no rare phenotype declared (rare), so no answer says whether a rare state was "
+                "sampled enough"
+            )
+        ]
+    parts = []
+    if target.object_prevalence is not None:
+        parts.append(f"{rate(target.object_prevalence)} of {setup.unit_words}")
+    if target.fov_incidence is not None:
+        parts.append(f"{rate(target.fov_incidence)} of fields")
+    line = (
+        f"Rare phenotype: {target.phenotype} in {' and '.join(parts)}, to be seen in at least "
+        f"{count(target.min_fov_occurrences, 'field')} with "
+        f"{rate(target.detection_probability)} probability"
+    )
+    cautions = []
+    if target.fov_incidence is not None:
+        needed = fovs_to_detect(
+            target.fov_incidence, target.detection_probability, target.min_fov_occurrences
+        )
+        line += f"; the binomial plan asks for {needed} representative fields"
+    else:
+        cautions.append(
+            "no field incidence of the rare phenotype declared, so no field count is planned "
+            "(object prevalence is never converted to field incidence)"
+        )
+    if setup.rare_label is not None:
+        line += f"; judged on held-back fields with the label {setup.rare_label!r}"
+    else:
+        cautions.append(
+            "no rare_label column: the rare phenotype is not judged on held-back fields"
+        )
+    return f"{line}.", cautions
+
+
+def _novelty_short(setup: Setup) -> str:
+    """The novelty rule in one line."""
+    few = f"; seen in few fields: fewer than {setup.resolved_few_fovs} other fields"
+    if setup.novelty_target is None:
+        return f"Novelty: answered without a target (novelty_target=None){few}."
+    target = rate(setup.novelty_target)
+    if setup.novelty_rule_declared:
+        return f"Novelty rule: nothing new ≤{target} is one of the stopping rules{few}."
+    return (
+        f"Report-only rule: nothing new ≤{target}, judged by the report only (not live, not "
+        f"calibrated by optimise and benchmark){few}."
+    )
+
+
+def _order_short(setup: Setup) -> tuple[str | None, list[str]]:
+    """The order check in one line, and its caveat."""
+    order, stage = setup.acquisition_order_col, setup.stage_cols
+    advice = "image fields in a random or dispersed order"
+    if order is None and stage is None:
+        return None, [
+            (
+                f"No acquisition order or stage coordinates, so nothing is checked: every stop "
+                f"{RANDOM_SAMPLE_ASSUMPTION}; {advice}"
+            )
+        ]
+    tests = []
+    if order is not None:
+        tests.append(f"a trend with {order!r}")
+    if stage is not None:
+        tests.append(f"alike neighbours by {listing(stage)} (Moran's I)")
+    line = f"Order check beside every stop: {' and '.join(tests)}."
+    return line, [
+        assumption(
+            "a flagged order trend is a caution, never a veto, and finding none does not show "
+            f"the fields to be a random sample of the well's positions; {advice}"
+        )
+    ]
+
+
+def declaration_short(setup: Setup, indent: int = 2) -> str:
+    """The declaration in a line per target and setting, each caveat once (a missing
+    declaration as a ⚠️ line, a standing assumption under "Assumptions:").
+
+    The report's short form of "What this acquisition was asked to preserve";
+    ``declaration(setup)`` keeps every sentence.
+    """
+    tolerances = " and ".join(rate(t) for t in setup.tolerances)
+    lines = [
+        (
+            f"Population summary: the mean of {setup.readout} over all {setup.unit_words}, within "
+            f"{tolerances} (judged on held-back fields)."
+        )
+    ]
+    cautions = []
+    if setup.fingerprint:
+        named = "; ".join(c.description or c.name for c in setup.fingerprint)
+        lines.append(f"Phenotypic fingerprint: {named} (judged on held-back fields).")
+    else:
+        cautions.append(
+            "no phenotypic fingerprint declared (fingerprint), so the answers speak of the "
+            "mean, not of the distribution of phenotypes"
+        )
+    rare, rare_cautions = _rare_short(setup)
+    lines += [rare] if rare else []
+    cautions += rare_cautions
+    lines.append(f"Representation: readout {setup.readout}; {_representation(setup)}.")
+    if setup.novelty is not None:
+        lines.append(_novelty_short(setup))
+    if setup.positive is not None:
+        positive = setup.positive
+        pooled = positive.pair_cols is not None and not positive.pair_cols
+        lines.append(
+            f"Positive control: fields of {dict(positive.selector)} against the control "
+            f"{dict(setup.control or {})}; below {percent(setup.minimum_detection)} recognized "
+            "(minimum_detection, a provisional preset) every adequacy answer is warned."
+        )
+        if pooled:
+            cautions.append(
+                "the positive control's fields are paired across the whole table "
+                "(pair_cols=()), so a shift between repeats can read as a detected phenotype"
+            )
+    unit = resolve_observation_unit(setup.observation_unit)[0]
+    rules = listing([rule_label(rule, unit) for rule in setup.stopping_rules()], limit=10)
+    default = " (the default)" if setup.rules is None else ""
+    lines.append(f"Stopping rules: {rules}{default}; run live, calibrated by optimise.")
+    targets = sorted(
+        {r.target_cv for r in setup.stopping_rules() if isinstance(r, ScalarPrecisionStrategy)}
+    )
+    if targets:
+        cvs = " and ".join(f"{rate(t)} is one standard error of {rate(t)}" for t in targets)
+        cautions.append(
+            assumption(
+                f"the JCB rules stop on the averaging CV ({cvs} of the mean), not on a "
+                f"±{rate(targets[0])} bound on its error; whether the mean is within {tolerances} "
+                "is judged on held-back fields"
+            )
+        )
+    order, order_cautions = _order_short(setup)
+    lines += [order] if order else []
+    cautions += order_cautions
+    if setup.normalize is not None:
+        lines.append(
+            "Values: features divided by the control mean of the same repeat for the held-back "
+            "outcomes, the contrast, the ranking and the plots; the stopping rules read the "
+            "raw values."
+        )
+    objective = setup.objective()
+    targets = listing(
+        [COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components]
+    )
+    lines.append(
+        f"Live decision: the {objective.objective.value} objective ({targets}); a target no "
+        "rule decides stays unsupported, never assumed adequate."
+    )
+    text = [wrap(line, indent, hang=indent + 2) for line in lines]
+    return "\n".join([*text, *caveat_lines(cautions, indent=indent)])
+
+
+__all__ = ["declaration", "declaration_short"]

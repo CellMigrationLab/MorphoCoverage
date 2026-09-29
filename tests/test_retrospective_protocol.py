@@ -73,13 +73,15 @@ def test_per_unit_counts_and_the_named_difficult_sample():
     result = _protocol()
     per = result.per_unit[result.per_unit["fovs"] == 5].set_index("unit")
     assert per.loc["P1", ["eligible", "adequate"]].tolist() == [2, 1]
-    text = result.summary()
-    assert "enough for 2 of 4 samples" in text
-    assert "B3, P2 (more than 5)" in text
+    text = result.summary(detail="full")
+    assert "2 of 4 samples" in text  # at 5 fields, in the full form's table
+    assert "B3 · P2 (more than 5)" in text
     assert "could not be judged at this depth" in text
     assert "Uncertainty is large with only 2 plates" in text
+    short = result.summary()
+    assert "B3 · P2 (more than 5)" in short and "Uncertainty is large with only 2 plates" in short
     for word in ("reservoir", "criterion", "bootstrap"):
-        assert word not in text
+        assert word not in text and word not in short
 
 
 def test_interval_counts_units_not_draws():
@@ -101,10 +103,12 @@ def test_short_and_never_judged_samples_are_counted_not_dropped():
     result = _protocol(wells)
     table = result.table.set_index("fovs")
     assert table.loc[5, "not_evaluated"] == 1 and table.loc[10, "not_evaluated"] == 2
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "5 samples in 2 plates" in text
-    assert "Could not be judged at any depth: C9, P2." in text
-    assert "more than nan" not in text
+    assert "Could not be judged at any depth: C9 · P2." in text
+    short = " ".join(result.summary().split())
+    assert "5 samples in 2 plates" in short and "could not be judged at any depth: C9 · P2" in short
+    assert "more than nan" not in text and "more than nan" not in short
 
 
 def test_adding_a_stratum_does_not_change_another_strata_interval():

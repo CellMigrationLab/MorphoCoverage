@@ -145,18 +145,22 @@ def _summary(objects, fovs, strategies, objective=POPULATION):
         acquisition_order_col="acq",
         fov_col="position_id",
     )
-    return report.summary()
+    # The sentences per group and rule (the answer column), then the short summary, whose
+    # wrapped lines are joined so that a caveat reads as one string.
+    return "\n".join(report.enough["answer"]) + "\n" + " ".join(report.summary().split())
 
 
 def test_c2_the_sufficiency_sentence_carries_the_rules_own_warnings():
     objects, fovs = _field_size_acquisition()
     text = _summary(objects, fovs, [ScalarPrecisionStrategy("area", 0.1, "fov", "point")])
-    assert "Caution: FOV size and FOV mean are related (Spearman rho -0." in text
+    assert "Caution: field size and field mean are related (Spearman rho -0." in text
+    assert "point SD, in the group: field size and field mean are related (Spearman rho -0." in text
     # The paper's advice for a between-object CV above 50% is printed too.
     rng = np.random.default_rng(1)
     wide = _acquisition([list(rng.exponential(10.0, 20)) for _ in range(6)])
     text = _summary(*wide, [ScalarPrecisionStrategy("area", 0.05, "object", "point")])
     assert "Caution: the SD between objects exceeds 50% CV" in text
+    assert "point SD, in the group: the SD between objects exceeds 50% CV" in text
 
 
 def test_c3_the_object_unit_jcs_rule_states_its_random_object_assumption():
@@ -173,8 +177,11 @@ def test_c3_the_object_unit_jcs_rule_states_its_random_object_assumption():
     )
     lines = {line.split(" (")[0].strip(" -"): line for line in text.splitlines() if "(" in line}
     clause = "assumes a spatially uniform sample"
-    assert clause in lines["descriptor_spread_object"]
-    assert clause not in lines["descriptor_spread_fov"]
+    assert clause in lines["JCS spread, per object, ≤5"]
+    assert clause not in lines["JCS spread, per field, ≤5"]
+    # Stated once in the short summary, for the object-unit rule only.
+    assert "JCS spread, per object, ≤5 treats objects as independent draws: it assumes" in text
+    assert "JCS spread, per field, ≤5 treats" not in text
 
 
 def test_c4_text_and_boolean_order_columns_are_refused_like_the_acquisition_order():

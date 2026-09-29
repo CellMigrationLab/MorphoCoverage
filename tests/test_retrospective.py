@@ -323,11 +323,18 @@ def test_summary_speaks_in_fields_and_states_its_limits():
     criterion = OutcomeCriterion(
         RelativeMeanError("feature_a"), 0.02, "lower_is_better", "the mean of feature_a within 2%"
     )
-    text = _reliability("homogeneous", criteria=[criterion], counts=(1, 5)).summary()
+    result = _reliability("homogeneous", criteria=[criterion], counts=(1, 5))
+    text = result.summary(detail="full")
     assert "how many fields do you need for the mean of feature_a within 2%?" in text
-    assert "1 field: enough in" in text and "5 fields: enough in" in text
+    # Every listed field count has its row, with its share, in the full form's table.
+    rows = [line.split() for line in text.splitlines()]
+    shares = {int(r[0]): r[1] for r in rows if len(r) > 1 and r[0].isdigit() and "%" in r[1]}
+    assert {1, 5} <= set(shares) and all(value.endswith("%") for value in shares.values())
     assert "held-back fields" in text and "nothing is said beyond" in text
-    assert "reservoir" not in text and "criterion" not in text
+    short = result.summary()
+    assert "the mean of feature_a within 2%" in short and "nothing is said beyond" in short
+    for words in (text, short):
+        assert "reservoir" not in words and "criterion" not in words
 
 
 @pytest.mark.parametrize(

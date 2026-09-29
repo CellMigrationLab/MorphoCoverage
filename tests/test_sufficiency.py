@@ -170,13 +170,24 @@ def test_summary_answers_both_questions_in_words():
         novelty_target=0.2,
         calibration=CalibrationSettings((6,), 10, 0),
     )
-    text = report.summary()
-    assert "Did each criterion say enough?" in text and "one more FOV show something new?" in text
-    assert "fixed_fov" in text and "its target was reached by the 13 acquired FOVs" in text
-    assert "Chance: 15% (nominal 95% upper bound" in text and "2 of 13 FOVs" in text
-    assert "Check on this dataset: predicting from 6 random FOVs" in text
-    assert "'New' means a cluster of at least 3 similar observations" in text
-    assert "with no other FOV within distance 0.5" in text
+    # The sentences, one per group and rule, are the answer columns.
+    answers = "\n".join([*report.enough["answer"], *report.next_fov["answer"]])
+    assert "fixed_fov" in answers and "its target was reached by the 13 acquired FOVs" in answers
+    assert "Chance: 15% (nominal 95% upper bound" in answers and "2 of 13 FOVs" in answers
+    assert "Check on this dataset: predicting from 6 random FOVs" in answers
+    # The summaries give both answers: the rules in a table, the next field in a few lines.
+    for detail in ("short", "full"):
+        text = " ".join(report.summary(detail=detail).split())
+        assert "Each rule by its own threshold" in text and "One more field:" in text
+        assert "fixed 5 fields" in text and "target reached" in text
+    # The exact definition of new is in the full form; the short one says it in one line.
+    short = " ".join(report.summary().split())
+    assert "'New': at least 3 similar objects that no other field shows" in short
+    full = " ".join(report.summary(detail="full").split())
+    assert "'New' means a cluster of at least 3 similar observations" in full
+    assert "with no other FOV within distance 0.5" in full
+    assert "chance 15% (nominal 95% bound" in full and "2 of 13 fields" in full
+    assert "Check on this dataset: from 6 random fields" in full
     assert list(report.calibration["fovs_imaged"]) == [6]
 
 
@@ -220,11 +231,18 @@ def test_the_report_states_what_the_fovs_rule_out():
     assert row["unseen_state_max_frequency"] == pytest.approx(1 - 0.05 ** (1 / 13))
     needed = int(row["extra_fovs_to_rule_out_target"])
     assert upper_bound(0, 13 + needed, 0.95) <= 0.2 < upper_bound(0, 12 + needed, 0.95)
-    text = report.summary()
-    assert "is in at most 21% of FOVs (95% confidence, about 3 / 13)" in text
-    assert "Rarer states can remain." in text
-    assert "To rule out unseen states in more than 20% of FOVs: at least 1 more FOV" in text
-    assert "To bring the nominal 95% bound for the next FOV below 20%" in text
+    answer = report.next_fov["answer"].iloc[0]
+    assert "is in at most 21% of FOVs (95% confidence, about 3 / 13)" in answer
+    assert "Rarer states can remain." in answer
+    assert "To rule out unseen states in more than 20% of FOVs: at least 1 more FOV" in answer
+    assert "To bring the nominal 95% bound for the next FOV below 20%" in answer
+    short = " ".join(report.summary().split())
+    assert "is in at most 21% of fields (95% confidence); rarer states can remain" in short
+    assert "To rule out unseen states in more than 20% of fields: at least 1 more field " in short
+    assert "To bring the next-field bound below 20%" in short
+    full = " ".join(report.summary(detail="full").split())
+    assert "Not yet seen: at most 21% of fields (95% confidence, about 3 / 13)" in full
+    assert "at least 1 more field with nothing new to rule out unseen states" in full
     # Without a target the statement is still made, without the extra FOVs.
     plain = _novelty_report()
     assert pd.isna(plain.next_fov["extra_fovs_to_rule_out_target"].iloc[0])
@@ -282,7 +300,7 @@ def test_novelty_cols_keep_the_definition_of_new_apart_from_the_readout():
         assert list(mine[name]) == list(reference[name]), table
         assert list(mine["condition"]) == list(reference["condition"]), table
         assert mine.dtypes.to_dict() == reference.dtypes.to_dict(), table
-    assert "(feature_a and feature_b)" in split.summary()
+    assert "(feature_a and feature_b)" in split.summary(detail="full")
     with pytest.raises(ValueError, match="novelty_cols"):
         sufficiency_report(
             built.objects,

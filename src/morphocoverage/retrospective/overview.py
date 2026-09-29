@@ -23,6 +23,8 @@ from typing import Any
 import pandas as pd
 
 from .._data_rules import _loose
+from .._style import check_detail, group_columns, wrap
+from .._style import table as style_table
 from .._wording import count
 from ..data_check import DataCheck, Problem, validate_input_tables
 from ..metadata import (
@@ -32,6 +34,7 @@ from ..metadata import (
     sorted_labels,
 )
 from ..schema import fov_positions, unit_plural
+from .report_status import data_check_status
 
 MAX_FEATURES_LISTED = 12
 MAX_VALUES_LISTED = 12
@@ -75,7 +78,74 @@ class DatasetOverview:
     settings: dict[str, Any]
     warnings: tuple[Problem, ...] = ()
 
-    def summary(self, max_features_listed: int = MAX_FEATURES_LISTED) -> str:
+    def summary(self, max_features_listed: int = MAX_FEATURES_LISTED, detail: str = "short") -> str:
+        """``"short"``: what the tables hold in a few lines, with the data checks' marker;
+        ``"full"``: plain sentences, an aligned fields-by-condition-and-repeat table when there
+        is one, and every warning of the data check."""
+        if check_detail(detail) == "short":
+            return self._short(max_features_listed)
+        return self._full(max_features_listed)
+
+    def _short(self, max_features_listed: int) -> str:
+        """Three to six lines: counts, features and values, conditions and repeats, checks."""
+        lines = self.short_lines(max_features_listed)
+        return "\n".join(wrap(line, 0, hang=2) for line in lines)
+
+    def short_lines(self, max_features_listed: int = MAX_FEATURES_LISTED) -> list[str]:
+        """The short form's sentences, one per line, not wrapped (a report wraps them under its
+        own indent): counts, features and values, the design, planes, the data checks."""
+        c, settings = self.counts, self.settings
+        unit = settings["observation_unit"]
+        words = unit_plural(unit)
+        declared = "" if settings["observation_unit_declared"] else " (assumed, not declared)"
+        empty = f", {c['empty_fields']} without {words}" if c["empty_fields"] else ", none empty"
+        objects = f"{count(c['objects'], unit, words)}{declared}"
+        key = group_columns(settings["fov_key"])
+        lines = [f"{objects} in {count(c['fields'], 'field')}{empty}; a field is {key}."]
+        normalized = settings.get("normalized")
+        values = f"values: {normalized}" if normalized else "values as given (not normalised)"
+        lines.append(
+            f"{count(c['features'], 'feature')} "
+            f"({_listed(self.features, min(3, max_features_listed))}); {values}."
+        )
+        design = self._design_line()
+        if design:
+            lines.append(design)
+        for axis, (low, high) in settings.get("planes", {}).items():
+            lines.append(f"{axis!r}: {low} to {high} planes per field, one field each.")
+        status, text = data_check_status(self)
+        lines.append(f"{status.marker} {text[:1].upper()}{text[1:]}.")
+        return lines
+
+    def _design_line(self) -> str | None:
+        """Conditions, repeats and technical repeats, and the fields per condition and repeat."""
+        c, settings = self.counts, self.settings
+        condition_col, repeat_col = settings["condition_col"], settings["repeat_col"]
+        parts = []
+        if condition_col is not None:
+            names = self.layout[condition_col].drop_duplicates().tolist()
+            parts.append(f"{count(c['conditions'], 'condition')} ({_listed(names, 6)})")
+        if repeat_col is not None:
+            names = self.layout[repeat_col].drop_duplicates().tolist()
+            parts.append(f"{count(c['repeats'], 'repeat')} ({_listed(names, 6)})")
+        if settings["technical_col"] is not None:
+            parts.append(count(c["technical_repeats"], "technical repeat"))
+        group_cols = settings.get("group_cols", ())
+        groups = (
+            f"{count(c['groups'], 'analysis group')} ({group_columns(group_cols)}), each "
+            "analysed apart"
+            if group_cols
+            else "every field in one group (pooled)"
+        )
+        per = self.layout["fields"] if len(self.layout) and "fields" in self.layout else []
+        spread = ""
+        if len(per):
+            low, high = int(min(per)), int(max(per))
+            fields = f"{low}" if low == high else f"{low} to {high}"
+            spread = f"; {fields} fields per condition and repeat"
+        return f"{', '.join(parts) + '; ' if parts else ''}{groups}{spread}."
+
+    def _full(self, max_features_listed: int) -> str:
         """Plain sentences and a fields-by-condition-and-repeat table when there is one."""
         c = self.counts
         unit = self.settings["observation_unit"]
@@ -148,13 +218,14 @@ class DatasetOverview:
                 if technical_col is not None:
                     columns.append("technical repeats")
                     keys.append("technical_repeats")
-                lines.append("  " + "  ".join([*header, *columns]))
                 for col in header:
                     table[col] = _shown(table[col].tolist())
-                for row in table.itertuples(index=False):
-                    row = row._asdict()
-                    cells = [str(row[col]) for col in header] + [str(row[key]) for key in keys]
-                    lines.append("  " + "  ".join(cells))
+                rows = [
+                    [row[col] for col in header] + [row[key] for key in keys]
+                    for row in (r._asdict() for r in table.itertuples(index=False))
+                ]
+                align = "l" * len(header) + "r" * len(keys)
+                lines.append(style_table(rows, [*header, *columns], indent=2, align=align))
             else:
                 lines.append(
                     f"  ({len(table)} condition-and-repeat combinations; see the layout table)"
@@ -164,12 +235,15 @@ class DatasetOverview:
             lines.append(f"Values: {normalized}.")
         else:
             lines.append("Values: as given (not normalised).")
+        status, text = data_check_status(self)
         if self.warnings:
             lines.append(
-                f"The data check found {count(len(self.warnings), 'warning')} (check_tables says "
-                "where and how to fix each):"
+                f"{status.marker} The data check found {count(len(self.warnings), 'warning')} "
+                "(check_tables says where and how to fix each):"
             )
             lines += [f"  - {problem.title}" for problem in self.warnings]
+        else:
+            lines.append(f"{status.marker} {text[:1].upper()}{text[1:]}.")
         return "\n".join(lines)
 
 
@@ -271,6 +345,8 @@ def dataset_overview(
         "group_cols": tuple(data.group_cols),
         "planes": _within_field_values(data),
         "normalized": normalized,
+        # Whether a data check was given: without one, "no warning" is not known.
+        "data_checked": data_check is not None,
     }
     warnings = tuple(data_check.warnings) if data_check is not None else ()
     return DatasetOverview(counts, layout, tuple(data.feature_cols), settings, warnings)

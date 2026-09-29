@@ -16,10 +16,13 @@ from typing import Any
 
 import pandas as pd
 
+from .._caveats import caveat_lines
 from .._checks import check_seed
+from .._style import Status, check_detail, group_columns, headline, worst, wrap
+from .._wording import count, listing, percent
 from .._wording import fields as fields_text
-from .._wording import listing, percent
 from ..retrospective.frontier import FrontierResult, frontier, sweep
+from ..retrospective.frontier_text import frontier_status
 from ..strategies import DescriptorSpreadStrategy, FOVBootstrapStrategy, ScalarPrecisionStrategy
 from ..strategies.base import SamplingStrategy
 from ._document import held_back_text
@@ -105,15 +108,36 @@ class Benchmark:
     families: tuple[str, ...]
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """Every criterion's scores, in sentences, a warning for each grid that does not
-        bracket the data, then the risk levels and settings."""
-        blocks = [result.summary() for result in self.frontiers.values()]
-        warnings = grid_warnings(self)
-        if warnings:
-            blocks.append("\n".join(warnings))
+    def summary(self, detail: str = "short") -> str:
+        """Every criterion's scores, a warning for each grid that does not bracket the data,
+        then the risk levels and settings.
+
+        Opens with the benchmark's status: the worst of the criteria's
+        (``frontier_text.frontier_status``), and ⚠️ when a grid does not bracket
+        the data. ``"short"`` (the default): per criterion, a table of the
+        families per risk level; ``"full"``: every family in sentences, and each
+        grid warning in full.
+        """
+        short = check_detail(detail) == "short"
+        statuses = [frontier_status(result)[0] for result in self.frontiers.values()]
+        problems = _grid_problems(self)
+        if problems:
+            statuses.append(Status.CAUTION)
+        scope = (
+            f"{count(len(self.families), 'rule family', 'rule families')}, "
+            f"{count(len(self.frontiers), 'criterion', 'criteria')}"
+        )
+        answer = f"fields saved against a fixed count at matched risk ({scope})"
+        line = headline(worst(statuses), "Benchmark", answer)
+        blocks = [wrap(line, 0, hang=3)]
+        blocks += [result.summary(detail=detail) for result in self.frontiers.values()]
+        if problems and short:
+            blocks.append(_short_warnings(self, problems))
+        elif problems:
+            texts = [_warning(self, *problem) for problem in problems]
+            blocks.append("\n".join(caveat_lines(texts, indent=0, detail="full")))
         if self.settings:
-            blocks.append(_benchmark_settings(self.settings))
+            blocks.append(wrap(_benchmark_settings(self.settings)))
         return "\n\n".join(blocks)
 
 
@@ -155,15 +179,10 @@ def _grid_problem(runs: pd.DataFrame, first_field: int) -> str | None:
     return None
 
 
-def grid_warnings(result: Benchmark) -> list[str]:
-    """One warning per family whose threshold grid does not bracket these data.
+def _grid_problems(result: Benchmark) -> list[tuple[str, str, str]]:
+    """Each family whose grid does not bracket these data: its name, its grid, the problem.
 
-    A family that never stops at any setting reads as "never got there", as if
-    the rule were worse, when the grid only failed to reach these data: the
-    thresholds are absolute (a spread or a standard error in the readout's
-    units), so a readout in other units (an area in µm², a ratio times 1000)
-    needs another grid. The stops do not depend on the criterion, so the
-    first frontier's runs decide.
+    The stops do not depend on the criterion, so the first frontier's runs decide.
     """
     if not result.frontiers:
         return []
@@ -171,8 +190,7 @@ def grid_warnings(result: Benchmark) -> list[str]:
     runs = first.runs
     first_field = int(first.settings.get("min_fovs", 1) or 1)
     grids = result.settings.get("families", {})
-    readout = result.settings.get("readout")
-    lines = []
+    problems = []
     for name in result.families:
         problem = _grid_problem(runs[runs["family"] == name], first_field)
         if problem is None:
@@ -184,20 +202,55 @@ def grid_warnings(result: Benchmark) -> list[str]:
             if thresholds
             else ""
         )
-        units = f" (here in the units of {readout})" if readout else ""
-        lines.append(
-            f"Warning: the grid of {name}{span} does not bracket these data: {problem}. "
-            f"Its thresholds are absolute{units} where the rule thresholds a spread or a "
-            "standard error, so this says nothing about the rule; widen the grid "
-            "(Family(..., thresholds=...)) and run the benchmark again."
-        )
-    return lines
+        problems.append((name, span, problem))
+    return problems
+
+
+def _warning(result: Benchmark, name: str, span: str, problem: str) -> str:
+    """The grid warning in full, without its ``Warning:`` prefix."""
+    readout = result.settings.get("readout")
+    units = f" (here in the units of {readout})" if readout else ""
+    return (
+        f"the grid of {name}{span} does not bracket these data: {problem}. "
+        f"Its thresholds are absolute{units} where the rule thresholds a spread or a "
+        "standard error, so this says nothing about the rule; widen the grid "
+        "(Family(..., thresholds=...)) and run the benchmark again."
+    )
+
+
+def _short_warnings(result: Benchmark, problems: list[tuple[str, str, str]]) -> str:
+    """The grid warnings once, then one line per family: its grid and what happened."""
+    readout = result.settings.get("readout")
+    units = f", in the units of {readout}" if readout else ""
+    grids = count(len(problems), "threshold grid")
+    verb = "does" if len(problems) == 1 else "do"
+    text = (
+        f"{grids} {verb} not bracket these data, which says nothing about the rule: the "
+        f"thresholds are absolute{units}; widen the grid (Family(..., thresholds=...)) and run "
+        "the benchmark again"
+    )
+    head = caveat_lines([text], indent=0)
+    rows = [wrap(f"- {name}{span}: {problem}.", 3, hang=5) for name, span, problem in problems]
+    return "\n".join([*head, *rows])
+
+
+def grid_warnings(result: Benchmark) -> list[str]:
+    """One warning per family whose threshold grid does not bracket these data.
+
+    A family that never stops at any setting reads as "never got there", as if
+    the rule were worse, when the grid only failed to reach these data: the
+    thresholds are absolute (a spread or a standard error in the readout's
+    units), so a readout in other units (an area in µm², a ratio times 1000)
+    needs another grid. The stops do not depend on the criterion, so the
+    first frontier's runs decide.
+    """
+    return [f"Warning: {_warning(result, *problem)}" for problem in _grid_problems(result)]
 
 
 def _benchmark_settings(settings: dict[str, Any]) -> str:
     """The benchmark's presets and computational settings in sentences."""
     levels = " and ".join(percent(alpha) for alpha in settings["alphas"])
-    units = ", ".join(settings["unit_cols"]) or "one pooled unit"
+    units = group_columns(settings["unit_cols"]) if settings["unit_cols"] else "one pooled unit"
     orders = f"{settings['permuted_orders']} random orders"
     if settings.get("recorded_order"):
         orders = f"the recorded order and {orders}"

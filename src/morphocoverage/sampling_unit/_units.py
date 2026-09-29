@@ -64,6 +64,13 @@ NOT_INDEPENDENT = (
     "no group column nested within condition x repeat says which fields share a well, so "
     "shuffling fields would let a well-to-well shift pass for a condition effect"
 )
+# What to do about it, said once by the contrast and the ranking alike.
+UNKNOWN_WELLS_ADVICE = (
+    "No test where the fields' wells or dishes are unknown (fields of one dish or well are not "
+    "independent draws): record the technical_repeat column (or name the well column in "
+    "group_cols) to test over wells, or pass fields_independent=True (Setup.fields_independent) "
+    "if the fields are independent draws of the condition."
+)
 
 
 def check_arguments(
@@ -303,11 +310,12 @@ def opposite_signs(
     repeat_col: str | None,
     what: Callable[[tuple[Any, ...]], str],
 ) -> list[str]:
-    """A caution per ``by`` key whose ``passing`` contrasts have opposite signs of ``d_fields``.
+    """A caveat per ``by`` key whose ``passing`` contrasts have opposite signs of ``d_fields``.
 
     Passing contrasts of one condition that differ from the control in
     opposite directions in different repeats read as a shift between repeats,
-    wells or dishes, not as a consistent effect; ``what`` words the key.
+    wells or dishes, not as a consistent effect; ``what`` words the key. Each
+    caveat is one sentence, for ``_caveats.caveat_lines``.
     """
     lines = []
     signed = passing[~passing["d_fields"].isna()]
@@ -315,9 +323,9 @@ def opposite_signs(
         if not {-1.0, 1.0} <= set(np.sign(block["d_fields"].to_numpy(dtype=float)).tolist()):
             continue
         records = block.to_dict("records")
-        listed = listing([f"{repeat_col}={r['repeat']} (d {r['d_fields']:.2f})" for r in records])
+        listed = listing([f"{repeat_col} {r['repeat']} (d {r['d_fields']:.2f})" for r in records])
         lines.append(
-            f"  Caution: {what(key if isinstance(key, tuple) else (key,))} in opposite "
+            f"{what(key if isinstance(key, tuple) else (key,))} in opposite "
             f"directions in {listed}: that reads as a shift between repeats, wells or dishes, "
             "not as a consistent effect of the condition."
         )

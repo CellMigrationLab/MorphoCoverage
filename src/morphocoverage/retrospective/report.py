@@ -41,6 +41,16 @@ describes this acquisition under these features; it is not a biological
 conclusion. Where the sampling frame (candidate positions) would
 be needed, the report says so (P9, not implemented).
 
+``MicroscopistReport.summary()`` is short by default: a title line, an "At a
+glance" block with each answer's status marker and one-line headline
+(``report_status``, the rules question by question), then each answer in its
+short form where it has one (the opening, ``opening``; the Foundation and
+questions 1 and 3, ``report_sampling``; question 2, ``report_enough``;
+questions 4, 5 and 7, ``report_plan``; questions 6, 8 and 9 and the closing,
+``report_answers``; the declaration, ``workflows``), each caveat once;
+``summary(detail="full")`` gives every sentence, each section's header with
+its marker.
+
 Shared-private: re-exports ``_detection_adjusted_bounds`` and
 ``_false_alarm_rate`` of ``report_profile`` for its callers.
 """
@@ -48,11 +58,14 @@ Shared-private: re-exports ``_detection_adjusted_bounds`` and
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from typing import Any
 
 import pandas as pd
 
-from .._wording import percent
+from .._caveats import assumption, caveat_lines, pool_assumptions
+from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
+from .._wording import count, listing, percent
 from ..sampling_unit import (
     ConditionContrast,
     DescriptorSpreadCheck,
@@ -62,26 +75,50 @@ from ..sampling_unit import (
     ObjectRuleCheck,
     UnusualObjects,
 )
+from ..sampling_unit.contrast_text import contrast_parts
+from ..schema import unit_plural
 from ..sufficiency import SufficiencyReport
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
 from .controls import ControlResult
 from .effort import EffortResult
 from .inspection import InspectionResult
+from .inspection_text import inspection_parts
+from .order_text import order_parts
 from .overview import DatasetOverview
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
+from .report_answers import limits_text, short_section
+from .report_enough import enough_full, enough_short
+from .report_plan import bought_short, effort_short, next_time_short
 from .report_profile import (  # noqa: F401  (private helpers re-exported for callers)
     _control_rate,
     _detection_adjusted_bounds,
     _false_alarm_rate,
     sampling_profile,
 )
+from .report_sampling import (
+    controls_full,
+    controls_short,
+    profile_full,
+    profile_short,
+    unit_full,
+    unit_short,
+)
+from .report_status import (
+    caveat_status,
+    integrity_status,
+    overview_status,
+    question_statuses,
+    weak_status,
+)
 from .spatial import EfficiencyResult
 
 OVERVIEW_TITLE = "What is in the dataset"
 DECLARATION_TITLE = "What this acquisition was asked to preserve"
 LIMITS_TITLE = "What this dataset cannot tell me"
+REPORT_TITLE = "Microscopist's report"
+GLANCE_TITLE = "At a glance"
 
 QUESTIONS = (
     ("unit", "Foundation: why count fields, and not only objects?"),
@@ -95,6 +132,35 @@ QUESTIONS = (
     ("order", "8. Could I have sampled more efficiently?"),
     ("conditions", "9. Do the conditions differ, and how confidently?"),
 )
+
+# The questions as the "At a glance" block names them.
+SHORT_QUESTIONS = {
+    "overview": "The data",
+    "unit": "Foundation. Why count fields?",
+    "controls": "1. Can the features see the phenotype?",
+    "enough": "2. Did I image enough?",
+    "profile": "3. What limits my sampling?",
+    "next_time": "4. How many fields next time?",
+    "bought": "5. What did the extra fields buy?",
+    "inspect": "6. Which fields should I look at?",
+    "effort": "7. More fields or more samples?",
+    "order": "8. A better order?",
+    "conditions": "9. Do the conditions differ?",
+}
+
+# What a question not assessed needs, in a few words for its "At a glance" line.
+_SHORT_NEEDS = {
+    "unit": "needs fov_variability",
+    "controls": "needs a declared positive control",
+    "enough": "needs sufficiency_report or a stopping calibration",
+    "profile": "needs the controls, variability, clustering or effort analyses",
+    "next_time": "needs sampling_reliability and protocol_reliability",
+    "bought": "needs adequacy_points on a replay",
+    "inspect": "needs inspect_fovs",
+    "effort": "needs technical repeats or a sampling hierarchy",
+    "order": "needs stage coordinates and an order replay",
+    "conditions": "needs a control condition and condition_contrast",
+}
 
 _NEEDS = {
     "unit": "run fov_variability (and object_rule_check or descriptor_spread_check) "
@@ -116,7 +182,14 @@ _NEEDS = {
 
 @dataclass(frozen=True)
 class MicroscopistReport:
-    """The answers by question (``sections``) and the sampling profile (``profile``)."""
+    """The answers by question (``sections``) and the sampling profile (``profile``).
+
+    ``sections`` hold the full text of each question, ``short`` the short form
+    of the questions that have one (and of the opening, ``"overview"``; the
+    others print their full text in both), ``statuses`` and ``headlines`` each
+    answer's marker and one-line answer (``report_status``), keyed like
+    ``sections`` and ``"overview"``.
+    """
 
     sections: dict[str, str]
     profile: pd.DataFrame
@@ -124,50 +197,70 @@ class MicroscopistReport:
     inputs: dict[str, str] = field(default_factory=dict)
     declaration: tuple[str, ...] = ()
     overview: str | None = None
+    short: dict[str, str] = field(default_factory=dict)
+    statuses: dict[str, Status] = field(default_factory=dict)
+    headlines: dict[str, str] = field(default_factory=dict)
+    title: str = REPORT_TITLE
 
-    def summary(self, questions: Sequence[str] | None = None) -> str:
+    def summary(self, questions: Sequence[str] | None = None, detail: str = "short") -> str:
         """The whole report, question by question, or only the ``questions`` keys given.
 
-        The dataset overview and the declaration of what the acquisition was
-        asked to preserve, when given, come first, and the closing section,
-        "What this dataset cannot tell me" (R6 of ``docs/questions.md``), lists
-        every question not assessed with what it needs and the notes to read
-        the answers with, whatever ``questions`` selects.
+        ``detail="short"`` (the default) opens with a title line and an "At a
+        glance" block, one line per answer with its marker, then gives each
+        answer in its short form; ``"full"`` gives every sentence, each
+        section's header with its marker. The dataset overview and the
+        declaration of what the acquisition was asked to preserve, when given,
+        come first, and the closing section, "What this dataset cannot tell
+        me" (R6 of ``docs/questions.md``), lists every question not assessed
+        with what it needs and the notes to read the answers with, whatever
+        ``questions`` selects.
         """
+        short = check_detail(detail) == "short"
         keys = [key for key, _ in QUESTIONS]
         if questions is not None:
             unknown = sorted(set(questions) - set(keys))
             if unknown:
                 raise ValueError(f"unknown report questions {unknown}; choose from {keys}")
-        blocks = []
+        chosen = [(k, t) for k, t in QUESTIONS if questions is None or k in questions]
+        blocks = [self.title, self.at_a_glance([k for k, _ in chosen])] if short else []
         if self.overview:
-            blocks.append(f"{OVERVIEW_TITLE}\n{_indent(self.overview)}")
+            text = self.short.get("overview") if short else None
+            text = text or _indent(self.overview)
+            blocks.append(f"{self._header('overview', OVERVIEW_TITLE)}\n{text}")
         if self.declaration:
-            blocks.append(
-                f"{DECLARATION_TITLE}\n" + "\n".join(f"  - {line}" for line in self.declaration)
-            )
-        for key, title in QUESTIONS:
-            if questions is not None and key not in questions:
-                continue
-            blocks.append(f"{title}\n{self.sections[key]}")
-        blocks.append(f"{LIMITS_TITLE}\n{self.limits(questions)}")
+            text = self.short.get("declaration") if short else None
+            text = text or "\n".join(wrap(f"- {line}", 2, hang=4) for line in self.declaration)
+            blocks.append(f"{DECLARATION_TITLE}\n{text}")
+        for key, title in chosen:
+            text = self.short.get(key, self.sections[key]) if short else self.sections[key]
+            blocks.append(f"{self._header(key, title)}\n{text}")
+        blocks.append(f"{LIMITS_TITLE}\n{self.limits(questions, detail)}")
         return "\n\n".join(blocks)
 
-    def limits(self, questions: Sequence[str] | None = None) -> str:
-        """The questions not assessed (among ``questions``, or all), what each needs, the notes."""
-        missing = [
-            f"  - {title}: not assessed; needs: {_NEEDS[key]}."
-            for key, title in QUESTIONS
-            if (questions is None or key in questions) and self.inputs.get(key) == "not assessed"
-        ]
-        # Assessed is not "everything was checked": each answer holds for what it read.
-        assessed = (
-            "  - Every question was assessed, each on the columns and under the assumptions "
-            "stated with it and in the notes below."
-        )
-        lines = missing or [assessed]
-        lines += [f"  - {note}" for note in self.notes]
+    def _header(self, key: str, title: str) -> str:
+        """A section's title with its marker, when the answer has a status."""
+        status = self.statuses.get(key)
+        return title if status is None else headline(status, title)
+
+    def at_a_glance(self, keys: Sequence[str] | None = None) -> str:
+        """One line per answer: ``<marker> <n>. <short question> — <headline>``."""
+        lines = [GLANCE_TITLE]
+        chosen = [k for k, _ in QUESTIONS if keys is None or k in keys]
+        for key in ["overview", *chosen]:
+            status = self.statuses.get(key)
+            if status is None:
+                continue
+            line = headline(status, SHORT_QUESTIONS[key], self.headlines.get(key))
+            lines.append(wrap(line, "  ", hang=5))
         return "\n".join(lines)
+
+    def limits(self, questions: Sequence[str] | None = None, detail: str = "full") -> str:
+        """The questions not assessed (among ``questions``, or all), what each needs, the
+        notes (``report_answers.limits_text``; ``detail="short"`` names each need in a few
+        words and leaves out a note a section above already states)."""
+        return limits_text(
+            self, questions, detail, titles=QUESTIONS, needs=_NEEDS, short_titles=SHORT_QUESTIONS
+        )
 
 
 def _indent(text: str) -> str:
@@ -239,64 +332,72 @@ def microscopist_report(
     ):
         _check(value, kind, name)
     parts: dict[str, list[str]] = {key: [] for key, _ in QUESTIONS}
+    short = {}
     for check in (variability, object_rules, descriptor_spread):
         if check is not None:
-            parts["unit"].append(check.summary())
+            parts["unit"].append(check.summary(detail="full"))
+    if parts["unit"]:
+        short["unit"] = unit_short(variability, object_rules, descriptor_spread)
     if controls is not None:
-        parts["controls"].append(controls.summary())
-    if sufficiency is not None:
-        parts["enough"].append(sufficiency.summary())
-        adjusted = _detection_adjusted_bounds(sufficiency, controls)
-        if adjusted:
-            parts["enough"].append(adjusted)
-    if calibration is not None:
-        parts["enough"].append(calibration.summary())
+        parts["controls"].append(controls.summary(detail="full"))
+        short["controls"] = controls_short(controls)
+    parts["enough"] += enough_full(sufficiency, calibration, controls)
+    if parts["enough"]:
+        short["enough"] = enough_short(sufficiency, calibration, controls)
     if adequacy is not None:
-        parts["bought"].append(adequacy.summary())
+        parts["bought"].append(adequacy.summary(detail="full"))
     if reliability is not None:
-        parts["next_time"].append(reliability.summary())
+        parts["next_time"].append(reliability.summary(detail="full"))
     if protocol is not None:
-        parts["next_time"].append(protocol.summary())
+        parts["next_time"].append(protocol.summary(detail="full"))
     if inspection is not None:
-        parts["inspect"].append(inspection.summary())
+        parts["inspect"].append(inspection.summary(detail="full"))
+        short["inspect"] = short_section([inspection_parts(inspection, indent=2)])
     if effort is not None:
-        parts["effort"].append(effort.summary())
+        parts["effort"].append(effort.summary(detail="full"))
+    for key, text in (
+        ("next_time", next_time_short(reliability, protocol)),
+        ("bought", bought_short(adequacy)),
+        ("effort", effort_short(effort)),
+    ):
+        if text:
+            short[key] = text
     if efficiency is not None:
-        parts["order"].append(efficiency.summary())
+        parts["order"].append(efficiency.summary(detail="full"))
     profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
-    if len(profile):
-        parts["profile"].append(
-            "\n".join(
-                f"{row.statement} [{row.where}; {row.source}]" for row in profile.itertuples()
-            )
-        )
-    for check in (unusual, clustering):
-        if check is not None:
-            parts["profile"].append(check.summary())
+    if len(profile) or unusual is not None or clustering is not None:
+        parts["profile"].append("profile")  # its text, wrapped at its indent, is set below
+    generalizing = assumption(
+        "This describes what these fields support about a difference under this feature; "
+        "generalizing it needs independent biological repeats, which is the user's inference."
+    )
     if contrast is not None:
-        parts["conditions"].append(contrast.summary())
-        parts["conditions"].append(
-            "This describes what these fields support about a difference under this feature; "
-            "generalizing it needs independent biological repeats, which is the user's inference."
-        )
+        parts["conditions"].append(contrast.summary(detail="full"))
+        parts["conditions"].append("\n".join(caveat_lines([generalizing], 0, detail="full")))
     if ranking is not None:
-        parts["conditions"].append(ranking.summary())
+        parts["conditions"].append(ranking.summary(detail="full"))
+    if contrast is not None or ranking is not None:
+        answers = [contrast_parts(contrast, indent=2)] if contrast is not None else []
+        answers += [ranking.short_parts(indent=2)] if ranking is not None else []
+        closing = [generalizing] if contrast is not None else []
+        short["conditions"] = short_section(answers, *closing)
     # Redundancy alone feeds the profile; question 8 is answered by an order replay.
-    frame = (
+    frame = assumption(
         "Whether these were the right positions needs every candidate position from an "
         "overview (not available: sampling-frame bias is not assessed)."
     )
     notes = [
-        "Every answer holds for the stated features, tolerances and definition of new.",
-        (
+        assumption("Every answer holds for the stated features, tolerances and definition of new."),
+        assumption(
             "Replays, draws and hold-outs describe these samples; they are not independent "
             "experiments. Statements across samples count samples or repeats."
         ),
-        (
+        assumption(
             "A field count that preserved this acquisition is not a protocol until it holds on "
             "samples it was not chosen on."
         ),
     ]
+    weakened: list[str] = []
     if controls is None or controls.status == "not assessed":
         notes.append(
             "No representation control: a 'nothing new' answer says nothing about phenotypes "
@@ -321,46 +422,160 @@ def microscopist_report(
             )
             for key in ("enough", "next_time", "bought"):
                 if parts[key]:
+                    weakened.append(key)
                     parts[key].insert(
                         0, f"{weak}, so the answers below cannot exclude a phenotype like it."
                     )
+            line = f"{PROBLEM} {weak}, so the answers below cannot exclude a phenotype like it."
+            for key in weakened:
+                if key in short:
+                    short[key] = f"{wrap(line, 2, hang=5)}\n{short[key]}"
             # The notes close the report: the adequacy answers are above them.
             notes.append(
                 f"{weak}, so the adequacy answers (questions 2, 4 and 5) cannot exclude a "
                 "phenotype like it."
             )
     notes.append(
-        "Technical drift between repeats, batches or plates is not assessed: groups are "
-        "analysed apart, and a shift shared by all fields of a group is not new within it."
+        assumption(
+            "Technical drift between repeats, batches or plates is not assessed: groups are "
+            "analysed apart, and a shift shared by all fields of a group is not new within it."
+        )
     )
+    framed = None
     if efficiency is not None:
-        parts["order"].append(frame)
+        parts["order"].append("\n".join(caveat_lines([frame], 0, detail="full")))
+        short["order"] = short_section([order_parts(efficiency, indent=2)], frame)
     elif redundancy is not None and parts["profile"]:
-        parts["profile"].append(frame)
+        framed = frame  # it closes question 3 (profile_full, profile_short)
     elif redundancy is not None:
         # A caveat alone does not assess question 3: it stays "not assessed", and
         # the caveat is kept with the notes.
         notes.append(frame)
+    if parts["profile"]:
+        short["profile"] = profile_short(
+            profile,
+            variability=variability,
+            effort=effort,
+            unusual=unusual,
+            clustering=clustering,
+            frame=framed,
+        )
     sections = {
         key: _indent("\n\n".join(texts)) if texts else f"  Not assessed: {_NEEDS[key]}."
         for key, texts in parts.items()
     }
+    # The Foundation, 1 and 3 are wrapped at the indent they are printed at.
+    if parts["unit"]:
+        sections["unit"] = unit_full(variability, object_rules, descriptor_spread)
+    if controls is not None:
+        sections["controls"] = controls_full(controls)
+    if parts["profile"]:
+        sections["profile"] = profile_full(profile, unusual, clustering, framed)
     inputs = {key: ("given" if parts[key] else "not assessed") for key, _ in QUESTIONS}
-    return MicroscopistReport(
+    results = {
+        "variability": variability,
+        "object_rules": object_rules,
+        "descriptor_spread": descriptor_spread,
+        "controls": controls,
+        "sufficiency": sufficiency,
+        "calibration": calibration,
+        "clustering": clustering,
+        "unusual": unusual,
+        "reliability": reliability,
+        "protocol": protocol,
+        "adequacy": adequacy,
+        "inspection": inspection,
+        "effort": effort,
+        "efficiency": efficiency,
+        "contrast": contrast,
+        "ranking": ranking,
+    }
+    # One "Assumptions:" block per section, after its answers; a caution raises its status.
+    sections = {key: pool_assumptions(text) for key, text in sections.items()}
+    short = {key: pool_assumptions(text) for key, text in short.items()}
+    answers = question_statuses(results, profile, minimum_detection)
+    for key, (status, glance) in answers.items():
+        answers[key] = caveat_status(status, short.get(key, sections[key])), glance
+    statuses = {key: answers[key][0] for key, _ in QUESTIONS}
+    headlines = {key: answers[key][1] for key, _ in QUESTIONS}
+    for key, _ in QUESTIONS:
+        if not parts[key]:
+            statuses[key] = Status.NOT_ASSESSED
+            headlines[key] = f"not assessed; {_SHORT_NEEDS[key]}"
+    for key in weakened:
+        statuses[key], headlines[key] = weak_status(answers[key])
+    document = MicroscopistReport(
         sections,
         profile,
         tuple(notes),
         inputs,
         tuple(declaration),
-        None if overview is None else overview.summary(),
+        None,
+        short,
+        statuses,
+        headlines,
+    )
+    return with_opening(document, overview) if overview is not None else document
+
+
+def opening(overview: DatasetOverview, integrity: Any = None) -> dict[str, Any]:
+    """The report's opening, "What is in the dataset", short and full, with its status.
+
+    The overview (``DatasetOverview.summary``) with its data-check marker, and
+    the data-integrity checks as one marked line (short) or their summary
+    (full); ``integrity`` is an ``IntegrityResult``, or ``None`` when the
+    checks were not run (the short form says so).
+    """
+    status, text = integrity_status(integrity)
+    line = f"{status.marker} {text[:1].upper()}{text[1:]}."
+    short = "\n".join(wrap(text, 2, hang=4) for text in overview.short_lines())
+    full = overview.summary(detail="full")
+    if integrity is not None:
+        involved = integrity.fields_involved()
+        if involved:
+            line = f"{line[:-1]}: {listing(involved, limit=3)}."
+        full = f"{full}\n\n{integrity.summary(detail='full')}"
+    overall, glance = overview_status(overview, integrity)
+    counts = overview.counts
+    unit = overview.settings["observation_unit"]
+    title = (
+        f"{REPORT_TITLE} {DASH} {count(counts['objects'], unit, unit_plural(unit))} in "
+        f"{count(counts['fields'], 'field')}"
+    )
+    return {
+        "short": f"{short}\n{wrap(line, 2, hang=5)}",
+        "full": full,
+        "status": overall,
+        "headline": glance,
+        "title": title,
+    }
+
+
+def with_opening(
+    document: MicroscopistReport, overview: DatasetOverview, integrity: Any = None
+) -> MicroscopistReport:
+    """The report with ``opening(overview, integrity)`` as its first section and title."""
+    parts = opening(overview, integrity)
+    return replace(
+        document,
+        overview=parts["full"],
+        short={**document.short, "overview": parts["short"]},
+        statuses={**document.statuses, "overview": parts["status"]},
+        headlines={**document.headlines, "overview": parts["headline"]},
+        title=parts["title"],
     )
 
 
 __all__ = [
     "DECLARATION_TITLE",
+    "GLANCE_TITLE",
     "LIMITS_TITLE",
     "OVERVIEW_TITLE",
     "QUESTIONS",
+    "REPORT_TITLE",
+    "SHORT_QUESTIONS",
     "MicroscopistReport",
     "microscopist_report",
+    "opening",
+    "with_opening",
 ]

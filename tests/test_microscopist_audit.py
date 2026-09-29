@@ -6,6 +6,8 @@ capped by its reference as a field requirement, must not present a variance
 share from three samples as established, and must name what it counts.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -50,9 +52,10 @@ def test_sufficiency_summary_works_without_a_novelty_definition():
         objective=POPULATION,
         orders=[AcquisitionOrder.permuted(0)],
     )
-    text = report.summary()
-    assert "condition=control, repeat=R1:" in text
-    assert "Did each criterion say enough?" in text and "one more FOV" not in text
+    text = report.summary(detail="full")
+    assert "control · R1 — " in text and "Analysis groups: condition · repeat." in text
+    assert "Each rule by its own threshold" in text and "One more field" not in text
+    assert "One more field" not in report.summary()
 
 
 def test_the_unseen_state_bound_names_the_fovs_without_observations():
@@ -72,9 +75,13 @@ def test_the_unseen_state_bound_names_the_fovs_without_observations():
         novelty=SupportNoveltyEstimator(np.sqrt(2), 1, Standardize(), 2, 3),
     )
     assert report.next_fov["fovs_without_observations"].iloc[0] == 10
-    text = report.summary()
-    assert "about 3 / 13" in text
-    assert "The count includes 10 FOVs without observations, which cannot show a state." in text
+    answer = report.next_fov["answer"].iloc[0]
+    assert "about 3 / 13" in answer
+    assert "The count includes 10 FOVs without observations, which cannot show a state." in answer
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "about 3 / 13" in full and "13 fields (10 fields without observations)" in full
+    short = " ".join(report.summary().split())
+    assert "include fields without observations, which cannot show a state" in short
 
 
 def _reliability(name="homogeneous", counts=(2, 5)):
@@ -150,12 +157,17 @@ def test_protocol_names_samples_capped_by_their_reference_instead_of_needing_mor
     difficulty = result.difficulty.set_index("well")
     assert difficulty.loc["A1", "ceiling"] == 0.3
     assert list(difficulty["ceiling_below_threshold"]) == [True, True, False]
-    text = result.summary()
-    assert "Needs more fields than could be judged: B1, P1 (more than 18)." in text
+    text = " ".join(result.summary(detail="full").split())
+    assert "Needs more fields than could be judged: B1 · P1 (more than 18)." in text
     assert "For 2 of 3 samples even every available field together was enough in fewer" in text
-    assert "A1, P1 (all fields enough in 30% of hold-outs); A2, P1" in text
-    assert "A1, P1 (more than 18)" not in text
-    assert "5 fields:" in text and "1 fields" not in text
+    assert "A1 · P1 (all fields enough in 30% of hold-outs); A2 · P1" in text
+    assert "A1 · P1 (more than 18)" not in text
+    assert re.search(r"\n +5 +\d+ of \d+ samples", result.summary(detail="full"))
+    assert "1 fields" not in text
+    short = " ".join(result.summary().split())
+    assert "1 sample needed more fields than could be judged (B1 · P1 (more than 18))" in short
+    assert "for 2 of 3 samples even every available field together" in short
+    assert "A1 · P1 (more than 18)" not in short
 
 
 def test_protocol_without_a_ceiling_table_keeps_the_old_wording():
@@ -167,7 +179,11 @@ def test_protocol_without_a_ceiling_table_keeps_the_old_wording():
         bare, SamplingHierarchy("image_file", "well", "plate"), threshold=0.9, strata=[]
     )
     assert result.difficulty["ceiling_below_threshold"].isna().all()
-    assert "Needs more fields than could be judged: A1, P1 (more than 18)." in result.summary()
+    full = " ".join(result.summary(detail="full").split())
+    assert "Needs more fields than could be judged: A1 · P1 (more than 18)." in full
+    assert "needed more fields than could be judged (A1 · P1 (more than 18))" in " ".join(
+        result.summary().split()
+    )
 
 
 def _nested(rng, n_samples, n_fovs, cells, v_sample, v_fov=0.25):
@@ -196,9 +212,12 @@ def test_a_variance_share_from_few_samples_is_marked_as_not_established():
         n_boot=100,
         random_state=3,
     )
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "Most of the uncertainty of the mean is between samples" in text
     assert "; not established: only 3 samples, its interval includes zero)." in text
+    short = " ".join(result.summary().split())
+    assert "between samples" in short
+    assert "The largest share is not established: only 3 samples, its interval includes" in short
     profile = microscopist_report(effort=result).profile
     statement = profile[profile["item"] == "largest source of uncertainty of the mean"]
     assert "not established: only 3 samples" in statement["statement"].iloc[0]
@@ -246,10 +265,15 @@ def gradient_replay():
 
 
 def test_dispersed_orders_are_named_in_every_summary(gradient_replay):
-    calibration = stopping_calibration(gradient_replay).summary()
+    calibration = stopping_calibration(gradient_replay).summary(detail="full")
     adequacy = adequacy_points(gradient_replay).summary()
-    assert "  spreading the same positions out: it stopped" in calibration
-    assert "  Spreading the same positions out: judged on held-back fields" in adequacy
+    # The full form names the dispersed orders "spread out" in its tables' order column.
+    assert re.search(r"\n +spread out +\d+% of \d+", calibration)
+    short = stopping_calibration(gradient_replay).summary()
+    assert "spread out" in short and "dispersed" not in short
+    assert "the same positions spread out" in adequacy and "dispersed" not in adequacy
+    full = adequacy_points(gradient_replay).summary(detail="full")
+    assert "  Spreading the same positions out: judged on held-back fields" in full
     assert "\n  dispersed:" not in calibration and "\n  dispersed:" not in adequacy
 
 
@@ -342,11 +366,14 @@ def test_a_state_seen_in_two_neighbouring_fovs_is_reported_as_seen_in_few():
     )
     row = report.next_fov.iloc[0]
     assert row["fovs_with_new"] == 0 and row["fovs_with_state_in_few"] == 2
-    text = report.summary()
     assert (
         "Seen in few FOVs: 2 of 40 FOVs hold a state that other FOVs show too, but fewer "
-        "than 3 of them" in text
+        "than 3 of them" in row["answer"]
     )
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "Seen in few fields: 2 of 40 fields hold a state seen in 2 to 3 fields" in full
+    short = " ".join(report.summary().split())
+    assert "look at those fields before calling the sample settled" in short
     with pytest.raises(ValueError, match="few_fovs must exceed"):
         sufficiency_report(
             built.objects,
@@ -450,8 +477,9 @@ def test_a_weakly_detected_control_prefixes_every_adequacy_answer():
 
 def test_adequacy_and_order_summaries_state_the_tail(gradient_replay):
     adequacy = adequacy_points(gradient_replay)
-    text = adequacy.summary()
+    text = " ".join(adequacy.summary(detail="full").split())
     assert "(medians; by field" in text or "in more than 10% of runs" in text
+    assert "90% of runs by" in adequacy.summary()
     realized = adequacy.realized[adequacy.realized["criterion"] == "all criteria"]
     one_order = realized[realized["order"] == "recorded"]["sustained_realized"]
     tail = float(
@@ -491,11 +519,14 @@ def test_orders_that_agree_within_one_field_are_called_a_null_result():
 def test_the_whole_stream_point_is_labelled_as_one_acquisition():
     result = _reliability(counts=(2, 14))
     stream = int(result.curve["stream_fovs"].max())
-    text = result.summary()
+    text = result.summary(detail="full")
+    cells = [line.split() for line in text.splitlines()]
+    rows = {c[0]: " ".join(c) for c in cells if len(c) > 1 and c[1].endswith("%")}
     if stream == 14:
-        assert "14 fields: enough in" in text
-        assert "(all available fields: one acquisition per hold-out)" in text
-    assert "2 fields: enough in" in text and "±" in text.split("2 fields")[1].split("\n")[0]
+        assert "all fields: one acquisition per hold-out" in rows["14"]
+        assert "all 14" in result.summary()  # the short form's last row: the whole stream
+    # The 2-field row carries its share, Monte Carlo SE and spread across hold-outs.
+    assert "± across hold-outs" in text and len(rows["2"].split()) >= 4
 
 
 def test_partly_judged_samples_are_named_in_the_protocol():
@@ -530,7 +561,8 @@ def test_partly_judged_samples_are_named_in_the_protocol():
         per_sample, SamplingHierarchy("image_file", "well", "plate"), threshold=0.9, strata=[]
     )
     assert result.table["partly_judged"].tolist() == [1]
-    assert "1 judged on only some of the hold-outs" in result.summary()
+    assert "1 judged on only some of the hold-outs" in result.summary(detail="full")
+    assert "1 judged on only some of the hold-outs" in " ".join(result.summary().split())
 
 
 def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
@@ -555,10 +587,17 @@ def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
     assert row["fovs_to_see_again_low_end"] == fovs_to_detect(
         row["few_state_incidence_low"], 0.95, 1
     )
-    text = report.summary()
-    assert "Planning for such a state: these FOVs together are 5% of FOVs (95% interval" in text
-    assert "image about 59 independent representative FOVs, up to" in text
-    assert "Fields that cluster the state need more." in text
+    answer = row["answer"]
+    assert "Planning for such a state: these FOVs together are 5% of FOVs (95% interval" in answer
+    assert "image about 59 independent representative FOVs, up to" in answer
+    assert "Fields that cluster the state need more." in answer
+    full = " ".join(report.summary(detail="full").split())  # both forms wrap their lines
+    assert "together 5% of fields (95% interval" in full
+    assert "about 59 independent representative fields, up to" in full
+    assert "Fields that cluster a state need more fields than the planning numbers." in full
+    short = " ".join(report.summary().split())
+    assert "takes about 59 independent representative fields" in short
+    assert "fields that cluster the state need more" in short
 
 
 def test_the_unseen_state_bound_is_divided_by_the_controls_detection_rate():

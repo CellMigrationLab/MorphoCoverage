@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from .._seeds import group_identity  # noqa: F401  (re-exported for the summaries)
+from .._style import group_label, rule_label
 from .._wording import fields, number, percent, plural, rows_of, where  # noqa: F401  (re-exported)
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..schema import unit_plural  # noqa: F401  (re-exported for the summaries)
@@ -26,6 +27,15 @@ _ORDER_PHRASES = {
     "permuted": "in random orders",
     "dispersed": "spreading the same positions out",
 }
+
+
+# The same order kinds in a word, for a table's rows or columns.
+_ORDER_NAMES = {"recorded": "recorded", "permuted": "random", "dispersed": "spread out"}
+
+
+def order_name(order: str) -> str:
+    """An order kind in a word, for a table: ``recorded``, ``random``, ``spread out``."""
+    return _ORDER_NAMES.get(order, order)
 
 
 def order_phrase(order: str, *, capital: bool = False) -> str:
@@ -80,3 +90,37 @@ def skipped_lines(skipped: pd.DataFrame | None, keys: Sequence[str]) -> list[str
         f"{where({k: row[k] for k in shown})}: skipped, {row['reason']}."
         for _, row in skipped.iterrows()
     ]
+
+
+def skipped_labels(skipped: pd.DataFrame | None, keys: Sequence[str]) -> list[str]:
+    """``MOCK · 1A: skipped, <reason>.``: ``skipped_lines`` with the groups by their values."""
+    if skipped is None or skipped.empty or "reason" not in skipped.columns:
+        return []
+    shown = [k for k in keys if k in skipped.columns]
+    return [
+        f"{group_label({k: row[k] for k in shown})}: skipped, {row['reason']}."
+        for _, row in skipped.iterrows()
+    ]
+
+
+def rule_names(settings: Mapping[str, Any], detail: str = "short") -> dict[str, str]:
+    """Each replayed rule's readable name by config id (``_style.rule_label``).
+
+    From the replay's ``rule_labels``; for a replay recorded before them, from
+    its strategies' configurations and kinds. ``detail="full"`` adds the
+    strategy's own name with its settings and the config id.
+    """
+    labels = dict(settings.get("rule_labels") or {})
+    kinds = settings.get("strategy_kinds", {})
+    unit = settings.get("observation_unit")
+    for config, configuration in settings.get("strategies", {}).items():
+        if config not in labels and config in kinds:
+            row = {"strategy": kinds[config], "policies": configuration.get("policies", [])}
+            labels[config] = rule_label(row, unit)
+    if detail == "short":
+        return labels
+    names = settings.get("strategy_names", {})
+    return {
+        config: f"{label} ({names.get(config, kinds.get(config, config))}, config {config})"
+        for config, label in labels.items()
+    }

@@ -123,8 +123,8 @@ def check_workflow_inputs(objects: Any, fovs: Any, setup: Any, *, warn: bool = T
         warnings.warn(
             f"check_tables found {count(len(likely_mistakes), 'warning')} in these tables: "
             + "; ".join(problem.title for problem in likely_mistakes)
-            + " Print morphocoverage.check_tables(objects, fovs, ...).summary() for where and "
-            "how to fix each.",
+            + " Print morphocoverage.check_tables(objects, fovs, ...).summary(detail='full') for "
+            "where and how to fix each.",
             UserWarning,
             stacklevel=3,
         )

@@ -7,12 +7,15 @@ scripts are in the audit's P1, P2, P3, P8 and P9 folders.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
 from scenarios import FEATURE_COLS, SCENARIOS
 
 from morphocoverage import ObjectiveConfig, SamplingObjective, ScalarPrecisionStrategy
+from morphocoverage._caveats import is_assumption
 from morphocoverage._seeds import group_rng, group_seed
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.outcomes import RelativeMeanError
@@ -95,9 +98,12 @@ def test_p3_3_frontier_interval_is_widened_for_the_units_and_said_to_be_approxim
     # Widened by sqrt(8 / 7) t_7 / z, about 1.28 on each side.
     assert low < plain_low - 0.4 and high > plain_high + 0.4
     assert (2.0 - low) / (2.0 - plain_low) == pytest.approx(1.28, abs=0.02)
-    text = frontier_summary(_frontier_result(units=8))
+    text = " ".join(frontier_summary(_frontier_result(units=8), detail="full").split())
     assert "approximate 95% interval 1.0 to 3.0" in text
     assert "with fewer than 20 units they cover the truth less often than stated" in text
+    short = " ".join(frontier_summary(_frontier_result(units=8)).split())
+    assert "saves 2.0 (1.0 to 3.0)" in short
+    assert "with fewer than 20 units they cover the truth less often than stated" in short
 
 
 def test_p8_1_frontier_gives_no_interval_below_five_units():
@@ -106,9 +112,12 @@ def test_p8_1_frontier_gives_no_interval_below_five_units():
     assert _saved_interval(7.0, draws, 4) == (None, None)
     assert _saved_interval(7.0, draws, 5)[0] is not None
     # Even a stored interval is not printed from two units (entry 8's plates 1A and 2A).
-    text = frontier_summary(_frontier_result(units=2))
-    assert "interval" not in text.split("\n")[2]
-    assert "No interval: only 2 units (repeat) to resample, and at least 5 are needed" in text
+    for detail in ("short", "full"):
+        text = frontier_summary(_frontier_result(units=2), detail=detail)
+        [rule_line] = [line for line in text.split("\n") if "rule at 0.05" in line]
+        assert "interval" not in rule_line and "to" not in rule_line.split("%")[-1]
+        text = " ".join(text.split())
+        assert "No interval: only 2 units (repeat) to resample, and at least 5 are needed" in text
 
 
 def _calibration_runs(premature: int, beyond: int, correct: int) -> pd.DataFrame:
@@ -145,11 +154,10 @@ def test_p2_9_calibration_headlines_the_stops_not_preserved_with_bounds():
     total = row["premature"] + row["not_preserved_by_stream"]
     assert total == pytest.approx(row["not_preserved_at_stop"])
     text = calibration_summary(StoppingCalibration(runs, table, (), {"labels": {}}))
-    assert "60% of acquisitions stopped where it was not preserved" in text
-    assert "between 20% and 60% stopped too early" in text
-    assert "held-back fields' own noise can also cause" in text
+    assert "60%, 20%-60% too early" in text
+    assert "held-back fields' own noise can also cause" in " ".join(text.split())
     # A median stop carries its Monte Carlo error.
-    assert "after a median of 4 fields (Monte Carlo SE" in text
+    assert "median (MC SE)" in text and re.search(r"  4 \(\d", text)
 
 
 def test_p9_2_retyped_labels_keep_their_draws_and_shares_carry_their_monte_carlo_error():
@@ -185,7 +193,7 @@ def test_p9_2_retyped_labels_keep_their_draws_and_shares_carry_their_monte_carlo
     pd.testing.assert_frame_equal(as_numbers.curve[columns], as_text.curve[columns])
     row = as_numbers.curve.iloc[0]
     assert row["preserved_mc_se"] == pytest.approx(row["preserved_split_sd"] / 2)
-    assert "Monte Carlo SE" in as_numbers.summary()
+    assert "Monte Carlo SE" in as_numbers.summary(detail="full")
 
 
 def test_p9_6_benchmark_warns_when_a_grid_does_not_bracket_the_data():
@@ -292,10 +300,9 @@ def test_p8_2_redundancy_distance_is_tested_against_shuffled_positions():
     assert table.loc["flat", "null_share"] > 0.05
     # The report counts only the group beyond chance and says the other is within it.
     report = microscopist_report(redundancy=table.reset_index())
-    assert "in 1 of 2 groups, fields closer than about" in report.sections["profile"]
-    assert (
-        "beyond what shuffling the positions within each group gives" in report.sections["profile"]
-    )
+    profile = " ".join(report.sections["profile"].split())
+    assert "in 1 of 2 groups, fields closer than about" in profile
+    assert "beyond what shuffling the positions within each group gives" in profile
     # A point estimate the shuffles do not support is named as such, not as redundancy.
     doubtful = table.reset_index().assign(
         redundancy_distance=[1200.0, 1200.0], beyond_chance=[False, True], null_share=[0.4, 0.01]
@@ -392,9 +399,15 @@ def test_p1_9_the_limits_say_what_was_not_read_or_not_recorded():
     assert any("No acquisition order (acquisition_order_col)" in n for n in notes)
     placed = Setup(readout="x", stage_cols=("sx", "sy"), acquisition_order_col="t")
     assert coverage_notes({}, placed) == []
-    # Nothing left unassessed still reads as "on the columns stated", never as "everything".
+    # The readout-only note holds for every dataset (an assumption); the missing stage
+    # coordinates and acquisition order are cautions about these data (_caveats).
+    kinds = {n.split(" ")[0]: is_assumption(n) for n in notes}
+    assert kinds == {"The": True, "No": False}
+    # Nothing left unassessed still reads as "on the assumptions stated", never "everything".
     assessed = MicroscopistReport({}, pd.DataFrame(), inputs={})
-    assert "Every question was assessed, each on the columns" in assessed.limits()
+    closing = assessed.limits()
+    assert "Every question could be answered; the assumptions each answer rests on" in closing
+    assert "everything" not in closing
 
 
 def test_p9_4_effort_intervals_do_not_depend_on_the_row_order_of_the_tables():

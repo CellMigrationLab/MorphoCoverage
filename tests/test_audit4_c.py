@@ -80,7 +80,8 @@ def test_p1_1_a_well_column_in_group_cols_is_the_shuffled_unit():
     assert (row["technical"], row["control_technical"]) == (3, 3)
     # 3 wells a side: 20 assignments, mirrors pair up, so p cannot fall below 0.1.
     assert row["p_floor"] == pytest.approx(0.1)
-    assert "whole technical repeats (well" in result.summary()
+    assert "whole technical repeats (well" in " ".join(result.summary().split())
+    assert "whole technical repeats (well" in result.summary(detail="full")
     ranking = feature_ranking(
         objects, fovs, features=["x", "y"], control=CONTROL, group_cols=_groups("well")
     )
@@ -93,7 +94,7 @@ def test_p3_2_without_a_unit_there_is_no_p_value_unless_fields_are_declared_inde
     refused = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5)
     row = refused.table.iloc[0]
     assert np.isnan(row["p_value"]) and row["status"] == NOT_INDEPENDENT
-    text = refused.summary()
+    text = " ".join(refused.summary().split())
     assert "fields of one dish or well are not independent draws" in text
     assert "fields_independent=True" in text
     assert np.isfinite(row["d_fields"])  # the effect sizes are still reported
@@ -103,10 +104,13 @@ def test_p3_2_without_a_unit_there_is_no_p_value_unless_fields_are_declared_inde
     row = declared.table.iloc[0]
     assert row["status"] == "ok" and row["permutation_unit"] == "field"
     assert np.isfinite(row["p_value"])
-    assert "treated as independent draws as declared" in declared.summary()
+    assert "treated as independent draws as declared" in " ".join(declared.summary().split())
+    assert "treated as independent draws as declared" in " ".join(
+        declared.summary(detail="full").split()
+    )
     ranking = feature_ranking(objects, fovs, features=["x", "y"], control=CONTROL)
     assert ranking.tests["p_value"].isna().all()
-    assert "not independent draws" in ranking.summary()
+    assert "not independent draws" in " ".join(ranking.summary().split())
     with pytest.raises(TypeError, match="fields_independent"):
         condition_contrast(objects, fovs, feature="x", control=CONTROL, fields_independent=1)
 
@@ -189,9 +193,11 @@ def test_p1_6_same_sign_draws_resample_whole_technical_repeats():
     )
     whole = result.effects[result.effects["sampling"] == "whole FOVs"]
     assert set(whole["resampled"]) == {"technical_repeat"}
-    text = result.summary()
-    assert "whole FOVs of resampled technical repeats (technical_repeat)" in text
+    text = " ".join(result.summary().split())
+    assert "the fields of technical repeats (technical_repeat) drawn with replacement" in text
     assert "not a confidence in the effect" in text
+    full = result.summary(detail="full")
+    assert "resampled" in full and full.count("technical_repeat") >= 3
     objects, fovs = objects.drop(columns="technical_repeat"), fovs.drop(columns="technical_repeat")
     fields_only = condition_contrast(
         objects,
@@ -237,6 +243,7 @@ def test_p1_4_the_object_rule_divides_by_the_repeats_own_control_mean():
 def test_p5_6_a_unit_change_in_one_repeat_is_flagged_and_a_repeat_without_control_refused():
     objects, fovs = _shifted(0.1)
     text = object_rule_check(objects, fovs, feature="x", control=CONTROL, n_draws=50).summary()
+    text = " ".join(text.split())
     assert "differ by 10.0x" in text and "change of units" in text
     keep = ~((objects["repeat"] == "r2") & (objects["condition"] == "ctrl"))
     result = object_rule_check(objects[keep], fovs, feature="x", control=CONTROL, n_draws=50)
@@ -254,7 +261,7 @@ def test_p1_3_the_ranking_states_the_smallest_reachable_q():
     objects, fovs = _wells(4, shift=8.0)
     objects["noise"] = np.random.default_rng(1).normal(size=len(objects))
     ranking = feature_ranking(objects, fovs, features=["x", "noise", "y"], control=CONTROL)
-    text = ranking.summary()
+    text = " ".join(ranking.summary().split())
     assert "a lone contrast at the floor cannot pass" in text
     assert "q = 0.086" in text
     assert "at least 2 of the 3 tests" in text
@@ -305,14 +312,19 @@ def test_p1_10_the_contrast_says_it_compares_means_only():
 
 def test_p1_12_small_unit_d_plural_and_rare_declaration_wording():
     objects, fovs = _wells(2, shift=3.0)
-    text = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5).summary()
-    assert "(from 2 and 2 means, so unstable" in text
+    contrast = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5)
+    text = " ".join(contrast.summary().split())
+    assert "comes from 3 or fewer means a side, so it is unstable" in text
+    assert " 2 vs 2 " in contrast.summary(detail="full")
     # A field rule asking for one field says "1 field", not "1 fields".
     spec = [("ctrl", "r1", "A", 4, 10.0), ("drug", "r1", "B", 4, 10.0)]
     objects, fovs = _tables(spec, per_field=200)
     fovs = pd.concat([fovs, fovs.assign(position_id=fovs["position_id"] + "_empty")])
     result = object_rule_check(objects, fovs, feature="x", control=CONTROL, n_draws=20)
-    assert "asks for 1 field with" in result.summary()
+    full = result.summary(detail="full")
+    assert "fields with objects" in full and "1 fields" not in full
+    row = result.table.iloc[0]
+    assert f"{int(row['fov_rule_fovs'])} ({int(row['fov_rule_fovs_upper95'])})" in full
     from morphocoverage.objectives import RareTarget
 
     rare = RareTarget(

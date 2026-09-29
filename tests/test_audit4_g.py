@@ -98,9 +98,10 @@ def test_p6_1_a_field_holds_an_unusual_state_only_with_m_objects():
     # The reference groups' own incidence is printed beside it.
     assert after["reference_fovs"] == 30 and after["reference_fovs_holding"] == 0
     text = held.summary()
-    assert "Fields holding at least 3 of its objects: 1 of 30 fields" in text
-    assert "0 of 30 fields of the reference groups (0%" in text
-    assert "89 fields" in text
+    assert "holding ≥3" in text and "1 of 30" in text
+    assert "reference holding" in held.summary(detail="full")
+    assert "0 of 30 (0%)" in text
+    assert "89 (up to" in text
 
 
 def test_p6_1_the_report_counts_unusual_fields_with_the_novelty_rules_m():
@@ -248,7 +249,9 @@ def test_p6_4_representation_control_measures_the_planted_rate_leaving_one_field
     )
     planted = controls.pooled.set_index("candidate").loc["planted_lofo"]
     assert planted["candidates"] + planted["not_judged"] == 8  # one check per reference field
-    assert "reference fields with planted positive-control objects" in controls.summary()
+    text = controls.summary()
+    assert "MOCK fields with 5 KD objects planted" in text
+    assert f"of {int(planted['candidates'])} checks" in text
 
 
 def test_p6_5_rare_state_fields_report_the_technical_repeats_holding_it():
@@ -258,7 +261,7 @@ def test_p6_5_rare_state_fields_report_the_technical_repeats_holding_it():
     result = fov_clustering(objects, fovs, label_col="state", states=[True], n_permutations=9)
     assert set(result.table["technical_repeats"]) == {1}
     text = result.summary()
-    assert "condition=drug, repeat=R1, state: held by 1 of 3 technical repeats." in text
+    assert "drug · R1" in text and "1 of 3 technical repeats" in text
     assert "The field counts assume fields from independent technical repeats" in text
     pooled = fov_clustering(
         objects,
@@ -395,7 +398,8 @@ def test_p1_5_the_rare_field_plan_uses_min_fov_occurrences():
         n_permutations=9,
     )
     assert result.table.iloc[0]["fovs_needed"] == fovs_to_detect(0.25, 0.9, 2) == 15
-    assert "To see it in at least 2 fields with 90% chance: 15 fields" in result.summary()
+    text = result.summary()
+    assert "to see in ≥2, 90%" in text and " 15 (up to" in text
     rare = RareTarget(
         detection_probability=0.9, min_fov_occurrences=2, phenotype="state", fov_incidence=0.25
     )

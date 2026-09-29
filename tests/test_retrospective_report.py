@@ -40,10 +40,16 @@ def test_the_overview_opens_and_the_limits_close_the_report():
     assert overview.counts["fields"] == len(built.fovs)
     assert overview.counts["features"] == len(FEATURE_COLS)
     report = microscopist_report(overview=overview)
-    text = report.summary()
-    assert text.startswith(f"{OVERVIEW_TITLE}\n")
+    text = report.summary(detail="full")
+    marker = report.statuses["overview"].marker
+    assert text.startswith(f"{marker} {OVERVIEW_TITLE}\n")
     assert "feature column" in text and "condition" in text.split(DECLARATION_TITLE)[0]
     assert text.rstrip().split("\n\n")[-1].startswith(LIMITS_TITLE)
+    # The short form opens with its title and "At a glance", then the overview.
+    short = report.summary()
+    assert short.startswith("Microscopist's report — ") and "\nAt a glance\n" in short
+    assert f"\n\n{marker} {OVERVIEW_TITLE}\n" in short
+    assert short.rstrip().split("\n\n")[-1].startswith(LIMITS_TITLE)
     limits = report.limits()
     assert "1. Can these features detect what I care about?: not assessed; needs:" in limits
     assert "No representation control" in limits  # the notes close the report
@@ -52,14 +58,16 @@ def test_the_overview_opens_and_the_limits_close_the_report():
     many = built.objects.assign(**{f"f{i}": 0.0 for i in range(15)})
     columns = [*FEATURE_COLS, *(f"f{i}" for i in range(15))]
     wide = dataset_overview(many, built.fovs, feature_cols=columns)
-    assert "and 5 more" in wide.summary()
+    assert "and 5 more" in wide.summary(detail="full")
+    assert "and 14 more" in wide.summary()  # the short form lists three
     single = SCENARIOS["homogeneous"]()
     bare = dataset_overview(
         single.objects.drop(columns=["condition", "repeat"]),
         single.fovs.drop(columns=["condition", "repeat"]),
         feature_cols=list(FEATURE_COLS),
     )
-    assert "No condition or repeat column" in bare.summary()
+    assert "No condition or repeat column" in bare.summary(detail="full")
+    assert "every field in one group (pooled)" in bare.summary()
     # A selection of questions limits the closing section to those questions.
     assert "4. How many fields" not in report.summary(["enough"])
 
@@ -67,10 +75,14 @@ def test_the_overview_opens_and_the_limits_close_the_report():
 def test_the_declaration_is_printed_first_only_when_given():
     assert DECLARATION_TITLE not in microscopist_report().summary()
     report = microscopist_report(declaration=["Population summary: the mean of x within 5%."])
-    text = report.summary()
+    text = report.summary(detail="full")
     assert text.startswith(f"{DECLARATION_TITLE}\n  - Population summary")
     assert text.index(DECLARATION_TITLE) < text.index("Foundation: why count")
-    assert report.summary(["enough"]).startswith(DECLARATION_TITLE)
+    assert report.summary(["enough"], detail="full").startswith(DECLARATION_TITLE)
+    # In the short form the declaration follows the title and "At a glance".
+    short = report.summary()
+    assert short.index("At a glance") < short.index(DECLARATION_TITLE)
+    assert short.index(DECLARATION_TITLE) < short.index("Foundation: why count fields, and")
     with pytest.raises(TypeError, match="declaration"):
         microscopist_report(declaration="one string, not a sequence")
 
@@ -95,7 +107,7 @@ def test_given_answers_are_placed_under_their_question():
     assert "how many fields do you need for the mean of feature_a?" in section
     assert report.inputs["next_time"] == "given"
     assert report.sections["effort"].strip().startswith("Not assessed")
-    text = report.summary()
+    text = report.summary(detail="full")
     assert text.index("4. How many fields") < text.index("how many fields do you need")
     assert text.index("how many fields do you need") < text.index("5. What did")
 
@@ -160,7 +172,8 @@ def test_a_declared_control_joins_the_first_question_and_the_profile():
         draws=5,
     )
     report = microscopist_report(controls=control)
-    assert "declared positive control were recognized" in report.sections["controls"]
+    assert "KD fields (positive control)" in report.sections["controls"]
+    assert "recognized as different" in report.short["controls"]
     assert "No representation control" not in report.summary()
     assert (report.profile["item"] == "representation").sum() == 2
 
@@ -199,8 +212,9 @@ def test_the_overview_counts_technical_repeats_within_their_condition_and_repeat
     groups = fovs.groupby(["condition", "repeat"]).size()
     assert overview.counts["technical_repeats"] == 2 * len(groups)
     assert (overview.layout["technical_repeats"] == 2).all()
-    text = overview.summary()
+    text = overview.summary(detail="full")
     assert f"{2 * len(groups)} technical repeats (technical_repeat, a well or a dish" in text
     assert "2 per condition and repeat" in text and "technical repeats" in text.split("\n")[4]
+    assert f"{2 * len(groups)} technical repeats;" in " ".join(overview.summary().split())
     plain = dataset_overview(built.objects, built.fovs, feature_cols=list(FEATURE_COLS))
     assert plain.counts["technical_repeats"] == 0 and "technical" not in plain.summary()

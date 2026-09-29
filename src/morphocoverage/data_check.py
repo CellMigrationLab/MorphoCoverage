@@ -44,6 +44,7 @@ from ._input_traps import (
     _check_unimaged_technical_repeats,
     _check_well_names,
 )
+from ._style import CAUTION, PROBLEM, Status, check_detail, headline, wrap
 from ._wording import count
 from .metadata import (
     column_names,
@@ -83,41 +84,55 @@ class DataCheck:
         """Whether the tables can be analysed (warnings may remain)."""
         return not self.errors
 
-    def summary(self) -> str:
-        """What was understood, then every error and warning with where and how to fix it."""
+    @property
+    def status(self) -> Status:
+        """❌ with an error, ⚠️ with a warning, ✅ with neither."""
+        if self.errors:
+            return Status.PROBLEM
+        return Status.CAUTION if self.warnings else Status.OK
+
+    def summary(self, detail: str = "short") -> str:
+        """What was understood, then every error and warning and how to fix it.
+
+        ``"short"`` (the default) gives each problem's title and fix; ``"full"``
+        also where it is (the table, the column, a few example rows). Errors
+        raised for refused tables carry the full form.
+        """
+        short = check_detail(detail) == "short"
         n_errors, n_warnings = len(self.errors), len(self.warnings)
         verdict = (
             "the tables can be analysed"
             if self.ok
             else "the tables cannot be analysed until the errors are fixed"
         )
-        lines = [
-            (
-                f"MorphoCoverage data check: {count(n_errors, 'error')}, "
-                f"{count(n_warnings, 'warning')}; {verdict}."
-            )
-        ]
+        tally = f"{count(n_errors, 'error')}, {count(n_warnings, 'warning')}; {verdict}"
+        lines = [wrap(headline(self.status, "MorphoCoverage data check", tally), 0, hang=3)]
         if self.understood:
-            lines += ["", "What was understood"] + [f"  - {u}" for u in self.understood]
-        for title, level in (
-            ("Errors (must be fixed)", ERROR),
-            ("Warnings (the analysis runs, but check these)", WARNING),
+            lines += ["", "What was understood"]
+            lines += [wrap(f"- {u}", 2, hang=4) for u in self.understood]
+        for title, level, marker in (
+            ("Errors (must be fixed)", ERROR, PROBLEM),
+            ("Warnings (the analysis runs, but check these)", WARNING, CAUTION),
         ):
             found = [p for p in self.problems if p.level == level]
             if not found:
                 continue
             lines += ["", title]
             for number, problem in enumerate(found, start=1):
-                lines.append(f"  {number}. {problem.title}")
-                lines.append(f"     Where: {problem.where}")
-                lines.append(f"     Fix: {problem.fix}")
-        lines += ["", f"The expected format, column by column, is in {FORMAT_DOC}."]
+                lines.append(wrap(f"{marker} {number}. {problem.title}", 2, hang=7))
+                if not short:
+                    lines.append(wrap(f"Where: {problem.where}", 7))
+                lines.append(wrap(f"Fix: {problem.fix}", 7))
+        closing = f"The expected format, column by column, is in {FORMAT_DOC}."
+        if short and self.problems:
+            closing = f"Where each problem is, with example rows: summary(detail='full'). {closing}"
+        lines += ["", wrap(closing)]
         return "\n".join(lines)
 
     def raise_if_errors(self) -> None:
         """Raise ``ValueError`` with the summary when any error was found."""
         if not self.ok:
-            raise ValueError(self.summary())
+            raise ValueError(self.summary(detail="full"))
 
 
 def check_tables(
@@ -465,7 +480,7 @@ def validate_input_tables(
         return _validate_input_tables(objects, **arguments)
     except (ValueError, TypeError) as exc:
         try:
-            report = check_tables(objects, **arguments).summary()
+            report = check_tables(objects, **arguments).summary(detail="full")
         except Exception:  # noqa: BLE001 -- the report is a courtesy; never hide the real error
             raise exc from None
         raise type(exc)(f"{exc}\n\n{report}") from exc

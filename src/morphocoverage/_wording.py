@@ -65,6 +65,7 @@ _PLURALS = {
     "fov_summary": "field summaries",
     "field summary": "field summaries",
     "index": "indices",
+    "stratum": "strata",
 }
 
 

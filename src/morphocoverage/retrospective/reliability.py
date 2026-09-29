@@ -120,7 +120,8 @@ class ReliabilityResult:
     itself a finite sample, so this ceiling can be below 1 however well the
     stream was sampled, and the curve cannot be read above it. ``skipped``
     has one row per group that could not be split (fewer than two FOVs or
-    blocks), with the ``reason``. ``summary()`` states the curve in sentences.
+    blocks), with the ``reason``. ``summary()`` states the curve in words (short
+    across groups; ``detail="full"`` per group).
     """
 
     curve: pd.DataFrame
@@ -130,9 +131,12 @@ class ReliabilityResult:
     ceiling: pd.DataFrame = field(default_factory=pd.DataFrame)
     skipped: pd.DataFrame = field(default_factory=pd.DataFrame)
 
-    def summary(self) -> str:
-        """The curve in plain sentences, one block per group and criterion."""
-        return reliability_summary(self)
+    def summary(self, detail: str = "short") -> str:
+        """The curve in words: ``"short"`` one table across groups, ``"full"`` per group.
+
+        See ``reliability_text``; every caveat is stated once, at the end.
+        """
+        return reliability_summary(self, detail)
 
 
 def _check_settings(

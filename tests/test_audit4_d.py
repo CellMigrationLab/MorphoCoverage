@@ -229,8 +229,12 @@ def test_p4_5_a_plateau_stop_is_worded_as_change_over_the_window():
         acquisition_order_col="acq",
         fov_col="position_id",
     )
-    assert "yes, its threshold was met by the 6 acquired FOVs; " in report.summary()
-    assert f"Caution: {caution}" in report.summary()
+    answer = report.enough["answer"].iloc[0]
+    assert "yes, its threshold was met by the 6 acquired FOVs; " in answer
+    assert f"Caution: {caution}" in answer
+    # Stated once in both summaries (their lines are wrapped, so compare the words).
+    for detail in ("short", "full"):
+        assert caution in " ".join(report.summary(detail=detail).split())
     assert "not that they are within ``tolerance`` of the well's" in _words(
         DescriptorPlateauStrategy.__doc__
     )

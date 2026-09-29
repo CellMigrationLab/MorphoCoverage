@@ -142,7 +142,9 @@ def _spearman(sizes: np.ndarray, means: np.ndarray) -> tuple[float, float]:
     return rho, float(np.mean(np.abs(permuted) >= abs(rho) - 1e-9))
 
 
-def _field_size_check(sums: np.ndarray, counts: np.ndarray) -> dict[str, Any]:
+def _field_size_check(
+    sums: np.ndarray, counts: np.ndarray, rows: str = "objects"
+) -> dict[str, Any]:
     """Whether FOV size and FOV mean are related, which the ratio-estimator CV does not see.
 
     Spearman correlation between the object count and the mean of the FOVs
@@ -166,10 +168,10 @@ def _field_size_check(sums: np.ndarray, counts: np.ndarray) -> dict[str, Any]:
     found: dict[str, Any] = {"field_size_correlation": rho, "field_size_correlation_p": p_value}
     if p_value < 0.05:
         found["field_size_warning"] = (
-            f"FOV size and FOV mean are related (Spearman rho {rho:.2f}, p = {p_value:.2g}, "
-            f"over {len(sizes)} FOVs with objects): the FOV-unit averaging CV can then be "
-            "several times too small; check it against a whole-FOV bootstrap of the mean "
-            "(FOVBootstrapEstimator, centroid summary) or the mean of FOV means "
+            f"field size and field mean are related (Spearman rho {rho:.2f}, p = "
+            f"{p_value:.2g}, over {len(sizes)} fields with {rows}): the per-field averaging CV "
+            "can then be several times too small; check it against a bootstrap of whole fields "
+            "(FOVBootstrapEstimator, centroid summary) or the mean of field means "
             "(statistics.field_weighted_mean_se)"
         )
     return found
@@ -232,8 +234,9 @@ def _shape_warning(n: int, m2: float, m3: float, m4: float, rows: str) -> str | 
     return (
         f"the upper-95 SD bound assumes normal values, and these {rows} have excess kurtosis "
         f"{kurtosis:.1f} and bimodality coefficient {bimodality:.2f} (above 2 or 0.56: a heavy "
-        "tail or a minority state), so the bound can be optimistic (with 10% of cells at four "
-        "times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)"
+        "tail or a minority state), so the bound can be optimistic (with 10% of "
+        f"{rows} at four times the level of the rest it covered the true SD 68-88% of the "
+        "time, not 97.5%)"
     )
 
 

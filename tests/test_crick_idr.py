@@ -224,7 +224,8 @@ def test_sufficiency_report_answers_both_questions_on_idr0028():
     assert report.next_fov["chance_new"].between(0, 1).all()
     assert (report.next_fov["chance_new_at_most"] >= report.next_fov["chance_new"]).all()
     assert len(report.enough) == 4 and set(report.calibration["remaining_fovs"]) == {18}
-    assert report.summary().count("Would one more FOV show something new?") == 2
+    assert report.summary(detail="full").count("One more field: chance") == 2
+    assert all("Would one more FOV show something new?" not in a for a in report.enough["answer"])
 
 
 def _crick_scripts():

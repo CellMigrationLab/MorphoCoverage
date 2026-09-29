@@ -80,20 +80,15 @@ import pandas as pd
 
 from .._checks import as_count
 from .._seeds import group_rng
-from .._wording import count, listing, percent
-from .._wording import fields as fields_text
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from ..schema import unit_plural
 from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import groups, validated
 from ._units import (
     FIELD,
-    NOT_INDEPENDENT,
     check_arguments,
     contrasts_of,
     control_label,
     describe_groups,
-    opposite_signs,
     randomization_test,
     resolve_columns,
     resolve_unit,
@@ -102,13 +97,10 @@ from ._units import (
     sides,
     unit_means,
 )
+from .contrast_text import NO_CONTROL, contrast_summary
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
-_NO_CONTROL = "no control group in"
-# Units a side at or below which a d on unit means is printed as unstable.
-FEW_UNITS_D = 3
-_P_ALPHA = 0.05  # the p-value at which contrasts of opposite signs are flagged
 
 
 @dataclass(frozen=True)
@@ -143,191 +135,11 @@ class ConditionContrast:
     effects: pd.DataFrame
     settings: dict[str, Any]
 
-    def summary(self) -> str:
-        """Plain sentences, one paragraph per contrast, and what the test and draws cannot say."""
-        unit = self.settings["observation_unit"]
-        words = unit_plural(unit)
-        control = self.settings["control"]
-        repeat_col = self.settings["repeat_col"]
-        shared = self.settings.get("unit")
-        head = (
-            f"Do the conditions differ, and how confidently? Feature {self.settings['feature']}, "
-            f"each condition against the control {control}"
-            + (f", within each {repeat_col}" if repeat_col else "")
-            + ". The fields of a condition's analysis groups are pooled for this comparison. "
-            "Objects are compared as Plot&Stats does and, since a microscope acquires them "
-            "through fields, with the field as the unit"
-            + (
-                f" and, where each side has at least two, with the technical repeat "
-                f"({shared}) as the unit."
-                if shared
-                else "."
-            )
-        )
-        lines = [head]
-        if self.table.empty:
-            lines.append(self.settings.get("reason", "No condition to compare with the control."))
-            return "\n".join(lines)
-        # The Bonferroni factor counts the contrasts that were tested, as computed.
-        n_contrasts = int(self.table["p_value"].notna().sum())
-        for row in self.table.to_dict("records"):
-            where = (f"{repeat_col}={row['repeat']}, " if repeat_col else "") + (
-                f"{row['condition']} vs {row['control_condition']}"
-            )
-            technical = ""
-            if shared:
-                technical = (
-                    f" in {int(row['technical'])} and {int(row['control_technical'])} "
-                    f"technical repeats"
-                )
-            counts = (
-                f"{fields_text(int(row['fields']))} ({count(int(row['observations']), unit)}) "
-                f"against {int(row['control_fields'])} control fields "
-                f"({count(int(row['control_observations']), unit)}){technical}."
-            )
-            if str(row["status"]).startswith(_NO_CONTROL):
-                lines.append(f"{where}: {counts} {row['status']}.")
-                continue
-            technical_d = ""
-            if shared and not pd.isna(row["d_technical"]):
-                technical_d = f"; on technical-repeat means {_number(row['d_technical'])}"
-                fewest = min(int(row["technical"]), int(row["control_technical"]))
-                if fewest <= FEW_UNITS_D:
-                    technical_d += (
-                        f" (from {int(row['technical'])} and {int(row['control_technical'])} "
-                        "means, so unstable: a d from so few values can be very large by chance)"
-                    )
-            sizes = (
-                f"Cohen's d on {words} {_number(row['d_objects'])}; on field "
-                f"means {_number(row['d_fields'])}{technical_d}."
-            )
-            lines.append(f"{where}: {counts} {sizes} {self._test(row, n_contrasts)}")
-            effects = self._effects_line(row, words)
-            if effects:
-                lines.append(effects)
-        lines += self._cautions(words)
-        return "\n".join(lines)
-
-    def _cautions(self, words: str) -> list[str]:
-        """What the tests and the draws do not say, and contrasts of opposite signs."""
-        lines = []
-        note = self.settings.get("unit_note")
-        if note:
-            lines.append(f"  Note: {note}.")
-        if (self.table["status"] == NOT_INDEPENDENT).any():
-            lines.append(
-                "  No test where the fields' wells or dishes are unknown: record the "
-                "technical_repeat column (or name the well column in group_cols) to test over "
-                "wells, or pass fields_independent=True (Setup.fields_independent) if the "
-                "fields are independent draws of the condition."
-            )
-        passing = self.table[self.table["p_value"] <= _P_ALPHA]
-        lines += opposite_signs(
-            passing,
-            ["condition"],
-            self.settings["repeat_col"],
-            lambda key: f"{key[0]} differs from the control at p <= {_P_ALPHA:g}",
-        )
-        lines.append(
-            "  The test and the effect sizes compare means: a difference confined to a "
-            f"subpopulation of {words} or to the shape of the distribution is not tested (see "
-            "the unusual observations and the rare label)."
-        )
-        if not self.effects.empty:
-            whole = self.effects[self.effects["sampling"] == WHOLE_FOVS]["resampled"]
-            resampled = whole.dropna().unique().tolist()
-            if resampled:
-                partly = (
-                    "; where a side has fewer than two, they resample its fields only"
-                    if whole.isna().any()
-                    else ""
-                )
-                lines.append(
-                    "  The whole-field draws take the fields of technical repeats "
-                    f"({listing(resampled)}) drawn with replacement, so their same-sign share "
-                    f"includes well-to-well variation{partly}; the random-object draws treat "
-                    f"{words} as independent draws, so their same-sign share is not a "
-                    "confidence in the effect."
-                )
-            else:
-                lines.append(
-                    "  The draws resample these fields and objects, not wells or repeats: a "
-                    "same-sign share describes these fields and is not a confidence in the "
-                    "effect."
-                )
-        return lines
-
-    def _test(self, row: dict[str, Any], n_contrasts: int) -> str:
-        """The randomization-test sentence of one contrast, or why it has none."""
-        if row["status"] != "ok":
-            return f"No randomization test: {row['status']}."
-        if row["permutation_unit"] == FIELD:
-            shuffled = (
-                "whole fields, treated as independent draws as declared (fields_independent; "
-                "if they came from a few wells or dishes, the p-value tests those wells, not "
-                "the condition)"
-            )
-        else:
-            shuffled = (
-                f"whole technical repeats ({row['permutation_unit']}; only "
-                f"{int(row['distinct_assignments'])} distinct assignments exist)"
-            )
-        how = (
-            "every assignment of the condition labels enumerated, so p is exact"
-            if row["p_exact"]
-            else f"{self.settings['n_permutations']} shuffles of the condition labels"
-        )
-        return (
-            f"Randomization test over {shuffled}, {how}: p = {row['p_value']:.3g} (Bonferroni "
-            f"over {count(n_contrasts, 'comparison')}: {row['p_bonferroni']:.3g})."
-        )
-
-    def _effects_line(self, row: dict[str, Any], words: str) -> str:
-        """The JCS effect sizes of one contrast, from every object and from draws."""
-        full = row["effect_full"]
-        start = (
-            "  JCS effect size (treated mean minus control mean, over the control SD) from "
-            f"every object: {_number(full)}"
-        )
-        if self.effects.empty:
-            return f"{start}." if np.isfinite(full) else ""
-        # Without a repeat column the repeat is None, which == never matches.
-        same_repeat = (
-            self.effects["repeat"].isna()
-            if pd.isna(row["repeat"])
-            else self.effects["repeat"] == row["repeat"]
-        )
-        effects = self.effects[same_repeat & (self.effects["condition"] == row["condition"])]
-        if effects.empty:
-            return f"{start}." if np.isfinite(full) else ""
-        parts = []
-        for n, block in effects.groupby("n_objects", sort=True):
-            by = block.set_index("sampling")
-            bits = []
-            for sampling in (RANDOM_OBJECTS, WHOLE_FOVS):
-                if sampling not in by.index:
-                    continue
-                r = by.loc[sampling]
-                label = sampling
-                if sampling == WHOLE_FOVS and isinstance(r["resampled"], str):
-                    label = f"whole FOVs of resampled technical repeats ({r['resampled']})"
-                bit = f"{label} median {r['median']:.2f} (IQR {r['q25']:.2f} to {r['q75']:.2f})"
-                if not pd.isna(r["same_sign"]):
-                    bit += f", same sign in {percent(r['same_sign'])} of draws"
-                if sampling == WHOLE_FOVS:
-                    bit += f", about {fields_text(r['fields_treated'])}"
-                bits.append(bit)
-            parts.append(f"from {int(n)} {words}: " + "; ".join(bits))
-        return f"{start}; " + ". ".join(parts) + "."
-
-
-def _number(value: float) -> str:
-    """A statistic to two decimals, ``undefined``, or infinite for a perfect separation."""
-    if np.isnan(value):
-        return "undefined"
-    if np.isinf(value):
-        return f"{'' if value > 0 else '-'}infinite (no variation within either side)"
-    return f"{value:.2f}"
+    def summary(self, detail: str = "short") -> str:
+        """The contrasts in a table and the draws in another, each caveat once
+        (``detail="short"``), or every number of every contrast (``"full"``); see
+        ``contrast_text``."""
+        return contrast_summary(self, detail)
 
 
 def _unit_sample(
@@ -504,7 +316,7 @@ def condition_contrast(
             "control_condition": control_label(described, controls) or str(control[condition_col]),
         }
         if not controls:
-            rows.append({**base, **_NO_TEST, "status": f"{_NO_CONTROL} {repeat_col}={repeat}"})
+            rows.append({**base, **_NO_TEST, "status": f"{NO_CONTROL} {repeat_col}={repeat}"})
             continue
         t_units, t_acquired = side_units(all_groups, feature, treated, technical_col)
         c_units, c_acquired = side_units(all_groups, feature, controls, technical_col)

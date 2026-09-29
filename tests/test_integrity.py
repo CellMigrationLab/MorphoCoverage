@@ -49,7 +49,7 @@ def test_clean_datasets_have_no_findings(idr0028):
     result = _check(*idr0028)
     assert result.findings.empty
     assert (result.checks["status"] == "checked").all()
-    assert "Nothing was found" in result.summary()
+    assert "✅ Data integrity — nothing found by the exact copy checks" in result.summary()
 
 
 def test_a_field_exported_twice_under_another_name_is_a_copied_field(idr0028):
@@ -123,7 +123,7 @@ def test_quantized_features_make_the_copy_checks_not_applicable():
     assert status["repeated block"] == "not applicable"
     assert status["repeated field summary"] == "not applicable"
     assert result.findings.empty
-    assert "cannot be told from a coincidence" in result.summary()
+    assert "cannot be told from a coincidence" in " ".join(result.summary().split())
 
 
 def test_the_synthetic_acquisition_has_no_findings():
@@ -153,5 +153,9 @@ def test_the_report_carries_the_integrity_checks_only_when_asked(idr0028):
     setup = Setup(readout=FEATURES[1], features=tuple(FEATURES), observation_unit="nucleus")
     plain = report(objects, fovs[wells], setup)
     checked = report(objects, fovs[wells], setup, integrity=True)
-    assert "integrity" not in plain.results and "Data integrity" not in plain.summary()
-    assert "Data integrity" in checked.summary() and checked.results["integrity"].findings.empty
+    assert "integrity" not in plain.results
+    assert "Data integrity" not in plain.summary(detail="full")
+    assert "➖ Copy checks not run (report(..., integrity=True) runs them)" in plain.summary()
+    full = checked.summary(detail="full")
+    assert "Data integrity" in full and checked.results["integrity"].findings.empty
+    assert "✅ Integrity: nothing found." in checked.summary()

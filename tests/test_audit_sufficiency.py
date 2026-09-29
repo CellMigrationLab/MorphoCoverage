@@ -83,7 +83,10 @@ def test_e2_a_group_too_short_to_decide_never_stopped_rather_than_vanishing():
     calibration = stopping_calibration(replay)
     short = calibration.table[calibration.table["condition"] == "A"]
     assert len(short) and (short["never_stopped"] == 1.0).all()
-    assert "fewer than the 6 fields it waits for before deciding" in calibration.summary()
+    assert "fewer than the 6 fields it waits for before deciding" in calibration.summary(
+        detail="full"
+    )
+    assert "never stopped" in calibration.summary()
     apparent = adequacy_points(replay).apparent
     assert set(apparent["condition"]) == {"A", "B"}
     assert apparent.loc[apparent["condition"] == "A", "first_apparent"].isna().all()

@@ -71,6 +71,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .._caveats import assumption
 from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
@@ -184,7 +185,7 @@ class RareIncidenceEstimator(Estimator):
             "visible_fovs": k,
             "posterior": [self.prior_a + positive, self.prior_b + k - positive],
             "recurrent": positive >= target.min_fov_occurrences,
-            "warning": _CAUTION,
+            "warning": assumption(_CAUTION),
         }
         return Evidence({QUANTITY: Quantity.available(risk, **_META)}, diagnostics)
 

@@ -186,9 +186,10 @@ class ControlResult:
     pair_cols: tuple[str, ...]
     settings: dict[str, Any] = field(default_factory=dict)
 
-    def summary(self) -> str:
-        """The control's answer in sentences."""
-        return control_summary(self)
+    def summary(self, detail: str = "short") -> str:
+        """The control's answer in words: short (one table of the rates, each caveat once)
+        or ``detail="full"`` (the counts behind every rate, stratum by stratum)."""
+        return control_summary(self, detail)
 
 
 def _select(fovs: pd.DataFrame, selector: dict[str, tuple]) -> pd.Series:
@@ -483,9 +484,9 @@ def representation_control(
             seeing = base[observed[base]]
             if len(positive) == 0 or len(seeing) <= fovs_seen:
                 reason = (
-                    "no positive-control FOV with observations"
+                    f"no positive-control field with {_observations(data)}"
                     if len(positive) == 0
-                    else f"{len(seeing)} reference FOVs with {_observations(data)}, not more "
+                    else f"{len(seeing)} reference fields with {_observations(data)}, not more "
                     f"than the {fovs_seen} seen"
                 )
                 skipped.append({**stratum, "stratum": label, "reason": reason})

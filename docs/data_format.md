@@ -125,20 +125,22 @@ result.
 
 `check_tables` runs every rule above without stopping at the first problem.
 It says what it understood, then lists each error and each warning with
-where it is (the table, the column, how many rows and the first few) and
-how to fix it:
+how to fix it; `summary(detail="full")` also says where each one is (the
+table, the column, how many rows and the first few), as does the error
+`raise_if_errors` and every refusal raise:
 
 ```python
 from morphocoverage import check_tables
 
 check = check_tables(objects, fovs, feature_cols=["area", "intensity"],
                      observation_unit="cell", control={"condition": "MOCK"})
-print(check.summary())
+print(check.summary(detail="full"))
 check.raise_if_errors()  # or: if check.ok: ...
 ```
 
 ```text
-MorphoCoverage data check: 2 errors, 1 warning; the tables cannot be analysed until the errors are fixed.
+❌ MorphoCoverage data check — 2 errors, 1 warning; the tables cannot be analysed until the errors
+   are fixed
 
 What was understood
   - 6 observations (cell); 5 rows in the FOV table.
@@ -146,11 +148,15 @@ What was understood
   ...
 
 Errors (must be fixed)
-  1. Feature 'intensity' is not numeric.
-     Where: observation table, 2 rows: row 0 (intensity='12,5'); row 3 (intensity='n/a').
-     Fix: Convert the column to numbers (a decimal point, not a comma; empty cells for missing values).
+  ❌ 1. Feature 'intensity' is not numeric.
+       Where: observation table, 2 rows: row 0 (intensity='12,5'); row 3 (intensity='n/a').
+       Fix: Convert the column to numbers (a decimal point, not a comma; empty cells for missing
+       values).
   ...
 ```
+
+The first line's marker is ❌ with an error, ⚠️ with warnings only and ✅
+with neither.
 
 Errors stop the analysis. They cover every rule above: misspelt MorphoBricks
 columns, a missing or unmatched field identifier, empty identifiers or group

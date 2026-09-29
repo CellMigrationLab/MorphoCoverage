@@ -100,7 +100,10 @@ def test_h1_technical_repeats_are_the_unit_whatever_group_cols_say():
         hits += row["p_value"] <= 0.05
     assert hits == 0  # 20 assignments of 3 wells a side: p never falls below 0.1
     assert result.settings["technical_col"] == "technical_repeat"
-    assert "with the technical repeat (technical_repeat) as the unit" in result.summary()
+    assert "with the technical repeat (technical_repeat) as the unit" in " ".join(
+        result.summary(detail="full").split()
+    )
+    assert "whole technical repeats (technical_repeat)" in " ".join(result.summary().split())
     # The same with the ranking, and with a technical column only in the FOV table.
     objects["y"] = objects["x"]
     ranking = feature_ranking(
@@ -269,9 +272,13 @@ def test_h11_the_field_rule_is_also_given_in_acquired_fields():
     row = result.table.iloc[0]
     assert row["fovs_with_observations"] == 20 and row["fovs"] == 40
     assert row["fov_rule_acquired"] == 2 * row["fov_rule_fovs"]
-    text = result.summary()
-    assert f"asks for {int(row['fov_rule_fovs'])} fields with objects" in text
-    assert "20 of the 40 acquired fields hold objects, so that is about" in text
+    text = result.summary(detail="full")
+    rule = f"{int(row['fov_rule_fovs'])} ({int(row['fov_rule_fovs_upper95'])})"
+    acquired = f"{int(row['fov_rule_acquired'])} ({int(row['fov_rule_acquired_upper95'])})"
+    assert "fields with objects" in text and "20 of 40" in text
+    assert rule in text and acquired in text
+    # The short form gives the fields to acquire.
+    assert acquired in result.summary()
 
 
 def test_h12_a_zero_control_mean_is_not_too_few_fields():
@@ -290,8 +297,9 @@ def test_h13_a_sparse_group_does_not_read_zero_per_field():
     rng = np.random.default_rng(0)
     fovs = pd.DataFrame({"position_id": [f"f{j}" for j in range(50)]})
     rows = [{"position_id": f"f{j}", "x": v} for j in range(10) for v in rng.normal(j, 1, 2)]
-    text = fov_variability(pd.DataFrame(rows), fovs, feature="x").summary()
-    assert "(0.4 per field)" in text and "(0 per field)" not in text
+    text = fov_variability(pd.DataFrame(rows), fovs, feature="x").summary(detail="full")
+    row = next(line for line in text.splitlines() if line.startswith("  all fields (pooled)"))
+    assert row.split()[5] == "0.4"  # fields, objects, then per field
 
 
 def test_h14_monte_carlo_p_values_never_fall_below_the_floor():
@@ -388,9 +396,9 @@ def test_h19_an_untested_contrast_keeps_its_effect_sizes():
     assert "only one technical repeat" in row["status"] and np.isnan(row["p_value"])
     assert np.isfinite(row["effect_full"]) and np.isfinite(row["d_objects"])
     assert len(result.effects) == 4
-    text = result.summary()
-    assert "No randomization test: only one technical repeat" in text
-    assert "Cohen's d on objects" in text and "JCS effect size" in text
+    text = " ".join(result.summary().split())
+    assert "No randomization test in the contrast: only one technical repeat" in text
+    assert "d objects" in text and "JCS effect size" in text
 
 
 def test_j1_groups_whose_seeds_collide_are_still_told_apart():
@@ -427,12 +435,14 @@ def test_j2_j16_shares_are_worded_once_and_modules_list_their_names():
     fovs = objects[["position_id"]]
     text = fov_clustering(objects, fovs, label_col="state", states=["rare"], n_permutations=9)
     line = text.summary()
-    assert "1 object (1%)" in line and "1 objects" not in line
+    assert "1 (1%)" in line and "1 objects" not in line
+    assert "Are the state 'rare' objects spread over the fields?" in line
     # No contrast can be tested: the ranking does not speak of BH over 0 tests.
     spec = [("ctrl", "r1", "c0", 1, 0.0, 0.2), ("drug", "r1", "d0", 1, 1.0, 0.2)]
     ranking = feature_ranking(*_tables(spec), features=["x"], control=CONTROL)
-    assert "over the 0 tests" not in ranking.summary()
-    assert "though no contrast could be tested" in ranking.summary()
+    assert "over the 0 tests" not in ranking.summary(detail="full")
+    assert "though no contrast could be tested" in " ".join(ranking.summary(detail="full").split())
+    assert "no contrast could be tested" in " ".join(ranking.summary().split())
     import morphocoverage.sampling_unit as package
 
     for name in ("clustering", "contrast", "object_rules", "ranking", "variability"):

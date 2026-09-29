@@ -19,7 +19,8 @@ from typing import Any
 
 import pandas as pd
 
-from ._wording import count, listing, number, percent, rows_of, where
+from ._style import rule_label
+from ._wording import count, listing, number, percent
 from .evidence import Direction
 from .results import StrategyResult
 from .strategies.support_novelty import SupportNoveltyEstimator
@@ -77,7 +78,7 @@ def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]])
     random orders), each given in its own clause: pooled, a recorded order that
     drifts would hide among the random ones.
     """
-    criterion = f"{final['strategy']} ({final['policies']})"
+    criterion = rule_label(final, detail="full")
     acquired = final["n_fovs"]
     if pd.isna(final["verdict"]):
         return f"{criterion}: undefined for these data ({final['undefined_reason']})."
@@ -318,37 +319,4 @@ def _technical_repeats_line(row: Mapping[str, Any], confidence: str) -> list[str
     ]
 
 
-def report_summary(
-    enough: pd.DataFrame,
-    next_fov: pd.DataFrame,
-    group_cols: Sequence[str],
-    novelty_definition: str | None,
-) -> str:
-    """Both answers in plain sentences, one block per analysis group."""
-    blocks = []
-    keys = list(group_cols)
-    tables = [table[keys] for table in (enough, next_fov) if not table.empty]
-    groups = pd.concat(tables).drop_duplicates() if tables else pd.DataFrame()
-    # Without group columns there is one pooled group, which has no key.
-    rows = list(groups.itertuples(index=False, name=None)) if keys else [()] * bool(tables)
-    for values in rows:
-        group = dict(zip(keys, values, strict=True))
-        lines = [f"{where(group)}:"]
-        # A question that was not asked has an empty table without the group columns.
-        criteria = rows_of(enough, group) if not enough.empty else enough
-        if len(criteria):
-            lines.append(
-                "  Did each criterion say enough? (its own threshold, not a held-out check)"
-            )
-            lines += [f"  - {answer}" for answer in criteria["answer"]]
-        outlook = rows_of(next_fov, group) if not next_fov.empty else next_fov
-        if len(outlook):
-            lines.append("  Would one more FOV show something new?")
-            lines += [f"  - {line}" for line in outlook["answer"].iloc[0].split("\n")]
-        blocks.append("\n".join(lines))
-    if novelty_definition:
-        blocks.append(f"'New' means {novelty_definition}.")
-    return "\n\n".join(blocks)
-
-
-__all__ = ["novelty_definition", "report_summary"]
+__all__ = ["novelty_definition"]

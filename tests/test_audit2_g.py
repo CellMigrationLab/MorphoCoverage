@@ -31,6 +31,11 @@ WELLS = SamplingHierarchy(fov="image_file", sample="well")
 V_SAMPLE, V_FIELD, V_OBJECT = 1.0, 0.2, 1.0
 
 
+def _full(result):
+    """The full summary with its line breaks as spaces (the text is wrapped)."""
+    return " ".join(result.summary(detail="full").split())
+
+
 def _wells(fields, cells, seed=0, repeats=None):
     """Tables of wells with ``fields[s]`` fields of ``cells[s]`` objects (0: empty fields)."""
     rng = np.random.default_rng(seed)
@@ -88,13 +93,14 @@ def test_g1_the_acquired_error_uses_the_sizes_of_unequal_samples():
     comparisons = result.comparisons
     assert (comparisons["balanced_se"] == balanced).all()
     assert (comparisons["acquired_se"] == acquired).all()
-    assert "The acquired samples differ in size" in result.summary()
-    assert "made balanced" in result.summary() or "cannot tell" in result.summary()
+    assert "The acquired samples differ in size" in _full(result)
+    assert "made balanced" in _full(result) or "cannot tell" in _full(result)
+    assert "The acquired samples differ in size" in " ".join(result.summary().split())
     even, even_fovs = _wells([5] * 6, [10] * 6)
     same = effort_projection(even, even_fovs, feature="x", hierarchy=WELLS, strata=[], n_boot=20)
     rows = same.projections[same.projections["current"]]
     assert rows["se"].iloc[0] == pytest.approx(rows["se"].iloc[1])
-    assert "differ in size" not in same.summary()
+    assert "differ in size" not in _full(same) and "differ in size" not in same.summary()
 
 
 def test_g2_samples_and_units_are_counted_among_those_with_observations():
@@ -103,9 +109,11 @@ def test_g2_samples_and_units_are_counted_among_those_with_observations():
     row = result.components.iloc[0]
     assert (row["units"], row["samples"], row["samples_acquired"], row["fovs"]) == (3, 3, 8, 48)
     assert not result.comparisons["resolved"].any()
-    text = result.summary()
+    text = _full(result)
     assert "cannot tell from these data (only 3 samples)" in text
     assert "5 of 8 samples held no objects with a value" in text
+    short = " ".join(result.summary().split())
+    assert "only 3 samples" in short and "5 of 8 samples held no objects with a value" in short
 
 
 def test_g3_the_repeat_is_left_out_for_the_reason_that_holds():
@@ -133,9 +141,11 @@ def test_g4_failed_resamples_are_counted_and_withhold_the_interval():
     assert rows["low"].isna().all() and rows["high"].isna().all()
     assert result.comparisons["ratio_low"].isna().all()
     assert not result.comparisons["resolved"].any()
-    text = result.summary()
+    text = _full(result)
     assert f"not established: no interval, as {failed} of 500 resamples" in text
     assert "cannot tell from these data (no interval" in text
+    short = " ".join(result.summary().split())
+    assert f"no interval, as {failed} of 500 resamples" in short
     # A design whose resamples all separate the levels keeps its interval.
     fine, fine_fovs = _wells([4] * 6, [20] * 6)
     kept = effort_projection(fine, fine_fovs, feature="x", hierarchy=WELLS, strata=[], n_boot=50)
@@ -194,7 +204,7 @@ def test_g7_most_of_the_uncertainty_only_above_half():
     objects = pd.concat(object_rows, ignore_index=True).merge(fovs, on="image_file")
     result = effort_projection(objects, fovs, feature="x", hierarchy=WELLS, strata=[], n_boot=50)
     assert result.components["share"].max() < 0.5
-    text = result.summary()
+    text = _full(result)
     assert "The largest part of the uncertainty of the mean is" in text
     assert "Most of the uncertainty" not in text
 
@@ -227,7 +237,11 @@ def test_g8_a_summary_that_is_zero_is_reported_not_dropped():
     )
     skipped = pd.DataFrame(result.settings["skipped_summaries"]).set_index("group")
     assert skipped.loc["condition=A", "reason"].startswith("is 0 here")
-    assert "was not checked in condition=A: it is 0 here" in result.summary()
+    # The group by its value (the section names its column), once per group in full.
+    assert "was not checked in A: it is 0 here" in result.summary(detail="full")
+    assert "was not checked in 2 groups (A and B): it is 0 here" in " ".join(
+        result.summary().split()
+    )
 
 
 def test_g9_a_summary_skipped_in_one_group_names_that_group():
@@ -244,8 +258,9 @@ def test_g9_a_summary_skipped_in_one_group_names_that_group():
     assert [(s["group"], s["summary"]) for s in skipped] == [("condition=B", "mean of w")]
     assert result.settings["checked"] == ["influence"]  # checked in A
     text = result.summary()
-    assert "The influence on the mean of w was not checked in condition=B" in text
+    assert "The influence on the mean of w was not checked in B" in text
     assert "(influence checked)" in text
+    assert "Analysis groups: condition." in result.summary(detail="full")
 
 
 def test_g10_nothing_checked_is_not_called_nothing_stands_out():
@@ -299,7 +314,8 @@ def test_g12_a_planting_that_cannot_happen_is_said():
         "no positive-control field holds 30 objects to plant (the largest holds 25)"
         in (gaps[0]["reason"])
     )
-    assert "Planted objects: not measured in repeat=P1" in result.summary()
+    assert "Planted objects: not measured in repeat P1" in result.summary()
+    assert "Planted objects: not measured in repeat P2" in result.summary()
 
 
 def test_g13_the_chance_expectation_uses_the_leave_one_field_out_rate():
@@ -420,7 +436,8 @@ def test_g15_a_rule_that_met_the_risk_but_not_lastingly_is_not_never():
             },
         ]
     )
-    text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"label": "the mean"}).summary()
+    result = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"label": "the mean"})
+    text = " ".join(result.summary(detail="full").split())
     assert "rule: met this risk at cheap (risk 0%) but not from there on: at late" in text
     assert "never got there" not in text
 
@@ -445,11 +462,14 @@ def test_g16_a_saving_whose_interval_includes_zero_is_not_resolved():
     baseline = {"family": BASELINE, "alpha": 0.05, "setting": 12, "effort": 12.0, "risk": 0.04}
     for saved, low, high, resolved in ((1.2, -2.5, 3.0, False), (1.2, 0.4, 3.0, True)):
         scores = pd.DataFrame([baseline, _score(saved, low, high)])
-        text = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"units": 6}).summary()
-        assert ("(not resolved)" in text) != resolved
+        result = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), {"units": 6})
+        for text in (result.summary(), result.summary(detail="full")):
+            assert ("not resolved" in text) != resolved
     costs = pd.DataFrame([baseline, _score(-1.5, -3.0, 0.5)])
-    text = FrontierResult(pd.DataFrame(), costs, pd.DataFrame(), {"units": 6}).summary()
+    result = FrontierResult(pd.DataFrame(), costs, pd.DataFrame(), {"units": 6})
+    text = " ".join(result.summary(detail="full").split())
     assert "costs 1.5 more fields, approximate 95% interval -0.5 to 3.0 (not resolved)" in text
+    assert "costs 1.5 (-0.5 to 3.0, not resolved)" in result.summary()
 
 
 def test_g18_the_split_modules_keep_the_names_callers_use():

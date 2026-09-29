@@ -47,6 +47,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse, spatial, stats
 
+from ._caveats import assumption
 from ._wording import count, percent
 from .schema import ValidatedInput, fov_values
 
@@ -58,6 +59,8 @@ RARE_ASSUMPTION = (
     "treats the fields as exchangeable: a rare state confined to positions not yet "
     "visited cannot have been seen"
 )
+# A stop's caveat when no order check ran: a missing check is a caution about these data.
+NOT_CHECKED = "the acquisition order was not checked"
 ALPHA = 0.05
 PERMUTATIONS = 999
 MIN_FIELDS = 4
@@ -204,6 +207,24 @@ class OrderCheck:
         return f"it {RARE_ASSUMPTION}"
 
 
+def order_caveat(text: str) -> str:
+    """A stop's order caveat (``OrderCheck.caution``) by its kind (``_style.Assumption``).
+
+    When the check ran and found nothing (``order check: no trend ...; still
+    treats ...``), the random-sample assumption is a standing one: an
+    ``Assumption``. A flag (``caution: ...``) is a caution about these data, and
+    so is the assumption stated alone or with ``not tested`` only: no test ran,
+    and the sentence says so (``NOT_CHECKED``).
+    """
+    if text.startswith("order check:"):
+        return assumption(text.replace("; still treats", "; every stop still treats", 1))
+    if text.startswith(("treats", "it treats")):
+        return f"{NOT_CHECKED}, so every stop {text.removeprefix('it ')}"
+    if text.startswith("not tested:"):
+        return f"{NOT_CHECKED} ({text})"
+    return text
+
+
 def _p(value: float | None) -> str:
     """A p-value with two significant digits."""
     return "undefined" if value is None else f"{value:.2g}"
@@ -340,9 +361,11 @@ def check_acquisition_order(
 
 __all__ = [
     "ALPHA",
+    "NOT_CHECKED",
     "PERMUTATIONS",
     "RANDOM_SAMPLE_ASSUMPTION",
     "RARE_ASSUMPTION",
     "OrderCheck",
     "check_acquisition_order",
+    "order_caveat",
 ]

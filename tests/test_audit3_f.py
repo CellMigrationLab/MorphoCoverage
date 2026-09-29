@@ -4,6 +4,8 @@ protocol, adequacy, calibration and acquisition-order efficiency.
 One test per finding, named after it; each fails on the code before the fix.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -21,6 +23,7 @@ from morphocoverage.retrospective import (
     adequacy,
     adequacy_points,
     order_efficiency,
+    order_text,
     protocol,
     protocol_reliability,
     redundancy_distance,
@@ -29,6 +32,7 @@ from morphocoverage.retrospective import (
     spatial,
     stopping_calibration,
 )
+from morphocoverage.retrospective._text import order_name
 from morphocoverage.retrospective.adequacy import (
     _median_point,
     last_judged_step,
@@ -181,7 +185,8 @@ def test_f2_protocol_summary_runs_when_no_sample_is_judged_anywhere():
         strata=["condition"],
     )
     assert result.per_unit.empty and "unit" in result.per_unit.columns
-    assert "Could not be judged at any depth" in result.summary()
+    assert "Could not be judged at any depth" in result.summary(detail="full")
+    assert "not judged" in result.summary() and "at any depth" in result.summary()
 
 
 def test_f3_an_undefined_criterion_is_not_called_too_few_fields():
@@ -194,32 +199,32 @@ def test_f3_an_undefined_criterion_is_not_called_too_few_fields():
     )
     row = result.table.iloc[0]
     assert (row["undefined"], row["beyond_stream"]) == (4, 0)
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "no technical repeat could be judged at this depth" in text
-    assert "had that many fields" not in text
+    assert "had that many fields" not in text and "had that many fields" not in result.summary()
     # Beyond the stream, it still says so.
     short = protocol_reliability(
         _reliability(objects, fovs, fov_counts=[20]), TECHNICAL, threshold=0.9, strata=[]
     )
     assert short.table.iloc[0]["beyond_stream"] == 4
-    assert "no technical repeat had that many fields to judge" in short.summary()
+    assert "no technical repeat had that many fields to judge" in short.summary(detail="full")
 
 
 def test_f4_fields_needed_median_counts_samples_that_never_got_there():
     reached = {2: 0.95, 4: 0.97, 8: 0.99}
     never = {2: 0.5, 4: 0.6, 8: 0.7}
     curve = {("R1", "A1"): reached, ("R1", "A2"): never, ("R2", "A1"): never}
-    text = protocol_reliability(
-        _curve(curve), BY_WELL, threshold=0.9, strata=["condition"]
-    ).summary()
+    result = protocol_reliability(_curve(curve), BY_WELL, threshold=0.9, strata=["condition"])
+    text = " ".join(result.summary(detail="full").split())
     assert "median not reached within the listed counts (only 1 of 3 samples got there" in text
+    assert "not reached (1 of 3 got there)" in result.summary()
     curve[("R3", "A1")] = {2: 0.5, 4: 0.95, 8: 0.95}
     curve[("R3", "A2")] = reached
-    text = protocol_reliability(
-        _curve(curve), BY_WELL, threshold=0.9, strata=["condition"]
-    ).summary()
+    result = protocol_reliability(_curve(curve), BY_WELL, threshold=0.9, strata=["condition"])
+    text = " ".join(result.summary(detail="full").split())
     # Reached at 2, 2 and 4, and 2 never: the median of 2, 2, 4, beyond, beyond is 4.
     assert "Fields needed per sample: median 4, range 2–4; 2 needing more counted as more" in text
+    assert "4 (2-4; 2 more)" in result.summary()
 
 
 def test_f5_protocol_interval_is_never_narrower_than_the_exact_one():
@@ -308,18 +313,20 @@ def test_f8_a_stop_the_whole_stream_could_not_fix_is_not_too_early():
     assert stops["premature"] == 0 and stops["not_preserved_by_stream"] == 1.0
     total = stops[["correct", "premature", "not_preserved_by_stream", "undefined_at_stop"]]
     assert total.sum() == pytest.approx(stops["stopped"])
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     # Audit 4, P2-9: the total not preserved is the headline, the split its bounds.
-    assert "100% of acquisitions stopped where it was not preserved" in text
-    assert "between 0% and 100% stopped too early" in text
+    assert "100%, 0%-100% too early" in text
     assert "not even every available field together preserved it" in text
+    # The short form keeps the headline share and says that the split is in the full form.
+    short = result.summary()
+    assert "100%" in short and "not even every available field preserved it" in short
 
 
 def test_f9_a_rule_that_never_stopped_says_whether_the_last_field_had_it():
-    text = _calibration().summary()
-    never = text.split("target_fovs=50")[1]
-    assert "it never stopped within" in never
-    assert "for the mean: 0% of those acquisitions had it by the last field" in never
+    text = _calibration().summary(detail="full")
+    never = text.split("fixed 50 fields:")[1].split("\n\n")[0]
+    assert re.search(r"0% of \d+ .*100%, 0% had it by the last field", never)
+    assert "fixed 50 fields" in _calibration().summary() and "never stopped" in never
 
 
 def test_f10_groups_the_replay_skipped_are_named_in_every_summary():
@@ -327,9 +334,16 @@ def test_f10_groups_the_replay_skipped_are_named_in_every_summary():
     one, one_fovs = _tables(n_fovs=1, wells=("A2",))
     replay = _replay(pd.concat([big, one]), pd.concat([big_fovs, one_fovs]), stage_cols=("x", "y"))
     assert replay.skipped["technical_repeat"].tolist() == ["A2"]
-    for result in (adequacy_points(replay), stopping_calibration(replay), order_efficiency(replay)):
+    for result in (adequacy_points(replay), stopping_calibration(replay)):
         assert result.skipped["technical_repeat"].tolist() == ["A2"]
-        assert "technical_repeat=A2: skipped, only 1 field" in result.summary()
+        # Every summary names the skipped group (by its values, or as column=value).
+        assert "A2: skipped, only 1 field" in result.summary()
+        assert "A2: skipped, only 1 field" in result.summary(detail="full")
+    efficiency = order_efficiency(replay)
+    assert efficiency.skipped["technical_repeat"].tolist() == ["A2"]
+    # The order comparison names the group by its values (condition · repeat · well).
+    for detail in ("short", "full"):
+        assert "R1 · A2: skipped, only 1 field" in efficiency.summary(detail=detail)
 
 
 def test_f11_too_few_objects_for_the_metric_is_not_preserved():
@@ -424,7 +438,7 @@ def test_f15_protocol_wording_says_batches_and_at_least():
         curve, SamplingHierarchy("image_file", "well", "batch"), threshold=0.9, strata=["condition"]
     ).summary()
     assert "no number can be chosen on other batches" in text and "batchs" not in text
-    assert "counts when at least 90% of random acquisitions were enough" in text
+    assert "counts when at least 90% of random acquisitions were enough" in " ".join(text.split())
 
 
 def test_f16_reliability_says_what_it_rests_on_at_the_edges():
@@ -438,10 +452,13 @@ def test_f16_reliability_says_what_it_rests_on_at_the_edges():
 
 
 def test_f17_identical_split_shares_print_no_rounding_noise():
-    text = _ninety_percent_result().summary()
+    result = _ninety_percent_result()
+    text = result.summary(detail="full")
     # With the Monte Carlo error of the share (audit 4, P9-2), also without noise.
-    assert "enough in 90% of random acquisitions (Monte Carlo SE 0%; ±0% across hold-outs)" in text
-    assert "e-" not in text
+    assert "Monte Carlo SE" in text and "± across hold-outs" in text
+    rows = [line.split()[1:4] for line in text.splitlines() if line.split()[:1] == ["4"]]
+    assert rows and all(row == ["90%", "0%", "0%"] for row in rows)
+    assert "e-" not in text and "e-" not in result.summary() and "90%" in result.summary()
 
 
 def test_f18_repeated_hold_outs_are_counted_as_splits():
@@ -457,10 +474,12 @@ def test_f18_repeated_hold_outs_are_counted_as_splits():
         block_col="block",
     )
     assert result.ceiling["distinct_holdouts"].iloc[0] == 3
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "across splits" in text and "one acquisition per split" in text
     assert "were enough in 40% of splits" in text or "% of splits:" in text
     assert "across hold-outs" not in text and "% of hold-outs" not in text
+    short = " ".join(result.summary().split())
+    assert "10 splits repeat hold-outs" in short and "across hold-outs" not in short
 
 
 def test_f19_unequal_streams_state_the_range_of_available_fields():
@@ -477,9 +496,11 @@ def test_f19_unequal_streams_state_the_range_of_available_fields():
     )
     ceiling = result.ceiling.iloc[0]
     assert (ceiling["shortest_stream_fovs"], ceiling["stream_fovs"]) == (6, 10)
-    text = result.summary()
+    text = " ".join(result.summary(detail="full").split())
     assert "All 6 to 10 available fields together" in text
     assert "nothing is said beyond 10 fields (6 in some splits)" in text
+    short = " ".join(result.summary().split())
+    assert "all 6-10" in short and "nothing is said beyond 10 fields (6 in some splits)" in short
 
 
 def test_f20_numpy_integers_are_accepted_as_counts_and_seeds():
@@ -545,8 +566,9 @@ def test_f24_one_order_phrase_one_median_rule_one_skip_rule():
     skipped_replay = _replay(*tables).skipped["reason"].iloc[0]
     skipped_reliability = _reliability(*tables).skipped["reason"].iloc[0]
     assert skipped_replay == skipped_reliability
+    assert not hasattr(order_text, "_ORDER_NAMES")  # the words of an order kind live in _text
     assert (
-        "In the recorded order"
+        f"{order_name('recorded')}  "
         in order_efficiency(
             _replay(
                 objects,

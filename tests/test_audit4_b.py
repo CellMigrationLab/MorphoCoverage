@@ -5,6 +5,7 @@ tables accept, the test also checks that ``check_tables`` and
 ``validate_input_tables`` agree (``_agree``).
 """
 
+import re
 import warnings
 
 import numpy as np
@@ -132,12 +133,16 @@ def test_p5_5_check_warnings_reach_the_workflows_and_the_overview():
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         quiet = check_workflow_inputs(copied, fovs, setup, warn=False)
-    overview = dataset_overview(
+    result = dataset_overview(
         copied, fovs, feature_cols=["area"], observation_unit="cell", data_check=quiet
-    ).summary()
+    )
+    overview = result.summary(detail="full")
     assert "The data check found" in overview and "exact copy" in overview
-    # Labels that print alike are quoted, in the sentence and in the table.
-    assert "'drug', 'drug '" in overview and "'drug '  2026_01_01" in overview
+    # Labels that print alike are quoted, in the sentence and in the (aligned) table.
+    assert "'drug', 'drug '" in overview and re.search(r"'drug ' +2026_01_01", overview)
+    short = " ".join(result.summary().split())
+    assert "⚠️ Data checks: 2 warnings (" in short and "exact copy" in short
+    assert "'drug', 'drug '" in short
 
 
 def test_p5_7_undeclared_group_columns_are_warned_about():
@@ -188,11 +193,12 @@ def test_p5_9_overview_names_the_declared_groups():
         feature_cols=["area"],
         group_cols=["Treatment", "Plate", "Well"],
         observation_unit="cell",
-    ).summary()
-    assert "all fields pooled" not in summary
-    assert "the analysis groups are Treatment, Plate, Well (8 groups), each analysed apart" in (
-        summary
     )
+    full = summary.summary(detail="full")
+    assert "all fields pooled" not in full
+    assert "the analysis groups are Treatment, Plate, Well (8 groups), each analysed apart" in full
+    short = " ".join(summary.summary().split())
+    assert "8 analysis groups (Treatment · Plate · Well), each analysed apart" in short
 
 
 def test_p5_10_planes_as_features_missing_planes_and_cellpatcher_z0():
@@ -350,8 +356,10 @@ def test_p9_10_control_first_then_sorted_whatever_the_row_order():
         shuffled_cells, shuffled, feature_cols=["area"], control={"condition": "mock"}
     )
     assert overview.layout["condition"].tolist()[:2] == ["mock", "mock"]
-    assert "(condition: mock, a_drug)" in overview.summary()
-    assert "(repeat: 2026_01_01, 2026_01_02)" in overview.summary()
+    assert "(condition: mock, a_drug)" in overview.summary(detail="full")
+    assert "(repeat: 2026_01_01, 2026_01_02)" in overview.summary(detail="full")
+    short = " ".join(overview.summary().split())
+    assert "2 conditions (mock, a_drug), 2 repeats (2026_01_01, 2026_01_02)" in short
     data = validate_input_tables(shuffled_cells, fovs=shuffled, feature_cols=["area"])
     layout = _layout(data, "condition", "repeat", None, 6, "mock")
     assert layout.conditions == ["mock", "a_drug"]

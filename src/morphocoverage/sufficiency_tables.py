@@ -27,7 +27,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._caveats import assumption, is_assumption
 from ._seeds import group_key
+from ._style import rule_label
 from ._wording import rows_of
 from .benchmark import (
     AcquisitionOrder,
@@ -44,6 +46,7 @@ from .objectives import ObjectiveConfig
 from .order_check import OrderCheck, check_acquisition_order
 from .policies import EffortPolicy
 from .results import StrategyResult, stop_caution
+from .schema import resolve_observation_unit
 from .statistics import median_standard_error
 from .strategies.base import SamplingStrategy
 from .sufficiency_text import _enough_answer, _policies
@@ -76,8 +79,8 @@ def _insufficient_reason(result: StrategyResult) -> str | None:
     return None
 
 
-def _warnings(diagnostics: Mapping[str, Any]) -> str | None:
-    """The caveats a rule's evidence carries (``field_size_warning``, ``warning``), joined.
+def _warning_list(diagnostics: Mapping[str, Any]) -> tuple[str, ...]:
+    """The caveats a rule's evidence carries (``field_size_warning``, ``warning``), one by one.
 
     The FOV-unit JCB rule warns when FOV size and FOV mean are related (its
     CV can then be several times too small) and the JCB rule when the SD
@@ -87,21 +90,38 @@ def _warnings(diagnostics: Mapping[str, Any]) -> str | None:
     pilot = diagnostics.get("pilot")
     if isinstance(pilot, Mapping):
         found += [
-            f"pilot: {pilot[key]}" for key in ("field_size_warning", "warning") if pilot.get(key)
+            _kept(pilot[key], f"pilot: {pilot[key]}")
+            for key in ("field_size_warning", "warning")
+            if pilot.get(key)
         ]
-    found = [str(text) for text in found if text]
+    # A standing assumption a rule states beside every value keeps its kind (_style).
+    return tuple(text if isinstance(text, str) else str(text) for text in found if text)
+
+
+def _kept(text: Any, new: str) -> str:
+    """``new`` with the kind of ``text``: an assumption stays one (``_style.Assumption``)."""
+    return assumption(new) if is_assumption(text) else new
+
+
+def _warnings(diagnostics: Mapping[str, Any]) -> str | None:
+    """The caveats of ``_warning_list``, joined."""
+    found = _warning_list(diagnostics)
     return "; ".join(found) if found else None
 
 
 def _final_row(
-    result: StrategyResult, group_cols: Sequence[str], effort_rule: bool = False
+    result: StrategyResult,
+    group_cols: Sequence[str],
+    effort_rule: bool = False,
+    rule: str | None = None,
 ) -> dict[str, Any]:
-    """One row of the full-acquisition table."""
+    """One row of the full-acquisition table; ``rule`` is the rule's readable name."""
     diagnostics = result.evidence.diagnostics
     row = {column: result.group.get(column) for column in group_cols}
     row.update(
         {
             "strategy": result.strategy,
+            "rule": rule or result.strategy,
             "config_id": result.config_id,
             "policies": _policies(result),
             "effort_rule": effort_rule,
@@ -119,6 +139,8 @@ def _final_row(
                 or diagnostics.get("assumes_random_object_sampling", False)
             ),
             "warnings": _warnings(diagnostics),
+            # One by one, so the short summary can state each kind once (``sufficiency_short``).
+            "warning_list": _warning_list(diagnostics),
             "decides_rare": result.decides_rare,
         }
     )
@@ -212,8 +234,9 @@ def _with_order_cautions(
     checks: Mapping[str, OrderCheck],
     group_cols: list[str],
 ) -> pd.DataFrame:
-    """``final`` with ``order_caution``: what a stop of each rule rests on (see the module)."""
-    cautions = []
+    """``final`` with ``order_caution``, what a stop of each rule rests on (see the module),
+    and ``order_flagged``, whether the order check flagged the group's fields."""
+    cautions, flagged = [], []
     for _, row in final.iterrows():
         check = checks.get(group_key({c: row[c] for c in group_cols}))
         rare = bool(row["decides_rare"])
@@ -222,7 +245,8 @@ def _with_order_cautions(
         else:
             stop = _recorded_stop(stops, row, group_cols) if rare else None
             cautions.append(check.caution(rare=rare, stop_after=stop))
-    return final.assign(order_caution=cautions)
+        flagged.append(check is not None and check.flagged)
+    return final.assign(order_caution=cautions, order_flagged=flagged)
 
 
 def criteria_tables(
@@ -255,9 +279,16 @@ def criteria_tables(
         objects, fovs=fovs, strategies=strategies, objective=objective, **columns
     )
     effort = {(rule.name, rule.config_id): is_effort_rule(rule) for rule in strategies}
+    unit = resolve_observation_unit(columns["observation_unit"])[0]
+    names = {(rule.name, rule.config_id): rule_label(rule, unit) for rule in strategies}
     final = pd.DataFrame(
         [
-            _final_row(result, group_cols, effort[(result.strategy, result.config_id)])
+            _final_row(
+                result,
+                group_cols,
+                effort[(result.strategy, result.config_id)],
+                names[(result.strategy, result.config_id)],
+            )
             for result in results
         ]
     )
@@ -321,6 +352,7 @@ def enough_table(final: pd.DataFrame, stops: pd.DataFrame, group_cols: list[str]
             {
                 **{column: row[column] for column in group_cols},
                 "criterion": row["strategy"],
+                "rule": row.get("rule", row["strategy"]),
                 "settings": row["policies"],
                 "config_id": row["config_id"],
                 "fovs_acquired": row["n_fovs"],

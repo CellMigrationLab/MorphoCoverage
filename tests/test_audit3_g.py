@@ -6,6 +6,7 @@ One test per finding; the reproductions behind them were run on data/synthetic.
 from __future__ import annotations
 
 import inspect as source
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -215,7 +216,8 @@ def test_g6_a_baseline_that_met_the_risk_but_lost_it_says_so_and_keeps_the_famil
         "exceeded_risk": 0.125,
     }
     rule = {"family": "rule", "alpha": 0.05, "setting": 1, "effort": 2.0, "risk": 0.0}
-    text = _frontier_scores([base, rule], {"label": "c", "units": 8}).summary()
+    result = _frontier_scores([base, rule], {"label": "c", "units": 8})
+    text = " ".join(result.summary(detail="full").split())
     assert "a fixed number of fields met this risk at 2 (risk 0%) but not from there on" in text
     assert "never got there" not in text
     assert "rule at 1: 2 fields on average (risk 0%), with no fixed count to compare" in text
@@ -279,9 +281,10 @@ def test_g8_a_frontier_interval_from_too_few_resamples_is_withheld():
     assert MIN_BOOT_SUCCESS == 0.9 and row["saved_reached"] < MIN_BOOT_SUCCESS
     assert row["saved_low"] is None or pd.isna(row["saved_low"])
     reached = f"{100 * row['saved_reached']:.0f}%"
-    text = result.summary()
-    assert f"no interval: only {reached} of the resamples reached this risk for both" in text
-    assert "(at least 90% are needed)" in text
+    for text in (result.summary(), result.summary(detail="full")):
+        text = " ".join(text.split())
+        assert f"no interval: only {reached} of the resamples reached this risk for both" in text
+        assert "(at least 90% are needed)" in text
 
 
 def test_g9_the_imbalance_line_names_the_level_that_differs():
@@ -345,7 +348,8 @@ def _counted(counts, stage=False):
 def test_g11_one_observation_is_one_cell_not_one_cells():
     objects, fovs = _counted([1, 12, 15, 14, 13, 16])
     result = inspect_fovs(objects, fovs, feature_cols=["v"], observation_unit="cell")
-    assert "f0: 1 cell; the median is 13.5." in result.summary()
+    assert "f0: 1 cell; the median is 13.5." in result.summary(detail="full")
+    assert re.search(r"f0 +1 cell; the median is 13\.5", result.summary())
 
 
 def test_g12_an_empty_neighbour_is_not_counted_among_the_fields_compared():
@@ -387,7 +391,8 @@ def test_g14_projections_assume_the_same_share_of_fields_would_be_empty_again():
         strata=["condition"],
         n_boot=20,
     )
-    assert "the same share would be empty again." in result.summary()
+    assert "the same share would be empty again." in " ".join(result.summary().split())
+    assert "the same share would be empty again." in " ".join(result.summary(detail="full").split())
 
 
 def test_g15_the_closing_notes_do_not_point_below():
@@ -513,7 +518,7 @@ def test_i_note_empty_reference_fields_do_not_leave_checks_unjudged(synthetic):
     pooled = result.pooled.set_index("candidate")
     assert (pooled["not_judged"] == 0).all()
     assert int(pooled.loc["positive", "candidates"]) == 4 * 75  # drug fields with cells (P1-2)
-    assert "(after 5 reference fields with cells)" in result.summary()
+    assert "After 5 reference fields with cells" in result.summary()
 
 
 def test_j_shared_helpers_and_declared_privates():
