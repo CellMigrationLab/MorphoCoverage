@@ -163,3 +163,18 @@ Bonferroni-corrected 0.05), with the fields a side acquired and with twice as ma
 - **Pilots**: cut to 2 repeats, every dataset still gets a plan; cut to 1, the report says the
   variation between repeats needs a second repeat and question 2 gives the fields within a repeat
   (tests/test_repeat_plan.py).
+
+## 2026-09-30 — fifth run: the plan at the user's design
+
+The owner's decisions: no experiment level (a dataset is one experiment, pooled as provided), and
+a plan that says what to change within the design the user ran, per condition, not how many more
+repeats (a plan that always asks for 5-6 repeats is not useful). The repeats a paired test needs
+are in the full report only, per condition at 0.05.
+
+- **Filopodia screen** (3 repeats): the strong hits need about 4-10 cells a side per repeat to
+  resolve the difference (26-49 were imaged); MAP4K4 12-21; MINK1#10 about 62 and NF2#7 about 98;
+  MINK1#3 and NF2#17 are too small to settle in some repeat. Most hits are limited by the repeats
+  differing, not by the cells.
+- **CDM shape**: siCCT8#8 needs about 56 cells a side per repeat (sampling-limited: more cells help);
+  siCCT8#5 is too small to settle in repeat 2.
+- **Glioma tracks**: CCT8 needs about 4 positions a side per repeat; CCT7 is too small to settle.
