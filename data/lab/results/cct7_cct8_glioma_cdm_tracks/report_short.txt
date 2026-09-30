@@ -5,7 +5,9 @@ At a glance
   ⚠️ Foundation. Why count fields? — a mean from whole fields varies 1.0x as much as from random
      tracks (median); the JCB count rule missed with whole fields in 7 of 18 technical repeats
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control
-  ❌ 2. Did I image enough? — no rule met in any of all 18 technical repeats
+  ⚠️ 2. Did I image enough? — the difference from the control is resolved in 8 of 12 contrasts; 2
+     would need about 9-11 fields a side; 2 too small to settle with more fields here; JCB rule, per
+     track, 5%: met in 0 of 18 technical repeats
   ⚠️ 3. What limits my sampling? — whole fields 1.0x as variable as random tracks; labelled states
      spread like random tracks in all 4 groups seen
   ⚠️ 6. Which fields should I look at? — 9 fields to reopen in 8 technical repeats (new state in 6,
@@ -94,7 +96,16 @@ What this acquisition was asked to preserve
 ➖ 1. Can these features detect what I care about?
   Not assessed: declare a positive control (and a reference) with representation_control.
 
-❌ 2. Did I image enough?
+⚠️ 2. Did I image enough?
+  Enough to resolve the difference from the control? Mean Speed, each condition against the control
+    of the same repeat:
+    contrast                     fields  d tracks (95% interval)  enough?
+    siCCT7#3 vs siCTRL · CCT7_1  7 vs 8  -0.37 (-1.21 to 0.36)    too small to settle here
+    siCCT7#6 vs siCTRL · CCT7_2  8 vs 7  0.55 (-0.04 to 1.18)     about 9 fields a side
+    siCCT7#3 vs siCTRL · CCT7_3  7 vs 5  0.01 (-0.61 to 0.70)     too small to settle here
+    siCCT7#6 vs siCTRL · CCT7_3  6 vs 5  -0.46 (-1.20 to 0.11)    about 11 fields a side
+  The other 8 contrasts are resolved (every one in the full report).
+  The precision of each group's own mean:
   Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 18 groups:
     rule                     met in   random orders: median (10-90%)
@@ -119,21 +130,19 @@ What this acquisition was asked to preserve
     siCCT7#6 · CCT7_1 · B6, siCCT7#6 · CCT7_2 · B6 and 3 more).
   'New': at least 3 similar tracks that no other field shows; the exact definition is in the full
     report.
-  ⚠️ JCB rule, per track, 5% is undefined in all 18 groups: the object-unit JCB criterion assumes
-     observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')),
-     got 'track'.
-  ⚠️ JCB rule, per field, 5%, in 1 of 18 groups: the SD between tracks exceeds 50% CV; the paper
-     advises acquiring more data and repeating the estimate.
-  ⚠️ JCB rule, per field, 5% was met and then lost as more fields arrived, in 2 of 18 groups.
-  ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of
-     the well's positions; a raster over a spatial trend can stop early.
-  Assumptions: JCB rule, per track, 5% treats tracks as independent draws: it assumes a spatially
-    uniform sample. The next-field bound is approximate: the leave-one-field-out outcomes share
-    their reference fields. The novelty bounds treat fields as independent, representative draws:
-    neighbouring fields acquired in a raster over patchy states make them too low. Every novelty
-    bound holds at a number of fields fixed in advance, not at the first field where it passes:
-    stopping there is premature more often than 5% of the time. A state carried by fewer than 3
-    similar tracks per field is never counted, however many fields hold it.
+  The cautions on these rules are in the full report.
+  Assumptions: Resolved: the 95% interval of d, from the fields resampled as they were acquired
+    (technical repeats, then their fields, with replacement), excludes 0. The fields a side to
+    resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields));
+    beyond 4 times the fields acquired a difference is called too small to settle here. This asks
+    whether the fields pin down the difference between these tracks; whether it holds across
+    biological repeats is question 9. JCB rule, per track, 5% treats tracks as independent draws: it
+    assumes a spatially uniform sample. The next-field bound is approximate: the leave-one-field-out
+    outcomes share their reference fields. The novelty bounds treat fields as independent,
+    representative draws: neighbouring fields acquired in a raster over patchy states make them too
+    low. Every novelty bound holds at a number of fields fixed in advance, not at the first field
+    where it passes: stopping there is premature more often than 5% of the time. A state carried by
+    fewer than 3 similar tracks per field is never counted, however many fields hold it.
 
 ⚠️ 3. What is limiting my sampling?
   - Fields: a mean from whole fields varies 1.0 times as much as one from as many random tracks
@@ -212,9 +221,7 @@ What this acquisition was asked to preserve
     repeat the conditions are described by their effect sizes; they are tested across repeats (the
     first table). The test and the effect sizes compare means: a difference confined to a
     subpopulation of tracks or to the shape of the distribution is not tested (see the unusual
-    tracks and the rare label). This describes what these fields support about a difference under
-    this feature; generalizing it needs independent biological repeats, which is the user's
-    inference.
+    tracks and the rare label).
 
 What this dataset cannot tell me
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control

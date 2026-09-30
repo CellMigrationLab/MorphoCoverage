@@ -164,7 +164,24 @@ What this acquisition was asked to preserve
 ➖ 1. Can these features detect what I care about?
   Not assessed: declare a positive control (and a reference) with representation_control.
 
-❌ 2. Did I image enough?
+⚠️ 2. Did I image enough?
+  Enough to resolve the difference from the control? Mean Speed, each condition against the control of
+    the same repeat, 95% interval of d from the fields resampled as acquired:
+    contrast                     fields  d tracks (95% interval)  enough?
+    siCCT7#3 vs siCTRL · CCT7_1  7 vs 8  -0.37 (-1.21 to 0.36)    too small to settle here
+    siCCT7#6 vs siCTRL · CCT7_1  7 vs 8  -0.60 (-1.52 to -0.03)   resolved
+    siCCT7#3 vs siCTRL · CCT7_2  8 vs 7  0.86 (0.40 to 1.44)      resolved
+    siCCT7#6 vs siCTRL · CCT7_2  8 vs 7  0.55 (-0.04 to 1.18)     about 9 fields a side
+    siCCT7#3 vs siCTRL · CCT7_3  7 vs 5  0.01 (-0.61 to 0.70)     too small to settle here
+    siCCT7#6 vs siCTRL · CCT7_3  6 vs 5  -0.46 (-1.20 to 0.11)    about 11 fields a side
+    siCCT8#5 vs siCTRL · CCT8_1  8 vs 7  -1.00 (-1.70 to -0.45)   resolved
+    siCCT8#8 vs siCTRL · CCT8_1  8 vs 7  -0.81 (-1.47 to -0.32)   resolved
+    siCCT8#5 vs siCTRL · CCT8_2  8 vs 9  -0.59 (-1.01 to -0.26)   resolved
+    siCCT8#8 vs siCTRL · CCT8_2  8 vs 9  -0.80 (-1.18 to -0.55)   resolved
+    siCCT8#5 vs siCTRL · CCT8_3  7 vs 8  -1.58 (-2.04 to -1.27)   resolved
+    siCCT8#8 vs siCTRL · CCT8_3  7 vs 8  -1.71 (-2.31 to -1.32)   resolved
+    Resolved: the 95% interval of d, from the fields resampled as they were acquired (technical repeats, then their fields, with replacement), excludes 0. The fields a side to resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields)); beyond 4 times the fields acquired a difference is called too small to settle here. This asks whether the fields pin down the difference between these tracks; whether it holds across biological repeats is question 9.
+
   Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 18 groups:
     rule                     met in   random orders: median (10-90%)
@@ -677,8 +694,6 @@ What this acquisition was asked to preserve
     - The test and the effect sizes compare means: a difference confined to a subpopulation of
       tracks or to the shape of the distribution is not tested (see the unusual tracks and the rare
       label).
-    - This describes what these fields support about a difference under this feature; generalizing
-      it needs independent biological repeats, which is the user's inference.
 
 What this dataset cannot tell me
   ➖ 1. Can these features detect what I care about?: not assessed; needs: declare a positive control

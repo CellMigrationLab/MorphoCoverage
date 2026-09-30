@@ -132,3 +132,19 @@ are used).
   consistent direction.
 - **Still to decide:** question 2 is ❌ for all three (a 5% precision of each group's mean; item 1
   of the first run), and the glioma tracks' Foundation and question 3 keep their ⚠️.
+
+## 2026-09-30 — third run: question 2 by the contrast
+
+Question 2 now asks whether the fields acquired resolve the difference from the control in each
+repeat (owner's decision). No dataset is ❌ any more:
+
+- **Filopodia screen**: resolved in 28 of 36 siRNA x repeat contrasts; every CCT8, CSNK1A1 and
+  SCRIB contrast is resolved in every repeat. 6 would need about 14-98 cells a side (the weaker
+  MINK1, MAP4K4#5 and NF2 contrasts), 2 are too small to settle with more cells of these coverslips.
+- **CDM shape**: resolved in 2 of 6 (both siRNAs in repeat 3); the area differences of repeats 1 and
+  2 (d -0.38 to -0.48) would need about 42-56 cells a side, against 16-27 imaged: concrete advice
+  for the next experiment. One (d -0.09) is too small to settle.
+- **Glioma tracks**: resolved in 8 of 12 (every CCT8 contrast); 2 CCT7 contrasts would need about
+  9-11 positions a side, 2 are too small to settle.
+- The 5% precision of each mean is kept as a secondary line: met in 0 of 54, 0 of 9 and 0 of 18
+  groups.
