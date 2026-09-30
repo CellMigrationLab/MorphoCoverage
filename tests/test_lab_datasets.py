@@ -99,6 +99,27 @@ def test_cct8_screen_reproduces_the_papers_counts_means_and_effect_sizes():
         assert (means[means.index.str.startswith(hit)] < control.mean()).all()
 
 
+def test_cdm_morphology_reproduces_the_papers_counts_and_effect_sizes():
+    """Fig. 5E: n per condition and the deposit's Cohen's d for area and aspect ratio."""
+    objects = catalog.load("cct8_cdm_morphology").objects
+    sizes = objects.groupby("condition").size()
+    assert sizes.to_dict() == {"siCTRL": 53, "siCCT8#5": 63, "siCCT8#8": 58}  # "n > 53"
+    assert objects["biological_repeat"].nunique() == 3
+    # Cohen's d against siCTRL, from the deposit's Stats/ tables.
+    paper_d = {"Area": (0.4362, 0.5682), "AR": (1.5631, 1.5430)}
+    control = objects[objects.condition == "siCTRL"]
+    for feature, (d5, d8) in paper_d.items():
+        for condition, d in (("siCCT8#5", d5), ("siCCT8#8", d8)):
+            values = objects.loc[objects.condition == condition, feature].to_numpy(float)
+            got = _cohen_d(control[feature].to_numpy(float), values)
+            assert round(got, 4) == pytest.approx(d, abs=1e-4), (feature, condition)
+    # "smaller, more rounded cells": both siRNAs lower than siCTRL in every repeat.
+    means = objects.groupby(["biological_repeat", "condition"])[["Area", "AR"]].mean()
+    for feature in ("Area", "AR"):
+        table = means[feature].unstack()
+        assert (table[["siCCT8#5", "siCCT8#8"]].lt(table["siCTRL"], axis=0)).all().all()
+
+
 def _convert_module(dataset_id):
     spec = importlib.util.spec_from_file_location("convert", LAB / dataset_id / "convert.py")
     module = importlib.util.module_from_spec(spec)

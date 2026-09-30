@@ -20,20 +20,24 @@ headers without a timestamp. This is a data-preparation script, not part of the 
 from __future__ import annotations
 
 import argparse
-import gzip
-import hashlib
 import io
 import sys
-import tempfile
-import urllib.request
-import zipfile
 from pathlib import Path
 
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
+# The shared helpers live one folder up.
+from convert_tools import (
+    check_columns,
+    check_member,
+    fetch_zip_member,
+    synthetic_positions,
+    write_csv_gz,
+)
+
 RECORD = "20704995"
-ARCHIVE = "Fig2 and FigS2.zip"
 ARCHIVE_URL = f"https://zenodo.org/api/records/{RECORD}/files/Fig2%20and%20FigS2.zip/content"
 ARCHIVE_MD5 = "354a7ffd888bcb55e193bd7c6f9ae697"
 MEMBER = "Fig2 and FigS2/Fig2C filopodia numbers after silencing/FILOPODIA NUMBER ALL.xlsx"
@@ -45,33 +49,16 @@ SINGLE, UNRECORDED = "single", "unrecorded"
 FIELD_KEY = ["experiment", "condition", "biological_repeat", "technical_repeat", "position_id"]
 
 
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
 def fetch_member() -> bytes:
-    """The spreadsheet's bytes from the pinned archive, both checksums verified."""
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / ARCHIVE
-        urllib.request.urlretrieve(ARCHIVE_URL, path)
-        md5 = hashlib.md5(path.read_bytes()).hexdigest()
-        if md5 != ARCHIVE_MD5:
-            raise SystemExit(f"{ARCHIVE}: md5 {md5}, expected {ARCHIVE_MD5}")
-        with zipfile.ZipFile(path) as archive:
-            data = archive.read(MEMBER)
-    return data
+    """The spreadsheet's bytes from the pinned archive, the archive's md5 verified."""
+    return fetch_zip_member(ARCHIVE_URL, ARCHIVE_MD5, MEMBER)
 
 
 def read_source(data: bytes) -> pd.DataFrame:
     """The source table, checked against the pinned checksum and its expected columns."""
-    digest = _sha256(data)
-    if digest != MEMBER_SHA256:
-        raise SystemExit(f"{MEMBER}: sha256 {digest}, expected {MEMBER_SHA256}")
+    check_member(data, MEMBER, MEMBER_SHA256)
     source = pd.read_excel(io.BytesIO(data))
-    if list(source.columns) != SOURCE_COLUMNS:
-        raise SystemExit(f"unexpected columns {list(source.columns)}, expected {SOURCE_COLUMNS}")
-    if source.isna().any().any():
-        raise SystemExit("the source has missing values")
+    check_columns(source, SOURCE_COLUMNS)
     # The spreadsheet row of each cell (1 is the header), for tracing a row back to the source.
     return source.assign(source_row=range(2, len(source) + 2))
 
@@ -104,17 +91,7 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     )
     # Number the cells of each experiment, condition and repeat in spreadsheet order.
     group = ["experiment", "condition", "biological_repeat"]
-    table = table.sort_values([*group, "source_row"], kind="stable")
-    ordinal = table.groupby(group, sort=False).cumcount() + 1
-    table["position_id"] = (
-        table["experiment"]
-        + "|"
-        + table["condition"]
-        + "|"
-        + table["biological_repeat"]
-        + "|cell"
-        + ordinal.map("{:03d}".format)
-    )
+    table["position_id"] = synthetic_positions(table, group, order="source_row")
     table = table.sort_values(FIELD_KEY, kind="stable").reset_index(drop=True)
     columns = [*FIELD_KEY, "image_file", "label_id", FEATURE, "source_row"]
     objects = table[columns]
@@ -122,13 +99,6 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     if len(fovs) != len(objects):
         raise SystemExit("a field holds more than one cell")
     return objects, fovs
-
-
-def write_csv_gz(frame: pd.DataFrame, path: Path) -> None:
-    """Deterministic gzip-compressed CSV (no timestamp in the gzip header, ``\\n`` endings)."""
-    text = frame.to_csv(index=False, lineterminator="\n")
-    with open(path, "wb") as handle, gzip.GzipFile(fileobj=handle, mode="wb", mtime=0) as gz:
-        gz.write(text.encode("utf-8"))
 
 
 def main(argv: list[str] | None = None) -> None:

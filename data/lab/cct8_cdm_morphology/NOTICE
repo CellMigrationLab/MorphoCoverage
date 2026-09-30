@@ -1,0 +1,14 @@
+The tables in this folder (objects.csv.gz, fovs.csv.gz) are derived from
+
+  Zenodo record 20704995 (https://doi.org/10.5281/zenodo.20704995),
+  "Filopodome proteomics identifies CCT8 as a MYO10 interactor critical for filopodia functions",
+  file "Fig5 and FigS5/Fig5DE 231 CDM - shape/Cell Morphology 231s CDMs.xlsx",
+  licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0,
+  https://creativecommons.org/licenses/by/4.0/).
+
+Changes: metadata columns renamed to the MorphoBricks names (Fiji's bookkeeping columns under a
+source_ prefix), synthetic field identifiers added (one cell per field), rows reordered; no
+value changed (data/lab/cct8_cdm_morphology/convert.py).
+
+Please cite the article: CCT8 associates with the MYO10 motor domain and regulates filopodia
+and breast cancer cell invasion. Journal of Cell Science (2026), https://doi.org/10.1242/jcs.265278
