@@ -15,7 +15,16 @@ Tests, each at alpha = 0.05:
 - t_cells: an unpaired t-test with every cell an independent measurement;
 - rand_pooled: |Cohen's d| on all cells pooled, labels shuffled over all cells (Plot&Stats);
 - rand_within: the same statistic, labels shuffled within each repeat (cells still the unit);
-- signflip_d: exact sign-flip test on the per-repeat Cohen's d (repeats the unit).
+- signflip_d: exact sign-flip test on the per-repeat Cohen's d (repeats the unit);
+- lmm_z: a linear mixed model on every cell, ``y ~ treated`` with a random intercept and a
+  random treated effect per repeat (REML, statsmodels), its Wald z-test of the treated effect;
+- lmm_t: the same fit, its treated effect tested with a t distribution on ``repeats - 1``
+  degrees of freedom (the conservative small-sample reading);
+- hboot: a hierarchical bootstrap (Saravanan et al. 2020): repeats resampled with replacement,
+  then each well's cells with replacement, ``N_BOOT`` times; p is twice the share of
+  resampled mean differences on the far side of 0.
+
+The mixed model needs statsmodels, which the package does not depend on; the simulation only.
 
 Written to ``results/test_choice.csv`` (one row per setting: the share of the ``N_SIMS``
 experiments with p <= 0.05; at delta = 0 the false-positive rate, else the power), with
@@ -31,17 +40,20 @@ from __future__ import annotations
 
 import itertools
 import sys
+import warnings
 from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import statsmodels.formula.api as smf
 from scipy import stats
 
 ALPHA = 0.05
 N_SIMS = 1000
 N_PERM = 999
 BATCH_SD = 0.5
+N_BOOT = 1000
 
 
 def cohen_d(a, b, axis=-1):
@@ -91,13 +103,67 @@ def tests(rng, control, treated):
     signs = np.array(list(itertools.product((1.0, -1.0), repeat=repeats)))
     flips = np.abs((signs * d_r).mean(1))
     out["signflip_d"] = float(np.mean(flips >= abs(d_r.mean()) - 1e-12))
+    if repeats >= 2:
+        out["lmm_z"], out["lmm_t"] = mixed_model(control, treated)
+    out["hboot"] = hierarchical_bootstrap(rng, control, treated)
     return out
+
+
+def mixed_model(control, treated):
+    """The treated effect's p-values from ``y ~ treated`` with a random intercept and a random
+    treated effect per repeat: Wald z, and t on ``repeats - 1`` degrees of freedom. A fit
+    that fails counts as no difference found (p = 1)."""
+    repeats, cells = control.shape
+    frame = pd.DataFrame(
+        {
+            "y": np.concatenate([control.ravel(), treated.ravel()]),
+            "treated": np.repeat([0.0, 1.0], repeats * cells),
+            "repeat": np.tile(np.repeat(np.arange(repeats), cells), 2),
+        }
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            fit = smf.mixedlm("y ~ treated", frame, groups="repeat", re_formula="~treated").fit(
+                reml=True
+            )
+            effect, se = float(fit.fe_params["treated"]), float(fit.bse_fe["treated"])
+        except (ValueError, np.linalg.LinAlgError):
+            return 1.0, 1.0
+    if not (np.isfinite(effect) and np.isfinite(se)) or se <= 0:
+        return 1.0, 1.0
+    z = abs(effect / se)
+    return float(2 * stats.norm.sf(z)), float(2 * stats.t.sf(z, repeats - 1))
+
+
+def hierarchical_bootstrap(rng, control, treated):
+    """Twice the share of resampled mean differences on the far side of 0 (repeats, then each
+    well's cells, with replacement), never below ``1 / N_BOOT``."""
+    repeats, cells = control.shape
+    chosen = rng.integers(repeats, size=(N_BOOT, repeats))
+    rows = []
+    for side in (control, treated):
+        picked = side[chosen]  # (N_BOOT, repeats, cells)
+        cells_idx = rng.integers(cells, size=picked.shape)
+        rows.append(np.take_along_axis(picked, cells_idx, axis=2).mean(axis=(1, 2)))
+    diff = rows[1] - rows[0]
+    tail = min(np.mean(diff <= 0), np.mean(diff >= 0))
+    return max(2 * tail, 1 / N_BOOT)
 
 
 def run(setting):
     repeats, cells, delta, s_rep, seed = setting
     rng = np.random.default_rng(seed)
-    names = ("paired_t", "t_cells", "rand_pooled", "rand_within", "signflip_d")
+    names = (
+        "paired_t",
+        "t_cells",
+        "rand_pooled",
+        "rand_within",
+        "signflip_d",
+        "lmm_z",
+        "lmm_t",
+        "hboot",
+    )
     hits = dict.fromkeys(names, 0)
     for _ in range(N_SIMS):
         control, treated = one_experiment(rng, repeats, cells, delta, s_rep)
@@ -110,7 +176,10 @@ def run(setting):
         "cells": cells,
         "delta": delta,
         "s_rep": s_rep,
-        **{k: (v / N_SIMS if k != "paired_t" or repeats >= 2 else np.nan) for k, v in hits.items()},
+        **{
+            k: (v / N_SIMS if repeats >= 2 or k not in ("paired_t", "lmm_z", "lmm_t") else np.nan)
+            for k, v in hits.items()
+        },
         "k_approx": approx if delta == 0 else np.nan,
     }
 
