@@ -13,7 +13,7 @@ MDA-MB-231 triple-negative breast cancer cells on cell-derived matrices (CDMs) m
 - Experiment: not applicable (one experiment)
 - Condition: the siRNA (source column 'Condition')
 - Biological repeat: '1'-'3' (source column 'Repeat')
-- Technical repeat: unrecorded (the coverslip or well of each cell is not recorded; to confirm by the owner); rules out any test that needs technical repeats within a biological repeat
+- Technical repeat: single: each siRNA was imaged in one well per biological repeat (owner's statement, 2026-09-30); rules out any test that needs technical repeats within a biological repeat
 - Field: one cell per field (owner); position_id is synthetic ('<siRNA>|<repeat>|cellNNN', numbered by Fiji's row number); image_file is 'unrecorded'
 - Field table: one field per cell (owner's statement); empty fields: not applicable (fields were images of chosen cells)
 - Field selection: not stated (cells were segmented manually; one cell per image by the owner's account)
@@ -54,14 +54,14 @@ _Written 2026-09-30, before any MorphoCoverage run. These are expectations to ch
 - Per-cell precision rules should fail for Area in most condition x repeat groups: Area is right-skewed (skewness 1.9-2.6) with a coefficient of variation of 0.43-0.68, and the groups hold only 11-27 cells. This is the opposite of the filopodia screen, where 76-113 cells per condition were collected.
 - AR in siCTRL is far more variable (SD 2.28, mean 4.25) than in siCCT8 (SD 0.71-0.85): per-condition sufficiency should differ between control and knockdown, with siCTRL needing the most cells.
 - With fields = cells, the field-level design effect should be about 1.
-- The condition contrast within a repeat cannot be tested (the technical repeat is unrecorded, one unit per side). The effect sizes should instead point the same way in every repeat: Area and AR lower in 3/3 repeats for both siRNAs.
+- The condition contrast within a repeat cannot be tested (one well per siRNA and repeat, one unit per side). The effect sizes should instead point the same way in every repeat: Area and AR lower in 3/3 repeats for both siRNAs.
 - The AR effect (d about 1.55) needs far fewer cells to show than the Area effect (d 0.44-0.57); any effort estimate for the contrast should rank Area, and siCCT8#5 in particular, as under-sampled.
 - Repeat 3 is the smallest (11 siCTRL cells, 15-17 per siRNA) and should be singled out as the weakest group.
 
 ## 5. Traps for an analyst
 
 - One cell per field is the owner's statement; the images are not identified, so field identities are synthetic. Fiji's Slice column (source_slice) is the z-plane each outline was drawn on (owner's statement, 2026-09-30), not an image index; it is not a z coordinate of the tables, since the outline is one plane of a 3D cell.
-- The coverslip or well (technical repeat) is not recorded: no test within a biological repeat is possible.
+- One well per siRNA and repeat (technical repeat 'single'): no test within a biological repeat is possible; cells are not independent replicates.
 - Cells were segmented manually and the cell-selection rule is not stated: a chosen, not random, sample of cells.
 - The intensity columns (Mean ... RawIntDen) were measured on processed RGB projections and are not features here; positions, orientations and bounding boxes are not features either.
 - The published plots clip the axes (area to 1000 um^2, AR to 10); the statistics use every cell.

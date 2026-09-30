@@ -52,8 +52,8 @@ SOURCE_COLUMNS = ["Condition", "Repeat", " ", *MEASUREMENTS, "Ch", "Slice", *FER
 # Fiji's bookkeeping columns, kept under a source_ prefix: they are not image axes of the
 # stored tables (the channel of an RGB projection; the slice the outline was drawn on).
 RENAMED = {" ": "source_roi", "Ch": "source_channel", "Slice": "source_slice"}
-# The coverslip and the image of each cell are not in the deposit.
-UNRECORDED = "unrecorded"
+# One well per siRNA per repeat (owner, 2026-09-30); the images are not in the deposit.
+SINGLE, UNRECORDED = "single", "unrecorded"
 FIELD_KEY = ["condition", "biological_repeat", "technical_repeat", "position_id"]
 
 
@@ -75,7 +75,7 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """``(objects, fovs)``: one cell per field (the owner's statement), MorphoBricks columns.
 
     - condition: the siRNA (``Condition``); biological_repeat: ``Repeat`` (1-3, one experiment).
-    - technical_repeat: ``unrecorded`` (the coverslip or well of each cell is not recorded).
+    - technical_repeat: ``single`` (one well per siRNA per repeat, the owner's statement).
     - position_id: a synthetic, stable identifier of the field holding the cell, numbered by
       Fiji's row number within its condition and repeat; image_file is ``unrecorded``.
     - label_id: 1, one cell per field. The measurements keep their Fiji names and values.
@@ -83,7 +83,7 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     table = source.rename(columns={"Condition": "condition", **RENAMED})
     table["condition"] = table["condition"].astype(str)
     table["biological_repeat"] = source["Repeat"].astype(int).astype(str)
-    table["technical_repeat"] = UNRECORDED
+    table["technical_repeat"] = SINGLE
     table["image_file"] = UNRECORDED
     table["label_id"] = 1
     if table.duplicated(["condition", "biological_repeat", "source_roi"]).any():

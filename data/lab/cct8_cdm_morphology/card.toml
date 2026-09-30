@@ -67,7 +67,7 @@ statistics = { value = "randomization test with Cohen's d, 10,000 iterations, Bo
 experiment = "not applicable (one experiment)"
 condition = "the siRNA (source column 'Condition')"
 biological_repeat = "'1'-'3' (source column 'Repeat')"
-technical_repeat = "unrecorded (the coverslip or well of each cell is not recorded; to confirm by the owner); rules out any test that needs technical repeats within a biological repeat"
+technical_repeat = "single: each siRNA was imaged in one well per biological repeat (owner's statement, 2026-09-30); rules out any test that needs technical repeats within a biological repeat"
 field = "one cell per field (owner); position_id is synthetic ('<siRNA>|<repeat>|cellNNN', numbered by Fiji's row number); image_file is 'unrecorded'"
 observation = "one cell; label_id = 1"
 fov_table_source = "one field per cell (owner's statement); empty fields: not applicable (fields were images of chosen cells)"
@@ -88,7 +88,7 @@ cells_per_condition_and_repeat = "11-27"
 
 [columns]
 renamed = { Condition = "condition", Repeat = "biological_repeat", " " = "source_roi (Fiji's row number)", Ch = "source_channel", Slice = "source_slice (the z-plane the outline was drawn on, owner's statement, 2026-09-30)" }
-added = ["technical_repeat (unrecorded)", "image_file (unrecorded)", "position_id (synthetic)", "label_id (1)", "source_row (spreadsheet row, 1 = header)"]
+added = ["technical_repeat (single)", "image_file (unrecorded)", "position_id (synthetic)", "label_id (1)", "source_row (spreadsheet row, 1 = header)"]
 features = { "Area" = "area of the cell outline (um^2)", "AR" = "aspect ratio, major/minor axis of the fitted ellipse", "Circ." = "circularity, 4 pi area / perimeter^2 (1 = circle)", "Round" = "roundness, 4 area / (pi major^2)", "Solidity" = "area / convex hull area", "Perim." = "perimeter (um)", "Major" = "ellipse major axis (um)", "Minor" = "ellipse minor axis (um)", "Feret" = "longest caliper diameter (um)", "MinFeret" = "shortest caliper diameter (um)" }
 
 [[claims]]
@@ -127,7 +127,7 @@ items = [
   "Per-cell precision rules should fail for Area in most condition x repeat groups: Area is right-skewed (skewness 1.9-2.6) with a coefficient of variation of 0.43-0.68, and the groups hold only 11-27 cells. This is the opposite of the filopodia screen, where 76-113 cells per condition were collected.",
   "AR in siCTRL is far more variable (SD 2.28, mean 4.25) than in siCCT8 (SD 0.71-0.85): per-condition sufficiency should differ between control and knockdown, with siCTRL needing the most cells.",
   "With fields = cells, the field-level design effect should be about 1.",
-  "The condition contrast within a repeat cannot be tested (the technical repeat is unrecorded, one unit per side). The effect sizes should instead point the same way in every repeat: Area and AR lower in 3/3 repeats for both siRNAs.",
+  "The condition contrast within a repeat cannot be tested (one well per siRNA and repeat, one unit per side). The effect sizes should instead point the same way in every repeat: Area and AR lower in 3/3 repeats for both siRNAs.",
   "The AR effect (d about 1.55) needs far fewer cells to show than the Area effect (d 0.44-0.57); any effort estimate for the contrast should rank Area, and siCCT8#5 in particular, as under-sampled.",
   "Repeat 3 is the smallest (11 siCTRL cells, 15-17 per siRNA) and should be singled out as the weakest group.",
 ]
@@ -135,7 +135,7 @@ items = [
 [[caveats]]
 text = "One cell per field is the owner's statement; the images are not identified, so field identities are synthetic. Fiji's Slice column (source_slice) is the z-plane each outline was drawn on (owner's statement, 2026-09-30), not an image index; it is not a z coordinate of the tables, since the outline is one plane of a 3D cell."
 [[caveats]]
-text = "The coverslip or well (technical repeat) is not recorded: no test within a biological repeat is possible."
+text = "One well per siRNA and repeat (technical repeat 'single'): no test within a biological repeat is possible; cells are not independent replicates."
 [[caveats]]
 text = "Cells were segmented manually and the cell-selection rule is not stated: a chosen, not random, sample of cells."
 [[caveats]]
