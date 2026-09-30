@@ -148,3 +148,19 @@ repeat (owner's decision). No dataset is ❌ any more:
   9-11 positions a side, 2 are too small to settle.
 - The 5% precision of each mean is kept as a secondary line: met in 0 of 54, 0 of 9 and 0 of 18
   groups.
+
+## 2026-09-30 — fourth run: planning the next experiment
+
+Question 9 ends with a plan: the biological repeats a paired test across repeats needs (80% power,
+Bonferroni-corrected 0.05), with the fields a side acquired and with twice as many.
+
+- **Filopodia screen** (Bonferroni over 12): the strong hits (CCT8, CSNK1A1, SCRIB) need 5-6
+  repeats; MINK1 8-10; NF2 11-16. Twice the cells change little for most: the variation between
+  repeats dominates; where the repeats agree (siMINK1#3, SD between repeats 0) twice the cells save
+  3 repeats.
+- **CDM shape** (over 2): 9-11 repeats with the cells imaged, 6-9 with twice as many.
+- **Glioma tracks** (over 4): CCT8 needs 6 repeats; the CCT7 effects are too small to plan for
+  (more than 30).
+- **Pilots**: cut to 2 repeats, every dataset still gets a plan; cut to 1, the report says the
+  variation between repeats needs a second repeat and question 2 gives the fields within a repeat
+  (tests/test_repeat_plan.py).
