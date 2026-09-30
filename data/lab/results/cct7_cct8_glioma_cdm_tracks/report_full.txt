@@ -1,0 +1,703 @@
+❌ What is in the dataset
+  590 tracks in 133 acquired fields; a field is identified by condition, biological_repeat, technical_repeat, position_id.
+  19 feature columns: Mean Speed, Median Speed, Max Speed, Speed Standard Deviation, Total Distance Traveled, Mean Speed Rolling, Median Speed Rolling, Max Speed Rolling, Min Speed Rolling Rolling, Speed Standard Deviation Rolling, Total Distance Traveled Rolling, Directionality and 7 more.
+  18 technical repeats (technical_repeat, a well or a dish within a repeat, 1 per condition and repeat).
+  5 conditions (condition: siCTRL, siCCT7#3, siCCT7#6, siCCT8#5, siCCT8#8); 6 repeats (biological_repeat: CCT7_1, CCT7_2, CCT7_3, CCT8_1, CCT8_2, CCT8_3).
+    condition  biological_repeat  fields  empty  tracks  technical repeats
+    siCTRL     CCT7_1                  8      0      30                  1
+    siCTRL     CCT7_2                  7      0      23                  1
+    siCTRL     CCT7_3                  5      0      22                  1
+    siCTRL     CCT8_1                  7      0      31                  1
+    siCTRL     CCT8_2                  9      0      39                  1
+    siCTRL     CCT8_3                  8      0      39                  1
+    siCCT7#3   CCT7_1                  7      0      28                  1
+    siCCT7#3   CCT7_2                  8      0      34                  1
+    siCCT7#3   CCT7_3                  7      0      30                  1
+    siCCT7#6   CCT7_1                  7      0      29                  1
+    siCCT7#6   CCT7_2                  8      0      27                  1
+    siCCT7#6   CCT7_3                  6      0      36                  1
+    siCCT8#5   CCT8_1                  8      0      37                  1
+    siCCT8#5   CCT8_2                  8      0      40                  1
+    siCCT8#5   CCT8_3                  7      0      42                  1
+    siCCT8#8   CCT8_1                  8      0      32                  1
+    siCCT8#8   CCT8_2                  8      0      40                  1
+    siCCT8#8   CCT8_3                  7      0      31                  1
+  Values: as given (not normalised).
+  ✅ Data checks: no warning.
+
+  ❌ Data integrity — 3 findings in 6 fields (structure to inspect, not a judgment)
+    Exact checks for copied data, to 6 significant digits: 133 fields and 590 tracks checked, on Mean
+    Speed, Median Speed, Max Speed, Speed Standard Deviation, Total Distance Traveled and 14 more.
+    Fields are named condition · biological_repeat · technical_repeat · position_id.
+    - copied field: siCCT7#3 · CCT7_2 · B5 · B5_04 and siCCT7#3 · CCT7_2 · B5 · B5_04-1 (5
+      observations): the same observations in the same order (to 6 significant digits).
+    - repeated block: siCCT8#5 · CCT8_3 · B2 · B2_01 and siCCT8#5 · CCT8_3 · B2 · B2_02 (6
+      observations): 6 consecutive observations are the same (to 6 significant digits), from
+      observation 1 of the first field and 1 of the second.
+    - repeated block: siCTRL · CCT8_3 · B1 · B1_03 and siCTRL · CCT8_3 · B1 · B1_04 (5 observations):
+      5 consecutive observations are the same (to 6 significant digits), from observation 1 of the
+      first field and 1 of the second.
+    Check where these fields came from (a file read or exported twice, a field identifier reused, a
+    copy in another unit, a merge that repeats rows) before reading the answers.
+    ⚠️ Whole fields compared: 63 of 133; 70 fields held fewer than 5 observations.
+    Assumptions:
+      - Out of reach of these checks: a copy re-rounded to fewer than 6 significant digits, a block of
+        fewer than 10 observations, a copy with feature columns swapped or a feature (or a value)
+        missing in one copy only, and observations pasted into two or more other fields (they read as
+        recurring).
+
+What this acquisition was asked to preserve
+  - Population summary: the mean of Mean Speed over all tracks, within 5% and 2.5% of its value on
+    held-back fields.
+  - Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), so the answers
+    below speak of the mean, not of the distribution of phenotypes.
+  - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
+    state was sampled enough.
+  - Representation: readout Mean Speed; 19 declared feature columns for unusual tracks (against the
+    control tracks, their repeats pooled) and new phenotypes; definition of new: support_novelty.
+  - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
+    chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
+    It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
+    benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
+    few fields (few_fovs).
+  - Stopping rules: JCB rule, per track, 5% [scalar_precision_object_upper95 (feature=Mean Speed,
+    target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and JCB rule, per field, 5%
+    [scalar_precision_fov_upper95 (feature=Mean Speed, target_cv=0.05, resampling_unit=fov,
+    sd_estimate=upper_95)] (the default, rules=None: the JCB rule per track and per field at 5%);
+    assessed in the report, calibrated by optimise, run live. The JCB rules stop on the averaging
+    CV: a CV of 5% is one standard error of 5% of the mean, not a bound of ±5% on its error; whether
+    the mean is within 5% and 2.5% is judged on held-back fields (report, optimise), never by the
+    rules.
+  - Acquisition order: no acquisition_order_col or stage_cols, so nothing is checked and every stop
+    treats the fields as a random sample of the well's positions; a raster over a spatial trend can
+    stop early. Image fields in a random or dispersed order.
+  - Live decision: the population objective (population summary); a rule decides only the targets it
+    has evidence about, and a target no rule decides stays unsupported rather than assumed adequate.
+
+⚠️ Foundation: why count fields, and not only objects?
+  How variable are the fields? Feature Mean Speed; analysis groups:
+    condition · biological_repeat · technical_repeat.
+    group                   fields  tracks  per field  between  design effect  error ratio  differ
+    siCCT7#3 · CCT7_1 · B5       7      28          4     0.5%            1.0          1.0     14%
+    siCCT7#3 · CCT7_2 · B5       8      34        4.2       0%            1.0          1.0     13%
+    siCCT7#3 · CCT7_3 · B5       7      30        4.3      28%            2.0          1.4     14%
+    siCCT7#6 · CCT7_1 · B6       7      29        4.1      15%            1.5          1.2     14%
+    siCCT7#6 · CCT7_2 · B6       8      27        3.4       0%            1.0          1.0      0%
+    siCCT7#6 · CCT7_3 · B6       6      36          6      31%            2.7          1.6     33%
+    siCTRL · CCT7_1 · B4         8      30        3.8      40%            2.3          1.5     25%
+    siCTRL · CCT7_2 · B4         7      23        3.3      45%            2.3          1.5     29%
+    siCTRL · CCT7_3 · B4         5      22        4.4       0%            1.0          1.0      0%
+    siCCT8#5 · CCT8_1 · B2       8      37        4.6       0%            1.0          1.0      0%
+    siCCT8#5 · CCT8_2 · B2       8      40          5       0%            1.0          1.0      0%
+    siCCT8#5 · CCT8_3 · B2       7      42          6       0%            1.0          1.0      0%
+    siCCT8#8 · CCT8_1 · B3       8      32          4       5%            1.2          1.1      0%
+    siCCT8#8 · CCT8_2 · B3       8      40          5       0%            1.0          1.0      0%
+    siCCT8#8 · CCT8_3 · B3       7      31        4.4      16%            1.6          1.3     14%
+    siCTRL · CCT8_1 · B1         7      31        4.4       8%            1.3          1.1     14%
+    siCTRL · CCT8_2 · B1         9      39        4.3       0%            1.0          1.0      0%
+    siCTRL · CCT8_3 · B1         8      39        4.9       0%            1.0          1.0      0%
+  Between: the share of the variance that lies between fields. Design effect: how many times the
+    variance of a mean from whole fields is that of one from as many random tracks; error ratio: how
+    many times SD / sqrt(n) understates its error (the square root). Differ: the share of fields
+    whose mean differs more than random tracks would let it (about 5% expected).
+
+  Would the JCB object-count rule hold with whole fields? Feature Mean Speed; reference mean: the
+    mean of all siCTRL tracks of the same biological repeat; analysis groups:
+    condition · biological_repeat · technical_repeat.
+    group                   target       tracks asked  fields taken  SD/sqrt(n) → real   as fields  of
+    siCCT7#3 · CCT7_1 · B5  5% missed              28           7.4  5% → 5% (1.1x)         6 (27)   7
+    siCCT7#3 · CCT7_1 · B5  2.5% missed           110          27.9  2% → 3% (1.1x)       22 (107)   7
+    siCCT7#3 · CCT7_2 · B5  5% met                 57          13.8  5% → 4% (0.9x)        14 (55)   8
+    siCCT7#3 · CCT7_2 · B5  2.5% met              226          53.6  2% → 2% (0.9x)       53 (219)   8
+    siCCT7#3 · CCT7_3 · B5  5% missed              37           9.0  5% → 7% (1.4x)        16 (74)   7
+    siCCT7#3 · CCT7_3 · B5  2.5% missed           146          34.5  2% → 3% (1.4x)       61 (293)   7
+    siCCT7#6 · CCT7_1 · B6  5% missed              17           4.5  5% → 6% (1.2x)         6 (28)   7
+    siCCT7#6 · CCT7_1 · B6  2.5% missed            68          16.8  2% → 3% (1.2x)       23 (109)   7
+    siCCT7#6 · CCT7_2 · B6  5% met                 28           8.7  5% → 3% (0.6x)         3 (12)   8
+    siCCT7#6 · CCT7_2 · B6  2.5% met              109          32.7  2% → 1% (0.5x)        11 (46)   8
+    siCCT7#6 · CCT7_3 · B6  5% missed              17           3.3  5% → 7% (1.6x)         8 (44)   6
+    siCCT7#6 · CCT7_3 · B6  2.5% missed            66          11.5  2% → 4% (1.6x)       29 (174)   6
+    siCTRL · CCT7_1 · B4    5% missed              27           7.6  5% → 8% (1.6x)        12 (48)   8
+    siCTRL · CCT7_1 · B4    2.5% missed           105          28.4  2% → 4% (1.6x)       46 (189)   8
+    siCTRL · CCT7_2 · B4    5% missed              49          15.3  5% → 5% (1.1x)       67 (322)   7
+    siCTRL · CCT7_2 · B4    2.5% missed           195          59.8  2% → 3% (1.1x)     266 (1287)   7
+    siCTRL · CCT7_3 · B4    5% met                 25           6.1  5% → 4% (0.9x)         5 (36)   5
+    siCTRL · CCT7_3 · B4    2.5% met              100          23.2  2% → 2% (0.9x)       17 (141)   5
+    siCCT8#5 · CCT8_1 · B2  5% met                 49          11.1  5% → 4% (0.9x)        10 (39)   8
+    siCCT8#5 · CCT8_1 · B2  2.5% met              196          42.8  2% → 2% (0.9x)       38 (155)   8
+    siCCT8#5 · CCT8_2 · B2  5% met                 44           9.2  5% → 4% (0.7x)         5 (18)   8
+    siCCT8#5 · CCT8_2 · B2  2.5% met              176          35.7  2% → 2% (0.8x)        18 (71)   8
+    siCCT8#5 · CCT8_3 · B2  5% met                 15           3.0  5% → 3% (0.6x)          2 (6)   7
+    siCCT8#5 · CCT8_3 · B2  2.5% met               60          10.5  2% → 1% (0.6x)         5 (24)   7
+    siCCT8#8 · CCT8_1 · B3  5% met                 38           9.9  5% → 5% (1.0x)        15 (60)   8
+    siCCT8#8 · CCT8_1 · B3  2.5% met              151          38.2  2% → 2% (1.0x)       58 (239)   8
+    siCCT8#8 · CCT8_2 · B3  5% met                 42           8.9  5% → 2% (0.5x)         5 (21)   8
+    siCCT8#8 · CCT8_2 · B3  2.5% met              166          33.7  2% → 1% (0.5x)        20 (81)   8
+    siCCT8#8 · CCT8_3 · B3  5% met                 12           3.2  5% → 5% (1.0x)         6 (29)   7
+    siCCT8#8 · CCT8_3 · B3  2.5% met               47          11.1  2% → 2% (1.0x)       24 (115)   7
+    siCTRL · CCT8_1 · B1    5% missed              71          16.5  5% → 5% (1.0x)       21 (101)   7
+    siCTRL · CCT8_1 · B1    2.5% missed           281          63.8  2% → 3% (1.1x)       84 (404)   7
+    siCTRL · CCT8_2 · B1    5% met                 62          14.7  5% → 4% (0.8x)        11 (39)   9
+    siCTRL · CCT8_2 · B1    2.5% met              248          57.7  2% → 2% (0.8x)       43 (156)   9
+    siCTRL · CCT8_3 · B1    5% met                 48          10.4  5% → 4% (0.8x)        11 (43)   8
+    siCTRL · CCT8_3 · B1    2.5% met              192          39.9  2% → 2% (0.8x)       42 (171)   8
+  Target: met or missed by the real error. Tracks asked: the rule's number of tracks; fields taken:
+    the mean number of whole fields drawn at random until that many; SD/sqrt(n) → real: the rule's
+    predicted error of their mean, then its real error (the SD of that mean over the draws), both as
+    shares of the reference mean, and real over predicted. As fields: the fields the rule asks for
+    with the field as the unit, from the point SD (in brackets: from the upper-95 SD), of the
+    acquired fields ('of').
+  ⚠️ The control means of the repeats differ by 1.8x (biological_repeat=CCT8_1: 0.355,
+     biological_repeat=CCT7_3: 0.625); each repeat is judged against its own control, but a shift
+     that large may be a batch effect or a change of units (a feature exported in other units in one
+     repeat)
+
+➖ 1. Can these features detect what I care about?
+  Not assessed: declare a positive control (and a reference) with representation_control.
+
+❌ 2. Did I image enough?
+  Analysis groups: condition · biological_repeat · technical_repeat.
+  Each rule by its own threshold (not a held-out check), in 18 groups:
+    rule                     met in   random orders: median (10-90%)
+    JCB rule, per track, 5%  0 of 18  never
+    JCB rule, per field, 5%  0 of 18  5.2 (3-7); 3 of 90 orders
+    nothing new (≤5%)        0 of 18  never
+  First met after: the fields acquired when it first said enough; random: the median of the groups'
+    medians, 10-90% from the lowest to the highest group.
+  Rules: JCB rule, per track, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05; config
+    17ac4f49f10d88ce); JCB rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05;
+    config d757b01eda57fc1e); nothing new (≤5%) (support_novelty: lofo_novel_fov_upper <= 0.05; config
+    21704f6e65a65ac0).
+  Per group below: whether each rule was met by its own threshold, where it was first met, and the
+    fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
+    without them; only where the acquired fields are enough).
+
+  siCCT7#3 · CCT7_1 · B5 — 7 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
+    Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
+    Seen in few fields: 0 of 7 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
+      anything new (52 at the current rate of new fields).
+
+  siCCT7#3 · CCT7_2 · B5 — 8 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
+    Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
+    Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
+      interval 3%-65%): to see it once with 95% probability, about 11 independent representative
+      fields, up to 93 at the low end of the interval.
+    Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
+      anything new (51 at the current rate of new fields).
+
+  siCCT7#3 · CCT7_3 · B5 — 7 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
+    Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
+    Seen in few fields: 1 of 7 fields hold a state seen in 2 to 3 fields; together 14% of fields (95%
+      interval 0.4%-58%): to see it once with 95% probability, about 20 independent representative
+      fields, up to 829 at the low end of the interval.
+    Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none shows
+      anything new (never at it of new fields).
+
+  siCCT7#6 · CCT7_1 · B6 — 7 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
+    Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
+    Seen in few fields: 1 of 7 fields hold a state seen in 2 to 3 fields; together 14% of fields (95%
+      interval 0.4%-58%): to see it once with 95% probability, about 20 independent representative
+      fields, up to 829 at the low end of the interval.
+    Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
+      anything new (52 at the current rate of new fields).
+
+  siCCT7#6 · CCT7_2 · B6 — 8 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         7 (7-7); 1 of 5 orders                   –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 25% (nominal 95% bound 60%); 2 of 8 fields showed a state counted as new.
+    Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
+    Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields (95%
+      interval 0.3%-53%): to see it once with 95% probability, about 23 independent representative
+      fields, up to 947 at the low end of the interval.
+    Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 116 more fields if none
+      shows anything new (never at it of new fields).
+
+  siCCT7#6 · CCT7_3 · B6 — 6 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 17% (nominal 95% bound 58%); 1 of 6 fields showed a state counted as new.
+    Not yet seen: at most 39% of fields (95% confidence, about 3 / 6).
+    Seen in few fields: 1 of 6 fields hold a state seen in 2 to 3 fields; together 17% of fields (95%
+      interval 0.4%-64%): to see it once with 95% probability, about 17 independent representative
+      fields, up to 710 at the low end of the interval.
+    Fields still needed: at least 53 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 87 more fields if none shows
+      anything new (never at it of new fields).
+
+  siCTRL · CCT7_1 · B4 — 8 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
+    Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
+    Seen in few fields: 3 of 8 fields hold a state seen in 2 to 3 fields; together 38% of fields (95%
+      interval 9%-76%): to see it once with 95% probability, about 7 independent representative
+      fields, up to 34 at the low end of the interval.
+    Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none shows
+      anything new (never at it of new fields).
+
+  siCTRL · CCT7_2 · B4 — 7 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
+    Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
+    Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields (95%
+      interval 4%-71%): to see it once with 95% probability, about 9 independent representative
+      fields, up to 81 at the low end of the interval.
+    Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
+      anything new (52 at the current rate of new fields).
+
+  siCTRL · CCT7_3 · B4 — 5 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 20% (nominal 95% bound 66%); 1 of 5 fields showed a state counted as new.
+    Not yet seen: at most 45% of fields (95% confidence, about 3 / 5).
+    Seen in few fields: 1 of 5 fields hold a state seen in 2 to 3 fields; together 20% of fields (95%
+      interval 0.5%-72%): to see it once with 95% probability, about 14 independent representative
+      fields, up to 592 at the low end of the interval.
+    Fields still needed: at least 54 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 88 more fields if none shows
+      anything new (never at it of new fields).
+
+  siCCT8#5 · CCT8_1 · B2 — 8 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
+    Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
+    Seen in few fields: 3 of 8 fields hold a state seen in 2 to 3 fields; together 38% of fields (95%
+      interval 9%-76%): to see it once with 95% probability, about 7 independent representative
+      fields, up to 34 at the low end of the interval.
+    Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none shows
+      anything new (never at it of new fields).
+
+  siCCT8#5 · CCT8_2 · B2 — 8 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
+    Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
+    Seen in few fields: 0 of 8 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
+      anything new (51 at the current rate of new fields).
+
+  siCCT8#5 · CCT8_3 · B2 — 7 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         3.5 (0.6; 3-4); 2 of 5 orders            –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
+    Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
+    Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields (95%
+      interval 4%-71%): to see it once with 95% probability, about 9 independent representative
+      fields, up to 81 at the low end of the interval.
+    Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
+      anything new (52 at the current rate of new fields).
+
+  siCCT8#8 · CCT8_1 · B3 — 8 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
+    Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
+    Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
+      interval 3%-65%): to see it once with 95% probability, about 11 independent representative
+      fields, up to 93 at the low end of the interval.
+    Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
+      anything new (51 at the current rate of new fields).
+
+  siCCT8#8 · CCT8_2 · B3 — 8 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
+    Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
+    Seen in few fields: 3 of 8 fields hold a state seen in 2 to 3 fields; together 38% of fields (95%
+      interval 9%-76%): to see it once with 95% probability, about 7 independent representative
+      fields, up to 34 at the low end of the interval.
+    Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
+      anything new (51 at the current rate of new fields).
+
+  siCCT8#8 · CCT8_3 · B3 — 7 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
+    Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
+    Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields (95%
+      interval 10%-82%): to see it once with 95% probability, about 6 independent representative
+      fields, up to 29 at the low end of the interval.
+    Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
+      anything new (52 at the current rate of new fields).
+
+  siCTRL · CCT8_1 · B1 — 7 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
+    Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
+    Seen in few fields: 1 of 7 fields hold a state seen in 2 to 3 fields; together 14% of fields (95%
+      interval 0.4%-58%): to see it once with 95% probability, about 20 independent representative
+      fields, up to 829 at the low end of the interval.
+    Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
+      anything new (52 at the current rate of new fields).
+
+  siCTRL · CCT8_2 · B1 — 9 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 0% (nominal 95% bound 28%); 0 of 9 fields showed a state counted as new.
+    Not yet seen: at most 28% of fields (95% confidence, about 3 / 9).
+    Seen in few fields: 2 of 9 fields hold a state seen in 2 to 3 fields; together 22% of fields (95%
+      interval 3%-60%): to see it once with 95% probability, about 12 independent representative
+      fields, up to 105 at the low end of the interval.
+    Fields still needed: at least 50 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 50 more fields if none shows
+      anything new (50 at the current rate of new fields).
+
+  siCTRL · CCT8_3 · B1 — 8 fields acquired:
+    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per track, 5%  undefined  never                                    –
+    JCB rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)        no         never                                    –
+    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
+      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+      'track').
+    One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
+    Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
+    Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields (95%
+      interval 0.3%-53%): to see it once with 95% probability, about 23 independent representative
+      fields, up to 947 at the low end of the interval.
+    Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none shows
+      anything new (never at it of new fields).
+
+  'New' means a cluster of at least 3 similar observations (each linked to another by a step within
+    the distance, so a more spread-out state is not counted) with no other FOV within distance 4.3589
+    (robust_standardize), on 19 features (Mean Speed, Median Speed, Max Speed and 16 more); two
+    observations of a state that varies by one SD per feature sit about 6.2 apart.
+
+  ⚠️ JCB rule, per track, 5% is undefined in all 18 groups: the object-unit JCB criterion assumes
+     observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
+     'track'.
+  ⚠️ JCB rule, per field, 5%, in 1 of 18 groups (siCCT8#5 · CCT8_1 · B2): the SD between tracks
+     exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
+  ⚠️ JCB rule, per field, 5% was met and then lost as more fields arrived, in 2 of 18 groups.
+  ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of the
+     well's positions; a raster over a spatial trend can stop early.
+  Assumptions:
+    - A state below the not-yet-seen bound can remain: rarer states can remain.
+    - A state seen in few fields (fields counted as new are not among them) is not new to the next
+      field but is not established either: it counts as recurrent, so look at those fields before
+      calling the sample settled.
+    - Fields that cluster a state need more fields than the planning numbers.
+    - JCB rule, per track, 5% treats tracks as independent draws: it assumes a spatially uniform
+      sample.
+    - The next-field bound is approximate: the leave-one-field-out outcomes share their reference
+      fields.
+    - The novelty bounds treat fields as independent, representative draws: neighbouring fields
+      acquired in a raster over patchy states make them too low.
+    - Every novelty bound holds at a number of fields fixed in advance, not at the first field where
+      it passes: stopping there is premature more often than 5% of the time.
+    - A state carried by fewer than 3 similar tracks per field is never counted, however many fields
+      hold it.
+
+⚠️ 3. What is limiting my sampling?
+  Measured quantities (the sampling profile), each with where it holds and its source:
+  - a mean from whole fields varies 1.0 times as much as one from as many random tracks (design
+    effect of the variance between the fields of each group (condition, biological_repeat,
+    technical_repeat), range 1.0-2.7); 6% of fields differ more than random tracks would (5%
+    expected) [median of 18 groups; fov_variability]
+  - unusual tracks: clustered in a few fields (p <= 0.05) in 0 of the 6 groups where it was seen
+    [all groups; fov_clustering]
+  - new states come from 8 fields [all groups; inspect_fovs]
+
+  Unusual tracks: farther from the reference (siCTRL) than all but 1% of reference tracks are from
+    the other reference groups (19 standardized features, 5 nearest neighbours). Groups:
+    condition · biological_repeat · technical_repeat.
+    group                   tracks scored  unusual  share  refits agree  threshold  calibrated
+    siCCT7#3 · CCT7_1 · B5             28        0     0%          100%        5.6  leave-one-group-out
+    siCCT7#3 · CCT7_2 · B5             34        2     6%           33%        5.6  leave-one-group-out
+    siCCT7#3 · CCT7_3 · B5             30        0     0%          100%        5.6  leave-one-group-out
+    siCCT7#6 · CCT7_1 · B6             29        0     0%          100%        5.6  leave-one-group-out
+    siCCT7#6 · CCT7_2 · B6             27        1     4%            0%        5.6  leave-one-group-out
+    siCCT7#6 · CCT7_3 · B6             36        0     0%          100%        5.6  leave-one-group-out
+    siCTRL · CCT7_1 · B4               30        0     0%          100%       5.65  leave-one-group-out
+    siCTRL · CCT7_2 · B4               23        1     4%          100%       5.38  leave-one-group-out
+    siCTRL · CCT7_3 · B4               22        0     0%          100%       6.66  leave-one-group-out
+    siCCT8#5 · CCT8_1 · B2             37        2     5%          100%        5.6  leave-one-group-out
+    siCCT8#5 · CCT8_2 · B2             40        0     0%          100%        5.6  leave-one-group-out
+    siCCT8#5 · CCT8_3 · B2             42        1     2%          100%        5.6  leave-one-group-out
+    siCCT8#8 · CCT8_1 · B3             32        0     0%          100%        5.6  leave-one-group-out
+    siCCT8#8 · CCT8_2 · B3             40        0     0%          100%        5.6  leave-one-group-out
+    siCCT8#8 · CCT8_3 · B3             31        0     0%          100%        5.6  leave-one-group-out
+    siCTRL · CCT8_1 · B1               31        0     0%          100%       5.89  leave-one-group-out
+    siCTRL · CCT8_2 · B1               39        0     0%          100%       6.18  leave-one-group-out
+    siCTRL · CCT8_3 · B1               39        2     5%           50%       6.19  leave-one-group-out
+  ⚠️ Refits with other reference samples agree on only 0-50% of the unusual tracks in 3 of 18 groups
+     (siCCT7#3 · CCT7_2 · B5, siCCT7#6 · CCT7_2 · B6 and siCTRL · CCT8_3 · B1; below 90%): treat
+     those labels as unstable.
+
+  Are the unusual tracks spread over the fields? Clustered in a few fields (p ≤ 0.05) in none of 6
+    groups where seen. Not seen in siCCT7#3 · CCT7_1 · B5 (28 labelled tracks in 7 fields),
+    siCCT7#3 · CCT7_3 · B5 (30 labelled tracks in 7 fields), siCCT7#6 · CCT7_1 · B6 (29 labelled
+    tracks in 7 fields) and 9 more.
+    group                   tracks  in fields  if random  ratio  p  holding ≥3  reference holding  to see, 95%  if random
+    siCCT7#3 · CCT7_2 · B5  2 (6%)     2 of 8        1.9    0.9  1      0 of 8       0 of 44 (0%)            –          –
+    siCCT7#6 · CCT7_2 · B6  1 (4%)     1 of 8        1.0    1.0  1      0 of 8       0 of 44 (0%)            –          –
+    siCTRL · CCT7_2 · B4    1 (4%)     1 of 7        1.0    1.0  1      0 of 7       0 of 37 (0%)            –          –
+    siCCT8#5 · CCT8_1 · B2  2 (5%)     2 of 8        1.9    0.9  1      0 of 8       0 of 44 (0%)            –          –
+    siCCT8#5 · CCT8_3 · B2  1 (2%)     1 of 7        1.0    1.0  1      0 of 7       0 of 44 (0%)            –          –
+    siCTRL · CCT8_3 · B1    2 (5%)     2 of 8        1.9    0.9  1      0 of 8       0 of 36 (0%)            –          –
+  In fields: the fields holding the state; if random: the fields as many random tracks would fill;
+    p: how often shuffled labels reach as few fields. To see: the fields to see it from its field
+    incidence (up to: from the low end of its interval), against the fields a count of random tracks
+    asks for.
+  Technical repeats holding each state:
+    condition · biological_repeat  state           held by
+    siCCT7#3 · CCT7_2              unusual tracks  0 of 1 technical repeat
+    siCCT7#6 · CCT7_2              unusual tracks  0 of 1 technical repeat
+    siCTRL · CCT7_2                unusual tracks  0 of 1 technical repeat
+    siCCT8#5 · CCT8_1              unusual tracks  0 of 1 technical repeat
+    siCCT8#5 · CCT8_3              unusual tracks  0 of 1 technical repeat
+    siCTRL · CCT8_3                unusual tracks  0 of 1 technical repeat
+  ⚠️ No field holds at least 3 unusual tracks in siCCT7#3 · CCT7_2 · B5, siCCT7#6 · CCT7_2 · B6,
+     siCTRL · CCT7_2 · B4 and 3 more, so no field count is given there.
+
+  The reference of the unusual tracks pools the control tracks of 6 repeats: a shift shared by one repeat (a staining or plating batch) makes its tracks read as unusual, so compare the unusual share between repeats before reading it as biology.
+  Assumptions:
+    - The field counts assume fields from independent technical repeats: a state held by few
+      technical repeats is clustered in their fields, so seeing it needs fields from more technical
+      repeats than the count says (no two-level plan is made).
+
+⚠️ 6. Which fields should I look at?
+  Analysis groups: condition · biological_repeat · technical_repeat.
+  siCCT7#3 · CCT7_3 · B5: fields to reopen before trusting the result
+    B5_01-1 (image_file unrecorded): 5 tracks of a state no other field shows.
+  siCCT7#6 · CCT7_2 · B6: fields to reopen before trusting the result
+    B6_01-1 (image_file unrecorded): 3 tracks of a state no other field shows.
+    B6_05-1 (image_file unrecorded): 3 tracks of a state no other field shows.
+  siCCT7#6 · CCT7_3 · B6: fields to reopen before trusting the result
+    B6_05-1 (image_file unrecorded): 5 tracks of a state no other field shows.
+  siCTRL · CCT7_1 · B4: fields to reopen before trusting the result
+    B4_02 (image_file unrecorded): 4 tracks of a state no other field shows.
+    B4_04 (image_file unrecorded): 1 track; the median is 4.
+  siCTRL · CCT7_2 · B4: fields to reopen before trusting the result
+    B4_08-1 (image_file unrecorded): removing it lowers the field-weighted mean of Mean Speed by 12%;
+      1 track; the median is 3.
+  siCTRL · CCT7_3 · B4: fields to reopen before trusting the result
+    B4_02-1 (image_file unrecorded): 4 tracks of a state no other field shows.
+  siCCT8#5 · CCT8_1 · B2: fields to reopen before trusting the result
+    B2_04 (image_file unrecorded): 4 tracks of a state no other field shows.
+  siCCT8#8 · CCT8_1 · B3: fields to reopen before trusting the result
+    B3_06 (image_file unrecorded): 1 track; the median is 4.
+  siCTRL · CCT8_3 · B1: fields to reopen before trusting the result
+    B1_04 (image_file unrecorded): 3 tracks of a state no other field shows.
+  None of these is called an error: look at the images to see whether it is biology, technique or
+    simply a large field.
+
+  The data-integrity checks (in the overview) name 6 fields in 3 findings (fields that hold another field's observations, or their own twice); every answer here counts them as independent fields, so look at them first: condition=siCCT7#3, biological_repeat=CCT7_2, technical_repeat=B5, position_id=B5_04, condition=siCCT8#5, biological_repeat=CCT8_3, technical_repeat=B2, position_id=B2_01, condition=siCTRL, biological_repeat=CCT8_3, technical_repeat=B1, position_id=B1_03, condition=siCCT7#3, biological_repeat=CCT7_2, technical_repeat=B5, position_id=B5_04-1, condition=siCCT8#5, biological_repeat=CCT8_3, technical_repeat=B2, position_id=B2_02 and 1 more.
+
+⚠️ 9. Do the conditions differ, and how confidently?
+  Feature Mean Speed, each condition against the control {'condition': 'siCTRL'}, within each
+    biological repeat. The fields of a condition's analysis groups are pooled for this comparison.
+    Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
+    the field as the unit and, where each side has at least two, with the technical repeat
+    (technical_repeat) as the unit.
+    contrast                     fields  tracks    tech. repeats  d tracks  d fields  JCS, every track
+    siCCT7#3 vs siCTRL · CCT7_1  7 vs 8  28 vs 30  1 vs 1         -0.37     -0.83     -0.38
+    siCCT7#6 vs siCTRL · CCT7_1  7 vs 8  29 vs 30  1 vs 1         -0.60     -1.10     -0.54
+    siCCT7#3 vs siCTRL · CCT7_2  8 vs 7  34 vs 23  1 vs 1         0.86      0.76      0.90
+    siCCT7#6 vs siCTRL · CCT7_2  8 vs 7  27 vs 23  1 vs 1         0.55      0.41      0.48
+    siCCT7#3 vs siCTRL · CCT7_3  7 vs 5  30 vs 22  1 vs 1         0.01      0.12      0.02
+    siCCT7#6 vs siCTRL · CCT7_3  6 vs 5  36 vs 22  1 vs 1         -0.46     -0.96     -0.41
+    siCCT8#5 vs siCTRL · CCT8_1  8 vs 7  37 vs 31  1 vs 1         -1.00     -1.89     -0.92
+    siCCT8#8 vs siCTRL · CCT8_1  8 vs 7  32 vs 31  1 vs 1         -0.81     -1.02     -0.71
+    siCCT8#5 vs siCTRL · CCT8_2  8 vs 9  40 vs 39  1 vs 1         -0.59     -1.55     -0.54
+    siCCT8#8 vs siCTRL · CCT8_2  8 vs 9  40 vs 39  1 vs 1         -0.80     -2.14     -0.73
+    siCCT8#5 vs siCTRL · CCT8_3  7 vs 8  42 vs 39  1 vs 1         -1.58     -3.68     -1.27
+    siCCT8#8 vs siCTRL · CCT8_3  7 vs 8  31 vs 39  1 vs 1         -1.71     -3.41     -1.40
+  ⚠️ No randomization test in all 12 contrasts: only one technical repeat (technical_repeat) with
+     observations on one side: its fields cannot stand in for technical repeats, so there is no test.
+
+  Which features separate the conditions? Each of the 19 declared features, every condition against
+    the control {'condition': 'siCTRL'} within each biological repeat: Cohen's d on field means and a
+    randomization test over whole technical repeats (technical_repeat) as in the contrast above,
+    though no contrast could be tested; a test passes the gate when q <= 0.05 (fiberfeatures' gated
+    effect size). Features are ranked by the largest |d| among their passing contrasts (|d| above 20
+    counts as 20).
+    Not ranked because no contrast could be tested (19 features): Directionality (only one technical
+      repeat (technical_repeat) with observations on one side: its fields cannot stand in for
+      technical repeats, so there is no test), Directionality Rolling (only one technical repeat
+      (technical_repeat) with observations on one side: its fields cannot stand in for technical
+      repeats, so there is no test), Max Speed (only one technical repeat (technical_repeat) with
+      observations on one side: its fields cannot stand in for technical repeats, so there is no
+      test), Max Speed Rolling (only one technical repeat (technical_repeat) with observations on one
+      side: its fields cannot stand in for technical repeats, so there is no test), Mean Speed (only
+      one technical repeat (technical_repeat) with observations on one side: its fields cannot stand
+      in for technical repeats, so there is no test), Mean Speed Rolling (only one technical repeat
+      (technical_repeat) with observations on one side: its fields cannot stand in for technical
+      repeats, so there is no test), Median Speed (only one technical repeat (technical_repeat) with
+      observations on one side: its fields cannot stand in for technical repeats, so there is no
+      test), Median Speed Rolling (only one technical repeat (technical_repeat) with observations on
+      one side: its fields cannot stand in for technical repeats, so there is no test), Min Speed
+      Rolling Rolling (only one technical repeat (technical_repeat) with observations on one side: its
+      fields cannot stand in for technical repeats, so there is no test), Spatial Coverage (only one
+      technical repeat (technical_repeat) with observations on one side: its fields cannot stand in
+      for technical repeats, so there is no test), Spatial Coverage Rolling (only one technical repeat
+      (technical_repeat) with observations on one side: its fields cannot stand in for technical
+      repeats, so there is no test), Speed Standard Deviation (only one technical repeat
+      (technical_repeat) with observations on one side: its fields cannot stand in for technical
+      repeats, so there is no test), Speed Standard Deviation Rolling (only one technical repeat
+      (technical_repeat) with observations on one side: its fields cannot stand in for technical
+      repeats, so there is no test), Tortuosity (only one technical repeat (technical_repeat) with
+      observations on one side: its fields cannot stand in for technical repeats, so there is no
+      test), Tortuosity Rolling (only one technical repeat (technical_repeat) with observations on one
+      side: its fields cannot stand in for technical repeats, so there is no test), Total Distance
+      Traveled (only one technical repeat (technical_repeat) with observations on one side: its fields
+      cannot stand in for technical repeats, so there is no test), Total Distance Traveled Rolling
+      (only one technical repeat (technical_repeat) with observations on one side: its fields cannot
+      stand in for technical repeats, so there is no test), Total Turning Angle (only one technical
+      repeat (technical_repeat) with observations on one side: its fields cannot stand in for
+      technical repeats, so there is no test), Total Turning Angle Rolling (only one technical repeat
+      (technical_repeat) with observations on one side: its fields cannot stand in for technical
+      repeats, so there is no test).
+  Assumptions:
+    - The test and the effect sizes compare means: a difference confined to a subpopulation of
+      tracks or to the shape of the distribution is not tested (see the unusual tracks and the rare
+      label).
+    - This describes what these fields support about a difference under this feature; generalizing
+      it needs independent biological repeats, which is the user's inference.
+
+What this dataset cannot tell me
+  ➖ 1. Can these features detect what I care about?: not assessed; needs: declare a positive control
+     (and a reference) with representation_control.
+  ❌ Data integrity: the checks in the overview name 6 fields in 3 findings (fields that hold another
+     field's observations, or their own twice), and every answer counts them as independent fields.
+  ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
+     and this definition of new cannot see.
+  ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
+     redundancy and dispersed orders were not assessed.
+  ⚠️ No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
+     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
+     not seen.
+  Assumptions:
+    - Every answer holds for the stated features, tolerances and definition of new.
+    - Replays, draws and hold-outs describe these samples; they are not independent experiments.
+      Statements across samples count samples or repeats.
+    - A field count that preserved this acquisition is not a protocol until it holds on samples it
+      was not chosen on.
+    - Technical drift between repeats, batches or plates is not assessed: groups are analysed apart,
+      and a shift shared by all fields of a group is not new within it.
+    - Each 'enough' is per technical repeat; the condition mean also varies between technical
+      repeats, which more fields of one technical repeat cannot reduce (question 3; optimise,
+      question 7: more fields or more technical repeats?).
+    - The Foundation, the stopping rules and the inspection's influence and neighbour reasons read
+      the readout (Mean Speed) only; the other declared features (Median Speed, Max Speed, Speed
+      Standard Deviation, Total Distance Traveled, Mean Speed Rolling and 13 more) enter novelty,
+      the representation control, the unusual tracks and the feature ranking, so a heavy tail or a
+      between-well spread in them is not judged by any stopping rule.
+
+Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.

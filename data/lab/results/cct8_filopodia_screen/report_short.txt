@@ -1,0 +1,199 @@
+Microscopist's report — 1686 cells in 1686 fields
+
+At a glance
+  ✅ The data — data checks: no warning; integrity: nothing found
+  ⚠️ Foundation. Why count fields? — variability not estimated in all 54 technical repeats; the JCB
+     count rule missed with whole fields in 4 of 54 technical repeats
+  ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control
+  ❌ 2. Did I image enough? — no rule met in any of all 54 technical repeats
+  ⚠️ 3. What limits my sampling? — labelled states spread like random cells in all 9 groups seen
+  ✅ 6. Which fields should I look at? — no field stands out
+  ⚠️ 9. Do the conditions differ? — 36 contrasts, |d| on field means 0.2-2.4; untested (one
+     technical repeat on a side)
+
+✅ What is in the dataset
+  1686 cells in 1686 fields, none empty; a field is
+    condition · biological_repeat · technical_repeat · position_id.
+  1 feature (Filopodia number); values as given (not normalised).
+  13 conditions (siCTRL, siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siMAP4K4#5 and 7 more), 18
+    repeats (siCCT8_1, siCCT8_2, siCCT8_3, siCSNK1A1_1, siCSNK1A1_2, siCSNK1A1_3 and 12 more), 54
+    technical repeats; 54 analysis groups (condition · biological_repeat · technical_repeat), each
+    analysed apart; 13 to 49 fields per condition and repeat.
+  ✅ Data checks: no warning.
+  ✅ Integrity: nothing found.
+
+What this acquisition was asked to preserve
+  Population summary: the mean of Filopodia number over all cells, within 5% and 2.5% (judged on
+    held-back fields).
+  Representation: readout Filopodia number; 1 declared feature column for unusual cells (against the
+    control cells, their repeats pooled) and new phenotypes; definition of new: support_novelty.
+  Report-only rule: nothing new ≤5%, judged by the report only (not live, not calibrated by optimise
+    and benchmark); seen in few fields: fewer than 3 other fields.
+  Stopping rules: JCB rule, per cell, 5% and JCB rule, per field, 5% (the default); run live,
+    calibrated by optimise.
+  Live decision: the population objective (population summary); a target no rule decides stays
+    unsupported, never assumed adequate.
+  ⚠️ No phenotypic fingerprint declared (fingerprint), so the answers speak of the mean, not of the
+     distribution of phenotypes.
+  ⚠️ No rare phenotype declared (rare), so no answer says whether a rare state was sampled enough.
+  ⚠️ No acquisition order or stage coordinates, so nothing is checked: every stop treats the fields
+     as a random sample of the well's positions; a raster over a spatial trend can stop early; image
+     fields in a random or dispersed order.
+  Assumptions: The JCB rules stop on the averaging CV (5% is one standard error of 5% of the mean),
+    not on a ±5% bound on its error; whether the mean is within 5% and 2.5% is judged on held-back
+    fields.
+
+⚠️ Foundation: why count fields, and not only objects?
+  How variable are the fields (Filopodia number)? Not estimated in any group.
+  Would the JCB count rule hold with whole fields? The cells it asks for, taken as whole fields in
+    random order, against the mean of all siCTRL cells of the same biological repeat:
+    target  held in   cells asked  fields taken  error: SD/sqrt(n) → real  as fields (upper-95 SD)
+    5%      53 of 54       10-215        10-215  5% → 5% (1.0x)            10-215 (17-379)
+    2.5%    51 of 54       40-858        40-858  2% → 2-3% (1.0x)          40-858 (68-1516)
+  Ranges are over the groups; as fields: the fields to acquire when the rule counts fields, not
+    cells.
+  The rule misses its target with whole fields: 5% in siCCT8#5 · siCCT8_2 · single; 2.5% in
+    siCSNK1A1#11 · siCSNK1A1_3 · single, siNF2#17 · siNF2_2 · single and siNF2#7 · siNF2_2 · single.
+  ⚠️ Not estimated in siCCT8#5 · siCCT8_1 · single, siCCT8#5 · siCCT8_2 · single,
+     siCCT8#5 · siCCT8_3 · single and 51 more: every field holds a single observation.
+  ⚠️ The control means of the repeats differ by 2.0x (biological_repeat=siMAP4K4_3: 40.2,
+     biological_repeat=siCCT8_2: 79.9); each repeat is judged against its own control, but a shift
+     that large may be a batch effect or a change of units (a feature exported in other units in one
+     repeat)
+
+➖ 1. Can these features detect what I care about?
+  Not assessed: declare a positive control (and a reference) with representation_control.
+
+❌ 2. Did I image enough?
+  Analysis groups: condition · biological_repeat · technical_repeat.
+  Each rule by its own threshold (not a held-out check), in 54 groups:
+    rule                     met in   random orders: median (10-90%)
+    JCB rule, per cell, 5%   0 of 54  17 (11-25); 3 of 270 orders
+    JCB rule, per field, 5%  0 of 54  17 (11-25); 3 of 270 orders
+    nothing new (≤5%)        0 of 54  never
+  First met after: the fields acquired when it first said enough; random: the median of the groups'
+    medians, 10-90% from the lowest to the highest group.
+  One more field: no field showed a state counted as new, in all 54 groups; nominal 95% bound for
+    the next field 6-21%.
+  Not yet seen: a state no field has shown is in at most 6-21% of fields (95% confidence); rarer
+    states can remain.
+  Seen in few fields: no group holds a state seen in only 2 to 3 fields.
+  To rule out unseen states in more than 5% of fields: at least 10-46 more fields with nothing new.
+  To bring the next-field bound below 5%: at least 10-46 more fields if none shows anything new
+    (10-46 at the current rate of new fields).
+  'New': at least 3 similar cells that no other field shows; the exact definition is in the full
+    report.
+  ⚠️ JCB rule, per cell, 5%, in 1 of 54 groups: the SD between cells exceeds 50% CV; the paper
+     advises acquiring more data and repeating the estimate; the upper-95 SD bound assumes normal
+     values, and these cells have excess kurtosis 2.7 and bimodality coefficient 0.51 (above 2 or
+     0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of cells at
+     four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+  ⚠️ JCB rule, per cell, 5%, in 13 of 54 groups: the upper-95 SD bound assumes normal values, and
+     these cells have excess kurtosis -0.8 to 6.3 and bimodality coefficient 0.31 to 0.60 (above 2
+     or 0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of cells
+     at four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+  ⚠️ JCB rule, per cell, 5%, in 1 of 54 groups: the SD between cells exceeds 50% CV; the paper
+     advises acquiring more data and repeating the estimate.
+  ⚠️ JCB rule, per cell, 5% was met and then lost as more fields arrived, in 2 of 54 groups.
+  ⚠️ JCB rule, per field, 5%, in 2 of 54 groups: the SD between cells exceeds 50% CV; the paper
+     advises acquiring more data and repeating the estimate.
+  ⚠️ JCB rule, per field, 5% was met and then lost as more fields arrived, in 2 of 54 groups.
+  ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of
+     the well's positions; a raster over a spatial trend can stop early.
+  Assumptions: JCB rule, per cell, 5% treats cells as independent draws: it assumes a spatially
+    uniform sample. The next-field bound is approximate: the leave-one-field-out outcomes share
+    their reference fields. The novelty bounds treat fields as independent, representative draws:
+    neighbouring fields acquired in a raster over patchy states make them too low. Every novelty
+    bound holds at a number of fields fixed in advance, not at the first field where it passes:
+    stopping there is premature more often than 5% of the time. A state carried by fewer than 3
+    similar cells per field is never counted, however many fields hold it.
+
+⚠️ 3. What is limiting my sampling?
+  - Unusual cells (farther from the siCTRL reference than all but 1% of its cells; 0-13% of each
+    group): clustered in a few fields (p ≤ 0.05) in 0 of the 9 groups where seen.
+  ⚠️ No field holds at least 3 unusual cells in siCCT8#8 · siCCT8_3 · single,
+     siCTRL · siCCT8_2 · single, siCSNK1A1#5 · siCSNK1A1_1 · single and 6 more, so no field count is
+     given there.
+  ⚠️ Refits with other reference samples agree on only 0-50% of the unusual cells in 2 of 54 groups
+     (siMAP4K4#6 · siMAP4K4_3 · single and siNF2#17 · siNF2_1 · single; below 90%): treat those
+     labels as unstable.
+  ⚠️ The reference of the unusual cells pools the control cells of 18 repeats: a shift shared by one
+     repeat (a staining or plating batch) makes its cells read as unusual, so compare the unusual
+     share between repeats before reading it as biology.
+  Assumptions: The field counts assume fields from independent technical repeats: a state held by
+    few technical repeats is clustered in their fields, so seeing it needs fields from more
+    technical repeats than the count says (no two-level plan is made).
+
+✅ 6. Which fields should I look at?
+  No field stands out under the declared thresholds (new state, influence, count checked).
+
+⚠️ 9. Do the conditions differ, and how confidently?
+  Filopodia number, each condition against the control (siCTRL), within each biological repeat; the
+    fields of a condition's analysis groups are pooled. Cohen's d with cells, fields and technical
+    repeats (tech.) as the unit:
+    contrast                              fields    cells     tech.   d cells  d fields  p (Bonferroni)
+    siCCT8#5 vs siCTRL · siCCT8_1         34 vs 33  34 vs 33  1 vs 1  -1.11    -1.11     no test
+    siCCT8#8 vs siCTRL · siCCT8_1         31 vs 33  31 vs 33  1 vs 1  -1.10    -1.10     no test
+    siCCT8#5 vs siCTRL · siCCT8_2         49 vs 39  49 vs 39  1 vs 1  -1.66    -1.66     no test
+    siCCT8#8 vs siCTRL · siCCT8_2         38 vs 39  38 vs 39  1 vs 1  -1.33    -1.33     no test
+    siCCT8#5 vs siCTRL · siCCT8_3         30 vs 32  30 vs 32  1 vs 1  -1.56    -1.56     no test
+    siCCT8#8 vs siCTRL · siCCT8_3         31 vs 32  31 vs 32  1 vs 1  -2.18    -2.18     no test
+    siCSNK1A1#11 vs siCTRL · siCSNK1A1_1  34 vs 31  34 vs 31  1 vs 1  -1.43    -1.43     no test
+    siCSNK1A1#5 vs siCTRL · siCSNK1A1_1   35 vs 31  35 vs 31  1 vs 1  -1.53    -1.53     no test
+    siCSNK1A1#11 vs siCTRL · siCSNK1A1_2  34 vs 33  34 vs 33  1 vs 1  -1.98    -1.98     no test
+    siCSNK1A1#5 vs siCTRL · siCSNK1A1_2   34 vs 33  34 vs 33  1 vs 1  -1.83    -1.83     no test
+    siCSNK1A1#11 vs siCTRL · siCSNK1A1_3  34 vs 33  34 vs 33  1 vs 1  -2.17    -2.17     no test
+    siCSNK1A1#5 vs siCTRL · siCSNK1A1_3   34 vs 33  34 vs 33  1 vs 1  -2.40    -2.40     no test
+    siMAP4K4#5 vs siCTRL · siMAP4K4_1     31 vs 30  31 vs 30  1 vs 1  1.00     1.00      no test
+    siMAP4K4#6 vs siCTRL · siMAP4K4_1     37 vs 30  37 vs 30  1 vs 1  2.08     2.08      no test
+    siMAP4K4#5 vs siCTRL · siMAP4K4_2     13 vs 32  13 vs 32  1 vs 1  0.69     0.69      no test
+    siMAP4K4#6 vs siCTRL · siMAP4K4_2     29 vs 32  29 vs 32  1 vs 1  0.89     0.89      no test
+    siMAP4K4#5 vs siCTRL · siMAP4K4_3     32 vs 31  32 vs 31  1 vs 1  0.77     0.77      no test
+    siMAP4K4#6 vs siCTRL · siMAP4K4_3     32 vs 31  32 vs 31  1 vs 1  1.21     1.21      no test
+    siMINK1#10 vs siCTRL · siMINK1_1      33 vs 34  33 vs 34  1 vs 1  -0.38    -0.38     no test
+    siMINK1#3 vs siCTRL · siMINK1_1       38 vs 34  38 vs 34  1 vs 1  -0.73    -0.73     no test
+    siMINK1#10 vs siCTRL · siMINK1_2      29 vs 32  29 vs 32  1 vs 1  -1.05    -1.05     no test
+    siMINK1#3 vs siCTRL · siMINK1_2       27 vs 32  27 vs 32  1 vs 1  -0.42    -0.42     no test
+    siMINK1#10 vs siCTRL · siMINK1_3      27 vs 18  27 vs 18  1 vs 1  -1.21    -1.21     no test
+    siMINK1#3 vs siCTRL · siMINK1_3       20 vs 18  20 vs 18  1 vs 1  -0.32    -0.32     no test
+    siNF2#17 vs siCTRL · siNF2_1          32 vs 31  32 vs 31  1 vs 1  0.16     0.16      no test
+    siNF2#7 vs siCTRL · siNF2_1           30 vs 31  30 vs 31  1 vs 1  0.37     0.37      no test
+    siNF2#17 vs siCTRL · siNF2_2          31 vs 29  31 vs 29  1 vs 1  0.36     0.36      no test
+    siNF2#7 vs siCTRL · siNF2_2           31 vs 29  31 vs 29  1 vs 1  0.30     0.30      no test
+    siNF2#17 vs siCTRL · siNF2_3          30 vs 31  30 vs 31  1 vs 1  1.08     1.08      no test
+    siNF2#7 vs siCTRL · siNF2_3           31 vs 31  31 vs 31  1 vs 1  0.99     0.99      no test
+    siSCRIB#6 vs siCTRL · siSCRIB_1       30 vs 30  30 vs 30  1 vs 1  -0.95    -0.95     no test
+    siSCRIB#7 vs siCTRL · siSCRIB_1       33 vs 30  33 vs 30  1 vs 1  -1.17    -1.17     no test
+    siSCRIB#6 vs siCTRL · siSCRIB_2       31 vs 26  31 vs 26  1 vs 1  -1.96    -1.96     no test
+    siSCRIB#7 vs siCTRL · siSCRIB_2       29 vs 26  29 vs 26  1 vs 1  -1.44    -1.44     no test
+    siSCRIB#6 vs siCTRL · siSCRIB_3       28 vs 30  28 vs 30  1 vs 1  -1.94    -1.94     no test
+    siSCRIB#7 vs siCTRL · siSCRIB_3       29 vs 30  29 vs 30  1 vs 1  -2.05    -2.05     no test
+  JCS effect size (treated mean minus control mean, over the control SD) from every cell: -1.91 to
+    2.56 over the 36 contrasts.
+  ⚠️ No randomization test in all 36 contrasts: only one technical repeat (technical_repeat) with
+     observations on one side: its fields cannot stand in for technical repeats, so there is no
+     test.
+  Assumptions: The test and the effect sizes compare means: a difference confined to a subpopulation
+    of cells or to the shape of the distribution is not tested (see the unusual cells and the rare
+    label). This describes what these fields support about a difference under this feature;
+    generalizing it needs independent biological repeats, which is the user's inference.
+
+What this dataset cannot tell me
+  ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control
+  ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
+     and this definition of new cannot see.
+  ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
+     redundancy and dispersed orders were not assessed.
+  ⚠️ No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
+     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
+     not seen.
+  Assumptions: Every answer holds for the stated features, tolerances and definition of new.
+    Replays, draws and hold-outs describe these samples; they are not independent experiments.
+    Statements across samples count samples or repeats. A field count that preserved this
+    acquisition is not a protocol until it holds on samples it was not chosen on. Technical drift
+    between repeats, batches or plates is not assessed: groups are analysed apart, and a shift
+    shared by all fields of a group is not new within it. Each 'enough' is per technical repeat; the
+    condition mean also varies between technical repeats, which more fields of one technical repeat
+    cannot reduce (question 3; optimise, question 7: more fields or more technical repeats?).
+
+Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.

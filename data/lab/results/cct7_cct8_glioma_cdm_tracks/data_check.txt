@@ -1,0 +1,11 @@
+✅ MorphoCoverage data check — 0 errors, 0 warnings; the tables can be analysed
+
+What was understood
+  - 590 observations (track); 133 rows in the FOV table.
+  - A field is identified by 'position_id' within condition, biological_repeat, technical_repeat.
+  - Analysis groups: condition, biological_repeat, technical_repeat.
+  - 19 feature columns: 'Mean Speed', 'Median Speed', 'Max Speed', 'Speed Standard Deviation',
+    'Total Distance Traveled', 'Mean Speed Rolling', 'Median Speed Rolling', 'Max Speed Rolling' and
+    11 more.
+
+The expected format, column by column, is in docs/data_format.md.

@@ -5,4 +5,101 @@ each answer, agreement with the dataset's hypotheses (DATASET.md section 4), and
 tables and reports of each run are in `results/<dataset id>/`. This log is the cross-dataset record of
 how useful MorphoCoverage is on real lab data; it is written after a run, never before.
 
-(no run yet)
+## 2026-09-30 — first run on the three CCT8-project datasets
+
+**Run.** `PYTHONPATH=src python data/lab/run_lab.py` at commit 40a429f: `report(..., integrity=True)` with
+the card's readout, features and control, `default_novelty(features)`, the default rules (JCB per
+observation and per field, 5%), `random_state=0`. 7-50 s per dataset. Reports in `results/<id>/`.
+Extra checks by hand (not in the stored reports): `integrity_checks` at smaller `min_objects`, and a
+copied cell row planted in the CDM tables.
+
+### Headlines
+
+| | filopodia screen (1 cell/field) | CDM shape (1 cell/field) | glioma tracks (1-12 tracks/field) |
+|---|---|---|---|
+| Data | ✅ no warning, integrity clean | ✅ no warning, integrity clean | ❌ integrity: 3 findings in 6 fields |
+| Foundation | ⚠️ not estimated (1 cell per field) | ⚠️ not estimated (1 cell per field) | ⚠️ design effect median 1.0 (1.0-2.7) |
+| 2. Enough? | ❌ no rule met in 54 groups | ❌ no rule met in 9 groups | ❌ no rule met in 18 groups; JCB per track undefined |
+| 3. Limits | ⚠️ "spread like random cells" | ⚠️ "spread like random cells" | ⚠️ fields 1.0x as variable as random tracks |
+| 6. Inspect | ✅ nothing stands out | ⚠️ 4 large cells sway the mean 11-15% | ⚠️ 11 fields (8 "new state") |
+| 9. Contrast | ⚠️ 36 per-repeat d, no test | ⚠️ 6 per-repeat d (Area only), no test, 0 of 10 features ranked | ⚠️ 12 per-repeat d, no test, 0 of 19 ranked |
+
+### Against the hypotheses
+
+- **Filopodia screen.** H1 (the per-cell JCB rule met everywhere): **wrong**, met in 0 of 54; the
+  rule asks 10-215 cells with its upper-95 SD bound, the groups hold 13-49. H2 (design effect about
+  1): not estimable with one cell per field, and the report says so. H3 (no test within a repeat):
+  **confirmed**. H4 (directions per repeat): **visible** in the table (MAP4K4 and NF2 above their
+  set's control in 3/3 repeats, the other four genes below in 3/3) but never summarised. H5 (the
+  control level differs between sets): **flagged**, "control means differ by 2.0x ... may be a batch
+  effect or a change of units".
+- **CDM shape.** H1 (per-cell rules fail for Area): **confirmed**. H2 and H5 (AR, the paper's
+  strongest effect, d 1.55): **not assessed**, because the rules, the Foundation and the contrast
+  read the readout (Area) only and the feature ranking is withheld without a test. H3: not
+  estimable. H4 (Area lower in 3/3 repeats): **confirmed** in the table. H6 (repeat 3 weakest): not
+  singled out; repeat 3 has the largest effect (d -1.13, -0.96).
+- **Glioma tracks.** H1 (integrity finds the 28 duplicated tracks): **partly**, 3 of 6 pairs (16 of
+  28 tracks). The three missed pairs hold 4 tracks, below `min_objects=5`; 70 of 133 fields are that
+  small. With `min_objects=3` all 6 pairs are found and the two clean datasets stay clean. H2
+  (design effect above 1): **mostly not supported**: median 1.0, 2.0-2.7 in 4 of 18 groups, 6% of
+  fields differ (5% expected). H3: **confirmed**. H4 (CCT8 slower in 3/3, CCT7 mixed):
+  **confirmed** in the table. H5 (two control baselines pooled): the 1.8x control shift is flagged,
+  again as a possible batch or unit error. The within-repeat track-duration confound (CCT7_2) is
+  invisible, as expected: no check looks at acquisition covariates.
+
+### Where the report was useful
+
+- It found copied data (tracks exported twice) that nobody had flagged before curation.
+- It flags the control level moving between experimental sets (2.0x, 1.8x).
+- It refuses a p-value with one well per side and says why, instead of the cells-as-replicates test
+  the paper used.
+- The design-effect table for the tracks shows which wells cluster (the CCT7 controls: 40-45% of the
+  variance between fields).
+- It names the cells or fields that sway a mean (CDM: 4 large cells, 11-15% each).
+
+### Where it did not fit these designs
+
+1. **"Did I image enough?" answers a question the experiments did not ask.** All three get ❌
+   because no group reaches a 5% precision of its own mean, while each experiment was built to show a
+   difference (d 0.4-2.4) and does so consistently across repeats. With a control declared, the
+   headline should say whether the observed difference is resolved (its sign and size stable under
+   field subsampling, or a precision of the difference), and keep the 5% precision of each mean as a
+   secondary target.
+2. **No answer across biological repeats.** Question 9 lists per-repeat d values and says no test is
+   possible, but not what the design does support: the biological repeat is the replicate. Per
+   condition it should give the direction across repeats (lower in 3/3), the repeat-level mean d,
+   and a test on repeat means when there are at least 3 repeats (an exact sign-flip test on 3
+   repeats cannot go below p = 0.25, and should say so).
+3. **One observation per field (two of three datasets).** The Foundation, clustering of unusual
+   cells, novelty ("3 similar cells in a field") and the d-cells / d-fields columns are
+   structurally inapplicable, yet they show as ⚠️ ("spread like random cells", "not estimated in all
+   54"). They should read ➖ "not applicable: one cell per field", once.
+4. **Track data refused by the per-object JCB rule** ("assumes observation_unit in ('cell',
+   'nucleus', 'object'), got 'track'"). A track of one cell is an object for this rule; the unit
+   list should not decide it.
+5. **No experiment level.** The MorphoBricks hierarchy starts with `experiment`, but MorphoCoverage
+   pools the controls of all sets as one `siCTRL` (the reference of unusual cells, "13 conditions")
+   and reads the known set-to-set control shift as a possible batch or unit error. An optional
+   `experiment` column should keep controls and references per experiment.
+6. **Integrity blind spots for small fields.** `min_objects=5` misses copies in fields of 2-4
+   tracks. With one observation per field a copied cell row is never found at any setting (planted
+   test: a cell's 10 continuous measurements pasted into 3 other fields, not detected). A row-level
+   exact-duplicate check on continuous features, independent of field size, would close both.
+7. **Features beyond the readout are not judged.** The AR effect (the CDM paper's strongest) appears
+   nowhere in the short report: the ranking is gated on a test that the design cannot give. When
+   untested, a descriptive ranking by effect size and consistency across repeats would still help.
+8. **No check of acquisition covariates** (Track Duration differs by condition within CCT7_2).
+
+### Display
+
+- The short reports are long (178-234 lines); the screen's contrast table has 36 rows. One row per
+  condition across repeats in the short form, per-repeat rows in the full form.
+- Multiplicity: "the JCB count rule missed in 4 of 54" at a nominal 95% level is about what chance
+  gives (about 3); say so.
+- Integrity locations in the overview and question 6 use `condition=..., biological_repeat=...` and
+  a run-on list; show pairs with the group label ("B5_04 and B5_04-1, 5 tracks").
+- The headline |d| on field means (up to 3.7 from 5-9 fields, 1.6 on tracks) is inflated and
+  unflagged.
+- Wording: "all 1 groups", "0 of the 1 groups", "technical repeats" when each is `single`.
+- `default_novelty` warns with 10 and 19 features; the 8 "new state" track fields were not checked
+  against the images.

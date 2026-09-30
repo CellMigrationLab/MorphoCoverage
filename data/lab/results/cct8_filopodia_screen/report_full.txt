@@ -1,0 +1,1143 @@
+✅ What is in the dataset
+  1686 cells in 1686 acquired fields; a field is identified by condition, biological_repeat, technical_repeat, position_id.
+  1 feature column: Filopodia number.
+  54 technical repeats (technical_repeat, a well or a dish within a repeat, 1 per condition and repeat).
+  13 conditions (condition: siCTRL, siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siMAP4K4#5, siMAP4K4#6, siMINK1#10, siMINK1#3, siNF2#17, siNF2#7, siSCRIB#6 and 1 more); 18 repeats (biological_repeat: siCCT8_1, siCCT8_2, siCCT8_3, siCSNK1A1_1, siCSNK1A1_2, siCSNK1A1_3, siMAP4K4_1, siMAP4K4_2, siMAP4K4_3, siMINK1_1, siMINK1_2, siMINK1_3 and 6 more).
+    (54 condition-and-repeat combinations; see the layout table)
+  Values: as given (not normalised).
+  ✅ Data checks: no warning.
+
+  ✅ Data integrity — nothing found by the exact copy checks
+    Exact checks for copied data, to 6 significant digits: 1686 fields and 1686 cells checked, on
+    Filopodia number.
+    ⚠️ Whole fields compared: 0 of 1686; 1686 fields held fewer than 5 observations.
+    Assumptions:
+      - Out of reach of these checks: a copy re-rounded to fewer than 6 significant digits, a block of
+        fewer than 10 observations, a copy with feature columns swapped or a feature (or a value)
+        missing in one copy only, and observations pasted into two or more other fields (they read as
+        recurring).
+
+What this acquisition was asked to preserve
+  - Population summary: the mean of Filopodia number over all cells, within 5% and 2.5% of its value
+    on held-back fields.
+  - Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), so the answers
+    below speak of the mean, not of the distribution of phenotypes.
+  - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
+    state was sampled enough.
+  - Representation: readout Filopodia number; 1 declared feature column for unusual cells (against
+    the control cells, their repeats pooled) and new phenotypes; definition of new: support_novelty.
+  - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
+    chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
+    It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
+    benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
+    few fields (few_fovs).
+  - Stopping rules: JCB rule, per cell, 5% [scalar_precision_object_upper95 (feature=Filopodia
+    number, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and JCB rule, per field,
+    5% [scalar_precision_fov_upper95 (feature=Filopodia number, target_cv=0.05, resampling_unit=fov,
+    sd_estimate=upper_95)] (the default, rules=None: the JCB rule per cell and per field at 5%);
+    assessed in the report, calibrated by optimise, run live. The JCB rules stop on the averaging
+    CV: a CV of 5% is one standard error of 5% of the mean, not a bound of ±5% on its error; whether
+    the mean is within 5% and 2.5% is judged on held-back fields (report, optimise), never by the
+    rules.
+  - Acquisition order: no acquisition_order_col or stage_cols, so nothing is checked and every stop
+    treats the fields as a random sample of the well's positions; a raster over a spatial trend can
+    stop early. Image fields in a random or dispersed order.
+  - Live decision: the population objective (population summary); a rule decides only the targets it
+    has evidence about, and a target no rule decides stays unsupported rather than assumed adequate.
+
+⚠️ Foundation: why count fields, and not only objects?
+  How variable are the fields? Feature Filopodia number; analysis groups:
+    condition · biological_repeat · technical_repeat.
+    group                                fields  cells  per field  between  design effect  error ratio  differ
+    siCCT8#5 · siCCT8_1 · single             34     34          1        –              –            –       –
+    siCCT8#5 · siCCT8_2 · single             49     49          1        –              –            –       –
+    siCCT8#5 · siCCT8_3 · single             30     30          1        –              –            –       –
+    siCCT8#8 · siCCT8_1 · single             31     31          1        –              –            –       –
+    siCCT8#8 · siCCT8_2 · single             38     38          1        –              –            –       –
+    siCCT8#8 · siCCT8_3 · single             31     31          1        –              –            –       –
+    siCTRL · siCCT8_1 · single               33     33          1        –              –            –       –
+    siCTRL · siCCT8_2 · single               39     39          1        –              –            –       –
+    siCTRL · siCCT8_3 · single               32     32          1        –              –            –       –
+    siCSNK1A1#11 · siCSNK1A1_1 · single      34     34          1        –              –            –       –
+    siCSNK1A1#11 · siCSNK1A1_2 · single      34     34          1        –              –            –       –
+    siCSNK1A1#11 · siCSNK1A1_3 · single      34     34          1        –              –            –       –
+    siCSNK1A1#5 · siCSNK1A1_1 · single       35     35          1        –              –            –       –
+    siCSNK1A1#5 · siCSNK1A1_2 · single       34     34          1        –              –            –       –
+    siCSNK1A1#5 · siCSNK1A1_3 · single       34     34          1        –              –            –       –
+    siCTRL · siCSNK1A1_1 · single            31     31          1        –              –            –       –
+    siCTRL · siCSNK1A1_2 · single            33     33          1        –              –            –       –
+    siCTRL · siCSNK1A1_3 · single            33     33          1        –              –            –       –
+    siCTRL · siMAP4K4_1 · single             30     30          1        –              –            –       –
+    siCTRL · siMAP4K4_2 · single             32     32          1        –              –            –       –
+    siCTRL · siMAP4K4_3 · single             31     31          1        –              –            –       –
+    siMAP4K4#5 · siMAP4K4_1 · single         31     31          1        –              –            –       –
+    siMAP4K4#5 · siMAP4K4_2 · single         13     13          1        –              –            –       –
+    siMAP4K4#5 · siMAP4K4_3 · single         32     32          1        –              –            –       –
+    siMAP4K4#6 · siMAP4K4_1 · single         37     37          1        –              –            –       –
+    siMAP4K4#6 · siMAP4K4_2 · single         29     29          1        –              –            –       –
+    siMAP4K4#6 · siMAP4K4_3 · single         32     32          1        –              –            –       –
+    siCTRL · siMINK1_1 · single              34     34          1        –              –            –       –
+    siCTRL · siMINK1_2 · single              32     32          1        –              –            –       –
+    siCTRL · siMINK1_3 · single              18     18          1        –              –            –       –
+    siMINK1#10 · siMINK1_1 · single          33     33          1        –              –            –       –
+    siMINK1#10 · siMINK1_2 · single          29     29          1        –              –            –       –
+    siMINK1#10 · siMINK1_3 · single          27     27          1        –              –            –       –
+    siMINK1#3 · siMINK1_1 · single           38     38          1        –              –            –       –
+    siMINK1#3 · siMINK1_2 · single           27     27          1        –              –            –       –
+    siMINK1#3 · siMINK1_3 · single           20     20          1        –              –            –       –
+    siCTRL · siNF2_1 · single                31     31          1        –              –            –       –
+    siCTRL · siNF2_2 · single                29     29          1        –              –            –       –
+    siCTRL · siNF2_3 · single                31     31          1        –              –            –       –
+    siNF2#17 · siNF2_1 · single              32     32          1        –              –            –       –
+    siNF2#17 · siNF2_2 · single              31     31          1        –              –            –       –
+    siNF2#17 · siNF2_3 · single              30     30          1        –              –            –       –
+    siNF2#7 · siNF2_1 · single               30     30          1        –              –            –       –
+    siNF2#7 · siNF2_2 · single               31     31          1        –              –            –       –
+    siNF2#7 · siNF2_3 · single               31     31          1        –              –            –       –
+    siCTRL · siSCRIB_1 · single              30     30          1        –              –            –       –
+    siCTRL · siSCRIB_2 · single              26     26          1        –              –            –       –
+    siCTRL · siSCRIB_3 · single              30     30          1        –              –            –       –
+    siSCRIB#6 · siSCRIB_1 · single           30     30          1        –              –            –       –
+    siSCRIB#6 · siSCRIB_2 · single           31     31          1        –              –            –       –
+    siSCRIB#6 · siSCRIB_3 · single           28     28          1        –              –            –       –
+    siSCRIB#7 · siSCRIB_1 · single           33     33          1        –              –            –       –
+    siSCRIB#7 · siSCRIB_2 · single           29     29          1        –              –            –       –
+    siSCRIB#7 · siSCRIB_3 · single           29     29          1        –              –            –       –
+  Between: the share of the variance that lies between fields. Design effect: how many times the
+    variance of a mean from whole fields is that of one from as many random cells; error ratio: how
+    many times SD / sqrt(n) understates its error (the square root). Differ: the share of fields
+    whose mean differs more than random cells would let it (about 5% expected).
+  ⚠️ Not estimated in siCCT8#5 · siCCT8_1 · single, siCCT8#5 · siCCT8_2 · single,
+     siCCT8#5 · siCCT8_3 · single and 51 more: every field holds a single observation.
+
+  Would the JCB object-count rule hold with whole fields? Feature Filopodia number; reference mean:
+    the mean of all siCTRL cells of the same biological repeat; analysis groups:
+    condition · biological_repeat · technical_repeat.
+    group                                target       cells asked  fields taken  SD/sqrt(n) → real   as fields  of
+    siCCT8#5 · siCCT8_1 · single         5% met                37          37.0  5% → 5% (1.0x)        37 (63)  34
+    siCCT8#5 · siCCT8_1 · single         2.5% met             145         145.0  2% → 2% (1.0x)      145 (251)  34
+    siCCT8#5 · siCCT8_2 · single         5% missed             28          28.0  5% → 5% (1.0x)        28 (44)  49
+    siCCT8#5 · siCCT8_2 · single         2.5% met             112         112.0  2% → 2% (1.0x)      112 (175)  49
+    siCCT8#5 · siCCT8_3 · single         5% met                14          14.0  5% → 5% (1.0x)        14 (25)  30
+    siCCT8#5 · siCCT8_3 · single         2.5% met              54          54.0  2% → 2% (1.0x)        54 (98)  30
+    siCCT8#8 · siCCT8_1 · single         5% met                36          36.0  5% → 5% (1.0x)        36 (64)  31
+    siCCT8#8 · siCCT8_1 · single         2.5% met             143         143.0  2% → 2% (1.0x)      143 (255)  31
+    siCCT8#8 · siCCT8_2 · single         5% met                24          24.0  5% → 5% (1.0x)        24 (40)  38
+    siCCT8#8 · siCCT8_2 · single         2.5% met              94          94.0  2% → 2% (1.0x)       94 (157)  38
+    siCCT8#8 · siCCT8_3 · single         5% met                15          15.0  5% → 5% (1.0x)        15 (26)  31
+    siCCT8#8 · siCCT8_3 · single         2.5% met              57          57.0  2% → 2% (1.0x)       57 (102)  31
+    siCTRL · siCCT8_1 · single           5% met                46          46.0  5% → 5% (1.0x)        46 (80)  33
+    siCTRL · siCCT8_1 · single           2.5% met             183         183.0  2% → 2% (1.0x)      183 (320)  33
+    siCTRL · siCCT8_2 · single           5% met                64          64.0  5% → 5% (1.0x)       64 (106)  39
+    siCTRL · siCCT8_2 · single           2.5% met             256         256.0  2% → 2% (1.0x)      256 (424)  39
+    siCTRL · siCCT8_3 · single           5% met                35          35.0  5% → 5% (1.0x)        35 (62)  32
+    siCTRL · siCCT8_3 · single           2.5% met             139         139.0  2% → 2% (1.0x)      139 (246)  32
+    siCSNK1A1#11 · siCSNK1A1_1 · single  5% met                17          17.0  5% → 5% (1.0x)        17 (29)  34
+    siCSNK1A1#11 · siCSNK1A1_1 · single  2.5% met              66          66.0  2% → 2% (1.0x)       66 (115)  34
+    siCSNK1A1#11 · siCSNK1A1_2 · single  5% met                10          10.0  5% → 5% (1.0x)        10 (17)  34
+    siCSNK1A1#11 · siCSNK1A1_2 · single  2.5% met              40          40.0  2% → 2% (1.0x)        40 (68)  34
+    siCSNK1A1#11 · siCSNK1A1_3 · single  5% met                12          12.0  5% → 5% (1.0x)        12 (21)  34
+    siCSNK1A1#11 · siCSNK1A1_3 · single  2.5% missed           47          47.0  2% → 3% (1.0x)        47 (82)  34
+    siCSNK1A1#5 · siCSNK1A1_1 · single   5% met                28          28.0  5% → 5% (1.0x)        28 (47)  35
+    siCSNK1A1#5 · siCSNK1A1_1 · single   2.5% met             109         109.0  2% → 2% (1.0x)      109 (186)  35
+    siCSNK1A1#5 · siCSNK1A1_2 · single   5% met                16          16.0  5% → 5% (1.0x)        16 (26)  34
+    siCSNK1A1#5 · siCSNK1A1_2 · single   2.5% met              61          61.0  2% → 2% (1.0x)       61 (104)  34
+    siCSNK1A1#5 · siCSNK1A1_3 · single   5% met                11          11.0  5% → 5% (1.0x)        11 (18)  34
+    siCSNK1A1#5 · siCSNK1A1_3 · single   2.5% met              41          41.0  2% → 2% (1.0x)        41 (70)  34
+    siCTRL · siCSNK1A1_1 · single        5% met                49          49.0  5% → 5% (1.0x)        49 (88)  31
+    siCTRL · siCSNK1A1_1 · single        2.5% met             196         196.0  2% → 2% (1.0x)      196 (350)  31
+    siCTRL · siCSNK1A1_2 · single        5% met                42          42.0  5% → 5% (1.0x)        42 (73)  33
+    siCTRL · siCSNK1A1_2 · single        2.5% met             165         165.0  2% → 2% (1.0x)      165 (289)  33
+    siCTRL · siCSNK1A1_3 · single        5% met                37          37.0  5% → 5% (1.0x)        37 (64)  33
+    siCTRL · siCSNK1A1_3 · single        2.5% met             146         146.0  2% → 2% (1.0x)      146 (255)  33
+    siCTRL · siMAP4K4_1 · single         5% met                48          48.0  5% → 5% (1.0x)        48 (86)  30
+    siCTRL · siMAP4K4_1 · single         2.5% met             189         189.0  2% → 2% (1.0x)      189 (341)  30
+    siCTRL · siMAP4K4_2 · single         5% met                30          30.0  5% → 5% (1.0x)        30 (53)  32
+    siCTRL · siMAP4K4_2 · single         2.5% met             118         118.0  2% → 2% (1.0x)      118 (209)  32
+    siCTRL · siMAP4K4_3 · single         5% met                68          68.0  5% → 5% (1.0x)       68 (122)  31
+    siCTRL · siMAP4K4_3 · single         2.5% met             272         272.0  2% → 2% (1.0x)      272 (485)  31
+    siMAP4K4#5 · siMAP4K4_1 · single     5% met                72          72.0  5% → 5% (1.0x)       72 (129)  31
+    siMAP4K4#5 · siMAP4K4_1 · single     2.5% met             288         288.0  2% → 2% (1.0x)      288 (514)  31
+    siMAP4K4#5 · siMAP4K4_2 · single     5% met                96          96.0  5% → 5% (1.0x)       96 (260)  13
+    siMAP4K4#5 · siMAP4K4_2 · single     2.5% met             382         382.0  2% → 2% (1.0x)     382 (1039)  13
+    siMAP4K4#5 · siMAP4K4_3 · single     5% met                74          74.0  5% → 5% (1.0x)       74 (130)  32
+    siMAP4K4#5 · siMAP4K4_3 · single     2.5% met             293         293.0  2% → 2% (1.0x)      293 (517)  32
+    siMAP4K4#6 · siMAP4K4_1 · single     5% met                92          92.0  5% → 5% (1.0x)       92 (155)  37
+    siMAP4K4#6 · siMAP4K4_1 · single     2.5% met             366         366.0  2% → 2% (1.0x)      366 (618)  37
+    siMAP4K4#6 · siMAP4K4_2 · single     5% met                46          46.0  5% → 5% (1.0x)        46 (84)  29
+    siMAP4K4#6 · siMAP4K4_2 · single     2.5% met             182         182.0  2% → 2% (1.0x)      182 (333)  29
+    siMAP4K4#6 · siMAP4K4_3 · single     5% met               215         215.0  5% → 5% (1.0x)      215 (379)  32
+    siMAP4K4#6 · siMAP4K4_3 · single     2.5% met             858         858.0  2% → 2% (1.0x)     858 (1516)  32
+    siCTRL · siMINK1_1 · single          5% met                57          57.0  5% → 5% (1.0x)        57 (98)  34
+    siCTRL · siMINK1_1 · single          2.5% met             226         226.0  2% → 2% (1.0x)      226 (391)  34
+    siCTRL · siMINK1_2 · single          5% met                41          41.0  5% → 5% (1.0x)        41 (72)  32
+    siCTRL · siMINK1_2 · single          2.5% met             162         162.0  2% → 2% (1.0x)      162 (287)  32
+    siCTRL · siMINK1_3 · single          5% met                62          62.0  5% → 5% (1.0x)       62 (138)  18
+    siCTRL · siMINK1_3 · single          2.5% met             246         246.0  2% → 2% (1.0x)      246 (551)  18
+    siMINK1#10 · siMINK1_1 · single      5% met                61          61.0  5% → 5% (1.0x)       61 (106)  33
+    siMINK1#10 · siMINK1_1 · single      2.5% met             243         243.0  2% → 2% (1.0x)      243 (424)  33
+    siMINK1#10 · siMINK1_2 · single      5% met                44          44.0  5% → 5% (1.0x)        44 (81)  29
+    siMINK1#10 · siMINK1_2 · single      2.5% met             176         176.0  2% → 2% (1.0x)      176 (322)  29
+    siMINK1#10 · siMINK1_3 · single      5% met                16          16.0  5% → 5% (1.0x)        16 (30)  27
+    siMINK1#10 · siMINK1_3 · single      2.5% met              64          64.0  2% → 2% (1.0x)       64 (120)  27
+    siMINK1#3 · siMINK1_1 · single       5% met                41          41.0  5% → 5% (1.0x)        41 (68)  38
+    siMINK1#3 · siMINK1_1 · single       2.5% met             162         162.0  2% → 2% (1.0x)      162 (271)  38
+    siMINK1#3 · siMINK1_2 · single       5% met                65          65.0  5% → 5% (1.0x)       65 (122)  27
+    siMINK1#3 · siMINK1_2 · single       2.5% met             260         260.0  2% → 2% (1.0x)      260 (487)  27
+    siMINK1#3 · siMINK1_3 · single       5% met                47          47.0  5% → 5% (1.0x)       47 (100)  20
+    siMINK1#3 · siMINK1_3 · single       2.5% met             188         188.0  2% → 2% (1.0x)      188 (400)  20
+    siCTRL · siNF2_1 · single            5% met                58          58.0  5% → 5% (1.0x)       58 (103)  31
+    siCTRL · siNF2_1 · single            2.5% met             230         230.0  2% → 2% (1.0x)      230 (411)  31
+    siCTRL · siNF2_2 · single            5% met                35          35.0  5% → 5% (1.0x)        35 (63)  29
+    siCTRL · siNF2_2 · single            2.5% met             138         138.0  2% → 2% (1.0x)      138 (252)  29
+    siCTRL · siNF2_3 · single            5% met                28          28.0  5% → 5% (1.0x)        28 (49)  31
+    siCTRL · siNF2_3 · single            2.5% met             110         110.0  2% → 2% (1.0x)      110 (196)  31
+    siNF2#17 · siNF2_1 · single          5% met               107         107.0  5% → 5% (1.0x)      107 (188)  32
+    siNF2#17 · siNF2_1 · single          2.5% met             425         425.0  2% → 2% (1.0x)      425 (750)  32
+    siNF2#17 · siNF2_2 · single          5% met                31          31.0  5% → 5% (1.0x)        31 (55)  31
+    siNF2#17 · siNF2_2 · single          2.5% missed          123         123.0  2% → 3% (1.0x)      123 (220)  31
+    siNF2#17 · siNF2_3 · single          5% met                42          42.0  5% → 5% (1.0x)        42 (75)  30
+    siNF2#17 · siNF2_3 · single          2.5% met             165         165.0  2% → 2% (1.0x)      165 (297)  30
+    siNF2#7 · siNF2_1 · single           5% met                86          86.0  5% → 5% (1.0x)       86 (155)  30
+    siNF2#7 · siNF2_1 · single           2.5% met             342         342.0  2% → 2% (1.0x)      342 (618)  30
+    siNF2#7 · siNF2_2 · single           5% met                35          35.0  5% → 5% (1.0x)        35 (63)  31
+    siNF2#7 · siNF2_2 · single           2.5% missed          140         140.0  2% → 3% (1.0x)      140 (249)  31
+    siNF2#7 · siNF2_3 · single           5% met                40          40.0  5% → 5% (1.0x)        40 (70)  31
+    siNF2#7 · siNF2_3 · single           2.5% met             157         157.0  2% → 2% (1.0x)      157 (280)  31
+    siCTRL · siSCRIB_1 · single          5% met                96          96.0  5% → 5% (1.0x)       96 (172)  30
+    siCTRL · siSCRIB_1 · single          2.5% met             381         381.0  2% → 2% (1.0x)      381 (687)  30
+    siCTRL · siSCRIB_2 · single          5% met                35          35.0  5% → 5% (1.0x)        35 (67)  26
+    siCTRL · siSCRIB_2 · single          2.5% met             139         139.0  2% → 2% (1.0x)      139 (265)  26
+    siCTRL · siSCRIB_3 · single          5% met                35          35.0  5% → 5% (1.0x)        35 (63)  30
+    siCTRL · siSCRIB_3 · single          2.5% met             139         139.0  2% → 2% (1.0x)      139 (251)  30
+    siSCRIB#6 · siSCRIB_1 · single       5% met                35          35.0  5% → 5% (1.0x)        35 (63)  30
+    siSCRIB#6 · siSCRIB_1 · single       2.5% met             139         139.0  2% → 2% (1.0x)      139 (252)  30
+    siSCRIB#6 · siSCRIB_2 · single       5% met                13          13.0  5% → 5% (1.0x)        13 (22)  31
+    siSCRIB#6 · siSCRIB_2 · single       2.5% met              49          49.0  2% → 2% (1.0x)        49 (88)  31
+    siSCRIB#6 · siSCRIB_3 · single       5% met                21          21.0  5% → 5% (1.0x)        21 (39)  28
+    siSCRIB#6 · siSCRIB_3 · single       2.5% met              84          84.0  2% → 2% (1.0x)       84 (155)  28
+    siSCRIB#7 · siSCRIB_1 · single       5% met                19          19.0  5% → 5% (1.0x)        19 (32)  33
+    siSCRIB#7 · siSCRIB_1 · single       2.5% met              74          74.0  2% → 2% (1.0x)       74 (128)  33
+    siSCRIB#7 · siSCRIB_2 · single       5% met                27          27.0  5% → 5% (1.0x)        27 (50)  29
+    siSCRIB#7 · siSCRIB_2 · single       2.5% met             108         108.0  2% → 2% (1.0x)      108 (197)  29
+    siSCRIB#7 · siSCRIB_3 · single       5% met                13          13.0  5% → 5% (1.0x)        13 (23)  29
+    siSCRIB#7 · siSCRIB_3 · single       2.5% met              51          51.0  2% → 2% (1.0x)        51 (92)  29
+  Target: met or missed by the real error. Cells asked: the rule's number of cells; fields taken:
+    the mean number of whole fields drawn at random until that many; SD/sqrt(n) → real: the rule's
+    predicted error of their mean, then its real error (the SD of that mean over the draws), both as
+    shares of the reference mean, and real over predicted. As fields: the fields the rule asks for
+    with the field as the unit, from the point SD (in brackets: from the upper-95 SD), of the
+    acquired fields ('of').
+  ⚠️ The control means of the repeats differ by 2.0x (biological_repeat=siMAP4K4_3: 40.2,
+     biological_repeat=siCCT8_2: 79.9); each repeat is judged against its own control, but a shift
+     that large may be a batch effect or a change of units (a feature exported in other units in one
+     repeat)
+
+➖ 1. Can these features detect what I care about?
+  Not assessed: declare a positive control (and a reference) with representation_control.
+
+❌ 2. Did I image enough?
+  Analysis groups: condition · biological_repeat · technical_repeat.
+  Each rule by its own threshold (not a held-out check), in 54 groups:
+    rule                     met in   random orders: median (10-90%)
+    JCB rule, per cell, 5%   0 of 54  17 (11-25); 3 of 270 orders
+    JCB rule, per field, 5%  0 of 54  17 (11-25); 3 of 270 orders
+    nothing new (≤5%)        0 of 54  never
+  First met after: the fields acquired when it first said enough; random: the median of the groups'
+    medians, 10-90% from the lowest to the highest group.
+  Rules: JCB rule, per cell, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05; config
+    e9f24df659290c3b); JCB rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05;
+    config a98770e3a9571327); nothing new (≤5%) (support_novelty: lofo_novel_fov_upper <= 0.05; config
+    1b539bc8108caec3).
+  Per group below: whether each rule was met by its own threshold, where it was first met, and the
+    fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
+    without them; only where the acquired fields are enough).
+
+  siCCT8#5 · siCCT8_1 · single — 34 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
+    Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none shows
+      anything new (25 at the current rate of new fields).
+
+  siCCT8#5 · siCCT8_2 · single — 49 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 6%); 0 of 49 fields showed a state counted as new.
+    Not yet seen: at most 6% of fields (95% confidence, about 3 / 49).
+    Seen in few fields: 0 of 49 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 10 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 10 more fields if none shows
+      anything new (10 at the current rate of new fields).
+
+  siCCT8#5 · siCCT8_3 · single — 30 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 30 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
+    Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none shows
+      anything new (29 at the current rate of new fields).
+
+  siCCT8#8 · siCCT8_1 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 2.6, bimodality coefficient 0.48.
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siCCT8#8 · siCCT8_2 · single — 38 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 38 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 38).
+    Seen in few fields: 0 of 38 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 21 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 21 more fields if none shows
+      anything new (21 at the current rate of new fields).
+
+  siCCT8#8 · siCCT8_3 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siCTRL · siCCT8_1 · single — 33 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 33 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 33).
+    Seen in few fields: 0 of 33 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none shows
+      anything new (26 at the current rate of new fields).
+
+  siCTRL · siCCT8_2 · single — 39 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 7%); 0 of 39 fields showed a state counted as new.
+    Not yet seen: at most 7% of fields (95% confidence, about 3 / 39).
+    Seen in few fields: 0 of 39 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 20 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 20 more fields if none shows
+      anything new (20 at the current rate of new fields).
+
+  siCTRL · siCCT8_3 · single — 32 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
+    Seen in few fields: 0 of 32 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none shows
+      anything new (27 at the current rate of new fields).
+
+  siCSNK1A1#11 · siCSNK1A1_1 · single — 34 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
+    Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none shows
+      anything new (25 at the current rate of new fields).
+
+  siCSNK1A1#11 · siCSNK1A1_2 · single — 34 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
+    Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none shows
+      anything new (25 at the current rate of new fields).
+
+  siCSNK1A1#11 · siCSNK1A1_3 · single — 34 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
+    Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none shows
+      anything new (25 at the current rate of new fields).
+
+  siCSNK1A1#5 · siCSNK1A1_1 · single — 35 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 3.4, bimodality coefficient 0.43.
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 35 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 35).
+    Seen in few fields: 0 of 35 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 24 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 24 more fields if none shows
+      anything new (24 at the current rate of new fields).
+
+  siCSNK1A1#5 · siCSNK1A1_2 · single — 34 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
+    Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none shows
+      anything new (25 at the current rate of new fields).
+
+  siCSNK1A1#5 · siCSNK1A1_3 · single — 34 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
+    Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none shows
+      anything new (25 at the current rate of new fields).
+
+  siCTRL · siCSNK1A1_1 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.2, bimodality coefficient 0.54.
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siCTRL · siCSNK1A1_2 · single — 33 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 33 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 33).
+    Seen in few fields: 0 of 33 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none shows
+      anything new (26 at the current rate of new fields).
+
+  siCTRL · siCSNK1A1_3 · single — 33 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 33 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 33).
+    Seen in few fields: 0 of 33 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none shows
+      anything new (26 at the current rate of new fields).
+
+  siCTRL · siMAP4K4_1 · single — 30 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 30 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
+    Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none shows
+      anything new (29 at the current rate of new fields).
+
+  siCTRL · siMAP4K4_2 · single — 32 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
+    Seen in few fields: 0 of 32 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none shows
+      anything new (27 at the current rate of new fields).
+
+  siCTRL · siMAP4K4_3 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.4, bimodality coefficient 0.51.
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siMAP4K4#5 · siMAP4K4_1 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siMAP4K4#5 · siMAP4K4_2 · single — 13 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 6.3, bimodality coefficient 0.59.
+    One more field: chance 0% (nominal 95% bound 21%); 0 of 13 fields showed a state counted as new.
+    Not yet seen: at most 21% of fields (95% confidence, about 3 / 13).
+    Seen in few fields: 0 of 13 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 46 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 46 more fields if none shows
+      anything new (46 at the current rate of new fields).
+
+  siMAP4K4#5 · siMAP4K4_3 · single — 32 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
+    Seen in few fields: 0 of 32 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none shows
+      anything new (27 at the current rate of new fields).
+
+  siMAP4K4#6 · siMAP4K4_1 · single — 37 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 2.2, bimodality coefficient 0.34.
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 37 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 37).
+    Seen in few fields: 0 of 37 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 22 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 22 more fields if none shows
+      anything new (22 at the current rate of new fields).
+
+  siMAP4K4#6 · siMAP4K4_2 · single — 29 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 29 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
+    Seen in few fields: 0 of 29 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 30 more fields if none shows
+      anything new (30 at the current rate of new fields).
+
+  siMAP4K4#6 · siMAP4K4_3 · single — 32 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 2.8, bimodality coefficient 0.48.
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
+    Seen in few fields: 0 of 32 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none shows
+      anything new (27 at the current rate of new fields).
+
+  siCTRL · siMINK1_1 · single — 34 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 34 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 34).
+    Seen in few fields: 0 of 34 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 25 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 25 more fields if none shows
+      anything new (25 at the current rate of new fields).
+
+  siCTRL · siMINK1_2 · single — 32 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
+    Seen in few fields: 0 of 32 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none shows
+      anything new (27 at the current rate of new fields).
+
+  siCTRL · siMINK1_3 · single — 18 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 15%); 0 of 18 fields showed a state counted as new.
+    Not yet seen: at most 15% of fields (95% confidence, about 3 / 18).
+    Seen in few fields: 0 of 18 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 41 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 41 more fields if none shows
+      anything new (41 at the current rate of new fields).
+
+  siMINK1#10 · siMINK1_1 · single — 33 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 33 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 33).
+    Seen in few fields: 0 of 33 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none shows
+      anything new (26 at the current rate of new fields).
+
+  siMINK1#10 · siMINK1_2 · single — 29 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 29 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
+    Seen in few fields: 0 of 29 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 30 more fields if none shows
+      anything new (30 at the current rate of new fields).
+
+  siMINK1#10 · siMINK1_3 · single — 27 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 11%); 0 of 27 fields showed a state counted as new.
+    Not yet seen: at most 11% of fields (95% confidence, about 3 / 27).
+    Seen in few fields: 0 of 27 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 32 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 32 more fields if none shows
+      anything new (32 at the current rate of new fields).
+
+  siMINK1#3 · siMINK1_1 · single — 38 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 8%); 0 of 38 fields showed a state counted as new.
+    Not yet seen: at most 8% of fields (95% confidence, about 3 / 38).
+    Seen in few fields: 0 of 38 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 21 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 21 more fields if none shows
+      anything new (21 at the current rate of new fields).
+
+  siMINK1#3 · siMINK1_2 · single — 27 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 11%); 0 of 27 fields showed a state counted as new.
+    Not yet seen: at most 11% of fields (95% confidence, about 3 / 27).
+    Seen in few fields: 0 of 27 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 32 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 32 more fields if none shows
+      anything new (32 at the current rate of new fields).
+
+  siMINK1#3 · siMINK1_3 · single — 20 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 14%); 0 of 20 fields showed a state counted as new.
+    Not yet seen: at most 14% of fields (95% confidence, about 3 / 20).
+    Seen in few fields: 0 of 20 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 39 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 39 more fields if none shows
+      anything new (39 at the current rate of new fields).
+
+  siCTRL · siNF2_1 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siCTRL · siNF2_2 · single — 29 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 29 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
+    Seen in few fields: 0 of 29 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 30 more fields if none shows
+      anything new (30 at the current rate of new fields).
+
+  siCTRL · siNF2_3 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      23 (2.5; 21-25); 2 of 5 orders           –
+    JCB rule, per field, 5%  no      23 (2.5; 21-25); 2 of 5 orders           –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.6, bimodality coefficient 0.56.
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siNF2#17 · siNF2_1 · single — 32 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 32 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 32).
+    Seen in few fields: 0 of 32 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 27 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 27 more fields if none shows
+      anything new (27 at the current rate of new fields).
+
+  siNF2#17 · siNF2_2 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siNF2#17 · siNF2_3 · single — 30 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 30 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
+    Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none shows
+      anything new (29 at the current rate of new fields).
+
+  siNF2#7 · siNF2_1 · single — 30 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 3.9, bimodality coefficient 0.51.
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 30 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
+    Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none shows
+      anything new (29 at the current rate of new fields).
+
+  siNF2#7 · siNF2_2 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siNF2#7 · siNF2_3 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      11 (11-11); 1 of 5 orders                –
+    JCB rule, per field, 5%  no      11 (11-11); 1 of 5 orders                –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.8, bimodality coefficient 0.31.
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siCTRL · siSCRIB_1 · single — 30 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 5.9, bimodality coefficient 0.60.
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 30 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
+    Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none shows
+      anything new (29 at the current rate of new fields).
+
+  siCTRL · siSCRIB_2 · single — 26 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 11%); 0 of 26 fields showed a state counted as new.
+    Not yet seen: at most 11% of fields (95% confidence, about 3 / 26).
+    Seen in few fields: 0 of 26 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 33 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 33 more fields if none shows
+      anything new (33 at the current rate of new fields).
+
+  siCTRL · siSCRIB_3 · single — 30 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 30 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
+    Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none shows
+      anything new (29 at the current rate of new fields).
+
+  siSCRIB#6 · siSCRIB_1 · single — 30 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 30 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 30).
+    Seen in few fields: 0 of 30 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 29 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 29 more fields if none shows
+      anything new (29 at the current rate of new fields).
+
+  siSCRIB#6 · siSCRIB_2 · single — 31 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 2.0, bimodality coefficient 0.51.
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 31 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 31).
+    Seen in few fields: 0 of 31 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 28 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 28 more fields if none shows
+      anything new (28 at the current rate of new fields).
+
+  siSCRIB#6 · siSCRIB_3 · single — 28 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis -0.8, bimodality coefficient 0.57.
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 28 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 28).
+    Seen in few fields: 0 of 28 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 31 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 31 more fields if none shows
+      anything new (31 at the current rate of new fields).
+
+  siSCRIB#7 · siSCRIB_1 · single — 33 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 9%); 0 of 33 fields showed a state counted as new.
+    Not yet seen: at most 9% of fields (95% confidence, about 3 / 33).
+    Seen in few fields: 0 of 33 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 26 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 26 more fields if none shows
+      anything new (26 at the current rate of new fields).
+
+  siSCRIB#7 · siSCRIB_2 · single — 29 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 29 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
+    Seen in few fields: 0 of 29 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 30 more fields if none shows
+      anything new (30 at the current rate of new fields).
+
+  siSCRIB#7 · siSCRIB_3 · single — 29 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)        no      never                                    –
+    One more field: chance 0% (nominal 95% bound 10%); 0 of 29 fields showed a state counted as new.
+    Not yet seen: at most 10% of fields (95% confidence, about 3 / 29).
+    Seen in few fields: 0 of 29 fields hold a state seen in 2 to 3 fields.
+    Fields still needed: at least 30 more fields with nothing new to rule out unseen states in more
+      than 5% of fields; to bring the next-field bound below 5%, at least 30 more fields if none shows
+      anything new (30 at the current rate of new fields).
+
+  'New' means a cluster of at least 3 similar observations (each linked to another by a step within
+    the distance, so a more spread-out state is not counted) with no other FOV within distance 1
+    (robust_standardize), on 1 feature (Filopodia number); two observations of a state that varies by
+    one SD per feature sit about 1.4 apart.
+
+  ⚠️ JCB rule, per cell, 5%, in 1 of 54 groups (siCCT8#5 · siCCT8_2 · single): the SD between cells
+     exceeds 50% CV; the paper advises acquiring more data and repeating the estimate; the upper-95 SD
+     bound assumes normal values, and these cells have excess kurtosis 2.7 and bimodality coefficient
+     0.51 (above 2 or 0.56: a heavy tail or a minority state), so the bound can be optimistic (with
+     10% of cells at four times the level of the rest it covered the true SD 68-88% of the time, not
+     97.5%)
+  ⚠️ JCB rule, per cell, 5%, in 13 of 54 groups (siCCT8#8 · siCCT8_1 · single,
+     siCSNK1A1#5 · siCSNK1A1_1 · single, siCTRL · siCSNK1A1_1 · single, siCTRL · siMAP4K4_3 · single,
+     siMAP4K4#5 · siMAP4K4_2 · single and 8 more): the upper-95 SD bound assumes normal values, and
+     these cells have excess kurtosis -0.8 to 6.3 and bimodality coefficient 0.31 to 0.60 (above 2 or
+     0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of cells at
+     four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+  ⚠️ JCB rule, per cell, 5%, in 1 of 54 groups (siMINK1#10 · siMINK1_2 · single): the SD between cells
+     exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
+  ⚠️ JCB rule, per cell, 5% was met and then lost as more fields arrived, in 2 of 54 groups.
+  ⚠️ JCB rule, per field, 5%, in 2 of 54 groups (siCCT8#5 · siCCT8_2 · single and
+     siMINK1#10 · siMINK1_2 · single): the SD between cells exceeds 50% CV; the paper advises
+     acquiring more data and repeating the estimate.
+  ⚠️ JCB rule, per field, 5% was met and then lost as more fields arrived, in 2 of 54 groups.
+  ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of the
+     well's positions; a raster over a spatial trend can stop early.
+  Assumptions:
+    - A state below the not-yet-seen bound can remain: rarer states can remain.
+    - A state seen in few fields (fields counted as new are not among them) is not new to the next
+      field but is not established either: it counts as recurrent, so look at those fields before
+      calling the sample settled.
+    - Fields that cluster a state need more fields than the planning numbers.
+    - JCB rule, per cell, 5% treats cells as independent draws: it assumes a spatially uniform
+      sample.
+    - The next-field bound is approximate: the leave-one-field-out outcomes share their reference
+      fields.
+    - The novelty bounds treat fields as independent, representative draws: neighbouring fields
+      acquired in a raster over patchy states make them too low.
+    - Every novelty bound holds at a number of fields fixed in advance, not at the first field where
+      it passes: stopping there is premature more often than 5% of the time.
+    - A state carried by fewer than 3 similar cells per field is never counted, however many fields
+      hold it.
+
+⚠️ 3. What is limiting my sampling?
+  Measured quantities (the sampling profile), each with where it holds and its source:
+  - unusual cells: clustered in a few fields (p <= 0.05) in 0 of the 9 groups where it was seen [all
+    groups; fov_clustering]
+
+  Unusual cells: farther from the reference (siCTRL) than all but 1% of reference cells are from the
+    other reference groups (1 standardized features, 5 nearest neighbours). Groups:
+    condition · biological_repeat · technical_repeat.
+    group                                cells scored  unusual  share  refits agree  threshold  calibrated
+    siCCT8#5 · siCCT8_1 · single                   34        0     0%          100%      0.445  leave-one-group-out
+    siCCT8#5 · siCCT8_2 · single                   49        0     0%          100%      0.445  leave-one-group-out
+    siCCT8#5 · siCCT8_3 · single                   30        0     0%          100%      0.445  leave-one-group-out
+    siCCT8#8 · siCCT8_1 · single                   31        0     0%          100%      0.445  leave-one-group-out
+    siCCT8#8 · siCCT8_2 · single                   38        0     0%          100%      0.445  leave-one-group-out
+    siCCT8#8 · siCCT8_3 · single                   31        1     3%          100%      0.445  leave-one-group-out
+    siCTRL · siCCT8_1 · single                     33        0     0%          100%       0.56  leave-one-group-out
+    siCTRL · siCCT8_2 · single                     39        5    13%          100%      0.136  leave-one-group-out
+    siCTRL · siCCT8_3 · single                     32        0     0%          100%      0.558  leave-one-group-out
+    siCSNK1A1#11 · siCSNK1A1_1 · single            34        0     0%          100%      0.445  leave-one-group-out
+    siCSNK1A1#11 · siCSNK1A1_2 · single            34        0     0%          100%      0.445  leave-one-group-out
+    siCSNK1A1#11 · siCSNK1A1_3 · single            34        0     0%          100%      0.445  leave-one-group-out
+    siCSNK1A1#5 · siCSNK1A1_1 · single             35        1     3%          100%      0.445  leave-one-group-out
+    siCSNK1A1#5 · siCSNK1A1_2 · single             34        1     3%          100%      0.445  leave-one-group-out
+    siCSNK1A1#5 · siCSNK1A1_3 · single             34        0     0%          100%      0.445  leave-one-group-out
+    siCTRL · siCSNK1A1_1 · single                  31        1     3%          100%       0.27  leave-one-group-out
+    siCTRL · siCSNK1A1_2 · single                  33        0     0%          100%      0.577  leave-one-group-out
+    siCTRL · siCSNK1A1_3 · single                  33        0     0%          100%        0.6  leave-one-group-out
+    siCTRL · siMAP4K4_1 · single                   30        0     0%          100%      0.554  leave-one-group-out
+    siCTRL · siMAP4K4_2 · single                   32        0     0%          100%      0.555  leave-one-group-out
+    siCTRL · siMAP4K4_3 · single                   31        0     0%          100%      0.561  leave-one-group-out
+    siMAP4K4#5 · siMAP4K4_1 · single               31        0     0%          100%      0.445  leave-one-group-out
+    siMAP4K4#5 · siMAP4K4_2 · single               13        0     0%          100%      0.445  leave-one-group-out
+    siMAP4K4#5 · siMAP4K4_3 · single               32        0     0%          100%      0.445  leave-one-group-out
+    siMAP4K4#6 · siMAP4K4_1 · single               37        1     3%          100%      0.445  leave-one-group-out
+    siMAP4K4#6 · siMAP4K4_2 · single               29        0     0%          100%      0.445  leave-one-group-out
+    siMAP4K4#6 · siMAP4K4_3 · single               32        2     6%           50%      0.445  leave-one-group-out
+    siCTRL · siMINK1_1 · single                    34        0     0%          100%      0.566  leave-one-group-out
+    siCTRL · siMINK1_2 · single                    32        0     0%          100%      0.558  leave-one-group-out
+    siCTRL · siMINK1_3 · single                    18        0     0%          100%      0.513  leave-one-group-out
+    siMINK1#10 · siMINK1_1 · single                33        0     0%          100%      0.445  leave-one-group-out
+    siMINK1#10 · siMINK1_2 · single                29        0     0%          100%      0.445  leave-one-group-out
+    siMINK1#10 · siMINK1_3 · single                27        0     0%          100%      0.445  leave-one-group-out
+    siMINK1#3 · siMINK1_1 · single                 38        0     0%          100%      0.445  leave-one-group-out
+    siMINK1#3 · siMINK1_2 · single                 27        0     0%          100%      0.445  leave-one-group-out
+    siMINK1#3 · siMINK1_3 · single                 20        0     0%          100%      0.445  leave-one-group-out
+    siCTRL · siNF2_1 · single                      31        0     0%          100%      0.556  leave-one-group-out
+    siCTRL · siNF2_2 · single                      29        0     0%          100%      0.554  leave-one-group-out
+    siCTRL · siNF2_3 · single                      31        0     0%          100%      0.553  leave-one-group-out
+    siNF2#17 · siNF2_1 · single                    32        0     0%            0%      0.445  leave-one-group-out
+    siNF2#17 · siNF2_2 · single                    31        0     0%          100%      0.445  leave-one-group-out
+    siNF2#17 · siNF2_3 · single                    30        0     0%          100%      0.445  leave-one-group-out
+    siNF2#7 · siNF2_1 · single                     30        1     3%          100%      0.445  leave-one-group-out
+    siNF2#7 · siNF2_2 · single                     31        0     0%          100%      0.445  leave-one-group-out
+    siNF2#7 · siNF2_3 · single                     31        0     0%          100%      0.445  leave-one-group-out
+    siCTRL · siSCRIB_1 · single                    30        1     3%          100%      0.324  leave-one-group-out
+    siCTRL · siSCRIB_2 · single                    26        0     0%          100%      0.538  leave-one-group-out
+    siCTRL · siSCRIB_3 · single                    30        0     0%          100%      0.552  leave-one-group-out
+    siSCRIB#6 · siSCRIB_1 · single                 30        0     0%          100%      0.445  leave-one-group-out
+    siSCRIB#6 · siSCRIB_2 · single                 31        0     0%          100%      0.445  leave-one-group-out
+    siSCRIB#6 · siSCRIB_3 · single                 28        0     0%          100%      0.445  leave-one-group-out
+    siSCRIB#7 · siSCRIB_1 · single                 33        0     0%          100%      0.445  leave-one-group-out
+    siSCRIB#7 · siSCRIB_2 · single                 29        0     0%          100%      0.445  leave-one-group-out
+    siSCRIB#7 · siSCRIB_3 · single                 29        0     0%          100%      0.445  leave-one-group-out
+  ⚠️ Refits with other reference samples agree on only 0-50% of the unusual cells in 2 of 54 groups
+     (siMAP4K4#6 · siMAP4K4_3 · single and siNF2#17 · siNF2_1 · single; below 90%): treat those
+     labels as unstable.
+
+  Are the unusual cells spread over the fields? Clustered in a few fields (p ≤ 0.05) in none of 9
+    groups where seen. Not seen in siCCT8#5 · siCCT8_1 · single (34 labelled cells in 34 fields),
+    siCCT8#5 · siCCT8_2 · single (49 labelled cells in 49 fields), siCCT8#5 · siCCT8_3 · single (30
+    labelled cells in 30 fields) and 42 more.
+    group                                 cells  in fields  if random  ratio  p  holding ≥3  reference holding  to see, 95%  if random
+    siCCT8#8 · siCCT8_3 · single         1 (3%)    1 of 31        1.0    1.0  1     0 of 31      0 of 555 (0%)            –          –
+    siCTRL · siCCT8_2 · single          5 (13%)    5 of 39        5.0    1.0  1     0 of 39      0 of 516 (0%)            –          –
+    siCSNK1A1#5 · siCSNK1A1_1 · single   1 (3%)    1 of 35        1.0    1.0  1     0 of 35      0 of 555 (0%)            –          –
+    siCSNK1A1#5 · siCSNK1A1_2 · single   1 (3%)    1 of 34        1.0    1.0  1     0 of 34      0 of 555 (0%)            –          –
+    siCTRL · siCSNK1A1_1 · single        1 (3%)    1 of 31        1.0    1.0  1     0 of 31      0 of 524 (0%)            –          –
+    siMAP4K4#6 · siMAP4K4_1 · single     1 (3%)    1 of 37        1.0    1.0  1     0 of 37      0 of 555 (0%)            –          –
+    siMAP4K4#6 · siMAP4K4_3 · single     2 (6%)    2 of 32        2.0    1.0  1     0 of 32      0 of 555 (0%)            –          –
+    siNF2#7 · siNF2_1 · single           1 (3%)    1 of 30        1.0    1.0  1     0 of 30      0 of 555 (0%)            –          –
+    siCTRL · siSCRIB_1 · single          1 (3%)    1 of 30        1.0    1.0  1     0 of 30      0 of 525 (0%)            –          –
+  In fields: the fields holding the state; if random: the fields as many random cells would fill; p:
+    how often shuffled labels reach as few fields. To see: the fields to see it from its field
+    incidence (up to: from the low end of its interval), against the fields a count of random cells
+    asks for.
+  Technical repeats holding each state:
+    condition · biological_repeat  state          held by
+    siCCT8#8 · siCCT8_3            unusual cells  0 of 1 technical repeat
+    siCTRL · siCCT8_2              unusual cells  0 of 1 technical repeat
+    siCSNK1A1#5 · siCSNK1A1_1      unusual cells  0 of 1 technical repeat
+    siCSNK1A1#5 · siCSNK1A1_2      unusual cells  0 of 1 technical repeat
+    siCTRL · siCSNK1A1_1           unusual cells  0 of 1 technical repeat
+    siMAP4K4#6 · siMAP4K4_1        unusual cells  0 of 1 technical repeat
+    siMAP4K4#6 · siMAP4K4_3        unusual cells  0 of 1 technical repeat
+    siNF2#7 · siNF2_1              unusual cells  0 of 1 technical repeat
+    siCTRL · siSCRIB_1             unusual cells  0 of 1 technical repeat
+  ⚠️ No field holds at least 3 unusual cells in siCCT8#8 · siCCT8_3 · single,
+     siCTRL · siCCT8_2 · single, siCSNK1A1#5 · siCSNK1A1_1 · single and 6 more, so no field count is
+     given there.
+
+  The reference of the unusual cells pools the control cells of 18 repeats: a shift shared by one repeat (a staining or plating batch) makes its cells read as unusual, so compare the unusual share between repeats before reading it as biology.
+  Assumptions:
+    - The field counts assume fields from independent technical repeats: a state held by few
+      technical repeats is clustered in their fields, so seeing it needs fields from more technical
+      repeats than the count says (no two-level plan is made).
+
+✅ 6. Which fields should I look at?
+  Analysis groups: condition · biological_repeat · technical_repeat.
+  No field stands out under the declared thresholds (new state, influence, count checked).
+
+⚠️ 9. Do the conditions differ, and how confidently?
+  Feature Filopodia number, each condition against the control {'condition': 'siCTRL'}, within each
+    biological repeat. The fields of a condition's analysis groups are pooled for this comparison.
+    Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
+    the field as the unit and, where each side has at least two, with the technical repeat
+    (technical_repeat) as the unit.
+    contrast                              fields    cells     tech. repeats  d cells  d fields  JCS, every cell
+    siCCT8#5 vs siCTRL · siCCT8_1         34 vs 33  34 vs 33  1 vs 1         -1.11    -1.11     -1.05
+    siCCT8#8 vs siCTRL · siCCT8_1         31 vs 33  31 vs 33  1 vs 1         -1.10    -1.10     -1.04
+    siCCT8#5 vs siCTRL · siCCT8_2         49 vs 39  49 vs 39  1 vs 1         -1.66    -1.66     -1.38
+    siCCT8#8 vs siCTRL · siCCT8_2         38 vs 39  38 vs 39  1 vs 1         -1.33    -1.33     -1.10
+    siCCT8#5 vs siCTRL · siCCT8_3         30 vs 32  30 vs 32  1 vs 1         -1.56    -1.56     -1.31
+    siCCT8#8 vs siCTRL · siCCT8_3         31 vs 32  31 vs 32  1 vs 1         -2.18    -2.18     -1.84
+    siCSNK1A1#11 vs siCTRL · siCSNK1A1_1  34 vs 31  34 vs 31  1 vs 1         -1.43    -1.43     -1.15
+    siCSNK1A1#5 vs siCTRL · siCSNK1A1_1   35 vs 31  35 vs 31  1 vs 1         -1.53    -1.53     -1.34
+    siCSNK1A1#11 vs siCTRL · siCSNK1A1_2  34 vs 33  34 vs 33  1 vs 1         -1.98    -1.98     -1.55
+    siCSNK1A1#5 vs siCTRL · siCSNK1A1_2   34 vs 33  34 vs 33  1 vs 1         -1.83    -1.83     -1.51
+    siCSNK1A1#11 vs siCTRL · siCSNK1A1_3  34 vs 33  34 vs 33  1 vs 1         -2.17    -2.17     -1.76
+    siCSNK1A1#5 vs siCTRL · siCSNK1A1_3   34 vs 33  34 vs 33  1 vs 1         -2.40    -2.40     -1.91
+    siMAP4K4#5 vs siCTRL · siMAP4K4_1     31 vs 30  31 vs 30  1 vs 1         1.00     1.00      1.13
+    siMAP4K4#6 vs siCTRL · siMAP4K4_1     37 vs 30  37 vs 30  1 vs 1         2.08     2.08      2.56
+    siMAP4K4#5 vs siCTRL · siMAP4K4_2     13 vs 32  13 vs 32  1 vs 1         0.69     0.69      0.89
+    siMAP4K4#6 vs siCTRL · siMAP4K4_2     29 vs 32  29 vs 32  1 vs 1         0.89     0.89      1.00
+    siMAP4K4#5 vs siCTRL · siMAP4K4_3     32 vs 31  32 vs 31  1 vs 1         0.77     0.77      0.79
+    siMAP4K4#6 vs siCTRL · siMAP4K4_3     32 vs 31  32 vs 31  1 vs 1         1.21     1.21      1.75
+    siMINK1#10 vs siCTRL · siMINK1_1      33 vs 34  33 vs 34  1 vs 1         -0.38    -0.38     -0.39
+    siMINK1#3 vs siCTRL · siMINK1_1       38 vs 34  38 vs 34  1 vs 1         -0.73    -0.73     -0.67
+    siMINK1#10 vs siCTRL · siMINK1_2      29 vs 32  29 vs 32  1 vs 1         -1.05    -1.05     -1.08
+    siMINK1#3 vs siCTRL · siMINK1_2       27 vs 32  27 vs 32  1 vs 1         -0.42    -0.42     -0.47
+    siMINK1#10 vs siCTRL · siMINK1_3      27 vs 18  27 vs 18  1 vs 1         -1.21    -1.21     -0.90
+    siMINK1#3 vs siCTRL · siMINK1_3       20 vs 18  20 vs 18  1 vs 1         -0.32    -0.32     -0.30
+    siNF2#17 vs siCTRL · siNF2_1          32 vs 31  32 vs 31  1 vs 1         0.16     0.16      0.19
+    siNF2#7 vs siCTRL · siNF2_1           30 vs 31  30 vs 31  1 vs 1         0.37     0.37      0.41
+    siNF2#17 vs siCTRL · siNF2_2          31 vs 29  31 vs 29  1 vs 1         0.36     0.36      0.35
+    siNF2#7 vs siCTRL · siNF2_2           31 vs 29  31 vs 29  1 vs 1         0.30     0.30      0.30
+    siNF2#17 vs siCTRL · siNF2_3          30 vs 31  30 vs 31  1 vs 1         1.08     1.08      1.21
+    siNF2#7 vs siCTRL · siNF2_3           31 vs 31  31 vs 31  1 vs 1         0.99     0.99      1.09
+    siSCRIB#6 vs siCTRL · siSCRIB_1       30 vs 30  30 vs 30  1 vs 1         -0.95    -0.95     -0.79
+    siSCRIB#7 vs siCTRL · siSCRIB_1       33 vs 30  33 vs 30  1 vs 1         -1.17    -1.17     -0.89
+    siSCRIB#6 vs siCTRL · siSCRIB_2       31 vs 26  31 vs 26  1 vs 1         -1.96    -1.96     -1.58
+    siSCRIB#7 vs siCTRL · siSCRIB_2       29 vs 26  29 vs 26  1 vs 1         -1.44    -1.44     -1.35
+    siSCRIB#6 vs siCTRL · siSCRIB_3       28 vs 30  28 vs 30  1 vs 1         -1.94    -1.94     -1.75
+    siSCRIB#7 vs siCTRL · siSCRIB_3       29 vs 30  29 vs 30  1 vs 1         -2.05    -2.05     -1.70
+  ⚠️ No randomization test in all 36 contrasts: only one technical repeat (technical_repeat) with
+     observations on one side: its fields cannot stand in for technical repeats, so there is no test.
+  Assumptions:
+    - The test and the effect sizes compare means: a difference confined to a subpopulation of cells
+      or to the shape of the distribution is not tested (see the unusual cells and the rare label).
+    - This describes what these fields support about a difference under this feature; generalizing
+      it needs independent biological repeats, which is the user's inference.
+
+What this dataset cannot tell me
+  ➖ 1. Can these features detect what I care about?: not assessed; needs: declare a positive control
+     (and a reference) with representation_control.
+  ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
+     and this definition of new cannot see.
+  ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
+     redundancy and dispersed orders were not assessed.
+  ⚠️ No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
+     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
+     not seen.
+  Assumptions:
+    - Every answer holds for the stated features, tolerances and definition of new.
+    - Replays, draws and hold-outs describe these samples; they are not independent experiments.
+      Statements across samples count samples or repeats.
+    - A field count that preserved this acquisition is not a protocol until it holds on samples it
+      was not chosen on.
+    - Technical drift between repeats, batches or plates is not assessed: groups are analysed apart,
+      and a shift shared by all fields of a group is not new within it.
+    - Each 'enough' is per technical repeat; the condition mean also varies between technical
+      repeats, which more fields of one technical repeat cannot reduce (question 3; optimise,
+      question 7: more fields or more technical repeats?).
+
+Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.
