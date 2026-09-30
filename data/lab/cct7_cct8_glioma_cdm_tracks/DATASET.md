@@ -52,7 +52,7 @@ _Written 2026-09-30, before any MorphoCoverage run. These are expectations to ch
 ## 5. Traps for an analyst
 
 - 28 tracks are in the source twice, in two results files of the same siRNA and repeat (see the hypotheses); they are kept as in the source (owner's decision, 2026-09-30), so counts and means include them. Deduplicate on (experiment, condition, biological_repeat, label_id, metrics) before any biological use.
-- Track lengths differ within a repeat: in CCT7 repeat 2 the siCTRL tracks mostly last 1200 min and the siRNA tracks 950 min, so path length, spatial coverage, turning angle and directionality are not comparable there; across sets, movies differ in length in every repeat.
+- Track lengths differ within a repeat: in CCT7 repeat 2 the siCTRL tracks mostly last 1200 min and the siRNA tracks 950 min; across sets, movies differ in length in every repeat. Not a deal breaker, but only the normalised metrics (speeds and rolling-window metrics, the declared features) are comparable; the whole-track totals, directionality and tortuosity are not (owner's statement, 2026-09-30).
 - Distances and speeds are in pixels (px per 10 min); the pixel size is not recorded, so values are comparable within this dataset only.
 - MorphoCoverage has no experiment level: both sets' controls are condition 'siCTRL'; the biological_repeat labels ('CCT7_1', 'CCT8_1', ...) keep the sets apart.
 - The acquisition method and the track filters are the related paper's; that they apply here is an assumption. Fields were imaged in parallel (multi-position time-lapse).

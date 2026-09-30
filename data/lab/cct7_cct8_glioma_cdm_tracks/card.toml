@@ -11,11 +11,10 @@ contract_version = "2026-09-biological_repeat"
 role = "development"
 observation_unit = "track"
 feature_cols = [
-  "Mean Speed", "Median Speed", "Max Speed", "Speed Standard Deviation", "Total Distance Traveled",
-  "Mean Speed Rolling", "Median Speed Rolling", "Max Speed Rolling", "Min Speed Rolling Rolling",
-  "Speed Standard Deviation Rolling", "Total Distance Traveled Rolling", "Directionality",
-  "Directionality Rolling", "Tortuosity", "Tortuosity Rolling", "Total Turning Angle",
-  "Total Turning Angle Rolling", "Spatial Coverage", "Spatial Coverage Rolling",
+  "Mean Speed", "Median Speed", "Speed Standard Deviation", "Mean Speed Rolling",
+  "Median Speed Rolling", "Max Speed Rolling", "Min Speed Rolling Rolling",
+  "Speed Standard Deviation Rolling", "Total Distance Traveled Rolling", "Directionality Rolling",
+  "Tortuosity Rolling", "Total Turning Angle Rolling", "Spatial Coverage Rolling",
 ]
 readout = "Mean Speed"
 control = { condition = "siCTRL" }
@@ -72,10 +71,11 @@ field = "the imaged position, '<well>_<position>' from the results file name (e.
 observation = "one track; label_id = TRACK_ID (the track's number within its results file)"
 fov_table_source = "the results files named in the source (one per position); positions with no track are not known"
 non_features = [
-  "label_id", "Track Duration", "Min Speed", "FMI_x_plus", "FMI_x_minus", "FMI_y_plus", "FMI_y_minus",
-  "source_row",
+  "label_id", "Track Duration", "Min Speed", "Max Speed", "Total Distance Traveled", "Directionality",
+  "Tortuosity", "Total Turning Angle", "Spatial Coverage", "FMI_x_plus", "FMI_x_minus",
+  "FMI_y_plus", "FMI_y_minus", "source_row",
 ]
-feature_choice = "feature_cols are the CellTracksColab track metrics except Track Duration (set by the movie and the tracking, not by the cell), Min Speed (only two distinct values, 0 and 0.0724) and the forward migration indices (FMI, which depend on the image orientation and have no gradient to refer to)"
+feature_choice = "feature_cols are the metrics that do not grow with the track's length: the speeds (rates per frame) and CellTracksColab's rolling-window metrics. Track durations differ between conditions within a repeat, which should be flagged but is not a deal breaker as long as the normalised metrics are used (owner's statement, 2026-09-30); so the whole-track metrics (Max Speed, Total Distance Traveled, Directionality, Tortuosity, Total Turning Angle, Spatial Coverage) are stored as non-features, with Track Duration, Min Speed (two distinct values, 0 and 0.0724) and the forward migration indices (FMI, which depend on the image orientation and have no gradient to refer to)"
 
 [design.counts]
 experiments = 2
@@ -106,7 +106,7 @@ items = [
 [[caveats]]
 text = "28 tracks are in the source twice, in two results files of the same siRNA and repeat (see the hypotheses); they are kept as in the source (owner's decision, 2026-09-30), so counts and means include them. Deduplicate on (experiment, condition, biological_repeat, label_id, metrics) before any biological use."
 [[caveats]]
-text = "Track lengths differ within a repeat: in CCT7 repeat 2 the siCTRL tracks mostly last 1200 min and the siRNA tracks 950 min, so path length, spatial coverage, turning angle and directionality are not comparable there; across sets, movies differ in length in every repeat."
+text = "Track lengths differ within a repeat: in CCT7 repeat 2 the siCTRL tracks mostly last 1200 min and the siRNA tracks 950 min; across sets, movies differ in length in every repeat. Not a deal breaker, but only the normalised metrics (speeds and rolling-window metrics, the declared features) are comparable; the whole-track totals, directionality and tortuosity are not (owner's statement, 2026-09-30)."
 [[caveats]]
 text = "Distances and speeds are in pixels (px per 10 min); the pixel size is not recorded, so values are comparable within this dataset only."
 [[caveats]]

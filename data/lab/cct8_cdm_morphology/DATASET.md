@@ -61,6 +61,7 @@ _Written 2026-09-30, before any MorphoCoverage run. These are expectations to ch
 ## 5. Traps for an analyst
 
 - One cell per field is the owner's statement; the images are not identified, so field identities are synthetic. Fiji's Slice column (source_slice) is the z-plane each outline was drawn on (owner's statement, 2026-09-30), not an image index; it is not a z coordinate of the tables, since the outline is one plane of a 3D cell.
+- Fiji rows 7 and 8 of siCCT8#5, repeat 1 (source rows 69 and 70) are the same cell measured twice: every value, the centroid and the slice are identical. Found by MorphoCoverage's copied-small-field check (2026-09-30); kept as in the source, so siCCT8#5 counts 63 cells where 62 were measured. The paper's numbers include the duplicate.
 - One well per siRNA and repeat (technical repeat 'single'): no test within a biological repeat is possible; cells are not independent replicates.
 - Cells were segmented manually and the cell-selection rule is not stated: a chosen, not random, sample of cells.
 - The intensity columns (Mean ... RawIntDen) were measured on processed RGB projections and are not features here; positions, orientations and bounding boxes are not features either.
