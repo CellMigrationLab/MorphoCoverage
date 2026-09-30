@@ -186,3 +186,27 @@ reagents of one target agree. Filopodia screen: for all six genes both siRNAs ar
 of their set's control in 3 of 3 repeats (MAP4K4 and NF2 higher, the other four lower). CDM shape:
 both CCT8 siRNAs lower in 3 of 3. Glioma tracks: both CCT8 siRNAs slower in 3 of 3; the CCT7 siRNAs
 are on one side in 2 of 3 repeats, lower in one and higher in the other.
+
+## 2026-09-30 — seventh run: the cell-level test, balanced when the repeats are not
+
+Question 9 now also gives the lab's Plot&Stats test (Cohen's d on every cell against every control
+cell, randomization over cells), labelled with the chance it gives p ≤ 0.05 without an effect. A
+balance check comes first. The data count as unbalanced when one repeat holds more than 25% more
+observations than another, or when the control is pooled from repeats the condition was not
+imaged in. Unbalanced data get the test twice: as provided, and balanced (own-repeat control, the
+same count from each repeat, median over 100 draws). A repeat under a quarter of the largest is
+named instead of balanced to. All three datasets are unbalanced, and none has such a small repeat.
+
+- **Filopodia screen**: each set's control is pooled from 18 repeats against the condition's own 3.
+  Balancing turns siMAP4K4#5 from d -0.10 (Bonferroni p 1.0) to +0.80 (0.012), in line with its
+  3 of 3 repeats above the control. 9 of 12 conditions are at Bonferroni p ≤ 0.05 as provided,
+  and 10 of 12 balanced. The chance of a false positive runs about 5-40%, set by each condition's
+  variation between repeats.
+- **CDM shape**: one repeat holds up to 2.2 times the cells of another. The d barely moves
+  (-0.44 to -0.43, -0.57 to -0.55), but siCCT8#5 loses significance (Bonferroni p 0.028 to 0.12).
+- **Glioma tracks**: CCT7 and CCT8 were imaged in separate repeats, so the pooled control mixes
+  both. As provided, both CCT7 siRNAs differ (d 0.68 and 0.37). Balanced against their own
+  repeats' control, they do not (0.22 and -0.10), which matches their 1-2 of 3 repeats in each
+  direction. CCT8 stays (d about -1.0). Here the false-positive chance is about 35%.
+- Most of the change comes from using each condition's own-repeat control. Equalising cells per
+  repeat changes little in these datasets, since no repeat holds more than about half the cells.

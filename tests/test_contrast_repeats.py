@@ -128,7 +128,8 @@ def test_question_9_leads_with_the_answer_across_repeats(screen):
     assert headline == (
         "12 conditions across 3 biological repeats: 12 in the same direction in every repeat "
         "(8 lower, 4 higher than the control); paired t on the repeat means: 0 of 12 at "
-        "Bonferroni p ≤ 0.05; reagents agree in every repeat for 6 of 6 targets"
+        "Bonferroni p ≤ 0.05; reagents agree in every repeat for 6 of 6 targets; cell-level "
+        "test: 9 of 12 at Bonferroni p ≤ 0.05 (balanced over the repeats: 10 of 12)"
     )
 
 

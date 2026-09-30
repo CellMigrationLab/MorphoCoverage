@@ -166,7 +166,9 @@ class ConditionContrast:
       every control observation, the randomization p over observations and its
       Bonferroni correction over the conditions, and the chance it gives
       p <= 0.05 without an effect given the variation between repeats
-      (``chance_low``/``chance_high``, a range when one repeat cannot estimate it).
+      (``chance_low``/``chance_high``, a range when one repeat cannot estimate it);
+      the balance check (``unbalanced``, ``sparse_repeats``) and, when unbalanced,
+      the same test balanced over the repeats (``d_balanced``, ``p_balanced``).
     """
 
     table: pd.DataFrame
@@ -401,12 +403,15 @@ def condition_contrast(
         }
         control_cells.setdefault(repeat, c_objects)
         side = pooled.setdefault(
-            condition, {"treated": [], "wells": [], "control_condition": base["control_condition"]}
+            condition,
+            {
+                "treated_by_repeat": {},
+                "control_by_repeat": {},
+                "control_condition": base["control_condition"],
+            },
         )
-        side["treated"].append(t_objects)
-        per_t = len(t_objects) / max(test["technical"], 1)
-        per_c = len(c_objects) / max(test["control_technical"], 1)
-        side["wells"].append(min(per_t, per_c))
+        side["treated_by_repeat"][repeat] = t_objects
+        side["control_by_repeat"][repeat] = c_objects
         # Question 2 with a control: do the fields acquired resolve this difference? Its own
         # generator, so the draws below are unchanged.
         own = group_rng(random_state, {**base, "question": "enough"})
@@ -427,9 +432,8 @@ def condition_contrast(
     agreement = reagent_agreement(table, _targets(fovs, condition_col, target_col))
     every_control = np.concatenate(list(control_cells.values())) if control_cells else None
     for side in pooled.values():
-        side["treated"] = np.concatenate(side["treated"])
         side["control"] = every_control
-        side["per_well"] = float(np.mean(side["wells"]))
+        side["control_repeats"] = len(control_cells)
     cells = (
         cell_table(
             pooled,

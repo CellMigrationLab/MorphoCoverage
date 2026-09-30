@@ -11,6 +11,7 @@ import pandas as pd
 from .._style import Status, span
 from .._wording import column_word, count
 from ..sampling_unit._units import opposite_signs
+from ..sampling_unit.cells_text import cells_headline
 from ..sampling_unit.contrast_text import (
     P_ALPHA,
     across_tested,
@@ -72,6 +73,9 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
             agreeing = reagents_headline(contrast)
             if agreeing:
                 parts.append(agreeing)
+            cell_level = cells_headline(contrast)
+            if cell_level:
+                parts.append(cell_level)
         else:
             sizes = table["d_fields"].abs().dropna()
             size = f", |d| on field means {span(sizes)}" if len(sizes) else ""

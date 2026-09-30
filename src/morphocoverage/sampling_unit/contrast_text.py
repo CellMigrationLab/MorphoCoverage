@@ -36,6 +36,7 @@ from .._wording import column_word, count, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
+from .cells_text import cells_parts
 from .contrast_repeats import MIN_REPEATS
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 from .reagents_text import reagents_parts
@@ -398,12 +399,15 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         reason = contrast.settings.get("reason", "No condition to compare with the control.")
         return [*lines, wrap(reason, indent, hang=indent + 2)], []
     across = not _repeats(contrast).empty
-    if across:
+    cell_lines, cell_notes = cells_parts(contrast, indent)
+    if not across:
+        # A pilot (one repeat): the cell-level test is the one that responds, so it leads.
+        lines = cell_lines + lines
+    else:
         lines = [wrap(_repeat_head(contrast), indent, hang=indent + 2)]
         rows, columns = _repeat_rows(contrast)
         lines.append(table(rows, columns, indent=indent + 2))
-        agreeing, agree_notes = reagents_parts(contrast, indent)
-        lines += agreeing
+        lines += reagents_parts(contrast, indent)[0] + cell_lines
         lines.append(
             wrap(f"Within each repeat: {_head(contrast, short=True)}", indent, hang=indent + 2)
         )
@@ -423,8 +427,8 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
     lines += _draws_short(contrast, indent)
     planned, plan_notes = plan_parts(contrast, indent)
     lines += planned
-    agree_notes = reagents_parts(contrast, indent)[1] if across else []
-    return lines, [*repeat_cautions(contrast), *agree_notes, *_cautions(contrast), *plan_notes]
+    side_notes = (reagents_parts(contrast, indent)[1] if across else []) + cell_notes
+    return lines, [*repeat_cautions(contrast), *side_notes, *_cautions(contrast), *plan_notes]
 
 
 def _tests_short(contrast: Any) -> str | None:
@@ -528,7 +532,10 @@ def _full(contrast: Any) -> str:
         rows, columns = _repeat_rows(contrast, full=True)
         lines += [wrap(_repeat_head(contrast), 0, hang=2), table(rows, columns)]
         lines += reagents_parts(contrast, 0)[0]
+        lines += cells_parts(contrast, 0, full=True)[0]
         lines.append(wrap("Within each repeat:", 0, hang=2))
+    else:
+        lines += cells_parts(contrast, 0, full=True)[0]
     rows, columns = _contrast_rows(contrast, full=True)
     lines.append(table(rows, columns))
     tested = contrast.table[contrast.table["status"] == "ok"]
@@ -554,7 +561,14 @@ def _full(contrast: Any) -> str:
     planned, plan_notes = plan_parts(contrast, 0, full=True)
     lines += planned
     agree_notes = reagents_parts(contrast, 0)[1]
-    cautions = [*repeat_cautions(contrast), *agree_notes, *_cautions(contrast), *plan_notes]
+    cell_notes = cells_parts(contrast, 0, full=True)[1]
+    cautions = [
+        *repeat_cautions(contrast),
+        *agree_notes,
+        *cell_notes,
+        *_cautions(contrast),
+        *plan_notes,
+    ]
     lines += caveat_lines(cautions, indent=0, detail="full")
     return "\n".join(lines)
 
