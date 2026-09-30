@@ -212,7 +212,16 @@ def run(setting):
     }
 
 
+KEY = ["repeats", "cells", "delta", "s_rep"]
+RESULTS = Path(__file__).resolve().parent / "results"
+
+
 def main():
+    """Every setting, the false-positive ones (delta 0) first. Each finished setting is appended
+    to ``results/test_choice.partial.csv`` at once, so the results can be read as they come and a
+    stopped run resumes where it left off (the settings done are skipped; each has its own seed,
+    so a resumed run gives the same numbers). The complete table is then written, sorted, to
+    ``results/test_choice.csv`` and the partial file removed."""
     grid = [
         (r, c, d, s)
         for r in (1, 2, 3, 4, 6)
@@ -221,11 +230,23 @@ def main():
         for s in (0.0, 0.25, 0.5)
     ]
     settings = [(*g, 1000 + i) for i, g in enumerate(grid)]
+    partial = RESULTS / "test_choice.partial.csv"
+    done = set()
+    if partial.exists():
+        done = {tuple(map(float, key)) for key in pd.read_csv(partial)[KEY].to_numpy()}
+    todo = [x for x in settings if tuple(map(float, x[:4])) not in done]
+    todo.sort(key=lambda x: (x[2], x[0], x[3]))
+    print(f"{len(settings) - len(todo)} settings done, {len(todo)} to run", flush=True)
     with Pool(int(sys.argv[1]) if len(sys.argv) > 1 else 4) as pool:
-        rows = pool.map(run, settings)
-    table = pd.DataFrame(rows)
-    out = Path(__file__).resolve().parent / "results" / "test_choice.csv"
-    table.round(4).to_csv(out, index=False, lineterminator="\n")
+        for row in pool.imap_unordered(run, todo):
+            frame = pd.DataFrame([row]).round(4)
+            frame.to_csv(
+                partial, mode="a", header=not partial.exists(), index=False, lineterminator="\n"
+            )
+            print(", ".join(f"{k}={v}" for k, v in row.items() if k in KEY), flush=True)
+    table = pd.read_csv(partial).sort_values(KEY).reset_index(drop=True)
+    table.to_csv(RESULTS / "test_choice.csv", index=False, lineterminator="\n")
+    partial.unlink()
     print(table.to_string(index=False))
 
 
