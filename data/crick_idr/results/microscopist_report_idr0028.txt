@@ -6,8 +6,9 @@ At a glance
      nuclei (median); the JCB count rule still held with whole fields in all 12 technical repeats
   ⚠️ 1. Can the features see the phenotype? — YAP fields recognized in 100% of checks; false alarms
      2%; not judged in biological repeat 2B (no positive-control field with nuclei)
-  ⚠️ 2. Did I image enough? — 3 of 4 rules said enough in every technical repeat; 'nothing new' not
-     yet shown; held-back fields: some rules stopped too early (up to 60%)
+  ⚠️ 2. Did I image enough? — the difference from the control is resolved in 6 of 6 contrasts; JCB
+     rule, per nucleus, 5%: met in 12 of 12 technical repeats; held-back fields: some rules stopped
+     too early (up to 60%)
   ⚠️ 3. What limits my sampling? — whole fields 2.1x as variable as random nuclei; unusual nuclei
      clustered in 4 of 11 technical repeats; most variance between samples in 3 of 4 conditions
   ⚠️ 4. How many fields next time? — 8 fields served every technical repeat for 2 of 3 targets; 1 of
@@ -79,6 +80,16 @@ At a glance
     about a small or sparse state in an ordinary field (the planted rates measure that).
 
 ⚠️ 2. Did I image enough?
+  Enough to resolve the difference from the control? YAPTAZ_Ratio, each condition against the
+    control of the same repeat:
+    contrast            fields    d nuclei (95% interval)  enough?
+    LATS1 vs MOCK · 1A  56 vs 28  1.32 (1.12 to 1.52)      resolved
+    YAP vs MOCK · 1A    56 vs 28  -1.08 (-1.23 to -0.94)   resolved
+    ARAP2 vs MOCK · 2A  28 vs 28  0.29 (0.17 to 0.39)      resolved
+    LATS1 vs MOCK · 2A  28 vs 28  0.69 (0.56 to 0.84)      resolved
+    YAP vs MOCK · 2A    28 vs 28  -1.63 (-1.81 to -1.45)   resolved
+    ARAP2 vs MOCK · 2B  56 vs 28  0.35 (0.21 to 0.50)      resolved
+  The precision of each group's own mean:
   Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 12 groups:
     rule                       met in    recorded order  random orders: median (10-90%)
@@ -103,6 +114,7 @@ At a glance
     (31-689 at the current rate of new fields; never at the current rate in LATS1 · 2A · J23).
   'New': at least 3 similar nuclei that no other field shows; the exact definition is in the full
     report.
+  The cautions on these rules are in the full report.
   Adjusted for detection (5 planted positive-control nuclei recognized in 100% of 56 checks, at
     least 95% at 95% confidence): a phenotype seen as well as the control, and shown by no field
     yet, could still be in up to 11% of fields (the 10% bound divided by 95%).
@@ -112,29 +124,25 @@ At a glance
     fixed 8 fields             0-20%     0%      0-12%
     JCB rule, per nucleus, 5%  0-60%     4-36%   0-48%
     JCB rule, per field, 5%    0-40%     0-8%    0-16%
-  ⚠️ JCB rule, per nucleus, 5%, in 7 of 12 groups: the upper-95 SD bound assumes normal values, and
-     these nuclei have excess kurtosis 2.3 to 9.2 and bimodality coefficient 0.19 to 0.50 (above 2
-     or 0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of nuclei
-     at four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
-  ⚠️ JCB rule, per field, 5%, in 4 of 12 groups: field size and field mean are related (Spearman rho
-     -0.55 to -0.41, p = 0.0023 to 0.032, over 28 fields with nuclei): the per-field averaging CV
-     can then be several times too small; check it against a bootstrap of whole fields
-     (FOVBootstrapEstimator, centroid summary) or the mean of field means
-     (statistics.field_weighted_mean_se)
-  Assumptions: Fixed 8 fields: a fixed amount of effort reaching its target says nothing about what
-    the data show. JCB rule, per nucleus, 5% treats nuclei as independent draws: it assumes a
-    spatially uniform sample. Order check: no trend with acquisition order (Spearman p = 0.053 to
-    0.93) and no spatial autocorrelation (Moran's I permutation p = 0.037 to 0.84) over 28 fields;
-    every stop still treats the fields as a random sample of the well's positions; a raster over a
-    spatial trend can stop early. The next-field bound is approximate: the leave-one-field-out
-    outcomes share their reference fields. The novelty bounds treat fields as independent,
-    representative draws: neighbouring fields acquired in a raster over patchy states make them too
-    low. Every novelty bound holds at a number of fields fixed in advance, not at the first field
-    where it passes: stopping there is premature more often than 5% of the time. A state carried by
-    fewer than 3 similar nuclei per field is never counted, however many fields hold it. The
-    detection-adjusted bound assumes detection is independent between fields. Judged on held-back
-    fields the rule never saw; each acquisition is one hold-out and one order of the same fields,
-    not an independent experiment.
+  Assumptions: Resolved: the 95% interval of d, from the fields resampled as they were acquired
+    (technical repeats, then their fields, with replacement), excludes 0. The fields a side to
+    resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields));
+    beyond 4 times the fields acquired a difference is called too small to settle here. This asks
+    whether the fields pin down the difference between these nuclei; whether it holds across
+    biological repeats is question 9. Fixed 8 fields: a fixed amount of effort reaching its target
+    says nothing about what the data show. JCB rule, per nucleus, 5% treats nuclei as independent
+    draws: it assumes a spatially uniform sample. Order check: no trend with acquisition order
+    (Spearman p = 0.053 to 0.93) and no spatial autocorrelation (Moran's I permutation p = 0.037 to
+    0.84) over 28 fields; every stop still treats the fields as a random sample of the well's
+    positions; a raster over a spatial trend can stop early. The next-field bound is approximate:
+    the leave-one-field-out outcomes share their reference fields. The novelty bounds treat fields
+    as independent, representative draws: neighbouring fields acquired in a raster over patchy
+    states make them too low. Every novelty bound holds at a number of fields fixed in advance, not
+    at the first field where it passes: stopping there is premature more often than 5% of the time.
+    A state carried by fewer than 3 similar nuclei per field is never counted, however many fields
+    hold it. The detection-adjusted bound assumes detection is independent between fields. Judged on
+    held-back fields the rule never saw; each acquisition is one hold-out and one order of the same
+    fields, not an independent experiment.
 
 ⚠️ 3. What is limiting my sampling?
   - Fields: a mean from whole fields varies 2.1 times as much as one from as many random nuclei
@@ -288,8 +296,7 @@ At a glance
     compare means: a difference confined to a subpopulation of nuclei or to the shape of the
     distribution is not tested (see the unusual nuclei and the rare label). The draws resample these
     fields and nuclei, not wells or repeats: a same-sign share describes these fields and is not a
-    confidence in the effect. This describes what these fields support about a difference under this
-    feature; generalizing it needs independent biological repeats, which is the user's inference.
+    confidence in the effect.
 
 What this dataset cannot tell me
   Every question could be answered; the assumptions each answer rests on are listed with it.

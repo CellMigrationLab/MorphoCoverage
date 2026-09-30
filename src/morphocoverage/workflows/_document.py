@@ -74,9 +74,10 @@ def with_reasons(document: MicroscopistReport, reasons: Mapping[str, str]) -> Mi
             # The reason is the answer's one line: what it could not assess, and what it needs.
             headlines[key] = reason
         else:
-            sections[key] = f"{sections[key]}\n\n  {sentence}"
+            wrapped = wrap(sentence, 2, hang=4)
+            sections[key] = f"{sections[key]}\n\n{wrapped}"
             if key in short:
-                short[key] = f"{short[key]}\n\n  {sentence}"
+                short[key] = f"{short[key]}\n\n{wrapped}"
             notes.append(f"{titles[key]} {sentence}")
     return replace(
         document, sections=sections, notes=tuple(notes), short=short, headlines=headlines

@@ -25,8 +25,7 @@ Both p-values are Bonferroni-corrected over the conditions tested; a
 condition needs at least ``MIN_REPEATS`` repeats holding both sides for either
 test. A repeat's value is the mean of all its observations of the condition
 (the SuperPlots replicate mean), since within a repeat the fields are not the
-replicate. Like the per-repeat contrast, this compares means; it describes
-these repeats, and generalizing it is the user's inference.
+replicate. Like the per-repeat contrast, this compares means.
 """
 
 from __future__ import annotations

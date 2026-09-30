@@ -100,6 +100,7 @@ from ._units import (
     unit_means,
 )
 from .contrast_repeats import REPEAT_COLUMNS, across_repeats
+from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
 from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 
@@ -121,7 +122,11 @@ class ConditionContrast:
       (``p_exact``: every assignment enumerated), the smallest p-value the
       test can give (``p_floor``), the JCS effect size from every object
       (``effect_full``), and ``status`` (``"ok"``, or why there is no test;
-      the effect sizes are computed either way).
+      the effect sizes are computed either way); and for question 2, whether the
+      fields acquired resolve the difference (``contrast_sampling``: ``d_low``
+      and ``d_high``, the 95% bootstrap interval of ``d_objects`` over whole
+      fields; ``resolved``; ``fields_to_resolve`` per side when not;
+      ``too_small`` when that is beyond a practical number of fields).
     - ``effects``: one row per repeat, condition, sampling and object count:
       the median and interquartile band of the JCS effect size over the draws,
       the share of draws with the sign of ``effect_full``, and for whole
@@ -362,6 +367,10 @@ def condition_contrast(
             "p_bonferroni": np.nan,
             "effect_full": jcs_effect_size(t_objects, c_objects),
         }
+        # Question 2 with a control: do the fields acquired resolve this difference? Its own
+        # generator, so the draws below are unchanged.
+        own = group_rng(random_state, {**base, "question": "enough"})
+        row.update(sampling_row(t_units, c_units, row["d_objects"], own))
         rows.append(row)
         # The effect sizes do not depend on the test: computed for every contrast.
         resampled = unit if by_unit else None
@@ -417,6 +426,7 @@ _COLUMNS = [
     "p_exact",
     "p_floor",
     "effect_full",
+    *SAMPLING_COLUMNS,
     "status",
 ]
 _NO_TEST = {
@@ -438,6 +448,11 @@ _NO_TEST = {
     "p_exact": False,
     "p_floor": np.nan,
     "effect_full": np.nan,
+    "d_low": np.nan,
+    "d_high": np.nan,
+    "resolved": False,
+    "fields_to_resolve": np.nan,
+    "too_small": False,
 }
 
 

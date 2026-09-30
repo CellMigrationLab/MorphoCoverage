@@ -194,7 +194,7 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     # The answer across biological repeats first, then the contrasts within each repeat.
     assert report.short["conditions"].startswith("  Across the 2 biological repeats")
     assert "Within each repeat: x, each condition against the control" in _flat(short)
-    assert _flat(short).count("generalizing it needs independent biological repeats") == 1
+    assert "user's inference" not in _flat(short)
     assert _flat(short).count("compare means") == 1
     assert report.short["inspect"] in short
     assert all(width <= 100 for width in _widths(report.short["inspect"]))
@@ -202,12 +202,14 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     assert "Feature x, each condition against the control" in full
     # The closing: what was not assessed, in a line each, and the notes as caveats.
     closing = short.split(LIMITS_TITLE)[1]
-    assert f"{NOT_ASSESSED} 2. Did I image enough? — not assessed" in closing
+    # With a contrast, question 2 is answered from it (the difference resolved or not).
+    assert f"{NOT_ASSESSED} 1. Can the features see the phenotype? — not assessed" in closing
+    assert "2. Did I image enough? — not assessed" not in closing
     # A standing assumption of every answer: listed under "Assumptions:", not marked.
     assert "Assumptions: Every answer holds for the stated features" in _flat(closing)
     assert f"{CAUTION} Every answer holds" not in closing
     limits = report.limits(detail="full")
-    assert "2. Did I image enough?: not assessed; needs: run sufficiency_report" in limits
+    assert "4. How many fields should I image next time?: not assessed; needs: run" in limits
     assert report.limits() == limits
 
 

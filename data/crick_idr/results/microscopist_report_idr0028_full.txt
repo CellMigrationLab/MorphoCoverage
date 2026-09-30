@@ -97,6 +97,17 @@
       small or sparse state in an ordinary field (the planted rates measure that).
 
 ⚠️ 2. Did I image enough?
+  Enough to resolve the difference from the control? YAPTAZ_Ratio, each condition against the control
+    of the same repeat, 95% interval of d from the fields resampled as acquired:
+    contrast            fields    d nuclei (95% interval)  enough?
+    LATS1 vs MOCK · 1A  56 vs 28  1.32 (1.12 to 1.52)      resolved
+    YAP vs MOCK · 1A    56 vs 28  -1.08 (-1.23 to -0.94)   resolved
+    ARAP2 vs MOCK · 2A  28 vs 28  0.29 (0.17 to 0.39)      resolved
+    LATS1 vs MOCK · 2A  28 vs 28  0.69 (0.56 to 0.84)      resolved
+    YAP vs MOCK · 2A    28 vs 28  -1.63 (-1.81 to -1.45)   resolved
+    ARAP2 vs MOCK · 2B  56 vs 28  0.35 (0.21 to 0.50)      resolved
+    Resolved: the 95% interval of d, from the fields resampled as they were acquired (technical repeats, then their fields, with replacement), excludes 0. The fields a side to resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields)); beyond 4 times the fields acquired a difference is called too small to settle here. This asks whether the fields pin down the difference between these nuclei; whether it holds across biological repeats is question 9.
+
   Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 12 groups:
     rule                       met in    recorded order  random orders: median (10-90%)
@@ -1562,8 +1573,6 @@
       label).
     - The draws resample these fields and nuclei, not wells or repeats: a same-sign share describes
       these fields and is not a confidence in the effect.
-    - This describes what these fields support about a difference under this feature; generalizing
-      it needs independent biological repeats, which is the user's inference.
 
 What this dataset cannot tell me
   Every question could be answered; the assumptions each answer rests on are listed with it.

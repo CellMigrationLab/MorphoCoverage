@@ -52,6 +52,12 @@ The rules, question by question:
   ``PREMATURE_CAUTION`` of the acquisitions of a group and order kind; ⚠️
   otherwise (met in some groups or by some rules only, or a caution). Only
   fixed amounts of effort: ⚠️ (reaching a target is not evidence).
+  With a control and other conditions, the answer is first whether the
+  fields acquired resolve the difference from the control in each repeat
+  (``report_resolved``): ✅ when every difference is resolved or too small to
+  settle with a practical number of fields, ⚠️ when some would be resolved
+  with more (the headline says about how many a side); the precision of each
+  group's mean follows without a marker of its own.
   With a weak representation (question 1 ❌), ❌ whatever the rules say
   (``weak_status``), as for questions 4 and 5: a "nothing new" or an
   "enough" cannot exclude a phenotype like the control.
@@ -138,16 +144,9 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import has_caution
-from .._style import Status, among, span, worst
+from .._style import Status, among, worst
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
-from ..sampling_unit._units import opposite_signs
-from ..sampling_unit.contrast_text import (
-    P_ALPHA,
-    across_headline,
-    across_tested,
-    design_limited,
-)
 from ..schema import unit_plural
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
@@ -155,6 +154,7 @@ from .calibration import PREMATURE_CAUTION
 from .controls_text import _selected
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
+from .report_resolved import has_resolution, precision_words, resolved_headline
 from .report_sampling import (
     clustered_states,
     largest_sources,
@@ -163,6 +163,7 @@ from .report_sampling import (
     skipped_strata,
     unstable_labels,
 )
+from .report_status_conditions import conditions_status
 from .report_status_plan import (
     FEW_UNITS,
     RELIABLE_SHARE,
@@ -360,9 +361,24 @@ def calibration_status(calibration: Any) -> Answer:
     return Status.OK, text
 
 
-def enough_status(sufficiency: Any, calibration: Any = None) -> Answer:
+def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = None) -> Answer:
     """2. Did I image enough? (see the module)."""
     tallies = rule_tallies(sufficiency) if sufficiency is not None else []
+    if has_resolution(contrast):
+        status, text = resolved_headline(contrast)
+        precision = precision_words(tallies, group_word(sufficiency)) if tallies else None
+        premature = _premature(calibration)
+        if premature is not None and premature > PREMATURE_CAUTION:
+            status = Status.CAUTION
+            precision = "; ".join(
+                p
+                for p in (
+                    precision,
+                    f"held-back fields: some rules stopped too early (up to {percent(premature)})",
+                )
+                if p
+            )
+        return status, text + (f"; {precision}" if precision else "")
     premature = _premature(calibration)
     if not tallies and premature is None:
         return Status.NOT_ASSESSED, "not assessed"
@@ -485,70 +501,6 @@ def order_status(efficiency: Any) -> Answer:
     return (Status.CAUTION if differ or unreached else Status.OK), text
 
 
-_UNTESTED = {
-    "only one technical repeat": "one technical repeat on a side",
-    "too few technical repeats": "too few technical repeats on a side",
-    "fewer than 2 fields": "too few fields on a side",
-    "fields of one dish or well": "the fields' wells unknown",
-    "no control group": "no control fields",
-}
-
-
-def _untested_words(statuses: Sequence[str]) -> str:
-    """Why contrasts have no test, in a few words."""
-    words = {
-        next((short for start, short in _UNTESTED.items() if s.startswith(start)), s)
-        for s in statuses
-    }
-    return words.pop() if len(words) == 1 else "too few units on a side"
-
-
-def conditions_status(contrast: Any, ranking: Any) -> Answer:
-    """9. Do the conditions differ, and how confidently? (see the module)."""
-    if contrast is None and ranking is None:
-        return Status.NOT_ASSESSED, "not assessed"
-    status, parts, limited = Status.OK, [], False
-    if contrast is not None and len(contrast.table):
-        table = contrast.table
-        across = getattr(contrast, "repeats", None)
-        answered = across_tested(contrast)
-        if across is not None and len(across):
-            parts.append(across_headline(across, contrast.settings["repeat_col"]))
-        else:
-            sizes = table["d_fields"].abs().dropna()
-            size = f", |d| on field means {span(sizes)}" if len(sizes) else ""
-            parts.append(f"{count(len(table), 'contrast')}{size}")
-        tested = table[table["status"] == "ok"]
-        untested = table[table["status"] != "ok"]
-        within = "within repeats: " if across is not None and len(across) else ""
-        if len(tested):
-            differ = int((tested["p_bonferroni"] <= 0.05).sum())
-            parts.append(f"{within}{differ} of {len(tested)} tested differ (Bonferroni p ≤ 0.05)")
-        limited = bool(len(untested)) and bool(untested["status"].map(design_limited).all())
-        if len(untested) and not answered:
-            # A test the design cannot run is left out, not flagged (see the module).
-            if not limited:
-                status = Status.CAUTION
-            elif not len(tested):
-                status = Status.NOT_ASSESSED
-            which = "not tested" if not len(tested) else f"{len(untested)} not tested"
-            parts.append(f"{within}{which} ({_untested_words(list(untested['status']))})")
-        passing = tested[tested["p_value"] <= P_ALPHA]
-        if opposite_signs(passing, ["condition"], contrast.settings["repeat_col"], str):
-            status = Status.CAUTION
-            parts.append("opposite signs between repeats")
-    elif contrast is not None:
-        parts.append("no condition to compare with the control")
-    if ranking is not None and len(ranking.ranking):
-        passing = int(ranking.ranking["score"].notna().sum())
-        parts.append(f"{passing} of {count(len(ranking.ranking), 'feature')} pass the gate")
-        if not ranking.ranking["tests"].any() and not (
-            limited or (contrast is not None and across_tested(contrast))
-        ):
-            status = Status.CAUTION
-    return status, "; ".join(parts)
-
-
 def question_statuses(
     results: Mapping[str, Any], profile: pd.DataFrame, minimum_detection: float
 ) -> dict[str, Answer]:
@@ -557,7 +509,7 @@ def question_statuses(
     return {
         "unit": unit_status(get("variability"), get("object_rules"), get("descriptor_spread")),
         "controls": controls_status(get("controls"), minimum_detection),
-        "enough": enough_status(get("sufficiency"), get("calibration")),
+        "enough": enough_status(get("sufficiency"), get("calibration"), get("contrast")),
         "profile": profile_status(profile, [get("clustering")], get("unusual")),
         "next_time": next_time_status(get("reliability"), get("protocol")),
         "bought": bought_status(get("adequacy")),

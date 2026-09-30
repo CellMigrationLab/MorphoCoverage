@@ -623,7 +623,7 @@ def test_the_report_places_the_contrast_last():
     text = report.summary(detail="full")
     assert "9. Do the conditions differ, and how confidently?" in text
     assert text.index("8. Could I have sampled") < text.index("9. Do the conditions differ")
-    assert "generalizing it needs independent biological repeats" in " ".join(text.split())
+    assert "user's inference" not in " ".join(text.split())
     assert "Not assessed" in microscopist_report().sections["conditions"]
 
 
