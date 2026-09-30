@@ -639,6 +639,10 @@ What this acquisition was asked to preserve
     siCCT7#6 vs siCTRL  2 lower, 1 higher      -0.17 (-0.60 to 0.55)   0.79 (1)
     siCCT8#5 vs siCTRL  lower in 3 of 3        -1.06 (-1.58 to -0.59)  0.064 (0.25)
     siCCT8#8 vs siCTRL  lower in 3 of 3        -1.11 (-1.71 to -0.80)  0.074 (0.3)
+  Independent reagents for one target (target), against the control in each repeat:
+    target  reagents            repeats
+    CCT7    siCCT7#3, siCCT7#6  on one side in 2 of 3, lower in some and higher in others
+    CCT8    siCCT8#5, siCCT8#8  all lower in 3 of 3
   Within each repeat:
     contrast                     fields  tracks    tech. repeats  d tracks  d fields  JCS, every track
     siCCT7#3 vs siCTRL · CCT7_1  7 vs 8  28 vs 30  1 vs 1         -0.37     -0.83     -0.38
@@ -697,6 +701,8 @@ What this acquisition was asked to preserve
   Assumptions:
     - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) assumes
       normally distributed differences; Bonferroni-corrected over the conditions.
+    - Reagents of one target that go the same way in every repeat speak against an off-target effect
+      of one of them; this is described, not tested, since they share the control.
     - Within a repeat the conditions are described by their effect sizes; they are tested across
       repeats (the first table).
     - The test and the effect sizes compare means: a difference confined to a subpopulation of

@@ -178,3 +178,11 @@ are in the full report only, per condition at 0.05.
 - **CDM shape**: siCCT8#8 needs about 56 cells a side per repeat (sampling-limited: more cells help);
   siCCT8#5 is too small to settle in repeat 2.
 - **Glioma tracks**: CCT8 needs about 4 positions a side per repeat; CCT7 is too small to settle.
+
+## 2026-09-30 — sixth run: independent reagents for one target
+
+With the new optional `target` column (the gene each siRNA silences), question 9 says whether the
+reagents of one target agree. Filopodia screen: for all six genes both siRNAs are on the same side
+of their set's control in 3 of 3 repeats (MAP4K4 and NF2 higher, the other four lower). CDM shape:
+both CCT8 siRNAs lower in 3 of 3. Glioma tracks: both CCT8 siRNAs slower in 3 of 3; the CCT7 siRNAs
+are on one side in 2 of 3 repeats, lower in one and higher in the other.
