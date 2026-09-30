@@ -104,6 +104,7 @@ from ._units import (
     sides,
     unit_means,
 )
+from .contrast_cells import CELL_COLUMNS, cell_table
 from .contrast_repeats import REPEAT_COLUMNS, TARGET_COLUMNS, across_repeats, reagent_agreement
 from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
 from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
@@ -160,6 +161,12 @@ class ConditionContrast:
     - ``targets``: with the FOV table's ``target`` column (``target_col``),
       one row per target with two or more reagents: in how many repeats all
       of them are on the same side of the control (``reagent_agreement``).
+    - ``cells``: the lab's Plot&Stats test, one row per condition, pooled as
+      provided (``contrast_cells``): Cohen's d on every observation against
+      every control observation, the randomization p over observations and its
+      Bonferroni correction over the conditions, and the chance it gives
+      p <= 0.05 without an effect given the variation between repeats
+      (``chance_low``/``chance_high``, a range when one repeat cannot estimate it).
     """
 
     table: pd.DataFrame
@@ -168,6 +175,7 @@ class ConditionContrast:
     repeats: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=REPEAT_COLUMNS))
     plan: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=PLAN_COLUMNS))
     targets: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=TARGET_COLUMNS))
+    cells: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=CELL_COLUMNS))
 
     def summary(self, detail: str = "short") -> str:
         """The contrasts in a table and the draws in another, each caveat once
@@ -348,6 +356,10 @@ def condition_contrast(
         return ConditionContrast(pd.DataFrame(), pd.DataFrame(), settings)
 
     rows, effect_rows = [], []
+    # The cell-level test pools every repeat as provided: each condition's observations, and
+    # every control observation once per repeat.
+    pooled: dict[Any, dict[str, Any]] = {}
+    control_cells: dict[Any, np.ndarray] = {}
     for repeat, condition in contrasts:
         treated, controls = sides(described, repeat, condition)
         base = {
@@ -387,6 +399,14 @@ def condition_contrast(
             "p_bonferroni": np.nan,
             "effect_full": jcs_effect_size(t_objects, c_objects),
         }
+        control_cells.setdefault(repeat, c_objects)
+        side = pooled.setdefault(
+            condition, {"treated": [], "wells": [], "control_condition": base["control_condition"]}
+        )
+        side["treated"].append(t_objects)
+        per_t = len(t_objects) / max(test["technical"], 1)
+        per_c = len(c_objects) / max(test["control_technical"], 1)
+        side["wells"].append(min(per_t, per_c))
         # Question 2 with a control: do the fields acquired resolve this difference? Its own
         # generator, so the draws below are unchanged.
         own = group_rng(random_state, {**base, "question": "enough"})
@@ -405,8 +425,25 @@ def condition_contrast(
     repeats = across_repeats(table, repeat_col, random_state)
     plan = repeat_plan(table) if repeat_col is not None else pd.DataFrame(columns=PLAN_COLUMNS)
     agreement = reagent_agreement(table, _targets(fovs, condition_col, target_col))
+    every_control = np.concatenate(list(control_cells.values())) if control_cells else None
+    for side in pooled.values():
+        side["treated"] = np.concatenate(side["treated"])
+        side["control"] = every_control
+        side["per_well"] = float(np.mean(side["wells"]))
+    cells = (
+        cell_table(
+            pooled,
+            plan,
+            n_permutations,
+            lambda condition: group_rng(random_state, {"condition": condition, "test": "cells"}),
+        )
+        if pooled and every_control is not None
+        else pd.DataFrame(columns=CELL_COLUMNS)
+    )
     settings["target_col"] = target_col if len(agreement) else None
-    return ConditionContrast(table, pd.DataFrame(effect_rows), settings, repeats, plan, agreement)
+    return ConditionContrast(
+        table, pd.DataFrame(effect_rows), settings, repeats, plan, agreement, cells
+    )
 
 
 def _targets(fovs: pd.DataFrame, condition_col: str, target_col: str | None) -> dict:
