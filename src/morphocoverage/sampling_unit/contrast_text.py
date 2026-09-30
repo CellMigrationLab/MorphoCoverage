@@ -38,6 +38,7 @@ from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
 from .contrast_repeats import MIN_REPEATS
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
+from .repeat_plan_text import plan_parts
 
 NO_CONTROL = "no control group in"
 # Units a side at or below which a d on unit means is not computed: from so few means a d
@@ -417,7 +418,9 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
     tests = _tests_short(contrast)
     lines += [wrap(tests, indent, hang=indent + 2)] if tests else []
     lines += _draws_short(contrast, indent)
-    return lines, [*repeat_cautions(contrast), *_cautions(contrast)]
+    planned, plan_notes = plan_parts(contrast, indent)
+    lines += planned
+    return lines, [*repeat_cautions(contrast), *_cautions(contrast), *plan_notes]
 
 
 def _tests_short(contrast: Any) -> str | None:
@@ -543,7 +546,9 @@ def _full(contrast: Any) -> str:
         )
         draws, names = _draw_rows(contrast)
         lines.append(table(draws, names))
-    cautions = [*repeat_cautions(contrast), *_cautions(contrast)]
+    planned, plan_notes = plan_parts(contrast, 0)
+    lines += planned
+    cautions = [*repeat_cautions(contrast), *_cautions(contrast), *plan_notes]
     lines += caveat_lines(cautions, indent=0, detail="full")
     return "\n".join(lines)
 

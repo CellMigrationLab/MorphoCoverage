@@ -103,6 +103,7 @@ from .contrast_repeats import REPEAT_COLUMNS, across_repeats
 from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
 from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
+from .repeat_plan import PLAN_COLUMNS, repeat_plan
 
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
 
@@ -146,12 +147,18 @@ class ConditionContrast:
       Bonferroni-corrected, with the sign-flip test's smallest possible p
       (``p_sign_flip_floor``) and ``status``. Empty without repeats kept apart.
       The per-repeat ``table`` holds each side's ``mean`` of the observations.
+    - ``plan``: the next experiment planned from these repeats
+      (``repeat_plan``): per condition, the mean per-repeat d, the variation
+      between repeats, and the repeats a paired test needs with the fields a
+      side acquired and with twice as many; with one repeat, why it cannot be
+      planned yet. Empty without repeats kept apart.
     """
 
     table: pd.DataFrame
     effects: pd.DataFrame
     settings: dict[str, Any]
     repeats: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=REPEAT_COLUMNS))
+    plan: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=PLAN_COLUMNS))
 
     def summary(self, detail: str = "short") -> str:
         """The contrasts in a table and the draws in another, each caveat once
@@ -383,7 +390,8 @@ def condition_contrast(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
     repeats = across_repeats(table, repeat_col, random_state)
-    return ConditionContrast(table, pd.DataFrame(effect_rows), settings, repeats)
+    plan = repeat_plan(table) if repeat_col is not None else pd.DataFrame(columns=PLAN_COLUMNS)
+    return ConditionContrast(table, pd.DataFrame(effect_rows), settings, repeats, plan)
 
 
 # Why a test is not run when the design cannot make it informative.
