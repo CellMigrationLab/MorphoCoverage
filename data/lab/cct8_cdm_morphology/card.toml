@@ -88,7 +88,7 @@ cells_per_condition_and_repeat = "11-27"
 
 [columns]
 renamed = { Condition = "condition", Repeat = "biological_repeat", " " = "source_roi (Fiji's row number)", Ch = "source_channel", Slice = "source_slice (the z-plane the outline was drawn on, owner's statement, 2026-09-30)" }
-added = ["technical_repeat (single)", "image_file (unrecorded)", "position_id (synthetic)", "label_id (1)", "source_row (spreadsheet row, 1 = header)"]
+added = ["target (the gene the siRNA silences; non-targeting for siCTRL)", "technical_repeat (single)", "image_file (unrecorded)", "position_id (synthetic)", "label_id (1)", "source_row (spreadsheet row, 1 = header)"]
 features = { "Area" = "area of the cell outline (um^2)", "AR" = "aspect ratio, major/minor axis of the fitted ellipse", "Circ." = "circularity, 4 pi area / perimeter^2 (1 = circle)", "Round" = "roundness, 4 area / (pi major^2)", "Solidity" = "area / convex hull area", "Perim." = "perimeter (um)", "Major" = "ellipse major axis (um)", "Minor" = "ellipse minor axis (um)", "Feret" = "longest caliper diameter (um)", "MinFeret" = "shortest caliper diameter (um)" }
 
 [[claims]]

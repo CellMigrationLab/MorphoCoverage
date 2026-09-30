@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import re
 import tempfile
 import urllib.request
 import zipfile
@@ -59,6 +60,17 @@ def synthetic_positions(table: pd.DataFrame, group: list[str], order: str) -> pd
     for column in group[1:]:
         prefix = prefix + "|" + ranked[column].astype(str)
     return (prefix + "|cell" + ordinal.map("{:03d}".format)).reindex(table.index)
+
+
+def sirna_target(condition: str, control: str = "siCTRL") -> str:
+    """The gene an siRNA label silences (``siCCT8#5`` -> ``CCT8``); the control is
+    ``non-targeting``. Stops on a label of another form."""
+    if condition == control:
+        return "non-targeting"
+    match = re.fullmatch(r"si([A-Za-z0-9]+)(#\w+)?", condition)
+    if match is None:
+        raise SystemExit(f"cannot read a target from the siRNA label {condition!r}")
+    return match.group(1)
 
 
 def write_csv_gz(frame: pd.DataFrame, path: Path) -> None:

@@ -81,7 +81,12 @@ import pandas as pd
 from .._checks import as_count
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
+from ..metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_COLUMN,
+    TARGET_COLUMN,
+    TECHNICAL_REPEAT_COLUMN,
+)
 from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import groups, validated
 from ._reach import reachable
@@ -99,7 +104,7 @@ from ._units import (
     sides,
     unit_means,
 )
-from .contrast_repeats import REPEAT_COLUMNS, across_repeats
+from .contrast_repeats import REPEAT_COLUMNS, TARGET_COLUMNS, across_repeats, reagent_agreement
 from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
 from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
@@ -152,6 +157,9 @@ class ConditionContrast:
       between repeats, and the repeats a paired test needs with the fields a
       side acquired and with twice as many; with one repeat, why it cannot be
       planned yet. Empty without repeats kept apart.
+    - ``targets``: with the FOV table's ``target`` column (``target_col``),
+      one row per target with two or more reagents: in how many repeats all
+      of them are on the same side of the control (``reagent_agreement``).
     """
 
     table: pd.DataFrame
@@ -159,6 +167,7 @@ class ConditionContrast:
     settings: dict[str, Any]
     repeats: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=REPEAT_COLUMNS))
     plan: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=PLAN_COLUMNS))
+    targets: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=TARGET_COLUMNS))
 
     def summary(self, detail: str = "short") -> str:
         """The contrasts in a table and the draws in another, each caveat once
@@ -277,6 +286,7 @@ def condition_contrast(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     fields_independent: bool = False,
+    target_col: str | None = TARGET_COLUMN,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
@@ -295,7 +305,10 @@ def condition_contrast(
     ``group_cols``) is the unit; without either, there is no randomization
     test unless ``fields_independent=True`` declares the fields independent
     draws, when whole fields are shuffled. ``object_counts`` are the JCS
-    sample sizes; counts above what a side holds are left out.
+    sample sizes; counts above what a side holds are left out. ``target_col``
+    names what each condition acts on (default the ``target`` column, when the
+    FOV table has it): the reagents of one target are then said to agree or
+    not across the repeats.
     """
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     if not isinstance(feature, str) or not feature:
@@ -391,7 +404,25 @@ def condition_contrast(
     )
     repeats = across_repeats(table, repeat_col, random_state)
     plan = repeat_plan(table) if repeat_col is not None else pd.DataFrame(columns=PLAN_COLUMNS)
-    return ConditionContrast(table, pd.DataFrame(effect_rows), settings, repeats, plan)
+    agreement = reagent_agreement(table, _targets(fovs, condition_col, target_col))
+    settings["target_col"] = target_col if len(agreement) else None
+    return ConditionContrast(table, pd.DataFrame(effect_rows), settings, repeats, plan, agreement)
+
+
+def _targets(fovs: pd.DataFrame, condition_col: str, target_col: str | None) -> dict:
+    """Each condition's target, from the FOV table (empty without the column); a condition
+    naming two targets is an error, since its reagents could not be grouped."""
+    if target_col is None or target_col not in fovs.columns:
+        return {}
+    named = fovs.dropna(subset=[target_col])
+    per = named.groupby(condition_col)[target_col].unique()
+    several = [str(c) for c, values in per.items() if len(values) > 1]
+    if several:
+        raise ValueError(
+            f"the {target_col!r} column names more than one target for condition "
+            f"{several[0]!r}: give each condition one target"
+        )
+    return {condition: values[0] for condition, values in per.items()}
 
 
 # Why a test is not run when the design cannot make it informative.

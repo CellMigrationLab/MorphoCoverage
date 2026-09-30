@@ -6,17 +6,38 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+import pandas as pd
+
 from .._style import Status, span
-from .._wording import count
+from .._wording import column_word, count
 from ..sampling_unit._units import opposite_signs
 from ..sampling_unit.contrast_text import (
     P_ALPHA,
-    across_headline,
     across_tested,
     design_limited,
 )
+from ..sampling_unit.reagents_text import reagents_headline
 
 Answer = tuple[Status, str]
+
+
+def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
+    """``12 conditions across 3 biological repeats: 12 on one side of the control in every
+    repeat (8 lower, 4 higher); 0 of 12 significant on the repeat means (paired t, ...)``."""
+    n_repeats = int(across["repeats"].max())
+    lower = int((across["lower"] == across["repeats"]).sum())
+    higher = int((across["higher"] == across["repeats"]).sum())
+    text = (
+        f"{count(len(across), 'condition')} across {count(n_repeats, column_word(repeat_col))}: "
+        f"{lower + higher} in the same direction in every repeat"
+    )
+    if lower + higher:
+        text += f" ({lower} lower, {higher} higher than the control)"
+    tested = across[across["p_paired_t"].notna()]
+    if len(tested):
+        differ = int((tested["p_paired_t_bonferroni"] <= 0.05).sum())
+        text += f"; paired t on the repeat means: {differ} of {len(tested)} at Bonferroni p ≤ 0.05"
+    return text
 
 
 _UNTESTED = {
@@ -48,6 +69,9 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
         answered = across_tested(contrast)
         if across is not None and len(across):
             parts.append(across_headline(across, contrast.settings["repeat_col"]))
+            agreeing = reagents_headline(contrast)
+            if agreeing:
+                parts.append(agreeing)
         else:
             sizes = table["d_fields"].abs().dropna()
             size = f", |d| on field means {span(sizes)}" if len(sizes) else ""

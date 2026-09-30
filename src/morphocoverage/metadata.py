@@ -33,6 +33,9 @@ MORPHOBRICKS_SHARED_COLUMNS = (
 # name, ``repeat``, is still read, with a warning (``_former_repeat``).
 MORPHOBRICKS_GROUP_COLUMNS = ("condition", "biological_repeat", "technical_repeat")
 CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN = MORPHOBRICKS_GROUP_COLUMNS
+# Optional: what each condition acts on (the gene two siRNAs silence), so the report can say
+# whether independent reagents for one target agree. Not a grouping column.
+TARGET_COLUMN = "target"
 # Group columns the shared contract makes optional.
 OPTIONAL_GROUP_COLUMNS = (TECHNICAL_REPEAT_COLUMN,)
 # Optional shared columns that a producer writing every column (CellPatcher
@@ -556,6 +559,7 @@ __all__ = [
     "MORPHOBRICKS_SHARED_COLUMNS",
     "OPTIONAL_GROUP_COLUMNS",
     "REPEAT_COLUMN",
+    "TARGET_COLUMN",
     "TECHNICAL_REPEAT_COLUMN",
     "WITHIN_FOV_METADATA_COLUMNS",
     "attach_mapping",

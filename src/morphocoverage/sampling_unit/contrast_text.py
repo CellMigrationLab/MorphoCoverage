@@ -38,6 +38,7 @@ from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
 from .contrast_repeats import MIN_REPEATS
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
+from .reagents_text import reagents_parts
 from .repeat_plan_text import plan_parts
 
 NO_CONTROL = "no control group in"
@@ -401,6 +402,8 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         lines = [wrap(_repeat_head(contrast), indent, hang=indent + 2)]
         rows, columns = _repeat_rows(contrast)
         lines.append(table(rows, columns, indent=indent + 2))
+        agreeing, agree_notes = reagents_parts(contrast, indent)
+        lines += agreeing
         lines.append(
             wrap(f"Within each repeat: {_head(contrast, short=True)}", indent, hang=indent + 2)
         )
@@ -420,7 +423,8 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
     lines += _draws_short(contrast, indent)
     planned, plan_notes = plan_parts(contrast, indent)
     lines += planned
-    return lines, [*repeat_cautions(contrast), *_cautions(contrast), *plan_notes]
+    agree_notes = reagents_parts(contrast, indent)[1] if across else []
+    return lines, [*repeat_cautions(contrast), *agree_notes, *_cautions(contrast), *plan_notes]
 
 
 def _tests_short(contrast: Any) -> str | None:
@@ -523,6 +527,7 @@ def _full(contrast: Any) -> str:
     if not _repeats(contrast).empty:
         rows, columns = _repeat_rows(contrast, full=True)
         lines += [wrap(_repeat_head(contrast), 0, hang=2), table(rows, columns)]
+        lines += reagents_parts(contrast, 0)[0]
         lines.append(wrap("Within each repeat:", 0, hang=2))
     rows, columns = _contrast_rows(contrast, full=True)
     lines.append(table(rows, columns))
@@ -548,7 +553,8 @@ def _full(contrast: Any) -> str:
         lines.append(table(draws, names))
     planned, plan_notes = plan_parts(contrast, 0, full=True)
     lines += planned
-    cautions = [*repeat_cautions(contrast), *_cautions(contrast), *plan_notes]
+    agree_notes = reagents_parts(contrast, 0)[1]
+    cautions = [*repeat_cautions(contrast), *agree_notes, *_cautions(contrast), *plan_notes]
     lines += caveat_lines(cautions, indent=0, detail="full")
     return "\n".join(lines)
 
@@ -562,31 +568,11 @@ def contrast_summary(contrast: Any, detail: str = "short") -> str:
     return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
-def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
-    """``12 conditions across 3 biological repeats: 12 on one side of the control in every
-    repeat (8 lower, 4 higher); 0 of 12 significant on the repeat means (paired t, ...)``."""
-    n_repeats = int(across["repeats"].max())
-    lower = int((across["lower"] == across["repeats"]).sum())
-    higher = int((across["higher"] == across["repeats"]).sum())
-    text = (
-        f"{count(len(across), 'condition')} across {count(n_repeats, column_word(repeat_col))}: "
-        f"{lower + higher} in the same direction in every repeat"
-    )
-    if lower + higher:
-        text += f" ({lower} lower, {higher} higher than the control)"
-    tested = across[across["p_paired_t"].notna()]
-    if len(tested):
-        differ = int((tested["p_paired_t_bonferroni"] <= 0.05).sum())
-        text += f"; paired t on the repeat means: {differ} of {len(tested)} at Bonferroni p ≤ 0.05"
-    return text
-
-
 __all__ = [
     "FEW_UNITS_D",
     "NO_CONTROL",
     "P_ALPHA",
     "SHORT_CONTRASTS",
-    "across_headline",
     "across_tested",
     "contrast_parts",
     "contrast_summary",

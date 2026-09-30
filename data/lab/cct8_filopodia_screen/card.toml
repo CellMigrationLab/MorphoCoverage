@@ -83,7 +83,7 @@ cells_per_condition_and_repeat = "13-49"
 
 [columns]
 renamed = { Condition = "condition", dataset = "experiment", Repeat = "biological_repeat (as '<set>_<Repeat>')" }
-added = ["technical_repeat (single)", "image_file (unrecorded)", "position_id (synthetic)", "label_id (1)", "source_row (spreadsheet row, 1 = header)"]
+added = ["target (the gene the siRNA silences; non-targeting for siCTRL)", "technical_repeat (single)", "image_file (unrecorded)", "position_id (synthetic)", "label_id (1)", "source_row (spreadsheet row, 1 = header)"]
 features = { "Filopodia number" = "MYO10-positive filopodia counted per cell (count)" }
 
 [[claims]]

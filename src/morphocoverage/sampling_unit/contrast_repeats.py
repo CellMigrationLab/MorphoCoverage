@@ -38,6 +38,7 @@ import pandas as pd
 from scipy import stats
 
 from .._seeds import group_rng
+from ..metadata import REPEAT_COLUMN as REPEAT
 from ._reach import reachable
 
 # The fewest biological repeats holding both sides for a test across repeats.
@@ -158,4 +159,51 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
     return result
 
 
-__all__ = ["MIN_REPEATS", "REPEAT_COLUMNS", "across_repeats", "sign_flip_test"]
+TARGET_COLUMNS = ["target", "reagents", "repeats", "agree", "direction"]
+
+
+def reagent_agreement(table: pd.DataFrame, targets: dict[Any, Any]) -> pd.DataFrame:
+    """Per target with two or more reagents (conditions), whether they agree: in how many of
+    the repeats holding them all every reagent is on the same side of the control.
+
+    ``targets`` maps a condition to its target (the FOV table's ``target`` column). Two
+    independent reagents going the same way is evidence against an off-target effect of one;
+    it is described, not tested (the reagents share the control, so they are not independent
+    tests of the target).
+    """
+    if not targets or table.empty or "mean" not in table:
+        return pd.DataFrame(columns=TARGET_COLUMNS)
+    paired = table[table["mean"].notna() & table["control_mean"].notna()]
+    paired = paired.assign(target=paired["condition"].map(targets))
+    rows = []
+    for target, block in paired.dropna(subset=["target"]).groupby("target", sort=False):
+        reagents = list(dict.fromkeys(block["condition"]))
+        if len(reagents) < 2:
+            continue
+        signs = np.sign(block["mean"] - block["control_mean"]).groupby(block[REPEAT]).agg(list)
+        complete = signs[signs.map(len) == len(reagents)]
+        same = complete.map(lambda s: len(set(s)) == 1 and s[0] != 0)
+        directions = {s[0] for s in complete[same]}
+        direction = (
+            ("lower" if directions == {-1.0} else "higher") if len(directions) == 1 else "mixed"
+        )
+        rows.append(
+            {
+                "target": target,
+                "reagents": reagents,
+                "repeats": len(complete),
+                "agree": int(same.sum()),
+                "direction": direction if int(same.sum()) else "none",
+            }
+        )
+    return pd.DataFrame(rows, columns=TARGET_COLUMNS)
+
+
+__all__ = [
+    "MIN_REPEATS",
+    "REPEAT_COLUMNS",
+    "TARGET_COLUMNS",
+    "across_repeats",
+    "reagent_agreement",
+    "sign_flip_test",
+]

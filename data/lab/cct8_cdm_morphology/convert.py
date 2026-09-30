@@ -32,6 +32,7 @@ from convert_tools import (
     check_columns,
     check_member,
     fetch_zip_member,
+    sirna_target,
     synthetic_positions,
     write_csv_gz,
 )
@@ -90,10 +91,12 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         raise SystemExit("Fiji's row number repeats within a condition and repeat")
     group = ["condition", "biological_repeat"]
     table["position_id"] = synthetic_positions(table, group, order="source_roi")
+    table["target"] = table["condition"].map(sirna_target)
     table = table.sort_values(FIELD_KEY, kind="stable").reset_index(drop=True)
     columns = [
         *FIELD_KEY,
         "image_file",
+        "target",
         "label_id",
         *MEASUREMENTS,
         *FERET,
@@ -101,7 +104,7 @@ def build_tables(source: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         "source_row",
     ]
     objects = table[columns]
-    fovs = objects[[*FIELD_KEY, "image_file"]].drop_duplicates().reset_index(drop=True)
+    fovs = objects[[*FIELD_KEY, "image_file", "target"]].drop_duplicates().reset_index(drop=True)
     if len(fovs) != len(objects):
         raise SystemExit("a field holds more than one cell")
     return objects, fovs
