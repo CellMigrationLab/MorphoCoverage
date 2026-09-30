@@ -1063,13 +1063,14 @@ between repeats by `s_rep` cell SDs (0, 0.25, 0.5; the lab datasets estimate 0.3
 
 - **False positives without an effect.** The paired t on repeat means, raw or on log ratios, stays
   at 4-6% everywhere.
-- The cell-level tests are inflated: pooled randomization (Plot&Stats), cell t-test, and the
-  versions normalised to each repeat's control. They give 11-17% at `s_rep` 0.25 and 19-36% at
-  0.5. For the normalised test this matches `2·P(Z > 1.96/√(1 + n·s²/2))` within a few points.
-  That formula labels the cell-level test in question 9.
+- The cell-level tests are inflated once repeats differ. Normalised to each repeat's control,
+  they give 15-17% at `s_rep` 0.25 and 32-37% at 0.5, which matches
+  `2·P(Z > 1.96/√(1 + n·s²/2))` within a few points; that formula labels the cell-level test in
+  question 9. On raw values (Plot&Stats, pooled) the rate is at or below it: 5-17% at 0.25 and
+  19-36% at 0.5, falling with more repeats as the shared batch shifts add noise.
 - Normalising removes the shift that both wells of a repeat share, but not the pseudo-replication.
 - The mixed model with a z reference is inflated at 2-3 repeats; with a t reference it almost
-  never rejects. The hierarchical bootstrap is inflated with few repeats (22%, 12%, 5% at
+  never rejects at 2-3 repeats and has less power than the paired t. The hierarchical bootstrap is inflated with few repeats (22%, 12%, 5% at
   `s_rep` 0.5 over 2, 3, 4 repeats). The sign-flip test cannot reject below 6 repeats.
 - **Power of the paired t** (`s_rep` 0 / 0.25 / 0.5):
 
