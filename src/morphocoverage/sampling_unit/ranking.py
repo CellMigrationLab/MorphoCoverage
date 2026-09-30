@@ -72,6 +72,7 @@ from ._units import (
     side_units,
     sides,
 )
+from .contrast import UNREACHABLE
 
 _UNITS_OUT = ", so those technical repeats cannot pass the gate however large the difference"
 _FIELDS_OUT = (
@@ -394,6 +395,9 @@ def feature_ranking(
                     t_units, c_units, unit, n_permutations, rng, bool(fields_independent)
                 )
             )
+            if row["p_floor"] > alpha:
+                # As in condition_contrast: a test that cannot reach the gate is not run.
+                row.update(p_value=np.nan, p_exact=False, status=UNREACHABLE)
             rows.append(row)
     tests = pd.DataFrame(rows)
     tests["q_value"] = benjamini_hochberg(tests["p_value"].to_numpy(dtype=float))

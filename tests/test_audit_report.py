@@ -53,7 +53,8 @@ COMMON = {
 
 
 def test_g3_bonferroni_counts_the_contrasts_tested():
-    objects, fovs = _two_conditions(shift=1.0, field_sd=0.3)
+    # Five wells a side, so the test within a repeat can reach p <= 0.05 and is run.
+    objects, fovs = _two_conditions(shift=1.0, field_sd=0.3, n_wells=5)
     kept = fovs[~((fovs["biological_repeat"] == "R2") & (fovs["condition"] == "control"))]
     result = condition_contrast(
         objects[objects["image_file"].isin(kept["image_file"])], kept, **COMMON

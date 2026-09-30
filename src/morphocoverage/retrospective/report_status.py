@@ -98,14 +98,26 @@ The rules, question by question:
   runs never reached the criterion; ✅ otherwise. The headline says whether
   another order than the recorded one needed fewer fields, and in how many
   groups (``order_text.group_comparison``).
-- **9. Do the conditions differ?** (``conditions_status``): ⚠️ when some
-  contrast has no randomization test (one technical repeat or too few fields
-  on a side, wells unknown, no control), when a condition differs from the
-  control at p <= 0.05 in opposite directions in different repeats, or when
-  the feature ranking could test no contrast; ✅ otherwise. The headline gives
-  the contrasts, the range of |d| on field means, how many tested contrasts
-  differ after the Bonferroni correction and how many features pass the
-  ranking's gate.
+- **9. Do the conditions differ?** (``conditions_status``): with biological
+  repeats kept apart, the headline leads with the answer across them (the
+  repeat is the replicate, ``contrast_repeats``): the conditions compared, how
+  many are on one side of the control in every repeat (lower and higher), and
+  how many are significant on the repeat means after the Bonferroni correction
+  (paired t-test; the sign-flip test's floor is said in the section). Then the
+  contrasts within repeats: without the across-repeat answer, their number and
+  the range of |d| on field means; how many tested contrasts differ after the
+  Bonferroni correction; and how many features pass the ranking's gate. One
+  well or dish per condition and repeat is the usual design, so when a
+  condition has a test across repeats neither the untested contrasts within
+  repeats nor a ranking without tests is a caution. ⚠️ when some contrast
+  within a repeat has no randomization test (one technical repeat or too few
+  fields on a side, wells unknown, no control) and no condition has a test
+  across repeats, when a condition differs from the control at p <= 0.05 in
+  opposite directions in different repeats, or when the feature ranking could
+  test no contrast and nothing was tested across repeats; ➖ when no test could
+  run because of the design (one or few technical repeats a side, fewer than 3
+  biological repeats): the effect sizes are given, and a test that cannot help
+  is left out rather than flagged; ✅ otherwise.
 - **optimise's rule check** (``calibration_status``, P5 and P6: how reliable
   is each stopping rule?): ⚠️ when some rule stopped where a criterion was
   not preserved in held-back fields in more than ``PREMATURE_CAUTION`` of the
@@ -130,7 +142,12 @@ from .._style import Status, among, span, worst
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..sampling_unit._units import opposite_signs
-from ..sampling_unit.contrast_text import P_ALPHA
+from ..sampling_unit.contrast_text import (
+    P_ALPHA,
+    across_headline,
+    across_tested,
+    design_limited,
+)
 from ..schema import unit_plural
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
@@ -470,6 +487,7 @@ def order_status(efficiency: Any) -> Answer:
 
 _UNTESTED = {
     "only one technical repeat": "one technical repeat on a side",
+    "too few technical repeats": "too few technical repeats on a side",
     "fewer than 2 fields": "too few fields on a side",
     "fields of one dish or well": "the fields' wells unknown",
     "no control group": "no control fields",
@@ -489,21 +507,32 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
     """9. Do the conditions differ, and how confidently? (see the module)."""
     if contrast is None and ranking is None:
         return Status.NOT_ASSESSED, "not assessed"
-    status, parts = Status.OK, []
+    status, parts, limited = Status.OK, [], False
     if contrast is not None and len(contrast.table):
         table = contrast.table
-        sizes = table["d_fields"].abs().dropna()
-        size = f", |d| on field means {span(sizes)}" if len(sizes) else ""
-        parts.append(f"{count(len(table), 'contrast')}{size}")
+        across = getattr(contrast, "repeats", None)
+        answered = across_tested(contrast)
+        if across is not None and len(across):
+            parts.append(across_headline(across, contrast.settings["repeat_col"]))
+        else:
+            sizes = table["d_fields"].abs().dropna()
+            size = f", |d| on field means {span(sizes)}" if len(sizes) else ""
+            parts.append(f"{count(len(table), 'contrast')}{size}")
         tested = table[table["status"] == "ok"]
         untested = table[table["status"] != "ok"]
+        within = "within repeats: " if across is not None and len(across) else ""
         if len(tested):
             differ = int((tested["p_bonferroni"] <= 0.05).sum())
-            parts.append(f"{differ} of {len(tested)} tested differ (Bonferroni p ≤ 0.05)")
-        if len(untested):
-            status = Status.CAUTION
-            which = "untested" if not len(tested) else f"{len(untested)} untested"
-            parts.append(f"{which} ({_untested_words(list(untested['status']))})")
+            parts.append(f"{within}{differ} of {len(tested)} tested differ (Bonferroni p ≤ 0.05)")
+        limited = bool(len(untested)) and bool(untested["status"].map(design_limited).all())
+        if len(untested) and not answered:
+            # A test the design cannot run is left out, not flagged (see the module).
+            if not limited:
+                status = Status.CAUTION
+            elif not len(tested):
+                status = Status.NOT_ASSESSED
+            which = "not tested" if not len(tested) else f"{len(untested)} not tested"
+            parts.append(f"{within}{which} ({_untested_words(list(untested['status']))})")
         passing = tested[tested["p_value"] <= P_ALPHA]
         if opposite_signs(passing, ["condition"], contrast.settings["repeat_col"], str):
             status = Status.CAUTION
@@ -513,7 +542,9 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
     if ranking is not None and len(ranking.ranking):
         passing = int(ranking.ranking["score"].notna().sum())
         parts.append(f"{passing} of {count(len(ranking.ranking), 'feature')} pass the gate")
-        if not ranking.ranking["tests"].any():
+        if not ranking.ranking["tests"].any() and not (
+            limited or (contrast is not None and across_tested(contrast))
+        ):
             status = Status.CAUTION
     return status, "; ".join(parts)
 

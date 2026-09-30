@@ -98,12 +98,14 @@ def test_h1_technical_repeats_are_the_unit_whatever_group_cols_say():
         assert row["permutation_unit"] == "technical_repeat"
         assert row["technical"] == row["control_technical"] == 3
         hits += row["p_value"] <= 0.05
-    assert hits == 0  # 20 assignments of 3 wells a side: p never falls below 0.1
+    # 20 assignments of 3 wells a side: p never falls below 0.1, so the test cannot help and
+    # is not run (it never passed a well-to-well shift for a condition effect either way).
+    assert hits == 0 and np.isnan(row["p_value"]) and row["p_floor"] == pytest.approx(0.1)
     assert result.settings["technical_col"] == "technical_repeat"
     assert "with the technical repeat (technical_repeat) as the unit" in " ".join(
         result.summary(detail="full").split()
     )
-    assert "whole technical repeats (technical_repeat)" in " ".join(result.summary().split())
+    assert "too few technical repeats on a side" in " ".join(result.summary().split())
     # The same with the ranking, and with a technical column only in the FOV table.
     objects["y"] = objects["x"]
     ranking = feature_ranking(
@@ -205,11 +207,10 @@ def test_h7_a_field_test_that_cannot_pass_the_gate_is_stated():
         objects, fovs, features=["x", "y"], control=CONTROL, fields_independent=True
     )
     assert result.tests["p_floor"].tolist() == pytest.approx([0.1, 0.1])
-    text = result.summary()
-    assert "2 of the tests shuffled so few whole fields that a p-value cannot fall below 0.1" in (
-        text
-    )
-    assert "cannot pass it however large the difference" in text
+    # A floor of 0.1 is above the gate: the tests cannot help, so they are not run.
+    assert result.tests["p_value"].isna().all()
+    text = " ".join(result.summary().split())
+    assert "None is ranked" in text and "so it is not run" in text
 
 
 def test_h8_a_constant_feature_is_reported_not_a_crash():
@@ -369,7 +370,7 @@ def test_h17_contrast_and_ranking_share_one_test_and_variability_the_design_effe
     spec = [
         (c, "r1", f"{c}{i}", 5, 2.0 if c == "drug" else 0.0, 0.2)
         for c in ("ctrl", "drug")
-        for i in range(3)
+        for i in range(4)  # 4 wells a side: a floor of 2/70, so both run the test
     ]
     objects, fovs = _tables(spec)
     contrast = condition_contrast(objects, fovs, feature="x", control=CONTROL, object_counts=[])

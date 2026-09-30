@@ -26,6 +26,7 @@ from morphocoverage.sampling_unit import (
     object_rule_check,
     unusual_objects,
 )
+from morphocoverage.sampling_unit.contrast import UNREACHABLE
 
 DATA = Path(__file__).resolve().parents[1] / "data" / "crick_idr"
 
@@ -517,7 +518,7 @@ def test_cohen_d_is_the_pooled_sd_effect_size():
 
 
 def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
-    objects, fovs = _two_conditions(shift=2.0, field_sd=0.3)
+    objects, fovs = _two_conditions(shift=2.0, field_sd=0.3, n_wells=5)
     result = condition_contrast(
         objects,
         fovs,
@@ -534,14 +535,14 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
         ("R2", "treated"),
     ]
     assert (table["status"] == "ok").all()
-    # Both wells of a condition are pooled: 24 fields of 25 objects on each side.
-    assert (table["fields"] == 24).all() and (table["observations"] == 600).all()
+    # The five wells of a condition are pooled: 60 fields of 25 objects on each side.
+    assert (table["fields"] == 60).all() and (table["observations"] == 1500).all()
     assert (table["d_objects"] > 1).all() and (table["d_fields"] > 1).all()
-    # The well column in group_cols is the shuffled unit (audit 4 Q1): 2 wells a side
-    # give 6 assignments, so p cannot fall below 1/3 however large the shift.
+    # The well column in group_cols is the shuffled unit (audit 4 Q1): 5 wells a side
+    # give 252 assignments; the shift puts the observed split at the floor, 2/252.
     assert (table["permutation_unit"] == "well").all()
-    assert table["p_value"].tolist() == pytest.approx([1 / 3] * 2)
-    assert table["p_bonferroni"].tolist() == pytest.approx([2 / 3] * 2)
+    assert table["p_value"].tolist() == pytest.approx([2 / 252] * 2)
+    assert table["p_bonferroni"].tolist() == pytest.approx([4 / 252] * 2)
     effects = result.effects
     # 10,000 objects exceed what a side holds and are left out; 50 and 200 are kept.
     assert sorted(effects["n_objects"].unique()) == [50, 200]
@@ -562,7 +563,7 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
 def test_a_field_effect_alone_does_not_make_the_conditions_differ_by_fields():
     # No condition difference, strong field-to-field variation: the field-unit
     # randomization test does not call the conditions different.
-    objects, fovs = _two_conditions(shift=0.0, field_sd=1.0, seed=5)
+    objects, fovs = _two_conditions(shift=0.0, field_sd=1.0, seed=5, n_wells=5)
     result = condition_contrast(
         objects,
         fovs,
@@ -647,15 +648,17 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
     assert (table["permutation_unit"] == "technical_repeat").all()
     assert (table["technical"] == 2).all() and (table["control_technical"] == 2).all()
     assert (table["distinct_assignments"] == 6).all()
-    assert np.isfinite(table["d_technical"]).all() and (table["d_technical"] > 1).all()
-    # Two wells a side: the observed split and its mirror are always as extreme.
-    assert (table["p_value"] > 0.2).all()
+    # Two wells a side: the exact test's smallest p is 1/3 (the observed split and its mirror
+    # are always as extreme), so it cannot help and is not run; neither is a d from two
+    # well means, which can be very large by chance.
+    assert table["p_floor"].tolist() == pytest.approx([1 / 3] * 2)
+    assert table["p_value"].isna().all() and (table["status"] == UNREACHABLE).all()
+    assert table["d_technical"].isna().all()
     text = " ".join(result.summary(detail="full").split())
     assert "with the technical repeat (technical_repeat) as the unit" in text
-    assert "tech. repeats d objects d fields d tech. repeats" in text and " 2 vs 2 " in text
-    assert "whole technical repeats (technical_repeat; only 6 distinct assignments exist)" in text
-    short = " ".join(result.summary().split())
-    assert "whole technical repeats (technical_repeat), as few as 6 distinct assignments" in short
+    assert "tech. repeats d objects d fields JCS" in text and " 2 vs 2 " in text
+    assert "⚠️" not in result.summary()
+    assert "too few technical repeats on a side for the randomization test" in text
     # Without the column among the groups, the technical repeats stay the unit (audit 3, H-1).
     pooled = condition_contrast(
         objects,
@@ -668,7 +671,7 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
         object_counts=(50,),
     )
     assert (pooled.table["permutation_unit"] == "technical_repeat").all()
-    assert pooled.table["p_value"].tolist() == table["p_value"].tolist()
+    assert pooled.table["status"].tolist() == table["status"].tolist()
 
 
 def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
@@ -730,9 +733,11 @@ def test_feature_ranking_says_when_few_technical_repeats_cannot_pass_the_gate():
     )
     assert not result.tests["passes_gate"].any() and result.top() == []
     text = " ".join(result.summary().split())
-    assert "No contrast passes the gate for 1 feature: x." in text
-    # Two wells a side: the observed split and its mirror, 2 of 6 assignments.
-    assert "with as few as 6 distinct assignments a p-value cannot fall below 0.33" in text
+    # Two wells a side: the observed split and its mirror, 2 of 6 assignments, a floor of 1/3
+    # above the gate, so the test cannot help and is not run (as in condition_contrast).
+    assert result.tests["p_value"].isna().all()
+    assert (result.tests["status"] == UNREACHABLE).all()
+    assert "None is ranked" in text and "so it is not run" in text
     with pytest.raises(ValueError, match="alpha"):
         feature_ranking(objects, fovs, features=["x"], control={"condition": "control"}, alpha=1)
     with pytest.raises(ValueError, match="at least one"):

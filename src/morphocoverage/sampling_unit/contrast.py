@@ -20,15 +20,15 @@ pooled within the repeat, and the summary says so):
   means that do not vary within either side but differ between them are a
   perfect separation, an infinite d (as ``feature_ranking`` scores it);
 - **Cohen's d on technical-repeat means**, when the fields have a unit they
-  share and each side holds at least two: one value per unit, the level at
+  share and each side holds more than ``FEW_UNITS_D`` (3; from fewer means a d
+  can be very large by chance, so it is not computed): one value per unit, the level at
   which a well-to-well shift counts once. The unit (``_units.resolve_unit``)
   is the MorphoBricks ``technical_repeat`` column (a well, a dish), or the
   column ``technical_col`` names, whatever ``group_cols`` says (analysis
   groups that pool technical repeats are split by it); without it, the
   analysis group when ``group_cols`` hold a column beyond the condition and
   the repeat (``well``, ``Metadata_Well``) nested within condition x repeat
-  with more than one value in some condition. With three or fewer units a
-  side the summary says the d is unstable;
+  with more than one value in some condition;
 - **a randomization test over whole units**: condition labels are shuffled
   ``n_permutations`` times over the units of the repeat when both sides hold
   at least two (each keeps its fields together); the statistic is the
@@ -72,7 +72,7 @@ independent repeats to generalize.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -84,6 +84,7 @@ from .._seeds import group_rng
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import groups, validated
+from ._reach import reachable
 from ._units import (
     FIELD,
     check_arguments,
@@ -98,7 +99,8 @@ from ._units import (
     sides,
     unit_means,
 )
-from .contrast_text import NO_CONTROL, contrast_summary
+from .contrast_repeats import REPEAT_COLUMNS, across_repeats
+from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
@@ -130,11 +132,21 @@ class ConditionContrast:
     - ``settings``: the arguments, with ``unit`` (what the test shuffles
       beyond fields, ``None`` without one), ``unit_note`` (why a group column
       was not used as the unit) and ``fields_independent``.
+    - ``repeats``: one row per condition and control across the biological
+      repeats, the repeat as the replicate (``contrast_repeats.across_repeats``):
+      the repeats holding both sides, how many have the condition below or above
+      the control (``lower``, ``higher``), the mean difference of the repeat
+      means, the mean and range of the per-repeat ``d_objects``, an exact
+      sign-flip test and a paired t-test on the repeat means, each
+      Bonferroni-corrected, with the sign-flip test's smallest possible p
+      (``p_sign_flip_floor``) and ``status``. Empty without repeats kept apart.
+      The per-repeat ``table`` holds each side's ``mean`` of the observations.
     """
 
     table: pd.DataFrame
     effects: pd.DataFrame
     settings: dict[str, Any]
+    repeats: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=REPEAT_COLUMNS))
 
     def summary(self, detail: str = "short") -> str:
         """The contrasts in a table and the draws in another, each caveat once
@@ -330,7 +342,8 @@ def condition_contrast(
         test = randomization_test(
             t_units, c_units, unit, n_permutations, rng, bool(fields_independent)
         )
-        by_unit = min(test["technical"], test["control_technical"]) >= 2
+        units = min(test["technical"], test["control_technical"])
+        by_unit = units >= 2
         row = {
             **base,
             "fields": t_acquired,
@@ -338,9 +351,13 @@ def condition_contrast(
             "control_fields": c_acquired,
             "control_observations": len(c_objects),
             **test,
+            "mean": float(t_objects.mean()) if len(t_objects) else np.nan,
+            "control_mean": float(c_objects.mean()) if len(c_objects) else np.nan,
             "d_objects": cohen_d(t_objects, c_objects),
             "d_technical": (
-                separation_d(unit_means(t_units), unit_means(c_units)) if by_unit else np.nan
+                separation_d(unit_means(t_units), unit_means(c_units))
+                if units > FEW_UNITS_D
+                else np.nan
             ),
             "p_bonferroni": np.nan,
             "effect_full": jcs_effect_size(t_objects, c_objects),
@@ -351,12 +368,31 @@ def condition_contrast(
         effect_rows += _effect_rows(
             base, t_units, c_units, resampled, counts, n_draws, row["effect_full"], rng
         )
-    table = pd.DataFrame(rows)[_COLUMNS]
+    table = _without_unreachable(pd.DataFrame(rows)[_COLUMNS])
     tested = table["p_value"].notna()
     table["p_bonferroni"] = np.where(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
-    return ConditionContrast(table, pd.DataFrame(effect_rows), settings)
+    repeats = across_repeats(table, repeat_col, random_state)
+    return ConditionContrast(table, pd.DataFrame(effect_rows), settings, repeats)
+
+
+# Why a test is not run when the design cannot make it informative.
+UNREACHABLE = (
+    "too few technical repeats on a side for the randomization test to reach p ≤ 0.05 after "
+    "the Bonferroni correction, so it is not run"
+)
+
+
+def _without_unreachable(table: pd.DataFrame) -> pd.DataFrame:
+    """The per-repeat table with the tests that cannot help set aside (``UNREACHABLE``):
+    with 2 technical repeats a side the exact test's smallest p is 1/3, so it is not run."""
+    tested = table["p_value"].notna()
+    drop = tested & ~reachable(table["p_floor"].where(tested))
+    table.loc[drop, ["p_value", "p_bonferroni"]] = np.nan
+    table.loc[drop, "p_exact"] = False
+    table.loc[drop, "status"] = UNREACHABLE
+    return table
 
 
 _COLUMNS = [
@@ -369,6 +405,8 @@ _COLUMNS = [
     "control_observations",
     "technical",
     "control_technical",
+    "mean",
+    "control_mean",
     "d_objects",
     "d_fields",
     "d_technical",
@@ -388,6 +426,8 @@ _NO_TEST = {
     "control_observations": 0,
     "technical": 0,
     "control_technical": 0,
+    "mean": np.nan,
+    "control_mean": np.nan,
     "d_objects": np.nan,
     "d_fields": np.nan,
     "d_technical": np.nan,
@@ -401,4 +441,4 @@ _NO_TEST = {
 }
 
 
-__all__ = ["ConditionContrast", "condition_contrast"]
+__all__ = ["UNREACHABLE", "ConditionContrast", "condition_contrast"]

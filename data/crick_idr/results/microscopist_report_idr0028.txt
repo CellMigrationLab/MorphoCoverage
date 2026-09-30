@@ -19,7 +19,8 @@ At a glance
      between samples in 3 of 4 conditions
   ⚠️ 8. A better order? — another order needed fewer fields in 1 of 12 technical repeats (up to 3
      fields)
-  ⚠️ 9. Do the conditions differ? — 6 contrasts, |d| on field means 1.1-5.3; untested (one technical
+  ➖ 9. Do the conditions differ? — 3 conditions across 2 biological repeats: 3 in the same direction
+     in every repeat (1 lower, 2 higher than the control); within repeats: not tested (one technical
      repeat on a side)
 
 ➖ What is in the dataset
@@ -255,10 +256,16 @@ At a glance
   Assumptions: Whether these were the right positions needs every candidate position from an
     overview (not available: sampling-frame bias is not assessed).
 
-⚠️ 9. Do the conditions differ, and how confidently?
-  YAPTAZ_Ratio, each condition against the control (MOCK), within each biological repeat; the fields
-    of a condition's analysis groups are pooled. Cohen's d with nuclei, fields and technical repeats
-    (tech.) as the unit:
+➖ 9. Do the conditions differ, and how confidently?
+  Across the 2 biological repeats (each repeat's value is the mean of its nuclei, paired with the
+    control of the same repeat):
+    condition      vs control, by repeat  d nuclei: mean (range)
+    LATS1 vs MOCK  higher in 2 of 2       1.00 (0.69 to 1.32)
+    YAP vs MOCK    lower in 2 of 2        -1.35 (-1.63 to -1.08)
+    ARAP2 vs MOCK  higher in 2 of 2       0.32 (0.29 to 0.35)
+  Within each repeat: YAPTAZ_Ratio, each condition against the control (MOCK), within each
+    biological repeat; the fields of a condition's analysis groups are pooled. Cohen's d with
+    nuclei, fields and technical repeats (tech.) as the unit:
     contrast            fields    nuclei       tech.   d nuclei  d fields  p (Bonferroni)
     LATS1 vs MOCK · 1A  56 vs 28  1365 vs 966  2 vs 1  1.32      4.94      no test
     YAP vs MOCK · 1A    56 vs 28  1258 vs 966  2 vs 1  -1.08     -4.36     no test
@@ -274,15 +281,15 @@ At a glance
     100     99.5-100%      94-100%       3.5-5.3 fields
     200     100%           99-100%       6.5-10.3 fields
     500     100%           100%          14.8-25.5 fields
-  ⚠️ No randomization test in all 6 contrasts: only one technical repeat (technical_repeat) with
-     observations on one side: its fields cannot stand in for technical repeats, so there is no
-     test.
-  Assumptions: The test and the effect sizes compare means: a difference confined to a subpopulation
-    of nuclei or to the shape of the distribution is not tested (see the unusual nuclei and the rare
-    label). The draws resample these fields and nuclei, not wells or repeats: a same-sign share
-    describes these fields and is not a confidence in the effect. This describes what these fields
-    support about a difference under this feature; generalizing it needs independent biological
-    repeats, which is the user's inference.
+  Assumptions: With 2 biological repeats holding both sides, LATS1, YAP and ARAP2 are described by
+    direction and effect size; the paired test across repeats needs 3. No randomization test in all
+    6 contrasts: only one technical repeat (technical_repeat) with observations on one side: its
+    fields cannot stand in for technical repeats, so there is no test. The test and the effect sizes
+    compare means: a difference confined to a subpopulation of nuclei or to the shape of the
+    distribution is not tested (see the unusual nuclei and the rare label). The draws resample these
+    fields and nuclei, not wells or repeats: a same-sign share describes these fields and is not a
+    confidence in the effect. This describes what these fields support about a difference under this
+    feature; generalizing it needs independent biological repeats, which is the user's inference.
 
 What this dataset cannot tell me
   Every question could be answered; the assumptions each answer rests on are listed with it.

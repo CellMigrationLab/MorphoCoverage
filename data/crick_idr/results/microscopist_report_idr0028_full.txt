@@ -1503,12 +1503,19 @@
     - Whether these were the right positions needs every candidate position from an overview (not
       available: sampling-frame bias is not assessed).
 
-⚠️ 9. Do the conditions differ, and how confidently?
+➖ 9. Do the conditions differ, and how confidently?
   Feature YAPTAZ_Ratio, each condition against the control {'condition': 'MOCK'}, within each
     biological repeat. The fields of a condition's analysis groups are pooled for this comparison.
     Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
     the field as the unit and, where each side has at least two, with the technical repeat
     (technical_repeat) as the unit.
+  Across the 2 biological repeats (each repeat's value is the mean of its nuclei, paired with the
+    control of the same repeat):
+    condition      vs control, by repeat  d nuclei: mean (range)
+    LATS1 vs MOCK  higher in 2 of 2       1.00 (0.69 to 1.32)
+    YAP vs MOCK    lower in 2 of 2        -1.35 (-1.63 to -1.08)
+    ARAP2 vs MOCK  higher in 2 of 2       0.32 (0.29 to 0.35)
+  Within each repeat:
     contrast            fields    nuclei       tech. repeats  d nuclei  d fields  JCS, every nucleus
     LATS1 vs MOCK · 1A  56 vs 28  1365 vs 966  2 vs 1         1.32      4.94      1.42
     YAP vs MOCK · 1A    56 vs 28  1258 vs 966  2 vs 1         -1.08     -4.36     -1.07
@@ -1544,9 +1551,12 @@
     ARAP2 vs MOCK · 2B  100     0.39 (0.31 to 0.50), 99.5%    0.34 (0.20 to 0.53), 94%      about 3.5
     ARAP2 vs MOCK · 2B  200     0.37 (0.30 to 0.43), 100%     0.38 (0.27 to 0.50), 99%      about 6.5
     ARAP2 vs MOCK · 2B  500     0.38 (0.34 to 0.41), 100%     0.37 (0.31 to 0.45), 100%     about 14.8
-  ⚠️ No randomization test in all 6 contrasts: only one technical repeat (technical_repeat) with
-     observations on one side: its fields cannot stand in for technical repeats, so there is no test.
   Assumptions:
+    - With 2 biological repeats holding both sides, LATS1, YAP and ARAP2 are described by direction
+      and effect size; the paired test across repeats needs 3.
+    - No randomization test in all 6 contrasts: only one technical repeat (technical_repeat) with
+      observations on one side: its fields cannot stand in for technical repeats, so there is no
+      test.
     - The test and the effect sizes compare means: a difference confined to a subpopulation of
       nuclei or to the shape of the distribution is not tested (see the unusual nuclei and the rare
       label).

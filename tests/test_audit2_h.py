@@ -75,8 +75,9 @@ def test_h1_perfectly_separating_shuffles_count_as_extreme():
     result = feature_ranking(objects, fovs, features=["x"], control=CONTROL, n_permutations=1999)
     row = result.tests.iloc[0]
     assert np.isinf(row["d_fields"])
-    # 6 assignments; the observed one and its mirror are both perfect: p = 2/6.
-    assert row["p_value"] == pytest.approx(1 / 3)
+    # 6 assignments; the observed one and its mirror are both perfect: p could not fall below
+    # 2/6, above the gate, so the ranking does not run a test that cannot help.
+    assert row["p_floor"] == pytest.approx(1 / 3) and np.isnan(row["p_value"])
     assert not row["passes_gate"] and result.top() == []
     t = [[np.array([3.0]), np.array([3.0])], [np.array([3.0]), np.array([3.0])]]
     c = [[np.array([1.0]), np.array([1.0])], [np.array([1.0]), np.array([1.0])]]
@@ -179,11 +180,12 @@ def test_h5_the_ranking_floor_is_the_smallest_attainable_p():
     spec += [("drug", "r1", f"d{i}", 5, 5.0 + 0.3 * i, 0.3) for i in range(3)]
     objects, fovs = _tables(spec, seed=2)
     result = feature_ranking(objects, fovs, features=["x"], control=CONTROL, n_permutations=1999)
-    # 20 assignments of 3 wells a side; the split and its mirror: 2/20.
-    assert result.tests["p_value"].iloc[0] == pytest.approx(0.1)
+    # 20 assignments of 3 wells a side; the split and its mirror: a floor of 2/20, above the
+    # gate, so the test cannot help and is not run.
+    assert result.tests["p_floor"].iloc[0] == pytest.approx(0.1)
+    assert np.isnan(result.tests["p_value"].iloc[0])
     text = " ".join(result.summary().split())
-    assert "with as few as 20 distinct assignments a p-value cannot fall below 0.1," in text
-    assert "cannot pass the gate however large the difference" in text
+    assert "None is ranked" in text and "so it is not run" in text
 
 
 def _perfect_separation():

@@ -153,15 +153,17 @@ def test_the_contrasts_are_one_table_each_caveat_once_and_every_number_in_full()
     assert conditions_status(result, None)[0] is Status.OK
 
 
-def test_an_untested_contrast_is_a_caution_said_once():
-    # One technical repeat a side: no test.
+def test_a_contrast_the_design_cannot_test_is_left_out_said_once_not_flagged():
+    # One technical repeat a side and two biological repeats: no test within or across
+    # repeats. That is a usual pilot design, so the answer is "not tested", not a warning.
     objects, fovs = _technical(*_two_conditions(shift=2.0, field_sd=0.3, n_wells=1))
     result = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5)
     status, headline = conditions_status(result, None)
-    assert status is Status.CAUTION and "untested (one technical repeat on a side)" in headline
+    assert status is Status.NOT_ASSESSED
+    assert "not tested (one technical repeat on a side)" in headline
     short = result.summary()
     assert short.count("only one technical repeat") == 1
-    assert "no test" in short
+    assert "no test" in short and CAUTION not in short
 
 
 def test_the_ranking_is_a_table_of_the_best_features_with_its_caveats_once():
@@ -189,7 +191,9 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     inspection = _inspect(*_acquisition())
     report = microscopist_report(contrast=contrast, inspection=inspection)
     short = report.summary()
-    assert report.short["conditions"].startswith("  x, each condition against the control")
+    # The answer across biological repeats first, then the contrasts within each repeat.
+    assert report.short["conditions"].startswith("  Across the 2 biological repeats")
+    assert "Within each repeat: x, each condition against the control" in _flat(short)
     assert _flat(short).count("generalizing it needs independent biological repeats") == 1
     assert _flat(short).count("compare means") == 1
     assert report.short["inspect"] in short
