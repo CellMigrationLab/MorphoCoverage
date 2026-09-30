@@ -200,6 +200,15 @@ What this acquisition was asked to preserve
   Independent reagents for one target (target), against the control in each repeat:
     target  reagents            repeats
     CCT8    siCCT8#5, siCCT8#8  all lower in 3 of 3
+  Cell-level test (as in Plot&Stats): Cohen's d on every cell against the control, the randomization
+    test shuffling the labels over the cells:
+    Balance: for every condition, one biological repeat holds more than 25% more cells than another
+      (up to 2.2 times), so the test is given as provided and balanced (each condition against the
+      control of its own biological repeats, the same number of cells from each biological repeat; the
+      median d and p over 100 draws).
+    condition           d as provided (p Bonf.)  d balanced (p Bonf.)  cells per repeat a side  p ≤ 0.05 without an effect
+    siCCT8#5 vs siCTRL  -0.44 (0.028)            -0.43 (0.12)          17 / 11                  about 16%
+    siCCT8#8 vs siCTRL  -0.57 (0.007)            -0.55 (0.039)         15 / 11                  about 5%
   Within each repeat:
     contrast                fields    cells     tech. repeats  d cells  JCS, every cell
     siCCT8#5 vs siCTRL · 1  25 vs 18  25 vs 18  1 vs 1         -0.48    -0.69
@@ -244,6 +253,12 @@ What this acquisition was asked to preserve
       normally distributed differences; Bonferroni-corrected over the conditions.
     - Reagents of one target that go the same way in every repeat speak against an off-target effect
       of one of them; this is described, not tested, since they share the control.
+    - The cell-level test treats the cells as independent draws: it asks whether these wells differ,
+      and it responds with one or two repeats. When the difference varies between repeats, it gives
+      p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n cells per
+      well, s the SD between repeats in observation SDs, as simulated in
+      data/simulations/test_choice.py). Whether the effect repeats is what the paired test across
+      repeats asks.
     - Within a repeat the conditions are described by their effect sizes; they are tested across
       repeats (the first table).
     - The test and the effect sizes compare means: a difference confined to a subpopulation of cells
