@@ -546,7 +546,7 @@ def _full(contrast: Any) -> str:
         )
         draws, names = _draw_rows(contrast)
         lines.append(table(draws, names))
-    planned, plan_notes = plan_parts(contrast, 0)
+    planned, plan_notes = plan_parts(contrast, 0, full=True)
     lines += planned
     cautions = [*repeat_cautions(contrast), *_cautions(contrast), *plan_notes]
     lines += caveat_lines(cautions, indent=0, detail="full")

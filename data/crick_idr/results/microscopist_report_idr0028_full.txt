@@ -1562,13 +1562,13 @@
     ARAP2 vs MOCK · 2B  100     0.39 (0.31 to 0.50), 99.5%    0.34 (0.20 to 0.53), 94%      about 3.5
     ARAP2 vs MOCK · 2B  200     0.37 (0.30 to 0.43), 100%     0.38 (0.27 to 0.50), 99%      about 6.5
     ARAP2 vs MOCK · 2B  500     0.38 (0.34 to 0.41), 100%     0.37 (0.31 to 0.45), 100%     about 14.8
-  Planning the next experiment: the biological repeats a paired test across repeats needs for 80%
-    power at p ≤ 0.05 (Bonferroni over 3 conditions: 0.017), with the fields a side acquired and with
-    twice as many:
-    condition      d nuclei, mean  SD between repeats  repeats needed  with twice the fields
-    LATS1 vs MOCK  1.00            0.43                6               6
-    YAP vs MOCK    -1.35           0.38                4               4
-    ARAP2 vs MOCK  0.32            0.00                4               3
+  Planning the next experiment, with 2 biological repeats as here: the fields a side each repeat needs
+    to resolve the difference from the control, and what limits it (full report: the repeats a paired
+    test needs for 80% power at p ≤ 0.05, per condition):
+    condition      d nuclei, mean  fields a side per repeat  limited by                                repeats needed  with twice the fields
+    LATS1 vs MOCK  1.00            about 2                   repeats differ (more fields help little)  4               4
+    YAP vs MOCK    -1.35           about 2                   repeats differ (more fields help little)  3               3
+    ARAP2 vs MOCK  0.32            about 5                   sampling (more fields help)               3               3
   Assumptions:
     - With 2 biological repeats holding both sides, LATS1, YAP and ARAP2 are described by direction
       and effect size; the paired test across repeats needs 3.
@@ -1580,10 +1580,10 @@
       label).
     - The draws resample these fields and nuclei, not wells or repeats: a same-sign share describes
       these fields and is not a confidence in the effect.
-    - The plan rests on 2 biological repeats: the variation between repeats (the per-repeat d's
-      spread beyond their sampling error, which more fields cannot reduce) is estimated from them,
-      so the repeats needed are a guide; the fields a side scale the sampling error within a repeat
-      as 1/sqrt(fields).
+    - The fields a side per repeat are the most any repeat needs, projected from its interval of d
+      (narrowing as 1/sqrt(fields)); limited by: whether the repeats' d differ more than their
+      sampling error, which more fields cannot reduce. Both are estimated from the repeats here, so
+      the plan is a guide.
 
 What this dataset cannot tell me
   Every question could be answered; the assumptions each answer rests on are listed with it.

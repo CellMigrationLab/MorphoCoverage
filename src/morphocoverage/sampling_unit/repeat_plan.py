@@ -1,28 +1,30 @@
-"""Planning the next experiment from a pilot: how many biological repeats, and do more fields help?
+"""Planning the next experiment at the design the user ran: what to change within a repeat.
 
-A pilot of one or two biological repeats cannot test a difference across
-repeats, but it can plan the experiment that will. Per condition against the
-control, from the per-repeat contrasts of ``condition_contrast`` (their
-Cohen's d and its bootstrap interval from the fields resampled as acquired,
-``contrast_sampling``):
+A dataset is one experiment, pooled as provided, and its number of biological
+repeats is the design the user runs. The plan says what can be changed within
+that design, per condition against the control, from the per-repeat contrasts
+of ``condition_contrast`` (their Cohen's d and its bootstrap interval from the
+fields resampled as acquired, ``contrast_sampling``):
 
-- **the effect**: the mean of the per-repeat d;
-- **the sampling error within a repeat**: the standard error of each repeat's
-  d, from its interval (half its width over 1.96), which shrinks as the fields
-  a side grow (``1 / sqrt(fields)``);
-- **the variation between repeats**: the variance of the per-repeat d beyond
-  that sampling error (0 when the repeats agree within it), which more fields
-  cannot reduce. It needs at least two repeats.
+- **the fields a side per repeat**: the most any repeat needs to resolve the
+  difference within it, projected from its interval (fewer than acquired
+  where it is resolved, more where it is not); ``inf`` when some repeat's
+  difference is too small to settle;
+- **what limits it**: the sampling error within a repeat (the standard error
+  of each repeat's d, from its interval, which shrinks as ``1 / sqrt(fields)``)
+  against the variation between repeats (the per-repeat d's spread beyond that
+  sampling error, which more fields cannot reduce; it needs two repeats).
+  When the repeats vary more than their sampling error, more fields per repeat
+  help little;
+- in the full report only, **the repeats needed**: the fewest biological
+  repeats (at most ``MAX_REPEATS``) for which a paired t-test on the repeat
+  values reaches ``power`` at ``alpha`` for this condition (not corrected
+  for the number of conditions: planning is per knockdown), with the fields
+  acquired and with twice as many.
 
-From these, **the repeats needed**: the fewest biological repeats (at most
-``MAX_REPEATS``) for which a paired t-test on the repeat values reaches
-``power`` at ``alpha`` Bonferroni-corrected over the conditions planned,
-with the fields a side acquired and with twice as many. When twice the fields
-barely change the repeats needed, the variation between repeats dominates.
-With one repeat the variation between repeats is unknown: the plan says so,
-and question 2 still gives the fields that would resolve the difference within
-a repeat. The variation between repeats estimated from two or three repeats
-is itself uncertain, so the numbers are a guide, and the summary says so.
+With one repeat the variation between repeats is unknown: the plan gives the
+fields a side and says so. The variation between repeats estimated from two
+or three repeats is itself uncertain, so the numbers are a guide.
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from ..metadata import REPEAT_COLUMN
+from .contrast_sampling import PRACTICAL
 
 ALPHA = 0.05
 POWER = 0.8
@@ -46,6 +48,8 @@ PLAN_COLUMNS = [
     "d_mean",
     "between_sd",
     "within_se",
+    "fields_per_repeat",
+    "limited_by",
     "repeats_needed",
     "repeats_needed_twice_fields",
     "status",
@@ -75,6 +79,20 @@ def repeats_needed(delta: float, sd: float, alpha: float, power: float = POWER) 
     return np.inf
 
 
+def _fields_per_repeat(block: pd.DataFrame) -> float:
+    """The most fields a side any repeat needs to resolve its difference: the fields at which
+    its interval's half-width, shrinking as ``1 / sqrt(fields)``, falls below |d| (fewer than
+    acquired where it is resolved); ``inf`` when a repeat's difference is too small to settle
+    with ``PRACTICAL`` times its fields."""
+    needed = []
+    for row in block.to_dict("records"):
+        fields = float(min(row["fields"], row["control_fields"]))
+        half, d = (row["d_high"] - row["d_low"]) / 2, abs(row["d_objects"])
+        projected = fields * (half / d) ** 2 if d else np.inf
+        needed.append(np.inf if projected > PRACTICAL * fields else max(2.0, np.ceil(projected)))
+    return max(needed) if needed else np.nan
+
+
 def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER) -> pd.DataFrame:
     """One row per condition and control: the plan for the next experiment (see the module).
 
@@ -84,8 +102,6 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
         return pd.DataFrame(columns=PLAN_COLUMNS)
     usable = table[table["d_low"].notna() & table["d_objects"].notna()]
     groups = list(usable.groupby(["condition", "control_condition"], sort=False))
-    planned = sum(1 for _, block in groups if len(block) >= 2)
-    corrected = alpha / max(planned, 1)
     rows = []
     for (condition, control), block in groups:
         d = block["d_objects"].to_numpy(float)
@@ -98,6 +114,8 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
             "d_mean": float(d.mean()),
             "between_sd": np.nan,
             "within_se": float(np.sqrt(within)),
+            "fields_per_repeat": _fields_per_repeat(block),
+            "limited_by": "",
             "repeats_needed": np.nan,
             "repeats_needed_twice_fields": np.nan,
             "status": "ok",
@@ -107,17 +125,12 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
         else:
             between = max(0.0, float(np.var(d, ddof=1)) - within)
             row["between_sd"] = float(np.sqrt(between))
+            row["limited_by"] = "between repeats" if between > within else "within repeats"
             for column, factor in (("repeats_needed", 1), ("repeats_needed_twice_fields", 2)):
                 sd = float(np.sqrt(between + within / factor))
-                row[column] = repeats_needed(row["d_mean"], sd, corrected, power)
+                row[column] = repeats_needed(row["d_mean"], sd, alpha, power)
         rows.append(row)
     return pd.DataFrame(rows, columns=PLAN_COLUMNS)
-
-
-def plan_settings(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER) -> dict:
-    """The plan's settings, for its sentence: power, alpha and the conditions it corrects over."""
-    planned = int((table["status"] == "ok").sum()) if len(table) else 0
-    return {"alpha": alpha, "power": power, "planned": planned, "repeat_col": REPEAT_COLUMN}
 
 
 __all__ = [
@@ -126,7 +139,6 @@ __all__ = [
     "PLAN_COLUMNS",
     "POWER",
     "paired_power",
-    "plan_settings",
     "repeat_plan",
     "repeats_needed",
 ]

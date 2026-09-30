@@ -43,6 +43,8 @@ def _table(d, width, repeats):
             "d_objects": d[:repeats],
             "d_low": [x - width for x in d[:repeats]],
             "d_high": [x + width for x in d[:repeats]],
+            "fields": 20,
+            "control_fields": 20,
         }
     )
 
@@ -57,10 +59,21 @@ def test_more_fields_help_only_when_the_repeats_agree():
     assert spread["repeats_needed"] - spread["repeats_needed_twice_fields"] <= 1
 
 
-def test_one_repeat_cannot_plan_the_repeats_and_says_why():
+def test_one_repeat_gets_the_fields_but_not_the_variation_between_repeats():
     [row] = repeat_plan(_table([-1.0], 0.5, 1)).to_dict("records")
     assert np.isnan(row["repeats_needed"]) and row["repeats"] == 1
     assert "the variation between repeats is unknown" in row["status"]
+    # 20 fields give a half-width of 0.5 for d = -1: about 5 fields would still resolve it.
+    assert row["fields_per_repeat"] == 5
+
+
+def test_the_fields_per_repeat_are_the_most_any_repeat_needs():
+    table = _table([-1.0, -0.5, -1.0], 0.5, 3)
+    [row] = repeat_plan(table).to_dict("records")
+    # Repeat 2 (d -0.5, half-width 0.5) needs all 20; a repeat too small to settle is inf.
+    assert row["fields_per_repeat"] == 20
+    small = _table([-1.0, -0.05, -1.0], 0.5, 3)
+    assert np.isinf(repeat_plan(small).iloc[0]["fields_per_repeat"])
 
 
 @pytest.fixture(scope="module")
@@ -82,8 +95,11 @@ def test_a_pilot_of_two_repeats_gets_a_plan(cdm):
     assert (plan["repeats"] == 2).all() and (plan["status"] == "ok").all()
     assert (plan["repeats_needed"] >= 2).all()
     text = " ".join(two.summary().split())
-    assert "Planning the next experiment: the biological repeats a paired test" in text
-    assert "with twice the fields" in text
+    assert "Planning the next experiment, with 2 biological repeats as here" in text
+    assert "fields a side per repeat" in text and "limited by" in text
+    # The repeats a paired test needs are in the full report only.
+    assert "repeats needed" not in text
+    assert "with twice the fields" in " ".join(two.summary(detail="full").split())
 
 
 def test_a_pilot_of_one_repeat_is_told_what_a_second_repeat_gives(cdm):
@@ -94,8 +110,6 @@ def test_a_pilot_of_one_repeat_is_told_what_a_second_repeat_gives(cdm):
         cdm.control,
     )
     text = " ".join(one.summary().split())
-    assert "were imaged in one biological repeat, so the variation between repeats is not yet" in (
-        text
-    )
-    assert "question 2 gives the fields that would resolve each difference" in text
+    assert "were imaged in one biological repeat: a second repeat shows how much" in text
+    assert "fields a side per repeat" in text
     assert "⚠️" not in one.summary()

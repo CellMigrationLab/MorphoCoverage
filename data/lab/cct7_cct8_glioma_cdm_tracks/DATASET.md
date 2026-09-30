@@ -47,14 +47,14 @@ _Written 2026-09-30, before any MorphoCoverage run. These are expectations to ch
 - Tracks cluster by field (several cells per position, cells on the same patch of matrix): the field-level design effect for Mean Speed should be above 1, unlike the two one-cell-per-field datasets.
 - The condition contrast within a repeat cannot be tested with one well per siRNA; MorphoCoverage should say so and report effect sizes and directions per repeat instead.
 - Direction per repeat, against the set's own siCTRL: Mean Speed lower for both CCT8 siRNAs in 3/3 repeats; for CCT7 no consistent direction (both lower in repeat 1, both higher in repeat 2, split in repeat 3: siCCT7#3 0.63 and siCCT7#6 0.56 against 0.63).
-- The two siCTRL wells differ (mean speed 0.56 for the CCT7 set, 0.44 for CCT8, with different movie lengths): pooling them as one 'siCTRL' condition, which MorphoCoverage does because it has no experiment level, mixes two baselines.
+- The two siCTRL wells differ (mean speed 0.56 for the CCT7 set, 0.44 for CCT8, with different movie lengths): the dataset is one experiment, pooled as provided, so the reference of unusual tracks pools both control wells.
 
 ## 5. Traps for an analyst
 
 - 28 tracks are in the source twice, in two results files of the same siRNA and repeat (see the hypotheses); they are kept as in the source (owner's decision, 2026-09-30), so counts and means include them. Deduplicate on (experiment, condition, biological_repeat, label_id, metrics) before any biological use.
 - Track lengths differ within a repeat: in CCT7 repeat 2 the siCTRL tracks mostly last 1200 min and the siRNA tracks 950 min; across sets, movies differ in length in every repeat. Not a deal breaker, but only the normalised metrics (speeds and rolling-window metrics, the declared features) are comparable; the whole-track totals, directionality and tortuosity are not (owner's statement, 2026-09-30).
 - Distances and speeds are in pixels (px per 10 min); the pixel size is not recorded, so values are comparable within this dataset only.
-- MorphoCoverage has no experiment level: both sets' controls are condition 'siCTRL'; the biological_repeat labels ('CCT7_1', 'CCT8_1', ...) keep the sets apart.
+- The dataset is one experiment, pooled as provided: both sets' controls are condition 'siCTRL', and each condition is compared with the control of its own biological repeat ('CCT7_1', 'CCT8_1', ...).
 - The acquisition method and the track filters are the related paper's; that they apply here is an assumption. Fields were imaged in parallel (multi-position time-lapse).
 - Some position names look like re-exports or typos (B4_052, '-1' and '-2' suffixes); they are kept verbatim as field identifiers.
 

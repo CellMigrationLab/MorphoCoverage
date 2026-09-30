@@ -77,10 +77,9 @@ copied cell row planted in the CDM tables.
 4. **Track data refused by the per-object JCB rule** ("assumes observation_unit in ('cell',
    'nucleus', 'object'), got 'track'"). A track of one cell is an object for this rule; the unit
    list should not decide it.
-5. **No experiment level.** The MorphoBricks hierarchy starts with `experiment`, but MorphoCoverage
-   pools the controls of all sets as one `siCTRL` (the reference of unusual cells, "13 conditions")
-   and reads the known set-to-set control shift as a possible batch or unit error. An optional
-   `experiment` column should keep controls and references per experiment.
+5. ~~No experiment level.~~ Owner's decision (2026-09-30): no experiment level; a dataset the user
+   provides is one experiment, pooled as provided. Each condition is still compared with the control
+   of its own biological repeat.
 6. **Integrity blind spots for small fields.** `min_objects=5` misses copies in fields of 2-4
    tracks. With one observation per field a copied cell row is never found at any setting (planted
    test: a cell's 10 continuous measurements pasted into 3 other fields, not detected). A row-level
