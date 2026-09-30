@@ -12,7 +12,7 @@ U-87 MG glioblastoma cells migrating on cell-derived matrices (CDMs); siCTRL and
 
 - Experiment: the experimental set, CCT7 or CCT8 (from the siRNA label); each has its own siCTRL well (B4 for CCT7, B1 for CCT8)
 - Condition: the siRNA; both controls written 'siCTRL', the source label kept as source_condition
-- Biological repeat: '<set>_<Repeat>' (Repeat 1-3): the two sets' movies have different lengths in every repeat (tracks of about 950 min for CCT7, 1200-1440 min for CCT8), so they are treated as separate acquisitions (assumption; to confirm by the owner)
+- Biological repeat: '<set>_<Repeat>' (Repeat 1-3): the two sets' movies have different lengths in every repeat (tracks of about 950 min for CCT7, 1200-1440 min for CCT8), and they were separate acquisitions (owner's statement, 2026-09-30)
 - Technical repeat: the well (B1-B6), one well per siRNA per repeat; rules out any test that needs several wells within a biological repeat
 - Field: the imaged position, '<well>_<position>' from the results file name (e.g. 'B5_04-1'), verbatim
 - Field table: the results files named in the source (one per position); positions with no track are not known
@@ -51,7 +51,7 @@ _Written 2026-09-30, before any MorphoCoverage run. These are expectations to ch
 
 ## 5. Traps for an analyst
 
-- 28 tracks are in the source twice, in two results files of the same siRNA and repeat (see the hypotheses); they are kept as in the source, so counts and means include them. Deduplicate on (experiment, condition, biological_repeat, label_id, metrics) before any biological use.
+- 28 tracks are in the source twice, in two results files of the same siRNA and repeat (see the hypotheses); they are kept as in the source (owner's decision, 2026-09-30), so counts and means include them. Deduplicate on (experiment, condition, biological_repeat, label_id, metrics) before any biological use.
 - Track lengths differ within a repeat: in CCT7 repeat 2 the siCTRL tracks mostly last 1200 min and the siRNA tracks 950 min, so path length, spatial coverage, turning angle and directionality are not comparable there; across sets, movies differ in length in every repeat.
 - Distances and speeds are in pixels (px per 10 min); the pixel size is not recorded, so values are comparable within this dataset only.
 - MorphoCoverage has no experiment level: both sets' controls are condition 'siCTRL'; the biological_repeat labels ('CCT7_1', 'CCT8_1', ...) keep the sets apart.
@@ -64,7 +64,7 @@ Runs are stored in `data/lab/results/cct7_cct8_glioma_cdm_tracks/` and logged in
 
 ## Provenance
 
-- Source: provided by the owner (2026-09-30), not deposited; CC-BY-4.0 (the lab's own unpublished data; licence to be confirmed by the owner); file `Tracking_data_CCT8_CCT7_silencing_Glioma.csv` (sha256 `dec991b3fdd52956d01ee64c2348ee4ec64afe4f16b7d0f67c549350b064233e`).
+- Source: provided by the owner (2026-09-30), not deposited; CC-BY-4.0 (the lab's own unpublished data, released by the owner under CC BY 4.0 on 2026-09-30); file `Tracking_data_CCT8_CCT7_silencing_Glioma.csv` (sha256 `dec991b3fdd52956d01ee64c2348ee4ec64afe4f16b7d0f67c549350b064233e`).
 - Paper: none; project: the CCT8-MYO10 filopodia project (CCT8 paper, J. Cell Sci. 2026) (10.1242/jcs.265278).
 - Acquisition: CellIQ, 10x objective, brightfield, a frame every 10 min (the results file names say 'px per 10min') — "For cell migration analyses, U-87 MG or MDA-MB-231 cells were seeded onto CDMs for 4 hours prior to imaging. Brightfield images were taken every 10 minutes over 16 hours using a CellIQ system with a 10× objective at 37°C and 5% CO2." (Methods of the related paper (owner's manuscript copy); that these data follow it is an assumption)
 - Curated by Claude (on behalf of Guillaume Jacquemet) on 2026-09-30; verified by (not yet verified).

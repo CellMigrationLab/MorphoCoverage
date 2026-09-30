@@ -87,7 +87,7 @@ cells_per_condition = "siCTRL 53, siCCT8#5 63, siCCT8#8 58"
 cells_per_condition_and_repeat = "11-27"
 
 [columns]
-renamed = { Condition = "condition", Repeat = "biological_repeat", " " = "source_roi (Fiji's row number)", Ch = "source_channel", Slice = "source_slice" }
+renamed = { Condition = "condition", Repeat = "biological_repeat", " " = "source_roi (Fiji's row number)", Ch = "source_channel", Slice = "source_slice (the z-plane the outline was drawn on, owner's statement, 2026-09-30)" }
 added = ["technical_repeat (unrecorded)", "image_file (unrecorded)", "position_id (synthetic)", "label_id (1)", "source_row (spreadsheet row, 1 = header)"]
 features = { "Area" = "area of the cell outline (um^2)", "AR" = "aspect ratio, major/minor axis of the fitted ellipse", "Circ." = "circularity, 4 pi area / perimeter^2 (1 = circle)", "Round" = "roundness, 4 area / (pi major^2)", "Solidity" = "area / convex hull area", "Perim." = "perimeter (um)", "Major" = "ellipse major axis (um)", "Minor" = "ellipse minor axis (um)", "Feret" = "longest caliper diameter (um)", "MinFeret" = "shortest caliper diameter (um)" }
 
@@ -133,7 +133,7 @@ items = [
 ]
 
 [[caveats]]
-text = "One cell per field is the owner's statement; the images are not identified, so field identities are synthetic. Fiji's Slice column (source_slice) takes only 3-9 values within each condition and repeat: if it indexes images in a stack rather than the z-slice an outline was drawn on, several cells share a field and the one-cell-per-field assumption is wrong (to confirm by the owner)."
+text = "One cell per field is the owner's statement; the images are not identified, so field identities are synthetic. Fiji's Slice column (source_slice) is the z-plane each outline was drawn on (owner's statement, 2026-09-30), not an image index; it is not a z coordinate of the tables, since the outline is one plane of a 3D cell."
 [[caveats]]
 text = "The coverslip or well (technical repeat) is not recorded: no test within a biological repeat is possible."
 [[caveats]]

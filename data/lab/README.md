@@ -6,7 +6,7 @@ card; `DATASET.md` in each folder is the description to read first.
 
 | dataset | paper, figure | unit | design | role | licence | tables |
 |---|---|---|---|---|---|---|
-| [`cct7_cct8_glioma_cdm_tracks`](cct7_cct8_glioma_cdm_tracks/DATASET.md) | unpublished (project of [10.1242/jcs.265278](https://doi.org/10.1242/jcs.265278)) | track | 590 tracks in 133 fields, 5 conditions, 6 biological repeats | development | CC-BY-4.0 (to confirm) | 121 kB |
+| [`cct7_cct8_glioma_cdm_tracks`](cct7_cct8_glioma_cdm_tracks/DATASET.md) | unpublished (project of [10.1242/jcs.265278](https://doi.org/10.1242/jcs.265278)) | track | 590 tracks in 133 fields, 5 conditions, 6 biological repeats | development | CC-BY-4.0 | 121 kB |
 | [`cct8_cdm_morphology`](cct8_cdm_morphology/DATASET.md) | [10.1242/jcs.265278](https://doi.org/10.1242/jcs.265278), Fig. 5D-E | cell | 174 cells, 3 conditions, 3 biological repeats | development | CC-BY-4.0 | 19 kB |
 | [`cct8_filopodia_screen`](cct8_filopodia_screen/DATASET.md) | [10.1242/jcs.265278](https://doi.org/10.1242/jcs.265278), Fig. 2C | cell | 1686 cells, 13 conditions, 18 biological repeats | development | CC-BY-4.0 | 17 kB |
 

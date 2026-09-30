@@ -6,7 +6,7 @@ and breast cancer cell invasion", Journal of Cell Science (2026),
 https://doi.org/10.1242/jcs.265278, but not part of it.
 
 Licence: Creative Commons Attribution 4.0 International (CC BY 4.0,
-https://creativecommons.org/licenses/by/4.0/), to be confirmed by the owner.
+https://creativecommons.org/licenses/by/4.0/), as released by the owner on 2026-09-30.
 
 Changes: metadata columns renamed to the MorphoBricks names (verbatim labels kept under a
 source_ prefix), both siCTRL labels written siCTRL, the well and position parsed from the

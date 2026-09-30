@@ -60,7 +60,7 @@ _Written 2026-09-30, before any MorphoCoverage run. These are expectations to ch
 
 ## 5. Traps for an analyst
 
-- One cell per field is the owner's statement; the images are not identified, so field identities are synthetic. Fiji's Slice column (source_slice) takes only 3-9 values within each condition and repeat: if it indexes images in a stack rather than the z-slice an outline was drawn on, several cells share a field and the one-cell-per-field assumption is wrong (to confirm by the owner).
+- One cell per field is the owner's statement; the images are not identified, so field identities are synthetic. Fiji's Slice column (source_slice) is the z-plane each outline was drawn on (owner's statement, 2026-09-30), not an image index; it is not a z coordinate of the tables, since the outline is one plane of a 3D cell.
 - The coverslip or well (technical repeat) is not recorded: no test within a biological repeat is possible.
 - Cells were segmented manually and the cell-selection rule is not stated: a chosen, not random, sample of cells.
 - The intensity columns (Mean ... RawIntDen) were measured on processed RGB projections and are not features here; positions, orientations and bounding boxes are not features either.
