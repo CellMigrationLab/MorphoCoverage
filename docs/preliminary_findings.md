@@ -1052,3 +1052,38 @@ objects were random.
   report does, would count fewer fields holding the state.
 - **Few fields per idr0139 well.** With 4 fields, clustering can hardly be
   detected, and the fields needed carry wide bounds.
+
+## 11. Which test for a condition: repeat means or cells? (2026-09-30)
+
+`data/simulations/test_choice.py` (results in `data/simulations/results/test_choice.csv`)
+simulates the lab's usual design: 1-6 biological repeats, one well per condition per repeat,
+30 cells a well. A batch shift is shared by both wells of a repeat, and the difference varies
+between repeats by `s_rep` cell SDs (0, 0.25, 0.5; the lab datasets estimate 0.3-0.5). There are
+1000 experiments per setting and alpha is 0.05.
+
+- **False positives without an effect.** The paired t on repeat means, raw or on log ratios, stays
+  at 4-6% everywhere.
+- The cell-level tests are inflated: pooled randomization (Plot&Stats), cell t-test, and the
+  versions normalised to each repeat's control. They give 11-17% at `s_rep` 0.25 and 19-36% at
+  0.5. For the normalised test this matches `2·P(Z > 1.96/√(1 + n·s²/2))` within a few points.
+  That formula labels the cell-level test in question 9.
+- Normalising removes the shift that both wells of a repeat share, but not the pseudo-replication.
+- The mixed model with a z reference is inflated at 2-3 repeats; with a t reference it almost
+  never rejects. The hierarchical bootstrap is inflated with few repeats (22%, 12%, 5% at
+  `s_rep` 0.5 over 2, 3, 4 repeats). The sign-flip test cannot reject below 6 repeats.
+- **Power of the paired t** (`s_rep` 0 / 0.25 / 0.5):
+
+  | repeats | d 0.5 | d 1.0 | d 1.5 | d 2.0 |
+  | --- | --- | --- | --- | --- |
+  | 2 | 17 / 11 / 9% | 31 / 23 / 15% | 41 / 33 / 22% | 52 / 40 / 30% |
+  | 3 | 41 / 27 / 18% | 85 / 67 / 39% | 98 / 90 / 63% | 100 / 98 / 83% |
+  | 4 | 74 / 47 / 24% | 100 / 93 / 67% | 100 / 100 / 92% | 100 / 100 / 99% |
+  | 6 | 96 / 77 / 44% | 100 / 100 / 92% | 100 / 100 / 100% | 100 / 100 / 100% |
+
+- **Reading.** With 3 repeats, the paired t finds the effects the lab usually reports (d ≥ 1.5)
+  while keeping false positives at the nominal 5%. The cell-level test responds with 1-2 repeats,
+  where the paired t cannot, but its p is not a 5% test once repeats differ. So question 9 gives
+  both: the paired t across repeats, and the cell-level test labelled with its chance of a
+  positive without an effect.
+- **Not simulated.** Unequal cells per repeat, and the balanced version of the cell-level test
+  (item 7 of `data/lab/FINDINGS.md`).
