@@ -1,6 +1,6 @@
 Benchmark, protocol version 5 (5ebaa47debfc)
 
-== mean, idr0028_screenB (development; replay 72 s) ==
+== mean, idr0028_screenB (development; replay 83 s) ==
 
 ✅ For the well mean within 5% — at ≤5% and ≤10% risk, no rule beats a fixed 1 field
   Stopping too early in at most 5% of acquisitions:
@@ -31,9 +31,9 @@ Benchmark, protocol version 5 (5ebaa47debfc)
     JCS spread per object at 0.16: 1.1 fields on average (risk 2%); it costs 0.1 more fields,
     approximate 95% interval 0.0 to 0.1; its stops follow the fields each acquisition needed with
     Spearman 0.13.
-  ⚠️ Intervals resample the 12 units (repeat · technical_repeat), treated as independent, widened
-     for their number (approximate: with fewer than 20 units they cover the truth less often than
-     stated)
+  ⚠️ Intervals resample the 12 units (biological_repeat · technical_repeat), treated as independent,
+     widened for their number (approximate: with fewer than 20 units they cover the truth less often
+     than stated)
   Assumptions:
     - Hold-outs and orders are not independent experiments.
   Risk is judged on held-back fields.
@@ -72,14 +72,14 @@ Benchmark, protocol version 5 (5ebaa47debfc)
     JCS spread per object at 0.04: 4 fields on average (risk 3%); it costs 2.0 more fields,
     approximate 95% interval -0.9 to 2.4 (not resolved); its stops follow the fields each
     acquisition needed with Spearman 0.09.
-  ⚠️ Intervals resample the 12 units (repeat · technical_repeat), treated as independent, widened
-     for their number (approximate: with fewer than 20 units they cover the truth less often than
-     stated)
+  ⚠️ Intervals resample the 12 units (biological_repeat · technical_repeat), treated as independent,
+     widened for their number (approximate: with fewer than 20 units they cover the truth less often
+     than stated)
   Assumptions:
     - Hold-outs and orders are not independent experiments.
   Risk is judged on held-back fields.
 
-== mean, idr0139 (held_out; replay 5 s) ==
+== mean, idr0139 (held_out; replay 6 s) ==
 
 ➖ For the well mean within 5% — at ≤5% and ≤10% risk, not scored (a fixed count never met it
    lastingly)
@@ -149,7 +149,7 @@ FOV bootstrap of the mean   0.10    0.064          0.072727            2.315152 
      JCS spread per field   0.10    0.080          0.015152            5.000000             0.080       0.550000              2.0              360 the well mean within 2.5%
     JCS spread per object   0.10    0.040          0.033333            4.009091             0.040       0.550000              2.0              360 the well mean within 2.5%
 
-== rare, planted states in idr0028 (semi-synthetic; replays 49 s) ==
+== rare, planted states in idr0028 (semi-synthetic; replays 56 s) ==
 
 ⚠️ For the planted state seen, when the held-back fields show it — at ≤5% risk, rare incidence
    (labels) may save 8.9 fields (no interval); at ≤10% risk, rare incidence (labels) may save 6.3

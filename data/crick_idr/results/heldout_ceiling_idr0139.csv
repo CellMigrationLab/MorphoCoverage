@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,criterion,splits,defined_splits,whole_stream_preserved,stream_fovs,shortest_stream_fovs,reservoir_fovs,distinct_holdouts
+condition,biological_repeat,technical_repeat,criterion,splits,defined_splits,whole_stream_preserved,stream_fovs,shortest_stream_fovs,reservoir_fovs,distinct_holdouts
 DMSO,1093711385,B02,relative_mean_error:Fascin_Ratio <= 0.05,6,6,0.5000,2,2,2,5
 DMSO,1093711385,B02,relative_mean_error:Fascin_Ratio <= 0.025,6,6,0.0000,2,2,2,5
 SN0212398523,1093711385,E22,relative_mean_error:Fascin_Ratio <= 0.05,6,6,1.0000,2,2,2,4

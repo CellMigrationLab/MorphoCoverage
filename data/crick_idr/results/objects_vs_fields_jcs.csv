@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,descriptor,threshold,random_objects_spread,whole_fovs_spread,ratio,objects_to_match,largest_size_tried,dataset
+condition,biological_repeat,technical_repeat,descriptor,threshold,random_objects_spread,whole_fovs_spread,ratio,objects_to_match,largest_size_tried,dataset
 DMSO,1093711385,B02,mean,250,0.03731824680000001,0.09298079199999998,2.491563778392718,,500,idr0139
 DMSO,1093711385,B02,median,250,0.023790499999999992,0.0533865,2.2440259767554283,,500,idr0139
 DMSO,1093711385,B02,SD,250,0.04183244845065351,0.05298353244336883,1.266565415262972,450.0,500,idr0139

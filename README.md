@@ -86,7 +86,7 @@ At a glance
   ✅ Foundation. Why count fields? — a mean from whole fields varies 2.1x as much as from random
      nuclei (median); the JCB count rule still held with whole fields in all 12 technical repeats
   ⚠️ 1. Can the features see the phenotype? — YAP fields recognized in 100% of checks; false alarms
-     2%; not judged in repeat 2B (no positive-control field with nuclei)
+     2%; not judged in biological repeat 2B (no positive-control field with nuclei)
   ⚠️ 2. Did I image enough? — 3 of 4 rules said enough in every technical repeat; 'nothing new' not
      yet shown; held-back fields: some rules stopped too early (up to 60%)
   …

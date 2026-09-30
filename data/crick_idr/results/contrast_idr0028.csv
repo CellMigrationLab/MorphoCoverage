@@ -1,4 +1,4 @@
-repeat,condition,control_condition,fields,observations,control_fields,control_observations,technical,control_technical,d_objects,d_fields,d_technical,permutation_unit,distinct_assignments,p_value,p_bonferroni,p_exact,p_floor,effect_full,status
+biological_repeat,condition,control_condition,fields,observations,control_fields,control_observations,technical,control_technical,d_objects,d_fields,d_technical,permutation_unit,distinct_assignments,p_value,p_bonferroni,p_exact,p_floor,effect_full,status
 1A,LATS1,MOCK,56,1365,28,966,2,1,1.317,4.94,,field,,,,False,,1.418,"only one technical repeat (technical_repeat) with observations on one side: its fields cannot stand in for technical repeats, so there is no test"
 1A,YAP,MOCK,56,1258,28,966,2,1,-1.079,-4.358,,field,,,,False,,-1.07,"only one technical repeat (technical_repeat) with observations on one side: its fields cannot stand in for technical repeats, so there is no test"
 2A,ARAP2,MOCK,28,797,28,953,1,1,0.2888,1.084,,field,,,,False,,0.2758,"only one technical repeat (technical_repeat) with observations on one side: its fields cannot stand in for technical repeats, so there is no test"

@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,criterion,fovs,splits,defined_splits,preserved,preserved_split_sd,preserved_mc_se,defined_draws,undefined_draws,metric_median,metric_p10,metric_p90,gain,reservoir_fovs,stream_fovs
+condition,biological_repeat,technical_repeat,criterion,fovs,splits,defined_splits,preserved,preserved_split_sd,preserved_mc_se,defined_draws,undefined_draws,metric_median,metric_p10,metric_p90,gain,reservoir_fovs,stream_fovs
 DMSO,1093711385,B02,relative_mean_error:Fascin_Ratio <= 0.05,1,6,6,0.2833,0.3920,0.1600,60,0,0.0780,0.0277,0.1173,,2,2
 DMSO,1093711385,B02,relative_mean_error:Fascin_Ratio <= 0.025,1,6,6,0.0500,0.1225,0.0500,60,0,0.0780,0.0277,0.1173,,2,2
 DMSO,1093711385,B02,relative_mean_error:Fascin_Ratio <= 0.05,2,6,6,0.5000,0.5477,0.2236,60,0,0.0567,0.0364,0.0851,0.021287964590159913,2,2

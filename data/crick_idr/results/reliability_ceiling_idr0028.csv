@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,criterion,splits,defined_splits,whole_stream_preserved,stream_fovs,shortest_stream_fovs,reservoir_fovs,distinct_holdouts
+condition,biological_repeat,technical_repeat,criterion,splits,defined_splits,whole_stream_preserved,stream_fovs,shortest_stream_fovs,reservoir_fovs,distinct_holdouts
 MOCK,1A,B6,relative_mean_error:YAPTAZ_Ratio <= 0.05,10,10,1.0000,18,18,10,10
 MOCK,1A,B6,relative_mean_error:YAPTAZ_Ratio <= 0.025,10,10,1.0000,18,18,10,10
 MOCK,1A,B6,covariance_error:YAPTAZ_Ratio <= 0.1,10,10,0.3000,18,18,10,10

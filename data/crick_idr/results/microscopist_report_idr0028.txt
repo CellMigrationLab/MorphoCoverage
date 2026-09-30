@@ -5,13 +5,13 @@ At a glance
   ✅ Foundation. Why count fields? — a mean from whole fields varies 2.1x as much as from random
      nuclei (median); the JCB count rule still held with whole fields in all 12 technical repeats
   ⚠️ 1. Can the features see the phenotype? — YAP fields recognized in 100% of checks; false alarms
-     2%; not judged in repeat 2B (no positive-control field with nuclei)
+     2%; not judged in biological repeat 2B (no positive-control field with nuclei)
   ⚠️ 2. Did I image enough? — 3 of 4 rules said enough in every technical repeat; 'nothing new' not
      yet shown; held-back fields: some rules stopped too early (up to 60%)
   ⚠️ 3. What limits my sampling? — whole fields 2.1x as variable as random nuclei; unusual nuclei
      clustered in 4 of 11 technical repeats; most variance between samples in 3 of 4 conditions
   ⚠️ 4. How many fields next time? — 8 fields served every technical repeat for 2 of 3 targets; 1 of
-     3 targets not shown (held-back fields cap it); only 3 repeats
+     3 targets not shown (held-back fields cap it); only 3 biological repeats
   ✅ 5. What did the extra fields buy? — held-back fields confirmed everything wanted from field 1
      (median); by field 3 in 90% of runs
   ⚠️ 6. Which fields should I look at? — 4 fields to reopen in 3 technical repeats (new state in 4)
@@ -24,12 +24,12 @@ At a glance
 
 ➖ What is in the dataset
   9550 nuclei in 336 fields, none empty; a field is
-    condition · repeat · technical_repeat · image_file.
+    condition · biological_repeat · technical_repeat · image_file.
   31 features (YAPTAZ_Ratio, Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ,
     Nuclei_Intensity_IntegratedIntensity_YAPTAZ and 28 more); values as given (not normalised).
   4 conditions (ARAP2, LATS1, MOCK, YAP), 3 repeats (2A, 2B, 1A), 12 technical repeats; 12 analysis
-    groups (condition · repeat · technical_repeat), each analysed apart; 28 to 56 fields per
-    condition and repeat.
+    groups (condition · biological_repeat · technical_repeat), each analysed apart; 28 to 56 fields
+    per condition and repeat.
   ➖ Data checks not run (report() runs them).
   ➖ Copy checks not run (report(..., integrity=True) runs them).
 
@@ -50,10 +50,11 @@ At a glance
     ARAP2 · 2B · C13      28     999              5%            2.8                 21%
     ARAP2 · 2B · C17      28     956              7%            3.4                 36%
     MOCK · 2B · P13       28     963              5%            2.8                 29%
-  Groups: condition · repeat · technical_repeat. Between fields: the share of the variance that lies
-    between fields. Fields that differ: more than random nuclei would let them (about 5% expected).
+  Groups: condition · biological_repeat · technical_repeat. Between fields: the share of the
+    variance that lies between fields. Fields that differ: more than random nuclei would let them
+    (about 5% expected).
   Would the JCB count rule hold with whole fields? The nuclei it asks for, taken as whole fields in
-    random order, against the mean of all MOCK nuclei of the same repeat:
+    random order, against the mean of all MOCK nuclei of the same biological repeat:
     target  held in   nuclei asked  fields taken  error: SD/sqrt(n) → real  as fields (upper-95 SD)
     5%      12 of 12           2-3             1  1-2% → 1-2% (0.9-1.8x)    1 (1)
     2.5%    12 of 12          6-10             1  1-2% → 1-2% (0.9-1.8x)    1 (1-2)
@@ -61,22 +62,23 @@ At a glance
     nuclei.
 
 ⚠️ 1. Can these features detect what I care about?
-  Can these features see the declared phenotype (YAP against MOCK, within each repeat)?
+  Can these features see the declared phenotype (YAP against MOCK, within each biological repeat)?
     recognized as different                after 10 reference fields  as inspect_fovs judges
     YAP fields (positive control)          100% of 1680 checks        100% of 84 checks
     MOCK fields with 5 YAP nuclei planted  100% of 720 checks         100% of 56 checks
     MOCK fields (false alarms)             2% of 720 checks           0% of 84 fields
   After 10 reference fields with nuclei: as a stopping rule judges the next field. As inspect_fovs
     judges: each field against the other reference fields of its analysis group
-    (condition · repeat · technical_repeat).
-  By repeat, positive-control fields recognized: 1A 100%, 2A 100%.
-  ⚠️ Not judged after 10 reference fields in repeat 2B: no positive-control field with nuclei.
+    (condition · biological_repeat · technical_repeat).
+  By biological repeat, positive-control fields recognized: 1A 100%, 2A 100%.
+  ⚠️ Not judged after 10 reference fields in biological repeat 2B: no positive-control field with
+     nuclei.
   Assumptions: This holds for this definition of new and these features, on these controls; a
     phenotype unlike the control may be seen better or worse: a whole-field phenotype says little
     about a small or sparse state in an ordinary field (the planted rates measure that).
 
 ⚠️ 2. Did I image enough?
-  Analysis groups: condition · repeat · technical_repeat.
+  Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 12 groups:
     rule                       met in    recorded order  random orders: median (10-90%)
     fixed 8 fields             12 of 12  8               8 (8-8)
@@ -159,21 +161,22 @@ At a glance
 
 ⚠️ 4. How many fields should I image next time?
   Fields per technical repeat, for experiments like this one, over all samples (12 technical repeats
-    in 3 repeats; a technical repeat counts when at least 90% of random acquisitions were enough):
+    in 3 biological repeats; a technical repeat counts when at least 90% of random acquisitions were
+    enough):
     to preserve                                 all served from  needed   left-out check
     the well mean of YAP/TAZ ratio within 5%    2 fields         2        12 of 12
     the well mean of YAP/TAZ ratio within 2.5%  8 fields         2 (2-8)  11 of 12
     the variance of YAP/TAZ ratio within 10%    not shown        –        not checked
   All served from: every technical repeat that could be judged was served at that count and every
     larger one. Needed: the median (range) of the fields each needed. Left-out check: the number
-    chosen on the other repeats, tried on the one left out.
+    chosen on the other biological repeats, tried on the one left out.
   The variance of YAP/TAZ ratio within 10%: for 12 of 12 technical repeats even every available
     field together was enough in fewer than 90% of hold-outs (10-50%): the held-back fields are
     themselves a sample and cap what can be shown, so these are not counted as needing more fields;
-    for 3 repeats, the others reached no number that served enough technical repeats, so nothing was
-    checked there.
+    for 3 biological repeats, the others reached no number that served enough technical repeats, so
+    nothing was checked there.
 
-  Analysis groups: condition · repeat · technical_repeat.
+  Analysis groups: condition · biological_repeat · technical_repeat.
   How often that many random fields were enough, judged on held-back fields (the range over 12
     groups):
     (1) the well mean of YAP/TAZ ratio within 5%; (2) the well mean of YAP/TAZ ratio within 2.5%;
@@ -188,7 +191,7 @@ At a glance
     all 18       100%  90-100%  10-50%
   Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
     beyond 18 fields.
-  ⚠️ Uncertainty is large with only 3 repeats: add more before fixing a protocol.
+  ⚠️ Uncertainty is large with only 3 biological repeats: add more before fixing a protocol.
   Assumptions: The last row, all available fields together, is the ceiling: the held-back fields are
     themselves a sample, so the curve cannot be read above this. Fields are treated as random draws,
     as random-position sampling does. The shares are conservative by construction: the held-back
@@ -196,7 +199,7 @@ At a glance
     read from this curve errs high.
 
 ✅ 5. What did the extra fields buy?
-  Analysis groups: condition · repeat · technical_repeat.
+  Analysis groups: condition · biological_repeat · technical_repeat.
   Judged on held-back fields (the well mean within 2.5%): the field from which everything wanted was
     preserved (medians over hold-outs and orders, the range over 12 groups):
     order                          first preserved  reliably from  90% of runs by
@@ -213,8 +216,8 @@ At a glance
     hold-out is a different set of held-back fields.
 
 ⚠️ 6. Which fields should I look at?
-  4 fields to reopen in 3 groups (condition · repeat · technical_repeat): a state no other field
-    shows (4 fields).
+  4 fields to reopen in 3 groups (condition · biological_repeat · technical_repeat): a state no
+    other field shows (4 fields).
     group             field          why
     YAP · 1A · N23    014023-15.tif  3 nuclei of a state no other field shows
     LATS1 · 2A · J23  010023-3.tif   3 nuclei of a state no other field shows
@@ -237,7 +240,7 @@ At a glance
 
 ⚠️ 8. Could I have sampled more efficiently?
   Fields until reliably enough for this criterion, median over hold-outs and orders, in 12 groups
-    (condition · repeat · technical_repeat):
+    (condition · biological_repeat · technical_repeat):
     order       fields  stage travel    never enough
     recorded    1-4     0 µm to 1.7 mm  –
     random      1       0 µm            –
@@ -253,8 +256,8 @@ At a glance
     overview (not available: sampling-frame bias is not assessed).
 
 ⚠️ 9. Do the conditions differ, and how confidently?
-  YAPTAZ_Ratio, each condition against the control (MOCK), within each repeat; the fields of a
-    condition's analysis groups are pooled. Cohen's d with nuclei, fields and technical repeats
+  YAPTAZ_Ratio, each condition against the control (MOCK), within each biological repeat; the fields
+    of a condition's analysis groups are pooled. Cohen's d with nuclei, fields and technical repeats
     (tech.) as the unit:
     contrast            fields    nuclei       tech.   d nuclei  d fields  p (Bonferroni)
     LATS1 vs MOCK · 1A  56 vs 28  1365 vs 966  2 vs 1  1.32      4.94      no test

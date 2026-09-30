@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,fovs,fovs_with_observations,observations,target,status,object_sd,rule_objects,rule_exceeds_acquired,objects_obtained,fovs_used,predicted_error,real_error,error_ratio,meets_target,fov_rule_fovs,fov_rule_fovs_upper95,fov_rule_acquired,fov_rule_acquired_upper95,dataset
+condition,biological_repeat,technical_repeat,fovs,fovs_with_observations,observations,target,status,object_sd,rule_objects,rule_exceeds_acquired,objects_obtained,fovs_used,predicted_error,real_error,error_ratio,meets_target,fov_rule_fovs,fov_rule_fovs_upper95,fov_rule_acquired,fov_rule_acquired_upper95,dataset
 DMSO,1093711385,B02,4,4,1547,0.05,ok,0.2958703611599997,36,False,388.29575,1.0,0.015244011155287479,0.05398973168205938,3.54170113968545,False,2,22,2,22,idr0139
 DMSO,1093711385,B02,4,4,1547,0.025,ok,0.2958703611599997,141,False,385.53375,1.0,0.015305119781315484,0.054334263930469674,3.550071133504034,False,7,87,7,87,idr0139
 SN0212398523,1093711385,E22,4,4,844,0.05,ok,0.2903737568268368,34,False,210.96925,1.0,0.01999203718555035,0.02595820447355654,1.2984271804135277,True,1,6,1,6,idr0139

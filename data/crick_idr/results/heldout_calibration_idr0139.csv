@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,order,strategy,config_id,criterion,runs,stopped,median_stop_fovs,median_stop_fovs_mc_se,correct,not_preserved_at_stop,premature,not_preserved_by_stream,undefined_at_stop,never_stopped,never_stopped_preserved_at_end,stream_fovs
+condition,biological_repeat,technical_repeat,order,strategy,config_id,criterion,runs,stopped,median_stop_fovs,median_stop_fovs_mc_se,correct,not_preserved_at_stop,premature,not_preserved_by_stream,undefined_at_stop,never_stopped,never_stopped_preserved_at_end,stream_fovs
 DMSO,1093711385,B02,recorded,scalar_precision_object_upper95,6ea7305ea6947bee,relative_mean_error:Fascin_Ratio <= 0.05,6,1.0000,1.0000,0.0000,0.3333,0.6667,0.3333,0.3333,0.0000,0.0000,,2
 DMSO,1093711385,B02,recorded,scalar_precision_object_upper95,6ea7305ea6947bee,relative_mean_error:Fascin_Ratio <= 0.025,6,1.0000,1.0000,0.0000,0.0000,1.0000,0.0000,1.0000,0.0000,0.0000,,2
 DMSO,1093711385,B02,recorded,scalar_precision_object_upper95,6ea7305ea6947bee,all criteria,6,1.0000,1.0000,0.0000,0.0000,1.0000,0.0000,1.0000,0.0000,0.0000,,2

@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,criterion,fovs,splits,defined_splits,preserved,preserved_split_sd,preserved_mc_se,defined_draws,undefined_draws,metric_median,metric_p10,metric_p90,gain,reservoir_fovs,stream_fovs
+condition,biological_repeat,technical_repeat,criterion,fovs,splits,defined_splits,preserved,preserved_split_sd,preserved_mc_se,defined_draws,undefined_draws,metric_median,metric_p10,metric_p90,gain,reservoir_fovs,stream_fovs
 MOCK,1A,B6,relative_mean_error:YAPTAZ_Ratio <= 0.05,2,10,10,1.0000,0.0000,0.0000,500,0,0.0070,0.0011,0.0183,,10,18
 MOCK,1A,B6,relative_mean_error:YAPTAZ_Ratio <= 0.025,2,10,10,0.9880,0.0215,0.0068,500,0,0.0070,0.0011,0.0183,,10,18
 MOCK,1A,B6,covariance_error:YAPTAZ_Ratio <= 0.1,2,10,10,0.2380,0.0861,0.0272,500,0,0.2209,0.0421,0.4958,,10,18
