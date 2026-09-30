@@ -1,36 +1,38 @@
 Microscopist's report — 590 tracks in 133 fields
 
 At a glance
-  ❌ The data — data checks: no warning; integrity: 3 findings in 6 fields; check them first
+  ❌ The data — data checks: no warning; integrity: 6 findings in 12 fields; check them first
   ⚠️ Foundation. Why count fields? — a mean from whole fields varies 1.0x as much as from random
      tracks (median); the JCB count rule missed with whole fields in 7 of 18 technical repeats
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control
   ❌ 2. Did I image enough? — no rule met in any of all 18 technical repeats
   ⚠️ 3. What limits my sampling? — whole fields 1.0x as variable as random tracks; labelled states
-     spread like random tracks in all 6 groups seen
-  ⚠️ 6. Which fields should I look at? — 11 fields to reopen in 9 technical repeats (new state in 8,
-     influence in 1, unusual count in 3); integrity names 6 fields
-  ⚠️ 9. Do the conditions differ? — 12 contrasts, |d| on field means 0.1-3.7; untested (one
-     technical repeat on a side); 0 of 19 features pass the gate
+     spread like random tracks in all 4 groups seen
+  ⚠️ 6. Which fields should I look at? — 9 fields to reopen in 8 technical repeats (new state in 6,
+     influence in 1, unusual count in 3); integrity names 12 fields
+  ✅ 9. Do the conditions differ? — 4 conditions across 3 biological repeats: 2 in the same direction
+     in every repeat (2 lower, 0 higher than the control); paired t on the repeat means: 0 of 4 at
+     Bonferroni p ≤ 0.05; 0 of 13 features pass the gate
 
 ❌ What is in the dataset
   590 tracks in 133 fields, none empty; a field is
     condition · biological_repeat · technical_repeat · position_id.
-  19 features (Mean Speed, Median Speed, Max Speed and 16 more); values as given (not normalised).
+  13 features (Mean Speed, Median Speed, Speed Standard Deviation and 10 more); values as given (not
+    normalised).
   5 conditions (siCTRL, siCCT7#3, siCCT7#6, siCCT8#5, siCCT8#8), 6 repeats (CCT7_1, CCT7_2, CCT7_3,
     CCT8_1, CCT8_2, CCT8_3), 18 technical repeats; 18 analysis groups
     (condition · biological_repeat · technical_repeat), each analysed apart; 5 to 9 fields per
     condition and repeat.
   ✅ Data checks: no warning.
-  ❌ Integrity: 3 findings in 6 fields; check them first: condition=siCCT7#3,
-     biological_repeat=CCT7_2, technical_repeat=B5, position_id=B5_04, condition=siCCT8#5,
-     biological_repeat=CCT8_3, technical_repeat=B2, position_id=B2_01, condition=siCTRL,
-     biological_repeat=CCT8_3, technical_repeat=B1, position_id=B1_03 and 3 more.
+  ❌ Integrity: 6 findings in 12 fields; check them first: condition=siCCT7#3,
+     biological_repeat=CCT7_2, technical_repeat=B5, position_id=B5_04, condition=siCCT7#6,
+     biological_repeat=CCT7_3, technical_repeat=B6, position_id=B6_01-1, condition=siCCT7#6,
+     biological_repeat=CCT7_3, technical_repeat=B6, position_id=B6_04-1 and 9 more.
 
 What this acquisition was asked to preserve
   Population summary: the mean of Mean Speed over all tracks, within 5% and 2.5% (judged on
     held-back fields).
-  Representation: readout Mean Speed; 19 declared feature columns for unusual tracks (against the
+  Representation: readout Mean Speed; 13 declared feature columns for unusual tracks (against the
     control tracks, their repeats pooled) and new phenotypes; definition of new: support_novelty.
   Report-only rule: nothing new ≤5%, judged by the report only (not live, not calibrated by optimise
     and benchmark); seen in few fields: fewer than 3 other fields.
@@ -101,20 +103,20 @@ What this acquisition was asked to preserve
     nothing new (≤5%)        0 of 18  never
   First met after: the fields acquired when it first said enough; random: the median of the groups'
     medians, 10-90% from the lowest to the highest group.
-  One more field: fields with a state counted as new in 7 of 18 groups: siCCT7#3 · CCT7_3 · B5 (1
-    field), siCCT7#6 · CCT7_2 · B6 (2 fields), siCCT7#6 · CCT7_3 · B6 (1 field) and 4 more; chance
-    up to 25%, nominal 95% bound 28-66%.
+  One more field: fields with a state counted as new in 6 of 18 groups: siCCT7#3 · CCT7_3 · B5 (1
+    field), siCCT7#6 · CCT7_1 · B6 (1 field), siCCT7#6 · CCT7_2 · B6 (1 field) and 3 more; chance up
+    to 17%, nominal 95% bound 28-58%.
   Not yet seen: a state no field has shown is in at most 28-45% of fields (95% confidence); rarer
     states can remain.
-  Seen in few fields: 16 of 18 groups hold a state seen in only 2 to 3 fields
-    (siCCT7#3 · CCT7_2 · B5, siCCT7#3 · CCT7_3 · B5, siCCT7#6 · CCT7_1 · B6 and 13 more); look at
-    those fields before calling the sample settled.
-  Seeing such a state again with 95% probability takes about 6-23 independent representative fields
+  Seen in few fields: all 18 groups hold a state seen in only 2 to 3 fields (siCCT7#3 · CCT7_1 · B5,
+    siCCT7#3 · CCT7_2 · B5, siCCT7#3 · CCT7_3 · B5 and 15 more); look at those fields before calling
+    the sample settled.
+  Seeing such a state again with 95% probability takes about 2-23 independent representative fields
     (up to 947 at the low end of its interval); fields that cluster the state need more.
   To rule out unseen states in more than 5% of fields: at least 50-54 more fields with nothing new.
-  To bring the next-field bound below 5%: at least 50-116 more fields if none shows anything new
-    (50-52 at the current rate of new fields; never at the current rate in siCCT7#3 · CCT7_3 · B5,
-    siCCT7#6 · CCT7_2 · B6, siCCT7#6 · CCT7_3 · B6 and 4 more).
+  To bring the next-field bound below 5%: at least 50-87 more fields if none shows anything new
+    (50-54 at the current rate of new fields; never at the current rate in siCCT7#3 · CCT7_3 · B5,
+    siCCT7#6 · CCT7_1 · B6, siCCT7#6 · CCT7_2 · B6 and 3 more).
   'New': at least 3 similar tracks that no other field shows; the exact definition is in the full
     report.
   ⚠️ JCB rule, per track, 5% is undefined in all 18 groups: the object-unit JCB criterion assumes
@@ -137,14 +139,14 @@ What this acquisition was asked to preserve
   - Fields: a mean from whole fields varies 1.0 times as much as one from as many random tracks
     (median; 1.0-2.7 over 18 groups); 6% of fields differ more than random tracks would (5%
     expected).
-  - Unusual tracks (farther from the siCTRL reference than all but 1% of its tracks; 0-6% of each
-    group): clustered in a few fields (p ≤ 0.05) in 0 of the 6 groups where seen.
-  - New states come from 8 fields.
-  ⚠️ No field holds at least 3 unusual tracks in siCCT7#3 · CCT7_2 · B5, siCCT7#6 · CCT7_2 · B6,
-     siCTRL · CCT7_2 · B4 and 3 more, so no field count is given there.
-  ⚠️ Refits with other reference samples agree on only 0-50% of the unusual tracks in 3 of 18 groups
-     (siCCT7#3 · CCT7_2 · B5, siCCT7#6 · CCT7_2 · B6 and siCTRL · CCT8_3 · B1; below 90%): treat
-     those labels as unstable.
+  - Unusual tracks (farther from the siCTRL reference than all but 1% of its tracks; 0-12% of each
+    group): clustered in a few fields (p ≤ 0.05) in 0 of the 4 groups where seen.
+  - New states come from 6 fields.
+  ⚠️ No field holds at least 3 unusual tracks in siCCT7#3 · CCT7_2 · B5, siCTRL · CCT7_3 · B4,
+     siCCT8#5 · CCT8_1 · B2 and 1 more, so no field count is given there.
+  ⚠️ Refits with other reference samples agree on only 0-80% of the unusual tracks in 4 of 18 groups
+     (siCCT7#3 · CCT7_2 · B5, siCCT7#3 · CCT7_3 · B5, siCCT7#6 · CCT7_2 · B6 and 1 more; below 90%):
+     treat those labels as unstable.
   ⚠️ The reference of the unusual tracks pools the control tracks of 6 repeats: a shift shared by
      one repeat (a staining or plating batch) makes its tracks read as unusual, so compare the
      unusual share between repeats before reading it as biology.
@@ -153,27 +155,34 @@ What this acquisition was asked to preserve
     technical repeats than the count says (no two-level plan is made).
 
 ⚠️ 6. Which fields should I look at?
-  11 fields to reopen in 9 groups (condition · biological_repeat · technical_repeat): a state no
-    other field shows (8 fields); sways a declared summary (1 field); an unusual count (3 fields).
+  9 fields to reopen in 8 groups (condition · biological_repeat · technical_repeat): a state no
+    other field shows (6 fields); sways a declared summary (1 field); an unusual count (3 fields).
     siCCT7#3 · CCT7_3 · B5 · B5_01-1: 5 tracks of a state no other field shows.
+    siCCT7#6 · CCT7_1 · B6 · B6_05: 3 tracks of a state no other field shows.
     siCCT7#6 · CCT7_2 · B6 · B6_01-1: 3 tracks of a state no other field shows.
-    siCCT7#6 · CCT7_2 · B6 · B6_05-1: 3 tracks of a state no other field shows.
     siCCT7#6 · CCT7_3 · B6 · B6_05-1: 5 tracks of a state no other field shows.
     siCTRL · CCT7_1 · B4 · B4_02: 4 tracks of a state no other field shows.
     siCTRL · CCT7_1 · B4 · B4_04: 1 track; the median is 4.
     siCTRL · CCT7_2 · B4 · B4_08-1: removing it lowers the field-weighted mean of Mean Speed by 12%;
       1 track; the median is 3.
-    siCTRL · CCT7_3 · B4 · B4_02-1: 4 tracks of a state no other field shows.
-    and 3 fields more (detail='full').
+    siCCT8#8 · CCT8_1 · B3 · B3_06: 1 track; the median is 4.
+    and 1 field more (detail='full').
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
 
-  The data-integrity checks (in the overview) name 6 fields in 3 findings (fields that hold another field's observations, or their own twice); every answer here counts them as independent fields, so look at them first: condition=siCCT7#3, biological_repeat=CCT7_2, technical_repeat=B5, position_id=B5_04, condition=siCCT8#5, biological_repeat=CCT8_3, technical_repeat=B2, position_id=B2_01, condition=siCTRL, biological_repeat=CCT8_3, technical_repeat=B1, position_id=B1_03, condition=siCCT7#3, biological_repeat=CCT7_2, technical_repeat=B5, position_id=B5_04-1, condition=siCCT8#5, biological_repeat=CCT8_3, technical_repeat=B2, position_id=B2_02 and 1 more.
+  The data-integrity checks (in the overview) name 12 fields in 6 findings (fields that hold another field's observations, or their own twice); every answer here counts them as independent fields, so look at them first: condition=siCCT7#3, biological_repeat=CCT7_2, technical_repeat=B5, position_id=B5_04, condition=siCCT7#6, biological_repeat=CCT7_3, technical_repeat=B6, position_id=B6_01-1, condition=siCCT7#6, biological_repeat=CCT7_3, technical_repeat=B6, position_id=B6_04-1, condition=siCTRL, biological_repeat=CCT7_1, technical_repeat=B4, position_id=B4_05, condition=siCCT8#5, biological_repeat=CCT8_3, technical_repeat=B2, position_id=B2_01 and 7 more.
 
-⚠️ 9. Do the conditions differ, and how confidently?
-  Mean Speed, each condition against the control (siCTRL), within each biological repeat; the fields
-    of a condition's analysis groups are pooled. Cohen's d with tracks, fields and technical repeats
-    (tech.) as the unit:
+✅ 9. Do the conditions differ, and how confidently?
+  Across the 3 biological repeats (each repeat's value is the mean of its tracks, paired with the
+    control of the same repeat):
+    condition           vs control, by repeat  d tracks: mean (range)  paired t p (Bonf.)
+    siCCT7#3 vs siCTRL  1 lower, 2 higher      0.17 (-0.37 to 0.86)    0.61 (1)
+    siCCT7#6 vs siCTRL  2 lower, 1 higher      -0.17 (-0.60 to 0.55)   0.79 (1)
+    siCCT8#5 vs siCTRL  lower in 3 of 3        -1.06 (-1.58 to -0.59)  0.064 (0.25)
+    siCCT8#8 vs siCTRL  lower in 3 of 3        -1.11 (-1.71 to -0.80)  0.074 (0.3)
+  Within each repeat: Mean Speed, each condition against the control (siCTRL), within each
+    biological repeat; the fields of a condition's analysis groups are pooled. Cohen's d with
+    tracks, fields and technical repeats (tech.) as the unit:
     contrast                     fields  tracks    tech.   d tracks  d fields  p (Bonferroni)
     siCCT7#3 vs siCTRL · CCT7_1  7 vs 8  28 vs 30  1 vs 1  -0.37     -0.83     no test
     siCCT7#6 vs siCTRL · CCT7_1  7 vs 8  29 vs 30  1 vs 1  -0.60     -1.10     no test
@@ -189,27 +198,29 @@ What this acquisition was asked to preserve
     siCCT8#8 vs siCTRL · CCT8_3  7 vs 8  31 vs 39  1 vs 1  -1.71     -3.41     no test
   JCS effect size (treated mean minus control mean, over the control SD) from every track: -1.40 to
     0.90 over the 12 contrasts.
-  Which features separate the conditions? None is ranked: for the 19 declared features no contrast
+  Which features separate the conditions? None is ranked: for the 13 declared features no contrast
     could be tested.
-  Not ranked because no contrast could be tested (19 features): Directionality (only one technical
-    repeat (technical_repeat) with observations on one side: its fields cannot stand in for
-    technical repeats, so there is no test), Directionality Rolling (only one technical repeat
+  Not ranked because no contrast could be tested (13 features): Directionality Rolling (only one
+    technical repeat (technical_repeat) with observations on one side: its fields cannot stand in
+    for technical repeats, so there is no test), Max Speed Rolling (only one technical repeat
     (technical_repeat) with observations on one side: its fields cannot stand in for technical
-    repeats, so there is no test), Max Speed (only one technical repeat (technical_repeat) with
+    repeats, so there is no test), Mean Speed (only one technical repeat (technical_repeat) with
     observations on one side: its fields cannot stand in for technical repeats, so there is no test)
-    and 16 more.
-  ⚠️ No randomization test in all 12 contrasts: only one technical repeat (technical_repeat) with
-     observations on one side: its fields cannot stand in for technical repeats, so there is no
-     test.
-  Assumptions: The test and the effect sizes compare means: a difference confined to a subpopulation
-    of tracks or to the shape of the distribution is not tested (see the unusual tracks and the rare
-    label). This describes what these fields support about a difference under this feature;
-    generalizing it needs independent biological repeats, which is the user's inference.
+    and 10 more.
+  Assumptions: Across biological repeats, the paired t-test on the repeat means (as in SuperPlots)
+    assumes normally distributed differences; Bonferroni-corrected over the conditions. Within a
+    repeat the conditions are described by their effect sizes; they are tested across repeats (the
+    first table). The test and the effect sizes compare means: a difference confined to a
+    subpopulation of tracks or to the shape of the distribution is not tested (see the unusual
+    tracks and the rare label). This describes what these fields support about a difference under
+    this feature; generalizing it needs independent biological repeats, which is the user's
+    inference.
 
 What this dataset cannot tell me
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control
-  ❌ Data integrity: the checks in the overview name 6 fields in 3 findings (fields that hold another
-     field's observations, or their own twice), and every answer counts them as independent fields.
+  ❌ Data integrity: the checks in the overview name 12 fields in 6 findings (fields that hold
+     another field's observations, or their own twice), and every answer counts them as independent
+     fields.
   ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
      and this definition of new cannot see.
   ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
@@ -226,8 +237,8 @@ What this dataset cannot tell me
     condition mean also varies between technical repeats, which more fields of one technical repeat
     cannot reduce (question 3; optimise, question 7: more fields or more technical repeats?). The
     Foundation, the stopping rules and the inspection's influence and neighbour reasons read the
-    readout (Mean Speed) only; the other declared features (Median Speed, Max Speed, Speed Standard
-    Deviation, Total Distance Traveled, Mean Speed Rolling and 13 more) enter novelty, the
+    readout (Mean Speed) only; the other declared features (Median Speed, Speed Standard Deviation,
+    Mean Speed Rolling, Median Speed Rolling, Max Speed Rolling and 7 more) enter novelty, the
     representation control, the unusual tracks and the feature ranking, so a heavy tail or a
     between-well spread in them is not judged by any stopping rule.
 

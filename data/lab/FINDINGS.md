@@ -103,3 +103,32 @@ copied cell row planted in the CDM tables.
 - Wording: "all 1 groups", "0 of the 1 groups", "technical repeats" when each is `single`.
 - `default_novelty` warns with 10 and 19 features; the 8 "new state" track fields were not checked
   against the images.
+
+## 2026-09-30 — second run, after items 2, 3 and 6 of the first run
+
+**Run.** The same settings at commit b0ecf69, after the owner's decisions: answer question 9 across
+biological repeats; do not flag what the design cannot test (3 repeats and one well per condition
+are the usual design); leave out the field questions with one cell per field; find copies in small
+fields. The glioma card now declares only the metrics that do not grow with track length (the
+owner: a difference in tracking duration is flagged, not a deal breaker, once normalised metrics
+are used).
+
+| | filopodia screen | CDM shape | glioma tracks |
+|---|---|---|---|
+| Data | ✅ | ❌ 1 finding: a cell measured twice | ❌ 6 findings: all 6 duplicated pairs |
+| Foundation | ➖ not applicable (1 cell per field) | ➖ not applicable | ⚠️ as before |
+| 2. Enough? | ❌ no rule met (54 groups) | ❌ (9 groups) | ❌ (18 groups) |
+| 3. Limits | ➖ not applicable | ➖ not applicable | ⚠️ as before |
+| 9. Contrast | ✅ 12 of 12 in the same direction in every repeat | ✅ 2 of 2 | ✅ 2 of 4 (both CCT8 siRNAs) |
+
+- **Integrity** now finds every copy the curation found (the 28 duplicated tracks) and one the
+  curation missed: Fiji rows 7 and 8 of siCCT8#5, repeat 1, in the published CDM spreadsheet are
+  the same cell measured twice (recorded in that card). The clean filopodia screen stays clean.
+- **Question 9** gives what the three designs support: the direction against each set's own
+  control in every repeat (the screen's hypothesis 4 exactly: MAP4K4 and NF2 higher, the other four
+  genes lower, 3 of 3). The paired t-test on 3 repeat means is below 0.05 for 8 of the 12 siRNAs
+  before correction; after Bonferroni over 12, the smallest is 0.058. The paper's significance comes
+  from cells as the unit, with the six siCTRL sets pooled; the repeat-level answer is the
+  consistent direction.
+- **Still to decide:** question 2 is ❌ for all three (a 5% precision of each group's mean; item 1
+  of the first run), and the glioma tracks' Foundation and question 3 keep their ⚠️.
