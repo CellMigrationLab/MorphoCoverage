@@ -121,8 +121,13 @@ def ordinal(n: int) -> str:
     return f"{n}{suffix}"
 
 
+def column_word(column: object) -> str:
+    """A column's own name as a word: ``plate``, ``biological repeat`` (underscores as spaces)."""
+    return str(column).replace("_", " ")
+
+
 def where(group: Mapping[str, Any]) -> str:
-    """``condition=MOCK, repeat=1A``, or a pooled label for an empty group."""
+    """``condition=MOCK, biological_repeat=1A``, or a pooled label for an empty group."""
     return ", ".join(f"{k}={v}" for k, v in group.items()) or "all FOVs (pooled)"
 
 
@@ -136,6 +141,7 @@ def rows_of(frame: pd.DataFrame, group: Mapping[str, Any]) -> pd.DataFrame:
 
 
 __all__ = [
+    "column_word",
     "count",
     "duration",
     "fields",

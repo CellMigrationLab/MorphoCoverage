@@ -77,7 +77,7 @@ def test_variants_of_one_strategy_stay_apart():
 def test_analysis_groups_are_reported_separately():
     report = _report("condition_repeat_groups", [FixedFOVStrategy(2)])
     assert len(report.final) == len(report.stops) == 4
-    assert {"condition", "repeat"} <= set(report.stops.columns)
+    assert {"condition", "biological_repeat"} <= set(report.stops.columns)
     assert set(report.stops["acquired_fovs"]) == {8}
 
 

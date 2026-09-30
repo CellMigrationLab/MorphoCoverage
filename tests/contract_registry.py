@@ -55,12 +55,12 @@ def _pilot_plan():
     """A JCB cell plan from a pilot repeat that no scenario evaluates."""
     pilot = SCENARIOS["homogeneous"]()
     return plan_objects_to_average(
-        pilot.objects.assign(repeat="PILOT"),
-        fovs=pilot.fovs.assign(repeat="PILOT"),
+        pilot.objects.assign(biological_repeat="PILOT"),
+        fovs=pilot.fovs.assign(biological_repeat="PILOT"),
         feature="feature_a",
         target_cv=0.01,
         sd_estimate="upper_95",
-        sample_cols=("condition", "repeat"),
+        sample_cols=("condition", "biological_repeat"),
         control={"condition": "control"},
     )
 

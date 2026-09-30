@@ -55,8 +55,12 @@ RESULTS = HERE / "results"
 YAPTAZ_RATIO = "YAPTAZ_Ratio"
 FASCIN_RATIO = "Fascin_Ratio"
 # The MorphoBricks group columns: the well is the technical repeat within a plate.
-GROUPS = ("condition", "repeat", "technical_repeat")
+GROUPS = ("condition", "biological_repeat", "technical_repeat")
 OBSERVATION_UNIT = "nucleus"
+# The stored files keep the names convert.py wrote: the plate as "repeat" (the former
+# MorphoBricks name of the biological repeat) and the well as "well".
+STORED_REPEAT = "repeat"
+STORED_NAMES = {"well": "technical_repeat", STORED_REPEAT: "biological_repeat"}
 
 
 @dataclass(frozen=True)
@@ -114,19 +118,20 @@ def load(name: str) -> Dataset:
     if name not in _SPECS:
         raise ValueError(f"unknown dataset {name!r}; choose one of {list(NAMES)}")
     readout, control, role, description = _SPECS[name]
-    objects = pd.read_csv(HERE / f"{name}_nuclei.csv.gz", dtype={"repeat": str})
-    fovs = pd.read_csv(HERE / f"{name}_fovs.csv.gz", dtype={"repeat": str})
-    # The stored tables name the well; the package's shared column for it is technical_repeat.
-    objects = objects.rename(columns={"well": "technical_repeat"})
-    fovs = fovs.rename(columns={"well": "technical_repeat"})
+    objects = pd.read_csv(HERE / f"{name}_nuclei.csv.gz", dtype={STORED_REPEAT: str})
+    fovs = pd.read_csv(HERE / f"{name}_fovs.csv.gz", dtype={STORED_REPEAT: str})
+    # The stored tables name the well and the plate by their stored names; the package's
+    # shared columns for them are technical_repeat and biological_repeat.
+    objects = objects.rename(columns=STORED_NAMES)
+    fovs = fovs.rename(columns=STORED_NAMES)
     if "condition" not in objects.columns:
         # The complete plates keep the metadata in the FOV table; idr0028 reuses
         # file names across plates, so the join is on (repeat, image_file).
-        metadata = fovs[["repeat", "image_file", "condition", "technical_repeat"]]
+        metadata = fovs[["biological_repeat", "image_file", "condition", "technical_repeat"]]
         objects = objects.merge(
-            metadata, on=["repeat", "image_file"], how="left", validate="many_to_one"
+            metadata, on=["biological_repeat", "image_file"], how="left", validate="many_to_one"
         )
-        first = ["condition", "repeat", "technical_repeat"]
+        first = ["condition", "biological_repeat", "technical_repeat"]
         objects = objects[first + [c for c in objects.columns if c not in first]]
     features = tuple(c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_")))
     return Dataset(
@@ -166,8 +171,10 @@ def fov_matrices(
     objects: pd.DataFrame, fovs: pd.DataFrame, plate: str, well: str, features: list[str]
 ) -> list[np.ndarray]:
     """Feature matrix of each FOV of one well, in FOV-table order (empty FOVs included)."""
-    names = fovs.loc[(fovs["repeat"] == plate) & (fovs["technical_repeat"] == well), "image_file"]
-    in_plate = objects[objects["repeat"] == plate]
+    names = fovs.loc[
+        (fovs["biological_repeat"] == plate) & (fovs["technical_repeat"] == well), "image_file"
+    ]
+    in_plate = objects[objects["biological_repeat"] == plate]
     by_file = dict(tuple(in_plate.groupby("image_file")))
     empty = np.empty((0, len(features)))
     return [by_file[n][features].to_numpy(float) if n in by_file else empty for n in names]

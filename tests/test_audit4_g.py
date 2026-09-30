@@ -44,13 +44,13 @@ def _fields(labels_per_fov, condition="drug", repeat="R1", well="A"):
     objects, fovs = [], []
     for j, labels in enumerate(labels_per_fov):
         name = f"{condition}_{repeat}_{well}_f{j:02d}"
-        identity = {"condition": condition, "repeat": repeat, "technical_repeat": well}
+        identity = {"condition": condition, "biological_repeat": repeat, "technical_repeat": well}
         fovs.append({**identity, "position_id": name})
         for value in labels:
             objects.append(
                 {
                     "condition": condition,
-                    "repeat": repeat,
+                    "biological_repeat": repeat,
                     "technical_repeat": well,
                     "position_id": name,
                     "state": value,
@@ -111,10 +111,12 @@ def test_p6_1_the_report_counts_unusual_fields_with_the_novelty_rules_m():
         for repeat in ("R1", "R2", "R3"):
             for j in range(6):
                 name = f"{condition}{repeat}f{j}"
-                fields.append({"condition": condition, "repeat": repeat, "position_id": name})
+                fields.append(
+                    {"condition": condition, "biological_repeat": repeat, "position_id": name}
+                )
                 for x, y in rng.normal(size=(20, 2)):
                     rows.append(
-                        {"condition": condition, "repeat": repeat, "position_id": name}
+                        {"condition": condition, "biological_repeat": repeat, "position_id": name}
                         | {"a": x, "b": y}
                     )
     objects, fovs = pd.DataFrame(rows), pd.DataFrame(fields)
@@ -192,7 +194,7 @@ def _controls(settings=None, **rates):
         pooled.assign(stratum="all FOVs"),
         pooled,
         "assessed",
-        ("repeat",),
+        ("biological_repeat",),
         {"fovs_seen": 10, **(settings or {})},
     )
 
@@ -229,10 +231,10 @@ def test_p6_4_representation_control_measures_the_planted_rate_leaving_one_field
     for condition, shift in (("MOCK", 0.0), ("KD", 8.0)):
         for j in range(8):
             name = f"{condition}{j}"
-            fields.append({"condition": condition, "repeat": "R1", "position_id": name})
+            fields.append({"condition": condition, "biological_repeat": "R1", "position_id": name})
             for x, y in rng.normal(size=(20, 2)):
                 rows.append(
-                    {"condition": condition, "repeat": "R1", "position_id": name}
+                    {"condition": condition, "biological_repeat": "R1", "position_id": name}
                     | {"a": x + shift, "b": y}
                 )
     controls = representation_control(
@@ -243,7 +245,7 @@ def test_p6_4_representation_control_measures_the_planted_rate_leaving_one_field
         control=RepresentationControl(
             positive={"condition": "KD"}, reference={"condition": "MOCK"}, planted_objects=5
         ),
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=3,
         draws=2,
     )
@@ -269,7 +271,7 @@ def test_p6_5_rare_state_fields_report_the_technical_repeats_holding_it():
         label_col="state",
         states=[True],
         n_permutations=9,
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
     )
     row = pooled.table.iloc[0]
     assert (row["technical_repeats"], row["technical_repeats_holding"]) == (3, 1)
@@ -308,11 +310,16 @@ def _wells_table():
         for j in range(8):
             name = f"{well}{j}"
             fields.append(
-                {"condition": "c", "repeat": "R1", "technical_repeat": well, "position_id": name}
+                {
+                    "condition": "c",
+                    "biological_repeat": "R1",
+                    "technical_repeat": well,
+                    "position_id": name,
+                }
             )
             for x, y in rng.normal(size=(15, 2)):
                 rows.append(
-                    {"condition": "c", "repeat": "R1", "technical_repeat": well}
+                    {"condition": "c", "biological_repeat": "R1", "technical_repeat": well}
                     | {"position_id": name, "a": x, "b": y}
                 )
     return pd.DataFrame(rows), pd.DataFrame(fields)
@@ -328,7 +335,7 @@ def test_p3_8_a_group_pooling_technical_repeats_bounds_their_share():
         objective=POPULATION,
         orders=[AcquisitionOrder.permuted(0)],
         novelty=SupportNoveltyEstimator(3.0, 1, None, 5, 3),
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
     )
     row = report.next_fov.iloc[0]
     assert row["technical_repeats"] == 3
@@ -359,12 +366,12 @@ def test_p1_2_empty_positive_fields_are_not_counted_as_misses():
     for condition, shift in (("MOCK", 0.0), ("KD", 8.0)):
         for j in range(10):
             name = f"{condition}{j}"
-            fields.append({"condition": condition, "repeat": "R1", "position_id": name})
+            fields.append({"condition": condition, "biological_repeat": "R1", "position_id": name})
             if condition == "KD" and j < 3:
                 continue  # 30% of the positive fields hold no cells
             for x, y in rng.normal(size=(20, 2)):
                 rows.append(
-                    {"condition": condition, "repeat": "R1", "position_id": name}
+                    {"condition": condition, "biological_repeat": "R1", "position_id": name}
                     | {"a": x + shift, "b": y}
                 )
     controls = representation_control(
@@ -375,7 +382,7 @@ def test_p1_2_empty_positive_fields_are_not_counted_as_misses():
         control=RepresentationControl(
             positive={"condition": "KD"}, reference={"condition": "MOCK"}
         ),
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=3,
         draws=3,
     )
@@ -441,10 +448,10 @@ def test_p9_7_near_constant_features_are_refused_and_named():
     for repeat in ("R1", "R2", "R3"):
         for j in range(4):
             name = f"{repeat}f{j}"
-            fields.append({"condition": "MOCK", "repeat": repeat, "position_id": name})
+            fields.append({"condition": "MOCK", "biological_repeat": repeat, "position_id": name})
             for value in rng.normal(size=10):
                 rows.append(
-                    {"condition": "MOCK", "repeat": repeat, "position_id": name}
+                    {"condition": "MOCK", "biological_repeat": repeat, "position_id": name}
                     | {"area": value, "texture": 7.0}
                 )
     result = unusual_objects(

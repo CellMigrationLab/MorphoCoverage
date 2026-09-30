@@ -45,9 +45,9 @@ OBJECTIVE = ObjectiveConfig()
 MEAN = OutcomeCriterion(RelativeMeanError("f"), 0.02, "lower_is_better", "the mean within 2%")
 RARE = OutcomeCriterion(RareStateDetected("rare", 1), 1.0, "higher_is_better", "the rare state")
 FIX3 = FixedFOVStrategy(target_fovs=3)
-GROUPS = ("condition", "repeat", "technical_repeat")
-TECHNICAL = SamplingHierarchy("position_id", "technical_repeat", "repeat")
-BY_WELL = SamplingHierarchy("image_file", "well", "repeat")
+GROUPS = ("condition", "biological_repeat", "technical_repeat")
+TECHNICAL = SamplingHierarchy("position_id", "technical_repeat", "biological_repeat")
+BY_WELL = SamplingHierarchy("image_file", "well", "biological_repeat")
 
 
 def _tables(
@@ -66,7 +66,7 @@ def _tables(
         for well in wells:
             for i in range(n_fovs):
                 fid = f"ctrl_{repeat}_{well}_{i:02d}"
-                base = {"condition": "ctrl", "repeat": repeat, "technical_repeat": well}
+                base = {"condition": "ctrl", "biological_repeat": repeat, "technical_repeat": well}
                 fov_rows.append(
                     {
                         **base,
@@ -122,7 +122,7 @@ def _curve(preserved, **extra):
     rows = [
         {
             "condition": "c",
-            "repeat": repeat,
+            "biological_repeat": repeat,
             "well": well,
             "criterion": "m",
             "fovs": k,
@@ -134,7 +134,10 @@ def _curve(preserved, **extra):
         for k, value in by_k.items()
     ]
     return ReliabilityResult(
-        pd.DataFrame(rows), pd.DataFrame(), ("condition", "repeat", "well"), {"labels": {"m": "m"}}
+        pd.DataFrame(rows),
+        pd.DataFrame(),
+        ("condition", "biological_repeat", "well"),
+        {"labels": {"m": "m"}},
     )
 
 
@@ -144,7 +147,7 @@ def _ninety_percent_result():
         [
             {
                 "condition": "c",
-                "repeat": "R1",
+                "biological_repeat": "R1",
                 "technical_repeat": well,
                 "split": split,
                 "fovs": 4,
@@ -341,7 +344,7 @@ def test_f10_groups_the_replay_skipped_are_named_in_every_summary():
         assert "A2: skipped, only 1 field" in result.summary(detail="full")
     efficiency = order_efficiency(replay)
     assert efficiency.skipped["technical_repeat"].tolist() == ["A2"]
-    # The order comparison names the group by its values (condition · repeat · well).
+    # The order comparison names the group by its values (condition · biological_repeat · well).
     for detail in ("short", "full"):
         assert "R1 · A2: skipped, only 1 field" in efficiency.summary(detail=detail)
 
@@ -350,13 +353,15 @@ def test_f11_too_few_objects_for_the_metric_is_not_preserved():
     objects = pd.DataFrame(
         {
             "condition": "c",
-            "repeat": "r",
+            "biological_repeat": "r",
             "position_id": ["p0", "p1", "p1", "p2"],
             "a": [1.0, 2.0, 4.0, 3.0],
             "b": [5.0, 4.0, 7.0, 1.0],
         }
     )
-    fovs = pd.DataFrame({"condition": "c", "repeat": "r", "position_id": ["p0", "p1", "p2"]})
+    fovs = pd.DataFrame(
+        {"condition": "c", "biological_repeat": "r", "position_id": ["p0", "p1", "p2"]}
+    )
     data = validate_input_tables(objects, fovs=fovs, feature_cols=["a", "b"], fov_col="position_id")
     one = validate_input_tables(
         objects.iloc[:1], fovs=fovs.iloc[:1], feature_cols=["a", "b"], fov_col="position_id"
@@ -429,7 +434,7 @@ def test_f14_order_efficiency_refuses_adequacy_of_other_data():
 def test_f15_protocol_wording_says_batches_and_at_least():
     curve = _curve({("B1", "A1"): {4: 0.95}, ("B1", "A2"): {4: 0.5}})
     curve = ReliabilityResult(
-        curve.curve.rename(columns={"repeat": "batch"}),
+        curve.curve.rename(columns={"biological_repeat": "batch"}),
         pd.DataFrame(),
         ("condition", "batch", "well"),
         curve.settings,
@@ -537,7 +542,7 @@ def _redundancy(objects, fovs):
         stage_cols=("x", "y"),
         bin_edges=[0, 150, 300, 500],
         fov_col="position_id",
-    ).set_index("repeat")
+    ).set_index("biological_repeat")
 
 
 def test_f22_a_constant_readout_has_no_redundancy_distance():
@@ -549,7 +554,7 @@ def test_f22_a_constant_readout_has_no_redundancy_distance():
 
 def test_f23_a_missing_value_in_one_group_leaves_the_others_measured():
     objects, fovs = _tables(n_fovs=16, repeats=("R1", "R2"))
-    objects.loc[objects.index[objects["repeat"] == "R2"][0], "f"] = np.nan
+    objects.loc[objects.index[objects["biological_repeat"] == "R2"][0], "f"] = np.nan
     table = _redundancy(objects, fovs)
     assert pd.notna(table.loc["R1", "smallest_lag"]) and pd.isna(table.loc["R1", "reason"])
     assert "missing feature values" in table.loc["R2", "reason"]

@@ -43,9 +43,11 @@ def _plane_files(rows_per_file=5):
     for position in range(3):
         for z in range(4):
             name = f"pos{position}_z{z}.tif"
-            fov_rows.append({"condition": "a", "repeat": "r1", "image_file": name, "z": z})
+            fov_rows.append(
+                {"condition": "a", "biological_repeat": "r1", "image_file": name, "z": z}
+            )
             rows += [
-                {"condition": "a", "repeat": "r1", "image_file": name, "f": value}
+                {"condition": "a", "biological_repeat": "r1", "image_file": name, "f": value}
                 for value in np.linspace(1, 2, rows_per_file)
             ]
     return pd.DataFrame(rows), pd.DataFrame(fov_rows)
@@ -93,9 +95,9 @@ def test_b2_live_identity_is_resolved_over_observations_and_fov_row():
     for position in range(3):
         for tile in range(4):
             name = f"pos{position}_{tile}.tif"
-            fov_rows.append({"condition": "a", "repeat": "r1", "image_file": name})
+            fov_rows.append({"condition": "a", "biological_repeat": "r1", "image_file": name})
             rows += [
-                {"condition": "a", "repeat": "r1", "position_id": f"pos{position}"}
+                {"condition": "a", "biological_repeat": "r1", "position_id": f"pos{position}"}
                 | {"image_file": name, "f": value}
                 for value in np.linspace(1, 2, 5)
             ]
@@ -113,8 +115,12 @@ def test_b2_live_identity_is_resolved_over_observations_and_fov_row():
     session.add_fov(pd.DataFrame({"f": [1.0]}), {"image_file": "a.tif"})
     with pytest.raises(ValueError, match=message):
         session.add_fov(pd.DataFrame({"f": [1.0], "position_id": ["P2"]}), {"image_file": "b.tif"})
-    with pytest.raises(ValueError, match="'repeat' is present in objects but absent from fovs"):
-        session.add_fov(pd.DataFrame({"f": [1.0], "repeat": ["r1"]}), {"image_file": "b.tif"})
+    with pytest.raises(
+        ValueError, match="'biological_repeat' is present in objects but absent from fovs"
+    ):
+        session.add_fov(
+            pd.DataFrame({"f": [1.0], "biological_repeat": ["r1"]}), {"image_file": "b.tif"}
+        )
     # Identity carried by the FOV row alone is copied onto the observations.
     [result] = session.add_fov(pd.DataFrame({"f": [2.0]}), {"image_file": "b.tif"})
     assert (session.fov_col, session.group_cols, result.n_fovs) == ("image_file", (), 2)
@@ -280,16 +286,18 @@ def test_b10_a_tiny_reservoir_fraction_still_holds_out_one_block():
 
 
 def test_b11_numpy_group_values_seed_like_python_ones():
-    fovs = pd.DataFrame({"repeat": 1, "position_id": [f"p{i:02d}" for i in range(20)]})
-    objects = pd.DataFrame({"repeat": 1, "position_id": fovs.position_id, "f": np.arange(20.0)})
+    fovs = pd.DataFrame({"biological_repeat": 1, "position_id": [f"p{i:02d}" for i in range(20)]})
+    objects = pd.DataFrame(
+        {"biological_repeat": 1, "position_id": fovs.position_id, "f": np.arange(20.0)}
+    )
     data = validate_input_tables(objects, fovs=fovs, feature_cols=["f"])
-    group_from_table = {"repeat": data.fovs["repeat"].iloc[0]}
-    assert isinstance(group_from_table["repeat"], np.integer)
+    group_from_table = {"biological_repeat": data.fovs["biological_repeat"].iloc[0]}
+    assert isinstance(group_from_table["biological_repeat"], np.integer)
     split = ReservoirSplit(0.3, 0, None)
     held = split.split(group_from_table, data)[1].fovs["position_id"].tolist()
-    assert held == split.split({"repeat": 1}, data)[1].fovs["position_id"].tolist()
+    assert held == split.split({"biological_repeat": 1}, data)[1].fovs["position_id"].tolist()
     order = permuted_fovs(data.fovs, data.fov_key, 0, group_from_table)
-    assert order.equals(permuted_fovs(data.fovs, data.fov_key, 0, {"repeat": 1}))
+    assert order.equals(permuted_fovs(data.fovs, data.fov_key, 0, {"biological_repeat": 1}))
 
 
 def test_b12_benchmark_and_imaged_area_share_one_area_check():

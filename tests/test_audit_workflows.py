@@ -50,7 +50,7 @@ def _pooled_wells():
             for field in range(3):
                 key = {
                     "condition": "c",
-                    "repeat": f"r{repeat}",
+                    "biological_repeat": f"r{repeat}",
                     "technical_repeat": f"w{well}",
                     "image_file": f"f{field}.tif",
                 }
@@ -145,7 +145,9 @@ def test_h4_the_report_inspection_keeps_every_reason_with_novelty():
 
 def test_h6_live_identifiers_keep_their_leading_zeros(tmp_path):
     objects = pd.DataFrame({"position_id": ["001"] * 5, "x": np.arange(5.0) + 1})
-    write_fov(tmp_path, objects, {"condition": "A", "repeat": "01", "position_id": "001"})
+    write_fov(
+        tmp_path, objects, {"condition": "A", "biological_repeat": "01", "position_id": "001"}
+    )
     update = LiveFolder(tmp_path, live_session(Setup(readout="x"))).poll()[0]
     assert update.n_objects == 5 and update.fov_metadata["position_id"] == "001"
 
@@ -226,13 +228,13 @@ def test_h12_h13_the_declaration_says_what_is_assessed():
 
 def _wells(objects, fovs):
     fovs = fovs.assign(technical_repeat=[f"w{i % 2}" for i in range(len(fovs))])
-    keys = ["condition", "repeat", "image_file", "technical_repeat"]
+    keys = ["condition", "biological_repeat", "image_file", "technical_repeat"]
     return objects.merge(fovs[keys]), fovs
 
 
 def test_df1_optimise_runs_when_group_cols_leave_the_technical_repeat_out():
     objects, fovs = _wells(*_acquisition(n_fovs=8, n_objects=6))
-    setup = _setup(group_cols=("condition", "repeat"), stage_cols=None)
+    setup = _setup(group_cols=("condition", "biological_repeat"), stage_cols=None)
     assert setup.resolved_hierarchy(objects, fovs) is None
     plan = optimise(
         objects,

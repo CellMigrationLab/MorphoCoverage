@@ -55,7 +55,7 @@ def test_the_fields_to_reopen_are_one_table_and_the_full_form_keeps_every_reason
     assert short.count("None of these is called an error") == 1
     assert f"{CAUTION} Stage neighbours were not compared in control · R1" in short
     full = result.summary(detail="full")
-    assert "Analysis groups: condition · repeat." in full
+    assert "Analysis groups: condition · biological_repeat." in full
     assert "control · R1: fields to reopen before trusting the result" in full
     for detail in result.fovs["detail"]:
         assert _flat(detail) in _flat(full)
@@ -106,7 +106,7 @@ def test_the_order_comparison_is_one_table_per_order_kind_and_every_median_in_fu
         if row["median_fovs"] is not None and not np.isnan(row["median_fovs"]):
             fields = f"{row['median_fovs']:g} field"
             assert fields in full
-    assert "Analysis groups: condition · repeat." in full
+    assert "Analysis groups: condition · biological_repeat." in full
     assert "min" in full  # the timing was given
     with pytest.raises(ValueError, match="short"):
         result.summary(detail="brief")

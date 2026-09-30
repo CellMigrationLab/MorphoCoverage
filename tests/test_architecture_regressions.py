@@ -66,16 +66,16 @@ def test_condition_in_objects_but_not_fov_table_is_not_silently_pooled():
 
 def test_canonical_column_missing_from_fov_table_raises_even_when_pooling():
     objects = pd.DataFrame(
-        {"repeat": ["R1", "R2"], "image_file": ["a.tif", "a.tif"], "area": [1.0, 2.0]}
+        {"biological_repeat": ["R1", "R2"], "image_file": ["a.tif", "a.tif"], "area": [1.0, 2.0]}
     )
     fovs = pd.DataFrame({"image_file": ["a.tif"]})
-    with pytest.raises(ValueError, match="'repeat' is present in objects but absent"):
+    with pytest.raises(ValueError, match="'biological_repeat' is present in objects but absent"):
         validate_input_tables(objects, fovs=fovs, feature_cols=["area"], group_cols=[])
 
 
 @pytest.mark.parametrize("variant", ["Repeat", "REPEAT", "Condition"])
 def test_non_canonical_spelling_of_group_column_is_rejected(variant):
-    # fiberfeatures emits both 'Repeat' and 'repeat'; 'Repeat' would otherwise
+    # fiberfeatures emits both 'Repeat' and 'biological_repeat'; 'Repeat' would otherwise
     # bypass canonical handling and pool biological repeats.
     objects = pd.DataFrame(
         {variant: ["R1", "R2"], "image_file": ["a.tif", "b.tif"], "area": [1.0, 2.0]}
@@ -97,23 +97,30 @@ def test_explicit_pooling_does_not_merge_fovs_with_reused_ids():
     # folder. Pooling repeats must not turn R1/F1 and R2/F1 into one FOV.
     objects = pd.DataFrame(
         {
-            "repeat": ["R1", "R1", "R2", "R2"],
+            "biological_repeat": ["R1", "R1", "R2", "R2"],
             "fov_id": ["F1", "F2", "F1", "F2"],
             "area": [1.0, 2.0, 3.0, 4.0],
         }
     )
     data = validate_input_tables(objects, feature_cols=["area"], group_cols=[])
     assert data.group_cols == ()
-    assert data.fov_key == ("repeat", "fov_id")
+    assert data.fov_key == ("biological_repeat", "fov_id")
     assert len(data.fovs) == 4
 
 
 def test_pooled_run_counts_every_fov_and_keeps_zero_object_fovs():
     objects = pd.DataFrame(
-        {"repeat": ["R1", "R2"], "image_file": ["img_001.tif", "img_001.tif"], "area": [1.0, 2.0]}
+        {
+            "biological_repeat": ["R1", "R2"],
+            "image_file": ["img_001.tif", "img_001.tif"],
+            "area": [1.0, 2.0],
+        }
     )
     fovs = pd.DataFrame(
-        {"repeat": ["R1", "R2", "R2"], "image_file": ["img_001.tif", "img_001.tif", "img_002.tif"]}
+        {
+            "biological_repeat": ["R1", "R2", "R2"],
+            "image_file": ["img_001.tif", "img_001.tif", "img_002.tif"],
+        }
     )
     [result] = run_strategies(
         objects,
@@ -130,13 +137,13 @@ def test_partial_grouping_keeps_other_canonical_columns_in_fov_identity():
     objects = pd.DataFrame(
         {
             "condition": ["control"] * 2,
-            "repeat": ["R1", "R2"],
+            "biological_repeat": ["R1", "R2"],
             "image_file": ["img_001.tif", "img_001.tif"],
             "area": [1.0, 2.0],
         }
     )
     data = validate_input_tables(objects, feature_cols=["area"], group_cols=["condition"])
-    assert data.fov_key == ("condition", "repeat", "image_file")
+    assert data.fov_key == ("condition", "biological_repeat", "image_file")
     assert len(data.fovs) == 2
 
 
@@ -197,9 +204,13 @@ def test_sequential_runner_rejects_tied_acquisition_order():
 def test_pooled_replay_requires_order_defined_across_pooled_fovs():
     # Per-repeat order (1, 2 in each) is not an acquisition history of the pool.
     objects = pd.DataFrame(
-        {"repeat": ["R1", "R1", "R2", "R2"], "fov_id": ["F1", "F2", "F1", "F2"], "area": [1.0] * 4}
+        {
+            "biological_repeat": ["R1", "R1", "R2", "R2"],
+            "fov_id": ["F1", "F2", "F1", "F2"],
+            "area": [1.0] * 4,
+        }
     )
-    fovs = objects.loc[:, ["repeat", "fov_id"]].assign(order=[1, 2, 1, 2])
+    fovs = objects.loc[:, ["biological_repeat", "fov_id"]].assign(order=[1, 2, 1, 2])
     with pytest.raises(ValueError, match="ties"):
         _run_prefixes(objects, fovs, FixedFOVStrategy(1), group_cols=[])
 

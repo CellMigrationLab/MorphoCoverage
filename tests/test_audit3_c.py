@@ -226,18 +226,23 @@ def test_c5_categorical_sample_columns_plan_only_the_samples_in_the_pilot(monkey
     monkeypatch.setattr(pd.DataFrame, "groupby", pandas2_groupby)
     rng = np.random.default_rng(0)
     rows = [
-        {"condition": c, "repeat": r, "position_id": f"{c}{r}{j}", "area": rng.normal(10, 2)}
+        {
+            "condition": c,
+            "biological_repeat": r,
+            "position_id": f"{c}{r}{j}",
+            "area": rng.normal(10, 2),
+        }
         for c, r in (("control", "r1"), ("control", "r2"), ("treated", "r1"))
         for j in range(3)
         for _ in range(20)
     ]
-    pilot = pd.DataFrame(rows).astype({"condition": "category", "repeat": "category"})
+    pilot = pd.DataFrame(rows).astype({"condition": "category", "biological_repeat": "category"})
     plan = plan_objects_to_average(
         pilot,
         feature="area",
         target_cv=0.05,
         sd_estimate="point",
-        sample_cols=["condition", "repeat"],
+        sample_cols=["condition", "biological_repeat"],
         control={"condition": "control"},
         fov_col="position_id",
     )
@@ -374,7 +379,7 @@ def _pilot():
     return pd.DataFrame(
         {
             "condition": np.repeat(["DMSO", "drug"], 40),
-            "repeat": "r1",
+            "biological_repeat": "r1",
             "well": np.tile(np.repeat(["A1", "A2"], 20), 2),
             "position_id": np.repeat([f"p{i}" for i in range(8)], 10),
             "area": rng.normal(10, 2, 80),
@@ -389,7 +394,7 @@ def test_c12_a_control_column_or_value_the_pilot_lacks_is_named():
             feature="area",
             target_cv=0.05,
             sd_estimate="point",
-            sample_cols=["condition", "repeat", "well"],
+            sample_cols=["condition", "biological_repeat", "well"],
             control=control,
             fov_col="position_id",
         )
@@ -408,11 +413,11 @@ def test_c13_the_spreadsheet_sd_is_kept_and_its_small_pilot_bias_is_documented()
         feature="area",
         target_cv=0.05,
         sd_estimate="point",
-        sample_cols=["condition", "repeat", "well"],
+        sample_cols=["condition", "biological_repeat", "well"],
         control={"condition": "DMSO"},
         fov_col="position_id",
     )
-    keys = ["condition", "repeat", "well"]
+    keys = ["condition", "biological_repeat", "well"]
     centred = pilot["area"] - pilot.groupby(keys)["area"].transform("mean")
     control_mean = pilot.loc[pilot["condition"] == "DMSO", "area"].mean()
     # ddof=1 over all objects after centring, as the paper's spreadsheet computes it.

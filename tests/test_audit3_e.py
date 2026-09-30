@@ -70,9 +70,16 @@ def _signed_feature():
         for condition, centre in (("MOCK", 0.05), ("TREAT", 0.30)):
             for f in range(6):
                 name = f"{condition}_{repeat}_{f}"
-                fields.append({"image_file": name, "condition": condition, "repeat": repeat})
+                fields.append(
+                    {"image_file": name, "condition": condition, "biological_repeat": repeat}
+                )
                 rows += [
-                    {"image_file": name, "condition": condition, "repeat": repeat, "x": v}
+                    {
+                        "image_file": name,
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "x": v,
+                    }
                     for v in rng.normal(centre, 0.3, 40)
                 ]
     return pd.DataFrame(rows), pd.DataFrame(fields)
@@ -276,7 +283,9 @@ def test_e17_the_docstring_gives_the_stop_as_a_median_and_range():
 def test_e18_a_rule_that_cannot_be_judged_yet_says_why():
     built = SCENARIOS["condition_repeat_groups"]()
     fovs = built.fovs
-    small = fovs[(fovs.condition == "control") & (fovs.repeat == "R1")].image_file.iloc[2:]
+    small = fovs[(fovs.condition == "control") & (fovs.biological_repeat == "R1")].image_file.iloc[
+        2:
+    ]
     fovs = fovs[~fovs.image_file.isin(small)]
     objects = built.objects[built.objects.image_file.isin(fovs.image_file)]
     report = sufficiency_report(
@@ -325,7 +334,7 @@ def test_e7_a_control_with_negative_values_is_normalised_with_a_warning():
 def test_e16_control_objects_counts_the_values_the_mean_rests_on():
     objects, fovs = _signed_feature()
     objects = objects.assign(x=objects["x"] + 5)
-    first = objects.index[(objects.condition == "MOCK") & (objects.repeat == "r1")][:3]
+    first = objects.index[(objects.condition == "MOCK") & (objects.biological_repeat == "r1")][:3]
     objects.loc[first, "x"] = np.nan
     means = control_means(objects, fovs, feature_cols=["x"], control={"condition": "MOCK"})
     assert list(means["control_objects"]) == [240 - 3, 240]

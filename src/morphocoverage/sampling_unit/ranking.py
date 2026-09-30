@@ -50,10 +50,11 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
+from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
-from .._wording import count
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from .._wording import column_word, count
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..statistics import benjamini_hochberg
 from ._common import groups, validated
 from ._units import (
@@ -97,7 +98,7 @@ class FeatureRanking:
       ``passes_gate`` and ``status``.
     - ``ranking``: one row per feature, best first: ``score`` (the capped |d|
       of the best passing contrast; NaN when none passes), the contrast it
-      comes from (``repeat``, ``condition``, ``q_value``), ``passing`` and
+      comes from (``biological_repeat``, ``condition``, ``q_value``), ``passing`` and
       ``tests`` counts.
     """
 
@@ -163,7 +164,7 @@ class FeatureRanking:
             f"Which features separate the conditions? Each of the "
             f"{self.settings['n_features']} declared features, every condition against the "
             f"control {control}"
-            + (f" within each {repeat_col}" if repeat_col else "")
+            + (f" within each {column_word(repeat_col)}" if repeat_col else "")
             + f": Cohen's d on field means and a randomization test over whole {self._units()} "
             "as in the contrast above, "
             + (
@@ -204,7 +205,7 @@ class FeatureRanking:
         for rank, row in enumerate(ranked.head(max_rows).to_dict("records"), start=1):
             where = f"{row['condition']} vs {row['control_condition']}"
             if self.settings["repeat_col"]:
-                where += f" · {row['repeat']}"
+                where += f" · {row[REPEAT_COLUMN]}"
             passes = f"{int(row['passing'])} of {int(row['tests'])}"
             rows.append([rank, row["feature"], f"{row['score']:.2f}", where, _q(row), passes])
         columns = ["rank", "feature", "|d|", "best contrast", "q", "passes in"]
@@ -303,6 +304,7 @@ class FeatureRanking:
         return "\n".join(lines)
 
 
+@one_warning
 def feature_ranking(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -330,6 +332,7 @@ def feature_ranking(
     when no unit exists, ``alpha`` is the Benjamini-Hochberg gate. See the
     module.
     """
+    control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     features = list(dict.fromkeys(features))
     if not features:
         raise ValueError("features must name at least one column")
@@ -370,7 +373,7 @@ def feature_ranking(
     for repeat, condition in contrasts:
         treated, controls = sides(described, repeat, condition)
         base = {
-            "repeat": repeat,
+            REPEAT_COLUMN: repeat,
             "condition": condition,
             "control_condition": control_label(described, controls),
         }
@@ -455,7 +458,7 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
             {
                 "feature": feature,
                 "score": float(best["score"]) if best is not None else np.nan,
-                "repeat": best["repeat"] if best is not None else None,
+                REPEAT_COLUMN: best[REPEAT_COLUMN] if best is not None else None,
                 "condition": best["condition"] if best is not None else None,
                 "control_condition": best["control_condition"] if best is not None else None,
                 "q_value": float(best["q_value"]) if best is not None else np.nan,

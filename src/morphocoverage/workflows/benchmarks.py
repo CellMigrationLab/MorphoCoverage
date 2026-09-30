@@ -306,7 +306,7 @@ def benchmark(
     on data they were not chosen on before using them
     (``retrospective.frontier.transfer``).
     """
-    check_workflow_inputs(objects, fovs, setup)
+    objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     default = families is None
     families = list(
         default_families(setup.readout, random_state=setup.random_state)

@@ -28,6 +28,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._former_repeat import renamed_tables
 from .._wording import count
 from ..benchmark import AcquisitionOrder
 from ..data_check import DataCheck, Problem
@@ -89,10 +90,15 @@ def orders(
     return chosen
 
 
-def check_workflow_inputs(objects: Any, fovs: Any, setup: Any, *, warn: bool = True) -> DataCheck:
+def check_workflow_inputs(
+    objects: Any, fovs: Any, setup: Any, *, warn: bool = True
+) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck]:
     """Refuse inputs the workflows cannot use, before any analysis runs, and check the rest.
 
-    Returns ``check_tables`` on the setup's columns and control, whose warnings
+    Returns the tables every analysis of the workflow reads, with the former
+    name ``repeat`` read as ``biological_repeat`` (one ``DeprecationWarning``;
+    the caller's tables are not modified), and ``check_tables`` on the setup's
+    columns and control, whose warnings
     (copied rows, labels that print alike, repeats without a control, ...) a
     workflow would otherwise never mention. With ``warn`` they are also issued
     as one ``UserWarning``; ``report`` prints them in its overview instead. Its
@@ -108,6 +114,7 @@ def check_workflow_inputs(objects: Any, fovs: Any, setup: Any, *, warn: bool = T
         raise TypeError("objects and fovs must be pandas DataFrames (every acquired FOV in fovs)")
     if not isinstance(setup, Setup):
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
+    objects, fovs = renamed_tables(objects, fovs)
     if setup.rare_label is not None and setup.rare_label not in objects.columns:
         raise ValueError(
             f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
@@ -128,7 +135,7 @@ def check_workflow_inputs(objects: Any, fovs: Any, setup: Any, *, warn: bool = T
             UserWarning,
             stacklevel=3,
         )
-    return check
+    return objects, fovs, check
 
 
 def _states_the_design(problem: Problem) -> bool:

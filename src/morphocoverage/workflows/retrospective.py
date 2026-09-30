@@ -164,7 +164,7 @@ def report(
     data-integrity checks (``integrity_checks``: copied, reordered or scaled
     fields, repeated blocks and field summaries) on every declared column.
     """
-    data_check = check_workflow_inputs(objects, fovs, setup, warn=False)
+    objects, fovs, data_check = check_workflow_inputs(objects, fovs, setup, warn=False)
     common = setup.common
     readout = setup.readout
     reasons: dict[str, str] = {}
@@ -341,7 +341,7 @@ def optimise(
     represented; the summary prints it. A count of fields is a recommendation
     only once it holds on samples it was not chosen on.
     """
-    check_workflow_inputs(objects, fovs, setup)
+    objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     common = setup.common
     criteria = setup.criteria()
     hierarchy = setup.resolved_hierarchy(objects, fovs)

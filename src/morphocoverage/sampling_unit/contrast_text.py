@@ -28,7 +28,8 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._style import among, check_detail, span, table, wrap
-from .._wording import count, listing, number, percent
+from .._wording import column_word, count, listing, number, percent
+from ..metadata import REPEAT_COLUMN
 from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
@@ -64,14 +65,14 @@ def _range(values: pd.Series) -> str:
 def _name(row: dict[str, Any], repeat_col: str | None) -> str:
     """``LATS1 vs MOCK · 1A``: the contrast, and its repeat when repeats are kept apart."""
     name = f"{row['condition']} vs {row['control_condition']}"
-    return f"{name} · {row['repeat']}" if repeat_col else name
+    return f"{name} · {row[REPEAT_COLUMN]}" if repeat_col else name
 
 
 def _head(contrast: Any, short: bool) -> str:
     """What is compared: the feature, the control, the repeats, the units."""
     settings = contrast.settings
     control, repeat_col, shared = settings["control"], settings["repeat_col"], settings.get("unit")
-    within = f", within each {repeat_col}" if repeat_col else ""
+    within = f", within each {column_word(repeat_col)}" if repeat_col else ""
     unit = settings["observation_unit"]
     if short:
         label = " · ".join(str(v) for v in control.values())
@@ -332,9 +333,9 @@ def _draw_rows(contrast: Any) -> tuple[list[list[str]], list[str]]:
     rows = []
     for row in contrast.table.to_dict("records"):
         same = (
-            effects["repeat"].isna()
-            if pd.isna(row["repeat"])
-            else effects["repeat"] == row["repeat"]
+            effects[REPEAT_COLUMN].isna()
+            if pd.isna(row[REPEAT_COLUMN])
+            else effects[REPEAT_COLUMN] == row[REPEAT_COLUMN]
         )
         own = effects[same & (effects["condition"] == row["condition"])]
         for size, block in own.groupby("n_objects", sort=True):

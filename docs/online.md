@@ -21,7 +21,7 @@ session = OnlineSession(
     feature_cols=["feature_a", "feature_b"],
     objective=ObjectiveConfig(SamplingObjective.POPULATION),
     fov_col="position_id",
-    group_cols=["condition", "repeat"],
+    group_cols=["condition", "biological_repeat"],
     observation_unit="cell",
 )
 
@@ -29,7 +29,7 @@ results = session.add_fov(
     observations=current_features,
     fov_metadata={
         "condition": "control",
-        "repeat": "R1",
+        "biological_repeat": "R1",
         "position_id": "P017",
     },
 )
@@ -88,12 +88,20 @@ the declared feature columns.
 ## Conditions and repeats
 
 The same session can receive FOVs from several analysis groups. With the
-MorphoBricks defaults, `condition`, `repeat` and, when present,
+MorphoBricks defaults, `condition`, `biological_repeat` and, when present,
 `technical_repeat` are resolved automatically as the analysis groups, and
 each group has independent estimator state.
 
 No evidence is shared between groups unless the caller deliberately chooses a
 different grouping contract.
+
+A field whose observations or `fov_metadata` still name the biological repeat
+`repeat` (its former name) is read as `biological_repeat`, with one
+`DeprecationWarning` per `add_fov` call (per `LiveTables.update` or
+`LiveFolder.poll`/`watch` call, whatever the number of fields it adds);
+`group_cols` or `fov_col` naming `repeat` are read the same way. A field that
+holds both names with different values is refused, and the session is left as
+it was (`docs/data_format.md`).
 
 ## Incremental versus recomputed methods
 

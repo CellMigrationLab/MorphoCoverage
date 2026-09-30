@@ -99,11 +99,11 @@ def test_headline_puts_the_marker_first():
 
 
 def test_group_labels_join_the_values_and_name_the_columns_once():
-    group = {"condition": "MOCK", "repeat": "1A", "technical_repeat": "B6"}
+    group = {"condition": "MOCK", "biological_repeat": "1A", "technical_repeat": "B6"}
     assert group_label(group) == "MOCK · 1A · B6"
-    assert group_columns(list(group)) == "condition · repeat · technical_repeat"
+    assert group_columns(list(group)) == "condition · biological_repeat · technical_repeat"
     assert group_label({}) == "all fields (pooled)"
-    assert group_label({"condition": "MOCK", "repeat": np.nan}) == "MOCK · (none)"
+    assert group_label({"condition": "MOCK", "biological_repeat": np.nan}) == "MOCK · (none)"
 
 
 def test_among_counts_groups_in_words():
@@ -389,8 +389,10 @@ def test_the_opening_marks_the_data_checks_and_the_integrity():
     clean = integrity_checks(objects, fovs, feature_cols=list(FEATURE_COLS))
     # The second field of the first group holds a copy of the first field's observations.
     first, second = fovs["image_file"].iloc[0], fovs["image_file"].iloc[1]
-    group = fovs.iloc[0][["condition", "repeat"]].to_dict()
-    in_group = objects["condition"].eq(group["condition"]) & objects["repeat"].eq(group["repeat"])
+    group = fovs.iloc[0][["condition", "biological_repeat"]].to_dict()
+    in_group = objects["condition"].eq(group["condition"]) & objects["biological_repeat"].eq(
+        group["biological_repeat"]
+    )
     source = objects[in_group & objects["image_file"].eq(first)].assign(image_file=second)
     copied = pd.concat([objects[~(in_group & objects["image_file"].eq(second))], source])
     dirty = integrity_checks(copied, fovs, feature_cols=list(FEATURE_COLS))

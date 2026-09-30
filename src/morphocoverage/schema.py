@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from ._former_repeat import Reader
 from ._input_traps import warn_invalid_rows
 from ._plane_rules import (  # noqa: F401  (re-exported: the plane rule)
     PLANE_FEATURE_ADVICE,
@@ -403,6 +404,12 @@ def _validate_input_tables(
         raise TypeError("fovs must be a pandas DataFrame when provided")
     if feature_cols is None:
         raise TypeError("feature_cols is required: name the phenotype columns explicitly")
+    # The former name of the biological repeat, read as the new one (``_former_repeat``).
+    former = Reader()
+    objects, fovs = former.table(objects, "objects"), former.table(fovs, "fovs")
+    group_cols = former.columns(group_cols, "group_cols")
+    fov_col = former.column(fov_col, "fov_col")
+    former.warn()
     feature_cols = column_names(feature_cols, "feature_cols")
     group_cols = column_names(group_cols, "group_cols")
     for table_name, table in (("objects", objects), ("fovs", fovs)):
@@ -500,8 +507,8 @@ def fov_table_from_observations(
 
     Published feature tables (for example CellProfiler exports) often come
     without a table of acquired FOVs. This builds one row per distinct
-    ``fov_key`` (for example ``["condition", "repeat", "image_file"]``) and
-    copies ``carry`` columns that are constant within each FOV (stage
+    ``fov_key`` (for example ``["condition", "biological_repeat", "image_file"]``)
+    and copies ``carry`` columns that are constant within each FOV (stage
     coordinates, area, acquisition order). It warns every time, because FOVs
     that were acquired but hold no observations are missing from such a table:
     acquisition effort is undercounted and FOVs with nothing in them never

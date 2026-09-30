@@ -24,7 +24,7 @@ def _field(well: str, index: int, n: int = 5, shift: float = 0.0):
     values = 100.0 + shift + np.arange(n, dtype=float) + index
     metadata = {
         "condition": "MOCK",
-        "repeat": "R1",
+        "biological_repeat": "R1",
         "technical_repeat": well,
         "image_file": f"{well}_f{index:03d}.tif",
     }
@@ -105,7 +105,12 @@ def test_p2_8_reused_file_names_are_refused_before_any_field_is_added():
     well_b = pd.DataFrame({"image_file": "f001.tif", "x": rng.normal(200, 10, 30)})
     fovs = pd.DataFrame(
         [
-            {"condition": "MOCK", "repeat": "R1", "technical_repeat": w, "image_file": "f001.tif"}
+            {
+                "condition": "MOCK",
+                "biological_repeat": "R1",
+                "technical_repeat": w,
+                "image_file": "f001.tif",
+            }
             for w in ("A01", "B01")
         ]
     )

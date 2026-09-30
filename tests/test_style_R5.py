@@ -50,13 +50,18 @@ def _well(*, drift: float = 0.0, n_fields: int = 16, rare_rows: int = 0, seed: i
             rare[::4] = True
         objects.append(
             pd.DataFrame(
-                {"condition": "MOCK", "repeat": "1A", "image_file": name, READOUT: values}
+                {
+                    "condition": "MOCK",
+                    "biological_repeat": "1A",
+                    "image_file": name,
+                    READOUT: values,
+                }
             ).assign(rare=rare)
         )
         fovs.append(
             {
                 "condition": "MOCK",
-                "repeat": "1A",
+                "biological_repeat": "1A",
                 "image_file": name,
                 "order": rank,
                 "stage_x": 500.0 * column,

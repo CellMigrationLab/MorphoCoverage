@@ -90,6 +90,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import is_integer
+from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._wording import rows_of
 from ..data_check import validate_input_tables
@@ -398,6 +399,7 @@ def _missing_stratum(data_fovs: pd.DataFrame, stratum: dict[str, Any]) -> str | 
     )
 
 
+@one_warning
 def effort_projection(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -432,7 +434,7 @@ def effort_projection(
     """
     _check_arguments(hierarchy, n_boot, random_state)
     chosen = _check_allocations(allocations)
-    strata = list(strata)
+    objects, fovs, strata = read_former(objects=objects, fovs=fovs, strata=list(strata))
     missing_levels = [c for c in hierarchy.levels if c not in fovs.columns]
     if missing_levels:
         raise ValueError(f"hierarchy columns missing from the FOV table: {missing_levels}")

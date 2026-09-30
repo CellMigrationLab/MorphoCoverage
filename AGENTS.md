@@ -45,7 +45,7 @@ These rules override implementation convenience.
 
 MorphoBricks ecosystem rules (shared with the other MorphoBricks repositories):
 
-- **Never rename shared CSV columns** (`condition`, `repeat`, `technical_repeat`, `position_id`, `image_file`, `mask_file`, `patch_file`). Other repos depend on them. MorphoCoverage rejects near-miss spellings such as `Repeat` rather than renaming them.
+- **Never rename shared CSV columns** (`position_id`, `image_file`, `z` or `z0`/`z1`, `c`, `t` (all 0-based), `condition`, `biological_repeat`, `technical_repeat`, and `mask_file`, `patch_file` as provenance). Other repos depend on them. The biological repeat's column was renamed from `repeat` to `biological_repeat` by the project owner on 2026-09-30; the former name is still read, with a `DeprecationWarning`, at the input boundary only (`_former_repeat`, section 5). MorphoCoverage rejects near-miss spellings such as `Biological_Repeat`, `bio_repeat` or `tec_repeat` ("did you mean ...?") rather than renaming them.
 - **Never hard-code machine-specific paths.** Use function arguments, config or environment variables; tests locate repository data relative to the test file.
 - **Never break public interfaces** (anything in `morphocoverage.__all__`) without explicit user approval.
 - **Keep public functionality usable as an imported dependency and from notebooks.** A CLI is deliberately deferred: the project owner asked to avoid premature CLI work until the scientific core stabilizes (see section 18). Add one only when asked.
@@ -62,7 +62,7 @@ Scientific rules:
 - **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
 - **Feature rows are generic observations, not necessarily cells.** Record `observation_unit` (for example `cell`, `nucleus`, `patch`, `slice`, `fov_summary`); labels are normalized to lowercase singular form, so `Cells` and `nuclei` mean `cell` and `nucleus`. When no unit is given, rows are assumed to be objects and every result records `observation_unit_declared=False`. FOV count and observation count are different quantities. Object/cell-specific scientific rules must not silently reinterpret arbitrary observations as cells.
 - **Missing phenotype values are allowed at the input boundary.** NaN is preserved; infinity is rejected. The framework never silently imputes or drops missing values. Every estimator/transform that uses affected features must state its missing-data behavior explicitly.
-- **Metadata is not phenotype.** Grouping/acquisition columns such as condition, repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`; validation refuses `z`, `z0`, `z1`, `c` and `t` there, and a feature measured per plane becomes one feature per plane only on explicit request (`planes_as_features`).
+- **Metadata is not phenotype.** Grouping/acquisition columns such as condition, biological repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`; validation refuses `z`, `z0`, `z1`, `c` and `t` there, and a feature measured per plane becomes one feature per plane only on explicit request (`planes_as_features`).
 - **Never pool groups silently.** If the caller requests analysis by condition, repeat, or other groups, analyses operate independently within those groups. Pooling must be explicit.
 - **Do not claim that more observations from one FOV equal more independent imaging coverage.** Observation count and FOV count are different quantities and must remain separately visible.
 - **Preserve acquired FOVs with zero phenotype observations.** An observation-only table is not a complete acquisition record; support a first-class FOV table.
@@ -116,7 +116,7 @@ Required:
 - caller-specified spatial-position/FOV identifier column. Prefer `position_id` when storage layout does not map one file to one position; `image_file` is a fallback only when one file equals one position.
 
 Optional:
-- condition, repeat, technical_repeat (a well, a dish, a coverslip within a repeat), batch;
+- condition, biological_repeat, technical_repeat (a well, a dish, a coverslip within a biological repeat), batch;
 - acquisition order;
 - stage coordinates;
 - FOV dimensions or physical imaged area;
@@ -138,23 +138,28 @@ The backwards-compatible API argument is still named `objects`, but `ValidatedIn
 
 MorphoCoverage must be able to consume output derived from CellPatcher or any feature-extraction repo without importing those packages.
 
-Where practical, preserve compatibility with MorphoBricks metadata names such as `condition`, `repeat`, and `image_file`, but the core API accepts caller-specified column names rather than hard-coding them.
+Where practical, preserve compatibility with MorphoBricks metadata names such as `condition`, `biological_repeat`, and `image_file`, but the core API accepts caller-specified column names rather than hard-coding them.
 
 ### Shared CSV column contract (MorphoBricks)
 
 | Column | MorphoBricks requirement | How MorphoCoverage uses it |
 | --- | --- | --- |
 | `condition` | string, always | Default analysis group; always part of FOV identity. |
-| `repeat` | string, always (`YYYY_MM_DD`, or `single`) | Default analysis group; always part of FOV identity. Any label is accepted; the format is not enforced. |
-| `technical_repeat` | string, optional | The technical repeat within a biological repeat (a well, a dish, a coverslip); never a biological repeat. When present: a default analysis group and part of FOV identity, counted in the report's overview, the colour of the plots' points and the unit their intervals and the condition contrast and feature ranking resample or shuffle first (the contrast and the ranking take the FOV table's column whatever `group_cols` says), and the sample level of the hierarchy `Setup` derives for "more fields or more technical repeats?". Identified with its `condition` and `repeat`, so well `J23` of two plates is two technical repeats. |
+| `biological_repeat` | string, always (`YYYY_MM_DD`, or `single`) | Default analysis group; always part of FOV identity. Any label is accepted; the format is not enforced. Formerly `repeat`, which is read as `biological_repeat` with a `DeprecationWarning` (below). |
+| `technical_repeat` | string, optional | The technical repeat within a biological repeat (a well, a dish, a coverslip); never a biological repeat. When present: a default analysis group and part of FOV identity, counted in the report's overview, the colour of the plots' points and the unit their intervals and the condition contrast and feature ranking resample or shuffle first (the contrast and the ranking take the FOV table's column whatever `group_cols` says), and the sample level of the hierarchy `Setup` derives for "more fields or more technical repeats?". Identified with its `condition` and `biological_repeat`, so well `J23` of two plates is two technical repeats. |
 | `image_file` | string, always | Storage provenance; fallback FOV identifier only when one file = one spatial position. |
 | `position_id` | string, when needed | Preferred explicit spatial-position identifier when files/planes/scenes do not map 1:1 to FOVs. |
+| `z` or `z0`/`z1`, `c`, `t` | integer, 0-based, when a position has several planes, channels or time points | Within-FOV coordinates: never FOVs, never features (section 20, multidimensional acquisition rule). |
 | `mask_file` | string, if used | Preserved as metadata, never a feature. |
 | `patch_file` | string, if used | Preserved as metadata, never a feature. |
 
+**A missing hierarchy level is written as the value `single`** (CellPatcher's convention: the level exists with one member), for example `biological_repeat="single"` for a condition without repeats; it is an ordinary label, one member of that level. An empty cell keeps meaning "not recorded".
+
+**The former name `repeat`.** Tables that still use `repeat` are accepted with one `DeprecationWarning` per call ("'repeat' is the former name of 'biological_repeat'; rename the column ... it will be removed in a later version"), at the input boundary only: `_former_repeat` is called where tables and column arguments enter (the validator, `check_tables`, the workflows, `OnlineSession`, `LiveTables`, `LiveFolder` manifests, and the public functions that read a column argument themselves). A `repeat` column in a table without `biological_repeat` is read as `biological_repeat`; the caller's tables are not modified and results use `biological_repeat`. A table with both columns is refused unless they are identical (then warned about, and `biological_repeat` used). `group_cols`, `fov_col`, `control` and `Setup`/`SamplingHierarchy` fields naming `repeat` are translated the same way. The biological repeat seeds random draws under its former name (`_seeds`), so the renaming changed no result. Near misses of either repeat (`bio_repeat`, `biological repeat`, `Metadata_biological_repeat`, `tec_repeat`, `tech_rep`, `Repeat`, `repeats`, ...) are refused by `metadata.canonical_spelling` with "did you mean ...?", never pooled.
+
 The user-facing description of both tables, every mandatory and optional column, and the validation rules is [`docs/data_format.md`](docs/data_format.md); keep it in step with this section, with `schema.validate_input_tables` and with `data_check.check_tables` (which must accept exactly what the validator accepts). `tests/test_data_check.py` checks that agreement, and `tests/test_docs.py` runs the page's example and checks that every shared column is listed.
 
-An optional shared column that is empty in every row (`position_id`, `technical_repeat`: `metadata.EMPTY_MEANS_ABSENT`) is read as absent, because producers that write every column, CellPatcher among them, leave it empty when it does not apply; a partly empty one still raises, and one named explicitly in `group_cols`/`fov_col` is kept; when only the observation table's copy is empty, the FOV table's values are used. Group metadata such as `condition`/`repeat` may live only in the FOV table when the supplied FOV identifier (with the other group columns, when field names restart in each repeat) maps unambiguously to one metadata value; the validator then attaches it to observation rows. A MorphoBricks column in the observations but not in the FOV table raises. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `repeat`, since no dates exist in the source (see its README).
+An optional shared column that is empty in every row (`position_id`, `technical_repeat`: `metadata.EMPTY_MEANS_ABSENT`) is read as absent, because producers that write every column, CellPatcher among them, leave it empty when it does not apply; a partly empty one still raises, and one named explicitly in `group_cols`/`fov_col` is kept; when only the observation table's copy is empty, the FOV table's values are used. Group metadata such as `condition`/`biological_repeat` may live only in the FOV table when the supplied FOV identifier (with the other group columns, when field names restart in each repeat) maps unambiguously to one metadata value; the validator then attaches it to observation rows. A MorphoBricks column in the observations but not in the FOV table raises. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `biological_repeat`, since no dates exist in the source (see its README); its stored files keep the former name `repeat`, which `datasets.load` renames on load.
 
 ### Outputs
 
@@ -208,6 +213,7 @@ src/morphocoverage/
     framework.py           # run_strategies convenience entry point
     _areas.py              # private: the one check of an imaged-area column (benchmark, fixed-area rule)
     _deprecated.py         # private: the former cell names, resolved with a DeprecationWarning
+    _former_repeat.py      # private: the former column name `repeat`, read as `biological_repeat` with a DeprecationWarning
     _parallel.py           # private: worker pools behind n_jobs (map_units, worker_pool)
     _wording.py            # private: the one way to write percentages, rates, counts, fields, durations, groups
     _style.py              # private: the one text style: markers and Status, rule and group labels, tables, wrapping
@@ -221,12 +227,12 @@ src/morphocoverage/
     sufficiency_full.py    # its full summary: every number, group by group, each caveat once
     sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops
     statistics.py          # shared statistics, written once: effect sizes, tolerances, whole-field sampling and bootstrap, variance components, design effect, JCB counts, detection counts, field-level JCB estimands
-    normalize.py           # features divided by the control condition's mean, repeat by repeat
+    normalize.py           # features divided by the control condition's mean, biological repeat by biological repeat
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
         __init__.py        # the subpackage's public names
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
-        hierarchy.py       # SamplingHierarchy: declared FOV / sample / repeat levels
+        hierarchy.py       # SamplingHierarchy: declared FOV / sample / biological-repeat levels
         reliability.py     # sampling reliability: how often k random FOVs are enough
         reliability_text.py  # its sentences
         replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
@@ -483,7 +489,7 @@ For substantive work, report briefly:
 
 The sampling objective is separate from the mathematical strategy. Its components are the targets the microscopist declares: the population summary, the phenotypic fingerprint (the `distribution` component) and the rare phenotype with an explicit user target. The objectives are `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare) and `all`. A rule with no evidence about a required component is `unsupported` for the objective and never `stop`; its own verdict is `StrategyResult.rule_decision`, which self-assessments, replays and calibrations read (`docs/sampling_objectives.md`).
 
-MorphoBricks metadata handling is centralized. When available, condition, repeat and technical_repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
+MorphoBricks metadata handling is centralized. When available, condition, biological_repeat and technical_repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
 
 Strategies must not reimplement condition/repeat splitting. Each core prospective strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, FOV count, observation count/unit, and measured runtime. Methods that require several groups belong in an explicit planning/comparator layer (as with JCB multi-sample planning), not inside a normal group-local estimator. Retrospective benchmark outcomes may compare groups when the purpose is to test whether a stopping rule preserves the biological analysis. This scope expansion is deliberate: it changes the repository contract so that biological-condition comparisons are permitted **only** as retrospective benchmark outcomes or explicit planning comparators, never as hidden inputs to ordinary prospective estimators.
 
@@ -513,13 +519,13 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | Term | Definition |
 | --- | --- |
 | Condition | An experimental group, e.g. `treated`, `control` (MorphoBricks shared column). |
-| Repeat | A biological repeat, identified by date in MorphoBricks (shared column `repeat`). |
+| Biological repeat | A biological repeat, identified by date in MorphoBricks (shared column `biological_repeat`, formerly `repeat`); `single` when the experiment has one. |
 | Technical repeat | A well, dish or coverslip within a biological repeat (shared optional column `technical_repeat`): objects of one technical repeat share its preparation, so it is the unit resampled or shuffled before fields, and the sample level of the derived hierarchy. |
 | FOV / spatial position | One independently selected XY acquisition position. A file, z-plane, channel or timepoint is not automatically a separate FOV. |
-| FOV key | The columns that jointly identify one FOV: group columns, condition/repeat, then the FOV column. |
+| FOV key | The columns that jointly identify one FOV: group columns, condition/biological_repeat/technical_repeat, then the FOV column. |
 | Observation | One row of phenotype information nested in an FOV; may be a cell, nucleus, patch, slice, FOV summary, embedding, or another declared unit. |
 | Feature | An explicitly selected numeric descriptor of an object. |
-| Analysis group | FOVs evaluated together; `condition` x `repeat` x `technical_repeat` (those present) by default, pooled only on explicit request. |
+| Analysis group | FOVs evaluated together; `condition` x `biological_repeat` x `technical_repeat` (those present) by default, pooled only on explicit request. |
 | Zero-observation FOV | An acquired spatial position with no phenotype observations; it still counts as acquisition effort. |
 | Strategy | A swappable method that assesses the acquisition so far: estimators plus decision policies (section 20). |
 | Estimator | Computes named evidence quantities from the visible acquisition; never decides. |

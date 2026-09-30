@@ -39,7 +39,7 @@ cluster per condition, and the title says so), at most ``max_technical``
 colours (up to 8; more technical repeats of a biological repeat share one
 grey), at most ``max_features`` features per call (more raise, so the caller
 chooses). A column named explicitly that the tables do not hold raises; only
-the default ``condition`` and ``repeat`` columns may be absent. The layout's
+the default ``condition`` and ``biological_repeat`` columns may be absent. The layout's
 columns are read from the FOV table (or, when only the observations carry
 one, from each field's observations, which must agree); a field with no
 value in one of them raises, since it cannot be placed. Every cluster draws
@@ -62,6 +62,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from ._checks import is_integer
+from ._former_repeat import one_warning, read_former
 from ._seeds import group_rng
 from ._wording import ordinal, rate
 from .data_check import validate_input_tables
@@ -428,6 +429,7 @@ def _title(
     )
 
 
+@one_warning
 def plots_of_data(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -466,8 +468,8 @@ def plots_of_data(
     ``"relative to control"`` for normalised values. Conditions are drawn in
     sorted order, the ``control`` condition (``{"condition": "MOCK"}``) first.
     """
-    features = list(features)
-    if not features:
+    (repeat_col,) = read_former(repeat_col=repeat_col)  # the former name ``repeat``
+    if not (features := list(features)):
         raise ValueError("features must name at least one column")
     if len(features) > max_features:
         raise ValueError(

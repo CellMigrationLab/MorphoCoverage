@@ -14,7 +14,7 @@ def _morphobricks_tables():
     objects = pd.DataFrame(
         {
             "condition": ["control", "control", "drug", "drug"],
-            "repeat": ["R1", "R2", "R1", "R1"],
+            "biological_repeat": ["R1", "R2", "R1", "R1"],
             "image_file": ["a.tif", "b.tif", "c.tif", "d.tif"],
             "mask_file": ["a_mask.tif", "b_mask.tif", "c_mask.tif", "d_mask.tif"],
             "patch_file": ["a.png", "b.png", "c.png", "d.png"],
@@ -24,7 +24,7 @@ def _morphobricks_tables():
     fovs = pd.DataFrame(
         {
             "condition": ["control", "control", "drug", "drug"],
-            "repeat": ["R1", "R2", "R1", "R1"],
+            "biological_repeat": ["R1", "R2", "R1", "R1"],
             "image_file": ["a.tif", "b.tif", "c.tif", "d.tif"],
         }
     )
@@ -39,7 +39,7 @@ def test_morphobricks_defaults_resolve_image_file_and_condition_repeat():
         feature_cols=["area"],
     )
     assert data.fov_col == "image_file"
-    assert data.group_cols == ("condition", "repeat")
+    assert data.group_cols == ("condition", "biological_repeat")
 
 
 def test_run_strategies_keeps_morphobricks_groups_separate_by_default():
@@ -53,10 +53,13 @@ def test_run_strategies_keeps_morphobricks_groups_separate_by_default():
     )
 
     assert len(results) == 3
-    groups = {(r.group["condition"], r.group["repeat"]) for r in results}
+    groups = {(r.group["condition"], r.group["biological_repeat"]) for r in results}
     assert groups == {("control", "R1"), ("control", "R2"), ("drug", "R1")}
 
-    by_group = {(r.group["condition"], r.group["repeat"]): (r.n_fovs, r.decision) for r in results}
+    by_group = {
+        (r.group["condition"], r.group["biological_repeat"]): (r.n_fovs, r.decision)
+        for r in results
+    }
     assert by_group[("control", "R1")] == (1, "continue")
     assert by_group[("control", "R2")] == (1, "continue")
     assert by_group[("drug", "R1")] == (2, "stop")
@@ -94,7 +97,7 @@ def test_position_id_is_preferred_over_image_file_for_fov_identity():
     objects = pd.DataFrame(
         {
             "condition": ["control"] * 4,
-            "repeat": ["R1"] * 4,
+            "biological_repeat": ["R1"] * 4,
             "position_id": ["P1", "P1", "P2", "P2"],
             "image_file": [
                 "P1_z000.tif",
@@ -109,7 +112,7 @@ def test_position_id_is_preferred_over_image_file_for_fov_identity():
     fovs = pd.DataFrame(
         {
             "condition": ["control", "control"],
-            "repeat": ["R1", "R1"],
+            "biological_repeat": ["R1", "R1"],
             "position_id": ["P1", "P2"],
             "acquisition_order": [1, 2],
         }
@@ -120,7 +123,7 @@ def test_position_id_is_preferred_over_image_file_for_fov_identity():
         objects, fovs=fovs, feature_cols=["area"], observation_unit="slice"
     )
     assert data.fov_col == "position_id"
-    assert data.fov_key == ("condition", "repeat", "position_id")
+    assert data.fov_key == ("condition", "biological_repeat", "position_id")
     assert len(data.fovs) == 2
 
 
@@ -248,13 +251,13 @@ def test_technical_repeat_is_a_default_group_and_part_of_fov_identity_when_prese
     objects["technical_repeat"] = ["w1", "w1", "w1", "w2"]
     fovs["technical_repeat"] = ["w1", "w1", "w1", "w2"]
     data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
-    assert data.group_cols == ("condition", "repeat", "technical_repeat")
-    assert data.fov_key == ("condition", "repeat", "technical_repeat", "image_file")
+    assert data.group_cols == ("condition", "biological_repeat", "technical_repeat")
+    assert data.fov_key == ("condition", "biological_repeat", "technical_repeat", "image_file")
     # Named explicitly, groups may leave it out; it still names the FOV.
     pooled = validate_input_tables(
-        objects, fovs=fovs, feature_cols=["area"], group_cols=["condition", "repeat"]
+        objects, fovs=fovs, feature_cols=["area"], group_cols=["condition", "biological_repeat"]
     )
-    assert pooled.group_cols == ("condition", "repeat")
+    assert pooled.group_cols == ("condition", "biological_repeat")
     assert "technical_repeat" in pooled.fov_key
     with pytest.raises(ValueError, match="non-canonical spelling"):
         validate_input_tables(
@@ -275,14 +278,14 @@ def test_an_all_empty_technical_repeat_column_is_read_as_absent():
             fovs=fovs.assign(technical_repeat=empty),
             feature_cols=["area"],
         )
-        assert data.group_cols == ("condition", "repeat")
+        assert data.group_cols == ("condition", "biological_repeat")
         assert "technical_repeat" not in data.fov_key
         assert "technical_repeat" not in data.objects.columns
     # Empty in the object table only (a feature table that kept the column).
     only_objects = validate_input_tables(
         objects.assign(technical_repeat=None), fovs=fovs, feature_cols=["area"]
     )
-    assert only_objects.group_cols == ("condition", "repeat")
+    assert only_objects.group_cols == ("condition", "biological_repeat")
     # Partly empty is ambiguous and still refused.
     partial = ["w1", None, "w1", "w2"]
     with pytest.raises(ValueError, match="missing group values"):
@@ -297,7 +300,7 @@ def test_an_all_empty_technical_repeat_column_is_read_as_absent():
             objects.assign(technical_repeat=None),
             fovs=fovs.assign(technical_repeat=None),
             feature_cols=["area"],
-            group_cols=["condition", "repeat", "technical_repeat"],
+            group_cols=["condition", "biological_repeat", "technical_repeat"],
         )
 
 

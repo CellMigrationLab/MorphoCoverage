@@ -67,7 +67,7 @@ def test_integrity_short_groups_the_findings_in_a_table_and_states_caveats_once(
     _, dirty = integrity
     text = dirty.summary()
     assert "structure to inspect, not a judgment" in text
-    assert "Fields are named condition · repeat · technical_repeat · image_file." in text
+    assert "Fields are named condition · biological_repeat · technical_repeat · image_file." in text
     # One row per check and pair of groups, the groups named as group labels.
     assert "copied field             between MOCK · 1A · B6 and" in text
     assert "repeated within a field  within " in text
@@ -92,11 +92,11 @@ def test_integrity_full_keeps_every_detail_of_the_findings(integrity):
 
 def test_integrity_with_no_applicable_check_is_not_assessed():
     files = [f"f{i}" for i in range(4)]
-    fovs = pd.DataFrame({"condition": "a", "repeat": "r", "image_file": files})
+    fovs = pd.DataFrame({"condition": "a", "biological_repeat": "r", "image_file": files})
     objects = pd.DataFrame(
         {
             "condition": "a",
-            "repeat": "r",
+            "biological_repeat": "r",
             "image_file": [f"f{i // 10}" for i in range(40)],
             "count": [float(i % 3) for i in range(40)],
         }
@@ -151,7 +151,7 @@ def _score(family, alpha, effort, saved=None, low=None, high=None, setting=0.1, 
 
 
 def _frontier(rows, units=8):
-    settings = {"label": "the mean", "units": units, "unit_cols": ["repeat", "well"]}
+    settings = {"label": "the mean", "units": units, "unit_cols": ["biological_repeat", "well"]}
     return FrontierResult(pd.DataFrame(), pd.DataFrame(rows), pd.DataFrame(), settings)
 
 
@@ -195,7 +195,7 @@ def test_frontier_short_is_a_table_with_levels_merged_and_the_interval_caveat_on
         short
     )
     assert "rule at 0.1" in short and "saves 2.0 (0.5 to 3.0)" in short
-    assert short.count(RESAMPLED) == 1 and "(repeat · well)" in short
+    assert short.count(RESAMPLED) == 1 and "(biological_repeat · well)" in short
     full = _flat(result.summary(detail="full"))
     # Every number of the old sentences, per level, and the caveat once.
     sentence = (

@@ -26,6 +26,8 @@ from typing import Any
 
 import pandas as pd
 
+from .._former_repeat import read_fields
+
 
 @dataclass(frozen=True)
 class SamplingHierarchy:
@@ -47,6 +49,8 @@ class SamplingHierarchy:
                 "technical_levels must be a sequence of column names, for example ('plate',)"
             )
         object.__setattr__(self, "technical_levels", tuple(self.technical_levels))
+        # A level named ``repeat``, the former name of the biological repeat's column.
+        read_fields(self, "fov", "sample", "biological_repeat", "technical_levels")
         names = [self.fov, self.sample, *self.technical_levels]
         if self.biological_repeat is not None:
             names.append(self.biological_repeat)

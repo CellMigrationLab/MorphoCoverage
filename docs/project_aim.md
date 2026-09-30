@@ -575,7 +575,7 @@ MorphoCoverage must ask **enough for what?** before judging sampling adequacy. T
 
 MorphoCoverage is a strategy-comparison framework. Candidate methods implement one common interface and are executed through the same MorphoBricks-compatible validation, grouping, timing, and provenance layer. The same feature tables should therefore be evaluable by many strategies without changing data plumbing.
 
-By default, the canonical MorphoBricks `condition`, `repeat` and `technical_repeat` columns present define independent analysis groups. `position_id` is preferred as the spatial FOV identity; `image_file` is only a fallback when one file equals one position. Pooling must be explicit.
+By default, the canonical MorphoBricks `condition`, `biological_repeat` and `technical_repeat` columns present define independent analysis groups. `position_id` is preferred as the spatial FOV identity; `image_file` is only a fallback when one file equals one position. Pooling must be explicit.
 
 Scientific performance and computational performance are benchmarked separately. Runtime is a first-class outcome because one intended application is online smart microscopy. See `benchmarking.md` and `architecture.md`.
 

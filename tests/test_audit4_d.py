@@ -364,7 +364,12 @@ def test_p3_7_a_readout_far_from_normal_carries_a_caution_on_the_per_object_boun
 
 def _pilot(values_by_sample):
     rows = [
-        {"condition": condition, "repeat": "r1", "image_file": f"{condition}{j}", "x": value}
+        {
+            "condition": condition,
+            "biological_repeat": "r1",
+            "image_file": f"{condition}{j}",
+            "x": value,
+        }
         for condition, samples in values_by_sample.items()
         for j, values in enumerate(samples)
         for value in values
@@ -395,7 +400,7 @@ def test_p4_7_the_plan_carries_cautions_for_values_far_from_normal_and_a_cv_abov
     assert plan_objects_to_average(normal, sd_estimate="upper_95", **settings).warnings == ()
     # The planned rule shows the plan's cautions beside its evidence.
     treated = pd.DataFrame(
-        {"condition": "drug", "repeat": "r1", "image_file": "d0", "x": [1.0, 2.0, 3.0]}
+        {"condition": "drug", "biological_repeat": "r1", "image_file": "d0", "x": [1.0, 2.0, 3.0]}
     )
     [result] = run_strategies(
         treated,

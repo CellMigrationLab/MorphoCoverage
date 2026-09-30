@@ -39,14 +39,14 @@ def _tables():
     fovs = pd.DataFrame(
         {
             "condition": ["A", "A", "B", "B"],
-            "repeat": ["r1"] * 4,
+            "biological_repeat": ["r1"] * 4,
             "image_file": ["f1", "f2", "f3", "f4"],
         }
     )
     cells = pd.DataFrame(
         {
             "condition": ["A", "A", "A", "B", "B", "B"],
-            "repeat": ["r1"] * 6,
+            "biological_repeat": ["r1"] * 6,
             "image_file": ["f1", "f1", "f2", "f3", "f3", "f4"],
             "area": [1.0, 2, 3, 4, 5, 6],
         }
@@ -78,7 +78,7 @@ def _planes(n_positions=2, n_planes=3, n_cells=4, **columns):
     rows = [
         {
             "condition": "A",
-            "repeat": "r1",
+            "biological_repeat": "r1",
             "position_id": f"p{p}",
             "image_file": f"p{p}_z{z}.tif",
             "z": z,
@@ -104,7 +104,7 @@ def test_a1_upper_case_plane_coordinates_are_near_misses():
         "c",
     ]
     cells = _planes().drop(columns="position_id").rename(columns={"z": "Z"})
-    fovs = cells[["condition", "repeat", "image_file", "Z"]].drop_duplicates()
+    fovs = cells[["condition", "biological_repeat", "image_file", "Z"]].drop_duplicates()
     accepted, check = _agree(cells, fovs)
     # 'Z' was ignored, so six plane files counted as six fields; now it is refused.
     assert not accepted and "within-field coordinate 'z'" in _titles(check)[0]
@@ -112,20 +112,25 @@ def test_a1_upper_case_plane_coordinates_are_near_misses():
 
 def test_a2_dots_and_pandas_copies_are_near_misses():
     assert canonical_spelling("technical.repeat") == "technical_repeat"
-    assert canonical_spelling("Repeat.1") == "repeat" and canonical_spelling("repeat.1") == "repeat"
+    assert (
+        canonical_spelling("Repeat.1") == "biological_repeat"
+        and canonical_spelling("repeat.1") == "biological_repeat"
+    )
     cells, fovs = _tables()
     cells["technical.repeat"] = ["w1", "w1", "w2", "w3", "w3", "w4"]
     fovs["technical.repeat"] = ["w1", "w2", "w3", "w4"]
     accepted, check = _agree(cells, fovs)
     assert not accepted and "'technical_repeat'" in _titles(check)[0]
     # Named explicitly, it is used as it is.
-    accepted, _ = _agree(cells, fovs, group_cols=["condition", "repeat", "technical.repeat"])
+    accepted, _ = _agree(
+        cells, fovs, group_cols=["condition", "biological_repeat", "technical.repeat"]
+    )
     assert accepted
 
 
 def test_a3_plane_coordinates_are_never_features_and_the_pivot_splits_them():
     cells = _planes()
-    fovs = cells[["condition", "repeat", "position_id"]].drop_duplicates()
+    fovs = cells[["condition", "biological_repeat", "position_id"]].drop_duplicates()
     for plane in ("z", "c", "t", "z0", "z1"):
         table = cells.assign(**{plane: cells["z"]})
         accepted, check = _agree(table, fovs, feature_cols=["area", plane])
@@ -147,7 +152,9 @@ def test_a3_plane_coordinates_are_never_features_and_the_pivot_splits_them():
     # Per-plane files with no position identifier: each "field" is one plane.
     files = cells.drop(columns="position_id")
     with pytest.raises(ValueError, match="names planes, not stage positions"):
-        planes_as_features(files, files[["condition", "repeat", "image_file"]], features=["area"])
+        planes_as_features(
+            files, files[["condition", "biological_repeat", "image_file"]], features=["area"]
+        )
     # The split names are what a Setup declares: pivot first, then set up.
     setup = Setup(readout="area_z0", features=tuple(names[1:]), observation_unit="cell")
     assert setup.columns == names
@@ -181,7 +188,7 @@ def test_a5_label_variants_within_a_table_warn():
     fovs = pd.DataFrame(
         {
             "condition": ["MOCK", "MOCK", "drug", "drug", "drug ", "Drug"],
-            "repeat": "r1",
+            "biological_repeat": "r1",
             "image_file": [f"f{i}" for i in range(6)],
         }
     )
@@ -191,15 +198,24 @@ def test_a5_label_variants_within_a_table_warn():
     assert "'drug' against 'drug ' against 'Drug'" in warning.where
     mixed = pd.concat(
         [
-            pd.DataFrame({"condition": "A", "repeat": 1, "image_file": ["f1", "f2"], "area": 1.0}),
             pd.DataFrame(
-                {"condition": "A", "repeat": "1", "image_file": ["f3", "f4"], "area": 2.0}
+                {"condition": "A", "biological_repeat": 1, "image_file": ["f1", "f2"], "area": 1.0}
+            ),
+            pd.DataFrame(
+                {
+                    "condition": "A",
+                    "biological_repeat": "1",
+                    "image_file": ["f3", "f4"],
+                    "area": 2.0,
+                }
             ),
         ],
         ignore_index=True,
     )
     check = check_tables(mixed, mixed.drop(columns="area"), feature_cols=["area"])
-    assert ["'repeat'" in t for t in _titles(check, "warning") if "differ only" in t] == [True]
+    assert [
+        "'biological_repeat'" in t for t in _titles(check, "warning") if "differ only" in t
+    ] == [True]
 
 
 def test_a6_percent_never_rounds_to_0_or_100_between():
@@ -294,7 +310,9 @@ def test_a9_counts_are_singular_for_one():
 
 
 def test_a10_group_identity_is_the_same_for_numpy_and_python_values():
-    assert group_identity({"repeat": np.int64(1)}) == group_identity({"repeat": 1})
+    assert group_identity({"biological_repeat": np.int64(1)}) == group_identity(
+        {"biological_repeat": 1}
+    )
     assert group_identity({"flag": np.True_}) == group_identity({"flag": True})
 
 
@@ -332,8 +350,10 @@ def test_a14_a_stage_z_distinct_in_every_field_is_not_a_plane():
 
 
 def test_a15_a_header_only_table_is_not_refused_as_text():
-    cells = pd.DataFrame(columns=["condition", "repeat", "image_file", "area"])  # object dtypes
-    fovs = pd.DataFrame({"condition": "A", "repeat": "r1", "image_file": ["f1", "f2"]})
+    cells = pd.DataFrame(
+        columns=["condition", "biological_repeat", "image_file", "area"]
+    )  # object dtypes
+    fovs = pd.DataFrame({"condition": "A", "biological_repeat": "r1", "image_file": ["f1", "f2"]})
     accepted, check = _agree(cells, fovs)
     assert accepted and "The observation table has no rows." in _titles(check, "warning")
     # Numbers stored as objects are still refused, with the conversion to make.
@@ -365,13 +385,13 @@ def test_a18_a_condition_only_in_the_fov_table_joins_within_its_repeat():
     fovs = pd.DataFrame(
         {
             "condition": ["A", "B", "B", "A"],
-            "repeat": ["r1", "r1", "r2", "r2"],
+            "biological_repeat": ["r1", "r1", "r2", "r2"],
             "image_file": ["f1", "f2", "f1", "f2"],
         }
     )
     cells = pd.DataFrame(
         {
-            "repeat": ["r1", "r1", "r2", "r2"],
+            "biological_repeat": ["r1", "r1", "r2", "r2"],
             "image_file": ["f1", "f2", "f1", "f2"],
             "area": [1.0, 2, 3, 4],
         }

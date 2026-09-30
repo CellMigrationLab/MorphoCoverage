@@ -31,7 +31,7 @@ def run_strategies(
     Pass ``fovs``, the table of every acquired FOV: without it the FOVs are
     those seen in the observations, so acquired FOVs without observations are
     missing and every count of effort is optimistic (a warning says so). By
-    default, the canonical MorphoBricks ``condition``, ``repeat`` and, when
+    default, the canonical MorphoBricks ``condition``, ``biological_repeat`` and, when
     present, ``technical_repeat`` columns are kept separate. Pass
     ``group_cols=[]`` only when intentional pooling is scientifically
     appropriate. Each strategy returns one ``StrategyResult`` per analysis

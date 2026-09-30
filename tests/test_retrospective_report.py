@@ -62,8 +62,8 @@ def test_the_overview_opens_and_the_limits_close_the_report():
     assert "and 14 more" in wide.summary()  # the short form lists three
     single = SCENARIOS["homogeneous"]()
     bare = dataset_overview(
-        single.objects.drop(columns=["condition", "repeat"]),
-        single.fovs.drop(columns=["condition", "repeat"]),
+        single.objects.drop(columns=["condition", "biological_repeat"]),
+        single.fovs.drop(columns=["condition", "biological_repeat"]),
         feature_cols=list(FEATURE_COLS),
     )
     assert "No condition or repeat column" in bare.summary(detail="full")
@@ -150,12 +150,12 @@ def test_a_declared_control_joins_the_first_question_and_the_profile():
     for well, condition, offset in (("A1", "MOCK", 0.0), ("B1", "KD", 6.0)):
         for i in range(10):
             name = f"{well}_{i}"
-            fov_rows.append({"image_file": name, "condition": condition, "repeat": "P1"})
+            fov_rows.append({"image_file": name, "condition": condition, "biological_repeat": "P1"})
             values = rng.normal(0, 1, size=(20, 2))
             values[:, 0] += offset
             object_rows.append(
                 pd.DataFrame(values, columns=list(FEATURE_COLS)).assign(
-                    image_file=name, condition=condition, repeat="P1"
+                    image_file=name, condition=condition, biological_repeat="P1"
                 )
             )
     objects, fovs = pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
@@ -167,7 +167,7 @@ def test_a_declared_control_joins_the_first_question_and_the_profile():
         control=RepresentationControl(
             positive={"condition": "KD"}, reference={"condition": "MOCK"}
         ),
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=5,
         draws=5,
     )
@@ -205,11 +205,11 @@ def test_the_overview_counts_technical_repeats_within_their_condition_and_repeat
     # Two wells per condition and repeat, named alike everywhere: still distinct units.
     fovs["technical_repeat"] = ["w1" if i % 2 else "w2" for i in range(len(fovs))]
     objects = built.objects.merge(
-        fovs[["condition", "repeat", "image_file", "technical_repeat"]],
-        on=["condition", "repeat", "image_file"],
+        fovs[["condition", "biological_repeat", "image_file", "technical_repeat"]],
+        on=["condition", "biological_repeat", "image_file"],
     )
     overview = dataset_overview(objects, fovs, feature_cols=list(FEATURE_COLS))
-    groups = fovs.groupby(["condition", "repeat"]).size()
+    groups = fovs.groupby(["condition", "biological_repeat"]).size()
     assert overview.counts["technical_repeats"] == 2 * len(groups)
     assert (overview.layout["technical_repeats"] == 2).all()
     text = overview.summary(detail="full")

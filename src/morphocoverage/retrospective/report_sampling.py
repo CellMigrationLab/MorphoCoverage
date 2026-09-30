@@ -120,7 +120,7 @@ def controls_full(controls: Any, indent: int = 2) -> str:
 
 
 def skipped_strata(controls: Any) -> str:
-    """``not judged in repeat 2B (no positive-control field with nuclei)``."""
+    """``not judged in biological repeat 2B (no positive-control field with nuclei)``."""
     pair_cols = tuple(controls.pair_cols)
     reasons: dict[str, list[str]] = {}
     for entry in controls.settings.get("skipped_strata", []):

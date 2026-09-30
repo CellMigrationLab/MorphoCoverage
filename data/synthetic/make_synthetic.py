@@ -5,8 +5,9 @@ table with every acquired field, including fields where nothing was segmented,
 and an observation table with one row per cell. The design is small enough to
 run every workflow in seconds and large enough for each answer to be clear:
 
-- 2 conditions (``control``, ``drug``) x 3 biological repeats (``2026_01_05``,
-  ``2026_01_12``, ``2026_01_19``) x 5 wells (``technical_repeat``) x 6 fields.
+- 2 conditions (``control``, ``drug``) x 3 biological repeats
+  (``biological_repeat``: ``2026_01_05``, ``2026_01_12``, ``2026_01_19``) x 5 wells
+  (``technical_repeat``) x 6 fields.
   That makes 180 fields. The same file names (``field_01.tif`` ...) repeat in
   every well, so a field is only identified within its well, as in a real plate.
 - Field 4 of every well is empty (the microscope looked and found no cell):
@@ -75,7 +76,7 @@ def build(seed: int = SEED) -> tuple[pd.DataFrame, pd.DataFrame]:
                     order += 1
                     key = {
                         "condition": condition,
-                        "repeat": repeat,
+                        "biological_repeat": repeat,
                         "technical_repeat": well,
                         "image_file": f"field_{field:02d}.tif",
                     }
@@ -131,7 +132,7 @@ def build(seed: int = SEED) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def expected(objects: pd.DataFrame, fovs: pd.DataFrame) -> dict:
     """The truth and the answers that follow from it (see the module)."""
-    key = ["condition", "repeat", "technical_repeat", "image_file"]
+    key = ["condition", "biological_repeat", "technical_repeat", "image_file"]
     counts = objects.groupby(key).size().reindex(pd.MultiIndex.from_frame(fovs[key]), fill_value=0)
     n = counts.to_numpy(dtype=float)
     filled = n[n > 0]
@@ -154,9 +155,11 @@ def expected(objects: pd.DataFrame, fovs: pd.DataFrame) -> dict:
             "fields": len(fovs),
             "empty_fields": int((n == 0).sum()),
             "cells": len(objects),
-            "technical_repeats": int(fovs.groupby(["repeat", "technical_repeat"]).ngroups),
+            "technical_repeats": int(
+                fovs.groupby(["biological_repeat", "technical_repeat"]).ngroups
+            ),
             "analysis_groups": int(
-                fovs.groupby(["condition", "repeat", "technical_repeat"]).ngroups
+                fovs.groupby(["condition", "biological_repeat", "technical_repeat"]).ngroups
             ),
             "rare_cells": int(objects["rare"].sum()),
             "rare_fields": len(RARE["fields"]),

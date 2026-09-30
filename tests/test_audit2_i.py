@@ -50,7 +50,7 @@ QUICK = {
     "permuted_orders": 1,
     "dispersed_orders": 0,
 }
-KEY = ["condition", "repeat", "technical_repeat", "image_file"]
+KEY = ["condition", "biological_repeat", "technical_repeat", "image_file"]
 
 
 def _tables(n_fovs: int = 6, n_objects: int = 5):
@@ -64,7 +64,9 @@ def _pooled(**changes) -> Setup:
 
 def _live_verdicts(objects, fovs, setup):
     """Each rule's own verdict after the last field of every group, fed field by field."""
-    ordered = fovs.sort_values(["condition", "repeat", "acquisition_order"]).reset_index(drop=True)
+    ordered = fovs.sort_values(["condition", "biological_repeat", "acquisition_order"]).reset_index(
+        drop=True
+    )
     tables = LiveTables(live_session(setup))
     parts = [objects.merge(ordered.iloc[[i]][KEY], on=KEY) for i in range(len(ordered))]
     updates = []
@@ -73,7 +75,9 @@ def _live_verdicts(objects, fovs, setup):
     last = {}
     for update in updates:
         for result in update.results:
-            key = (*(result.group[c] for c in ("condition", "repeat", "technical_repeat")),)
+            key = (
+                *(result.group[c] for c in ("condition", "biological_repeat", "technical_repeat")),
+            )
             last[(*key, result.config_id)] = result.rule_decision.value
     return last
 
@@ -118,11 +122,14 @@ def test_i1_every_rule_replay_reads_the_raw_values_as_live():
     # of the live session, which never sees normalised values.
     final = report(objects, fovs, setup).results["sufficiency"].final
     expected = report(objects, fovs, raw_setup).results["sufficiency"].final
-    columns = ["condition", "repeat", "technical_repeat", "config_id", "verdict"]
+    columns = ["condition", "biological_repeat", "technical_repeat", "config_id", "verdict"]
     pd.testing.assert_frame_equal(final[columns], expected[columns])
     live = _live_verdicts(objects, fovs, setup)
     for row in final.itertuples(index=False):
-        assert row.verdict == live[(row.condition, row.repeat, row.technical_repeat, row.config_id)]
+        assert (
+            row.verdict
+            == live[(row.condition, row.biological_repeat, row.technical_repeat, row.config_id)]
+        )
     # optimise and benchmark use the same replay: their decisions are the raw ones.
     plan = optimise(objects, fovs, setup, **QUICK)
     plan_raw = optimise(objects, fovs, raw_setup, **QUICK)
@@ -152,7 +159,7 @@ def test_i1_every_rule_replay_reads_the_raw_values_as_live():
 
 def test_i2_a_declared_hierarchy_keeps_one_stratum_per_condition():
     objects, fovs = _tables()
-    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "repeat")
+    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "biological_repeat")
     declared = _setup(hierarchy=hierarchy, stage_cols=None)
     assert declared.resolved_effort_strata(fovs) == ["condition"]
     assert _setup(hierarchy=hierarchy, effort_strata=()).resolved_effort_strata(fovs) == []
@@ -168,20 +175,25 @@ def test_i3_optimise_says_why_protocol_or_effort_is_not_assessed():
     plan = optimise(objects, fovs, _pooled(group_cols=("condition", "technical_repeat")), **QUICK)
     assert "protocol" not in plan.results and "effort" in plan.results
     text = plan.summary()
-    assert "Protocol reliability across samples is not assessed" in text and "'repeat'" in text
+    assert (
+        "Protocol reliability across samples is not assessed" in text
+        and "'biological_repeat'" in text
+    )
     # A condition stratum pooled: the reason offers explicit pooling.
-    plan = optimise(objects, fovs, _pooled(group_cols=("repeat", "technical_repeat")), **QUICK)
+    plan = optimise(
+        objects, fovs, _pooled(group_cols=("biological_repeat", "technical_repeat")), **QUICK
+    )
     assert "protocol" not in plan.results
     assert "effort_strata=()" in plan.document.sections["next_time"]
     # The technical repeat left out: the effort section names the column that exists.
-    plan = optimise(objects, fovs, _pooled(group_cols=("condition", "repeat")), **QUICK)
+    plan = optimise(objects, fovs, _pooled(group_cols=("condition", "biological_repeat")), **QUICK)
     effort = plan.document.sections["effort"]
     assert "leave 'technical_repeat' out" in effort
     # The generic need no longer tells the user to add a column that is there.
     assert "technical_repeat column (a well, a dish) or declare" not in plan.summary()
     # A declared hierarchy on those groups: the effort projection runs, the protocol says why.
-    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "repeat")
-    declared = _pooled(group_cols=("condition", "repeat"), hierarchy=hierarchy)
+    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "biological_repeat")
+    declared = _pooled(group_cols=("condition", "biological_repeat"), hierarchy=hierarchy)
     plan = optimise(objects, fovs, declared, **QUICK)
     assert "effort" in plan.results and "protocol" not in plan.results
     assert "pool 'technical_repeat'" in plan.document.sections["next_time"]
@@ -192,12 +204,12 @@ def test_i4_livetables_key_is_the_fov_identity_of_the_validator():
     # The same image_file names recur in every condition, repeat and well.
     assert fovs.duplicated("image_file").any()
     setup = _setup(rules=(FixedFOVStrategy(4),), group_cols=("condition",))
-    ordered = fovs.sort_values(["repeat", "acquisition_order"]).reset_index(drop=True)
+    ordered = fovs.sort_values(["biological_repeat", "acquisition_order"]).reset_index(drop=True)
     tables = LiveTables(live_session(setup))
     parts = [objects.merge(ordered.iloc[[i]][KEY], on=KEY) for i in range(len(ordered))]
     for i in range(len(ordered)):
         tables.update(pd.concat(parts[: i + 1], ignore_index=True), ordered[: i + 1])
-    assert tables.key == ("condition", "repeat", "technical_repeat", "image_file")
+    assert tables.key == ("condition", "biological_repeat", "technical_repeat", "image_file")
     assert [u.n_objects for u in tables.updates] == [len(p) for p in parts]
     # All at once, too.
     at_once = LiveTables(live_session(setup))
@@ -220,7 +232,7 @@ def test_i6_control_analyses_on_pooled_groups_are_not_assessed_with_the_reason()
     objects, fovs = _tables()
     pooled = report(objects, fovs, _pooled(group_cols=("condition",)))
     assert "contrast" not in pooled.results and "object_rules" in pooled.results
-    assert "pool 'repeat'" in pooled.document.sections["conditions"]
+    assert "pool 'biological_repeat'" in pooled.document.sections["conditions"]
     everything = report(objects, fovs, _pooled(group_cols=()))
     assert "object_rules" not in everything.results and "unusual" not in everything.results
     assert "object-rule check against the control is not assessed" in everything.summary()
@@ -276,7 +288,7 @@ def test_i11_watch_until_stop_follows_each_rules_own_verdict(tmp_path):
         OutcomeCriterion(CovarianceError(["feature_a", "feature_b"], True), 0.5, "lower_is_better"),
     )
     setup = _setup(rules=(FixedFOVStrategy(2),), fingerprint=fingerprint)
-    group = fovs[(fovs["condition"] == "control") & (fovs["repeat"] == "R1")]
+    group = fovs[(fovs["condition"] == "control") & (fovs["biological_repeat"] == "R1")]
     for _, row in group.sort_values("acquisition_order").iterrows():
         write_fov(tmp_path, objects.merge(row.to_frame().T[KEY], on=KEY), row.to_dict())
     seen = LiveFolder(tmp_path, live_session(setup)).watch(

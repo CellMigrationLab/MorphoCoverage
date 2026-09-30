@@ -41,8 +41,8 @@ def test_clean_tables_pass_and_say_what_was_understood():
     assert check.ok and not check.errors and not check.warnings
     text = check.summary()
     assert text.startswith("✅ MorphoCoverage data check — 0 errors, 0 warnings; the tables can be")
-    assert "A field is identified by 'image_file' within condition, repeat." in text
-    assert "Analysis groups: condition, repeat." in text
+    assert "A field is identified by 'image_file' within condition, biological_repeat." in text
+    assert "Analysis groups: condition, biological_repeat." in text
     check.raise_if_errors()
 
 
@@ -52,7 +52,7 @@ def test_every_problem_is_reported_at_once_with_where_and_how_to_fix():
         objects, fovs, feature_cols=["area", "intensity", "perimeter"], observation_unit="cell"
     )
     errors = _titles(check, "error")
-    assert "Column 'Repeat' looks like the MorphoBricks column 'repeat'" in errors
+    assert "Column 'Repeat' looks like the MorphoBricks column 'biological_repeat'" in errors
     assert "The group column 'technical_repeat' is empty in some rows" in errors
     assert "The FOV table lists a field more than once." in errors
     assert "1 feature column named in feature_cols is not in the observation table." in errors
@@ -101,8 +101,10 @@ def test_warnings_for_a_missing_fov_table_unit_and_control():
     warnings = _titles(check, "warning")
     assert "No FOV table was given." in warnings and "not declared" in warnings
     control = built.fovs["condition"].iloc[0]
-    lacking = built.fovs[~((built.fovs["condition"] == control) & (built.fovs["repeat"] == "R2"))]
-    kept = built.objects.merge(lacking[["condition", "repeat", "image_file"]])
+    lacking = built.fovs[
+        ~((built.fovs["condition"] == control) & (built.fovs["biological_repeat"] == "R2"))
+    ]
+    kept = built.objects.merge(lacking[["condition", "biological_repeat", "image_file"]])
     check = check_tables(
         kept,
         lacking,
@@ -145,7 +147,7 @@ def test_the_validator_raises_with_the_full_report_after_its_own_first_line():
         validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
     message = str(caught.value)
     first, _, rest = message.partition("\n\n")
-    assert "non-canonical spelling of MorphoBricks column 'repeat'" in first
+    assert "non-canonical spelling of MorphoBricks column 'biological_repeat'" in first
     assert rest.startswith("❌ MorphoCoverage data check — ")
     assert "The FOV table lists a field more than once." in rest
     assert "Where: FOV table" in rest  # the full report, with where each problem is

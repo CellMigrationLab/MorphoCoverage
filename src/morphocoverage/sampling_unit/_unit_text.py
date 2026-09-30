@@ -25,7 +25,7 @@ import pandas as pd
 
 from .._caveats import caveat_lines
 from .._style import among, group_columns, group_label, span, table, wrap
-from .._wording import count, listing, number, percent, rate
+from .._wording import column_word, count, listing, number, percent, rate
 from ..schema import unit_plural
 
 
@@ -209,7 +209,7 @@ def rule_reference(settings: Mapping[str, Any], words: str) -> str:
     if not control:
         return str(settings["reference"])
     repeat = settings.get("repeat_col")
-    within = f" of the same {repeat}" if repeat else ", every repeat pooled"
+    within = f" of the same {column_word(repeat)}" if repeat else ", every repeat pooled"
     return f"the mean of all {_selector(control)} {words}{within}"
 
 

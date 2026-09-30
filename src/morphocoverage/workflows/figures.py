@@ -43,7 +43,7 @@ def plots(
     With ``folder`` each figure is also saved there as
     ``<feature>[_<part>].png``. Returns the figures by feature.
     """
-    check_workflow_inputs(objects, fovs, setup)
+    objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     if features is None:
         chosen = [setup.readout]
         if ranking is not None:

@@ -106,7 +106,7 @@ At a glance
 
 MorphoCoverage is a strategy-comparison framework. No default coverage estimator has been chosen.
 
-- **Input validation.** Linked FOV and phenotype-observation tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition`, `repeat` and, when present, `technical_repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero observations are kept, and FOV-level grouping metadata can be inherited from the FOV table when the position identifier is unambiguous; and `z`, `c` and `t` are within-position metadata: they are refused as features, and a feature measured per plane becomes one feature per plane with `planes_as_features`. `observation_unit` records what one feature row means. NaN feature values may be loaded but are never silently imputed or dropped; each method must state how it handles them.
+- **Input validation.** Linked FOV and phenotype-observation tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition`, `biological_repeat` (formerly `repeat`, still read with a `DeprecationWarning`) and, when present, `technical_repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero observations are kept, and FOV-level grouping metadata can be inherited from the FOV table when the position identifier is unambiguous; and `z`, `c` and `t` are within-position metadata: they are refused as features, and a feature measured per plane becomes one feature per plane with `planes_as_features`. `observation_unit` records what one feature row means. NaN feature values may be loaded but are never silently imputed or dropped; each method must state how it handles them.
 - **Swappable strategies.** A strategy is one or more estimators, which report named evidence with its direction, units and objective component, plus decision policies that turn the evidence into continue/stop. Estimators receive one analysis group at a time; the framework fills counts, provenance (`config_id`) and compute time. `redecide` applies other thresholds to stored results without re-running. A strategy with no evidence about a required objective component returns `unsupported`, never `stop`. Current-practice baselines:
   - fixed FOV, fixed imaged area, generic observation-count, and legacy object/cell-count baselines;
   - a JCB/Zweifach-style scalar precision rule, re-estimated within each group or planned once from disjoint pilot samples (`plan_objects_to_average`, `PlannedObjectCountStrategy`);
@@ -136,11 +136,12 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
 )
 
-# The stored tables name the well; the MorphoBricks column for it is technical_repeat.
-well = {"well": "technical_repeat"}
+# The stored tables name the well and the plate "well" and "repeat"; the MorphoBricks
+# columns for them are technical_repeat and biological_repeat.
+names = {"well": "technical_repeat", "repeat": "biological_repeat"}
 fovs = pd.read_csv("data/crick_idr/idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
 objects = pd.read_csv("data/crick_idr/idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
-fovs, objects = fovs.rename(columns=well), objects.rename(columns=well)
+fovs, objects = fovs.rename(columns=names), objects.rename(columns=names)
 feature = "Nuclei_Intensity_MeanIntensity_YAPTAZ"
 
 results = evaluate_acquisition_prefixes(
@@ -153,7 +154,7 @@ results = evaluate_acquisition_prefixes(
     feature_cols=[feature],
     acquisition_order_col="acquisition_order",
     objective=ObjectiveConfig(SamplingObjective.POPULATION),
-    group_cols=["condition", "repeat", "technical_repeat"],
+    group_cols=["condition", "biological_repeat", "technical_repeat"],
 )
 ```
 
@@ -167,7 +168,7 @@ session = OnlineSession(
     feature_cols=["feature_a", "feature_b"],
     objective=ObjectiveConfig(SamplingObjective.POPULATION),
     fov_col="position_id",
-    group_cols=["condition", "repeat"],
+    group_cols=["condition", "biological_repeat"],
     observation_unit="cell",
 )
 
@@ -175,7 +176,7 @@ results = session.add_fov(
     observations=current_feature_table,
     fov_metadata={
         "condition": "control",
-        "repeat": "R1",
+        "biological_repeat": "R1",
         "position_id": "P017",
     },
 )

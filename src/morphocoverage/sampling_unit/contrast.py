@@ -79,8 +79,9 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count
+from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import groups, validated
 from ._units import (
@@ -234,6 +235,7 @@ def _effect_rows(
     return rows
 
 
+@one_warning
 def condition_contrast(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -271,6 +273,7 @@ def condition_contrast(
     draws, when whole fields are shuffled. ``object_counts`` are the JCS
     sample sizes; counts above what a side holds are left out.
     """
+    control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
     n_permutations, random_state = check_arguments(
@@ -311,7 +314,7 @@ def condition_contrast(
     for repeat, condition in contrasts:
         treated, controls = sides(described, repeat, condition)
         base = {
-            "repeat": repeat,
+            REPEAT_COLUMN: repeat,
             "condition": condition,
             "control_condition": control_label(described, controls) or str(control[condition_col]),
         }
@@ -357,7 +360,7 @@ def condition_contrast(
 
 
 _COLUMNS = [
-    "repeat",
+    REPEAT_COLUMN,
     "condition",
     "control_condition",
     "fields",

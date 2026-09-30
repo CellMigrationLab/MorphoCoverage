@@ -37,7 +37,7 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
             fields.append(
                 {
                     "condition": condition,
-                    "repeat": "r1",
+                    "biological_repeat": "r1",
                     "technical_repeat": f"w{well}",
                     "image_file": name,
                 }
@@ -47,7 +47,7 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
                 rows.append(
                     {
                         "condition": condition,
-                        "repeat": "r1",
+                        "biological_repeat": "r1",
                         "technical_repeat": f"w{well}",
                         "image_file": name,
                         "ratio": 5 + offset + rng.normal(),
@@ -83,8 +83,8 @@ def test_data_format_example_runs_and_prints_what_it_says(tmp_path, capsys):
     runpy.run_path(str(script))
     printed = capsys.readouterr().out.splitlines()
     assert printed == [
-        "('condition', 'repeat', 'technical_repeat')",
-        "('condition', 'repeat', 'technical_repeat', 'image_file')",
+        "('condition', 'biological_repeat', 'technical_repeat')",
+        "('condition', 'biological_repeat', 'technical_repeat', 'image_file')",
         "6 fields, 5 cells",
     ]
 

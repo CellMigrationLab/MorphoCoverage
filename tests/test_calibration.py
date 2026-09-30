@@ -113,7 +113,9 @@ def test_groups_are_calibrated_separately_and_large_counts_skipped():
     )
     # Four groups of 8 FOVs: only k = 3 is smaller than the group; the larger
     # counts keep a row with no draws and the reason (second audit, B-12).
-    assert len(table) == 12 and len(table[["condition", "repeat"]].drop_duplicates()) == 4
+    assert (
+        len(table) == 12 and len(table[["condition", "biological_repeat"]].drop_duplicates()) == 4
+    )
     drawn = table[table["fovs_imaged"] == 3]
     assert len(drawn) == 4 and set(drawn["remaining_fovs"]) == {5}
     assert drawn["reason"].isna().all()

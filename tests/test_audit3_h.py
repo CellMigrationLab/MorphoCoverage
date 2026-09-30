@@ -47,7 +47,7 @@ def _tables(spec, seed=0, per_field=20, obs_sd=1.0, empty_every=0):
         for j in range(n_fields):
             key = {
                 "condition": condition,
-                "repeat": repeat,
+                "biological_repeat": repeat,
                 "technical_repeat": well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -92,7 +92,7 @@ def test_h1_technical_repeats_are_the_unit_whatever_group_cols_say():
             control=CONTROL,
             object_counts=[],
             n_permutations=199,
-            group_cols=["condition", "repeat"],
+            group_cols=["condition", "biological_repeat"],
         )
         row = result.table.iloc[0]
         assert row["permutation_unit"] == "technical_repeat"
@@ -107,7 +107,11 @@ def test_h1_technical_repeats_are_the_unit_whatever_group_cols_say():
     # The same with the ranking, and with a technical column only in the FOV table.
     objects["y"] = objects["x"]
     ranking = feature_ranking(
-        objects, fovs, features=["x", "y"], control=CONTROL, group_cols=["condition", "repeat"]
+        objects,
+        fovs,
+        features=["x", "y"],
+        control=CONTROL,
+        group_cols=["condition", "biological_repeat"],
     )
     assert (ranking.tests["permutation_unit"] == "technical_repeat").all()
     bare, bare_fovs = _without_technical(objects, fovs)
@@ -129,7 +133,9 @@ def test_h2_pooled_repeats_resample_the_repeats_alone(monkeypatch):
     # One call for the one pooled cluster: ten repeats, each with its 6 fields (2 wells).
     assert calls == [[6] * 10]
     text = title.get_title(loc="left")
-    assert "resampling whole biological repeats (repeat), each with all its fields" in text
+    assert (
+        "resampling whole biological repeats (biological_repeat), each with all its fields" in text
+    )
     assert not hasattr(plots_module, "_bootstrap_repeats")
 
 
@@ -155,7 +161,7 @@ def test_h4_repeats_left_out_of_the_layout_are_pooled_not_merged(monkeypatch):
     assert calls == [[8, 8, 8]]
     title = ax.get_title(loc="left")
     assert "repeat not shown apart, pooled within each cluster" in title
-    assert "whole biological repeats (repeat)" in title
+    assert "whole biological repeats (biological_repeat)" in title
     labels = [t.get_text() for t in ax.get_legend().get_texts()]
     assert labels == ["1st technical_repeat", "2nd technical_repeat"]
 
@@ -166,13 +172,15 @@ def test_h5_only_the_technical_repeat_column_is_taken_by_itself():
     renamed = objects.rename(columns={"condition": "treatment"})
     renamed_fovs = fovs.rename(columns={"condition": "treatment"})
     with pytest.raises(ValueError, match=r"hold \['treatment'\], which the figure does not"):
-        plots_of_data(renamed, renamed_fovs, features=["x"], group_cols=["treatment", "repeat"])
+        plots_of_data(
+            renamed, renamed_fovs, features=["x"], group_cols=["treatment", "biological_repeat"]
+        )
     figures = plots_of_data(
         renamed,
         renamed_fovs,
         features=["x"],
         condition_col="treatment",
-        group_cols=["treatment", "repeat"],
+        group_cols=["treatment", "biological_repeat"],
         n_boot=10,
     )
     ax = figures["x"][0].axes[0]
@@ -222,7 +230,7 @@ def _repeat_shifted(shift, seed, n_repeats):
             for j in range(10):
                 key = {
                     "condition": condition,
-                    "repeat": f"r{repeat}",
+                    "biological_repeat": f"r{repeat}",
                     "position_id": f"{condition}{repeat}_{j}",
                 }
                 fovs.append(key)
@@ -403,14 +411,18 @@ def test_h19_an_untested_contrast_keeps_its_effect_sizes():
 
 def test_j1_groups_whose_seeds_collide_are_still_told_apart():
     first, second, repeat = "plate24_wellI03_KO", "plate15_wellP15_siGENE", "2024_01_15"
-    assert group_identity({"condition": first, "repeat": repeat}) == group_identity(
-        {"condition": second, "repeat": repeat}
+    assert group_identity({"condition": first, "biological_repeat": repeat}) == group_identity(
+        {"condition": second, "biological_repeat": repeat}
     )
     rng = np.random.default_rng(0)
     rows, fov_rows = [], []
     for condition, shift in ((first, 0.0), (second, 5.0)):
         for f in range(8):
-            key = {"condition": condition, "repeat": repeat, "position_id": f"{condition}_{f}"}
+            key = {
+                "condition": condition,
+                "biological_repeat": repeat,
+                "position_id": f"{condition}_{f}",
+            }
             fov_rows.append(key)
             rows += [{**key, "area": 10 + shift + v} for v in rng.normal(size=30)]
     objects, fovs = pd.DataFrame(rows), pd.DataFrame(fov_rows)
@@ -421,7 +433,7 @@ def test_j1_groups_whose_seeds_collide_are_still_told_apart():
     assert rules.table["status"].eq("ok").all()
     unusual = unusual_objects(objects, fovs, feature_cols=["area"], reference=control)
     treated = unusual.groups.set_index("condition").loc[second]
-    assert treated["reference_groups"] == [{"condition": first, "repeat": repeat}]
+    assert treated["reference_groups"] == [{"condition": first, "biological_repeat": repeat}]
     assert treated["unusual_share"] > 0.5
 
 

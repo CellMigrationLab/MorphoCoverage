@@ -14,7 +14,7 @@ from morphocoverage.plots import plots_of_data
 from morphocoverage.workflows import Setup, plots
 
 # The well is named as technical_col: only technical_repeat is found by itself (audit 3, H-5).
-GROUPS = ["condition", "repeat", "well"]
+GROUPS = ["condition", "biological_repeat", "well"]
 
 
 def _tables(n_conditions: int = 2, n_repeats: int = 2, n_fields: int = 4, seed: int = 0):
@@ -25,14 +25,19 @@ def _tables(n_conditions: int = 2, n_repeats: int = 2, n_fields: int = 4, seed: 
             for j in range(n_fields):
                 name = f"c{c}_r{r}_f{j}"
                 fovs.append(
-                    {"condition": f"c{c}", "repeat": f"r{r}", "well": "w", "image_file": name}
+                    {
+                        "condition": f"c{c}",
+                        "biological_repeat": f"r{r}",
+                        "well": "w",
+                        "image_file": name,
+                    }
                 )
                 offset = rng.normal(0, 0.5)
                 for _ in range(15):
                     rows.append(
                         {
                             "condition": f"c{c}",
-                            "repeat": f"r{r}",
+                            "biological_repeat": f"r{r}",
                             "well": "w",
                             "image_file": name,
                             "x": c + offset + rng.normal(),
@@ -57,7 +62,7 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 12
     title = ax.get_title(loc="left")
     assert "resampling whole technical repeats with their fields as acquired" in title
-    assert "biological repeats (repeat) side by side" in title
+    assert "biological repeats (biological_repeat) side by side" in title
     # Repeats are labelled above their clusters; points are coloured by the well.
     assert sorted(t.get_text() for t in ax.texts) == ["r0", "r0", "r1", "r1"]
     legend = ax.get_legend()
@@ -77,7 +82,9 @@ def test_many_conditions_split_and_many_repeats_are_pooled():
         objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS, technical_col="well"
     )
     ax = figures["x"][0].axes[0]
-    assert "biological repeats (repeat) pooled, more than the 8" in ax.get_title(loc="left")
+    assert "biological repeats (biological_repeat) pooled, more than the 8" in ax.get_title(
+        loc="left"
+    )
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 3 and not ax.texts
     # Too many technical replicates of one biological repeat to colour: a note instead of a
     # legend (well names are counted per repeat, so 9 fields a repeat, each its own well).
@@ -130,8 +137,8 @@ def test_workflow_plots_save_one_png_per_figure(tmp_path):
     assert set(figures) == {"x", "y"}
     assert sorted(p.name for p in tmp_path.iterdir()) == ["x.png", "y.png"]
     # Without a condition or repeat column the plot still draws: one group, one colour.
-    bare_objects = objects.drop(columns=["condition", "repeat"])
-    bare_fovs = fovs.drop(columns=["condition", "repeat"])
+    bare_objects = objects.drop(columns=["condition", "biological_repeat"])
+    bare_fovs = fovs.drop(columns=["condition", "biological_repeat"])
     figures = plots_of_data(
         bare_objects,
         bare_fovs,

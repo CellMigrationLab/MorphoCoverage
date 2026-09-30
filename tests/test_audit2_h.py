@@ -44,7 +44,7 @@ def _tables(spec, seed=0, per_field=20, obs_sd=1.0):
         for j in range(n_fields):
             key = {
                 "condition": condition,
-                "repeat": repeat,
+                "biological_repeat": repeat,
                 "technical_repeat": well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -134,7 +134,7 @@ def test_h3_one_technical_repeat_on_a_side_gets_no_test():
         feature="x",
         n_draws=2,
         object_counts=(10,),
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
         **common,
     )
     assert "only one technical repeat" in pooled.table["status"].iloc[0]
@@ -274,8 +274,8 @@ def test_h8_a_misspelt_repeat_or_technical_column_raises():
     assert named.settings["technical_col"] == "well"
     # Only the defaults may be absent: without a repeat column, one implicit repeat.
     alone = condition_contrast(
-        objects.drop(columns="repeat"),
-        fovs.drop(columns="repeat"),
+        objects.drop(columns="biological_repeat"),
+        fovs.drop(columns="biological_repeat"),
         group_cols=["condition", "technical_repeat"],
         **contrast,
     )
@@ -290,8 +290,8 @@ def test_h9_plots_raise_on_a_misspelt_column():
             plots_of_data(objects, fovs, **{argument: "Wrong"}, **common)
     # The default condition and repeat columns may be absent.
     figures = plots_of_data(
-        objects.drop(columns="repeat"),
-        fovs.drop(columns="repeat"),
+        objects.drop(columns="biological_repeat"),
+        fovs.drop(columns="biological_repeat"),
         group_cols=["condition", "technical_repeat"],
         **common,
     )
@@ -317,7 +317,9 @@ def test_h10_pooled_repeats_resample_the_repeats_first():
         .axes[0]
         .get_title(loc="left")
     )
-    assert "resampling whole biological repeats (repeat), each with all its fields" in title
+    assert (
+        "resampling whole biological repeats (biological_repeat), each with all its fields" in title
+    )
 
 
 def test_h11_jcb_rules_on_negative_values_are_not_applicable():
@@ -375,7 +377,7 @@ def test_h15_untested_features_are_listed_as_untested():
         for i in range(3)
     ]
     objects, fovs = _tables(spec)
-    empty = {"condition": "drug", "repeat": "r1", "technical_repeat": "drug0"}
+    empty = {"condition": "drug", "biological_repeat": "r1", "technical_repeat": "drug0"}
     fovs = pd.concat([fovs, pd.DataFrame([{**empty, "position_id": "empty"}])], ignore_index=True)
     objects["y"] = np.where(objects["condition"] == "drug", np.nan, objects["x"])
     objects["w"] = np.random.default_rng(0).normal(size=len(objects))
@@ -384,7 +386,7 @@ def test_h15_untested_features_are_listed_as_untested():
     common = {
         "control": CONTROL,
         "technical_col": None,
-        "group_cols": ["condition", "repeat"],
+        "group_cols": ["condition", "biological_repeat"],
         "fields_independent": True,
     }
     result = feature_ranking(objects, fovs, features=["x", "y", "w"], n_permutations=199, **common)

@@ -163,9 +163,9 @@ def _check_undeclared_groups(
                 ", but it is not an analysis group, so those fields are pooled.",
                 f"{name}, column {column!r}: {_names(values)}.",
                 "If it names a group (a well, a plate, a repeat), declare it: rename it to "
-                "'technical_repeat' (a well or dish within a repeat) or 'repeat', or name it in "
-                "group_cols. If it only describes the field (a quality flag, a date), nothing "
-                "needs to change.",
+                "'technical_repeat' (a well or dish within a repeat) or 'biological_repeat', or "
+                "name it in group_cols. If it only describes the field (a quality flag, a date), "
+                "nothing needs to change.",
             )
 
 

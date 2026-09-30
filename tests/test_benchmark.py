@@ -128,13 +128,13 @@ def test_stop_effort_matches_the_first_stop_of_each_group():
         assert record.total_fovs == scenario.truth["fovs_per_group"]
         group_fovs = scenario.fovs[
             scenario.fovs["condition"].eq(record.group["condition"])
-            & scenario.fovs["repeat"].eq(record.group["repeat"])
+            & scenario.fovs["biological_repeat"].eq(record.group["biological_repeat"])
         ]
         first = set(group_fovs.nsmallest(3, ORDER_COL)["image_file"])
         objects = scenario.objects
         expected = (
             objects["condition"].eq(record.group["condition"])
-            & objects["repeat"].eq(record.group["repeat"])
+            & objects["biological_repeat"].eq(record.group["biological_repeat"])
             & objects["image_file"].isin(first)
         )
         assert record.n_objects == expected.sum()
@@ -245,9 +245,11 @@ def test_records_carry_configuration_identity_and_flatten_to_rows():
     assert records[0].outcome_ids == {m.name: m.config_id for m in metrics}
     frame = records_to_frame(records)
     assert len(frame) == 2
-    assert {"group.condition", "group.repeat", "outcome.relative_mean_error:feature_a"} <= set(
-        frame.columns
-    )
+    assert {
+        "group.condition",
+        "group.biological_repeat",
+        "outcome.relative_mean_error:feature_a",
+    } <= set(frame.columns)
     assert (frame["compute_seconds_to_stop"] >= 0).all()
 
 

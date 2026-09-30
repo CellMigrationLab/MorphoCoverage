@@ -43,10 +43,12 @@ def _live_results(scenario, strategies):
         strategies=strategies, feature_cols=list(FEATURE_COLS), objective=POPULATION
     )
     results = []
-    ordered = scenario.fovs.sort_values(["condition", "repeat", ORDER_COL], kind="stable")
+    ordered = scenario.fovs.sort_values(
+        ["condition", "biological_repeat", ORDER_COL], kind="stable"
+    )
     for _, fov in ordered.iterrows():
         mask = pd.Series(True, index=scenario.objects.index)
-        for column in ("condition", "repeat", "image_file"):
+        for column in ("condition", "biological_repeat", "image_file"):
             mask &= scenario.objects[column].eq(fov[column])
         results += session.add_fov(scenario.objects.loc[mask].copy(), fov.to_dict())
     return results
@@ -85,14 +87,18 @@ def _mutations():
     return {
         "as given": (objects, fovs),
         "blank condition": (objects.assign(condition=objects["condition"].where(objects.index != first, " ")), fovs),
-        "missing repeat": (objects.assign(repeat=objects["repeat"].where(objects.index != first)), fovs),
+        "missing repeat": (objects.assign(biological_repeat=objects["biological_repeat"].where(objects.index != first)), fovs),
         "inf feature": (objects.assign(feature_a=objects["feature_a"].where(objects.index != first, np.inf)), fovs),
         "nan feature": (objects.assign(feature_a=objects["feature_a"].where(objects.index != first)), fovs),
         "text feature": (objects.assign(feature_a=objects["feature_a"].astype(str)), fovs),
         "Condition spelled": (objects.rename(columns={"condition": "Condition"}), fovs.rename(columns={"condition": "Condition"})),
-        "plural repeats": (objects.rename(columns={"repeat": "repeats"}), fovs.rename(columns={"repeat": "repeats"})),
-        "dotted repeat": (objects.rename(columns={"repeat": "Repeat.1"}), fovs),
-        "repeat only in objects": (objects, fovs.drop(columns=["repeat"])),
+        "plural repeats": (objects.rename(columns={"biological_repeat": "repeats"}), fovs.rename(columns={"biological_repeat": "repeats"})),
+        "dotted repeat": (objects.rename(columns={"biological_repeat": "Repeat.1"}), fovs),
+        "repeat only in objects": (objects, fovs.drop(columns=["biological_repeat"])),
+        "former name repeat": (objects.rename(columns={"biological_repeat": "repeat"}), fovs.rename(columns={"biological_repeat": "repeat"})),
+        "former name beside the new one": (objects.assign(repeat="other"), fovs),
+        "bio_repeat spelled": (objects.rename(columns={"biological_repeat": "bio_repeat"}), fovs.rename(columns={"biological_repeat": "bio_repeat"})),
+        "tec_repeat spelled": (objects.assign(tec_repeat="w1"), fovs.assign(tec_repeat="w1")),
         "condition only in fovs": (objects.drop(columns=["condition"]), fovs),
         "field listed twice": (objects, pd.concat([fovs, fovs.iloc[:1]], ignore_index=True)),
         "field missing from fovs": (objects, fovs.iloc[1:]),
@@ -106,6 +112,7 @@ def _mutations():
 
 
 @pytest.mark.parametrize("case", sorted(_mutations()))
+@pytest.mark.filterwarnings("ignore:'repeat' is the former name:DeprecationWarning")
 def test_check_tables_accepts_exactly_what_the_validator_accepts(case):
     objects, fovs = _mutations()[case]
     features = [c for c in FEATURE_COLS if c in objects.columns]

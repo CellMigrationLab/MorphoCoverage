@@ -48,12 +48,14 @@ def acquisition(
     for j in range(n_fields):
         values = mean + offsets[j] + rng.normal(0, object_sd, per_field)
         for v in values:
-            rows.append({"condition": condition, "repeat": repeat, "image_file": f"f{j}", "x": v})
+            rows.append(
+                {"condition": condition, "biological_repeat": repeat, "image_file": f"f{j}", "x": v}
+            )
     objects = pd.DataFrame(rows)
     fovs = pd.DataFrame(
         {
             "condition": condition,
-            "repeat": repeat,
+            "biological_repeat": repeat,
             "image_file": [f"f{j}" for j in range(n_fields)],
         }
     )
@@ -92,7 +94,12 @@ def test_a_strong_field_effect_gives_the_design_effect_of_its_construction():
 def test_zero_observation_fields_count_as_acquired_and_missing_values_are_left_out():
     objects, fovs = acquisition(n_fields=10, per_field=20)
     fovs = pd.concat(
-        [fovs, pd.DataFrame({"condition": ["A"], "repeat": ["r1"], "image_file": ["empty"]})],
+        [
+            fovs,
+            pd.DataFrame(
+                {"condition": ["A"], "biological_repeat": ["r1"], "image_file": ["empty"]}
+            ),
+        ],
         ignore_index=True,
     )
     objects.loc[0, "x"] = np.nan
@@ -271,7 +278,12 @@ def test_unlabelled_objects_are_left_out_and_empty_fovs_count():
     objects = _labelled(objects, ["f0"], per_field=2)
     objects.loc[objects["image_file"] == "f9", "state"] = None
     fovs = pd.concat(
-        [fovs, pd.DataFrame({"condition": ["A"], "repeat": ["r1"], "image_file": ["empty"]})],
+        [
+            fovs,
+            pd.DataFrame(
+                {"condition": ["A"], "biological_repeat": ["r1"], "image_file": ["empty"]}
+            ),
+        ],
         ignore_index=True,
     )
     table = fov_clustering(objects, fovs, label_col="state").table.set_index("state")
@@ -327,10 +339,10 @@ def test_a_group_is_never_its_own_reference():
         objects, fovs, feature_cols=["x", "y"], reference={"condition": "ctrl"}
     ).groups
     for row in groups.to_dict("records"):
-        own = {"condition": row["condition"], "repeat": row["repeat"]}
+        own = {"condition": row["condition"], "biological_repeat": row["biological_repeat"]}
         assert own not in row["reference_groups"]
-    single = objects[(objects["condition"] != "ctrl") | (objects["repeat"] == "r0")]
-    single_fovs = fovs[(fovs["condition"] != "ctrl") | (fovs["repeat"] == "r0")]
+    single = objects[(objects["condition"] != "ctrl") | (objects["biological_repeat"] == "r0")]
+    single_fovs = fovs[(fovs["condition"] != "ctrl") | (fovs["biological_repeat"] == "r0")]
     rows = unusual_objects(
         single, single_fovs, feature_cols=["x", "y"], reference={"condition": "ctrl"}
     ).groups.set_index("condition")
@@ -378,7 +390,7 @@ def idr0139():
 def test_idr0139_fovs_are_not_random_objects(idr0139):
     """Regression of docs/preliminary_findings.md entry 9 on the committed wells."""
     objects, fovs, ratio = idr0139
-    groups = ["condition", "repeat", "technical_repeat"]
+    groups = ["condition", "biological_repeat", "technical_repeat"]
     variability = fov_variability(objects, fovs, feature=ratio, group_cols=groups).groups.set_index(
         "technical_repeat"
     )
@@ -434,8 +446,8 @@ def test_the_report_states_the_design_effect_once():
         for r in range(3)
     ]
     objects, fovs = combined(*parts)
-    objects["sample"] = objects["repeat"]
-    fovs["sample"] = fovs["repeat"]
+    objects["sample"] = objects["biological_repeat"]
+    fovs["sample"] = fovs["biological_repeat"]
     effort = effort_projection(
         objects,
         fovs,
@@ -470,14 +482,19 @@ def _two_conditions(
                 for j in range(n_fields):
                     name = f"{repeat}_{condition}_{well}_f{j}"
                     fovs.append(
-                        {"condition": condition, "repeat": repeat, "well": well, "image_file": name}
+                        {
+                            "condition": condition,
+                            "biological_repeat": repeat,
+                            "well": well,
+                            "image_file": name,
+                        }
                     )
                     offset = well_shift + rng.normal(0, field_sd)
                     for _ in range(25):
                         objects.append(
                             {
                                 "condition": condition,
-                                "repeat": repeat,
+                                "biological_repeat": repeat,
                                 "well": well,
                                 "image_file": name,
                                 "x": 10 + offset + rng.normal(),
@@ -487,7 +504,7 @@ def _two_conditions(
     return pd.DataFrame(objects), pd.DataFrame(fovs)
 
 
-CONTRAST_GROUPS = ["condition", "repeat", "well"]
+CONTRAST_GROUPS = ["condition", "biological_repeat", "well"]
 
 
 def test_cohen_d_is_the_pooled_sd_effect_size():
@@ -512,7 +529,10 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
         object_counts=(50, 200, 10_000),
     )
     table = result.table
-    assert list(zip(table["repeat"], table["condition"])) == [("R1", "treated"), ("R2", "treated")]
+    assert list(zip(table["biological_repeat"], table["condition"])) == [
+        ("R1", "treated"),
+        ("R2", "treated"),
+    ]
     assert (table["status"] == "ok").all()
     # Both wells of a condition are pooled: 24 fields of 25 objects on each side.
     assert (table["fields"] == 24).all() and (table["observations"] == 600).all()
@@ -577,11 +597,11 @@ def test_condition_contrast_is_deterministic_and_needs_a_control_and_other_condi
     alone = condition_contrast(objects[objects["condition"] == "control"], only_control, **common)
     assert alone.table.empty and "no other condition to compare" in alone.summary()
     # A repeat without a control group is reported, not compared.
-    fovs_missing = fovs[~((fovs["repeat"] == "R2") & (fovs["condition"] == "control"))]
+    fovs_missing = fovs[~((fovs["biological_repeat"] == "R2") & (fovs["condition"] == "control"))]
     objects_missing = objects[objects["image_file"].isin(fovs_missing["image_file"])]
     partial = condition_contrast(objects_missing, fovs_missing, **common)
-    r2 = partial.table[partial.table["repeat"] == "R2"].iloc[0]
-    assert r2["status"] == "no control group in repeat=R2" and np.isnan(r2["p_value"])
+    r2 = partial.table[partial.table["biological_repeat"] == "R2"].iloc[0]
+    assert r2["status"] == "no control group in biological_repeat=R2" and np.isnan(r2["p_value"])
 
 
 def test_the_report_places_the_contrast_last():
@@ -642,7 +662,7 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
         fovs,
         feature="x",
         control={"condition": "control"},
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
         n_permutations=100,
         n_draws=5,
         object_counts=(50,),

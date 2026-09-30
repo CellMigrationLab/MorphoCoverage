@@ -38,9 +38,9 @@ result.
 | Column | Table | Type | When present |
 | --- | --- | --- | --- |
 | `condition` | both, or FOV table only | string | Experimental group. A default analysis group and part of field identity. Needed to declare a control (`Setup.control`), to normalise to it, and for the condition contrast. |
-| `repeat` | both, or FOV table only | string | Biological repeat, `YYYY_MM_DD` or `single` in MorphoBricks; any label is accepted. A default analysis group and part of field identity. Normalisation and the condition contrast work within each repeat. |
-| `technical_repeat` | both, or FOV table only | string | Technical repeat within the biological repeat: a well, a dish, a coverslip. Never a biological repeat. A default analysis group and part of field identity. The overview counts technical repeats. Plots colour points by them and resample them before fields. The contrast shuffles whole technical repeats when each side has at least two. `Setup` derives the hierarchy "field within technical repeat within repeat" from it, for "more fields or more technical repeats?". `single` means one technical repeat per repeat. |
-| other group columns | both, or FOV table only | any | Named with `group_cols`, for example `batch`. Each combination of group values is analysed apart. Without a `technical_repeat` column, one nested within condition and repeat (a `well` column) is the unit the condition contrast shuffles. |
+| `biological_repeat` | both, or FOV table only | string | Biological repeat, `YYYY_MM_DD` or `single` in MorphoBricks; any label is accepted. A default analysis group and part of field identity. Normalisation and the condition contrast work within each repeat. Formerly named `repeat`: that name is still read, with a warning (see [The former name `repeat`](#the-former-name-repeat)). |
+| `technical_repeat` | both, or FOV table only | string | Technical repeat within the biological repeat: a well, a dish, a coverslip. Never a biological repeat. A default analysis group and part of field identity. The overview counts technical repeats. Plots colour points by them and resample them before fields. The contrast shuffles whole technical repeats when each side has at least two. `Setup` derives the hierarchy "field within technical repeat within repeat" from it, for "more fields or more technical repeats?". `single` means one technical repeat per repeat (see [A level with one member](#a-level-with-one-member-single)). |
+| other group columns | both, or FOV table only | any | Named with `group_cols`, for example `batch`. Each combination of group values is analysed apart. Without a `technical_repeat` column, one nested within condition and biological repeat (a `well` column) is the unit the condition contrast shuffles. |
 | `z`, `c`, `t` (or `z0`, `z1`) | observations | integer | Plane, channel and time point within one position. Required when one position spans several files, so the files can be told apart. Never new fields, and never features: naming one in `feature_cols` raises. Rows of several planes, channels or time points in one field are refused unless each row measures a whole plane (see [Planes are not fields](#rules-the-validator-enforces) and [Features measured per plane](#features-measured-per-plane)). Read in lowercase only, so a column `Z`, `Metadata_Z`, `plane`, `slice`, `channel` or `frame` raises as a near miss. |
 | acquisition order | FOV table | numeric, datetime or timedelta | Named with `acquisition_order_col` (MorphoBricks suggests `acquisition_order`). The recorded order in which fields are replayed; text is refused, since it would sort `'10'` before `'2'`. Without it only random orders are replayed. |
 | stage coordinates | FOV table | numeric, finite | Named with `stage_cols` (MorphoBricks suggests `stage_x`, `stage_y`). Used for dispersed orders, stage travel, redundancy distance and spatial blocks; an infinite coordinate raises. |
@@ -49,15 +49,50 @@ result.
 | `label_id`, `mask_file`, `patch_file` | observations | any | Provenance, kept for tracing an observation back to its image; never features. `check_tables` also reads CellProfiler's `ObjectNumber`, `object_id` or `label` as the object label. |
 | `valid`, `reason` | observations | boolean, text | CellPatcher marks a patch it could not cut with `valid=False`. Such rows are still analysed as observations, so the validator warns (`InvalidRowsWarning`); filter them out first if they are not meant. |
 
+## A level with one member: `single`
+
+A hierarchy level that the experiment does not have is written as the value
+`single`, CellPatcher's convention: the level exists and has one member.
+`biological_repeat="single"` is one biological repeat, and
+`technical_repeat="single"` one technical repeat in each biological repeat.
+MorphoCoverage treats `single` as any other label: a group of one member,
+counted as one repeat in the overview and resampled as one unit. An empty
+cell means something else: the value was not recorded. An empty
+`technical_repeat` (or `position_id`) in every row is read as the column
+being absent; a partly empty one, or an empty `condition` or
+`biological_repeat` value, is refused, since the observation's group would
+be unknown.
+
+## The former name `repeat`
+
+MorphoBricks named the biological repeat `repeat` before it became
+`biological_repeat` (`technical_repeat` is unchanged). Tables that still use
+`repeat` are accepted for now, with a `DeprecationWarning`: wherever the
+tables enter (`validate_input_tables`, `check_tables`, every workflow,
+`OnlineSession.add_fov`, `LiveTables`, a `LiveFolder` manifest), a `repeat`
+column in a table without `biological_repeat` is read as
+`biological_repeat`. Your tables are not changed, and every result names
+the new column. A table with both columns is refused unless they hold the
+same values (then `biological_repeat` is used, with the warning). A
+`group_cols`, `fov_col`, `control`, `Setup` or `SamplingHierarchy` field
+naming `repeat` is read the same way. Rename the column: the former name
+will be removed in a later version.
+
 ## Rules the validator enforces
 
 - **Exact names.** Column names are lowercase and exact. A near miss raises,
-  so a misspelt group cannot silently merge repeats: `Repeat`,
-  `Technical_Repeat`, `technical repeat` (a space for the underscore),
-  `technicalRepeat` or `PositionID` (camelCase), `technical.repeat` (a dot),
-  `Conditions` (a plural), `condition ` (a trailing space), `Repeat.1` (the
-  copy pandas names when a file has two `Repeat` columns), `Z` for `z`, or a
-  byte-order mark that a spreadsheet wrote before the first header.
+  with the column it probably means ("did you mean 'biological_repeat'?"),
+  so a misspelt group cannot silently merge repeats: `Biological_Repeat`,
+  `Technical_Repeat`, `biological repeat` or `technical repeat` (a space for
+  the underscore), `biologicalrepeat` (no separator), `technicalRepeat` or
+  `PositionID` (camelCase), `technical.repeat` (a dot), `Conditions` (a
+  plural), `condition ` (a trailing space), `Repeat.1` (the copy pandas
+  names when a file has two `Repeat` columns), `Z` for `z`, or a byte-order
+  mark that a spreadsheet wrote before the first header. Short and other
+  names of the two repeats are near misses too: `bio_repeat`, `biol_rep`,
+  `biological_replicate` for `biological_repeat`; `tec_repeat`,
+  `tech_repeat`, `tech_rep`, `technical_replicate` for `technical_repeat`;
+  and `Repeat`, `repeats` or `Metadata_repeat` for the former `repeat`.
   CellProfiler's `Metadata_` prefix before such a name (`Metadata_Z`,
   `Metadata_condition`) and the other names of a plane, channel or time
   point (`plane`, `slice`, `channel`, `frame`, `timepoint`, ...) are near
@@ -74,13 +109,13 @@ result.
 - **Field identity.** A field is identified by its group columns together with
   its identifier. Well `J23` of plate `1A` and well `J23` of plate `2A` are two
   technical repeats, and `field_001.tif` in two wells is two fields.
-- **Group values live where they are unambiguous.** `condition`, `repeat` and
-  `technical_repeat` may be only in the FOV table. They are then copied onto
-  the observations, which is allowed only when the field identifier maps to a
-  single value; when field names restart in each repeat, the copy goes
-  through the group columns the observations do carry (the repeat and the
-  field name together). A MorphoBricks column in the observations but not in
-  the FOV table raises.
+- **Group values live where they are unambiguous.** `condition`,
+  `biological_repeat` and `technical_repeat` may be only in the FOV table.
+  They are then copied onto the observations, which is allowed only when the
+  field identifier maps to a single value; when field names restart in each
+  repeat, the copy goes through the group columns the observations do carry
+  (the biological repeat and the field name together). A MorphoBricks column
+  in the observations but not in the FOV table raises.
 - **No missing identity or group values.** A missing value in a field
   identifier or a group column raises, because the observation's field or
   group would be unknown.
@@ -218,7 +253,7 @@ from morphocoverage import validate_input_tables
 fovs = pd.DataFrame(
     {
         "condition": ["control"] * 3 + ["drug"] * 3,
-        "repeat": ["2026_01_01"] * 6,
+        "biological_repeat": ["2026_01_01"] * 6,
         "technical_repeat": ["B02", "B02", "B03", "C02", "C02", "C03"],
         "image_file": ["f1.tif", "f2.tif", "f1.tif", "f1.tif", "f2.tif", "f1.tif"],
     }
@@ -227,15 +262,15 @@ fovs = pd.DataFrame(
 objects = pd.DataFrame(
     {
         "condition": ["control", "control", "control", "drug", "drug"],
-        "repeat": ["2026_01_01"] * 5,
+        "biological_repeat": ["2026_01_01"] * 5,
         "technical_repeat": ["B02", "B02", "B03", "C02", "C03"],
         "image_file": ["f1.tif", "f2.tif", "f1.tif", "f1.tif", "f1.tif"],
         "area": [210.0, 188.5, 240.1, 305.2, 290.0],
     }
 )
 data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"], observation_unit="cell")
-print(data.group_cols)  # ('condition', 'repeat', 'technical_repeat')
-print(data.fov_key)  # ('condition', 'repeat', 'technical_repeat', 'image_file')
+print(data.group_cols)  # ('condition', 'biological_repeat', 'technical_repeat')
+print(data.fov_key)  # ('condition', 'biological_repeat', 'technical_repeat', 'image_file')
 print(len(data.fovs), "fields,", len(data.objects), "cells")  # 6 fields, 5 cells
 ```
 
@@ -256,14 +291,16 @@ from morphocoverage import planes_as_features, validate_input_tables
 objects = pd.DataFrame(
     {
         "condition": ["control"] * 4,
-        "repeat": ["2026_01_01"] * 4,
+        "biological_repeat": ["2026_01_01"] * 4,
         "position_id": ["P1"] * 4,
         "label_id": [1, 1, 2, 2],
         "z": [0, 1, 0, 1],
         "area": [210.0, 190.0, 240.0, 236.0],
     }
 )
-fovs = pd.DataFrame({"condition": ["control"], "repeat": ["2026_01_01"], "position_id": ["P1"]})
+fovs = pd.DataFrame(
+    {"condition": ["control"], "biological_repeat": ["2026_01_01"], "position_id": ["P1"]}
+)
 per_object, features = planes_as_features(objects, fovs, features=["area"])
 print(features)  # ['area_z0', 'area_z1']
 data = validate_input_tables(per_object, fovs=fovs, feature_cols=features, observation_unit="cell")
@@ -288,11 +325,15 @@ table is unchanged, and each field stays one FOV.
 ## From a CellPatcher export
 
 CellPatcher's `patches.csv` carries the shared columns: `condition`,
-`repeat`, `technical_repeat` (from a `<condition>/<repeat>/<well>/` folder
-level, `single` without one), `position_id`, `image_file`, `mask_file` and
-`patch_file`. It can be read directly as the observation table, one row per
-patch (`observation_unit="patch"`), once a feature-extraction step has added
+`biological_repeat`, `technical_repeat` (from a `<condition>/<repeat>/<well>/`
+folder level, `single` without one), `position_id`, `image_file`, `mask_file`
+and `patch_file`; a `patches.csv` written before the renaming names the
+biological repeat `repeat`, which is still read (see
+[The former name `repeat`](#the-former-name-repeat)). It can be read
+directly as the observation table, one row per patch
+(`observation_unit="patch"`), once a feature-extraction step has added
 feature columns. For the FOV table, prefer the list of every image given to
-CellPatcher. `fov_table_from_observations(patches, ["condition", "repeat",
-"technical_repeat", "image_file"])` is a fallback: it loses images that gave
-no patch, such as images without any segmented cell in `cell` mode.
+CellPatcher. `fov_table_from_observations(patches, ["condition",
+"biological_repeat", "technical_repeat", "image_file"])` is a fallback: it
+loses images that gave no patch, such as images without any segmented cell
+in `cell` mode.

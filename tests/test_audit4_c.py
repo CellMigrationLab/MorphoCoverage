@@ -40,7 +40,7 @@ def _tables(spec, seed=0, per_field=20, well_col="technical_repeat"):
         for j in range(n_fields):
             key = {
                 "condition": condition,
-                "repeat": repeat,
+                "biological_repeat": repeat,
                 well_col: well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -63,7 +63,7 @@ def _wells(n, *, repeats=("r1",), shift=0.0, fields=4, well_col="technical_repea
 
 
 def _groups(well_col):
-    return ["condition", "repeat", well_col]
+    return ["condition", "biological_repeat", well_col]
 
 
 # --- Q1: the shuffled unit ---------------------------------------------------------
@@ -217,7 +217,7 @@ def test_p1_6_same_sign_draws_resample_whole_technical_repeats():
 
 def _shifted(scale):
     objects, fovs = _wells(2, repeats=("r1", "r2"), fields=6)
-    objects.loc[objects["repeat"] == "r2", "x"] *= scale
+    objects.loc[objects["biological_repeat"] == "r2", "x"] *= scale
     return objects, fovs
 
 
@@ -226,17 +226,17 @@ def test_p1_4_the_object_rule_divides_by_the_repeats_own_control_mean():
     result = object_rule_check(objects, fovs, feature="x", control=CONTROL, n_draws=50)
     table = result.table[result.table["target"] == 0.05]
     for repeat in ("r1", "r2"):
-        in_repeat = objects[objects["repeat"] == repeat]
+        in_repeat = objects[objects["biological_repeat"] == repeat]
         reference = in_repeat.loc[in_repeat["condition"] == "ctrl", "x"].mean()
-        for row in table[table["repeat"] == repeat].to_dict("records"):
+        for row in table[table["biological_repeat"] == repeat].to_dict("records"):
             group = in_repeat[in_repeat["technical_repeat"] == row["technical_repeat"]]
             sd = (group["x"] / reference).std(ddof=1)
             assert row["rule_objects"] == int(np.ceil((sd / 0.05) ** 2))
     # The same CV in both repeats: the same rule, although the levels differ 2x.
-    by_repeat = table.groupby("repeat")["rule_objects"].median()
+    by_repeat = table.groupby("biological_repeat")["rule_objects"].median()
     assert by_repeat["r1"] == pytest.approx(by_repeat["r2"], rel=0.35)
     text = result.summary()
-    assert "of the same repeat" in text
+    assert "of the same biological repeat" in text
     assert "differ by 2.0x" in text
 
 
@@ -245,11 +245,11 @@ def test_p5_6_a_unit_change_in_one_repeat_is_flagged_and_a_repeat_without_contro
     text = object_rule_check(objects, fovs, feature="x", control=CONTROL, n_draws=50).summary()
     text = " ".join(text.split())
     assert "differ by 10.0x" in text and "change of units" in text
-    keep = ~((objects["repeat"] == "r2") & (objects["condition"] == "ctrl"))
+    keep = ~((objects["biological_repeat"] == "r2") & (objects["condition"] == "ctrl"))
     result = object_rule_check(objects[keep], fovs, feature="x", control=CONTROL, n_draws=50)
-    r2 = result.table[result.table["repeat"] == "r2"]
+    r2 = result.table[result.table["biological_repeat"] == "r2"]
     assert (r2["status"].str.contains("no control object in this group's repeat")).all()
-    assert (result.table[result.table["repeat"] == "r1"]["status"] == "ok").all()
+    assert (result.table[result.table["biological_repeat"] == "r1"]["status"] == "ok").all()
 
 
 # --- D4: the reachable q of the ranking ------------------------------------------------
@@ -336,7 +336,9 @@ def test_p1_12_small_unit_d_plural_and_rare_declaration_wording():
 
 
 def test_p3_5_a_single_technical_repeat_interval_is_captioned():
-    layout = _Layout("condition", "repeat", "technical_repeat", ["a"], ["r1"], False, 4, ())
+    layout = _Layout(
+        "condition", "biological_repeat", "technical_repeat", ["a"], ["r1"], False, 4, ()
+    )
     title = _title("x", "", layout, "cell", "median", 0.95, clusters=[(1, [1]), (1, [3])])
     assert "one technical repeat: the interval shows field-to-field variation only" in title
 
@@ -346,7 +348,9 @@ def test_p3_5_a_single_technical_repeat_interval_is_captioned():
 
 def _sorted(table):
     """A result table in a fixed row order (groups come in order of first appearance)."""
-    keys = [c for c in ("condition", "repeat", "technical_repeat", "target", "n", "sampling")]
+    keys = [
+        c for c in ("condition", "biological_repeat", "technical_repeat", "target", "n", "sampling")
+    ]
     keys = [c for c in keys if c in table.columns]
     return table.sort_values(keys, kind="stable").reset_index(drop=True)
 

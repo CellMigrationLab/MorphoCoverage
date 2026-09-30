@@ -23,9 +23,10 @@ from typing import Any
 import pandas as pd
 
 from .._data_rules import _loose
+from .._former_repeat import one_warning, read_former
 from .._style import check_detail, group_columns, wrap
 from .._style import table as style_table
-from .._wording import count
+from .._wording import column_word, count
 from ..data_check import DataCheck, Problem, validate_input_tables
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -260,6 +261,7 @@ def _within_field_values(data: Any) -> dict[str, tuple[int, int]]:
     return planes
 
 
+@one_warning
 def dataset_overview(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -282,6 +284,7 @@ def dataset_overview(
     plates is two technical repeats). ``control`` (``{"condition": ...}``)
     puts the control condition first; ``data_check`` adds its warnings.
     """
+    repeat_col, control = read_former(repeat_col=repeat_col, control=control)
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -354,7 +357,7 @@ def dataset_overview(
 
 def normalized_sentence(control: Mapping[str, Any], repeat_col: str | None) -> str:
     """How the values were normalised, for the overview and the declaration."""
-    where = f"the same {repeat_col}" if repeat_col else "the whole table"
+    where = f"the same {column_word(repeat_col)}" if repeat_col else "the whole table"
     return f"every feature divided by the mean of the control {dict(control)} objects of {where}"
 
 

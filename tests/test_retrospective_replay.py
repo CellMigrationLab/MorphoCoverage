@@ -141,7 +141,7 @@ def test_outcomes_are_assessed_on_every_prefix_whatever_the_strategies():
 def test_recorded_order_follows_the_acquisition_order_column():
     built = SCENARIOS["homogeneous"]()
     fovs = built.fovs.assign(acquisition_order=built.fovs["acquisition_order"].to_numpy()[::-1])
-    probe = _Probe(["condition", "repeat", "image_file"])
+    probe = _Probe(["condition", "biological_repeat", "image_file"])
     result = replay_acquisitions(
         built.objects,
         fovs,
@@ -186,12 +186,12 @@ def test_incremental_replay_gives_the_same_decisions():
 def test_groups_are_independent():
     both = _replay("condition_repeat_groups", [FixedFOVStrategy(3)])
     built = SCENARIOS["condition_repeat_groups"]()
-    first = built.fovs[["condition", "repeat"]].drop_duplicates().iloc[0].to_dict()
+    first = built.fovs[["condition", "biological_repeat"]].drop_duplicates().iloc[0].to_dict()
     mask = np.ones(len(built.fovs), dtype=bool)
     for column, value in first.items():
         mask &= built.fovs[column].to_numpy() == value
     fovs = built.fovs[mask]
-    objects = built.objects.merge(fovs[["condition", "repeat"]].drop_duplicates())
+    objects = built.objects.merge(fovs[["condition", "biological_repeat"]].drop_duplicates())
     alone = replay_acquisitions(
         objects,
         fovs,

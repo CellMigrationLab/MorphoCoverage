@@ -29,7 +29,7 @@ def idr0028():
 def _field(objects, fovs, i):
     row = fovs.iloc[i]
     mask = pd.Series(True, index=objects.index)
-    for column in ("condition", "repeat", "technical_repeat", "image_file"):
+    for column in ("condition", "biological_repeat", "technical_repeat", "image_file"):
         mask &= objects[column].eq(row[column])
     return mask
 
@@ -37,7 +37,9 @@ def _field(objects, fovs, i):
 def _replace_field(objects, fovs, target, rows):
     """``objects`` with field ``target``'s observations replaced by ``rows``."""
     keep = objects[~_field(objects, fovs, target)]
-    identity = fovs.iloc[target][["condition", "repeat", "technical_repeat", "image_file"]]
+    identity = fovs.iloc[target][
+        ["condition", "biological_repeat", "technical_repeat", "image_file"]
+    ]
     return pd.concat([keep, rows.assign(**identity.to_dict())], ignore_index=True)
 
 
@@ -107,12 +109,12 @@ def test_same_means_from_different_observations_are_a_repeated_summary(idr0028):
 def test_quantized_features_make_the_copy_checks_not_applicable():
     rng = np.random.default_rng(0)
     fovs = pd.DataFrame(
-        {"condition": "a", "repeat": "r", "image_file": [f"f{i}.tif" for i in range(6)]}
+        {"condition": "a", "biological_repeat": "r", "image_file": [f"f{i}.tif" for i in range(6)]}
     )
     objects = pd.DataFrame(
         {
             "condition": "a",
-            "repeat": "r",
+            "biological_repeat": "r",
             "image_file": np.repeat(fovs["image_file"], 20).to_numpy(),
             "count": rng.integers(0, 3, 120).astype(float),
         }
@@ -136,8 +138,10 @@ def test_the_synthetic_acquisition_has_no_findings():
 
 
 def test_arguments_are_checked():
-    fovs = pd.DataFrame({"condition": "a", "repeat": "r", "image_file": ["f.tif"]})
-    objects = pd.DataFrame({"condition": "a", "repeat": "r", "image_file": "f.tif", "x": [1.0]})
+    fovs = pd.DataFrame({"condition": "a", "biological_repeat": "r", "image_file": ["f.tif"]})
+    objects = pd.DataFrame(
+        {"condition": "a", "biological_repeat": "r", "image_file": "f.tif", "x": [1.0]}
+    )
     with pytest.raises(ValueError, match="block_length"):
         integrity_checks(objects, fovs, feature_cols=["x"], block_length=1)
     with pytest.raises(ValueError, match="min_distinct_share"):
