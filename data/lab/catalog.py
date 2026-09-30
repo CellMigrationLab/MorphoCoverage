@@ -54,6 +54,11 @@ REQUIRED = {
     "design": ["condition", "biological_repeat", "technical_repeat", "field", "fov_table_source"],
     "hypotheses": ["written", "items"],
 }
+# An owner-provided, unpublished dataset has no deposit and no figure, but names its project.
+UNPUBLISHED = {
+    "source": ["repository", "provided", "licence", "retrieved", "member_sha256"],
+    "publication": ["status", "project", "related_doi", "note"],
+}
 ROLES = ("development", "held_out")
 LICENCES = ("CC-BY-4.0", "CC0-1.0")
 # The values a hierarchy level may hold when it is not a real label (data/lab/README.md).
@@ -104,7 +109,10 @@ def read_card(dataset_id: str) -> dict[str, Any]:
 def check_card(card: dict[str, Any]) -> list[str]:
     """The problems of a card (empty when it is complete and follows the rules)."""
     problems = []
-    for section, keys in REQUIRED.items():
+    required = dict(REQUIRED)
+    if unpublished(card):
+        required.update(UNPUBLISHED)
+    for section, keys in required.items():
         block = card.get(section, {}) if section else card
         for key in keys:
             if block.get(key) in (None, "", []):
@@ -124,6 +132,11 @@ def check_card(card: dict[str, Any]) -> list[str]:
         if status not in ("match", "mismatch", "partly", "not-reproducible-from-deposit"):
             problems.append(f"claim {claim.get('claim', '?')!r}: reproduction status {status!r}")
     return problems
+
+
+def unpublished(card: dict[str, Any]) -> bool:
+    """True for owner-provided data that is in no paper (``publication.status``)."""
+    return card.get("publication", {}).get("status") == "unpublished"
 
 
 def load(dataset_id: str) -> LabDataset:
@@ -159,18 +172,44 @@ def render(dataset_id: str) -> str:
     card = data.card
     objects = data.objects
     design, counts = card["design"], card["design"].get("counts", {})
-    pub_doi = card["publication"]["doi"]
+    source, publication = card["source"], card["publication"]
+    if unpublished(card):
+        related = publication["related_doi"]
+        paper = f"unpublished (project: [{related}](https://doi.org/{related}))"
+        data_link = f"provided by the owner, {source['provided']}"
+        figure = f"none ({publication['note']})"
+        source_line = (
+            f"Source: provided by the owner ({source['provided']}), not deposited; "
+            f"{source['licence']} ({source.get('licence_note', '')}); "
+            f"file `{source.get('member', '')}` "
+            f"(sha256 `{source['member_sha256']}`)."
+        )
+        paper_line = f"Paper: none; project: {publication['project']} ({related})."
+    else:
+        pub_doi = publication["doi"]
+        paper = f"paper: [{pub_doi}](https://doi.org/{pub_doi})"
+        data_link = f"data: [{source['doi']}](https://doi.org/{source['doi']})"
+        figure = publication["figure"]
+        source_line = (
+            f"Source: {source['repository']} record {source['record']} "
+            f"({source['doi']}), {source['licence']}, retrieved "
+            f"{source['retrieved']}; file `{source.get('member', '')}` "
+            f"(sha256 `{source['member_sha256']}`)."
+        )
+        paper_line = (
+            f"Paper: {publication['citation']} — quotes from {publication['version_quoted']}."
+        )
     groups = [c for c in ("experiment", "condition", "biological_repeat") if c in objects]
-    table = objects.groupby(groups).size().rename("cells").reset_index()
+    units = f"{card['observation_unit']}s"
+    table = objects.groupby(groups).size().rename(units).reset_index()
     # A condition within its experiment (each experimental set has its own control).
     per_condition = objects.groupby([g for g in groups if g != "biological_repeat"]).size()
     lines = [
         f"# {card['title']}",
         "",
         (
-            f"`{card['id']}` · role: {card['role']} · licence: {card['source']['licence']} · "
-            f"paper: [{pub_doi}](https://doi.org/{pub_doi}) · "
-            f"data: [{card['source']['doi']}](https://doi.org/{card['source']['doi']})"
+            f"`{card['id']}` · role: {card['role']} · licence: {source['licence']} · "
+            f"{paper} · {data_link}"
         ),
         "",
         (
@@ -182,7 +221,7 @@ def render(dataset_id: str) -> str:
         "",
         (
             f"{card['biology']['cells']}; {card['biology']['conditions']}. "
-            f"Figure: {card['publication']['figure']}. One row is one {card['observation_unit']}; "
+            f"Figure: {figure}. One row is one {card['observation_unit']}; "
             f"one field is {design['field']}. Readout: `{card['readout']}` "
             f"({card['columns']['features'].get(card['readout'], '')})."
         ),
@@ -207,19 +246,19 @@ def render(dataset_id: str) -> str:
                     f"{objects['condition'].nunique()} conditions, "
                     f"{objects['biological_repeat'].nunique()} biological repeats; "
                     f"{per_condition.min()}-{per_condition.max()} per condition "
-                    f"({counts.get('cells_per_condition', '')})"
+                    f"({counts.get(f'{units}_per_condition', '')})"
                 ),
             ]
         ),
         "",
-        "Cells per condition and biological repeat:",
+        f"{units.capitalize()} per condition and biological repeat:",
         "",
         "```text",
         table.assign(
             repeat=table.groupby([g for g in groups if g != "biological_repeat"]).cumcount() + 1
         )
         .pivot(
-            index=[g for g in groups if g != "biological_repeat"], columns="repeat", values="cells"
+            index=[g for g in groups if g != "biological_repeat"], columns="repeat", values=units
         )
         .rename(columns=lambda c: f"repeat {c}")
         .astype("Int64")
@@ -241,9 +280,12 @@ def render(dataset_id: str) -> str:
             f"  Reproduced from the stored tables: **{rep['status']}** — {rep['value']}"
             + (f" ({rep['note']})" if rep.get("note") else ""),
         ]
+    if unpublished(card):
+        lines.append(f"- None: these data are in no paper ({publication['note']}).")
+    statistics = _quoted(card.get("analysis_in_paper", {}).get("statistics", "not applicable"))
     lines += [
         "",
-        f"How the paper analysed them: {_quoted(card['analysis_in_paper'].get('statistics', ''))}",
+        f"How the paper analysed them: {statistics}",
         "",
         "## 4. Curator's hypotheses for MorphoCoverage",
         "",
@@ -266,16 +308,8 @@ def render(dataset_id: str) -> str:
         "",
         _bullets(
             [
-                (
-                    f"Source: {card['source']['repository']} record {card['source']['record']} "
-                    f"({card['source']['doi']}), {card['source']['licence']}, retrieved "
-                    f"{card['source']['retrieved']}; file `{card['source'].get('member', '')}` "
-                    f"(sha256 `{card['source']['member_sha256']}`)."
-                ),
-                (
-                    f"Paper: {card['publication']['citation']} — quotes from "
-                    f"{card['publication']['version_quoted']}."
-                ),
+                source_line,
+                paper_line,
                 f"Acquisition: {_quoted(card['acquisition'].get('microscope', ''))}",
                 (
                     f"Curated by {card['curator']} on {card['created']}; verified by "

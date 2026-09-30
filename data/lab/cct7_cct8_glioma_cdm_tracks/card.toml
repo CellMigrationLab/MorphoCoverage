@@ -1,0 +1,117 @@
+# Facts about the stored tables. These data are in no paper: the owner's statements are dated.
+# DATASET.md is generated from this card (python data/lab/catalog.py render cct7_cct8_glioma_cdm_tracks).
+
+id = "cct7_cct8_glioma_cdm_tracks"
+title = "Migration of U-87 MG glioma cells on cell-derived matrices after CCT7 or CCT8 silencing (unpublished)"
+curator = "Claude (on behalf of Guillaume Jacquemet)"
+created = "2026-09-30"
+verified_by = ""        # the owner, after checking the mapping and the defects
+verified_on = ""
+contract_version = "2026-09-biological_repeat"
+role = "development"
+observation_unit = "track"
+feature_cols = [
+  "Mean Speed", "Median Speed", "Max Speed", "Speed Standard Deviation", "Total Distance Traveled",
+  "Mean Speed Rolling", "Median Speed Rolling", "Max Speed Rolling", "Min Speed Rolling Rolling",
+  "Speed Standard Deviation Rolling", "Total Distance Traveled Rolling", "Directionality",
+  "Directionality Rolling", "Tortuosity", "Tortuosity Rolling", "Total Turning Angle",
+  "Total Turning Angle Rolling", "Spatial Coverage", "Spatial Coverage Rolling",
+]
+readout = "Mean Speed"
+control = { condition = "siCTRL" }
+
+[source]
+repository = "owner"
+provided = "2026-09-30"
+licence = "CC-BY-4.0"
+licence_note = "the lab's own unpublished data; licence to be confirmed by the owner"
+retrieved = "2026-09-30"
+member = "Tracking_data_CCT8_CCT7_silencing_Glioma.csv"
+member_sha256 = "dec991b3fdd52956d01ee64c2348ee4ec64afe4f16b7d0f67c549350b064233e"
+member_columns = "Unique_ID, TRACK_ID, File_name, Condition, experiment_nb, File_name_raw, Repeat, then 25 CellTracksColab track metrics"
+deposit = "none: the stored tables are the only public copy; convert.py needs the owner's file"
+
+[publication]
+status = "unpublished"
+project = "the CCT8-MYO10 filopodia project (CCT8 paper, J. Cell Sci. 2026)"
+related_doi = "10.1242/jcs.265278"
+note = "the owner's statement, 2026-09-30: from the same project, not in the paper"
+things_done_ledger = "ledger/publications/2026.yaml (doi 10.1242/jcs.265278), as the related paper"
+
+[biology]
+cells = "U-87 MG glioblastoma cells migrating on cell-derived matrices (CDMs)"
+conditions = "siCTRL and two siRNAs against each of CCT7 (siCCT7#3, siCCT7#6) and CCT8 (siCCT8#5, siCCT8#8)"
+control = "one siCTRL well per experimental set and repeat (source labels siCTRL_CCT7, siCTRL_CCT8)"
+positive_control = "none declared"
+human_material = "established cell line (U-87 MG, ATCC HTB-14); no patient-derived material"
+animal_material = "none"
+ethics_statement = "not applicable"
+identifiers_screened = "yes: the tables hold siRNA names, well and position names, repeat numbers and track metrics only"
+
+[acquisition]
+microscope = { value = "CellIQ, 10x objective, brightfield, a frame every 10 min (the results file names say 'px per 10min')", quote = "For cell migration analyses, U-87 MG or MDA-MB-231 cells were seeded onto CDMs for 4 hours prior to imaging. Brightfield images were taken every 10 minutes over 16 hours using a CellIQ system with a 10× objective at 37°C and 5% CO2.", source = "Methods of the related paper (owner's manuscript copy); that these data follow it is an assumption" }
+tracking = { value = "manual tracking in Fiji, metrics from CellTracksColab (the column names are CellTracksColab's)", quote = "Cell tracking was performed manually using Fiji’s Manual Tracking plugin to assess cell migration (Schindelin et al., 2012). Only cells that met the following criteria were included: (i) not dividing during the imaging period, (ii) not colliding with other cells, and (iii) not completely immobile during the imaging period.", source = "Methods of the related paper; assumed to apply" }
+field_selection = "not stated (positions within each well; how they were chosen is not recorded)"
+fields = "one results file per imaged position: '<well>_<position>', 5-9 positions per well"
+stage_coordinates = "not recorded"
+acquisition_order = "not recorded"
+concurrent_acquisition = "yes: time-lapse of several positions and wells on one plate (CellIQ); fields were imaged in parallel, so acquisition-order, replay and live uses do not apply"
+units = "distances in pixels and speeds in px per 10 min (the pixel size is not recorded); Track Duration in min"
+
+[analysis_in_paper]
+pipeline = "not in a paper; tracks as exported by CellTracksColab"
+filters = "the related paper's criteria (not dividing, not colliding, not immobile), assumed"
+normalisation = "none"
+
+[design]
+experiment = "the experimental set, CCT7 or CCT8 (from the siRNA label); each has its own siCTRL well (B4 for CCT7, B1 for CCT8)"
+condition = "the siRNA; both controls written 'siCTRL', the source label kept as source_condition"
+biological_repeat = "'<set>_<Repeat>' (Repeat 1-3): the two sets' movies have different lengths in every repeat (tracks of about 950 min for CCT7, 1200-1440 min for CCT8), so they are treated as separate acquisitions (assumption; to confirm by the owner)"
+technical_repeat = "the well (B1-B6), one well per siRNA per repeat; rules out any test that needs several wells within a biological repeat"
+field = "the imaged position, '<well>_<position>' from the results file name (e.g. 'B5_04-1'), verbatim"
+observation = "one track; label_id = TRACK_ID (the track's number within its results file)"
+fov_table_source = "the results files named in the source (one per position); positions with no track are not known"
+non_features = [
+  "label_id", "Track Duration", "Min Speed", "FMI_x_plus", "FMI_x_minus", "FMI_y_plus", "FMI_y_minus",
+  "source_row",
+]
+feature_choice = "feature_cols are the CellTracksColab track metrics except Track Duration (set by the movie and the tracking, not by the cell), Min Speed (only two distinct values, 0 and 0.0724) and the forward migration indices (FMI, which depend on the image orientation and have no gradient to refer to)"
+
+[design.counts]
+experiments = 2
+conditions = 5
+biological_repeats = 6
+tracks = 590
+fields = 133
+tracks_per_condition = "siCTRL_CCT7 75, siCCT7#3 92, siCCT7#6 92, siCTRL_CCT8 109, siCCT8#8 103, siCCT8#5 119"
+tracks_per_field = "1-12"
+duplicated_tracks = 28
+
+[columns]
+renamed = { Condition = "condition (siCTRL_CCT7 and siCTRL_CCT8 written siCTRL) and source_condition (verbatim)", Repeat = "biological_repeat (as '<set>_<Repeat>')", TRACK_ID = "label_id", File_name_raw = "source_file, and technical_repeat + position_id parsed from it" }
+dropped = ["Unique_ID, File_name and experiment_nb: each is a concatenation of kept columns (checked by convert.py)"]
+added = ["experiment (from the siRNA label)", "image_file (unrecorded)", "source_row (file line, 1 = header)"]
+features = { "Mean Speed" = "mean instantaneous speed along the track (px per 10 min)", "Directionality" = "net displacement / path length (1 = straight)", "Tortuosity" = "path length / net displacement", "Total Distance Traveled" = "path length (px)", "Spatial Coverage" = "area explored by the track (px^2)", "Total Turning Angle" = "sum of turning angles (degrees)", "Rolling" = "the same metric on a rolling window along the track (CellTracksColab)" }
+
+[hypotheses]
+written = "2026-09-30, before any MorphoCoverage run"
+items = [
+  "The integrity checks should find the 28 tracks that appear twice (identical track number and metrics in two results files of the same siRNA and repeat: B5_04/B5_04-1, B4_05/B4_052, B6_01-1/B6_02-1, B6_04-1/B6_05-1, B2_01/B2_02, B1_03/B1_04). A clean report would be a miss.",
+  "Tracks cluster by field (several cells per position, cells on the same patch of matrix): the field-level design effect for Mean Speed should be above 1, unlike the two one-cell-per-field datasets.",
+  "The condition contrast within a repeat cannot be tested with one well per siRNA; MorphoCoverage should say so and report effect sizes and directions per repeat instead.",
+  "Direction per repeat, against the set's own siCTRL: Mean Speed lower for both CCT8 siRNAs in 3/3 repeats; for CCT7 no consistent direction (both lower in repeat 1, both higher in repeat 2, split in repeat 3: siCCT7#3 0.63 and siCCT7#6 0.56 against 0.63).",
+  "The two siCTRL wells differ (mean speed 0.56 for the CCT7 set, 0.44 for CCT8, with different movie lengths): pooling them as one 'siCTRL' condition, which MorphoCoverage does because it has no experiment level, mixes two baselines.",
+]
+
+[[caveats]]
+text = "28 tracks are in the source twice, in two results files of the same siRNA and repeat (see the hypotheses); they are kept as in the source, so counts and means include them. Deduplicate on (experiment, condition, biological_repeat, label_id, metrics) before any biological use."
+[[caveats]]
+text = "Track lengths differ within a repeat: in CCT7 repeat 2 the siCTRL tracks mostly last 1200 min and the siRNA tracks 950 min, so path length, spatial coverage, turning angle and directionality are not comparable there; across sets, movies differ in length in every repeat."
+[[caveats]]
+text = "Distances and speeds are in pixels (px per 10 min); the pixel size is not recorded, so values are comparable within this dataset only."
+[[caveats]]
+text = "MorphoCoverage has no experiment level: both sets' controls are condition 'siCTRL'; the biological_repeat labels ('CCT7_1', 'CCT8_1', ...) keep the sets apart."
+[[caveats]]
+text = "The acquisition method and the track filters are the related paper's; that they apply here is an assumption. Fields were imaged in parallel (multi-position time-lapse)."
+[[caveats]]
+text = "Some position names look like re-exports or typos (B4_052, '-1' and '-2' suffixes); they are kept verbatim as field identifiers."

@@ -1,0 +1,15 @@
+The tables in this folder (objects.csv.gz, fovs.csv.gz) are derived from unpublished data of
+the Jacquemet lab, provided by Guillaume Jacquemet on 2026-09-30:
+file "Tracking_data_CCT8_CCT7_silencing_Glioma.csv" (sha256 dec991b3...233e), from the
+project of the article "CCT8 associates with the MYO10 motor domain and regulates filopodia
+and breast cancer cell invasion", Journal of Cell Science (2026),
+https://doi.org/10.1242/jcs.265278, but not part of it.
+
+Licence: Creative Commons Attribution 4.0 International (CC BY 4.0,
+https://creativecommons.org/licenses/by/4.0/), to be confirmed by the owner.
+
+Changes: metadata columns renamed to the MorphoBricks names (verbatim labels kept under a
+source_ prefix), both siCTRL labels written siCTRL, the well and position parsed from the
+results file names, three redundant identifier columns dropped, rows reordered; no value
+changed, and the 28 tracks that appear twice in the source are kept
+(data/lab/cct7_cct8_glioma_cdm_tracks/convert.py).

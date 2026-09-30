@@ -47,7 +47,7 @@ def test_the_design_counts_in_the_card_match_the_tables(dataset_id):
     data = catalog.load(dataset_id)
     counts = data.card["design"].get("counts", {})
     objects = data.objects
-    assert len(objects) == counts["cells"]
+    assert len(objects) == counts[f"{data.observation_unit}s"]
     assert objects["condition"].nunique() == counts["conditions"]
     assert objects["biological_repeat"].nunique() == counts["biological_repeats"]
     assert len(data.fovs) == len(data.fovs.drop_duplicates())
@@ -120,6 +120,36 @@ def test_cdm_morphology_reproduces_the_papers_counts_and_effect_sizes():
         assert (table[["siCCT8#5", "siCCT8#8"]].lt(table["siCTRL"], axis=0)).all().all()
 
 
+def test_glioma_tracks_keep_the_sources_duplicated_tracks_and_its_design():
+    """The owner's track table: counts, the 28 tracks exported twice, one well per siRNA."""
+    data = catalog.load("cct7_cct8_glioma_cdm_tracks")
+    objects = data.objects
+    assert objects.groupby("source_condition").size().to_dict() == {
+        "siCCT7#3": 92,
+        "siCCT7#6": 92,
+        "siCCT8#5": 119,
+        "siCCT8#8": 103,
+        "siCTRL_CCT7": 75,
+        "siCTRL_CCT8": 109,
+    }
+    assert len(data.fovs) == data.card["design"]["counts"]["fields"]
+    # Tracks in two results files of the same siRNA and repeat: same number, same metrics.
+    key = ["experiment", "condition", "biological_repeat", "label_id", *data.feature_cols]
+    twice = objects[objects.duplicated(key, keep=False)]
+    assert len(twice) == 2 * data.card["design"]["counts"]["duplicated_tracks"]
+    assert twice.groupby(key).size().eq(2).all()
+    wells = objects.groupby(["experiment", "condition", "biological_repeat"])["technical_repeat"]
+    assert wells.nunique().eq(1).all()
+    # Hypothesis 4's directions: both CCT8 siRNAs slower than their set's siCTRL in every repeat.
+    speed = objects[objects.experiment == "CCT8"].groupby(["biological_repeat", "condition"])
+    table = speed["Mean Speed"].mean().unstack()
+    assert table[["siCCT8#5", "siCCT8#8"]].lt(table["siCTRL"], axis=0).all().all()
+
+
+def _downloadable(dataset_id):
+    return catalog.read_card(dataset_id)["source"]["repository"] != "owner"
+
+
 def _convert_module(dataset_id):
     spec = importlib.util.spec_from_file_location("convert", LAB / dataset_id / "convert.py")
     module = importlib.util.module_from_spec(spec)
@@ -128,7 +158,7 @@ def _convert_module(dataset_id):
 
 
 @pytest.mark.network
-@pytest.mark.parametrize("dataset_id", IDS)
+@pytest.mark.parametrize("dataset_id", [i for i in IDS if _downloadable(i)])
 def test_convert_rebuilds_the_stored_tables_from_the_pinned_source(dataset_id):
     module = _convert_module(dataset_id)
     objects, fovs = module.build_tables(module.read_source(module.fetch_member()))
