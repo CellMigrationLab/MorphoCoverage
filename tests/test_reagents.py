@@ -70,7 +70,7 @@ def test_the_screens_reagents_agree_for_every_target(screen):
     assert "Independent reagents for one target (target)" in short
     assert "all higher in 3 of 3" in short and "⚠️" not in short
     _, headline = conditions_status(contrast, None)
-    assert headline.endswith("reagents agree in every repeat for 6 of 6 targets")
+    assert "; reagents agree in every repeat for 6 of 6 targets;" in headline
 
 
 def test_without_the_column_the_contrast_is_unchanged(screen):

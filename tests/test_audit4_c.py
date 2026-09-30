@@ -210,7 +210,9 @@ def test_p1_6_same_sign_draws_resample_whole_technical_repeats():
         fields_independent=True,
     )
     assert fields_only.effects["resampled"].isna().all()
-    assert "The draws resample these fields and objects, not wells" in fields_only.summary()
+    assert "The draws resample these fields and objects, not wells" in " ".join(
+        fields_only.summary().split()
+    )
 
 
 # --- D3: each repeat's own control mean ----------------------------------------------
@@ -311,7 +313,7 @@ def test_p9_1_a_constant_offset_never_moves_the_p_value():
 def test_p1_10_the_contrast_says_it_compares_means_only():
     objects, fovs = _wells(3)
     text = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5).summary()
-    assert "compare means: a difference confined to a subpopulation" in text
+    assert "compare means: a difference confined to a subpopulation" in " ".join(text.split())
 
 
 def test_p1_12_small_unit_d_plural_and_rare_declaration_wording():

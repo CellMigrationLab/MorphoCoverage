@@ -162,7 +162,7 @@ def test_a_contrast_the_design_cannot_test_is_left_out_said_once_not_flagged():
     assert status is Status.NOT_ASSESSED
     assert "not tested (one technical repeat on a side)" in headline
     short = result.summary()
-    assert short.count("only one technical repeat") == 1
+    assert " ".join(short.split()).count("only one technical repeat") == 1
     assert "no test" in short and CAUTION not in short
 
 
