@@ -348,7 +348,7 @@ def test_p3_5_a_single_technical_repeat_interval_is_captioned():
         "condition", "biological_repeat", "technical_repeat", ["a"], ["r1"], False, 4, ()
     )
     title = _title("x", "", layout, "cell", "median", 0.95, clusters=[(1, [1]), (1, [3])])
-    assert "with one technical repeat the interval shows field-to-field variation only" in title
+    assert "with one well the interval shows field-to-field variation only" in title
 
 
 # --- P9-4: the row order of the tables ------------------------------------------------------

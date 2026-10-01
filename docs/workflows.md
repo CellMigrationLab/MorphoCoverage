@@ -127,7 +127,7 @@ as tables you can sort by clicking a header.
 
 "Do the conditions differ?" opens with the reading per condition, then a heatmap
 of Cohen's d of every feature and condition against the control (● passes the
-cell-level gate, ✓ also confirmed across repeats; hover a cell for its
+exploratory cell-level screen, ✓ also significant across repeats; hover a cell for its
 q-values), then the readout and the best-ranked features, then with three or
 more features the PCA and UMAP of all of them, then the tests behind the reading.
 
@@ -480,7 +480,7 @@ corrected together, a discovery gate at q <= 0.05, the passing features
 ranked by |d|. Beside it, the paired t-test on the repeat means (log ratios
 to the control), corrected the same way over every feature and condition
 with three or more repeats, is the second gate: a passing feature it also
-passes is "confirmed across repeats". The table gives each feature's best
+passes is "significant across repeats". The table gives each feature's best
 contrast, both q-values and its direction in each repeat; a passing feature
 that goes up in some repeats and down in others is flagged. The cell-level
 gate treats observations as independent: it finds candidates, and passes

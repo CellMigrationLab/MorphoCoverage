@@ -127,7 +127,7 @@ def test_question_9_leads_with_the_answer_across_repeats(screen):
     assert "lower in 3 of 3" in short and "higher in 3 of 3" in short
     # 36 per-repeat contrasts go to the full form, with the sign-flip test.
     # Nothing is tested within a repeat: the per-repeat table goes to the full form.
-    assert "Within a single repeat there is no test: each condition has one technical" in joined
+    assert "No test within a single repeat: each condition has one well there" in joined
     assert "sign-flip p" not in short.split("Within each repeat")[0]
     full = screen.summary(detail="full")
     assert "sign-flip" not in full and "siCCT8#5 vs siCTRL, repeat siCCT8_1" in full
@@ -138,11 +138,12 @@ def test_question_9_leads_with_the_answer_across_repeats(screen):
     status, headline = conditions_status(screen, None)
     assert status.name == "OK"
     assert headline == (
-        "12 conditions against the control, each in 3 biological repeats (18 in all): "
-        "confirmed across repeats: siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siSCRIB#6 "
-        "and siSCRIB#7 (lower); siMAP4K4#5 (higher); same direction in every repeat, not "
-        "confirmed: siMINK1#10 and siMINK1#3 (lower); siMAP4K4#6, siNF2#17 and siNF2#7 "
-        "(higher); reagents agree in every repeat for 6 of 6 targets"
+        "Filopodia number, 12 conditions against the control, each in 3 biological repeats "
+        "(18 in all): significant across repeats: siCCT8#5, siCCT8#8, siCSNK1A1#11, "
+        "siCSNK1A1#5, siSCRIB#6 and siSCRIB#7 (lower); siMAP4K4#5 (higher); same direction in "
+        "every repeat, not significant: siMINK1#10 and siMINK1#3 (lower); siMAP4K4#6, "
+        "siNF2#17 and siNF2#7 (higher); the reagents of a target go the same way in every "
+        "repeat for 6 of 6 targets (described, not tested)"
     )
 
 
@@ -155,6 +156,6 @@ def test_two_repeats_and_one_coverslip_are_described_not_flagged(screen):
     status, headline = conditions_status(two, None)
     assert status.name == "NOT_ASSESSED"
     assert "each in 2 biological repeats (12 in all): same direction in every repeat" in headline
-    assert "within repeats: not tested (one technical repeat per condition in a" in headline
+    assert "within repeats: no test (one well per condition in a" in headline
     assert "⚠️" not in two.summary()
     assert "the paired test across repeats needs 3" in " ".join(two.summary().split())

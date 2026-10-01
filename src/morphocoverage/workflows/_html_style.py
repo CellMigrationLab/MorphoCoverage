@@ -194,6 +194,8 @@ button.dl { border: 1px solid var(--border); background: var(--surface); color: 
 figcaption button.dl { background: #ffffff; color: #1c5cab; border-color: #dddcd7; }
 button.dl:hover { background: var(--surface-2); }
 dl.glossary { margin: 6px 0 14px; }
+.legend-box { border-left: 3px solid var(--link); background: var(--surface-2); padding: 10px 14px;
+  border-radius: 6px; margin: 12px 0; }
 dl.glossary dt { font-weight: 600; margin-top: 10px; }
 dl.glossary dd { margin: 2px 0 0; }
 dl.glossary .where, dl.glossary .refs { display: block; color: var(--text-3); font-size: 13px; }

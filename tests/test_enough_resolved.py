@@ -59,7 +59,7 @@ def test_question_2_leads_with_the_resolution_when_a_control_is_declared():
     status, headline = enough_status(None, None, contrast)
     assert status is Status.CAUTION
     assert headline.startswith(
-        "within single repeats, the difference from the control shows in 2 of 6 comparisons"
+        "to compare with the control, within single repeats: shown in 2 of 6 comparisons"
     )
     # One cell per field: the advice counts cells.
     assert "would need about" in headline and "cells a side" in headline
@@ -77,7 +77,7 @@ def test_every_difference_resolved_is_ok_and_the_precision_cautions_stay_in_the_
     status, headline = enough_status(None, None, contrast)
     assert status is Status.OK
     assert headline == (
-        "within single repeats, the difference from the control shows in 2 of 2 comparisons"
+        "to compare with the control, within single repeats: shown in 2 of 2 comparisons"
     )
     assert CAUTION not in enough_short(None, None, None, contrast=contrast)
 

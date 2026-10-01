@@ -197,7 +197,7 @@ def _untested(contrast: Any) -> list[str]:
         names = [_name(r, repeat_col) for r in rows.to_dict("records")]
         which = among(len(rows), n, "contrast")
         named = "" if len(rows) == n else f" ({listing(names, 3)})"
-        text = f"no randomization test in {which}{named}: {status}"
+        text = f"no well-level test within a repeat in {which}{named}: {status}"
         if design_limited(status):
             if not across_tested(contrast):
                 lines.append(assumption(f"{text[0].upper()}{text[1:]}."))
@@ -317,10 +317,10 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         # Nothing was tested within a repeat: the per-repeat d are in question 2 and the
         # across-repeat table, so the table would repeat them.
         lines[-1] = wrap(
-            "Within a single repeat there is no test: each condition has one technical "
-            "repeat there, so there is nothing to shuffle. The per-repeat d are in question "
-            "2, and every number in the full report "
-            "(report_full.txt).",
+            "No test within a single repeat: each condition has one well there, and the "
+            "cells of one well are not independent replicates (the cell-level screen above "
+            "treats them as such, and is exploratory). The per-repeat d are in question 2, "
+            "and every number in the full report (report_full.txt).",
             indent,
             hang=indent + 2,
         )

@@ -147,7 +147,7 @@ def test_h3_plot_intervals_are_the_widened_nested_ones_with_the_small_unit_cavea
     objects, fovs = _tables(spec, per_field=10)
     ax = plots_of_data(objects, fovs, features=["x"], n_boot=50)["x"][0].axes[0]
     assert calls == [[4, 4, 4]]  # the wells, each with its fields, into bootstrap_nested
-    assert "with 2-3 technical repeats the interval is only a guide" in (ax.figure.caption)
+    assert "with 2-3 wells the interval is only a guide" in (ax.figure.caption)
 
 
 def test_h4_repeats_left_out_of_the_layout_are_pooled_not_merged(monkeypatch):
@@ -358,8 +358,8 @@ def test_h16_a_technical_column_of_the_fov_table_only_is_used():
     fovs["well"] = [p.split("_")[2] for p in fovs["position_id"]]
     ax = plots_of_data(objects, fovs, features=["x"], technical_col="well", n_boot=10)["x"][0]
     title = ax.axes[0].figure.caption
-    assert "its shape the technical repeat (well)" in title
-    assert "whole technical repeats (well) with their fields (3 per repeat" in title
+    assert "its shape the well" in title
+    assert "whole wells with their fields (3 per repeat" in title
 
 
 def test_h17_contrast_and_ranking_share_one_test_and_variability_the_design_effect():
@@ -402,7 +402,7 @@ def test_h19_an_untested_contrast_keeps_its_effect_sizes():
     assert np.isfinite(row["effect_full"]) and np.isfinite(row["d_objects"])
     assert len(result.effects) == 4
     text = " ".join(result.summary().split())
-    assert "No randomization test in the contrast: only one technical repeat" in text
+    assert "No well-level test within a repeat in the contrast: only one technical repeat" in text
     assert "d objects" in text and "JCS effect size" in text
 
 

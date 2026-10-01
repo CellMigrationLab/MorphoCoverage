@@ -46,7 +46,7 @@ def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
 
 
 _UNTESTED = {
-    "only one technical repeat": "one technical repeat per condition in a repeat",
+    "only one technical repeat": "one well per condition in a repeat",
     "too few technical repeats": "too few technical repeats on a side",
     "fewer than 2 fields": "too few fields on a side",
     "fields of one dish or well": "the fields' wells unknown",
@@ -75,9 +75,8 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         reading = readings_headline(contrast)
         verdicts = condition_readings(contrast)["verdict"]
         if reading and answered and not (verdicts == CONFIRMED).any():
-            # Nothing confirmed across repeats: a trend at most, never a green answer.
+            # Nothing significant across repeats: a trend at most, never a green answer.
             status = Status.CAUTION
-            parts.append(f"{contrast.settings['feature']}: none confirmed across repeats")
         if reading:
             # The verdict per condition, read from every test (``reading_text``).
             parts.append(reading)
@@ -103,7 +102,7 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
                 status = Status.CAUTION
             elif not len(tested):
                 status = Status.NOT_ASSESSED
-            which = "not tested" if not len(tested) else f"{len(untested)} not tested"
+            which = "no test" if not len(tested) else f"{len(untested)} not tested"
             parts.append(f"{within}{which} ({_untested_words(list(untested['status']))})")
         passing = tested[tested["p_value"] <= P_ALPHA]
         if opposite_signs(passing, ["condition"], contrast.settings["repeat_col"], str):
@@ -113,11 +112,15 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         parts.append("no condition to compare with the control")
     if discovery is not None and len(discovery.ranking):
         passing = int(discovery.ranking["score"].notna().sum())
-        n_features = count(len(discovery.ranking), "feature")
+        n_features = len(discovery.ranking)
         confirmed = len(discovery.confirmed())
+        across = discovery.tests["p_paired"].notna().any()
         parts.append(
-            f"{passing} of {n_features} are candidates at the cell level (q ≤ 0.05), "
-            f"{confirmed} confirmed across repeats"
+            f"every feature: {confirmed} of {n_features} significant across repeats; "
+            f"{passing} candidates in the exploratory cell-level screen"
+            if across
+            else f"every feature: {passing} of {n_features} candidates in the exploratory "
+            "cell-level screen, hypotheses for another repeat (no test across repeats)"
         )
         return status, "; ".join(parts)
     if ranking is not None and len(ranking.ranking):

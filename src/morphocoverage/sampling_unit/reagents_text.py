@@ -58,7 +58,8 @@ def reagents_parts(contrast: Any, indent: int = 2) -> tuple[list[str], list[str]
 
 
 def reagents_headline(contrast: Any) -> str | None:
-    """``reagents agree in every repeat for 5 of 6 targets``, or ``None`` without targets."""
+    """``the reagents of a target go the same way in every repeat for 5 of 6 targets
+    (described, not tested)``, or ``None`` without targets."""
     targets = _targets(contrast)
     if targets.empty:
         return None
@@ -68,7 +69,10 @@ def reagents_headline(contrast: Any) -> str | None:
             & targets["direction"].isin(["lower", "higher"])
         ).sum()
     )
-    return f"reagents agree in every repeat for {every} of {count(len(targets), 'target')}"
+    return (
+        f"the reagents of a target go the same way in every repeat for {every} of "
+        f"{count(len(targets), 'target')} (described, not tested)"
+    )
 
 
 __all__ = ["reagents_headline", "reagents_parts"]

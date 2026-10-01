@@ -187,7 +187,7 @@ def interactive_caption(figure: Any) -> str:
     """The static figure's title in sentences, and what hovering a point gives."""
     lines = [line.strip() for line in getattr(figure, "caption", "").split("\n") if line.strip()]
     if len(lines) > 1:
-        lines[1] += "; hover for its repeat, technical repeat and field"
+        lines[1] += "; hover for its repeat, well and field"
     # The first line starts with the feature's own name, kept as written.
     return ". ".join(lines[:1] + [line[:1].upper() + line[1:] for line in lines[1:]]) + "."
 

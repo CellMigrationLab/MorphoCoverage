@@ -140,7 +140,7 @@ def test_the_screen_is_given_as_provided_and_balanced(screen):
     assert cells.loc["siMAP4K4#5", "d_cells"] < 0 < cells.loc["siMAP4K4#5", "d_balanced"]
     assert (screen.repeats.set_index("condition").loc["siMAP4K4#5", "higher"]) == 3
     joined = " ".join(screen.summary().split())
-    assert "Cell-level test (as in Plot&Stats)" in joined
+    assert "Cell-level screen (exploratory, as in Plot&Stats)" in joined
     assert "the control is pooled from 15 biological repeats the condition was not imaged in" in (
         joined
     )
@@ -148,7 +148,8 @@ def test_the_screen_is_given_as_provided_and_balanced(screen):
     status, headline = conditions_status(screen, None)
     assert status.name == "OK"
     assert headline.startswith(
-        "12 conditions against the control, each in 3 biological repeats (18 in all): confirmed"
+        "Filopodia number, 12 conditions against the control, each in 3 biological repeats "
+        "(18 in all): significant"
     )
     # Normalised to its own repeats' control, MAP4K4#5 is above it as in every repeat.
     assert cells.loc["siMAP4K4#5", "d_cells_normalised"] > 0
@@ -167,7 +168,9 @@ def test_a_pilot_of_one_repeat_leads_with_the_cell_level_test():
     text = " ".join(one.summary().split())
     # The reading leads, then the cell-level test, the one that responds with one repeat.
     assert text.startswith("Reading, condition by condition") and "Balance" not in text
-    assert text.index("Cell-level test (as in Plot&Stats)") < text.index("contrast fields")
+    assert text.index("Cell-level screen (exploratory, as in Plot&Stats)") < text.index(
+        "contrast fields"
+    )
     assert (one.cells["chance_low"] < one.cells["chance_high"]).all()
     # The full report states the assumed variation between repeats.
     full = " ".join(one.summary(detail="full").split())

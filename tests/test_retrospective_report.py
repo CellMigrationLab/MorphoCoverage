@@ -215,6 +215,8 @@ def test_the_overview_counts_technical_repeats_within_their_condition_and_repeat
     text = overview.summary(detail="full")
     assert f"{2 * len(groups)} technical repeats (technical_repeat, a well or a dish" in text
     assert "2 per condition and repeat" in text and "technical repeats" in text.split("\n")[4]
-    assert f"{2 * len(groups)} technical repeats;" in " ".join(overview.summary().split())
+    assert f"{2 * len(groups)} wells (technical repeats; 2 per condition and repeat)" in (
+        " ".join(overview.summary().split())
+    )
     plain = dataset_overview(built.objects, built.fovs, feature_cols=list(FEATURE_COLS))
     assert plain.counts["technical_repeats"] == 0 and "technical" not in plain.summary()

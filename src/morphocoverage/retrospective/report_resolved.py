@@ -58,9 +58,8 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
     needing = _needing(rows)
     small = int(rows["too_small"].sum())
     _, fields_word = field_words(contrast)
-    text = (
-        f"within single repeats, the difference from the control shows in {resolved} of "
-        + count(len(rows), "comparison")
+    text = f"to compare with the control, within single repeats: shown in {resolved} of " + count(
+        len(rows), "comparison"
     )
     if len(needing):
         fields = needing["fields_to_resolve"].astype(float)
@@ -69,7 +68,9 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
         text += f"; {len(needing)} would need about {about} {fields_word} a side"
     if small:
         text += f"; {small} too small to show with more {fields_word}"
-    return (Status.CAUTION if len(needing) else Status.OK), text
+    # The marker says what was found: every comparison shown is enough, any other partly or
+    # not yet (owner, 2026-10-01).
+    return (Status.OK if resolved == len(rows) else Status.CAUTION), text
 
 
 def _name(row: dict[str, Any]) -> str:
@@ -171,7 +172,7 @@ def precision_words(tallies: list[dict[str, Any]], word: str) -> str | None:
     first = data[0]
     return (
         f"each {word}'s own mean to the precision asked ({first['label']}): met in "
-        f"{first['met']} of {first['groups']}"
+        f"{first['met']} of {first['groups']}, a stricter goal than the comparison"
     )
 
 

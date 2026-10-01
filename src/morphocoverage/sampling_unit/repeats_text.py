@@ -112,9 +112,9 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
         notes.append(
             assumption(
                 f"The paired t-test on the repeat means treats each {word} as one replicate: "
-                f"it keeps false positives at 5%, but with 3 {word}s it confirms only large "
-                "effects. q: Benjamini-Hochberg within each sub-experiment; confirmed uses the "
-                "normalised q."
+                f"it keeps false positives at 5%, but with 3 {word}s only large, consistent "
+                "effects reach q ≤ 0.05. q: Benjamini-Hochberg within each sub-experiment; "
+                "'significant across repeats' uses the normalised q."
             )
         )
     elif repeats["p_paired_t"].notna().any():

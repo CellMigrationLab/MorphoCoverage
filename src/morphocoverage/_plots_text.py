@@ -36,7 +36,7 @@ def legend(ax: Axes, layout: Any, shapes: Sequence[str], n_technical: int) -> No
             frameon=False,
             fontsize=9.5,
             title=(
-                f"{_named('technical repeat', layout.technical_col, TECHNICAL_REPEAT_COLUMN)}"
+                f"{_named('well', layout.technical_col, TECHNICAL_REPEAT_COLUMN)}"
                 ",\nin order within each\nbiological repeat"
             ),
             title_fontsize=9.5,
@@ -49,7 +49,7 @@ def legend(ax: Axes, layout: Any, shapes: Sequence[str], n_technical: int) -> No
             0.01,
             0.99,
             f"up to {n_technical} "
-            f"{_named('technical repeats', layout.technical_col, TECHNICAL_REPEAT_COLUMN)} per "
+            f"{_named('wells', layout.technical_col, TECHNICAL_REPEAT_COLUMN)} per "
             f"biological repeat: the first {len(shapes)} shaped in order, the others small dots",
             transform=ax.transAxes,
             va="top",
@@ -66,7 +66,9 @@ def _span(counts: Sequence[int]) -> str:
 def _named(word: str, column: str | None, standard: str) -> str:
     """``word``, with its column in brackets when the column has another name than the
     MorphoBricks one (``technical repeat (well)``)."""
-    return word if column in (None, standard) else f"{word} ({column})"
+    if column in (None, standard) or str(column).lower() in (word, word.rstrip("s")):
+        return word
+    return f"{word} ({column})"
 
 
 def _pooled_name(layout: Any) -> str:
@@ -99,8 +101,9 @@ def title(
     the time with a well SD above the field SD).
     """
     repeats_word = _named("biological repeat", layout.repeat_col, REPEAT_COLUMN)
-    technical_word = _named("technical repeat", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
-    technicals = _named("technical repeats", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
+    # A technical repeat is a well, dish or coverslip: "well" in lab words (owner, 2026-10-01).
+    technical_word = _named("well", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
+    technicals = _named("wells", layout.technical_col, TECHNICAL_REPEAT_COLUMN)
     # A cluster is the points of one condition, or of one condition in one repeat.
     cluster = "condition" if layout.pooled_repeats or not layout.repeat_col else "repeat"
     repeats = ""
@@ -153,6 +156,8 @@ def title(
         else:
             phrases.append("whole fields")
     resampled = "; or ".join(phrases)
+    if summary == "median":
+        caveat += "\nthe median is drawn; the tests across repeats use the repeat means"
     return (
         f"{feature}{part}{repeats}\nevery {unit} a point in its condition's colour{coloured}\n"
         f"{summary} with its {rate(level)} interval from resampling {resampled}{caveat}"

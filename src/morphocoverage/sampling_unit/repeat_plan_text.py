@@ -70,8 +70,10 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
     n = int(plan["repeats"].max())
     lines = [
         wrap(
-            f"Planning the next experiment: the biological repeats a paired t-test on the repeat "
-            f"means needs for {percent(POWER)} power, at the correction used above, with the "
+            "Planning the next experiment (for a new experiment, if the difference and the "
+            "variation seen here recur; not what the current result needs): the biological "
+            f"repeats a paired t-test on the repeat means needs for {percent(POWER)} power, at "
+            "the correction used above, with the "
             f"{fields} per repeat as now and with twice as many; then the {fields} a side each of "
             f"{count(n, 'repeat')} needs to show the difference on its own, and what limits it:",
             indent,

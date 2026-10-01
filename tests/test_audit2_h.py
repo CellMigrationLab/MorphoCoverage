@@ -120,7 +120,9 @@ def test_h3_one_technical_repeat_on_a_side_gets_no_test():
     )
     row = contrast.table.iloc[0]
     assert np.isnan(row["p_value"]) and "only one technical repeat" in row["status"]
-    assert "cannot stand in for technical repeats" in " ".join(contrast.summary().split())
+    assert "the fields of one well are not independent replicates" in " ".join(
+        contrast.summary().split()
+    )
     objects["y"] = objects["x"] * 2
     ranking = feature_ranking(objects, fovs, features=["x", "y"], **common)
     assert ranking.tests["p_value"].isna().all() and not ranking.tests["passes_gate"].any()

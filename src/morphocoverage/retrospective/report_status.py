@@ -438,10 +438,11 @@ def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = Non
 
 
 def group_word(result: Any) -> str:
-    """What one analysis group of ``result`` is, for a headline: a technical repeat when they
-    are kept apart (the declared ``technical_repeat`` column), else a group."""
+    """What one analysis group of ``result`` is, for a headline: a well (the technical repeat:
+    a well, dish or coverslip) when they are kept apart (the declared ``technical_repeat``
+    column), else a group."""
     keys = list(getattr(result, "group_cols", ()) or ())
-    return "technical repeat" if TECHNICAL_REPEAT_COLUMN in keys else "group"
+    return "well" if TECHNICAL_REPEAT_COLUMN in keys else "group"
 
 
 def weak_status(answer: Answer) -> Answer:
