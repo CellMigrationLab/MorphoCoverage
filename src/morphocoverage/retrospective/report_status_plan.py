@@ -187,7 +187,8 @@ def effort_status(effort: Any) -> Answer:
             if leaning_strata
             else ""
         )
-        return Status.OK, f"not established{where} with {few} per {word}{most}{leaning}"
+        # The leaning already says where the variance sits; otherwise say it.
+        return Status.OK, f"not established{where} with {few} per {word}{leaning or most}"
     return Status.CAUTION, f"cannot tell{where} with {few} per {word}{most}"
 
 
