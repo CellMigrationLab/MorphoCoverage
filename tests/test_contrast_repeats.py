@@ -115,7 +115,10 @@ def test_question_9_leads_with_the_answer_across_repeats(screen):
     assert "Across the 3 biological repeats (each repeat's value is the mean of its cells" in joined
     assert "lower in 3 of 3" in short and "higher in 3 of 3" in short
     # 36 per-repeat contrasts go to the full form, with the sign-flip test.
-    assert "36 contrasts, one per condition and repeat" in short
+    # Nothing is tested within a repeat: the per-repeat table goes to the full form.
+    assert "Within each repeat there is no test (one technical repeat on a side)" in " ".join(
+        short.split()
+    )
     assert "sign-flip p" not in short.split("Within each repeat")[0]
     full = screen.summary(detail="full")
     assert "sign-flip" not in full and "siCCT8#5 vs siCTRL · siCCT8_1" in full

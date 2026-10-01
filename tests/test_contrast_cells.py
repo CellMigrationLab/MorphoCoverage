@@ -167,7 +167,9 @@ def test_a_pilot_of_one_repeat_leads_with_the_cell_level_test():
     assert text.startswith("Reading, condition by condition") and "Balance" not in text
     assert text.index("Cell-level test (as in Plot&Stats)") < text.index("contrast fields")
     assert (one.cells["chance_low"] < one.cells["chance_high"]).all()
-    assert "with one repeat s is unknown and taken as 0.25–0.5" in text
+    # The full report states the assumed variation between repeats.
+    full = " ".join(one.summary(detail="full").split())
+    assert "with one repeat s is unknown and taken as 0.25–0.5" in full
     assert "⚠️" not in one.summary()
 
 

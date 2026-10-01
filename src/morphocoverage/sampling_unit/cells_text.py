@@ -177,7 +177,26 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         names += [f"{words} per repeat, condition / control"] if full else []
         names.append(f"p ≤ {ALPHA:g} without an effect")
         lines.append(table(rows, names, indent=indent + 2))
-    return lines, _notes(contrast, cells, balanced)
+    return lines, (_notes if full else _short_notes)(contrast, cells, balanced)
+
+
+def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
+    """The same assumptions in a sentence each, for the short report (the full report and
+    docs/condition_tests.md give the formula and the simulations)."""
+    words = unit_plural(contrast.settings["observation_unit"])
+    text = (
+        f"The cell-level test treats the {words} as independent: it asks whether these wells "
+        "differ, not whether the effect repeats, and the 'without an effect' column says how "
+        "often it would be positive with no effect at the variation between repeats seen here. "
+        "Normalised: each value divided by the mean of its own repeat's control"
+    )
+    text += (
+        f". Balanced: the median over {BALANCED_DRAWS} draws with the same number of {words} "
+        "from each repeat, against the control of the condition's own repeats."
+        if balanced
+        else "."
+    )
+    return [assumption(text)]
 
 
 def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:

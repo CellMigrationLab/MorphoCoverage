@@ -125,7 +125,7 @@ def test_h3_one_technical_repeat_on_a_side_gets_no_test():
     ranking = feature_ranking(objects, fovs, features=["x", "y"], **common)
     assert ranking.tests["p_value"].isna().all() and not ranking.tests["passes_gate"].any()
     text = ranking.summary()
-    assert "Not ranked because no contrast could be tested (2 features)" in text
+    assert "Not ranked because no contrast could be tested (2 features:" in text
     assert "No contrast passes the gate" not in text
     # Without the technical-repeat column among the groups it is still the unit (audit 3,
     # H-1): the single treated well gets no test either.
@@ -395,8 +395,8 @@ def test_h15_untested_features_are_listed_as_untested():
     text = " ".join(result.summary().split())
     assert "No contrast passes the gate for 1 feature: w." in text
     assert (
-        "Not ranked because no contrast could be tested (1 feature): y (fewer than 2 fields "
-        "with observations on one side)."
+        "Not ranked because no contrast could be tested (1 feature: y): fewer than 2 fields "
+        "with observations on one side."
     ) in text
     contrast = condition_contrast(
         objects, fovs, feature="x", n_permutations=99, n_draws=5, object_counts=(10,), **common

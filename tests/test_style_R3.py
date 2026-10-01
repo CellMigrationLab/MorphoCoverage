@@ -192,7 +192,9 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     report = microscopist_report(contrast=contrast, inspection=inspection)
     short = report.summary()
     # The answer across biological repeats first, then the contrasts within each repeat.
-    assert report.short["conditions"].startswith("  Across the 2 biological repeats")
+    # The reading per condition leads, then the table across repeats.
+    assert report.short["conditions"].startswith("  Reading, condition by condition")
+    assert "Across the 2 biological repeats" in report.short["conditions"]
     assert "Within each repeat: x, each condition against the control" in _flat(short)
     assert "user's inference" not in _flat(short)
     assert _flat(short).count("compare means") == 1
