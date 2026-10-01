@@ -96,11 +96,28 @@ def test_a_control_from_repeats_the_condition_lacks_is_unbalanced():
     assert row["p_balanced"] > 0 and row["p_balanced_bonferroni"] == row["p_balanced"]
 
 
-def test_a_sparse_repeat_is_flagged_instead_of_balanced():
-    tiny = _side({"1": (100, 0.5), "2": (100, 0.5), "3": (8, 0.5)}, {"1": 90, "2": 90, "3": 90})
+def test_a_sparse_repeat_is_flagged_and_the_others_are_balanced():
+    """Repeat 3 holds 8 cells against 100: balancing down to it would keep 8 of every
+    repeat, so it is named and left out of the balanced test, which balances repeats 1-2."""
+    tiny = _side({"1": (100, 0.5), "2": (60, 0.5), "3": (8, 0.5)}, {"1": 90, "2": 90, "3": 90})
     row = _cells(KD=tiny).loc["KD"]
     assert row["unbalanced"] and row["sparse_repeats"] == ["3"]
-    assert np.isnan(row["d_balanced"]) and row["p_cells"] < 0.05
+    assert row["balanced_repeats"] == 2 and row["balanced_cells"] == 60
+    assert row["p_balanced"] < 0.05 and row["p_balanced_normalised"] < 0.05
+    # The test as provided keeps every cell, the sparse repeat's too.
+    assert row["observations"] == 168 and row["p_cells"] < 0.05
+
+
+def test_a_sparse_control_repeat_is_left_out_of_both_sides():
+    tiny = _side({"1": (40, 0.5), "2": (40, 0.5), "3": (40, 0.5)}, {"1": 40, "2": 40, "3": 4})
+    row = _cells(KD=tiny).loc["KD"]
+    assert row["sparse_repeats"] == ["3"] and row["balanced_repeats"] == 2
+
+
+def test_with_every_repeat_sparse_nothing_is_balanced():
+    tiny = _side({"1": (4, 0.5), "2": (3, 0.5)}, {"1": 4, "2": 3}, 1)
+    row = _cells(KD=tiny).loc["KD"]
+    assert row["unbalanced"] and row["balanced_repeats"] == 0 and np.isnan(row["p_balanced"])
 
 
 @pytest.fixture(scope="module")
@@ -193,3 +210,24 @@ def test_the_paired_t_on_normalised_means_is_on_log_ratios():
     signed = table.assign(control_mean=[10.0, -20.0, 41.0])
     [row] = across_repeats(signed, "biological_repeat", 0).to_dict("records")
     assert np.isnan(row["p_paired_t_normalised"]) and row["p_paired_t"] > 0
+
+
+def test_the_report_names_a_very_small_repeat_once_for_its_conditions():
+    data = catalog.load("cct7_cct8_glioma_cdm_tracks")
+    objects, fovs = data.tables
+    small = objects["biological_repeat"] == "CCT8_3"
+    cut = objects[small].groupby("condition", group_keys=False).head(5)
+    contrast = condition_contrast(
+        pd.concat([objects[~small], cut]),
+        fovs,
+        feature="Mean Speed",
+        control=data.control,
+        observation_unit="track",
+    )
+    cells = contrast.cells.set_index("condition")
+    assert cells.loc["siCCT8#5", "sparse_repeats"] == ["CCT8_3"]
+    assert cells.loc["siCCT8#5", "balanced_repeats"] == 2
+    joined = " ".join(contrast.summary().split())
+    assert joined.count("holds very few tracks") == 1
+    assert "siCCT8#5 and siCCT8#8: biological repeat CCT8_3 holds very few tracks" in joined
+    assert "the balanced test balances the other 2 biological repeats" in joined

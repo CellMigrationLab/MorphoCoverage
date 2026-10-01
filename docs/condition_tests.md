@@ -45,10 +45,17 @@ control's. They also count as unbalanced when the control is pooled from
 repeats the condition was not imaged in. Unbalanced data get the cell-level
 test twice. The first is as provided. The second is balanced: each condition
 against the control of its own repeats, with the same number of observations
-drawn from every repeat, as the median d and median p over 100 draws. A repeat
-holding under a quarter of the largest repeat (or fewer than 5 observations) is
-named instead of balanced down to, since balancing to it would discard most of
-the data.
+drawn from every repeat, as the median d and median p over 100 draws. Across
+the draws every observation is used, each repeat weighing the same in each.
+
+**Very small repeats.** Balancing down to a repeat that holds very few
+observations would keep only that many of every other repeat in each draw. A
+repeat holding under a quarter of the largest repeat on its side, or fewer than
+5 observations, is therefore named in the report, as worth checking first. It is
+kept in the test as provided and left out of the balanced one, which balances
+the other repeats. A small control repeat is left out of both sides, so each
+condition stays paired with its own repeats' control. When every repeat is that
+small, nothing is balanced and only the test as provided is given.
 
 ## Assumptions
 
@@ -98,6 +105,9 @@ the data.
 - **The balanced p is a median over draws**, which describes a typical draw. It
   is not the p of one test. Balancing removes the extra weight of the repeats
   holding more observations, not the independence assumption.
+- **Leaving out a very small repeat changes what is balanced.** The balanced
+  test then describes the other repeats; whether the small repeat agrees is
+  in the across-repeat table, where it counts as one repeat like the others.
 - **Alternatives were tried and not adopted.** A mixed model with a z test is
   inflated at 2-3 repeats, and with a t test it almost never rejects there. A
   hierarchical bootstrap is inflated with few repeats (22%, 12%, 5% at

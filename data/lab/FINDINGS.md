@@ -195,7 +195,8 @@ balance check comes first. The data count as unbalanced when one repeat holds mo
 observations than another, or when the control is pooled from repeats the condition was not
 imaged in. Unbalanced data get the test twice: as provided, and balanced (own-repeat control, the
 same count from each repeat, median over 100 draws). A repeat under a quarter of the largest is
-named instead of balanced to. All three datasets are unbalanced, and none has such a small repeat.
+named instead of balanced to (since the eighth run, it is left out of the balanced test and the
+other repeats are balanced). All three datasets are unbalanced, and none has such a small repeat.
 
 - **Filopodia screen**: each set's control is pooled from 18 repeats against the condition's own 3.
   Balancing turns siMAP4K4#5 from d -0.10 (Bonferroni p 1.0) to +0.80 (0.012), in line with its

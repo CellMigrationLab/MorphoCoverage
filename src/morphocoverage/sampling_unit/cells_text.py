@@ -24,7 +24,14 @@ from .._caveats import assumption
 from .._style import table, wrap
 from .._wording import column_word, count, listing, percent
 from ..schema import unit_plural
-from .contrast_cells import ALPHA, BALANCED_DRAWS, IMBALANCE, SPARSE, TYPICAL_BETWEEN
+from .contrast_cells import (
+    ALPHA,
+    BALANCED_DRAWS,
+    IMBALANCE,
+    MIN_BALANCED,
+    SPARSE,
+    TYPICAL_BETWEEN,
+)
 
 
 def _cells(contrast: Any) -> pd.DataFrame:
@@ -83,16 +90,26 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
 
 
 def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
-    """One sentence per condition with a repeat too small to balance to."""
+    """One sentence per repeat too small to balance to, naming the conditions it concerns."""
     word = column_word(contrast.settings["repeat_col"])
     words = unit_plural(contrast.settings["observation_unit"])
+    flagged = cells[cells["sparse_repeats"].map(len) > 0]
+    groups: dict[tuple[tuple[str, ...], int], list[str]] = {}
+    for row in flagged.to_dict("records"):
+        key = (tuple(str(r) for r in row["sparse_repeats"]), int(row["balanced_repeats"]))
+        groups.setdefault(key, []).append(str(row["condition"]))
     lines = []
-    for row in cells[cells["sparse_repeats"].map(len) > 0].to_dict("records"):
-        names = listing([str(r) for r in row["sparse_repeats"]], 3)
+    for (names, kept), conditions in groups.items():
+        rest = (
+            f"the balanced test balances the other {count(kept, word)}"
+            if kept
+            else "no other repeat is left to balance"
+        )
         lines.append(
-            f"{row['condition']}: {word} {names} holds very few {words} (under "
-            f"{percent(SPARSE)} of the largest {word}); balancing down to it would leave little "
-            "of the others, so it is not balanced: worth checking that repeat first."
+            f"{listing(conditions, 3)}: {word} {listing(list(names), 3)} holds very few {words} "
+            f"(under {percent(SPARSE)} of the largest {word}, or fewer than {MIN_BALANCED}), "
+            "worth checking first. Balancing down to it would leave little of the others, so it "
+            f"is kept in the test as provided and left out of the balanced one: {rest}."
         )
     return lines
 

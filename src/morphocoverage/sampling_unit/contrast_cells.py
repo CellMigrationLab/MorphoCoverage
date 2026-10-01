@@ -30,9 +30,11 @@ draws every observation is used.
 Balancing down to a repeat that holds very few observations would leave little
 of the others in each draw, so a repeat holding fewer than ``SPARSE`` (a
 quarter) of the largest repeat on its side, or fewer than ``MIN_BALANCED``
-observations, is *sparse*: it is named in ``sparse_repeats`` and the condition
-is not balanced (the test as provided only), since a repeat that small is
-worth looking at before any test.
+observations, is *sparse*: it is named in ``sparse_repeats`` (a repeat that
+small is worth looking at before any test) and left out of the balanced test
+only, which balances the other repeats (``balanced_repeats``). The test as
+provided keeps every observation. A sparse repeat on either side is left out of
+both sides, so each condition stays paired with its own repeats' control.
 
 It treats observations as independent draws. When the difference varies
 between repeats by ``s`` observation SDs (the variation between repeats that
@@ -89,6 +91,7 @@ CELL_COLUMNS = [
     "other_control_repeats",
     "unbalanced",
     "sparse_repeats",
+    "balanced_repeats",
     "balanced_cells",
     "balanced_control_cells",
     "d_balanced",
@@ -173,20 +176,23 @@ def _tests(
     by_t: dict[Any, np.ndarray],
     by_c: dict[Any, np.ndarray],
     every_control: dict[Any, np.ndarray],
-    balance: bool,
+    kept: list[Any],
     n_permutations: int,
     rng: np.random.Generator,
 ) -> tuple[float, float, float, float, int, int]:
     """``(d, p, d balanced, p balanced, cells, control cells)`` on one set of values: every
-    observation pooled, and when ``balance`` the balanced draws."""
+    observation pooled, and the balanced draws over the ``kept`` repeats (none when
+    empty)."""
     treated = np.concatenate(list(by_t.values()))
     control = np.concatenate(list(every_control.values()))
     d, p = cell_randomization(treated, control, n_permutations, rng)
     per_t = min(len(x) for x in by_t.values())
     per_c = min(len(x) for x in by_c.values())
     d_bal = p_bal = np.nan
-    if balance:
-        d_bal, p_bal, per_t, per_c = balanced_test(list(by_t.values()), list(by_c.values()), rng)
+    if kept:
+        d_bal, p_bal, per_t, per_c = balanced_test(
+            [by_t[r] for r in kept], [by_c[r] for r in kept], rng
+        )
     return d, p, d_bal, p_bal, per_t, per_c
 
 
@@ -197,7 +203,8 @@ def cell_table(
     rng_for: Any,
 ) -> pd.DataFrame:
     """One row per condition: the cell-level test pooled as provided, the balance check and,
-    when unbalanced without a sparse repeat, the balanced test, each on raw and normalised
+    when unbalanced, the balanced test over the repeats that are not sparse, each on raw and
+    normalised
     values; and the chance of p <= 0.05 without an effect. ``pooled`` maps a condition to
     its observations and the control's per repeat it was imaged in (``treated_by_repeat``,
     ``control_by_repeat``: repeat -> values), every control observation of the dataset by
@@ -218,15 +225,15 @@ def cell_table(
         others = len(every) - len(control_sizes)
         unbalanced = bool(spread > IMBALANCE or others > 0)
         small = sorted(set(sparse(sizes)) | set(sparse(control_sizes)), key=str)
-        balance = unbalanced and not small
+        kept = [r for r in by_t if r not in small] if unbalanced else []
         d, p, d_bal, p_bal, per_t, per_c = _tests(
-            by_t, by_c, every, balance, n_permutations, rng_for(condition, "raw")
+            by_t, by_c, every, kept, n_permutations, rng_for(condition, "raw")
         )
         scaled = normalised(by_t, every), normalised(by_c, every), normalised(every, every)
         d_n = p_n = d_bal_n = p_bal_n = np.nan
         if all(x is not None for x in scaled):
             d_n, p_n, d_bal_n, p_bal_n, _, _ = _tests(
-                *scaled, balance, n_permutations, rng_for(condition, "normalised")
+                *scaled, kept, n_permutations, rng_for(condition, "normalised")
             )
         s = float(between.get(condition, np.nan)) if condition in between.index else np.nan
         per_well = float(
@@ -251,6 +258,7 @@ def cell_table(
                 "other_control_repeats": others,
                 "unbalanced": unbalanced,
                 "sparse_repeats": small,
+                "balanced_repeats": len(kept),
                 "balanced_cells": per_t,
                 "balanced_control_cells": per_c,
                 "d_balanced": d_bal,
