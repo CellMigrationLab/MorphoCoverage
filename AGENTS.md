@@ -15,7 +15,7 @@
 | Lint | `python -m ruff check src tests data` and `python -m ruff format --check src tests data` (ruff pinned in `pyproject.toml`; run it as `python -m ruff`, since a `ruff` on the PATH may be another version and format differently; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
-Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; imported only by `morphocoverage.plots` and `workflows/figures.py`, so importing `morphocoverage.workflows` loads it while the core, `retrospective` and `sampling_unit` do not; added 2026-09-26 at the project owner's request for the PlotsOfData-style figures); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
+Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; imported only by `morphocoverage.plots`, `plots_embedding` and `workflows/figures.py`, so importing `morphocoverage.workflows` loads it while the core, `retrospective` and `sampling_unit` do not; added 2026-09-26 at the project owner's request for the PlotsOfData-style figures), `umap-learn` (runtime, required; imported only inside `embedding._umap`, since loading it takes seconds; added 2026-10-01 at the project owner's request for the UMAP beside the PCA, which brings scikit-learn and numba in as its own dependencies); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. The package itself does not import scikit-learn (it comes only with `umap-learn`), and there is deliberately no Torch dependency: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
 
 MorphoCoverage is deliberately independent of CellPatcher, fiberfeatures, Nyxus, CellProfiler, DINO, Torch, microscopy file formats, segmentation tools, and microscope-control software.
 
@@ -110,7 +110,8 @@ MorphoCoverage does not replace the user's final biological inference workflow, 
 - **within each repeat**, Cohen's d and the JCS effect size on objects, field means and technical-repeat means, with a randomization test over whole technical repeats only when its smallest p can reach 0.05 after Bonferroni (4 a side for one contrast), over whole fields only without a technical-repeat column;
 - with a `target` column, whether independent reagents for one target are on the same side of the control in every repeat (described, not tested);
 - **one reading per condition** that puts these together (`reading_text`): confirmed across repeats (the paired test, normalised, Bonferroni p <= 0.05), same direction in every repeat but not confirmed, no consistent direction, or one repeat; then the evidence, and when the raw pooled test disagrees, what it does differently;
-- planning the next experiment at the design the user ran (`repeat_plan`; see "Pilots get advice", section 3).
+- planning the next experiment at the design the user ran (`repeat_plan`; see "Pilots get advice", section 3);
+- **with several features, which of them separate the conditions** (`discovery`, owner decision of 2026-10-01): every feature and condition by the cell-level test in the version the readings trust most (normalised, balanced when unbalanced), Benjamini-Hochberg over all of them as the discovery gate, ranked by |d|; the paired t on the repeat means, corrected the same way, beside it as the second gate ("confirmed across repeats"), and the direction in each repeat. The plots draw the best-ranked (`plots(..., ranking=report.discovery)`), and `embedding_plots` the PCA (the best-ranked as arrows) and UMAP of all the features. The ranking over whole technical repeats (`ranking`) is shown only when there are wells to shuffle.
 
 The cell-level test answers whether these wells differ, not whether the effect repeats: its false-positive chance is always printed beside it, and only the paired test across repeats confirms a difference. With a control, question 2 asks whether the fields acquired resolve the difference from the control in each repeat (`contrast_sampling`: a bootstrap over fields as acquired, and the fields a side a resolution would need).
 
@@ -244,6 +245,8 @@ src/morphocoverage/
     statistics.py          # shared statistics, written once: effect sizes, tolerances, whole-field sampling and bootstrap, variance components, design effect, JCB counts, detection counts, field-level JCB estimands
     normalize.py           # features divided by the control condition's mean, biological repeat by biological repeat
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
+    embedding.py           # PCA and UMAP of the declared features (embed): coordinates and loadings, no figure
+    plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
         __init__.py        # the subpackage's public names
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
@@ -297,7 +300,8 @@ src/morphocoverage/
         repeat_plan_text.py  # its words
         contrast_sampling.py  # question 2 with a control: do the fields acquired resolve the difference per repeat?
         _reach.py          # private: run a test only when the design lets its smallest p reach 0.05 after Bonferroni
-        ranking.py         # which features separate the conditions: BH-gated |d| ranking (as fiberfeatures)
+        ranking.py         # which features separate the conditions: BH-gated |d| ranking over whole technical repeats
+        discovery.py       # the same question by the cell-level gate (BH), the paired t on repeat means beside it
         _units.py          # private: sides, units and the randomization test shared by contrast and ranking
         unusual.py         # unusual (out-of-distribution) objects against a declared reference (unusual_objects)
         clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered

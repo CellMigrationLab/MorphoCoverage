@@ -15,7 +15,10 @@
    the readout among them; what one row is, when not declared; and for a fingerprint, its
    tolerance (no default has a published meaning, so the user states it).
 5. **Save** the answers to ``ANSWERS_FILE`` in the folder, then run the **report** with the
-   ``Setup`` they make, and save it (``report_short.txt``, ``report_full.txt``).
+   ``Setup`` they make, and save it (``report_short.txt``, ``report_full.txt``) with its
+   figures in ``figures/``: the readout and the best-ranked features (``plots`` with the
+   report's discovery) and, with three or more features, the PCA and UMAP
+   (``embedding_plots``).
 
 Every question has a default the user takes with Enter. ``ask`` and ``say`` are the
 input and output functions (``input`` and ``print`` by default; a notebook cell works the
@@ -39,9 +42,11 @@ from typing import Any
 import pandas as pd
 
 from .._wording import percent
+from ..embedding import MIN_FEATURES
 from ..multivariate_outcomes import CovarianceError
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
+from .figures import embedding_plots, plots
 from .retrospective import Report, report
 from .scan import DesignScan, scan_design
 from .setup import Setup, default_novelty
@@ -312,8 +317,31 @@ def guide(
     (folder / "report_short.txt").write_text(result.summary() + "\n")
     (folder / "report_full.txt").write_text(result.summary(detail="full") + "\n")
     say(result.summary())
-    say(f"Saved in {folder}: scan.txt, report_short.txt, report_full.txt, {ANSWERS_FILE}.")
+    figures = _figures(scan, setup, result, folder / "figures")
+    say(
+        f"Saved in {folder}: scan.txt, report_short.txt, report_full.txt, {ANSWERS_FILE}"
+        + (f", and in figures/: {', '.join(figures)}." if figures else ".")
+    )
     return GuidedResult(folder, scan, answers, setup, result)
+
+
+def _figures(scan: DesignScan, setup: Setup, result: Report, folder: Path) -> list[str]:
+    """The readout and the discovery's best-ranked features, and with ``MIN_FEATURES``
+    features the PCA and UMAP, saved in ``folder``; the file names."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        drawn = plots(scan.objects, scan.fovs, setup, ranking=result.discovery, folder=folder)
+        names = [
+            f"{feature}{f'_{i}' if len(parts) > 1 else ''}.png"
+            for feature, parts in drawn.items()
+            for i in range(1, len(parts) + 1)
+        ]
+        if len(setup.columns) >= MIN_FEATURES:
+            embedding_plots(
+                scan.objects, scan.fovs, setup, discovery=result.discovery, folder=folder
+            )
+            names += ["pca.png", "umap.png"]
+    return names
 
 
 __all__ = [

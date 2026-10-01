@@ -69,13 +69,13 @@ from .._wording import count, listing, percent
 from ..sampling_unit import (
     ConditionContrast,
     DescriptorSpreadCheck,
+    FeatureDiscovery,
     FeatureRanking,
     FOVClustering,
     FOVVariability,
     ObjectRuleCheck,
     UnusualObjects,
 )
-from ..sampling_unit.contrast_text import contrast_parts
 from ..schema import unit_plural
 from ..sufficiency import SufficiencyReport
 from .adequacy import AdequacyResult
@@ -88,7 +88,7 @@ from .order_text import order_parts
 from .overview import DatasetOverview
 from .protocol import ProtocolResult
 from .reliability import ReliabilityResult
-from .report_answers import limits_text, short_section
+from .report_answers import conditions_sections, limits_text, short_section
 from .report_enough import enough_full, enough_short
 from .report_plan import bought_short, effort_short, next_time_short
 from .report_profile import (  # noqa: F401  (private helpers re-exported for callers)
@@ -313,6 +313,7 @@ def microscopist_report(
     clustering: FOVClustering | None = None,
     contrast: ConditionContrast | None = None,
     ranking: FeatureRanking | None = None,
+    discovery: FeatureDiscovery | None = None,
     overview: DatasetOverview | None = None,
     minimum_detection: float = 0.9,
     declaration: Sequence[str] = (),
@@ -350,6 +351,7 @@ def microscopist_report(
         (clustering, FOVClustering, "clustering"),
         (contrast, ConditionContrast, "contrast"),
         (ranking, FeatureRanking, "ranking"),
+        (discovery, FeatureDiscovery, "discovery"),
         (overview, DatasetOverview, "overview"),
     ):
         _check(value, kind, name)
@@ -389,14 +391,9 @@ def microscopist_report(
     profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
     if len(profile) or unusual is not None or clustering is not None:
         parts["profile"].append("profile")  # its text, wrapped at its indent, is set below
-    if contrast is not None:
-        parts["conditions"].append(contrast.summary(detail="full"))
-    if ranking is not None:
-        parts["conditions"].append(ranking.summary(detail="full"))
-    if contrast is not None or ranking is not None:
-        answers = [contrast_parts(contrast, indent=2)] if contrast is not None else []
-        answers += [ranking.short_parts(indent=2)] if ranking is not None else []
-        short["conditions"] = short_section(answers)
+    parts["conditions"], conditions = conditions_sections(contrast, ranking, discovery)
+    if conditions:
+        short["conditions"] = conditions
     # Redundancy alone feeds the profile; question 8 is answered by an order replay.
     frame = assumption(
         "Whether these were the right positions needs every candidate position from an "
@@ -507,6 +504,7 @@ def microscopist_report(
         "efficiency": efficiency,
         "contrast": contrast,
         "ranking": ranking,
+        "discovery": discovery,
     }
     # One "Assumptions:" block per section, after its answers; a caution raises its status.
     sections = {key: pool_assumptions(text) for key, text in sections.items()}

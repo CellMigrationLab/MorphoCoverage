@@ -189,7 +189,7 @@ What this acquisition was asked to preserve
     so look at them first: siCCT8#5 · 1 · single · siCCT8#5|1|cell007 and
     siCCT8#5 · 1 · single · siCCT8#5|1|cell008.
 
-✅ 9. Do the conditions differ, and how confidently?
+⚠️ 9. Do the conditions differ, and how confidently?
   Feature Area, each condition against the control {'condition': 'siCTRL'}, within each biological
     repeat. The fields of a condition's analysis groups are pooled for this comparison. Objects are
     compared as Plot&Stats does and, since a microscope acquires them through fields, with the field
@@ -241,15 +241,26 @@ What this acquisition was asked to preserve
     siCCT8#5 vs siCTRL  -0.57          too small to settle       sampling (more fields help)  9               7
     siCCT8#8 vs siCTRL  -0.59          about 56                  sampling (more fields help)  7               5
 
-  Which features separate the conditions? Each of the 10 declared features, every condition against
-    the control {'condition': 'siCTRL'} within each biological repeat: Cohen's d on field means and a
-    randomization test over whole technical repeats (technical_repeat) as in the contrast above,
-    though no contrast could be tested; a test passes the gate when q <= 0.05 (fiberfeatures' gated
-    effect size). Features are ranked by the largest |d| among their passing contrasts (|d| above 20
-    counts as 20).
-    Not ranked because no contrast could be tested (10 features: AR, Area, Circ., Feret, Major,
-      MinFeret, Minor, Perim., Round, Solidity): only one technical repeat (technical_repeat) with
-      observations on one side: its fields cannot stand in for technical repeats, so there is no test.
+  Which features separate the conditions? 9 of 10 features pass the cell-level gate (q ≤ 0.05,
+    Benjamini-Hochberg over 20 tests: each condition against the control (siCTRL), Cohen's d on the
+    observations and a randomization test over them, normalised to each repeat's control and balanced
+    over the repeats where they are not), ranked by |d| (capped at 20); the paired t on the repeat
+    means is the second gate:
+    rank  feature       d  condition  q cells  q paired  repeats
+       1  Round     +2.14  siCCT8#8     0.002     0.015  3 of 3 higher
+       2  AR        -1.85  siCCT8#5     0.002     0.015  3 of 3 lower
+       3  Major     -1.76  siCCT8#5     0.002     0.027  3 of 3 lower
+       4  Feret     -1.69  siCCT8#8     0.002     0.009  3 of 3 lower
+       5  Circ.     +1.19  siCCT8#5     0.002     0.138  3 of 3 higher
+       6  Solidity  +1.03  siCCT8#5     0.002     0.138  3 of 3 higher
+       7  Minor     +0.83  siCCT8#8     0.002     0.138  3 of 3 higher
+       8  Perim.    -0.64  siCCT8#5     0.004     0.188  3 of 3 lower
+       9  Area      -0.56  siCCT8#8     0.020     0.182  3 of 3 lower
+    Confirmed across repeats (paired q ≤ 0.05): 4 features (Round, AR, Major and Feret).
+  No contrast passes the gate for 1 feature: MinFeret.
+  Plotted by default: the readout and up to 5 best-ranked features.
+  ⚠️ Passing, but lower in some repeats and higher in others: Perim. (siCCT8#8) and Circ. (siCCT8#8);
+     a shift between repeats, not a consistent effect.
   Assumptions:
     - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) treats
       each biological repeat as one replicate and assumes the differences (raw) or the log ratios to
@@ -290,6 +301,10 @@ What this acquisition was asked to preserve
       (narrowing as 1/sqrt(fields)); limited by: whether the repeats' d differ more than their
       sampling error, which more fields cannot reduce. Both are estimated from the repeats here, so
       the plan is a guide.
+    - The cell-level gate treats every observation as an independent draw: it finds candidates, and
+      when a difference varies between repeats it passes more often than 0.05 without an effect
+      (question 9 gives that chance for the readout). The paired t on the repeat means holds its
+      rate, but needs 3 or more repeats and has little power with 3.
 
 What this dataset cannot tell me
   ➖ Foundation: why count fields, and not only objects?: not assessed; needs: run fov_variability
