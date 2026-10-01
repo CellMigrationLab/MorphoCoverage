@@ -184,7 +184,10 @@ What this acquisition was asked to preserve
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
 
-  The data-integrity checks (in the overview) name 2 fields in 1 finding (fields that hold another field's observations, or their own twice); every answer here counts them as independent fields, so look at them first: condition=siCCT8#5, biological_repeat=1, technical_repeat=single, position_id=siCCT8#5|1|cell007 and condition=siCCT8#5, biological_repeat=1, technical_repeat=single, position_id=siCCT8#5|1|cell008.
+  The data-integrity checks (in the overview) name 2 fields in 1 finding (fields that hold another
+    field's observations, or their own twice); every answer here counts them as independent fields,
+    so look at them first: siCCT8#5 · 1 · single · siCCT8#5|1|cell007 and
+    siCCT8#5 · 1 · single · siCCT8#5|1|cell008.
 
 ✅ 9. Do the conditions differ, and how confidently?
   Feature Area, each condition against the control {'condition': 'siCTRL'}, within each biological
@@ -192,6 +195,15 @@ What this acquisition was asked to preserve
     compared as Plot&Stats does and, since a microscope acquires them through fields, with the field
     as the unit and, where each side has at least two, with the technical repeat (technical_repeat) as
     the unit.
+  Reading, condition by condition, against siCTRL (paired test: Bonferroni, on normalised values;
+    cell-level: the version below that is least biased by the repeats):
+    - siCCT8#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -0.57); paired test p 0.42; cell-level p 0.071 (balanced, normalised; false-positive chance
+      about 14% here); the raw pooled test gives p 0.04, but it lets the repeat with most cells weigh
+      more; siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
+    - siCCT8#8 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -0.59); paired test p 0.22; cell-level p 0.031 (balanced, normalised; false-positive chance
+      about 5% here); siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
     condition           vs control, by repeat  d cells: mean (range)   paired t p (Bonf.)  normalised
@@ -235,24 +247,9 @@ What this acquisition was asked to preserve
     though no contrast could be tested; a test passes the gate when q <= 0.05 (fiberfeatures' gated
     effect size). Features are ranked by the largest |d| among their passing contrasts (|d| above 20
     counts as 20).
-    Not ranked because no contrast could be tested (10 features): AR (only one technical repeat
-      (technical_repeat) with observations on one side: its fields cannot stand in for technical
-      repeats, so there is no test), Area (only one technical repeat (technical_repeat) with
-      observations on one side: its fields cannot stand in for technical repeats, so there is no
-      test), Circ. (only one technical repeat (technical_repeat) with observations on one side: its
-      fields cannot stand in for technical repeats, so there is no test), Feret (only one technical
-      repeat (technical_repeat) with observations on one side: its fields cannot stand in for
-      technical repeats, so there is no test), Major (only one technical repeat (technical_repeat)
-      with observations on one side: its fields cannot stand in for technical repeats, so there is no
-      test), MinFeret (only one technical repeat (technical_repeat) with observations on one side: its
-      fields cannot stand in for technical repeats, so there is no test), Minor (only one technical
-      repeat (technical_repeat) with observations on one side: its fields cannot stand in for
-      technical repeats, so there is no test), Perim. (only one technical repeat (technical_repeat)
-      with observations on one side: its fields cannot stand in for technical repeats, so there is no
-      test), Round (only one technical repeat (technical_repeat) with observations on one side: its
-      fields cannot stand in for technical repeats, so there is no test), Solidity (only one technical
-      repeat (technical_repeat) with observations on one side: its fields cannot stand in for
-      technical repeats, so there is no test).
+    Not ranked because no contrast could be tested (10 features: AR, Area, Circ., Feret, Major,
+      MinFeret, Minor, Perim., Round, Solidity): only one technical repeat (technical_repeat) with
+      observations on one side: its fields cannot stand in for technical repeats, so there is no test.
   Assumptions:
     - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) treats
       each biological repeat as one replicate and assumes the differences (raw) or the log ratios to
@@ -304,13 +301,6 @@ What this dataset cannot tell me
      profile lists what they measured.
   ❌ Data integrity: the checks in the overview name 2 fields in 1 finding (fields that hold another
      field's observations, or their own twice), and every answer counts them as independent fields.
-  ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
-     and this definition of new cannot see.
-  ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
-     redundancy and dispersed orders were not assessed.
-  ⚠️ No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
-     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
-     not seen.
   ⚠️ 2. Did I image enough? 'nothing new' is left out: the definition of new needs 3 similar cells
      in one field, and each field holds one.
   Assumptions:
@@ -319,7 +309,14 @@ What this dataset cannot tell me
       Statements across samples count samples or repeats.
     - A field count that preserved this acquisition is not a protocol until it holds on samples it
       was not chosen on.
+    - No representation control: a 'nothing new' answer says nothing about phenotypes these features
+      and this definition of new cannot see.
     - Technical drift between repeats, batches or plates is not assessed: groups are analysed apart,
       and a shift shared by all fields of a group is not new within it.
+    - No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
+      redundancy and dispersed orders were not assessed.
+    - No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
+      random orders treat the fields as exchangeable, so a drift or a raster along the acquisition
+      is not seen.
 
 Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.

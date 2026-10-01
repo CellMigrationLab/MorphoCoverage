@@ -1222,11 +1222,12 @@
       in 20% of hold-outs); P13 · 2B (all fields enough in 30% of hold-outs).
     For 3 biological repeats, the others reached no number that served enough technical repeats, so
       nothing was checked there.
-  ⚠️ Uncertainty is large with only 3 biological repeats: add more before fixing a protocol.
   Assumptions:
     - Fields are treated as random draws, as random-position sampling does.
     - The shares are conservative by construction: the held-back fields are a sample too, and their
       own error counts against the drawn fields, so a field count read from this curve errs high.
+    - With 3 biological repeats the field count is a guide: it rests on these biological repeats, so
+      check it on the next experiment before fixing a protocol.
 
 ✅ 5. What did the extra fields buy?
   Analysis groups: condition · biological_repeat · technical_repeat.
@@ -1418,7 +1419,7 @@
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
 
-⚠️ 7. More fields or more samples?
+✅ 7. More fields or more samples?
   MOCK: more fields or more samples, for the mean YAPTAZ_Ratio?
     Most of the uncertainty of the mean is between fields within a sample (54% of its variance with
       the acquired design; not established: only 3 samples, its interval includes zero).
@@ -1520,6 +1521,17 @@
     Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
     the field as the unit and, where each side has at least two, with the technical repeat
     (technical_repeat) as the unit.
+  Reading, condition by condition, against MOCK (paired test: Bonferroni, on normalised values;
+    cell-level: the version below that is least biased by the repeats):
+    - LATS1 — same direction in every repeat, not confirmed: higher in 2 of 2 biological repeats (d
+      1.00); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
+      false-positive chance about 83% here).
+    - YAP — same direction in every repeat, not confirmed: lower in 2 of 2 biological repeats (d
+      -1.35); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
+      false-positive chance about 79% here).
+    - ARAP2 — same direction in every repeat, not confirmed: higher in 2 of 2 biological repeats (d
+      0.32); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
+      false-positive chance about 5% here).
   Across the 2 biological repeats (each repeat's value is the mean of its nuclei, paired with the
     control of the same repeat):
     condition      vs control, by repeat  d nuclei: mean (range)
@@ -1624,7 +1636,9 @@
       the plan is a guide.
 
 What this dataset cannot tell me
-  Every question could be answered; the assumptions each answer rests on are listed with it.
+  ➖ 9. Do the conditions differ, and how confidently?: not assessed; needs: declare a control
+     condition and run condition_contrast on data with more than one condition, with analysis groups
+     that keep conditions and repeats apart.
   Assumptions:
     - Every answer holds for the stated features, tolerances and definition of new.
     - Replays, draws and hold-outs describe these samples; they are not independent experiments.
