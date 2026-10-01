@@ -11,12 +11,12 @@ import pandas as pd
 from .._style import Status, span
 from .._wording import column_word, count
 from ..sampling_unit._units import opposite_signs
-from ..sampling_unit.cells_text import cells_headline
 from ..sampling_unit.contrast_text import (
     P_ALPHA,
     across_tested,
     design_limited,
 )
+from ..sampling_unit.reading_text import readings_headline
 from ..sampling_unit.reagents_text import reagents_headline
 
 Answer = tuple[Status, str]
@@ -72,14 +72,15 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
         table = contrast.table
         across = getattr(contrast, "repeats", None)
         answered = across_tested(contrast)
-        if across is not None and len(across):
-            parts.append(across_headline(across, contrast.settings["repeat_col"]))
+        reading = readings_headline(contrast)
+        if reading:
+            # The verdict per condition, read from every test (``reading_text``).
+            parts.append(reading)
             agreeing = reagents_headline(contrast)
             if agreeing:
                 parts.append(agreeing)
-            cell_level = cells_headline(contrast)
-            if cell_level:
-                parts.append(cell_level)
+        elif across is not None and len(across):
+            parts.append(across_headline(across, contrast.settings["repeat_col"]))
         else:
             sizes = table["d_fields"].abs().dropna()
             size = f", |d| on field means {span(sizes)}" if len(sizes) else ""
@@ -107,7 +108,13 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
         parts.append("no condition to compare with the control")
     if ranking is not None and len(ranking.ranking):
         passing = int(ranking.ranking["score"].notna().sum())
-        parts.append(f"{passing} of {count(len(ranking.ranking), 'feature')} pass the gate")
+        n_features = count(len(ranking.ranking), "feature")
+        # Untested is not failed: say so rather than "0 of n pass".
+        parts.append(
+            f"{passing} of {n_features} pass the gate"
+            if ranking.ranking["tests"].any()
+            else f"{n_features} not ranked (no contrast could be tested)"
+        )
         if not ranking.ranking["tests"].any() and not (
             limited or (contrast is not None and across_tested(contrast))
         ):

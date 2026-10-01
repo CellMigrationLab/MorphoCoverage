@@ -126,11 +126,10 @@ def test_question_9_leads_with_the_answer_across_repeats(screen):
     status, headline = conditions_status(screen, None)
     assert status.name == "OK"
     assert headline == (
-        "12 conditions across 3 biological repeats: 12 in the same direction in every repeat "
-        "(8 lower, 4 higher than the control); paired t on the repeat means, raw / normalised: "
-        "0 / 0 of 12 at Bonferroni p ≤ 0.05; reagents agree in every repeat for 6 of 6 targets; "
-        "cell-level test, raw / normalised: 9 / 12 of 12 at Bonferroni p ≤ 0.05 (balanced over "
-        "the repeats: 10 / 11)"
+        "12 conditions across 3 biological repeats: same direction in every repeat, not "
+        "confirmed: siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5 and 4 more (lower); "
+        "siMAP4K4#5, siMAP4K4#6, siNF2#17 and siNF2#7 (higher); reagents agree in every repeat "
+        "for 6 of 6 targets"
     )
 
 
@@ -142,7 +141,7 @@ def test_two_repeats_and_one_coverslip_are_described_not_flagged(screen):
     )
     status, headline = conditions_status(two, None)
     assert status.name == "NOT_ASSESSED"
-    assert "12 in the same direction in every repeat" in headline
+    assert "12 conditions across 2 biological repeats: same direction in every repeat" in headline
     assert "within repeats: not tested (one technical repeat on a side)" in headline
     assert "⚠️" not in two.summary()
     assert "the paired test across repeats needs 3" in " ".join(two.summary().split())
