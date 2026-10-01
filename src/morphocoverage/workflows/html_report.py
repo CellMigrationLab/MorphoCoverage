@@ -25,7 +25,9 @@ from __future__ import annotations
 import base64
 import html
 import json
+import time
 import warnings
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -36,6 +38,7 @@ import pandas as pd
 from .._style import Status
 from .._wording import percent
 from ..embedding import MIN_FEATURES, Embedding, embed
+from ..glossary import GLOSSARY
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
@@ -66,14 +69,93 @@ def _save(figure: Any, folder: Path, name: str) -> str:
     return f"data:image/png;base64,{data}"
 
 
+def _download(path: str, label: str) -> str:
+    """A button that saves the file the page carries at ``path`` (``_files``)."""
+    return (
+        f'<button type="button" class="dl" data-file="{html.escape(path)}">'
+        f"{html.escape(label)}</button>"
+    )
+
+
 def _figure(uri: str, name: str, caption: str) -> str:
     return (
-        f'<figure><a href="figures/{html.escape(name)}.png" title="Open the full size figure">'
-        f'<img src="{uri}" alt="{html.escape(caption)}" loading="lazy"></a>'
+        f'<figure><img src="{uri}" alt="{html.escape(caption)}" loading="lazy">'
         f"<figcaption>{html.escape(caption)} · "
-        f'<a href="figures/{html.escape(name)}.pdf">PDF</a> · '
-        f'<a href="figures/{html.escape(name)}.png">PNG</a></figcaption></figure>'
+        f"{_download(f'figures/{name}.pdf', 'PDF')} {_download(f'figures/{name}.png', 'PNG')}"
+        "</figcaption></figure>"
     )
+
+
+_TYPES = {
+    ".png": "image/png",
+    ".pdf": "application/pdf",
+    ".txt": "text/plain",
+    ".csv": "text/csv",
+    ".json": "application/json",
+}
+
+
+def _files(
+    folder: Path, texts: dict[str, str], attach: Sequence[Path], since: float
+) -> dict[str, list[str]]:
+    """Every file the page carries, by the path it is saved under: the figures this run wrote
+    in ``folder/figures`` (modified at or after ``since``, so an older run's are left out), the
+    ``texts`` written here, and the ``attach`` files."""
+    files: dict[str, list[str]] = {}
+    for path in sorted((folder / "figures").glob("*")):
+        if path.suffix in _TYPES and path.stat().st_mtime >= since:
+            data = base64.b64encode(path.read_bytes()).decode()
+            files[f"figures/{path.name}"] = [_TYPES[path.suffix], data]
+    for name, text in texts.items():
+        mime = _TYPES.get(Path(name).suffix, "text/plain")
+        files[name] = [mime, base64.b64encode(text.encode("utf-8")).decode()]
+    for path in attach:
+        path = Path(path)
+        if path.exists():
+            mime = _TYPES.get(path.suffix, "application/octet-stream")
+            files[path.name] = [mime, base64.b64encode(path.read_bytes()).decode()]
+    return files
+
+
+def _files_card(files: dict[str, list[str]]) -> str:
+    rows = "".join(
+        f'<tr><td>{html.escape(name)}</td><td class="num">'
+        f"{len(base64.b64decode(data)) / 1024:.0f} kB</td><td>{_download(name, 'Save')}</td></tr>"
+        for name, (_, data) in files.items()
+    )
+    return (
+        '<section class="card" id="files"><h2>Files</h2><p class="note">Everything this report '
+        "was made with and from is inside this page: save any file with its button, no folder "
+        "needed. The same files are in the results folder and its zip.</p>"
+        '<div class="table-wrap"><table class="sortable"><thead><tr><th>file</th><th>size</th>'
+        f"<th></th></tr></thead><tbody>{rows}</tbody></table></div></section>"
+    )
+
+
+def _glossary_card() -> str:
+    parts = ['<section class="card" id="glossary"><h2>Glossary</h2>']
+    section = None
+    for term in GLOSSARY:
+        if term.section != section:
+            if section is not None:
+                parts.append("</dl>")
+            section = term.section
+            parts.append(f'<h3>{html.escape(section)}</h3><dl class="glossary">')
+        refs = "; ".join(
+            f'<a href="{html.escape(r.url)}" target="_blank" rel="noopener">'
+            f"{html.escape(r.text)}</a>"
+            if r.url
+            else html.escape(r.text)
+            for r in term.references
+        )
+        parts.append(
+            f"<dt>{html.escape(term.name)}</dt><dd>{html.escape(term.meaning)}"
+            f'<span class="where">Where: {html.escape(term.where)}.</span>'
+            + (f'<span class="refs">See: {refs}</span>' if refs else "")
+            + "</dd>"
+        )
+    parts.append("</dl></section>")
+    return "".join(parts)
 
 
 def _feature_figures(result: Report, objects, fovs, folder: Path) -> list[str]:
@@ -254,16 +336,20 @@ def html_report(
     folder: str | Path,
     *,
     title: str = "MorphoCoverage report",
+    attach: Sequence[str | Path] = (),
 ) -> Path:
     """Write ``folder/report.html`` and its figures (see the module); returns the page's path.
 
-    ``objects`` and ``fovs`` are the tables the ``report`` was run on.
+    ``objects`` and ``fovs`` are the tables the ``report`` was run on; ``attach`` are more files
+    the page carries for download (the design scan, the saved answers).
     """
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
     folder = Path(folder)
     figures = folder / "figures"
     figures.mkdir(parents=True, exist_ok=True)
+    # Allow for file systems that store modification times to the second.
+    started = time.time() - 1
     doc = result.document
     keys = [k for k in REPORT_QUESTIONS if k in doc.sections]
     with warnings.catch_warnings():
@@ -288,7 +374,12 @@ def html_report(
                 f'<br>{chip(status)}</span><span class="a">'
                 f"{html.escape(doc.headlines.get(key, ''))}</span></a>"
             )
-    nav.append('<a href="#limits"><span class="icon"></span><span>What it cannot tell</span></a>')
+    for anchor, label in (
+        ("limits", "What it cannot tell"),
+        ("glossary", "Glossary"),
+        ("files", "Files"),
+    ):
+        nav.append(f'<a href="#{anchor}"><span class="icon"></span><span>{label}</span></a>')
     nav.append("</nav>")
     overview_short = doc.short.get("overview") or doc.overview or ""
     subtitle = _first_sentence(overview_short)
@@ -331,6 +422,15 @@ def html_report(
     cards.append(
         _section("limits", LIMITS_TITLE, None, limits, doc.limits(list(REPORT_QUESTIONS), "full"))
     )
+    cards.append(_glossary_card())
+    texts = {
+        "report_short.txt": result.summary() + "\n",
+        "report_full.txt": result.summary(detail="full") + "\n",
+    }
+    if result.discovery is not None and len(result.discovery.tests):
+        texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
+    files = _files(folder, texts, [Path(p) for p in attach], started)
+    cards.append(_files_card(files))
     stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     page = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -340,11 +440,14 @@ def html_report(
         '<header class="top"><button type="button" class="theme-toggle">Light / dark</button>'
         f'<h1>{html.escape(title)}</h1><p class="sub">{html.escape(subtitle)}</p>'
         f'<p class="meta">Generated {stamp} by MorphoCoverage. The same answers as the text '
-        "report; figures in figures/ as PNG and PDF.</p></header>"
+        "report; every figure and file is inside this page (Files).</p></header>"
         + "".join(cards)
         + "<footer>"
         + html.escape(_settings(result))
-        + f"</footer></main></div><script>{SCRIPT}</script></body></html>"
+        + "</footer></main></div>"
+        + '<script type="application/json" id="files-data">'
+        + json.dumps(files, separators=(",", ":"))
+        + f"</script><script>{SCRIPT}</script></body></html>"
     )
     path = folder / REPORT_FILE
     path.write_text(page, encoding="utf-8")
@@ -370,4 +473,18 @@ def _settings(result: Report) -> str:
     return text if text.startswith("Settings") else ""
 
 
-__all__ = ["REPORT_FILE", "html_report"]
+def zip_results(folder: str | Path) -> Path:
+    """Every file of ``folder`` (its subfolders included) in ``folder/<name>.zip``, for
+    archiving or sending as one file; a zip already there is replaced, never included."""
+    import zipfile
+
+    folder = Path(folder)
+    target = folder / f"{folder.name}.zip"
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(folder.rglob("*")):
+            if path.is_file() and path.suffix != ".zip":
+                archive.write(path, Path(folder.name) / path.relative_to(folder))
+    return target
+
+
+__all__ = ["REPORT_FILE", "html_report", "zip_results"]

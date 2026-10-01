@@ -164,7 +164,8 @@ def test_the_session_ends_with_the_report_saved(tmp_path):
         assert (tmp_path / name).exists()
     # The page, with the readout and the best-ranked features, then the PCA and UMAP of all
     # three, raw and normalised, each as PNG and PDF.
-    assert "report.html (open it in a browser)" in script.text
+    assert "report.html, one file to open with a double click" in script.text
+    assert (tmp_path / f"{tmp_path.name}.zip").exists()
     page = (tmp_path / "report.html").read_text()
     assert "All 3 features at once" in page and "embedding-data" in page
     for name in ("area", "pca_raw", "umap_raw", "pca_normalised", "umap_normalised"):

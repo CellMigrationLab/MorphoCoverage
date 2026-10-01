@@ -119,7 +119,14 @@ repeat and field, click a condition to hide it, and switch between PCA and
 UMAP, and between raw values and values normalised to each repeat's control.
 Every figure is also saved in `figures/` as PNG and as PDF (vector, for
 papers). The page follows the light or dark setting of the viewer, with a
-switch, and prints with every section open.
+switch, and prints with every section open. It ends with a glossary of every
+test, rule and term it uses, with the papers they come from
+([`glossary.md`](glossary.md), the same entries), and a Files section: every
+figure (PNG and PDF), both text reports, the feature table as CSV and, from the
+guided session, the design scan and the saved answers are inside the page, each
+saved with its button, so the page alone is the file to share. The guided
+session also zips the whole folder (`zip_results(folder)`: `<folder>.zip`) for
+archiving.
 
 ## Declare the dataset
 

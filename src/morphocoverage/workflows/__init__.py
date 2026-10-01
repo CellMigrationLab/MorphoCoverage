@@ -41,7 +41,7 @@ from ``Setup.random_state``. See ``docs/workflows.md``.
 
 from .figures import embedding_plots, plots
 from .guided import Answers, GuidedResult, guide, load_answers, save_answers
-from .html_report import html_report
+from .html_report import html_report, zip_results
 from .live import LiveFolder, LiveTables, LiveUpdate, live_session, write_fov
 from .retrospective import (
     Benchmark,
@@ -85,4 +85,5 @@ __all__ = [
     "save_answers",
     "scan_design",
     "write_fov",
+    "zip_results",
 ]

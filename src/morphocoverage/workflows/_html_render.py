@@ -236,6 +236,15 @@ figcaption a { color: #1c5cab; }
   color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
   font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); display: none; white-space: nowrap; }
 .note { color: var(--text-3); font-size: 13px; }
+button.dl { border: 1px solid var(--border); background: var(--surface); color: var(--link);
+  border-radius: 6px; padding: 1px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+figcaption button.dl { background: #ffffff; color: #1c5cab; border-color: #dddcd7; }
+button.dl:hover { background: var(--surface-2); }
+dl.glossary { margin: 6px 0 14px; }
+dl.glossary dt { font-weight: 600; margin-top: 10px; }
+dl.glossary dd { margin: 2px 0 0; }
+dl.glossary .where, dl.glossary .refs { display: block; color: var(--text-3); font-size: 13px; }
+section.card h3 { font-size: 15px; margin: 18px 0 6px; }
 footer { color: var(--text-3); font-size: 13px; margin-top: 24px; }
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 12px; }
@@ -244,7 +253,7 @@ footer { color: var(--text-3); font-size: 13px; margin-top: 24px; }
   section.card { padding: 14px 16px; }
 }
 @media print {
-  nav.toc, .theme-toggle, .controls { display: none; }
+  nav.toc, .theme-toggle, .controls, button.dl, #files { display: none; }
   .layout { display: block; }
   details { display: block; }
   section.card { break-inside: avoid-page; }
@@ -290,6 +299,22 @@ SCRIPT = """
     var saved = localStorage.getItem('mc-theme');
     if (saved) document.documentElement.setAttribute('data-theme', saved);
   } catch (e) {}
+  // Downloads: every file the page carries, saved from the data inside it.
+  var store = document.getElementById('files-data');
+  var files = store ? JSON.parse(store.textContent) : {};
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('button.dl');
+    if (!button) return;
+    var entry = files[button.dataset.file];
+    if (!entry) return;
+    var bytes = atob(entry[1]), buffer = new Uint8Array(bytes.length);
+    for (var i = 0; i < bytes.length; i++) buffer[i] = bytes.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([buffer], { type: entry[0] }));
+    var link = document.createElement('a');
+    link.href = url; link.download = button.dataset.file.split('/').pop();
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
   // The interactive embeddings.
   var source = document.getElementById('embedding-data');
   if (!source) return;

@@ -16,8 +16,10 @@
    tolerance (no default has a published meaning, so the user states it).
 5. **Save** the answers to ``ANSWERS_FILE`` in the folder, then run the **report** with the
    ``Setup`` they make, and save it: ``report.html`` (``html_report``: every answer, the
-   readout and the best-ranked features, the interactive PCA and UMAP, its figures in
-   ``figures/`` as PNG and PDF), ``report_short.txt`` and ``report_full.txt``.
+   readout and the best-ranked features, the interactive PCA and UMAP, the glossary, and
+   every file inside it for download, so the page alone can be shared), the figures in
+   ``figures/`` as PNG and PDF, ``report_short.txt``, ``report_full.txt``, and the whole
+   folder as ``<folder>.zip`` (``zip_results``).
 
 Every question has a default the user takes with Enter. ``ask`` and ``say`` are the
 input and output functions (``input`` and ``print`` by default; a notebook cell works the
@@ -44,7 +46,7 @@ from .._wording import percent
 from ..multivariate_outcomes import CovarianceError
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
-from .html_report import html_report
+from .html_report import html_report, zip_results
 from .retrospective import Report, report
 from .scan import DesignScan, scan_design
 from .setup import Setup, default_novelty
@@ -315,10 +317,15 @@ def guide(
     (folder / "report_short.txt").write_text(result.summary() + "\n")
     (folder / "report_full.txt").write_text(result.summary(detail="full") + "\n")
     say(result.summary())
-    page = html_report(result, scan.objects, scan.fovs, folder)
+    page = html_report(
+        result, scan.objects, scan.fovs, folder, attach=[folder / "scan.txt", folder / ANSWERS_FILE]
+    )
+    archive = zip_results(folder)
     say(
-        f"Saved in {folder}: {page.name} (open it in a browser), scan.txt, report_short.txt, "
-        f"report_full.txt, {ANSWERS_FILE}, and the figures in figures/ as PNG and PDF."
+        f"Saved in {folder}: {page.name}, one file to open with a double click (every figure "
+        "and file is inside it, to share as it is); scan.txt, report_short.txt, "
+        f"report_full.txt, {ANSWERS_FILE}, the figures in figures/ as PNG and PDF; and all of "
+        f"it in {archive.name}, to archive or send as one file."
     )
     return GuidedResult(folder, scan, answers, setup, result)
 

@@ -1,14 +1,18 @@
 """The report as one HTML page (workflows.html_report) and its text conversion."""
 
+import base64
 import json
 import re
+import zipfile
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from morphocoverage._style import Status
-from morphocoverage.workflows import Setup, html_report, report
+from morphocoverage.glossary import GLOSSARY, glossary_markdown
+from morphocoverage.workflows import Setup, html_report, report, zip_results
 from morphocoverage.workflows._html_render import chip, text_html
 
 
@@ -93,5 +97,30 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     assert len(pca["x"]) == len(objects) and pca["arrows"][0][0] == "area"
     # The control is drawn first, so the condition sits over it.
     assert pca["cond"] == sorted(pca["cond"])
+    # The page carries every file for download, so it can be shared alone.
+    files = json.loads(re.search(r'id="files-data">(.*?)</script>', page).group(1))
+    assert {"report_short.txt", "report_full.txt", "feature_discovery.csv"} <= set(files)
+    assert base64.b64decode(files["figures/area.pdf"][1]).startswith(b"%PDF")
+    assert 'data-file="figures/area.pdf"' in page and 'href="figures/' not in page
+    assert 'id="glossary"' in page and "Benjamini-Hochberg q-value" in page
     with pytest.raises(TypeError, match="Report"):
         html_report("not a report", objects, fovs, tmp_path)
+
+
+def test_docs_glossary_is_the_rendering_of_the_glossary():
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "docs" / "glossary.md").read_text() == glossary_markdown()
+    names = [term.name for term in GLOSSARY]
+    assert len(names) == len(set(names))
+    assert "Mean-precision rule" in names
+
+
+def test_zip_holds_every_file_of_the_folder(tmp_path):
+    folder = tmp_path / "results"
+    (folder / "figures").mkdir(parents=True)
+    (folder / "report.html").write_text("page")
+    (folder / "figures" / "a.png").write_bytes(b"png")
+    archive = zip_results(folder)
+    zip_results(folder)  # a second zip replaces the first, never contains it
+    with zipfile.ZipFile(archive) as opened:
+        assert sorted(opened.namelist()) == ["results/figures/a.png", "results/report.html"]
