@@ -124,6 +124,7 @@ def test_up_to_twelve_tabs_then_a_list_to_search():
     assert 'placeholder="Find one of 13 features"' in many
     assert many.count("<option") == 13 and '<option value="0" selected>✅ f0</option>' in many
     assert many.count('class="tab-panel"') == 13 and many.count(" hidden>") == 12
+    assert '<h4 class="panel-name">✅ f0</h4>' not in many and '"panel-name">f0 ✅</h4>' in many
 
 
 def test_a_long_summary_table_shows_its_first_rows_and_a_button(result):
@@ -173,3 +174,22 @@ def test_the_precision_split_over_workers_is_the_one_replay():
     split = _enough_features._precision(objects, fovs, setup, features)
     assert split == _enough_features._replay(objects, fovs, setup, features, 1)
     assert split and list(split) == [f for f in features if f in split]
+
+
+def test_a_repeat_the_folders_did_not_have_is_not_named():
+    from morphocoverage.retrospective.report_resolved import _name
+
+    row = {"condition": "drug", "control_condition": "ctrl"}
+    assert _name({**row, "biological_repeat": "single"}) == "drug vs ctrl"
+    assert _name({**row, "biological_repeat": "r1"}) == "drug vs ctrl, repeat r1"
+    from morphocoverage.sampling_unit.contrast_text import _name as contrast_name
+
+    single = {**row, "biological_repeat": "single"}
+    assert contrast_name(single, "biological_repeat") == "drug vs ctrl"
+
+
+def test_the_rule_is_named_once_above_the_table(result):
+    short = " ".join(result.document.short["enough"].split())
+    own = "first); own mean: the groups whose mean meets the mean-precision rule, per cell"
+    assert own in short
+    assert "own mean (" not in short

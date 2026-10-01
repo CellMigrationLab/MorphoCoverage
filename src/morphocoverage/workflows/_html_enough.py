@@ -99,7 +99,7 @@ def enough_body(
     glossary's words, ``unnumbered`` gives question numbers this page's titles."""
     head, _, rest = short.partition(f"\n\n{_STOPPING}")
     # The sentences above say what the table's intro line says.
-    head = re.sub(r"^\s*Each feature alike.*?first\):\n", "", head, flags=re.DOTALL)
+    head = re.sub(r"^\s*Each feature alike.*?:\n(?=\s*feature\s)", "", head, flags=re.DOTALL)
     summary = "".join(
         f"<p>{html.escape(line)}</p>" for line in summary_lines(features, word, fields)
     )

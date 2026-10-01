@@ -31,7 +31,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines
-from .._style import among, check_detail, span, table, wrap
+from .._style import SINGLE_LEVEL, among, check_detail, span, table, wrap
 from .._wording import column_word, count, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..schema import unit_plural
@@ -72,7 +72,10 @@ def _name(row: dict[str, Any], repeat_col: str | None) -> str:
     """``LATS1 vs MOCK, repeat 1A``: the contrast, and its repeat when repeats are kept
     apart."""
     name = f"{row['condition']} vs {row['control_condition']}"
-    return f"{name}, repeat {row[REPEAT_COLUMN]}" if repeat_col else name
+    # CellPatcher's "single" names a folder level the data did not have: no repeat to name.
+    if not repeat_col or str(row[REPEAT_COLUMN]) == SINGLE_LEVEL:
+        return name
+    return f"{name}, repeat {row[REPEAT_COLUMN]}"
 
 
 def _head(contrast: Any, short: bool) -> str:

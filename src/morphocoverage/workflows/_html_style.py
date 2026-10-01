@@ -209,6 +209,7 @@ dl.glossary { margin: 6px 0 14px; }
 .picker input[type="search"], .picker select { padding: 6px 10px; border-radius: 8px;
   border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit;
   font-size: 14px; }
+.picker .panel-name { margin: 2px 0 6px; font-size: 16px; }
 .picker .tab-panel { border-top: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
 .long-table:not(.open) tbody tr:nth-child(n+21) { display: none; }
 .long-table button.show-all { border: 1px solid var(--border); background: var(--surface);

@@ -39,8 +39,11 @@ def _picker(name: str, items: Sequence[tuple[str, str, str]], label: str) -> str
     )
     panels = "".join(
         f'<div class="tab-panel" role="region" id="{name}-panel-{i}" '
-        f'aria-label="{html.escape(text)}"{"" if i == 0 else " hidden"}>{markup}</div>'
-        for i, (text, _, markup) in enumerate(items)
+        f'aria-label="{html.escape(text)}"{"" if i == 0 else " hidden"}>'
+        # The list may be scrolled away: the panel names what it shows.
+        f'<h4 class="panel-name">{html.escape(f"{text} {mark}" if mark else text)}</h4>'
+        f"{markup}</div>"
+        for i, (text, mark, markup) in enumerate(items)
     )
     find = f"Find one of {len(items)} {label.lower()}"
     return (

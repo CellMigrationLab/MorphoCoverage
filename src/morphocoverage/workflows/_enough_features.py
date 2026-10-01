@@ -220,7 +220,7 @@ def features_table(features: FeatureEnough, word: str = "well", indent: int = 2)
         ]
         for r in features.table.to_dict("records")
     ]
-    columns = ["feature", "compared with the control", "still needed", f"own mean ({rule})"]
+    columns = ["feature", "compared with the control", "still needed", "own mean"]
     return table(rows, columns if rule else columns[:3], indent=indent)
 
 
@@ -264,9 +264,11 @@ def with_features(document: Any, features: FeatureEnough | None, contrast: Any, 
     if features is None:
         return document
     status, headline = features_status(features, word)
+    rule = next((r for r in features.table["precision_rule"] if r), None)
+    own = f"; own mean: the {word}s whose mean meets the {rule}" if rule else ""
     intro = wrap(
         "Each feature alike, " + count(len(features.table), "feature") + ", ordered as in "
-        "“Do the conditions differ?” (significant across repeats first):",
+        f"“Do the conditions differ?” (significant across repeats first){own}:",
         2,
         hang=4,
     )
