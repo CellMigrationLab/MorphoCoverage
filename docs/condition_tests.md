@@ -139,11 +139,11 @@ the paired test kept as the second gate):
 
 - **The discovery gate**: the cell-level test of every feature and condition, in
   the version the readings trust most (normalised, balanced when unbalanced),
-  Benjamini-Hochberg over all of them, a feature passing at q ≤ 0.05; passing
+  Benjamini-Hochberg over all of them within each sub-experiment, a feature passing at q ≤ 0.05; passing
   features are ranked by |d| and the plots draw the best-ranked.
 - **The second gate**: the paired t on the repeat means (log ratios when every
-  mean is positive), Benjamini-Hochberg over every feature and condition with 3
-  or more repeats. A passing feature it also passes is *confirmed across
+  mean is positive), Benjamini-Hochberg over every feature and condition of a
+  sub-experiment with 3 or more repeats. A passing feature it also passes is *significant across
   repeats*.
 
 The discovery gate inherits the cell-level test's assumption: with variation

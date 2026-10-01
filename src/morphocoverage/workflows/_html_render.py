@@ -79,19 +79,33 @@ class Terms:
         return "".join(out)
 
 
-# What a caution means, per question, where one word says it better than "Caution".
-CAUTION_WORDS = {"inspect": "Fields to inspect", "enough": "Partly"}
+# What each answer found, per question and status (owner, 2026-10-01: the marker says the
+# result, not how far to trust it); a question not listed keeps the status's own word.
+RESULT_WORDS = {
+    ("overview", Status.OK): "Clean",
+    ("inspect", Status.OK): "Nothing flagged",
+    ("inspect", Status.CAUTION): "Fields to inspect",
+    ("conditions", Status.OK): "Differs",
+    ("conditions", Status.CAUTION): "Trend only",
+    ("enough", Status.OK): "Enough",
+    ("enough", Status.CAUTION): "Partly",
+}
 
 
 def chip(status: Status | None, key: str = "", answer: str = "") -> str:
-    """The status as a coloured chip with its icon and word (never colour alone); a caution
-    says what it is where it can (the question's ``key`` and ``answer``)."""
+    """The status as a coloured chip with its icon and the word for what the answer found
+    (never colour alone): per question (``key``) and, where the ``answer`` decides it, the
+    answer."""
     if status is None:
         return ""
     kind, word = STATUS_WORDS[status]
-    if status is Status.CAUTION:
-        trend = key == "conditions" and "none confirmed" in answer
-        word = "Trend only" if trend else CAUTION_WORDS.get(key, word)
+    word = RESULT_WORDS.get((key, status), word)
+    if key == "enough" and status is Status.CAUTION and "shown in 0 of" in answer:
+        word = "Not yet"
+    if key == "conditions" and "n = 1" in answer:
+        word = "No conclusion (n = 1)"
+    elif key == "conditions" and status is Status.CAUTION:
+        word = "Trend only" if "same direction" in answer else "No consistent difference"
     icon = f'<span aria-hidden="true">{status.marker}</span>'
     return f'<span class="chip {kind}">{icon} {word}</span>'
 

@@ -18,7 +18,7 @@ the declared control, pooled over the biological repeats:
   ratios to the control when every mean is positive, else on the differences), corrected
   the same way, within each sub-experiment, over every feature and condition with three or
   more repeats. A passing
-  feature that also passes it is *confirmed across repeats*.
+  feature that also passes it is *significant across repeats*.
 - The direction in each repeat (lower or higher than the control), so a feature that
   passes the cell-level gate but changes direction between repeats is seen as such.
 
@@ -42,7 +42,7 @@ from .._caveats import assumption, caveat_lines
 from .._checks import is_number
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
-from .._style import check_detail, table, wrap
+from .._style import check_detail, span, table, wrap
 from .._wording import count, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ._common import groups, validated
@@ -218,8 +218,8 @@ class FeatureDiscovery:
         return self.ranking.dropna(subset=["score"])["feature"].head(k).tolist()
 
     def _confirmed_where(self, features: list[str]) -> str:
-        """Each confirmed feature with the conditions it is confirmed for, so one siRNA's
-        result is not read as the target's."""
+        """Each feature significant across repeats with the conditions it is significant for,
+        so one siRNA's result is not read as the target's."""
         tests = self.tests
         parts = []
         for feature in features[:5]:
@@ -246,15 +246,26 @@ class FeatureDiscovery:
             return f"Which features separate the conditions? None of the {n} could be tested."
         passing = int(self.ranking["score"].notna().sum())
         label = " · ".join(str(v) for v in self.settings["control"].values())
+        # The correction family, said as counted: the tests of each sub-experiment.
+        tested = self.tests[self.tests["p_cells"].notna()]
+        sizes = tested.groupby("experiment").size() if "experiment" in tested else []
+        family = (
+            f"{count(int(sizes.iloc[0]), 'test')} in each of {len(sizes)} sub-experiments"
+            if len(sizes) > 1 and sizes.nunique() == 1
+            else f"{span(list(sizes))} tests in each of {len(sizes)} sub-experiments"
+            if len(sizes) > 1
+            else count(n_tests, "test")
+        )
         return (
             f"Which features separate the conditions? {passing} of {count(n, 'feature')} "
-            f"{'is a candidate' if passing == 1 else 'are candidates'}: they differ at the "
-            "cell level for at least one condition (each condition against the control, "
+            f"{'is a candidate' if passing == 1 else 'are candidates'} in the exploratory "
+            "cell-level screen: they differ for at least one condition (each condition against "
+            "the control, "
             f"{label}: Cohen's d on the observations normalised to each repeat's control, "
             f"randomization test, q ≤ {alpha:g} after Benjamini-Hochberg within each "
-            f"sub-experiment, {count(n_tests, 'test')}). Ranked by the largest difference "
-            f"(|d|); a candidate is confirmed when the paired t-test on the repeat means also "
-            f"gives q ≤ {alpha:g}:"
+            f"sub-experiment: {family}). Ranked by the largest difference "
+            "(|d|); a candidate is significant across repeats when the paired t-test on the "
+            f"repeat means also gives q ≤ {alpha:g}:"
         )
 
     def _table(self, max_rows: int, indent: int) -> list[str]:
@@ -281,7 +292,8 @@ class FeatureDiscovery:
         lines.append(
             " " * indent
             + (
-                f"Confirmed across repeats (paired q ≤ {self.settings['alpha']:g}): "
+                "Significant across repeats (paired t-test on the repeat means, q ≤ "
+                f"{self.settings['alpha']:g}): "
                 f"{count(len(confirmed), 'feature')}"
                 + (f" ({self._confirmed_where(confirmed)})." if confirmed else ".")
             )
@@ -310,7 +322,8 @@ class FeatureDiscovery:
             assumption(
                 "Candidates come from the cell-level test, which treats every observation as "
                 "an independent draw and so finds differences that may not repeat; only the "
-                f"paired t-test on the repeat means ({MIN_REPEATS} or more repeats) confirms."
+                f"paired t-test on the repeat means ({MIN_REPEATS} or more repeats) decides "
+                "significance."
             )
         ]
         if len(self.tests) and self.tests["p_paired"].isna().all():

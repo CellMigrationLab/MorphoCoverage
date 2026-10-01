@@ -42,7 +42,9 @@ from .._style import Status
 from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
+from ..sampling_unit.legend_text import legend_box
 from ..sampling_unit.reading_text import readings_parts
+from ..sufficiency_short import rule_tallies
 from ._html_figures import download, embeddings, feature_figures
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
@@ -174,6 +176,7 @@ def _section(
     *,
     title: str | None = None,
     body_extra: str = "",
+    found: str | None = None,
 ) -> str:
     """A card: its title and status, what it is for, its answer in a line, its short text,
     and its full text folded."""
@@ -190,16 +193,24 @@ def _section(
         body += f"<details><summary>Full detail</summary>{detail}</details>"
     name = title or TITLES.get(key, key)
     return (
-        f'<section class="card" id="{key}"><h2>{chip(status, key, answer or "")} '
+        f'<section class="card" id="{key}"><h2>{chip(status, key, found or answer or "")} '
         f"{html.escape(name)}</h2>"
         f"{head}{body}</section>"
     )
 
 
+def _undefined_rules(result: Report) -> list[str]:
+    """The stopping rules that did not apply to any group (one per object, on tracks)."""
+    sufficiency = (getattr(result, "results", {}) or {}).get("sufficiency")
+    tallies = rule_tallies(sufficiency) if sufficiency is not None else []
+    return [t["label"] for t in tallies if t["groups"] and t["undefined"] == t["groups"]]
+
+
 def _checked_card(result: Report, doc: Any) -> str:
     """What the run checked, in short lines; the declaration's sentences folded."""
     lines = "".join(
-        f"<li>{_TERMS.annotate(html.escape(line))}</li>" for line in what_checked(result.setup)
+        f"<li>{_TERMS.annotate(html.escape(line))}</li>"
+        for line in what_checked(result.setup, _undefined_rules(result))
     )
     full = doc.short.get("declaration") or "\n".join(f"- {d}" for d in doc.declaration)
     detail = f"<details><summary>Full detail</summary>{text_html(full)}</details>" if full else ""
@@ -243,7 +254,14 @@ def _conditions_card(
     reading = "\n".join(readings_parts(contrast, indent=2)) if contrast is not None else ""
     if reading and short.startswith(reading):
         rest = short[len(reading) :].lstrip("\n")
-        body = _html(reading) + extras
+        box = legend_box(contrast, result.setup.unit_words)
+        legend = (
+            f'<p class="legend-box"><strong>For a figure legend.</strong> '
+            f"{_TERMS.annotate(html.escape(box.split(': ', 1)[1]))}</p>"
+            if box
+            else ""
+        )
+        body = _html(reading) + legend + extras
         if rest.strip():
             body += "<h3>The tests behind the reading</h3>" + _html(rest)
     else:
@@ -280,6 +298,8 @@ def html_report(
         if len(result.setup.columns) >= MIN_FEATURES:
             viz, static = embeddings(result, objects, fovs, figures)
     statuses, headlines = doc.statuses, doc.headlines
+    # The Foundation's title names the report's own observations (tracks, patches).
+    titles = {**TITLES, "unit": f"Why count fields, and not only {result.setup.unit_words}?"}
     keys = [k for k in ORDER if (k == "overview" and doc.overview) or k in doc.sections]
     shown = [k for k in keys if not hidden(statuses.get(k), headlines.get(k, ""))]
     nav = ['<nav class="toc" aria-label="Sections"><h2>Report</h2>']
@@ -289,7 +309,7 @@ def html_report(
         icon = status.marker if status is not None else ""
         nav.append(
             f'<a href="#{key}"><span class="icon" aria-hidden="true">{icon}</span>'
-            f"<span>{html.escape(TITLES[key])}</span></a>"
+            f"<span>{html.escape(titles[key])}</span></a>"
         )
         if key == "overview":
             nav.append(
@@ -297,7 +317,7 @@ def html_report(
             )
         if status is not None:
             glance.append(
-                f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(TITLES[key])}'
+                f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(titles[key])}'
                 f'<br>{chip(status, key, headlines.get(key, ""))}</span><span class="a">'
                 f"{html.escape(headlines.get(key, ''))}</span></a>"
             )
@@ -311,9 +331,9 @@ def html_report(
     overview_short = doc.short.get("overview") or doc.overview or ""
     subtitle = _first_sentence(overview_short)
     cards = [
-        '<section class="card" id="glance"><h2>At a glance</h2><p class="key">A marker says '
-        "how far to trust an answer, not what it found. Underlined words show their meaning, "
-        "and a click opens them in the glossary, on the side.</p>"
+        '<section class="card" id="glance"><h2>At a glance</h2><p class="key">Each marker '
+        "says what the answer found, in the word beside it. Underlined words show their "
+        "meaning, and a click opens them in the glossary, on the side.</p>"
         + _TERMS.annotate("".join(glance))
         + "</section>"
     ]
@@ -351,7 +371,16 @@ def html_report(
             )
             answer = None
         cards.append(
-            _section(key, statuses.get(key), short, doc.sections[key], answer, body_extra=extra)
+            _section(
+                key,
+                statuses.get(key),
+                short,
+                doc.sections[key],
+                answer,
+                body_extra=extra,
+                found=headlines.get(key),
+                title=titles[key],
+            )
         )
     limits = doc.limits(list(REPORT_QUESTIONS), "short")
     cards.append(

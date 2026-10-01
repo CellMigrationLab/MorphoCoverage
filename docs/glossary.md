@@ -4,7 +4,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 ## Reading the report
 
-**Status markers.** ✅ answered; ⚠️ answered, with a caution (for 'Do the conditions differ?': none confirmed across repeats); ❌ check the data first; ➖ not applicable or not assessed. A marker says how far to trust an answer, not what it found: ✅ can mean 'no difference'.
+**Status markers.** What each answer found: ✅ yes (a condition differs across repeats, enough was imaged, the data are clean); ⚠️ partly, a trend only, or something to look at; ❌ check the data first; ➖ no conclusion possible here (not assessed, or one biological repeat). The word beside the marker says which.
 
 *Where:* At a glance, every answer.
 
@@ -26,7 +26,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 *Where:* Do the conditions differ?.
 
-**Technical repeat.** A well, dish or coverslip within a biological repeat; never a biological repeat. 'single' when there is one.
+**Well (technical repeat).** A well, dish or coverslip within a biological repeat (the data's technical_repeat column); never a biological repeat. With one well per condition in each repeat, the cells of a well are not independent replicates: the repeats are. 'single' in the data when there is one.
 
 *Where:* The data, the plots (point shapes).
 
@@ -83,9 +83,9 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 *Where:* Do the conditions differ?, the design scan.
 
-**Paired t-test on the repeat means.** Each biological repeat's condition mean paired with its own control mean, the repeat as the replicate (as in SuperPlots). Keeps false positives at 5%, but with 3 repeats it confirms only large, consistent effects. Given raw and on log ratios to the control (normalised), corrected within each sub-experiment.
+**Paired t-test on the repeat means.** Each biological repeat's condition mean paired with its own control mean, the repeat as the replicate (as in SuperPlots). Keeps false positives at 5%, but with 3 repeats only large, consistent effects reach q ≤ 0.05. Given raw and on log ratios to the control (normalised), corrected within each sub-experiment.
 
-*Where:* Do the conditions differ?: the only test that confirms a difference.
+*Where:* Do the conditions differ?: the test behind 'significant across repeats', the result to report.
 *See:* [Lord SJ, Velle KB, Mullins RD, Fritz-Laylin LK. SuperPlots: communicating reproducibility and variability in cell biology. J Cell Biol. 2020;219(6):e202001064.](https://doi.org/10.1083/jcb.202001064)
 
 **Sign-flip test.** The exact test on the signs of the per-repeat differences; given only from 6 repeats, where its smallest p can reach 0.05 after the correction.
@@ -101,7 +101,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 *Where:* Do the conditions differ?.
 *See:* [Benjamini Y, Hochberg Y. Controlling the false discovery rate: a practical and powerful approach to multiple testing. J R Stat Soc B. 1995;57(1):289-300.](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x)
 
-**Discovery gate and confirmed across repeats.** A feature is a candidate when its cell-level test has q ≤ 0.05 for a condition; it is confirmed across repeats when the paired t-test on the repeat means gives q ≤ 0.05 for that condition too. The first finds candidates; the second says the mean difference holds across the repeats.
+**Candidate and significant across repeats.** A feature is a candidate when its exploratory cell-level screen has q ≤ 0.05 for a condition; it is significant across repeats when the paired t-test on the repeat means gives q ≤ 0.05 for that condition too (with n repeats: n is said beside it). The first finds candidates; the second says the mean difference holds across the repeats. 'Same direction, not significant' is a consistent trend, not evidence of no effect.
 
 *Where:* Do the conditions differ?, the feature ranking.
 

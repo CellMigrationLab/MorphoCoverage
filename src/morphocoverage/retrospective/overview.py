@@ -134,10 +134,10 @@ class DatasetOverview:
             names = self.layout[repeat_col].drop_duplicates().tolist()
             parts.append(f"{count(c['repeats'], 'biological repeat')} ({_listed(names, 6)})")
         if settings["technical_col"] is not None:
-            parts.append(count(c["technical_repeats"], "technical repeat"))
+            parts.append(self._wells())
         group_cols = settings.get("group_cols", ())
         groups = (
-            f"each {group_columns(group_cols[-1:])} analysed apart"
+            "each well analysed apart"
             if group_cols and group_cols[-1] == settings["technical_col"]
             else f"{count(c['groups'], 'analysis group')} ({group_columns(group_cols)}), each "
             "analysed apart"
@@ -149,8 +149,24 @@ class DatasetOverview:
         if len(per):
             low, high = int(min(per)), int(max(per))
             fields = f"{low}" if low == high else f"{low} to {high}"
-            spread = f"; {fields} fields per condition and repeat"
+            # One observation per field: the fields are the cells a biologist counts.
+            one = c["objects"] == c["fields"]
+            word = unit_plural(settings["observation_unit"]) if one else "fields"
+            spread = f"; {fields} {word} per condition and repeat"
         return f"{', '.join(parts) + '; ' if parts else ''}{groups}{spread}."
+
+    def _wells(self) -> str:
+        """The technical repeats in lab words: ``one well per condition in each repeat (9
+        wells)``, or ``14 wells (technical repeats; 1 to 2 per condition and repeat)``."""
+        c, layout = self.counts, self.layout
+        per = layout.get("technical_repeats", [])
+        wells = count(c["technical_repeats"], "well")
+        if len(per) and int(min(per)) == int(max(per)) == 1:
+            return f"one well per condition in each repeat ({wells})"
+        low, high = (int(min(per)), int(max(per))) if len(per) else (0, 0)
+        each = f"{low}" if low == high else f"{low} to {high}"
+        spread = f"; {each} per condition and repeat" if len(per) else ""
+        return f"{wells} (technical repeats{spread})"
 
     def _full(self, max_features_listed: int) -> str:
         """Plain sentences and a fields-by-condition-and-repeat table when there is one."""

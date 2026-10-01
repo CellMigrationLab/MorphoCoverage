@@ -71,10 +71,10 @@ GLOSSARY: tuple[Term, ...] = (
     Term(
         "Reading the report",
         "Status markers",
-        "✅ answered; ⚠️ answered, with a caution (for 'Do the conditions differ?': none "
-        "confirmed across repeats); ❌ check the data first; ➖ not applicable or not assessed. "
-        "A marker says how far to trust an answer, not what it found: ✅ can mean 'no "
-        "difference'.",
+        "What each answer found: ✅ yes (a condition differs across repeats, enough was "
+        "imaged, the data are clean); ⚠️ partly, a trend only, or something to look at; ❌ "
+        "check the data first; ➖ no conclusion possible here (not assessed, or one biological "
+        "repeat). The word beside the marker says which.",
         "At a glance, every answer",
     ),
     Term(
@@ -108,9 +108,11 @@ GLOSSARY: tuple[Term, ...] = (
     ),
     Term(
         "The design",
-        "Technical repeat",
-        "A well, dish or coverslip within a biological repeat; never a biological repeat. "
-        "'single' when there is one.",
+        "Well (technical repeat)",
+        "A well, dish or coverslip within a biological repeat (the data's technical_repeat "
+        "column); never a biological repeat. With one well per condition in each repeat, the "
+        "cells of a well are not independent replicates: the repeats are. 'single' in the "
+        "data when there is one.",
         "The data, the plots (point shapes)",
     ),
     Term(
@@ -206,9 +208,10 @@ GLOSSARY: tuple[Term, ...] = (
         "Paired t-test on the repeat means",
         "Each biological repeat's condition mean paired with its own control mean, the repeat "
         "as the replicate (as in SuperPlots). Keeps false positives at 5%, but with 3 repeats "
-        "it confirms only large, consistent effects. Given raw and on log ratios to the "
+        "only large, consistent effects reach q ≤ 0.05. Given raw and on log ratios to the "
         "control (normalised), corrected within each sub-experiment.",
-        "Do the conditions differ?: the only test that confirms a difference",
+        "Do the conditions differ?: the test behind 'significant across repeats', the result "
+        "to report",
         (SUPERPLOTS,),
     ),
     Term(
@@ -236,11 +239,13 @@ GLOSSARY: tuple[Term, ...] = (
     ),
     Term(
         "Do the conditions differ?",
-        "Discovery gate and confirmed across repeats",
-        "A feature is a candidate when its cell-level test has q ≤ 0.05 for a condition; it is "
-        "confirmed across repeats when the paired t-test on the repeat means gives q ≤ 0.05 "
-        "for that condition too. The first finds candidates; the second says the mean "
-        "difference holds across the repeats.",
+        "Candidate and significant across repeats",
+        "A feature is a candidate when its exploratory cell-level screen has q ≤ 0.05 for a "
+        "condition; it is significant across repeats when the paired t-test on the repeat "
+        "means gives q ≤ 0.05 for that condition too (with n repeats: n is said beside it). "
+        "The first finds candidates; the second says the mean difference holds across the "
+        "repeats. 'Same direction, not significant' is a consistent trend, not evidence of no "
+        "effect.",
         "Do the conditions differ?, the feature ranking",
     ),
     Term(
@@ -323,7 +328,7 @@ GLOSSARY: tuple[Term, ...] = (
 # not listed here is in the glossary only. Matched whole, ignoring case.
 PHRASES: dict[str, tuple[str, ...]] = {
     "Biological repeat": ("biological repeat", "biological repeats"),
-    "Technical repeat": ("technical repeat", "technical repeats"),
+    "Well (technical repeat)": ("technical repeat", "technical repeats", "well", "wells"),
     "Pilot": ("pilot",),
     "Normalised values": ("normalised", "normalised values"),
     "Sub-experiment": ("sub-experiments", "its experiment", "each experiment"),
@@ -340,7 +345,11 @@ PHRASES: dict[str, tuple[str, ...]] = {
     "Sign-flip test": ("sign-flip test",),
     "Bonferroni correction": ("Bonferroni",),
     "Benjamini-Hochberg q-value": ("Benjamini-Hochberg", "q-value", "q-values"),
-    "Discovery gate and confirmed across repeats": ("confirmed across repeats", "discovery gate"),
+    "Candidate and significant across repeats": (
+        "significant across repeats",
+        "candidate",
+        "candidates",
+    ),
     "Reagents of one target": ("reagents",),
     "JCS effect size": ("JCS effect size",),
     "PCA and loadings": ("PCA", "loadings"),

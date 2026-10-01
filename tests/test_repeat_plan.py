@@ -95,7 +95,7 @@ def test_a_pilot_of_two_repeats_gets_a_plan(cdm):
     assert (plan["repeats"] == 2).all() and (plan["status"] == "ok").all()
     assert (plan["repeats_needed"] >= 2).all()
     text = " ".join(two.summary().split())
-    assert "Planning the next experiment: the biological repeats a paired t-test" in text
+    assert "Planning the next experiment (for a new experiment, if the difference" in text
     # One cell per field here: the advice counts cells, not fields (images).
     assert "cells a side per repeat" in text and "limited by" in text
     # The repeats a paired test needs lead the plan (the limit is the repeats).

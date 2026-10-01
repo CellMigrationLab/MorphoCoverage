@@ -191,8 +191,8 @@ def test_e5_plot_interval_says_how_many_technical_repeats_and_warns_with_two_or_
             ]
     figures = plots_of_data(pd.DataFrame(rows), pd.DataFrame(fovs), features=["x"], n_boot=20)
     title = figures["x"][0].axes[0].figure.caption
-    assert "whole technical repeats with their fields (2 per condition" in title
-    assert "with 2-3 technical repeats the interval is only a guide" in title
+    assert "whole wells with their fields (2 per condition" in title
+    assert "with 2-3 wells the interval is only a guide" in title
 
 
 def test_e6_no_fields_beyond_enough_when_the_acquired_fields_are_not_enough():

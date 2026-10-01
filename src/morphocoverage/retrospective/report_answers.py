@@ -91,8 +91,11 @@ def limits_text(
     ]
     lines = []
     for key, title in missing:
-        if full:
+        if full and report.inputs.get(key) == "not assessed":
             line = f"{NOT_ASSESSED} {title}: not assessed; needs: {needs[key]}."
+        elif full:
+            # Run, but no conclusion possible (one repeat): its own answer says why.
+            line = f"{NOT_ASSESSED} {title}: {report.headlines.get(key, '')}."
         else:
             answer = report.headlines.get(key) or f"not assessed; needs: {needs[key]}"
             line = headline(Status.NOT_ASSESSED, short_titles[key], answer)

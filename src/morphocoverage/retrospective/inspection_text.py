@@ -27,6 +27,7 @@ from .._caveats import caveat_lines
 from .._style import check_detail, group_columns, group_label, table, width, wrap
 from .._wording import count, listing
 from .._wording import fields as fields_text
+from ..metadata import TECHNICAL_REPEAT_COLUMN
 
 # Fields listed in the short form; the full form lists every one.
 SHORT_FIELDS = 8
@@ -144,8 +145,10 @@ def inspection_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]
         f"{_REASON_WORDS.get(reason, reason)} ({count(n, 'field')})"
         for reason, n in reason_counts(result)
     )
-    where = f" ({group_columns(groups)})" if groups else ""
-    reopen = f"{count(len(listed), 'field')} to reopen in {count(group_count, 'group')}"
+    wells = bool(groups) and groups[-1] == TECHNICAL_REPEAT_COLUMN
+    where = f" ({group_columns(groups)})" if groups and not wells else ""
+    word = "well" if wells else "group"
+    reopen = f"{count(len(listed), 'field')} to reopen in {count(group_count, word)}"
     head = f"{reopen}{where}: {reasons}."
     lines = [wrap(head, indent, hang=indent + 2)]
     rows = [

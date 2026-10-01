@@ -121,11 +121,10 @@ REPORT_TITLE = "Microscopist's report"
 GLANCE_TITLE = "At a glance"
 # The planning questions, answered by workflows.optimise rather than by report.
 _PLANNING = ("next_time", "bought", "effort", "order")
-# What the markers mean: a status says whether an answer needs attention, not what it found.
+# What the markers mean: what each answer found (owner, 2026-10-01).
 GLANCE_KEY = (
-    "Key: ✅ answered · ⚠️ answered, with a caution about these data · ❌ check the data first · "
-    "➖ not applicable or not assessed. A marker says how far to trust an answer, not what it "
-    "found."
+    "Key: ✅ yes · ⚠️ partly, a trend only, or something to look at · ❌ check the data "
+    "first · ➖ no conclusion possible here. The word beside each marker says which."
 )
 
 QUESTIONS = (

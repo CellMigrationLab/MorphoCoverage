@@ -6,15 +6,18 @@ the repeats are not, and the agreement of independent reagents); this module
 reads them together, condition by condition, so the reader does not have to.
 Each condition gets one verdict:
 
-- **confirmed**: the paired test across repeats gives q <= 0.05 (Benjamini-Hochberg
+- **significant across repeats**: the paired test across repeats gives q <= 0.05 (Benjamini-Hochberg
   within the condition's sub-experiment, ``_experiments``; on normalised values when they
   exist, else raw), with the condition on one side of the control in every repeat;
-- **same direction, not confirmed**: on one side of the control in every repeat
-  (two or more), and the paired test does not confirm it or cannot run;
+- **same direction, not significant**: on one side of the control in every repeat
+  (two or more), and the paired test does not reach q <= 0.05 or cannot run (a
+  consistent trend, not evidence of no effect);
 - **no consistent direction**: lower in some repeats and higher in others;
 - **one repeat**: imaged in a single repeat, so only the cell-level test speaks.
 
-Then the evidence: the direction and mean per-repeat d, the paired test's p,
+Then the evidence: the direction, the mean per-repeat Cohen's d and the change in the
+feature's own terms (the geometric mean of the per-repeat ratios to the control, as the
+normalised paired test reads them), the paired test's p and q,
 the cell-level test's p in its most trustworthy version (balanced and
 normalised when the repeats are unbalanced, else normalised, else raw) with
 how often it gives p <= 0.05 without an effect at the variation between repeats seen
@@ -23,8 +26,10 @@ column, whether the target's reagents agree. When the raw pooled test is
 significant and that version is not, the sentence says what the raw test does
 differently (pools the control of repeats the condition was not imaged in, lets
 the repeat with most cells weigh more, or keeps a scale shared within each
-repeat), as a fact about the tests, not a cause. No new statistic is computed: every number is the
-contrast's (``contrast_repeats``, ``contrast_cells``, ``reagent_agreement``).
+repeat), as a fact about the tests, not a cause, and gives no number for it (owner,
+2026-10-01: a q beside "not valid" is still read as the result). No new test is run:
+every p is the contrast's (``contrast_repeats``, ``contrast_cells``, ``reagent_agreement``),
+and the change in the feature's own terms comes from its per-repeat means.
 """
 
 from __future__ import annotations
@@ -39,8 +44,8 @@ from .._wording import column_word, count, listing, p_value, percent
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
 
-CONFIRMED = "confirmed across repeats"
-CONSISTENT = "same direction in every repeat, not confirmed"
+CONFIRMED = "significant across repeats"
+CONSISTENT = "same direction in every repeat, not significant"
 MIXED = "no consistent direction"
 ONE_REPEAT = "one repeat"
 VERDICTS = (CONFIRMED, CONSISTENT, MIXED, ONE_REPEAT)
@@ -103,7 +108,14 @@ def _chance_words(low: float, high: float) -> str:
     return f"{percent(low)}–{percent(high)}"
 
 
-def _chance_sentence(chance: str) -> str:
+def _chance_sentence(chance: str, single: bool = False) -> str:
+    """How often the cell-level test gives p <= alpha with no real effect; with one repeat
+    the variation between repeats is not seen, so the range is for typical variation."""
+    if single:
+        return (
+            f"one repeat cannot show how much repeats vary: at typical variation, with no real "
+            f"effect this test gives p ≤ {ALPHA:g} in {chance} of experiments"
+        )
     return f"with no real effect it gives p ≤ {ALPHA:g} in {chance} of experiments like this one"
 
 
@@ -125,7 +137,7 @@ def _paired(row: pd.Series, n: int, word: str) -> tuple[bool, str]:
         return False, f"the paired test needs {count(MIN_REPEATS, word)}"
     confirmed = bool(q <= ALPHA)
     uncorrected = f"p {p_value(p)}, " if pd.notna(p) else ""
-    words = f"paired t-test on the repeat means {uncorrected}q {p_value(q)}"
+    words = f"paired t-test on the {n} repeat means {uncorrected}q {p_value(q)}"
     words += "" if which == "normalised" else " (raw values)"
     raw = row["q_paired_t"]
     if which == "normalised" and pd.notna(raw) and (raw <= ALPHA) != confirmed:
@@ -133,21 +145,36 @@ def _paired(row: pd.Series, n: int, word: str) -> tuple[bool, str]:
     return confirmed, words
 
 
-def _cells(row: pd.Series | None) -> str:
-    """The cell-level test in words, with its chance of p <= alpha without an effect."""
+def _cells(row: pd.Series | None, single: bool = False) -> str:
+    """The cell-level screen in words, with its chance of p <= alpha without an effect."""
     if row is None:
         return ""
     label, _, q, low, high, _p_value = _cell_version(row)
     if pd.isna(q):
         return ""
     chance = _chance_words(low, high)
-    text = f"cell-level test q {p_value(q)} ({label}" + (
-        f"; {_chance_sentence(chance)})" if chance else ")"
+    text = f"cell-level screen (exploratory) q {p_value(q)} ({label}" + (
+        f"; {_chance_sentence(chance, single)})" if chance else ")"
     )
     raw = row["q_cells"]
     if label != "raw" and q > ALPHA and pd.notna(raw) and raw <= ALPHA:
-        text += f"; the raw pooled test gives q {p_value(raw)}, but {_why_raw(row, label)}"
+        text += f"; the raw pooled test is not read here: {_why_raw(row, label)}"
     return text
+
+
+def change_words(contrast: Any, condition: Any) -> str:
+    """The change in the feature's own terms: the geometric mean of the per-repeat ratios of
+    the condition's mean to its control's (what the normalised paired test reads)."""
+    table = getattr(contrast, "table", None)
+    if table is None or "mean" not in table:
+        return ""
+    rows = table[table["condition"] == condition]
+    ratio = (rows["mean"] / rows["control_mean"]).to_numpy(dtype=float)
+    if not len(ratio) or not (np.isfinite(ratio).all() and (ratio > 0).all()):
+        return ""
+    fold = float(np.exp(np.mean(np.log(ratio))))
+    side = "lower" if fold < 1 else "higher"
+    return f"mean {percent(abs(fold - 1))} {side} than the control"
 
 
 def _reagents(contrast: Any, condition: Any, word: str) -> str:
@@ -178,7 +205,9 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
     for condition, row in rows.iterrows():
         n, lower, higher = int(row["repeats"]), int(row["lower"]), int(row["higher"])
         direction = "lower" if lower == n else "higher" if higher == n else "mixed"
-        d = f"mean d per repeat {row['d_mean']:+.2f}" if pd.notna(row["d_mean"]) else ""
+        d = f"Cohen's d per repeat, mean {row['d_mean']:+.2f}" if pd.notna(row["d_mean"]) else ""
+        change = change_words(contrast, condition)
+        d = ", ".join(x for x in (d, change) if x)
         if n == 1:
             verdict, confirmed = ONE_REPEAT, False
             parts = [f"{direction} than the control in its one {word}" + (f" ({d})" if d else "")]
@@ -191,7 +220,7 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
                 verdict = CONFIRMED if confirmed else CONSISTENT
                 parts = [f"{direction} in {n} of {n} {word}s" + (f" ({d})" if d else "")]
             parts.append(paired)
-        cell = _cells(cells.loc[condition] if condition in cells.index else None)
+        cell = _cells(cells.loc[condition] if condition in cells.index else None, n == 1)
         parts += [cell] if cell else []
         reagents = _reagents(contrast, condition, word)
         parts += [reagents] if reagents else []
@@ -213,15 +242,17 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
     if readings.empty:
         return []
     control = listing(sorted(set(map(str, readings["control_condition"]))), 3)
+    unit = contrast.settings["observation_unit"]
     head = (
-        f"Reading, condition by condition, against {control}. Confirmed: the paired t-test on "
-        "the repeat means (as SuperPlots; on values normalised to each repeat's control) gives "
-        "q ≤ 0.05, corrected (Benjamini-Hochberg) within the condition's sub-experiment, the "
-        "conditions sharing its repeats and control: report it as a difference. Not "
-        "confirmed: a trend you can describe, not a significant difference; with 3 repeats "
-        "this test confirms only large, consistent effects. The cell-level test (as "
-        f"Plot&Stats, every {contrast.settings['observation_unit']} an independent draw) is "
-        "given beside it:"
+        f"Reading, condition by condition, against {control}. Significant across repeats: the "
+        "paired t-test on the biological repeat means (as SuperPlots; values normalised to "
+        "each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg within the "
+        "condition's sub-experiment: this is the result to report. Same direction, not "
+        "significant: on one side of the control in every repeat without reaching q ≤ 0.05, "
+        "a consistent trend and not evidence of no effect (with 3 repeats only large, "
+        "consistent effects reach it). Beside it, the cell-level screen (as Plot&Stats, every "
+        f"{unit} an independent draw) is exploratory: it finds candidates, not effects that "
+        "repeat:"
     )
     design = _design(contrast, control)
     return [wrap(design + head, indent, hang=indent + 2)] + [
@@ -249,13 +280,15 @@ def _design(contrast: Any, control: str) -> str:
 
 
 def readings_headline(contrast: Any) -> str | None:
-    """The verdicts in a few words: ``2 conditions across 3 biological repeats: same direction
-    in every repeat, not confirmed: siCCT8#5 and siCCT8#8 (lower); no consistent direction:
-    siCCT7#3 and siCCT7#6``, or ``None`` without a contrast."""
+    """The verdicts in a few words, the readout first: ``Area, 2 conditions across 3
+    biological repeats: same direction in every repeat, not significant: siCCT8#5 and
+    siCCT8#8 (lower)``; with one repeat ``no conclusion across repeats (n = 1)``; ``None``
+    without a contrast."""
     readings = condition_readings(contrast)
     if readings.empty:
         return None
     word = column_word(contrast.settings.get("repeat_col"))
+    feature = contrast.settings["feature"]
     n_repeats = int(_direction_rows(contrast)["repeats"].max())
     table = getattr(contrast, "table", pd.DataFrame())
     repeat_col = contrast.settings.get("repeat_col")
@@ -271,12 +304,21 @@ def readings_headline(contrast: Any) -> str | None:
             if these:
                 tail = "" if direction == "mixed" else f" ({direction})"
                 names.append(f"{listing(these, 8)}{tail}")
-        groups.append(f"{verdict}: {'; '.join(names)}")
-    text = f"{count(len(readings), 'condition')} " + (
-        f"across {count(n_repeats, word)}: "
-        if total <= n_repeats
-        else f"against the control, each in {count(n_repeats, word)} ({total} in all): "
-    )
+        if verdict == ONE_REPEAT:
+            groups.append("; ".join(names))
+        else:
+            groups.append(f"{verdict}: {'; '.join(names)}")
+    if n_repeats == 1:
+        text = (
+            f"{feature}, {count(len(readings), 'condition')} in one {word} (n = 1, so no "
+            "conclusion across repeats): "
+        )
+    else:
+        text = f"{feature}, {count(len(readings), 'condition')} " + (
+            f"across {count(n_repeats, word)}: "
+            if total <= n_repeats
+            else f"against the control, each in {count(n_repeats, word)} ({total} in all): "
+        )
     text += "; ".join(groups)
     if n_repeats < MIN_REPEATS:
         text += _cells_headline(contrast)
@@ -295,10 +337,9 @@ def _cells_headline(contrast: Any) -> str:
     highs = [v[4] for v in tested if pd.notna(v[4])]
     chance = _chance_words(min(lows), max(highs)) if lows and highs else ""
     passing = sum(v[2] <= ALPHA for v in tested)
-    return f"; cell-level test: {passing} of {len(tested)} at q ≤ {ALPHA:g}" + (
-        f" (with no real effect it gives p ≤ {ALPHA:g} in {chance} of experiments like this one)"
-        if chance
-        else ""
+    single = int(_direction_rows(contrast)["repeats"].max()) == 1
+    return f"; exploratory cell-level screen: {passing} of {len(tested)} at q ≤ {ALPHA:g}" + (
+        f" ({_chance_sentence(chance, single)})" if chance else ""
     )
 
 
@@ -308,6 +349,7 @@ __all__ = [
     "MIXED",
     "ONE_REPEAT",
     "VERDICTS",
+    "change_words",
     "condition_readings",
     "readings_headline",
     "readings_parts",

@@ -134,7 +134,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
     balanced = bool(cells["p_balanced"].notna().any())
     lines = [
         wrap(
-            f"Cell-level test (as in Plot&Stats): Cohen's d on every "
+            f"Cell-level screen (exploratory, as in Plot&Stats): Cohen's d on every "
             f"{contrast.settings['observation_unit']} against the "
             f"control, the randomization test shuffling the labels over the {words}:",
             indent,
