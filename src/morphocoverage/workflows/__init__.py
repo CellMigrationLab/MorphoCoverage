@@ -1,5 +1,10 @@
 """Run a new dataset through the four modes with a few lines of code.
 
+Start with ``scan_design(objects, fovs)``: what the dataset is, whether it was
+loaded correctly (data check, copies, balance over the biological repeats),
+which columns would say more, and the questions to answer before the analysis;
+``scan.setup(readout=...)`` turns the answers into a ``Setup``.
+
 Declare the dataset once with a ``Setup``, then:
 
 - ``report(objects, fovs, setup)``: REPORT, what the finished acquisition can
@@ -40,10 +45,12 @@ from .retrospective import (
     optimise,
     report,
 )
+from .scan import DesignScan, scan_design
 from .setup import PositiveControl, Setup, default_novelty
 
 __all__ = [
     "Benchmark",
+    "DesignScan",
     "Family",
     "LiveFolder",
     "LiveTables",
@@ -60,5 +67,6 @@ __all__ = [
     "optimise",
     "plots",
     "report",
+    "scan_design",
     "write_fov",
 ]

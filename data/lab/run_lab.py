@@ -3,6 +3,7 @@
 For each dataset (all by default, or the ids given), with the declaration taken from its
 card (readout, features, control, observation unit):
 
+- ``scan.txt``: ``scan_design``, the design scan run before any analysis;
 - ``data_check.txt``: ``check_tables``;
 - ``report_short.txt`` / ``report_full.txt``: ``report(..., integrity=True)``, the default
   rules, the default definition of new on the declared features;
@@ -28,7 +29,7 @@ import catalog  # the catalog lives next to this script
 
 import morphocoverage
 from morphocoverage import check_tables
-from morphocoverage.workflows import Setup, default_novelty, report
+from morphocoverage.workflows import Setup, default_novelty, report, scan_design
 
 
 def _version() -> str:
@@ -57,7 +58,22 @@ def setup_for(data: catalog.LabDataset) -> Setup:
     )
 
 
+def scan(dataset_id: str) -> None:
+    """``scan.txt``: the design scan with the card's declarations (features, control, unit)."""
+    data = catalog.load(dataset_id)
+    out = catalog.RESULTS / dataset_id
+    out.mkdir(parents=True, exist_ok=True)
+    result = scan_design(
+        *data.tables,
+        feature_cols=data.feature_cols,
+        control=data.control,
+        observation_unit=data.observation_unit,
+    )
+    (out / "scan.txt").write_text(result.summary() + "\n")
+
+
 def run(dataset_id: str) -> None:
+    scan(dataset_id)
     data = catalog.load(dataset_id)
     out = catalog.RESULTS / dataset_id
     out.mkdir(parents=True, exist_ok=True)

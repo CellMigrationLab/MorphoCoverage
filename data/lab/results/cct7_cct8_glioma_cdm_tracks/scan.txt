@@ -1,0 +1,44 @@
+❌ Design scan — 590 tracks in 133 fields, 5 conditions, 6 biological repeats
+
+What the dataset is
+  Conditions: siCTRL (the control), siCCT7#3, siCCT7#6, siCCT8#5 and siCCT8#8.
+  6 biological repeats (CCT7_1, CCT7_2, CCT7_3, CCT8_1, CCT8_2 and CCT8_3), holding different
+    conditions (separate acquisitions):
+    CCT7_1, CCT7_2 and CCT7_3: siCCT7#3 and siCCT7#6 with the control
+    CCT8_1, CCT8_2 and CCT8_3: siCCT8#5 and siCCT8#8 with the control
+  Technical repeats: 1 per condition and biological repeat.
+  133 fields, 1-12 tracks per field (median 4).
+  Targets with several conditions: CCT7 (siCCT7#3 and siCCT7#6); CCT8 (siCCT8#5 and siCCT8#8).
+  Features: 13 features declared (Mean Speed, Median Speed, Speed Standard Deviation and 10 more).
+  Tracks per condition and biological repeat:
+    condition  CCT7_1  CCT7_2  CCT7_3  CCT8_1  CCT8_2  CCT8_3
+    siCTRL         30      23      22      31      39      39
+    siCCT7#3       28      34      30       –       –       –
+    siCCT7#6       29      27      36       –       –       –
+    siCCT8#5        –       –       –      37      40      42
+    siCCT8#8        –       –       –      32      40      31
+
+Loaded correctly?
+  ✅ The data check found nothing to fix.
+  ❌ 6 copy findings in 12 fields (siCCT7#3 · CCT7_2 · B5 · B5_04, siCCT7#6 · CCT7_3 · B6 · B6_01-1,
+     siCCT7#6 · CCT7_3 · B6 · B6_04-1, siCTRL · CCT7_1 · B4 · B4_05 and 8 more): structure to
+     inspect, not a judgment; scan.integrity.summary() names each.
+  ✅ The tracks per biological repeat differ by more than 25% in 3 conditions of 5 (up to 1.8× in
+     siCTRL); the report tests the tracks both as provided and balanced over the repeats.
+
+Columns that would say more
+  - Optional, for planning the next experiment: 'acquisition_order' and stage coordinates
+    ('stage_x_um', 'stage_y_um') let optimise check whether the order of the fields mattered.
+
+Before the analysis
+  1. What should the analysis answer: compare the population averages of the conditions, compare
+     their phenotypic fingerprints, or check a rare population? Suggested: averages.
+     averages: the readout's mean per condition across biological repeats (the default);
+     fingerprint: the distribution of phenotypes over several features, declared as
+     fingerprint=(OutcomeCriterion(...), ...); rare: whether a rare population was sampled enough,
+     declared as rare=RareTarget(...).
+  2. Which feature is the readout you report? Options: Mean Speed, Median Speed, Speed Standard
+     Deviation, Mean Speed Rolling, Median Speed Rolling, Max Speed Rolling, Min Speed Rolling
+     Rolling, Speed Standard Deviation Rolling and 5 more.
+     Every answer is about the readout; the other features describe the phenotype.
+  Then: setup = scan.setup(readout=..., goal=...) and report(scan.objects, scan.fovs, setup).

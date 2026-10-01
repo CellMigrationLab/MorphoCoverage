@@ -19,6 +19,54 @@ arguments. Two provisional presets have defaults, `optimise`'s
 summaries print them. The analyses they call are the ones documented
 elsewhere, and their results stay available under `results`.
 
+## Scan the design first
+
+Before declaring anything, `scan_design` reads the tables as given and says
+what they are, whether they were loaded correctly, which columns would say
+more, and what to answer before the analysis:
+
+```python
+from morphocoverage.workflows import report, scan_design
+
+scan = scan_design(objects, fovs)          # everything else may be left undeclared
+print(scan.summary())                      # summary(detail="full") adds the checks in full
+setup = scan.setup(readout="area", control={"condition": "siCTRL"}, observation_unit="cell")
+result = report(scan.objects, scan.fovs, setup)
+```
+
+- **What the dataset is**: the conditions (the control, declared or named
+  like one: siCTRL, MOCK, DMSO, NT, scramble, vehicle), the biological repeats
+  and which conditions each holds (one experiment, or separate acquisitions
+  sharing the control, as in a screen), the technical repeats, the fields and
+  the observations per field, the planes, the targets, the features, and the
+  observations per condition and repeat.
+- **Loaded correctly?** The data check (`check_tables`), the copy checks
+  (`integrity_checks`: a field read twice, rows pasted into another field,
+  a change of units), declared features holding one value in every row, and
+  the balance over the biological repeats. Unbalanced repeats (more than 25%
+  apart) are stated, since the report then tests the observations both as
+  provided and balanced; a sparse repeat (under a quarter of the median
+  repeat, or under 5) is a caution, since the balanced test leaves it out.
+  The usual design (three repeats, one well each) draws no caution.
+- **Columns that would say more**: an image identifier (`image_file` or
+  `position_id`; without one each row is assumed to be its own image, and the
+  scan adds a `position_id` per row so the workflows run); a `target` when
+  several conditions are compared, with the conditions whose names look like
+  reagents of one target (`siCCT8#5` and `siCCT8#8`); a `technical_repeat`
+  when a condition was imaged in more than one well; a FOV table; optionally
+  the acquisition order and stage coordinates, for planning.
+- **Before the analysis**: the goal (compare population averages, the
+  default; a phenotypic fingerprint, declared as `fingerprint=...`; a rare
+  population, declared as `rare=RareTarget(...)`), the readout and, when they
+  were not declared, the control, the features and the observation unit.
+  Without `feature_cols`, numeric columns that are not metadata are read as
+  candidates for the copy checks only.
+
+`scan.setup(readout, goal=..., **fields)` builds the `Setup` from the scan's
+features, field identifier, groups and unit; a guessed control is never used
+without being declared, and a fingerprint or rare goal needs its criterion,
+whose tolerance has no default. Nothing in the scan is estimated or tested.
+
 ## Declare the dataset
 
 ```python

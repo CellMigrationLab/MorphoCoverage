@@ -308,6 +308,9 @@ src/morphocoverage/
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
+        scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
+        _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
+        _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         _declaration.py    # private: the Setup's declaration in sentences, every preset printed
         retrospective.py   # report, optimise, document: the analyses in question order
         benchmarks.py      # benchmark, Family, default_families: the rule families at matched risk
