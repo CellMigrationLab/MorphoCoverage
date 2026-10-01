@@ -12,7 +12,7 @@
 | Position | Step 3 of the MorphoBricks pipeline (analysis & applications). It consumes features; it does not extract them. See section 18. |
 | Language | Python 3.11+ |
 | Tests | `pytest` (all tests, including real-data tests on `data/crick_idr`; runs on every CPU with pytest-xdist, `pytest -n 0` runs serially) |
-| Lint | `ruff check src tests data` and `ruff format --check src tests data` (ruff pinned in `pyproject.toml`; lines at most 100 characters) |
+| Lint | `python -m ruff check src tests data` and `python -m ruff format --check src tests data` (ruff pinned in `pyproject.toml`; run it as `python -m ruff`, since a `ruff` on the PATH may be another version and format differently; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
 Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; imported only by `morphocoverage.plots` and `workflows/figures.py`, so importing `morphocoverage.workflows` loads it while the core, `retrospective` and `sampling_unit` do not; added 2026-09-26 at the project owner's request for the PlotsOfData-style figures); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. There are deliberately no scikit-learn or Torch dependencies: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
@@ -57,6 +57,9 @@ Scientific rules:
 - **Do not assume one mathematical solution.** Ecological coverage, missing mass, clustering, nearest-neighbour novelty, distributional convergence, Bayesian methods, information-theoretic methods, and simple empirical rules remain candidate approaches until comparative validation supports a default.
 - **Current cell-number guidance must be benchmarked fairly.** Reproduce the scoped scalar precision problem before arguing that FOV-aware sampling adds information; identify regimes where the simpler approach is sufficient.
 - **Retrospective representability is not the prospective sampling requirement.** A completed dataset may be represented by a few well-chosen FOVs, while an experiment that samples representative FOVs needs more to meet the same criterion reliably. Never report a best or minimal subset as a recommendation, and never without the prospective requirement beside it. Planning advice ("how many FOVs next time") must rest on what subsets actually preserved in hidden FOVs, judged by strategy-independent outcome metrics, not on how often a stopping rule says enough.
+- **A usual design is not flagged.** Three biological repeats, one technical repeat (well, dish) per condition and repeat, and options left at their defaults (no fingerprint, rare phenotype, acquisition order, stage coordinates or representation control) are described, never warned about. A ⚠️ caution is reserved for a measured property of these data or a missing declaration that kept a check from running; everything that holds for every dataset is a standing assumption (`_caveats`: `assumption(...)`, decided 2026-09-28). A test the design cannot make informative is left out, not flagged: it runs only when its smallest possible p can reach 0.05 after Bonferroni (`sampling_unit._reach`). The tone is that of a colleague, never condescending (owner, 2026-09-30).
+- **A dataset is one experiment, pooled as provided.** There is no experiment level above the biological repeat; whatever the user supplies is analysed as one experiment (owner, 2026-09-30).
+- **Pilots get advice, not verdicts.** A dataset of one or two biological repeats gets every answer its design supports, the cell-level test leading question 9, and what to change next time within the design the user ran (fields a side per repeat, technical repeats per condition), never a blanket "image 5-6 repeats". The repeats a paired test would need appear in the full report only, per condition at 0.05, with no Bonferroni across the plan (owner, 2026-09-30).
 - **Permit null results.** Do not optimize validation, examples, or documentation to guarantee that MorphoCoverage outperforms fixed cells/FOVs or scalar precision rules.
 - **FOV/spatial position is the primary acquisition/resampling unit.** Never bootstrap, permute, or sequentially reveal individual objects, z-planes, channels, or time points as independent FOVs. All observations from one position must enter together.
 - **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
@@ -100,7 +103,18 @@ Scientific rules:
 - owning the user's final biological-condition inference workflow;
 - microscope hardware control.
 
-MorphoCoverage does not replace the user's final biological inference workflow. It does describe, in the report, how the declared conditions differ in the acquired fields (`sampling_unit.condition_contrast`, decided by the project owner on 2026-09-26: Cohen's d and the JCS effect size on objects, as the lab's Plot&Stats notebook computes them, and with the field as the unit, plus a randomization test that shuffles condition labels over whole technical repeats when each side has at least two, with no test when a side has one, and over whole fields only without a technical-repeat column), always per repeat and always beside the field-aware version, and worded as what these fields support, never as the inference across independent repeats. It may also use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
+MorphoCoverage does not replace the user's final biological inference workflow, but the report answers "Do the conditions differ, and how confidently?" (question 9, `sampling_unit.condition_contrast`; owner decisions of 2026-09-26, 2026-09-30 and 2026-10-01; the tests, their assumptions and limitations and the simulation evidence are in `docs/condition_tests.md`). Per condition against the declared control, it gives:
+
+- **across biological repeats**, the repeat as the replicate (SuperPlots): the direction in every repeat, the per-repeat Cohen's d, and from 3 repeats the paired t-test on the repeat means, raw and on the log ratios to the control of the same repeat (`contrast_repeats`); the exact sign-flip test only where it can reach 0.05 after Bonferroni (from 6 repeats, full report);
+- **the lab's Plot&Stats cell-level test**: Cohen's d and a randomization test over the observations pooled as provided, on raw values and on values divided by the mean of the same repeat's control, labelled with its chance of p <= 0.05 without an effect, `2·P(Z > 1.96/√(1 + n·s²/2))` (`n` the observations per well, each repeat weighted by its share; `s` the SD between repeats), checked against `data/simulations/test_choice.py` and `unbalanced.py` (`contrast_cells`). When the repeats are unbalanced (one holds more than 25% more observations than another on a side, or the control is pooled from repeats the condition was not imaged in) it is also given balanced: against the control of the condition's own repeats, the same number of observations from every repeat, the median d and p over 100 draws. A repeat under a quarter of the median repeat (or with fewer than 5 observations) is named and left out of the balanced test only;
+- **within each repeat**, Cohen's d and the JCS effect size on objects, field means and technical-repeat means, with a randomization test over whole technical repeats only when its smallest p can reach 0.05 after Bonferroni (4 a side for one contrast), over whole fields only without a technical-repeat column;
+- with a `target` column, whether independent reagents for one target are on the same side of the control in every repeat (described, not tested);
+- **one reading per condition** that puts these together (`reading_text`): confirmed across repeats (the paired test, normalised, Bonferroni p <= 0.05), same direction in every repeat but not confirmed, no consistent direction, or one repeat; then the evidence, and when the raw pooled test disagrees, what it does differently;
+- planning the next experiment at the design the user ran (`repeat_plan`; see "Pilots get advice", section 3).
+
+The cell-level test answers whether these wells differ, not whether the effect repeats: its false-positive chance is always printed beside it, and only the paired test across repeats confirms a difference. With a control, question 2 asks whether the fields acquired resolve the difference from the control in each repeat (`contrast_sampling`: a bootstrap over fields as acquired, and the fields a side a resolution would need).
+
+It may also use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
 
 Do not add dependencies for those concerns merely to make an example easier.
 
@@ -188,6 +202,7 @@ src/morphocoverage/
     planes.py              # planes_as_features: one feature per plane, objects matched by label_id
     integrity.py           # exact data-integrity checks: copied, reordered or scaled fields, repeated blocks and summaries
     _integrity_match.py    # private: its matching at a stated precision, by sorting, with no loop over pairs of fields
+    _integrity_text.py     # private: the integrity checks in words (IntegrityResult.summary), short and full
     data_check.py          # check_tables: every data problem at once, where and how to fix it
     _data_rules.py         # private: the rules behind check_tables, one function per kind of problem
     _copy_rules.py         # private: its copy rule: repeated rows, observations repeated within a field, labels twice in a field
@@ -238,6 +253,7 @@ src/morphocoverage/
         replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
         calibration.py     # stopping-rule calibration: how often a rule's stop was premature
         adequacy.py        # first and sustained apparent and realized adequacy points
+        adequacy_text.py   # its words: "what did the extra fields buy?", short and full
         protocol.py        # protocol-level reliability across samples, by independent unit
         protocol_text.py   # its sentences
         frontier.py        # the benchmark score: fields saved at matched risk, transfer
@@ -257,6 +273,9 @@ src/morphocoverage/
         report_profile.py  # its sampling profile, one helper per source, and the control rates
         report_status.py   # the status marker and headline of every answer, question by question
         report_status_plan.py  # the status of the planning answers 4, 5 and 7 (re-exported by report_status)
+        report_status_conditions.py  # the status and headline of question 9 (the readings, reagents, ranking)
+        report_plan.py     # questions 4, 5 and 7 in their short form
+        report_resolved.py # question 2 with a control: do the fields acquired resolve the difference?
         report_enough.py   # question 2, short and full: sufficiency, detection-adjusted bound, calibration
         report_answers.py  # questions 6, 8 and 9 in short, caveats pooled; the closing "cannot tell me"
         report_sampling.py  # the Foundation and questions 1 and 3, short and full, and the counts their headlines read
@@ -266,8 +285,18 @@ src/morphocoverage/
         __init__.py        # the subpackage's public names
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
-        contrast.py        # each condition against the control: objects, fields and technical repeats as units
-        contrast_text.py   # its words: a table per contrast and per draw size, each caveat once
+        contrast.py        # each condition against the control: per repeat, across repeats, cell-level; question 9
+        contrast_text.py   # its words: the readings first, then a table per contrast and per draw size, each caveat once
+        contrast_repeats.py  # across biological repeats: direction, per-repeat d, paired t raw and normalised, sign-flip
+        repeats_text.py    # its words: the across-repeat table and its notes
+        contrast_cells.py  # the Plot&Stats cell-level test, raw and normalised, its balance check and balanced version
+        cells_text.py      # its words: the balance line, the tables, the false-positive chance, the notes
+        reading_text.py    # one verdict per condition, read from every test (confirmed, same direction, mixed, one repeat)
+        reagents_text.py   # whether independent reagents for one target agree (with a `target` column)
+        repeat_plan.py     # planning the next experiment at the design the user ran: fields a side per repeat
+        repeat_plan_text.py  # its words
+        contrast_sampling.py  # question 2 with a control: do the fields acquired resolve the difference per repeat?
+        _reach.py          # private: run a test only when the design lets its smallest p reach 0.05 after Bonferroni
         ranking.py         # which features separate the conditions: BH-gated |d| ranking (as fiberfeatures)
         _units.py          # private: sides, units and the randomization test shared by contrast and ranking
         unusual.py         # unusual (out-of-distribution) objects against a declared reference (unusual_objects)
@@ -287,6 +316,7 @@ src/morphocoverage/
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
         _manifest.py       # private: the live folder's files (write_fov, the manifest reader), re-exported by live
         _live_order.py     # private: the live session that runs the order check of each group's fields so far
+        _live_text.py      # private: the text of one live update (LiveUpdate.summary)
         _shared.py         # private: input checks, orders, rule replays on raw values, outcomes on normalised ones
     strategies/
         __init__.py        # the exported strategies, estimators and policies
@@ -322,7 +352,18 @@ tests/
     test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
     conftest.py            # one BLAS thread per test process
 
-A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.
+data/
+    crick_idr/             # Crick/IDR feature tables (idr0028 development, idr0139 held out), their analyses and results
+    lab/                   # the lab's datasets as MorphoBricks tables: card.toml, DATASET.md, convert.py, NOTICE per
+                           # dataset; run_lab.py runs the report, FINDINGS.md logs each run (rules in data/lab/README.md:
+                           # only pinned public or owner-released sources, never a manuscript)
+    simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py) and results
+    synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
+
+docs/                      # questions.md (the questions and their status), condition_tests.md (question 9's tests,
+                           # assumptions and limitations), data_format.md, workflows.md, preliminary_findings.md, ...
+
+`tests/test_contracts.py` checks that every module under `src/morphocoverage/` is listed above, as it checks section 9's scenarios. A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.
 
 ## 8. Development sequence
 
@@ -427,8 +468,8 @@ For substantive code changes, when the environment permits:
 
 ```bash
 pytest
-ruff check src tests data
-ruff format --check src tests data
+python -m ruff check src tests data
+python -m ruff format --check src tests data
 ```
 
 Never claim a command passed unless it actually ran successfully.
@@ -538,6 +579,10 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | Dataset role | `development` (may be used for tuning) or `held_out` (never tuned on); declared in a `BenchmarkRegistry`. |
 | Prefix / replay | The first k acquired FOVs of a real acquisition; replay evaluates strategies on successive prefixes. |
 | Design effect | The variance of a mean with FOVs as the sampling unit, divided by its variance under random-cell sampling. |
+| Cell-level test | The lab's Plot&Stats test: Cohen's d and a randomization test over the observations of all repeats pooled. It asks whether these wells differ; its chance of p <= 0.05 without an effect is printed beside it (section 4). |
+| Paired test across repeats | The paired t-test on the repeat means (SuperPlots), raw and on log ratios to the control: the biological repeat is the replicate; the only test that confirms a difference in question 9. |
+| Normalised | Divided by the mean of the control of the same biological repeat (a fold change); removes a scale both wells of a repeat share, not the part of an effect that varies between repeats. |
+| Balanced | The cell-level test against the control of the condition's own repeats, with the same number of observations drawn from every repeat (median over 100 draws); given when the repeats are unbalanced. |
 
 ## 20. Adding or swapping a strategy
 

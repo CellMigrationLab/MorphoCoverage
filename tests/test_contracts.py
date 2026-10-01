@@ -109,6 +109,17 @@ def test_agents_section_9_matches_contract_tests():
     )
 
 
+def test_agents_section_7_lists_every_module():
+    """AGENTS.md section 7 maps the package; a module missing from it is a map out of date."""
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "AGENTS.md").read_text()
+    section = re.search(r"^## 7\..*?(?=^## 8\.)", text, flags=re.DOTALL | re.MULTILINE)
+    assert section, "AGENTS.md §7 not found"
+    listed = set(re.findall(r"\b([A-Za-z_0-9]+\.py)\b", section.group(0)))
+    modules = {p.name for p in (root / "src" / "morphocoverage").rglob("*.py")}
+    assert modules <= listed, f"modules missing from AGENTS.md §7: {sorted(modules - listed)}"
+
+
 def test_every_package_strategy_is_under_contract():
     # AGENTS.md section 9: a strategy added to the package must be added to
     # STRATEGIES_UNDER_CONTRACT, and so must every exported estimator and
