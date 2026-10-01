@@ -102,8 +102,9 @@ def chip(status: Status | None, key: str = "", answer: str = "") -> str:
     word = RESULT_WORDS.get((key, status), word)
     if key == "enough" and status is Status.CAUTION and "shown in 0 of" in answer:
         word = "Not yet"
-    if key == "conditions" and "n = 1" in answer:
-        word = "No conclusion (n = 1)"
+    few = re.search(r"\bn = ([12])\b", answer) if key == "conditions" else None
+    if few:
+        word = f"No conclusion (n = {few.group(1)})"
     elif key == "conditions" and status is Status.CAUTION:
         word = "Trend only" if "same direction" in answer else "No consistent difference"
     icon = f'<span aria-hidden="true">{status.marker}</span>'

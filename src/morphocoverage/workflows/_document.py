@@ -33,7 +33,7 @@ from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_
 from ..retrospective.report import QUESTIONS, with_opening
 from ..retrospective.report_profile import sampling_profile
 from ..retrospective.report_sampling import states_lines
-from ..retrospective.report_status import caveat_status, profile_status
+from ..retrospective.report_status import RESULT_QUESTIONS, caveat_status, profile_status
 from ..sampling_unit._state_text import clustering_parts
 from ..schema import unit_plural
 from ._declaration import declaration_short
@@ -384,8 +384,13 @@ def with_text(
         if key in short:
             merged = _merged(short[key], brief) if short_text else f"{short[key]}\n\n{brief}"
             short[key] = pool_assumptions(merged)
-        raised = worst([statuses.get(key, Status.NOT_ASSESSED), status])
-        statuses[key] = caveat_status(raised, short.get(key, sections[key]))
+        current = statuses.get(key, Status.NOT_ASSESSED)
+        if key in RESULT_QUESTIONS and status is not Status.PROBLEM:
+            # Its marker says what was found; a caution added here is read in the section.
+            raised = current
+        else:
+            raised = worst([current, status])
+        statuses[key] = caveat_status(raised, short.get(key, sections[key]), key)
     profile = document.profile
     if rows is not None and len(rows):
         profile = pd.concat([profile, rows], ignore_index=True) if len(profile) else rows

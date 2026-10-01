@@ -190,10 +190,17 @@ NO_COPY_CHECKS = "copy checks not run (report(..., integrity=True) runs them)"
 _BOTH_RUN = "report(..., integrity=True) runs both)"
 
 
-def caveat_status(status: Status, text: str) -> Status:
+# The question whose marker says what the answer found (owner, 2026-10-01): a caution in its
+# section is read there, it does not turn "Differs" into a caution. "Did I image enough?"
+# keeps the cautions of its rules (an unchecked order, say): they are part of its answer.
+RESULT_QUESTIONS = ("conditions",)
+
+
+def caveat_status(status: Status, text: str, key: str = "") -> Status:
     """``status`` raised to ⚠️ when its section ``text`` states a caution about these data
-    (a ⚠️ line); its assumptions never raise it, and a question not assessed stays so."""
-    if status is Status.NOT_ASSESSED or not has_caution(text):
+    (a ⚠️ line); its assumptions never raise it, a question not assessed stays so, and a
+    question whose marker says the result (``RESULT_QUESTIONS``) keeps it."""
+    if status is Status.NOT_ASSESSED or key in RESULT_QUESTIONS or not has_caution(text):
         return status
     return worst([status, Status.CAUTION])
 
@@ -544,6 +551,7 @@ __all__ = [
     "FEW_UNITS",
     "NO_COPY_CHECKS",
     "RELIABLE_SHARE",
+    "RESULT_QUESTIONS",
     "bought_status",
     "calibration_status",
     "caveat_status",

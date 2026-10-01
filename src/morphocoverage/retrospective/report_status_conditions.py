@@ -119,6 +119,7 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         n_features = len(discovery.ranking)
         significant = discovery.confirmed()
         across = discovery.tests["p_paired"].notna().any()
+        held = int(discovery.tests["repeats"].max()) if "repeats" in discovery.tests else 1
         named = f" ({listing(significant, 4)})" if significant else ""
         # Every feature alike: any of them significant across repeats is a difference
         # (owner, 2026-10-01: the report is neutral; the readout is optimise's and live's).
@@ -128,7 +129,7 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             f"{passing} candidates in the exploratory cell-level screen"
             if across
             else f"{passing} of {n_features} features candidates in the exploratory cell-level "
-            "screen, hypotheses for another repeat (no test across repeats)",
+            f"screen, hypotheses for another repeat (no test across repeats: n = {held})",
         )
         if across and not significant:
             status = Status.CAUTION
