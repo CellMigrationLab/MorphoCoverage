@@ -26,6 +26,7 @@ from morphocoverage.sampling_unit import (
     object_rule_check,
     unusual_objects,
 )
+from morphocoverage.sampling_unit.contrast import UNREACHABLE
 
 DATA = Path(__file__).resolve().parents[1] / "data" / "crick_idr"
 
@@ -48,12 +49,14 @@ def acquisition(
     for j in range(n_fields):
         values = mean + offsets[j] + rng.normal(0, object_sd, per_field)
         for v in values:
-            rows.append({"condition": condition, "repeat": repeat, "image_file": f"f{j}", "x": v})
+            rows.append(
+                {"condition": condition, "biological_repeat": repeat, "image_file": f"f{j}", "x": v}
+            )
     objects = pd.DataFrame(rows)
     fovs = pd.DataFrame(
         {
             "condition": condition,
-            "repeat": repeat,
+            "biological_repeat": repeat,
             "image_file": [f"f{j}" for j in range(n_fields)],
         }
     )
@@ -92,7 +95,12 @@ def test_a_strong_field_effect_gives_the_design_effect_of_its_construction():
 def test_zero_observation_fields_count_as_acquired_and_missing_values_are_left_out():
     objects, fovs = acquisition(n_fields=10, per_field=20)
     fovs = pd.concat(
-        [fovs, pd.DataFrame({"condition": ["A"], "repeat": ["r1"], "image_file": ["empty"]})],
+        [
+            fovs,
+            pd.DataFrame(
+                {"condition": ["A"], "biological_repeat": ["r1"], "image_file": ["empty"]}
+            ),
+        ],
         ignore_index=True,
     )
     objects.loc[0, "x"] = np.nan
@@ -271,7 +279,12 @@ def test_unlabelled_objects_are_left_out_and_empty_fovs_count():
     objects = _labelled(objects, ["f0"], per_field=2)
     objects.loc[objects["image_file"] == "f9", "state"] = None
     fovs = pd.concat(
-        [fovs, pd.DataFrame({"condition": ["A"], "repeat": ["r1"], "image_file": ["empty"]})],
+        [
+            fovs,
+            pd.DataFrame(
+                {"condition": ["A"], "biological_repeat": ["r1"], "image_file": ["empty"]}
+            ),
+        ],
         ignore_index=True,
     )
     table = fov_clustering(objects, fovs, label_col="state").table.set_index("state")
@@ -327,10 +340,10 @@ def test_a_group_is_never_its_own_reference():
         objects, fovs, feature_cols=["x", "y"], reference={"condition": "ctrl"}
     ).groups
     for row in groups.to_dict("records"):
-        own = {"condition": row["condition"], "repeat": row["repeat"]}
+        own = {"condition": row["condition"], "biological_repeat": row["biological_repeat"]}
         assert own not in row["reference_groups"]
-    single = objects[(objects["condition"] != "ctrl") | (objects["repeat"] == "r0")]
-    single_fovs = fovs[(fovs["condition"] != "ctrl") | (fovs["repeat"] == "r0")]
+    single = objects[(objects["condition"] != "ctrl") | (objects["biological_repeat"] == "r0")]
+    single_fovs = fovs[(fovs["condition"] != "ctrl") | (fovs["biological_repeat"] == "r0")]
     rows = unusual_objects(
         single, single_fovs, feature_cols=["x", "y"], reference={"condition": "ctrl"}
     ).groups.set_index("condition")
@@ -378,7 +391,7 @@ def idr0139():
 def test_idr0139_fovs_are_not_random_objects(idr0139):
     """Regression of docs/preliminary_findings.md entry 9 on the committed wells."""
     objects, fovs, ratio = idr0139
-    groups = ["condition", "repeat", "technical_repeat"]
+    groups = ["condition", "biological_repeat", "technical_repeat"]
     variability = fov_variability(objects, fovs, feature=ratio, group_cols=groups).groups.set_index(
         "technical_repeat"
     )
@@ -434,8 +447,8 @@ def test_the_report_states_the_design_effect_once():
         for r in range(3)
     ]
     objects, fovs = combined(*parts)
-    objects["sample"] = objects["repeat"]
-    fovs["sample"] = fovs["repeat"]
+    objects["sample"] = objects["biological_repeat"]
+    fovs["sample"] = fovs["biological_repeat"]
     effort = effort_projection(
         objects,
         fovs,
@@ -470,14 +483,19 @@ def _two_conditions(
                 for j in range(n_fields):
                     name = f"{repeat}_{condition}_{well}_f{j}"
                     fovs.append(
-                        {"condition": condition, "repeat": repeat, "well": well, "image_file": name}
+                        {
+                            "condition": condition,
+                            "biological_repeat": repeat,
+                            "well": well,
+                            "image_file": name,
+                        }
                     )
                     offset = well_shift + rng.normal(0, field_sd)
                     for _ in range(25):
                         objects.append(
                             {
                                 "condition": condition,
-                                "repeat": repeat,
+                                "biological_repeat": repeat,
                                 "well": well,
                                 "image_file": name,
                                 "x": 10 + offset + rng.normal(),
@@ -487,7 +505,7 @@ def _two_conditions(
     return pd.DataFrame(objects), pd.DataFrame(fovs)
 
 
-CONTRAST_GROUPS = ["condition", "repeat", "well"]
+CONTRAST_GROUPS = ["condition", "biological_repeat", "well"]
 
 
 def test_cohen_d_is_the_pooled_sd_effect_size():
@@ -500,7 +518,7 @@ def test_cohen_d_is_the_pooled_sd_effect_size():
 
 
 def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
-    objects, fovs = _two_conditions(shift=2.0, field_sd=0.3)
+    objects, fovs = _two_conditions(shift=2.0, field_sd=0.3, n_wells=5)
     result = condition_contrast(
         objects,
         fovs,
@@ -512,16 +530,19 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
         object_counts=(50, 200, 10_000),
     )
     table = result.table
-    assert list(zip(table["repeat"], table["condition"])) == [("R1", "treated"), ("R2", "treated")]
+    assert list(zip(table["biological_repeat"], table["condition"])) == [
+        ("R1", "treated"),
+        ("R2", "treated"),
+    ]
     assert (table["status"] == "ok").all()
-    # Both wells of a condition are pooled: 24 fields of 25 objects on each side.
-    assert (table["fields"] == 24).all() and (table["observations"] == 600).all()
+    # The five wells of a condition are pooled: 60 fields of 25 objects on each side.
+    assert (table["fields"] == 60).all() and (table["observations"] == 1500).all()
     assert (table["d_objects"] > 1).all() and (table["d_fields"] > 1).all()
-    # The well column in group_cols is the shuffled unit (audit 4 Q1): 2 wells a side
-    # give 6 assignments, so p cannot fall below 1/3 however large the shift.
+    # The well column in group_cols is the shuffled unit (audit 4 Q1): 5 wells a side
+    # give 252 assignments; the shift puts the observed split at the floor, 2/252.
     assert (table["permutation_unit"] == "well").all()
-    assert table["p_value"].tolist() == pytest.approx([1 / 3] * 2)
-    assert table["p_bonferroni"].tolist() == pytest.approx([2 / 3] * 2)
+    assert table["p_value"].tolist() == pytest.approx([2 / 252] * 2)
+    assert table["p_bonferroni"].tolist() == pytest.approx([4 / 252] * 2)
     effects = result.effects
     # 10,000 objects exceed what a side holds and are left out; 50 and 200 are kept.
     assert sorted(effects["n_objects"].unique()) == [50, 200]
@@ -542,7 +563,7 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
 def test_a_field_effect_alone_does_not_make_the_conditions_differ_by_fields():
     # No condition difference, strong field-to-field variation: the field-unit
     # randomization test does not call the conditions different.
-    objects, fovs = _two_conditions(shift=0.0, field_sd=1.0, seed=5)
+    objects, fovs = _two_conditions(shift=0.0, field_sd=1.0, seed=5, n_wells=5)
     result = condition_contrast(
         objects,
         fovs,
@@ -577,11 +598,11 @@ def test_condition_contrast_is_deterministic_and_needs_a_control_and_other_condi
     alone = condition_contrast(objects[objects["condition"] == "control"], only_control, **common)
     assert alone.table.empty and "no other condition to compare" in alone.summary()
     # A repeat without a control group is reported, not compared.
-    fovs_missing = fovs[~((fovs["repeat"] == "R2") & (fovs["condition"] == "control"))]
+    fovs_missing = fovs[~((fovs["biological_repeat"] == "R2") & (fovs["condition"] == "control"))]
     objects_missing = objects[objects["image_file"].isin(fovs_missing["image_file"])]
     partial = condition_contrast(objects_missing, fovs_missing, **common)
-    r2 = partial.table[partial.table["repeat"] == "R2"].iloc[0]
-    assert r2["status"] == "no control group in repeat=R2" and np.isnan(r2["p_value"])
+    r2 = partial.table[partial.table["biological_repeat"] == "R2"].iloc[0]
+    assert r2["status"] == "no control group in biological_repeat=R2" and np.isnan(r2["p_value"])
 
 
 def test_the_report_places_the_contrast_last():
@@ -602,7 +623,7 @@ def test_the_report_places_the_contrast_last():
     text = report.summary(detail="full")
     assert "9. Do the conditions differ, and how confidently?" in text
     assert text.index("8. Could I have sampled") < text.index("9. Do the conditions differ")
-    assert "generalizing it needs independent biological repeats" in " ".join(text.split())
+    assert "user's inference" not in " ".join(text.split())
     assert "Not assessed" in microscopist_report().sections["conditions"]
 
 
@@ -627,28 +648,30 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
     assert (table["permutation_unit"] == "technical_repeat").all()
     assert (table["technical"] == 2).all() and (table["control_technical"] == 2).all()
     assert (table["distinct_assignments"] == 6).all()
-    assert np.isfinite(table["d_technical"]).all() and (table["d_technical"] > 1).all()
-    # Two wells a side: the observed split and its mirror are always as extreme.
-    assert (table["p_value"] > 0.2).all()
+    # Two wells a side: the exact test's smallest p is 1/3 (the observed split and its mirror
+    # are always as extreme), so it cannot help and is not run; neither is a d from two
+    # well means, which can be very large by chance.
+    assert table["p_floor"].tolist() == pytest.approx([1 / 3] * 2)
+    assert table["p_value"].isna().all() and (table["status"] == UNREACHABLE).all()
+    assert table["d_technical"].isna().all()
     text = " ".join(result.summary(detail="full").split())
     assert "with the technical repeat (technical_repeat) as the unit" in text
-    assert "tech. repeats d objects d fields d tech. repeats" in text and " 2 vs 2 " in text
-    assert "whole technical repeats (technical_repeat; only 6 distinct assignments exist)" in text
-    short = " ".join(result.summary().split())
-    assert "whole technical repeats (technical_repeat), as few as 6 distinct assignments" in short
+    assert "tech. repeats d objects d fields JCS" in text and " 2 vs 2 " in text
+    assert "⚠️" not in result.summary()
+    assert "too few technical repeats on a side for the randomization test" in text
     # Without the column among the groups, the technical repeats stay the unit (audit 3, H-1).
     pooled = condition_contrast(
         objects,
         fovs,
         feature="x",
         control={"condition": "control"},
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
         n_permutations=100,
         n_draws=5,
         object_counts=(50,),
     )
     assert (pooled.table["permutation_unit"] == "technical_repeat").all()
-    assert pooled.table["p_value"].tolist() == table["p_value"].tolist()
+    assert pooled.table["status"].tolist() == table["status"].tolist()
 
 
 def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
@@ -710,9 +733,11 @@ def test_feature_ranking_says_when_few_technical_repeats_cannot_pass_the_gate():
     )
     assert not result.tests["passes_gate"].any() and result.top() == []
     text = " ".join(result.summary().split())
-    assert "No contrast passes the gate for 1 feature: x." in text
-    # Two wells a side: the observed split and its mirror, 2 of 6 assignments.
-    assert "with as few as 6 distinct assignments a p-value cannot fall below 0.33" in text
+    # Two wells a side: the observed split and its mirror, 2 of 6 assignments, a floor of 1/3
+    # above the gate, so the test cannot help and is not run (as in condition_contrast).
+    assert result.tests["p_value"].isna().all()
+    assert (result.tests["status"] == UNREACHABLE).all()
+    assert "None is ranked" in text and "so it is not run" in text
     with pytest.raises(ValueError, match="alpha"):
         feature_ranking(objects, fovs, features=["x"], control={"condition": "control"}, alpha=1)
     with pytest.raises(ValueError, match="at least one"):

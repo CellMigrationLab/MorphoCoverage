@@ -37,6 +37,7 @@ from ._data_rules import (
     _resolve_fov_col,
     _resolve_groups,
 )
+from ._former_repeat import FORMER_REPEAT_COLUMN, Reader, one_warning
 from ._input_traps import (
     InvalidRowsWarning,
     _check_container_files,
@@ -135,6 +136,7 @@ class DataCheck:
             raise ValueError(self.summary(detail="full"))
 
 
+@one_warning
 def check_tables(
     objects: pd.DataFrame,
     fovs: pd.DataFrame | None = None,
@@ -159,7 +161,9 @@ def check_tables(
     conditions of one repeat, an undeclared text column that splits analysis
     groups into blocks of fields (a well or a plate under another name),
     multi-position files that repeat a ``label_id``, and repeats without a
-    control.
+    control. A table, ``group_cols``, ``fov_col`` or ``control`` that uses the
+    former name ``repeat`` is read as ``biological_repeat``, with a
+    ``DeprecationWarning``; a table with both, different, is an error.
     """
     c = Collector()
     if not isinstance(objects, pd.DataFrame):
@@ -174,6 +178,19 @@ def check_tables(
             "The FOV table is not a table.",
             f"fovs is a {type(fovs).__name__}.",
             "Pass a pandas DataFrame with one row per acquired field.",
+        )
+        return DataCheck(tuple(c.problems), tuple(c.understood))
+    try:
+        objects, fovs, group_cols, fov_col, control = _read_former_repeat(
+            objects, fovs, group_cols, fov_col, control
+        )
+    except ValueError as error:
+        c.error(
+            f"The former name {FORMER_REPEAT_COLUMN!r} and the biological repeat's column "
+            "hold different values.",
+            f"{error}.",
+            "Keep only 'biological_repeat', the biological repeat, and rename or remove the "
+            f"{FORMER_REPEAT_COLUMN!r} column (or control key).",
         )
         return DataCheck(tuple(c.problems), tuple(c.understood))
     for name, table in (("observation table", objects), ("FOV table", fovs)):
@@ -349,6 +366,23 @@ def check_tables(
     return DataCheck(tuple(c.problems), tuple(c.understood))
 
 
+def _read_former_repeat(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    group_cols: Any,
+    fov_col: Any,
+    control: Any,
+) -> tuple[pd.DataFrame, pd.DataFrame | None, Any, Any, Any]:
+    """The arguments with the former name ``repeat`` read as ``biological_repeat``, warning
+    once (``_former_repeat``); ``ValueError`` when a table or ``control`` holds both, different."""
+    former = Reader()
+    objects, fovs = former.table(objects, "objects"), former.table(fovs, "fovs")
+    group_cols = former.columns(group_cols, "group_cols")
+    fov_col, control = former.column(fov_col, "fov_col"), former.mapping(control, "control")
+    former.warn()
+    return objects, fovs, group_cols, fov_col, control
+
+
 def _understand_empty_columns(
     c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, explicit: Sequence[str]
 ) -> None:
@@ -418,6 +452,7 @@ def _column_list(c: Collector, columns: object, name: str) -> list | None:
     return None if names is None else list(names)
 
 
+@one_warning
 def validate_input_tables(
     objects: pd.DataFrame,
     *,
@@ -441,11 +476,15 @@ def validate_input_tables(
       (``planes_as_features`` turns a feature into one per plane).
     - The field identifier is ``fov_col``, or the first of ``position_id``,
       ``image_file`` and ``fov_id`` present in the tables; the analysis groups
-      are ``group_cols``, or the MorphoBricks ``condition``, ``repeat`` and
-      ``technical_repeat`` present, and all of these are part of the field
-      identity. Identity values are complete labels (no missing or blank
-      value, no list). Near-miss spellings (``Repeat``, ``technical.repeat``,
-      ``Z``) are refused unless named explicitly.
+      are ``group_cols``, or the MorphoBricks ``condition``,
+      ``biological_repeat`` and ``technical_repeat`` present, and all of these
+      are part of the field identity. Identity values are complete labels (no
+      missing or blank value, no list). Near-miss spellings
+      (``Biological_Repeat``, ``bio_repeat``, ``technical.repeat``, ``Z``) are
+      refused unless named explicitly. The former name ``repeat`` (a column,
+      or in ``group_cols``/``fov_col``) is read as ``biological_repeat`` with a
+      ``DeprecationWarning``; a table with both is refused unless they are
+      identical.
     - An optional shared column (``position_id``, ``technical_repeat``) empty
       in every row of a table is read as absent from it; when only the
       observation table's copy is empty, the FOV table's values are used.

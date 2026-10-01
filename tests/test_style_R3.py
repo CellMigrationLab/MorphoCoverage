@@ -55,7 +55,7 @@ def test_the_fields_to_reopen_are_one_table_and_the_full_form_keeps_every_reason
     assert short.count("None of these is called an error") == 1
     assert f"{CAUTION} Stage neighbours were not compared in control · R1" in short
     full = result.summary(detail="full")
-    assert "Analysis groups: condition · repeat." in full
+    assert "Analysis groups: condition · biological_repeat." in full
     assert "control · R1: fields to reopen before trusting the result" in full
     for detail in result.fovs["detail"]:
         assert _flat(detail) in _flat(full)
@@ -106,7 +106,7 @@ def test_the_order_comparison_is_one_table_per_order_kind_and_every_median_in_fu
         if row["median_fovs"] is not None and not np.isnan(row["median_fovs"]):
             fields = f"{row['median_fovs']:g} field"
             assert fields in full
-    assert "Analysis groups: condition · repeat." in full
+    assert "Analysis groups: condition · biological_repeat." in full
     assert "min" in full  # the timing was given
     with pytest.raises(ValueError, match="short"):
         result.summary(detail="brief")
@@ -153,15 +153,17 @@ def test_the_contrasts_are_one_table_each_caveat_once_and_every_number_in_full()
     assert conditions_status(result, None)[0] is Status.OK
 
 
-def test_an_untested_contrast_is_a_caution_said_once():
-    # One technical repeat a side: no test.
+def test_a_contrast_the_design_cannot_test_is_left_out_said_once_not_flagged():
+    # One technical repeat a side and two biological repeats: no test within or across
+    # repeats. That is a usual pilot design, so the answer is "not tested", not a warning.
     objects, fovs = _technical(*_two_conditions(shift=2.0, field_sd=0.3, n_wells=1))
     result = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5)
     status, headline = conditions_status(result, None)
-    assert status is Status.CAUTION and "untested (one technical repeat on a side)" in headline
+    assert status is Status.NOT_ASSESSED
+    assert "not tested (one technical repeat on a side)" in headline
     short = result.summary()
-    assert short.count("only one technical repeat") == 1
-    assert "no test" in short
+    assert " ".join(short.split()).count("only one technical repeat") == 1
+    assert "no test" in short and CAUTION not in short
 
 
 def test_the_ranking_is_a_table_of_the_best_features_with_its_caveats_once():
@@ -189,8 +191,10 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     inspection = _inspect(*_acquisition())
     report = microscopist_report(contrast=contrast, inspection=inspection)
     short = report.summary()
-    assert report.short["conditions"].startswith("  x, each condition against the control")
-    assert _flat(short).count("generalizing it needs independent biological repeats") == 1
+    # The answer across biological repeats first, then the contrasts within each repeat.
+    assert report.short["conditions"].startswith("  Across the 2 biological repeats")
+    assert "Within each repeat: x, each condition against the control" in _flat(short)
+    assert "user's inference" not in _flat(short)
     assert _flat(short).count("compare means") == 1
     assert report.short["inspect"] in short
     assert all(width <= 100 for width in _widths(report.short["inspect"]))
@@ -198,12 +202,14 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     assert "Feature x, each condition against the control" in full
     # The closing: what was not assessed, in a line each, and the notes as caveats.
     closing = short.split(LIMITS_TITLE)[1]
-    assert f"{NOT_ASSESSED} 2. Did I image enough? — not assessed" in closing
+    # With a contrast, question 2 is answered from it (the difference resolved or not).
+    assert f"{NOT_ASSESSED} 1. Can the features see the phenotype? — not assessed" in closing
+    assert "2. Did I image enough? — not assessed" not in closing
     # A standing assumption of every answer: listed under "Assumptions:", not marked.
     assert "Assumptions: Every answer holds for the stated features" in _flat(closing)
     assert f"{CAUTION} Every answer holds" not in closing
     limits = report.limits(detail="full")
-    assert "2. Did I image enough?: not assessed; needs: run sufficiency_report" in limits
+    assert "4. How many fields should I image next time?: not assessed; needs: run" in limits
     assert report.limits() == limits
 
 

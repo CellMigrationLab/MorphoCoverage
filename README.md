@@ -22,7 +22,7 @@ For a completed experiment, the aim is to tell a microscopist whether the imagin
 | Which FOVs and cells should I inspect? | `inspect_fovs`: fields to reopen, each with its reason and numbers (new state, influence on a summary, observation count, difference from stage neighbours), image file and stage position |
 | More FOVs, or more biological samples? | `effort_projection`: nested variance components of a scalar mean and projected standard errors at equal total FOVs; "cannot tell" unless the intervals separate |
 | Could I have sampled more efficiently? | `order_efficiency`: recorded, random and dispersed orders of the same positions with stage travel; `redundancy_distance`; a comparison with all candidate positions is not implemented |
-| Do the conditions differ, and how confidently? | `morphocoverage.sampling_unit.condition_contrast`: each condition against the declared control, per repeat, with Cohen's d and the JCS effect size on objects (as the lab's Plot&Stats notebook computes them) and with the field as the unit, and a randomization test over whole technical repeats (each side at least two; none with a single technical repeat on a side) or, without a `technical_repeat` column, over whole fields |
+| Do the conditions differ, and how confidently? | `morphocoverage.sampling_unit.condition_contrast`: across the biological repeats, the direction in every repeat, Cohen's d and the paired t-test on the repeat averages; the lab's Plot&Stats cell-level randomization test on Cohen's d, labelled with its chance of a positive without an effect and balanced when the repeats are not; both on raw and on normalised values (assumptions and limitations: [`docs/condition_tests.md`](docs/condition_tests.md)); within each repeat, Cohen's d and the JCS effect size on objects and with the field as the unit, and a randomization test over whole technical repeats (each side at least two) or, without a `technical_repeat` column, over whole fields |
 
 A completed dataset may be represented by a few well-chosen FOVs, while a new experiment that samples FOVs at random needs more: **retrospective representability is not the prospective sampling requirement.** `morphocoverage.retrospective.microscopist_report` assembles these answers question by question (`docs/questions.md`). Underneath, several candidate estimators answer these questions; none is assumed to be universally correct.
 
@@ -86,7 +86,7 @@ At a glance
   ✅ Foundation. Why count fields? — a mean from whole fields varies 2.1x as much as from random
      nuclei (median); the JCB count rule still held with whole fields in all 12 technical repeats
   ⚠️ 1. Can the features see the phenotype? — YAP fields recognized in 100% of checks; false alarms
-     2%; not judged in repeat 2B (no positive-control field with nuclei)
+     2%; not judged in biological repeat 2B (no positive-control field with nuclei)
   ⚠️ 2. Did I image enough? — 3 of 4 rules said enough in every technical repeat; 'nothing new' not
      yet shown; held-back fields: some rules stopped too early (up to 60%)
   …
@@ -106,7 +106,7 @@ At a glance
 
 MorphoCoverage is a strategy-comparison framework. No default coverage estimator has been chosen.
 
-- **Input validation.** Linked FOV and phenotype-observation tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition`, `repeat` and, when present, `technical_repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero observations are kept, and FOV-level grouping metadata can be inherited from the FOV table when the position identifier is unambiguous; and `z`, `c` and `t` are within-position metadata: they are refused as features, and a feature measured per plane becomes one feature per plane with `planes_as_features`. `observation_unit` records what one feature row means. NaN feature values may be loaded but are never silently imputed or dropped; each method must state how it handles them.
+- **Input validation.** Linked FOV and phenotype-observation tables with MorphoBricks defaults. `position_id` is the preferred explicit spatial-position identifier; `image_file` is a fallback only when one file corresponds to one position. `condition`, `biological_repeat` (formerly `repeat`, still read with a `DeprecationWarning`) and, when present, `technical_repeat` are separate analysis groups that stay part of FOV identity even when pooled. Feature columns are always explicit, acquired FOVs with zero observations are kept, and FOV-level grouping metadata can be inherited from the FOV table when the position identifier is unambiguous; and `z`, `c` and `t` are within-position metadata: they are refused as features, and a feature measured per plane becomes one feature per plane with `planes_as_features`. `observation_unit` records what one feature row means. NaN feature values may be loaded but are never silently imputed or dropped; each method must state how it handles them.
 - **Swappable strategies.** A strategy is one or more estimators, which report named evidence with its direction, units and objective component, plus decision policies that turn the evidence into continue/stop. Estimators receive one analysis group at a time; the framework fills counts, provenance (`config_id`) and compute time. `redecide` applies other thresholds to stored results without re-running. A strategy with no evidence about a required objective component returns `unsupported`, never `stop`. Current-practice baselines:
   - fixed FOV, fixed imaged area, generic observation-count, and legacy object/cell-count baselines;
   - a JCB/Zweifach-style scalar precision rule, re-estimated within each group or planned once from disjoint pilot samples (`plan_objects_to_average`, `PlannedObjectCountStrategy`);
@@ -136,11 +136,12 @@ from morphocoverage import (
     evaluate_acquisition_prefixes,
 )
 
-# The stored tables name the well; the MorphoBricks column for it is technical_repeat.
-well = {"well": "technical_repeat"}
+# The stored tables name the well and the plate "well" and "repeat"; the MorphoBricks
+# columns for them are technical_repeat and biological_repeat.
+names = {"well": "technical_repeat", "repeat": "biological_repeat"}
 fovs = pd.read_csv("data/crick_idr/idr0028_screenB_fovs.csv.gz", dtype={"repeat": str})
 objects = pd.read_csv("data/crick_idr/idr0028_screenB_nuclei.csv.gz", dtype={"repeat": str})
-fovs, objects = fovs.rename(columns=well), objects.rename(columns=well)
+fovs, objects = fovs.rename(columns=names), objects.rename(columns=names)
 feature = "Nuclei_Intensity_MeanIntensity_YAPTAZ"
 
 results = evaluate_acquisition_prefixes(
@@ -153,7 +154,7 @@ results = evaluate_acquisition_prefixes(
     feature_cols=[feature],
     acquisition_order_col="acquisition_order",
     objective=ObjectiveConfig(SamplingObjective.POPULATION),
-    group_cols=["condition", "repeat", "technical_repeat"],
+    group_cols=["condition", "biological_repeat", "technical_repeat"],
 )
 ```
 
@@ -167,7 +168,7 @@ session = OnlineSession(
     feature_cols=["feature_a", "feature_b"],
     objective=ObjectiveConfig(SamplingObjective.POPULATION),
     fov_col="position_id",
-    group_cols=["condition", "repeat"],
+    group_cols=["condition", "biological_repeat"],
     observation_unit="cell",
 )
 
@@ -175,7 +176,7 @@ results = session.add_fov(
     observations=current_feature_table,
     fov_metadata={
         "condition": "control",
-        "repeat": "R1",
+        "biological_repeat": "R1",
         "position_id": "P017",
     },
 )

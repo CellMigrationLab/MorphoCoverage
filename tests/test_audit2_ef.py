@@ -54,7 +54,7 @@ def _make(n_fovs=20, per_fov=8, empty=(), seed=0, groups=(("A", "r1"),)):
             fovs.append(
                 {
                     "condition": condition,
-                    "repeat": repeat,
+                    "biological_repeat": repeat,
                     "position_id": position,
                     "x": float(i % 5) * 100.0,
                     "y": float(i // 5) * 100.0,
@@ -66,7 +66,7 @@ def _make(n_fovs=20, per_fov=8, empty=(), seed=0, groups=(("A", "r1"),)):
             objects += [
                 {
                     "condition": condition,
-                    "repeat": repeat,
+                    "biological_repeat": repeat,
                     "position_id": position,
                     "f": 10 + shift + rng.normal(0, 1),
                 }
@@ -84,14 +84,14 @@ def _control_tables(control_level, treated_level):
                 rows += [
                     {
                         "condition": condition,
-                        "repeat": repeat,
+                        "biological_repeat": repeat,
                         "position_id": f"{repeat}_{condition}_{field_index}",
                         "x": value,
                     }
                     for value in level(repeat)
                 ]
     objects = pd.DataFrame(rows)
-    fovs = objects[["condition", "repeat", "position_id"]].drop_duplicates()
+    fovs = objects[["condition", "biological_repeat", "position_id"]].drop_duplicates()
     return objects, fovs.reset_index(drop=True)
 
 
@@ -109,8 +109,8 @@ def test_e1_a_negative_control_mean_is_refused_naming_feature_and_repeat():
 def test_e2_an_explicit_repeat_column_that_is_absent_raises_instead_of_pooling():
     objects, fovs = _control_tables(lambda r: [1.0, 2.0, 1.5, 1.5], lambda r: [3.0] * 4)
     objects, fovs = (
-        objects.rename(columns={"repeat": "plate"}),
-        fovs.rename(columns={"repeat": "plate"}),
+        objects.rename(columns={"biological_repeat": "plate"}),
+        fovs.rename(columns={"biological_repeat": "plate"}),
     )
     with pytest.raises(ValueError, match="repeat_col 'Plate' is not a column"):
         control_means(
@@ -121,10 +121,10 @@ def test_e2_an_explicit_repeat_column_that_is_absent_raises_instead_of_pooling()
         means = control_means(
             objects, fovs, feature_cols=["x"], control={"condition": "ctrl"}, **repeat_col
         )
-        assert means["repeat"].tolist() == [None]
+        assert means["biological_repeat"].tolist() == [None]
     assert control_means(
         objects, fovs, feature_cols=["x"], control={"condition": "ctrl"}, repeat_col="plate"
-    )["repeat"].tolist() == ["r1", "r2"]
+    )["biological_repeat"].tolist() == ["r1", "r2"]
 
 
 def test_e3_a_mean_that_is_rounding_noise_counts_as_zero():
@@ -222,14 +222,14 @@ def test_e6_no_fields_beyond_enough_when_the_acquired_fields_are_not_enough():
 def _two_groups():
     rng = np.random.default_rng(0)
     rows = [
-        {"condition": c, "repeat": r, "image_file": f"{c}{r}_{j}", "a": v}
+        {"condition": c, "biological_repeat": r, "image_file": f"{c}{r}_{j}", "a": v}
         for c in ("A", "B")
         for r in (1, 2)
         for j in range(12)
         for v in rng.normal(10, 1, 10)
     ]
     objects = pd.DataFrame(rows)
-    fovs = objects[["condition", "repeat", "image_file"]].drop_duplicates()
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
     return objects, fovs.reset_index(drop=True)
 
 
@@ -458,13 +458,13 @@ def test_f8_a_low_ceiling_is_not_called_unjudgeable():
         reservoir_fraction=0.3,
         n_splits=4,
         draws=5,
-        group_cols=["condition", "repeat", "plate", "well"],
+        group_cols=["condition", "biological_repeat", "plate", "well"],
     )
     result = protocol_reliability(
         reliability,
         SamplingHierarchy("position_id", "well", "plate"),
         threshold=0.9,
-        strata=["condition", "repeat"],
+        strata=["condition", "biological_repeat"],
     )
     assert result.difficulty["ceiling"].notna().all()
     text = " ".join(result.summary(detail="full").split())
@@ -527,7 +527,7 @@ def test_f11_numpy_integer_fov_counts_are_accepted():
 
 def test_f12_a_bare_string_is_not_split_into_letters():
     with pytest.raises(TypeError, match="technical_levels must be a sequence"):
-        SamplingHierarchy("position_id", "well", "repeat", technical_levels="plate")
+        SamplingHierarchy("position_id", "well", "biological_repeat", technical_levels="plate")
     with pytest.raises(TypeError, match="strata must be a sequence"):
         protocol_reliability(
             _curve({("P1", "A1"): {5: 0.9}}),

@@ -13,7 +13,7 @@ every acquired FOV of the group.
 
 **``object_rule_check``** (JCB). Values are divided by a reference mean: the
 mean of every object of the declared control groups of the same repeat (the
-``repeat`` column, when present), as the paper normalizes "by calculating the
+``biological_repeat`` column, when present), as the paper normalizes "by calculating the
 average of all the control samples" within an experiment and as
 ``normalize_to_control`` does, or each group's own mean when no control is
 declared. A control mean pooled over repeats would judge a repeat against
@@ -65,9 +65,10 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
+from .._former_repeat import one_warning, read_former
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
-from .._wording import where
+from .._wording import column_word, where
 from ..metadata import REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_values, unit_plural
 from ..statistics import (
@@ -180,7 +181,7 @@ def _reference_means(
         values = np.concatenate(parts) if parts else np.array([])
         means[group_key(group)] = float(values.mean()) if len(values) else None
         negative[group_key(group)] = bool((values < 0).any())
-    within = f" of the same {repeat_col}" if repeat_col else ""
+    within = f" of the same {column_word(repeat_col)}" if repeat_col else ""
     label = f"mean of all objects of the control groups {dict(control)}{within}"
     names = {repr(r): str(r) for _, d in all_groups for r in repeats_of(d)}
     return means, label, negative, _shift({names[r]: v for r, v in pooled.items()}, repeat_col)
@@ -230,6 +231,7 @@ def _fovs_until(
     return means, obtained, used
 
 
+@one_warning
 def object_rule_check(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -255,6 +257,7 @@ def object_rule_check(
     lists every acquired FOV; FOVs without observations can be drawn and add
     no objects. Other arguments are those of ``validate_input_tables``.
     """
+    control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     targets = [float(t) for t in targets]
     if not targets or any(not 0 < t < 1 for t in targets):
         raise ValueError("targets must be fractions between 0 and 1, such as 0.05")

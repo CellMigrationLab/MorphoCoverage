@@ -5,7 +5,7 @@ import pytest
 
 from morphocoverage.normalize import control_means, normalize_to_control
 
-GROUPS = ["condition", "repeat", "well"]
+GROUPS = ["condition", "biological_repeat", "well"]
 
 
 def _tables():
@@ -13,12 +13,19 @@ def _tables():
     for repeat, level in (("R1", 2.0), ("R2", 4.0)):
         for condition, factor in (("control", 1.0), ("treated", 1.5)):
             name = f"{repeat}_{condition}"
-            fovs.append({"condition": condition, "repeat": repeat, "well": "w", "image_file": name})
+            fovs.append(
+                {
+                    "condition": condition,
+                    "biological_repeat": repeat,
+                    "well": "w",
+                    "image_file": name,
+                }
+            )
             for j in range(4):
                 rows.append(
                     {
                         "condition": condition,
-                        "repeat": repeat,
+                        "biological_repeat": repeat,
                         "well": "w",
                         "image_file": name,
                         "a": level * factor + (j - 1.5) * 0.01,
@@ -34,7 +41,7 @@ def test_every_feature_is_divided_by_its_repeats_control_mean():
     means = control_means(
         objects, fovs, feature_cols=["a", "b"], control={"condition": "control"}, group_cols=GROUPS
     )
-    assert means["repeat"].tolist() == ["R1", "R2"]
+    assert means["biological_repeat"].tolist() == ["R1", "R2"]
     assert means["a"].tolist() == pytest.approx([2.0, 4.0])
     normalized = normalize_to_control(
         objects, fovs, feature_cols=["a", "b"], control={"condition": "control"}, group_cols=GROUPS
@@ -42,7 +49,7 @@ def test_every_feature_is_divided_by_its_repeats_control_mean():
     assert normalized.index.equals(objects.index)
     assert list(normalized.columns) == list(objects.columns)
     assert normalized["keep"].tolist() == objects["keep"].tolist()  # other columns untouched
-    by = normalized.groupby(["repeat", "condition"])["a"].mean()
+    by = normalized.groupby(["biological_repeat", "condition"])["a"].mean()
     assert [by[("R1", "control")], by[("R2", "control")]] == pytest.approx([1.0, 1.0])
     assert [by[("R1", "treated")], by[("R2", "treated")]] == pytest.approx([1.5, 1.5])
     assert (normalized["b"] == 1.0).all()
@@ -50,7 +57,10 @@ def test_every_feature_is_divided_by_its_repeats_control_mean():
 
 def test_without_a_repeat_column_the_whole_table_is_one_repeat():
     objects, fovs = _tables()
-    objects, fovs = objects.drop(columns="repeat"), fovs.drop(columns="repeat")
+    objects, fovs = (
+        objects.drop(columns="biological_repeat"),
+        fovs.drop(columns="biological_repeat"),
+    )
     normalized = normalize_to_control(
         objects,
         fovs,
@@ -63,8 +73,8 @@ def test_without_a_repeat_column_the_whole_table_is_one_repeat():
 
 def test_a_repeat_without_control_or_a_zero_mean_raises():
     objects, fovs = _tables()
-    missing = fovs[~((fovs["repeat"] == "R2") & (fovs["condition"] == "control"))]
-    with pytest.raises(ValueError, match="no control objects .* repeat=R2"):
+    missing = fovs[~((fovs["biological_repeat"] == "R2") & (fovs["condition"] == "control"))]
+    with pytest.raises(ValueError, match="no control objects .* biological_repeat=R2"):
         normalize_to_control(
             objects[objects["image_file"].isin(missing["image_file"])],
             missing,

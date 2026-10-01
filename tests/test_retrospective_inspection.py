@@ -21,7 +21,7 @@ def _acquisition(seed=5, duplicate_tail=1):
     fovs = pd.DataFrame(
         {
             "condition": "control",
-            "repeat": "R1",
+            "biological_repeat": "R1",
             "image_file": names,
             "stage_x": np.arange(20) % 5 * 100.0,
             "stage_y": np.arange(20) // 5 * 100.0,
@@ -39,7 +39,7 @@ def _acquisition(seed=5, duplicate_tail=1):
             values = np.vstack([values, state])
         # A positive baseline, as for areas or intensities: a relative change needs one.
         rows.append(pd.DataFrame(values + 10, columns=FEATURES).assign(image_file=name))
-    objects = pd.concat(rows, ignore_index=True).assign(condition="control", repeat="R1")
+    objects = pd.concat(rows, ignore_index=True).assign(condition="control", biological_repeat="R1")
     return objects, fovs
 
 
@@ -106,11 +106,11 @@ def test_thresholds_are_declared_and_nothing_is_listed_below_them():
 def test_zero_centred_features_are_not_checked_for_relative_influence():
     rng = np.random.default_rng(2)
     names = [f"f{i:02d}" for i in range(20)]
-    fovs = pd.DataFrame({"condition": "c", "repeat": "r", "image_file": names})
+    fovs = pd.DataFrame({"condition": "c", "biological_repeat": "r", "image_file": names})
     objects = pd.DataFrame(
         {
             "condition": "c",
-            "repeat": "r",
+            "biological_repeat": "r",
             "image_file": np.repeat(names, 20),
             "a": rng.normal(0, 1, 400),
         }
@@ -127,7 +127,7 @@ def test_a_lone_deviant_field_is_found_in_a_small_group():
     fovs = pd.DataFrame(
         {
             "condition": "c",
-            "repeat": "r",
+            "biological_repeat": "r",
             "image_file": names,
             "stage_x": np.arange(8) * 100.0,
             "stage_y": 0.0,
@@ -137,7 +137,12 @@ def test_a_lone_deviant_field_is_found_in_a_small_group():
     values = rng.normal(10, 1, 80)
     values[:10] += 100
     objects = pd.DataFrame(
-        {"condition": "c", "repeat": "r", "image_file": np.repeat(names, 10), "a": values}
+        {
+            "condition": "c",
+            "biological_repeat": "r",
+            "image_file": np.repeat(names, 10),
+            "a": values,
+        }
     )
     result = inspect_fovs(
         objects,
@@ -153,13 +158,19 @@ def test_a_lone_deviant_field_is_found_in_a_small_group():
 def test_fields_at_the_same_stage_position_are_not_their_own_neighbours():
     names = [f"f{i}" for i in range(10)]
     fovs = pd.DataFrame(
-        {"condition": "c", "repeat": "r", "image_file": names, "stage_x": 0.0, "stage_y": 0.0}
+        {
+            "condition": "c",
+            "biological_repeat": "r",
+            "image_file": names,
+            "stage_x": 0.0,
+            "stage_y": 0.0,
+        }
     )
     rng = np.random.default_rng(4)
     objects = pd.DataFrame(
         {
             "condition": "c",
-            "repeat": "r",
+            "biological_repeat": "r",
             "image_file": np.repeat(names, 10),
             "a": rng.normal(10, 1, 100),
         }
@@ -176,7 +187,7 @@ def test_a_group_whose_stage_neighbours_cannot_be_compared_says_so():
     result = _inspect(objects, fovs, stage_cols=("stage_x", "stage_y"))
     assert result.settings["skipped_neighbours"] == [
         {
-            "group": "condition=control, repeat=R1",
+            "group": "condition=control, biological_repeat=R1",
             "reason": "stage coordinates are missing",
             "label": "control · R1",
         }

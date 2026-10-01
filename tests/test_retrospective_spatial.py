@@ -49,7 +49,7 @@ def _gradient(seed=0):
         fov_rows.append(
             {
                 "condition": "control",
-                "repeat": "R1",
+                "biological_repeat": "R1",
                 "image_file": name,
                 "acquisition_order": i,
                 "stage_x": x * 200.0,
@@ -59,7 +59,7 @@ def _gradient(seed=0):
         values = rng.normal(10 + y, 0.5, size=(15, 2))
         object_rows.append(
             pd.DataFrame(values, columns=list(FEATURE_COLS)).assign(
-                condition="control", repeat="R1", image_file=name
+                condition="control", biological_repeat="R1", image_file=name
             )
         )
     return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)

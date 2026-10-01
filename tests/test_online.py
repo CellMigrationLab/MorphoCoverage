@@ -24,10 +24,12 @@ def _feed_session(scenario, strategies, *, observation_unit=None):
         observation_unit=observation_unit,
     )
     outputs = []
-    ordered = scenario.fovs.sort_values(["condition", "repeat", ORDER_COL], kind="stable")
+    ordered = scenario.fovs.sort_values(
+        ["condition", "biological_repeat", ORDER_COL], kind="stable"
+    )
     for _, fov in ordered.iterrows():
         mask = pd.Series(True, index=scenario.objects.index)
-        for column in ("condition", "repeat", "image_file"):
+        for column in ("condition", "biological_repeat", "image_file"):
             mask &= scenario.objects[column].eq(fov[column])
         outputs.append(
             session.add_fov(
@@ -108,11 +110,11 @@ def test_online_session_keeps_condition_repeat_groups_independent():
     scenario = SCENARIOS["condition_repeat_groups"]()
     session, steps = _feed_session(scenario, [FixedFOVStrategy(2)])
 
-    assert session.group_cols == ("condition", "repeat")
+    assert session.group_cols == ("condition", "biological_repeat")
     by_group = {}
     for results in steps:
         [result] = results
-        key = (result.group["condition"], result.group["repeat"])
+        key = (result.group["condition"], result.group["biological_repeat"])
         by_group.setdefault(key, []).append(result)
 
     assert len(by_group) == scenario.truth["n_groups"]
@@ -208,11 +210,11 @@ def test_online_session_rejects_grouping_contract_drift():
         objective=POPULATION,
     )
     session.add_fov(observations, {"image_file": "a.tif"})
-    later = observations.assign(image_file="b.tif", repeat="R1")
+    later = observations.assign(image_file="b.tif", biological_repeat="R1")
     with pytest.raises(ValueError, match="changes the automatically resolved grouping contract"):
         session.add_fov(
             later,
-            {"image_file": "b.tif", "repeat": "R1"},
+            {"image_file": "b.tif", "biological_repeat": "R1"},
         )
 
 
@@ -270,7 +272,12 @@ def test_an_empty_position_id_on_every_field_does_not_stop_the_session():
         strategies=[FixedFOVStrategy(3)], feature_cols=["a"], objective=POPULATION
     )
     for i in range(4):
-        metadata = {"condition": "c", "repeat": "r", "image_file": f"f{i}.tif", "position_id": None}
+        metadata = {
+            "condition": "c",
+            "biological_repeat": "r",
+            "image_file": f"f{i}.tif",
+            "position_id": None,
+        }
         objects = pd.DataFrame({"a": [1.0, 2.0], "position_id": [None, None]})
         [result] = session.add_fov(objects, metadata)
     assert session.fov_col == "image_file"

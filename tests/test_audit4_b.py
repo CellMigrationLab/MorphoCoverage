@@ -35,7 +35,7 @@ def _tables(n_repeats=2, wells=("B02", "B03"), fields=3, cells=4, seed=0):
                     image = f"{repeat}_{well}_s{s + 1:02d}.tif"
                     ids = {
                         "condition": condition,
-                        "repeat": repeat,
+                        "biological_repeat": repeat,
                         "technical_repeat": well,
                         "image_file": image,
                     }
@@ -105,7 +105,9 @@ def test_p5_2_plane_synonyms_and_plane_tokens_in_file_names():
     per_plane["image_file"] = (
         per_plane["image_file"].str.replace(".tif", "") + "_z" + per_plane["Metadata_Z"].astype(str)
     ) + ".tif"
-    files = per_plane[["condition", "repeat", "technical_repeat", "image_file"]].drop_duplicates()
+    files = per_plane[
+        ["condition", "biological_repeat", "technical_repeat", "image_file"]
+    ].drop_duplicates()
     accepted, check = _agree(per_plane, files)
     assert not accepted and "'z'" in _titles(check, "error")[0]
     # The plane only in the file name: 3 files per position counted as fields, with a warning.
@@ -126,13 +128,13 @@ def test_p5_5_check_warnings_reach_the_workflows_and_the_overview():
         table.loc[table["technical_repeat"] == "C03", "condition"] = "drug "
     setup = Setup(readout="area", control={"condition": "control"}, observation_unit="cell")
     with pytest.warns(UserWarning, match="check_tables found"):
-        check = check_workflow_inputs(copied, fovs, setup)
+        _, _, check = check_workflow_inputs(copied, fovs, setup)
     titles = _titles(check)
     assert any("exact copy" in t for t in titles)
     assert any("differ only in spaces" in t for t in titles)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        quiet = check_workflow_inputs(copied, fovs, setup, warn=False)
+        _, _, quiet = check_workflow_inputs(copied, fovs, setup, warn=False)
     result = dataset_overview(
         copied, fovs, feature_cols=["area"], observation_unit="cell", data_check=quiet
     )
@@ -148,8 +150,8 @@ def test_p5_5_check_warnings_reach_the_workflows_and_the_overview():
 def test_p5_7_undeclared_group_columns_are_warned_about():
     cells, fovs = _tables()
     assert canonical_spelling("Metadata_condition") == "condition"
-    assert canonical_spelling("Metadata_Repeat") == "repeat"
-    renamed = {"repeat": "replicate"}
+    assert canonical_spelling("Metadata_Repeat") == "biological_repeat"
+    renamed = {"biological_repeat": "replicate"}
     accepted, check = _agree(cells.rename(columns=renamed), fovs.rename(columns=renamed))
     assert accepted
     assert any("'replicate' looks like a group column" in t for t in _titles(check))
@@ -160,7 +162,9 @@ def test_p5_7_undeclared_group_columns_are_warned_about():
         group_cols=["condition", "replicate", "technical_repeat"],
     )
     assert not any("looks like a group" in t for t in _titles(check))
-    plate = fovs.assign(plate=fovs["repeat"].map({"2026_01_01": "P1", "2026_01_02": "P2"}))
+    plate = fovs.assign(
+        plate=fovs["biological_repeat"].map({"2026_01_01": "P1", "2026_01_02": "P2"})
+    )
     assert not any("looks like a group" in t for t in _titles(_agree(cells, plate)[1]))
     # A file name, one per field, is not a group.
     masks = fovs.assign(mask_name="m_" + fovs["image_file"])
@@ -171,8 +175,10 @@ def test_p5_8_several_stage_positions_in_one_field_are_refused():
     cells, fovs = _tables()
     for table in (cells, fovs):
         table["series"] = table["image_file"]
-        table["image_file"] = table["repeat"] + "_" + table["technical_repeat"] + ".nd2"
-    fovs = fovs.drop_duplicates(["condition", "repeat", "technical_repeat", "image_file"])
+        table["image_file"] = table["biological_repeat"] + "_" + table["technical_repeat"] + ".nd2"
+    fovs = fovs.drop_duplicates(
+        ["condition", "biological_repeat", "technical_repeat", "image_file"]
+    )
     fovs = fovs.drop(columns="series")
     accepted, check = _agree(cells, fovs)
     assert not accepted
@@ -180,13 +186,15 @@ def test_p5_8_several_stage_positions_in_one_field_are_refused():
     assert any("multi-position files" in t for t in _titles(check))
     # With position_id the files hold their positions apart.
     cells["position_id"] = cells["image_file"] + "#" + cells["series"]
-    listed = cells[["condition", "repeat", "technical_repeat", "position_id"]].drop_duplicates()
+    listed = cells[
+        ["condition", "biological_repeat", "technical_repeat", "position_id"]
+    ].drop_duplicates()
     assert _agree(cells, listed)[0]
 
 
 def test_p5_9_overview_names_the_declared_groups():
     cells, fovs = _tables()
-    renamed = {"condition": "Treatment", "repeat": "Plate", "technical_repeat": "Well"}
+    renamed = {"condition": "Treatment", "biological_repeat": "Plate", "technical_repeat": "Well"}
     summary = dataset_overview(
         cells.rename(columns=renamed),
         fovs.rename(columns=renamed),
@@ -210,7 +218,7 @@ def test_p5_10_planes_as_features_missing_planes_and_cellpatcher_z0():
             rows += [
                 {
                     "condition": "A",
-                    "repeat": "r1",
+                    "biological_repeat": "r1",
                     "position_id": position,
                     "label_id": label,
                     "z": z,
@@ -219,7 +227,7 @@ def test_p5_10_planes_as_features_missing_planes_and_cellpatcher_z0():
                 for z in planes
             ]
     stack = pd.DataFrame(rows)
-    fovs = stack[["condition", "repeat", "position_id"]].drop_duplicates()
+    fovs = stack[["condition", "biological_repeat", "position_id"]].drop_duplicates()
     with pytest.raises(ValueError, match="allow_missing_planes=True"):
         planes_as_features(stack, fovs, features=["area"])
     wide, names = planes_as_features(stack, fovs, features=["area"], allow_missing_planes=True)
@@ -265,7 +273,7 @@ def test_p5_11_wells_without_any_observation_are_warned_about():
 def test_p5_12_zero_padding_and_one_well_in_two_conditions():
     cells, fovs = _tables()
     for table in (cells, fovs):
-        second = table["repeat"] == "2026_01_02"
+        second = table["biological_repeat"] == "2026_01_02"
         table.loc[second, "technical_repeat"] = table.loc[second, "technical_repeat"].str.replace(
             "0", ""
         )
@@ -305,8 +313,8 @@ def test_p2_13_invalid_cellpatcher_rows_are_warned_about():
 def test_p9_3_category_order_does_not_change_orders_or_reservoirs():
     cells, fovs = _tables(n_repeats=1, fields=8)
     one = fovs[fovs.technical_repeat == "B02"].reset_index(drop=True)
-    key = ["condition", "repeat", "technical_repeat", "image_file"]
-    group = {"condition": "control", "repeat": "2026_01_01", "technical_repeat": "B02"}
+    key = ["condition", "biological_repeat", "technical_repeat", "image_file"]
+    group = {"condition": "control", "biological_repeat": "2026_01_01", "technical_repeat": "B02"}
     reordered = one.assign(
         image_file=pd.Categorical(one["image_file"], categories=sorted(one["image_file"])[::-1])
     )
@@ -336,14 +344,17 @@ def test_p9_3_category_order_does_not_change_orders_or_reservoirs():
 
 def test_p9_9_index_levels_named_like_columns_are_accepted():
     cells, fovs = _tables()
-    indexed = cells.set_index(["condition", "repeat"], drop=False)
-    listed = fovs.set_index(["condition", "repeat"], drop=False)
+    indexed = cells.set_index(["condition", "biological_repeat"], drop=False)
+    listed = fovs.set_index(["condition", "biological_repeat"], drop=False)
     data = validate_input_tables(indexed, fovs=listed, feature_cols=["area"])
     # The caller's labels are kept; only the clashing level names are dropped.
     assert data.objects.index.tolist() == indexed.index.tolist()
     summary = dataset_overview(indexed, listed, feature_cols=["area"]).summary()
     assert "2 conditions" in summary
-    assert list(indexed.index.names) == ["condition", "repeat"]  # the input is not changed
+    assert list(indexed.index.names) == [
+        "condition",
+        "biological_repeat",
+    ]  # the input is not changed
 
 
 def test_p9_10_control_first_then_sorted_whatever_the_row_order():
@@ -357,11 +368,11 @@ def test_p9_10_control_first_then_sorted_whatever_the_row_order():
     )
     assert overview.layout["condition"].tolist()[:2] == ["mock", "mock"]
     assert "(condition: mock, a_drug)" in overview.summary(detail="full")
-    assert "(repeat: 2026_01_01, 2026_01_02)" in overview.summary(detail="full")
+    assert "(biological_repeat: 2026_01_01, 2026_01_02)" in overview.summary(detail="full")
     short = " ".join(overview.summary().split())
     assert "2 conditions (mock, a_drug), 2 repeats (2026_01_01, 2026_01_02)" in short
     data = validate_input_tables(shuffled_cells, fovs=shuffled, feature_cols=["area"])
-    layout = _layout(data, "condition", "repeat", None, 6, "mock")
+    layout = _layout(data, "condition", "biological_repeat", None, 6, "mock")
     assert layout.conditions == ["mock", "a_drug"]
     assert layout.repeats == ["2026_01_01", "2026_01_02"]
-    assert _layout(data, "condition", "repeat", None, 6).conditions == ["a_drug", "mock"]
+    assert _layout(data, "condition", "biological_repeat", None, 6).conditions == ["a_drug", "mock"]

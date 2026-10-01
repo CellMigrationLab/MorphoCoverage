@@ -73,6 +73,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import is_integer
+from .._former_repeat import one_warning, read_former
 from .._parallel import check_n_jobs, map_units, worker_pool
 from .._seeds import group_rng
 from ..data_check import validate_input_tables
@@ -99,6 +100,7 @@ def _selector(value: Mapping[str, Any] | None, label: str) -> dict[str, tuple] |
         return None
     if not isinstance(value, Mapping) or not value:
         raise TypeError(f"{label} must map FOV-table columns to accepted values")
+    (value,) = read_former(**{label: value})  # the former name ``repeat``
     selector = {}
     for column, accepted in value.items():
         if isinstance(accepted, str) or not isinstance(accepted, Sequence):
@@ -355,6 +357,7 @@ def _stratum_rows(
     ]
 
 
+@one_warning
 def representation_control(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -401,7 +404,9 @@ def representation_control(
     if not is_integer(random_state):
         raise TypeError("random_state must be an integer seed")
     fovs_seen, draws, random_state = int(fovs_seen), int(draws), int(random_state)
-    pair_cols = list(pair_cols)
+    pair_cols, identity_cols, lofo_group_cols = read_former(
+        pair_cols=list(pair_cols), identity_cols=identity_cols, lofo_group_cols=lofo_group_cols
+    )
     settings = {
         "control": control.parameters,
         "novelty": dict(novelty.parameters),

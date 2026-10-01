@@ -44,7 +44,7 @@ def _tables(spec, seed=0, per_field=20, obs_sd=1.0):
         for j in range(n_fields):
             key = {
                 "condition": condition,
-                "repeat": repeat,
+                "biological_repeat": repeat,
                 "technical_repeat": well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -75,8 +75,9 @@ def test_h1_perfectly_separating_shuffles_count_as_extreme():
     result = feature_ranking(objects, fovs, features=["x"], control=CONTROL, n_permutations=1999)
     row = result.tests.iloc[0]
     assert np.isinf(row["d_fields"])
-    # 6 assignments; the observed one and its mirror are both perfect: p = 2/6.
-    assert row["p_value"] == pytest.approx(1 / 3)
+    # 6 assignments; the observed one and its mirror are both perfect: p could not fall below
+    # 2/6, above the gate, so the ranking does not run a test that cannot help.
+    assert row["p_floor"] == pytest.approx(1 / 3) and np.isnan(row["p_value"])
     assert not row["passes_gate"] and result.top() == []
     t = [[np.array([3.0]), np.array([3.0])], [np.array([3.0]), np.array([3.0])]]
     c = [[np.array([1.0]), np.array([1.0])], [np.array([1.0]), np.array([1.0])]]
@@ -119,7 +120,7 @@ def test_h3_one_technical_repeat_on_a_side_gets_no_test():
     )
     row = contrast.table.iloc[0]
     assert np.isnan(row["p_value"]) and "only one technical repeat" in row["status"]
-    assert "cannot stand in for technical repeats" in contrast.summary()
+    assert "cannot stand in for technical repeats" in " ".join(contrast.summary().split())
     objects["y"] = objects["x"] * 2
     ranking = feature_ranking(objects, fovs, features=["x", "y"], **common)
     assert ranking.tests["p_value"].isna().all() and not ranking.tests["passes_gate"].any()
@@ -134,7 +135,7 @@ def test_h3_one_technical_repeat_on_a_side_gets_no_test():
         feature="x",
         n_draws=2,
         object_counts=(10,),
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
         **common,
     )
     assert "only one technical repeat" in pooled.table["status"].iloc[0]
@@ -179,11 +180,12 @@ def test_h5_the_ranking_floor_is_the_smallest_attainable_p():
     spec += [("drug", "r1", f"d{i}", 5, 5.0 + 0.3 * i, 0.3) for i in range(3)]
     objects, fovs = _tables(spec, seed=2)
     result = feature_ranking(objects, fovs, features=["x"], control=CONTROL, n_permutations=1999)
-    # 20 assignments of 3 wells a side; the split and its mirror: 2/20.
-    assert result.tests["p_value"].iloc[0] == pytest.approx(0.1)
+    # 20 assignments of 3 wells a side; the split and its mirror: a floor of 2/20, above the
+    # gate, so the test cannot help and is not run.
+    assert result.tests["p_floor"].iloc[0] == pytest.approx(0.1)
+    assert np.isnan(result.tests["p_value"].iloc[0])
     text = " ".join(result.summary().split())
-    assert "with as few as 20 distinct assignments a p-value cannot fall below 0.1," in text
-    assert "cannot pass the gate however large the difference" in text
+    assert "None is ranked" in text and "so it is not run" in text
 
 
 def _perfect_separation():
@@ -274,8 +276,8 @@ def test_h8_a_misspelt_repeat_or_technical_column_raises():
     assert named.settings["technical_col"] == "well"
     # Only the defaults may be absent: without a repeat column, one implicit repeat.
     alone = condition_contrast(
-        objects.drop(columns="repeat"),
-        fovs.drop(columns="repeat"),
+        objects.drop(columns="biological_repeat"),
+        fovs.drop(columns="biological_repeat"),
         group_cols=["condition", "technical_repeat"],
         **contrast,
     )
@@ -290,8 +292,8 @@ def test_h9_plots_raise_on_a_misspelt_column():
             plots_of_data(objects, fovs, **{argument: "Wrong"}, **common)
     # The default condition and repeat columns may be absent.
     figures = plots_of_data(
-        objects.drop(columns="repeat"),
-        fovs.drop(columns="repeat"),
+        objects.drop(columns="biological_repeat"),
+        fovs.drop(columns="biological_repeat"),
         group_cols=["condition", "technical_repeat"],
         **common,
     )
@@ -317,7 +319,9 @@ def test_h10_pooled_repeats_resample_the_repeats_first():
         .axes[0]
         .get_title(loc="left")
     )
-    assert "resampling whole biological repeats (repeat), each with all its fields" in title
+    assert (
+        "resampling whole biological repeats (biological_repeat), each with all its fields" in title
+    )
 
 
 def test_h11_jcb_rules_on_negative_values_are_not_applicable():
@@ -375,7 +379,7 @@ def test_h15_untested_features_are_listed_as_untested():
         for i in range(3)
     ]
     objects, fovs = _tables(spec)
-    empty = {"condition": "drug", "repeat": "r1", "technical_repeat": "drug0"}
+    empty = {"condition": "drug", "biological_repeat": "r1", "technical_repeat": "drug0"}
     fovs = pd.concat([fovs, pd.DataFrame([{**empty, "position_id": "empty"}])], ignore_index=True)
     objects["y"] = np.where(objects["condition"] == "drug", np.nan, objects["x"])
     objects["w"] = np.random.default_rng(0).normal(size=len(objects))
@@ -384,7 +388,7 @@ def test_h15_untested_features_are_listed_as_untested():
     common = {
         "control": CONTROL,
         "technical_col": None,
-        "group_cols": ["condition", "repeat"],
+        "group_cols": ["condition", "biological_repeat"],
         "fields_independent": True,
     }
     result = feature_ranking(objects, fovs, features=["x", "y", "w"], n_permutations=199, **common)

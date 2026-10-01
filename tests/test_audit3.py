@@ -34,18 +34,20 @@ def test_j7_one_plural_helper():
 
 
 def test_a10_b11_group_identity_does_not_depend_on_the_numpy_type():
-    assert group_identity({"repeat": np.int64(1)}) == group_identity({"repeat": 1})
+    assert group_identity({"biological_repeat": np.int64(1)}) == group_identity(
+        {"biological_repeat": 1}
+    )
     # Audit 4 (owner decision on P9-2): a retyped label is the same group for seeding.
-    assert group_identity({"repeat": 1}) == group_identity({"repeat": "1"})
-    assert group_identity({"repeat": 1}) != group_identity({"repeat": 2})
+    assert group_identity({"biological_repeat": 1}) == group_identity({"biological_repeat": "1"})
+    assert group_identity({"biological_repeat": 1}) != group_identity({"biological_repeat": 2})
 
 
 def test_j1_group_key_tells_every_group_apart():
-    a = {"condition": "plate24_wellI03_KO", "repeat": "2024_01_15"}
-    b = {"condition": "plate15_wellP15_siGENE", "repeat": "2024_01_15"}
+    a = {"condition": "plate24_wellI03_KO", "biological_repeat": "2024_01_15"}
+    b = {"condition": "plate15_wellP15_siGENE", "biological_repeat": "2024_01_15"}
     assert group_identity(a) == group_identity(b)  # a real crc32 collision
     assert group_key(a) != group_key(b)
-    assert group_key({"repeat": np.int64(1)}) == group_key({"repeat": 1})
+    assert group_key({"biological_repeat": np.int64(1)}) == group_key({"biological_repeat": 1})
 
 
 def test_f6_split_seeds_of_neighbouring_random_states_do_not_overlap():

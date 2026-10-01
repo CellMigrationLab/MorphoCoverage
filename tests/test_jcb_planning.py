@@ -33,7 +33,12 @@ def _centred(n, sd, seed):
 def _pilot(samples):
     """Objects and FOVs for pilot samples given as (condition, dish, values), one FOV each."""
     rows = [
-        {"condition": condition, "repeat": dish, "image_file": f"{dish}.tif", "area": value}
+        {
+            "condition": condition,
+            "biological_repeat": dish,
+            "image_file": f"{dish}.tif",
+            "area": value,
+        }
         for condition, dish, values in samples
         for value in values
     ]
@@ -47,7 +52,7 @@ def _plan(objects, fovs, **kwargs):
         "feature": "area",
         "target_cv": 0.025,
         "sd_estimate": "point",
-        "sample_cols": ("condition", "repeat"),
+        "sample_cols": ("condition", "biological_repeat"),
         "control": {"condition": "control"},
     }
     settings.update(kwargs)
@@ -212,7 +217,7 @@ def _evaluation(n_fovs=6, cells_per_fov=10, repeat="R1"):
     rows = [
         {
             "condition": "control",
-            "repeat": repeat,
+            "biological_repeat": repeat,
             "image_file": f"{repeat}_f{j}.tif",
             "area": 1.0 + 0.01 * k,
         }
@@ -272,7 +277,7 @@ def test_groups_containing_pilot_samples_are_not_judged_on_their_own_plan():
 
 
 def test_plan_does_not_apply_when_samples_cannot_be_identified_or_rows_are_not_cells():
-    plan = _plan(*_two_dishes(), sample_cols=("condition", "repeat", "image_file"))
+    plan = _plan(*_two_dishes(), sample_cols=("condition", "biological_repeat", "image_file"))
     objects, fovs = _evaluation()
     [unidentified] = run_strategies(
         objects.drop(columns="image_file").assign(position_id=objects["image_file"]),
@@ -313,8 +318,11 @@ def test_plan_is_provenance():
 def test_real_pilot_wells_plan_the_other_wells():
     # idr0139: plan on two DMSO control wells and two Leptomycin b wells, one
     # sample per well, then stop every other well at the planned count.
-    fovs = pd.read_csv(DATA / "idr0139_fovs.csv.gz", dtype={"repeat": str})
+    # The stored files name the plate by the former name "repeat".
+    plate = {"repeat": "biological_repeat"}
+    fovs = pd.read_csv(DATA / "idr0139_fovs.csv.gz", dtype={"repeat": str}).rename(columns=plate)
     objects = pd.read_csv(DATA / "idr0139_nuclei.csv.gz", dtype={"repeat": str})
+    objects = objects.rename(columns=plate)
     nuclear = objects["Nuclei_Intensity_MeanIntensity_Fascin"]
     objects["Fascin_Ratio"] = nuclear / (
         nuclear + objects["Cytoplasm_Intensity_MeanIntensity_Fascin"]
@@ -326,9 +334,9 @@ def test_real_pilot_wells_plan_the_other_wells():
         feature="Fascin_Ratio",
         target_cv=0.05,
         sd_estimate="upper_95",
-        sample_cols=("repeat", "well"),
+        sample_cols=("biological_repeat", "well"),
         control={"condition": "DMSO"},
-        group_cols=["condition", "repeat", "well"],
+        group_cols=["condition", "biological_repeat", "well"],
     )
     assert (plan.n_samples, plan.n_control_samples) == (4, 2)
     assert 0 < plan.cv < plan.cv_upper_95 < 1
@@ -342,7 +350,7 @@ def test_real_pilot_wells_plan_the_other_wells():
         feature_cols=["Fascin_Ratio"],
         acquisition_order_col="order",
         objective=POPULATION,
-        group_cols=["condition", "repeat", "well"],
+        group_cols=["condition", "biological_repeat", "well"],
     )
     for item in results:
         well = item.result.group["well"]

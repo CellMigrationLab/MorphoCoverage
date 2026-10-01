@@ -68,7 +68,7 @@ def test_c2_planning_refuses_a_pilot_of_one_object_per_sample():
     objects = pd.DataFrame(
         {
             "condition": ["control", "control", "drug", "drug"],
-            "repeat": ["r1", "r2", "r3", "r4"],
+            "biological_repeat": ["r1", "r2", "r3", "r4"],
             "image_file": ["a", "b", "c", "d"],
             "area": [10.0, 30.0, 5.0, 50.0],
         }
@@ -80,7 +80,7 @@ def test_c2_planning_refuses_a_pilot_of_one_object_per_sample():
             feature="area",
             target_cv=0.05,
             sd_estimate="point",
-            sample_cols=("condition", "repeat"),
+            sample_cols=("condition", "biological_repeat"),
             control={"condition": "control"},
         )
 

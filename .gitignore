@@ -11,3 +11,6 @@ dist/
 .DS_Store
 data/crick_idr/results/logs/
 morphocoverage_output/
+
+# In-progress simulation results (written as each setting finishes; removed at the end)
+data/simulations/results/*.partial.csv

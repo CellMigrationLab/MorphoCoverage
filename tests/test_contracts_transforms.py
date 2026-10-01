@@ -61,10 +61,10 @@ def test_transforms_are_unaffected_by_future_fovs(name, transform):
     scenario = SCENARIOS[name]()
     probe = [SamplingStrategy([_TransformProbe(transform)])]
     original = replay(scenario, probe)
-    order = scenario.fovs.set_index(["condition", "repeat", "image_file"])[ORDER_COL]
+    order = scenario.fovs.set_index(["condition", "biological_repeat", "image_file"])[ORDER_COL]
     cutoff = int(order.median())
     objects = scenario.objects.copy()
-    key = pd.MultiIndex.from_frame(objects[["condition", "repeat", "image_file"]])
+    key = pd.MultiIndex.from_frame(objects[["condition", "biological_repeat", "image_file"]])
     future = order.reindex(key).to_numpy() > cutoff
     objects.loc[future, list(FEATURE_COLS)] = objects.loc[future, list(FEATURE_COLS)] * 7.0 + 50.0
     altered = replay(replace(scenario, objects=objects), probe)

@@ -27,6 +27,12 @@ acquired field, and a finding names both fields with their groups.
 - **shared observations**: two fields share many observations (at least
   ``block_length``, or half the smaller field), not in one run: a copy with
   observations dropped, added or reordered, or a block pasted in another order.
+- **copied small field**: every observation of a field too small for the
+  checks above (fewer than ``min_objects``, down to one cell per field) is also
+  in another field, each with values in at least ``DISTINCTIVE_FEATURES``
+  continuous features, so a coincidence to 6 significant digits is not
+  plausible: a small field exported twice, or a cell's row pasted into another
+  field.
 - **repeated within a field**: a field holds many of its observations more
   than once (a merge with a table that has one row per channel or plane).
 - **repeated field summary**: two fields with the same number of
@@ -80,6 +86,7 @@ CHECKS = (
     "scaled copy",
     "repeated block",
     "shared observations",
+    "copied small field",
     "repeated within a field",
     "repeated field summary",
 )
@@ -94,6 +101,10 @@ FINDING_COLUMNS = (
 )
 CHECK_COLUMNS = ("check", "status", "reason", "compared")
 _PRECISION = PRECISION
+# The continuous features an observation needs values in for one shared observation to count as
+# copied: two distinct cells agreeing in three continuous measurements to 6 significant digits
+# is not a coincidence, where agreeing in one can be.
+DISTINCTIVE_FEATURES = 3
 
 
 @dataclass(frozen=True)
@@ -202,11 +213,12 @@ def integrity_checks(
     best: a copy shows in all of them). ``min_objects`` is the fewest
     observations (and distinct values of a continuous feature) of a field
     compared as a whole, and the fewest shared observations reported (default
-    5); ``block_length`` the shared or repeated observations that make a
-    finding whatever the field's size (default 10; fewer suffice when they are
-    half the smaller field); ``min_distinct_share`` the share of distinct
-    values, among the distinct observations, that makes a feature continuous
-    (default 0.5). See the module for each check.
+    5), unless they are every observation of the smaller field and each is
+    distinctive (``DISTINCTIVE_FEATURES``); ``block_length`` the shared or
+    repeated observations that make a finding whatever the field's size
+    (default 10; fewer suffice when they are half the smaller field);
+    ``min_distinct_share`` the share of distinct values, among the distinct
+    observations, that makes a feature continuous (default 0.5). See the module for each check.
     """
     min_objects = as_count(min_objects, "min_objects", 2)
     block_length = as_count(block_length, "block_length", 2)
@@ -277,9 +289,21 @@ def integrity_checks(
     for check in ("copied field", "reordered copy", "scaled copy"):
         record(check, len(whole), reason)
     kept = int(informative.sum())
-    _shared_rows(rows, informative, paired, found, min_objects, block_length)
+    distinctive = np.zeros(len(rows.ids), bool)
+    if continuous:
+        present = np.isfinite(rows.exact[:, continuous]).sum(axis=1)
+        distinctive = informative & (present >= DISTINCTIVE_FEATURES)
+    _identical_small(rows, eligible, distinctive, found)
+    _shared_rows(rows, informative, distinctive, paired, found, min_objects, block_length)
     record("repeated block", kept, reason)
     record("shared observations", kept, reason)
+    small_reason = reason
+    if reason is None and len(continuous) < DISTINCTIVE_FEATURES:
+        small_reason = (
+            f"fewer than {DISTINCTIVE_FEATURES} continuous features "
+            f"({len(continuous)}), so one shared observation can be a coincidence"
+        )
+    record("copied small field", int(distinctive.sum()), small_reason)
     _within_field(rows, informative, names, groups, findings, min_objects, block_length)
     record("repeated within a field", kept, reason)
     summaries = _summaries(rows, whole, paired, found)
@@ -341,37 +365,51 @@ def _whole_field_checks(rows: match.Rows, whole: list[int], found: Any) -> None:
             found(check, i, j, n, f"the same observations {order} ({_PRECISION})")
 
 
+def _pair_counts(
+    rows: match.Rows, mask: np.ndarray, n_fields: int
+) -> tuple[dict[int, int], np.ndarray]:
+    """For the rows in ``mask``: how many each pair of fields shares (by ``i * n_fields + j``;
+    a row found in exactly two distinct fields links them), and each field's distinct rows."""
+    owner = rows.copy_of[rows.field]
+    code = np.unique(rows.ids[mask] * n_fields + owner[mask])
+    row_id, holder = code // n_fields, code % n_fields
+    per_field = np.bincount(holder, minlength=n_fields)
+    starts = np.flatnonzero(np.r_[True, row_id[1:] != row_id[:-1]])
+    two = np.flatnonzero(np.diff(np.r_[starts, len(row_id)]) == 2)
+    if not len(two):
+        return {}, per_field
+    first, second = holder[starts[two]], holder[starts[two] + 1]
+    pair_code, shared = np.unique(first * n_fields + second, return_counts=True)
+    return dict(zip(pair_code.tolist(), shared.tolist(), strict=True)), per_field
+
+
 def _shared_rows(
     rows: match.Rows,
     informative: np.ndarray,
+    distinctive: np.ndarray,
     paired: set[tuple[int, int]],
     found: Any,
     min_objects: int,
     block_length: int,
 ) -> None:
-    """Pairs of fields sharing many informative rows: repeated blocks and shared observations.
+    """Pairs of fields sharing many informative rows (repeated blocks and shared observations),
+    or every row of the smaller field when each is distinctive (copied small fields).
 
     Each informative row occurs in at most two distinct fields (identical
     fields count once), so counting the pairs it links is one pass.
     """
     n_fields = len(rows.sizes)
-    owner = rows.copy_of[rows.field]
-    code = np.unique(rows.ids[informative] * n_fields + owner[informative])
-    row_id, holder = code // n_fields, code % n_fields
-    starts = np.flatnonzero(np.r_[True, row_id[1:] != row_id[:-1]])
-    two = np.flatnonzero(np.diff(np.r_[starts, len(row_id)]) == 2)
-    if not len(two):
-        return
-    first, second = holder[starts[two]], holder[starts[two] + 1]
-    pair_code, shared = np.unique(first * n_fields + second, return_counts=True)
-    per_field = np.bincount(holder, minlength=n_fields)  # distinct informative rows
+    shared_pairs, per_field = _pair_counts(rows, informative, n_fields)
+    distinct_pairs, _ = _pair_counts(rows, distinctive, n_fields)
     masked = np.where(informative, rows.ids, -1 - np.arange(len(rows.ids)))
-    for code_ij, n_shared in zip(pair_code.tolist(), shared.tolist(), strict=True):
+    for code_ij, n_shared in shared_pairs.items():
         i, j = divmod(code_ij, n_fields)
         if (i, j) in paired or not (rows.sizes[i] and rows.sizes[j]):
             continue
         smaller = int(min(per_field[i], per_field[j]))
         if n_shared < _threshold(smaller, min_objects, block_length):
+            if n_shared == smaller and distinct_pairs.get(code_ij, 0) == n_shared:
+                found("copied small field", i, j, n_shared, _small_copy(rows, i, j, n_shared))
             continue
         length, start_i, start_j = match.longest_run(masked[rows.of(i)], masked[rows.of(j)])
         if length >= block_length or length == n_shared:
@@ -393,6 +431,40 @@ def _shared_rows(
                 "order: a copy with observations dropped, added or reordered, or a block pasted "
                 "in another order",
             )
+
+
+def _identical_small(
+    rows: match.Rows, eligible: np.ndarray, distinctive: np.ndarray, found: Any
+) -> None:
+    """Fields too small for the whole-field checks whose rounded rows are another field's,
+    every row distinctive (identical fields share ``copy_of``, so the row checks see one).
+
+    As for single rows, rows written in ``RECURRING`` or more fields are low-information
+    (identical background or hot-pixel objects) and set aside, so only pairs are reported.
+    """
+    members = np.bincount(rows.copy_of, minlength=len(rows.sizes))
+    for i in np.flatnonzero(~eligible & (rows.copy_of != np.arange(len(rows.sizes)))):
+        first, i = int(rows.copy_of[i]), int(i)
+        if members[first] >= match.RECURRING:
+            continue
+        n = int(rows.sizes[i])
+        if n and distinctive[rows.of(i)].all():
+            found("copied small field", first, i, n, _small_copy(rows, first, i, n))
+
+
+def _small_copy(rows: match.Rows, i: int, j: int, n_shared: int) -> str:
+    """The detail of a copied small field: which field is inside the other."""
+    small, other = ("first", "second") if rows.sizes[i] <= rows.sizes[j] else ("second", "first")
+    if n_shared == 1 and rows.sizes[i] == rows.sizes[j] == 1:
+        what = "the two fields hold the same single observation"
+    elif n_shared == 1:
+        what = f"the {small} field's only observation is also in the {other}"
+    else:
+        what = f"all {n_shared} observations of the {small} field are also in the {other}"
+    return (
+        f"{what} ({_PRECISION}, in at least {DISTINCTIVE_FEATURES} continuous features): "
+        "a field too small for the whole-field checks, exported twice or pasted"
+    )
 
 
 def _within_field(
@@ -472,4 +544,4 @@ def _summaries(rows: match.Rows, whole: list[int], paired: set[tuple[int, int]],
     return len(whole)
 
 
-__all__ = ["CHECKS", "IntegrityResult", "integrity_checks"]
+__all__ = ["CHECKS", "DISTINCTIVE_FEATURES", "IntegrityResult", "integrity_checks"]

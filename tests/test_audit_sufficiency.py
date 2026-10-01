@@ -58,13 +58,13 @@ def test_e1_a_rule_that_says_yes_has_stop_points_under_every_objective():
 def _short_group_replay():
     rng = np.random.default_rng(0)
     rows = [
-        {"condition": group, "repeat": "r", "image_file": f"{group}{j}", "a": value}
+        {"condition": group, "biological_repeat": "r", "image_file": f"{group}{j}", "a": value}
         for group, n in (("A", 8), ("B", 20))
         for j in range(n)
         for value in rng.normal(10, 1, 20)
     ]
     objects = pd.DataFrame(rows)
-    fovs = objects[["condition", "repeat", "image_file"]].drop_duplicates()
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
     return replay_acquisitions(
         objects,
         fovs.reset_index(drop=True),

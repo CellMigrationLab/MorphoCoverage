@@ -10,7 +10,7 @@ from morphocoverage import check_tables, integrity_checks
 from morphocoverage.retrospective import microscopist_report
 from morphocoverage.workflows._document import _with_integrity
 
-KEY = ["condition", "repeat", "technical_repeat", "image_file"]
+KEY = ["condition", "biological_repeat", "technical_repeat", "image_file"]
 FEATURES = ["area", "intensity", "texture"]
 
 
@@ -20,7 +20,7 @@ def _tables(n_fields=40, size=30, seed=0, wells=4):
     fovs = pd.DataFrame(
         {
             "condition": "ctrl",
-            "repeat": "r1",
+            "biological_repeat": "r1",
             "technical_repeat": [f"W{i % wells}" for i in range(n_fields)],
             "image_file": [f"f{i:05d}.tif" for i in range(n_fields)],
         }

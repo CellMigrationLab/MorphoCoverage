@@ -39,12 +39,12 @@ MIN_OBJECTS = 50
 def compare(objects: pd.DataFrame, fovs: pd.DataFrame, metric: str, ks, rng) -> pd.DataFrame:
     """Relative RMSE of the well mean from k random FOVs against the same number of objects."""
     rows = []
-    key = ["repeat", "technical_repeat"]
-    grouped = objects.groupby(["repeat", "image_file"])[metric]
+    key = ["biological_repeat", "technical_repeat"]
+    grouped = objects.groupby(["biological_repeat", "image_file"])[metric]
     sums_all, counts_all = grouped.sum(), grouped.count()
     variances = objects.groupby(key)[metric].var()
     for (plate, well), well_fovs in fovs.groupby(key):
-        index = pd.MultiIndex.from_arrays([well_fovs["repeat"], well_fovs["image_file"]])
+        index = pd.MultiIndex.from_arrays([well_fovs["biological_repeat"], well_fovs["image_file"]])
         sums = sums_all.reindex(index, fill_value=0).to_numpy()
         counts = counts_all.reindex(index, fill_value=0).to_numpy()
         total = counts.sum()

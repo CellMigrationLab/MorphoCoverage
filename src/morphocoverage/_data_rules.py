@@ -58,7 +58,7 @@ def _tables(objects: pd.DataFrame, fovs: pd.DataFrame | None) -> list[tuple[str,
 def _check_spellings(
     c: Collector, objects: pd.DataFrame, fovs: pd.DataFrame | None, explicit: Sequence[str]
 ) -> None:
-    """Near-miss spellings of the MorphoBricks columns (``Repeat`` for ``repeat``)."""
+    """Near-miss spellings of the MorphoBricks columns (``bio_repeat``, ``Z``)."""
     for name, table in _tables(objects, fovs):
         for column in table.columns:
             if column in explicit:

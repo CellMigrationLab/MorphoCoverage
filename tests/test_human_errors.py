@@ -31,10 +31,10 @@ CONTROL = {"condition": "control"}
 
 def _first_repeat() -> tuple[pd.DataFrame, pd.DataFrame]:
     objects, fovs, _ = load()
-    first = fovs["repeat"].iloc[0]
+    first = fovs["biological_repeat"].iloc[0]
     return (
-        objects[objects["repeat"] == first].reset_index(drop=True),
-        fovs[fovs["repeat"] == first].reset_index(drop=True),
+        objects[objects["biological_repeat"] == first].reset_index(drop=True),
+        fovs[fovs["biological_repeat"] == first].reset_index(drop=True),
     )
 
 
@@ -78,8 +78,8 @@ def _relabel(value: str, typed: str) -> Callable:
 
 def _numbers_as_text(o, f):
     o, f = o.copy(), f.copy()
-    f["repeat"] = 5
-    o["repeat"] = "05"
+    f["biological_repeat"] = 5
+    o["biological_repeat"] = "05"
     return o, f
 
 
@@ -99,9 +99,9 @@ def _partly_empty_position(o, f):
 MISTAKES = [
     Mistake(
         "a capitalised column",
-        _rename("repeat", "Repeat"),
+        _rename("biological_repeat", "Repeat"),
         "refused",
-        ("Column 'Repeat' looks like the MorphoBricks column 'repeat'",),
+        ("Column 'Repeat' looks like the MorphoBricks column 'biological_repeat'",),
     ),
     Mistake(
         "a space instead of an underscore",
@@ -185,7 +185,7 @@ MISTAKES = [
         "a repeat typed as a number in one table",
         _numbers_as_text,
         "refused",
-        ("'repeat' is text in one table and a number in the other ('05' against 5)",),
+        ("'biological_repeat' is text in one table and a number in the other ('05' against 5)",),
     ),
     Mistake(
         "a well column partly empty",
@@ -216,7 +216,7 @@ MISTAKES = [
         lambda o, f: (o, f),
         "refused",
         ("A column is used both as a feature and as a group or field identifier.",),
-        {"feature_cols": ["area", "repeat"]},
+        {"feature_cols": ["area", "biological_repeat"]},
     ),
     Mistake(
         "feature_cols as one string",

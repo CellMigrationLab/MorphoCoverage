@@ -208,7 +208,12 @@ def _effort(repeats=3):
             for f in range(5):
                 name = f"r{r}_s{s}_f{f}"
                 fovs.append(
-                    {"condition": "ctrl", "repeat": f"R{r}", "well": f"W{s}", "image_file": name}
+                    {
+                        "condition": "ctrl",
+                        "biological_repeat": f"R{r}",
+                        "well": f"W{s}",
+                        "image_file": name,
+                    }
                 )
                 values = rng.normal(r * 0.5 + s * 0.3, 1.0, 15)
                 rows.append(pd.DataFrame({"image_file": name, "x": values}))
@@ -218,7 +223,7 @@ def _effort(repeats=3):
         objects,
         fov_table,
         feature="x",
-        hierarchy=SamplingHierarchy("image_file", "well", "repeat"),
+        hierarchy=SamplingHierarchy("image_file", "well", "biological_repeat"),
         strata=["condition"],
         n_boot=50,
     )

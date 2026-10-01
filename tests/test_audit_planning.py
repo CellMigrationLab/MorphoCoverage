@@ -55,11 +55,11 @@ def test_f1_unequal_fields_weigh_the_field_term_by_their_cluster_size():
 def test_f2_one_repeat_or_one_sample_is_explained_not_a_linear_algebra_error():
     rng = np.random.default_rng(1)
     objects, fovs = _simulate(rng, TRUTH, 1, 4, 5, 10)
-    hierarchy = SamplingHierarchy("image_file", "well", "repeat")
+    hierarchy = SamplingHierarchy("image_file", "well", "biological_repeat")
     result = effort_projection(
         objects, fovs, feature="x", hierarchy=hierarchy, strata=[], n_boot=20
     )
-    assert "There is a single repeat here" in result.summary()
+    assert "There is a single biological repeat here" in result.summary()
     objects, fovs = _simulate(rng, TRUTH, 1, 1, 5, 10)
     result = effort_projection(
         objects, fovs, feature="x", hierarchy=SamplingHierarchy("image_file", "well"), strata=[]
@@ -103,7 +103,9 @@ def test_f3_no_alternative_at_the_same_total_is_not_called_an_overlap():
 
 def test_f4_checks_that_could_not_be_judged_are_counted_not_printed_as_nan():
     objects, fovs = _plate()
-    rows = objects.index[(objects["repeat"] == "P1") & (objects["condition"] == "KD")][:1]
+    rows = objects.index[(objects["biological_repeat"] == "P1") & (objects["condition"] == "KD")][
+        :1
+    ]
     objects.loc[rows, "feature_a"] = np.nan
     text = _control(objects, fovs, BOTH).summary()
     assert "nan" not in text.lower()
@@ -121,7 +123,7 @@ def test_f5_f11_f13_inspection_says_what_it_could_not_look_for():
         feature_cols=FEATURES,
         novelty=NOVELTY,
         count_ratio=None,
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
     )
     assert "New states were not looked for in" in result.summary()
     assert "missing values in the selected features" in result.summary()
@@ -175,7 +177,7 @@ def test_f8_f14_frontier_refuses_foreign_replays_and_says_when_there_is_no_inter
     other = _replay(*mixed, [_oracle(2, 12)], seed=1)
     alien = family(other, "oracle", {_oracle(2, 12).config_id: 12})
     with pytest.raises(ValueError, match="other reservoirs or orders"):
-        frontier(one, [alien], criterion=MEAN.name, alphas=[0.1], unit_cols=["repeat"])
+        frontier(one, [alien], criterion=MEAN.name, alphas=[0.1], unit_cols=["biological_repeat"])
     own = family(one, "oracle", {_oracle(2, 12).config_id: 12})
     result = frontier(one, [own], criterion=MEAN.name, alphas=[0.1], unit_cols=[])
     assert "No interval: there is a single unit to resample" in result.summary()
@@ -192,7 +194,7 @@ def test_f16_a_technical_repeat_is_named_as_such_in_the_protocol():
     rows = [
         {
             "condition": "ctrl",
-            "repeat": repeat,
+            "biological_repeat": repeat,
             "technical_repeat": well,
             "criterion": "mean",
             "fovs": 5,
@@ -204,11 +206,14 @@ def test_f16_a_technical_repeat_is_named_as_such_in_the_protocol():
     curve = ReliabilityResult(
         pd.DataFrame(rows),
         pd.DataFrame(),
-        ("condition", "repeat", "technical_repeat"),
+        ("condition", "biological_repeat", "technical_repeat"),
         {"labels": {"mean": "the mean"}},
     )
-    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "repeat")
+    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "biological_repeat")
     result = protocol_reliability(curve, hierarchy, threshold=0.9, strata=["condition"])
     for text in (_full(result), " ".join(result.summary().split())):
-        assert "ields per technical repeat" in text and "3 technical repeats in 2 repeats" in text
+        assert (
+            "ields per technical repeat" in text
+            and "3 technical repeats in 2 biological repeats" in text
+        )
         assert "technical_repeat" not in text

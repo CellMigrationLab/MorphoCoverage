@@ -67,7 +67,7 @@ def main() -> None:
         draws=50,
         random_state=0,
         n_jobs=-1,
-        group_cols=["condition", "repeat", "technical_repeat"],
+        group_cols=["condition", "biological_repeat", "technical_repeat"],
     )
     RESULTS.mkdir(exist_ok=True)
     result.curve.to_csv(RESULTS / "reliability_idr0028.csv", index=False, float_format="%.4f")

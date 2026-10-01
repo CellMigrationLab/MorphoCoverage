@@ -49,7 +49,7 @@ def _mixed(seed=0, n_easy=4, n_hard=4, n_fovs=40, cells=20):
             fov_rows.append(
                 {
                     "condition": "c",
-                    "repeat": f"R{s}",
+                    "biological_repeat": f"R{s}",
                     "image_file": name,
                     "difficulty": "hard" if hard else "easy",
                 }
@@ -58,7 +58,7 @@ def _mixed(seed=0, n_easy=4, n_hard=4, n_fovs=40, cells=20):
             values = level + rng.normal(0, 0.2, size=(cells, 2))
             object_rows.append(
                 pd.DataFrame(values, columns=list(FEATURE_COLS)).assign(
-                    condition="c", repeat=f"R{s}", image_file=name
+                    condition="c", biological_repeat=f"R{s}", image_file=name
                 )
             )
     return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
@@ -104,7 +104,7 @@ def _replay(objects, fovs, strategies, *, orders=4, splits=3, seed=0, criteria=(
         n_splits=splits,
         random_state=seed,
         keep_results=True,
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
     )
 
 
@@ -117,7 +117,9 @@ def test_the_baseline_is_the_replayed_fixed_rule(mixed):
     fixed = [FixedFOVStrategy(k) for k in range(1, 22)]
     replay = _replay(*mixed, fixed)
     replayed = family(replay, "replayed fixed", {s.config_id: s.target_fovs for s in fixed})
-    result = frontier(replay, [replayed], criterion=MEAN.name, alphas=[0.1], unit_cols=["repeat"])
+    result = frontier(
+        replay, [replayed], criterion=MEAN.name, alphas=[0.1], unit_cols=["biological_repeat"]
+    )
     curve = result.curve.set_index(["family", "setting"])
     for k in range(1, 22):
         base, again = curve.loc[(BASELINE, k)], curve.loc[("replayed fixed", k)]
@@ -141,7 +143,7 @@ def test_a_sweep_equals_replaying_each_threshold(mixed):
     for target, strategy in zip(targets, strategies, strict=True):
         direct = replay.decisions[replay.decisions["config_id"] == strategy.config_id]
         redone = swept[swept["setting"] == target]
-        keys = ["repeat", "split", "order_id", "fovs"]
+        keys = ["biological_repeat", "split", "order_id", "fovs"]
         left = direct.sort_values(keys)["decision"].tolist()
         right = redone.sort_values(keys)["decision"].tolist()
         assert left == right
@@ -154,7 +156,9 @@ def test_an_adaptive_rule_saves_fields_and_its_stops_follow_the_need(mixed):
     oracles = [_oracle(1, hard) for hard in (4, 6, 8, 10, 12, 16, 20)]
     replay = _replay(*mixed, oracles, orders=6)
     rules = family(replay, "oracle", {s.config_id: s.estimators[0].hard for s in oracles})
-    result = frontier(replay, [rules], criterion=MEAN.name, alphas=[0.05], unit_cols=["repeat"])
+    result = frontier(
+        replay, [rules], criterion=MEAN.name, alphas=[0.05], unit_cols=["biological_repeat"]
+    )
     score = result.scores.set_index("family").loc["oracle"]
     base = result.scores.set_index("family").loc[BASELINE]
     assert base["effort"] is not None and score["effort"] is not None
@@ -176,10 +180,12 @@ def test_more_replays_of_the_same_units_do_not_narrow_the_interval(mixed):
     oracles = [_oracle(1, hard) for hard in (4, 6, 8, 10, 12, 16)]
     replay = _replay(*mixed, oracles)
     rules = family(replay, "oracle", {s.config_id: s.estimators[0].hard for s in oracles})
-    runs = frontier(replay, [rules], criterion=MEAN.name, alphas=[0.1], unit_cols=["repeat"]).runs
+    runs = frontier(
+        replay, [rules], criterion=MEAN.name, alphas=[0.1], unit_cols=["biological_repeat"]
+    ).runs
     doubled = pd.concat([runs, runs.assign(split=runs["split"] + 100)], ignore_index=True)
-    once = _bootstrap(runs, ["repeat"], [0.1], 300, np.random.default_rng(0))
-    twice = _bootstrap(doubled, ["repeat"], [0.1], 300, np.random.default_rng(0))
+    once = _bootstrap(runs, ["biological_repeat"], [0.1], 300, np.random.default_rng(0))
+    twice = _bootstrap(doubled, ["biological_repeat"], [0.1], 300, np.random.default_rng(0))
     np.testing.assert_allclose(once[("oracle", 0.1)], twice[("oracle", 0.1)])
 
 
@@ -218,7 +224,7 @@ def test_families_from_replays_with_other_streams_are_refused(mixed):
     # Without the record of how its reservoirs were drawn, the stream sizes still differ.
     alien = alien.assign(stream_fovs=alien["stream_fovs"] + 1).drop(columns="held_back")
     with pytest.raises(ValueError, match="different streams"):
-        frontier(one, [alien], criterion=MEAN.name, alphas=[0.1], unit_cols=["repeat"])
+        frontier(one, [alien], criterion=MEAN.name, alphas=[0.1], unit_cols=["biological_repeat"])
 
 
 def test_a_setting_chosen_on_development_is_scored_on_held_out_data(mixed):
@@ -236,7 +242,7 @@ def test_a_setting_chosen_on_development_is_scored_on_held_out_data(mixed):
             name="JCB per field",
         )
         scores[name] = frontier(
-            replay, [swept], criterion=MEAN.name, alphas=[0.2], unit_cols=["repeat"]
+            replay, [swept], criterion=MEAN.name, alphas=[0.2], unit_cols=["biological_repeat"]
         )
     table = transfer(scores["development"], scores["held_out"], 0.2).set_index("family")
     chosen = table.loc["JCB per field"]
@@ -262,7 +268,7 @@ def test_invalid_requests_are_refused(mixed):
             reservoir_fraction=0.3,
             orders=[AcquisitionOrder.permuted(0)],
             n_splits=1,
-            group_cols=["condition", "repeat"],
+            group_cols=["condition", "biological_repeat"],
         )
         sweep(no_results, config_id="x", quantity="q", thresholds=[1], name="n")
     with pytest.raises(ValueError, match="not assessed"):
@@ -343,12 +349,12 @@ def test_the_summary_states_the_efforts_it_subtracts():
             },
         ]
     )
-    settings = {"label": "x", "units": 12, "unit_cols": ["condition", "repeat", "well"]}
+    settings = {"label": "x", "units": 12, "unit_cols": ["condition", "biological_repeat", "well"]}
     result = FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), settings)
     text = " ".join(result.summary(detail="full").split())
     assert "needed 7 fields, 6.5 on average" in text
     assert "80% of the resamples" in text
-    assert "12 units (condition · repeat · well)" in text
+    assert "12 units (condition · biological_repeat · well)" in text
     short = " ".join(result.summary().split())
     assert "a fixed count needs 7 fields, 6.5 on average" in short
     assert "80% of the resamples" in short

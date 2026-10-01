@@ -49,6 +49,7 @@ import pandas as pd
 
 from ._areas import area_problem
 from ._checks import check_seed, is_integer
+from ._former_repeat import one_warning
 from ._parallel import worker_pool
 from ._seeds import group_rng
 from .data_check import validate_input_tables
@@ -454,6 +455,7 @@ def _record_run(
     )
 
 
+@one_warning
 def run_benchmark(
     registry: BenchmarkRegistry,
     dataset_name: str,

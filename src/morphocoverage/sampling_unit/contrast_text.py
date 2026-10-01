@@ -2,8 +2,12 @@
 
 ``contrast_summary(contrast, detail)`` writes a ``ConditionContrast``:
 
-- **short** (the default): what is compared in one sentence, one table with a
-  row per contrast (fields, observations and technical repeats on each side,
+- **short** (the default): what is compared in one sentence; with biological
+  repeats kept apart, one table with a row per condition across the repeats
+  (the direction in each repeat, the per-repeat d, the sign-flip and paired
+  t-tests on the repeat means, ``contrast_repeats``); one table with a row per
+  contrast within a repeat (at most ``SHORT_CONTRASTS`` rows, else a pointer to
+  the full form) (fields, observations and technical repeats on each side,
   Cohen's d with observations, fields and technical repeats as the unit, the
   randomization test), one table with the JCS effect size's same-sign shares
   over the draws (the range over the contrasts per sample size), then each
@@ -28,15 +32,23 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._style import among, check_detail, span, table, wrap
-from .._wording import count, listing, number, percent
+from .._wording import column_word, count, listing, number, percent
+from ..metadata import REPEAT_COLUMN
 from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
+from .cells_text import cells_parts
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
+from .reagents_text import reagents_parts
+from .repeat_plan_text import plan_parts
+from .repeats_text import _range, _repeat_head, _repeat_rows, _repeats, repeat_cautions
 
 NO_CONTROL = "no control group in"
-# Units a side at or below which a d on unit means is printed as unstable.
+# Units a side at or below which a d on unit means is not computed: from so few means a d
+# can be very large by chance, so it could not help.
 FEW_UNITS_D = 3
 P_ALPHA = 0.05  # the p-value at which contrasts of opposite signs are flagged
+# Per-repeat contrasts printed in the short form when the across-repeat table is there.
+SHORT_CONTRASTS = 12
 _MEANS_ONLY = (
     "The test and the effect sizes compare means: a difference confined to a subpopulation of "
     "{words} or to the shape of the distribution is not tested (see the unusual {words} and "
@@ -55,23 +67,17 @@ def _short_statistic(value: float) -> str:
     return "–" if np.isnan(value) else f"{value:.2f}"
 
 
-def _range(values: pd.Series) -> str:
-    """``-1.52 to 1.42``, or ``1.42`` for one value: statistics to two decimals."""
-    low, high = float(values.min()), float(values.max())
-    return f"{low:.2f}" if f"{low:.2f}" == f"{high:.2f}" else f"{low:.2f} to {high:.2f}"
-
-
 def _name(row: dict[str, Any], repeat_col: str | None) -> str:
     """``LATS1 vs MOCK · 1A``: the contrast, and its repeat when repeats are kept apart."""
     name = f"{row['condition']} vs {row['control_condition']}"
-    return f"{name} · {row['repeat']}" if repeat_col else name
+    return f"{name} · {row[REPEAT_COLUMN]}" if repeat_col else name
 
 
 def _head(contrast: Any, short: bool) -> str:
     """What is compared: the feature, the control, the repeats, the units."""
     settings = contrast.settings
     control, repeat_col, shared = settings["control"], settings["repeat_col"], settings.get("unit")
-    within = f", within each {repeat_col}" if repeat_col else ""
+    within = f", within each {column_word(repeat_col)}" if repeat_col else ""
     unit = settings["observation_unit"]
     if short:
         label = " · ".join(str(v) for v in control.values())
@@ -107,15 +113,30 @@ def _test_cell(row: dict[str, Any]) -> str:
     return f"{row['p_value']:.3g} ({row['p_bonferroni']:.3g})"
 
 
+def _one_per_field(contrast: Any) -> bool:
+    """Whether every compared field holds one observation (fields and observations coincide)."""
+    table = contrast.table
+    counted = table["fields"] > 0
+    return bool(counted.any()) and bool(
+        (table.loc[counted, "observations"] == table.loc[counted, "fields"]).all()
+        and (
+            table.loc[counted, "control_observations"] == table.loc[counted, "control_fields"]
+        ).all()
+    )
+
+
 def _contrast_rows(contrast: Any, full: bool) -> tuple[list[list[str]], list[str]]:
     """One row per contrast: counts, effect sizes and (short) the test; and its columns."""
     settings = contrast.settings
     repeat_col, shared = settings["repeat_col"], settings.get("unit")
     words = unit_plural(settings["observation_unit"])
     with_technical = shared and contrast.table["d_technical"].notna().any()
+    # One observation per field: the d on field means is the d on observations.
+    by_field = not _one_per_field(contrast)
     technical = "tech. repeats" if full else "tech."
     columns = ["contrast", "fields", words, *([technical] if shared else [])]
-    columns += [f"d {words}", "d fields", *([f"d {technical}"] if with_technical else [])]
+    columns += [f"d {words}", *(["d fields"] if by_field else [])]
+    columns += [f"d {technical}"] if with_technical else []
     unit = settings["observation_unit"]
     columns += [f"JCS, every {unit}"] if full else ["p (Bonferroni)"]
     rows = []
@@ -127,7 +148,9 @@ def _contrast_rows(contrast: Any, full: bool) -> tuple[list[list[str]], list[str
         ]
         if shared:
             cells.append(f"{int(row['technical'])} vs {int(row['control_technical'])}")
-        cells += [_short_statistic(row["d_objects"]), _short_statistic(row["d_fields"])]
+        cells.append(_short_statistic(row["d_objects"]))
+        if by_field:
+            cells.append(_short_statistic(row["d_fields"]))
         if with_technical:
             cells.append(_short_statistic(row["d_technical"]))
         cells.append(_short_statistic(row["effect_full"]) if full else _test_cell(row))
@@ -135,48 +158,59 @@ def _contrast_rows(contrast: Any, full: bool) -> tuple[list[list[str]], list[str
     return rows, columns
 
 
+def across_tested(contrast: Any) -> bool:
+    """Whether some condition has a test across the biological repeats."""
+    repeats = _repeats(contrast)
+    return bool(len(repeats) and repeats["p_paired_t"].notna().any())
+
+
+# The per-repeat reason that the test across repeats answers: one well or dish a side.
+ONE_UNIT = "only one technical repeat"
+
+
+def design_limited(status: str) -> bool:
+    """Whether a contrast is untested because of the design (one or few technical repeats or
+    fields a side), not because something is missing."""
+    return status.startswith((ONE_UNIT, "fewer than 2 fields", "too few technical repeats"))
+
+
 def _untested(contrast: Any) -> list[str]:
-    """Why contrasts have no test, once per reason, with the contrasts it concerns."""
+    """Why contrasts have no test, once per reason, with the contrasts it concerns. A test the
+    design cannot run (one or few technical repeats a side) is a note, not a caution: it is
+    the usual design, and the test across repeats, when there is one, answers the question."""
     repeat_col = contrast.settings["repeat_col"]
     table_ = contrast.table
     n = len(table_)
-    lines = []
-    for status, rows in table_[table_["status"] != "ok"].groupby("status", sort=False):
+    lines: list[str] = []
+    untested = table_[table_["status"] != "ok"]
+    limited = untested["status"].map(design_limited).astype(bool)
+    if limited.any() and across_tested(contrast):
+        lines.append(
+            assumption(
+                "Within a repeat the conditions are described by their effect sizes; they are "
+                "tested across repeats (the first table)."
+            )
+        )
+    for status, rows in untested.groupby("status", sort=False):
         names = [_name(r, repeat_col) for r in rows.to_dict("records")]
         which = among(len(rows), n, "contrast")
         named = "" if len(rows) == n else f" ({listing(names, 3)})"
-        lines.append(f"no randomization test in {which}{named}: {status}")
+        text = f"no randomization test in {which}{named}: {status}"
+        if design_limited(status):
+            if not across_tested(contrast):
+                lines.append(assumption(f"{text[0].upper()}{text[1:]}."))
+            continue
+        lines.append(text)
         if status == NOT_INDEPENDENT:
             lines.append(UNKNOWN_WELLS_ADVICE)
     return lines
-
-
-def _unstable(contrast: Any) -> list[str]:
-    """The contrasts whose d on technical-repeat means rests on 3 or fewer means a side."""
-    if not contrast.settings.get("unit"):
-        return []
-    rows = [
-        r
-        for r in contrast.table.to_dict("records")
-        if not pd.isna(r["d_technical"])
-        and min(r["technical"], r["control_technical"]) <= FEW_UNITS_D
-    ]
-    if not rows:
-        return []
-    repeat_col = contrast.settings["repeat_col"]
-    names = listing([_name(r, repeat_col) for r in rows], 3)
-    unstable = (
-        f"the d on technical-repeat means of {names} comes from {FEW_UNITS_D} or fewer means a "
-        "side, so it is unstable: a d from so few values can be very large by chance"
-    )
-    return [unstable]
 
 
 def _cautions(contrast: Any) -> list[str]:
     """Every caveat of the contrast, once each (see the module)."""
     settings = contrast.settings
     words = unit_plural(settings["observation_unit"])
-    cautions = [*_untested(contrast), *_unstable(contrast)]
+    cautions = _untested(contrast)
     sizes = contrast.table[["d_objects", "d_fields", "d_technical"]].to_numpy(dtype=float)
     if np.isinf(sizes).any():
         cautions.append("an infinite d is a perfect separation: no variation within either side")
@@ -261,12 +295,37 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
     if contrast.table.empty:
         reason = contrast.settings.get("reason", "No condition to compare with the control.")
         return [*lines, wrap(reason, indent, hang=indent + 2)], []
+    across = not _repeats(contrast).empty
+    cell_lines, cell_notes = cells_parts(contrast, indent)
+    if not across:
+        # A pilot (one repeat): the cell-level test is the one that responds, so it leads.
+        lines = cell_lines + lines
+    else:
+        lines = [wrap(_repeat_head(contrast), indent, hang=indent + 2)]
+        rows, columns = _repeat_rows(contrast)
+        lines.append(table(rows, columns, indent=indent + 2))
+        lines += reagents_parts(contrast, indent)[0] + cell_lines
+        lines.append(
+            wrap(f"Within each repeat: {_head(contrast, short=True)}", indent, hang=indent + 2)
+        )
     rows, columns = _contrast_rows(contrast, full=False)
-    lines.append(table(rows, columns, indent=indent + 2))
+    if across and len(rows) > SHORT_CONTRASTS:
+        lines[-1] = wrap(
+            f"Within each repeat: {count(len(rows), 'contrast')}, one per condition and "
+            "repeat, with Cohen's d on observations and on fields and the randomization test, "
+            "are in the full report (detail='full').",
+            indent,
+            hang=indent + 2,
+        )
+    else:
+        lines.append(table(rows, columns, indent=indent + 2))
     tests = _tests_short(contrast)
     lines += [wrap(tests, indent, hang=indent + 2)] if tests else []
     lines += _draws_short(contrast, indent)
-    return lines, _cautions(contrast)
+    planned, plan_notes = plan_parts(contrast, indent)
+    lines += planned
+    side_notes = (reagents_parts(contrast, indent)[1] if across else []) + cell_notes
+    return lines, [*repeat_cautions(contrast), *side_notes, *_cautions(contrast), *plan_notes]
 
 
 def _tests_short(contrast: Any) -> str | None:
@@ -332,9 +391,9 @@ def _draw_rows(contrast: Any) -> tuple[list[list[str]], list[str]]:
     rows = []
     for row in contrast.table.to_dict("records"):
         same = (
-            effects["repeat"].isna()
-            if pd.isna(row["repeat"])
-            else effects["repeat"] == row["repeat"]
+            effects[REPEAT_COLUMN].isna()
+            if pd.isna(row[REPEAT_COLUMN])
+            else effects[REPEAT_COLUMN] == row[REPEAT_COLUMN]
         )
         own = effects[same & (effects["condition"] == row["condition"])]
         for size, block in own.groupby("n_objects", sort=True):
@@ -366,6 +425,14 @@ def _full(contrast: Any) -> str:
     if contrast.table.empty:
         lines.append(contrast.settings.get("reason", "No condition to compare with the control."))
         return "\n".join(lines)
+    if not _repeats(contrast).empty:
+        rows, columns = _repeat_rows(contrast, full=True)
+        lines += [wrap(_repeat_head(contrast), 0, hang=2), table(rows, columns)]
+        lines += reagents_parts(contrast, 0)[0]
+        lines += cells_parts(contrast, 0, full=True)[0]
+        lines.append(wrap("Within each repeat:", 0, hang=2))
+    else:
+        lines += cells_parts(contrast, 0, full=True)[0]
     rows, columns = _contrast_rows(contrast, full=True)
     lines.append(table(rows, columns))
     tested = contrast.table[contrast.table["status"] == "ok"]
@@ -388,7 +455,18 @@ def _full(contrast: Any) -> str:
         )
         draws, names = _draw_rows(contrast)
         lines.append(table(draws, names))
-    lines += caveat_lines(_cautions(contrast), indent=0, detail="full")
+    planned, plan_notes = plan_parts(contrast, 0, full=True)
+    lines += planned
+    agree_notes = reagents_parts(contrast, 0)[1]
+    cell_notes = cells_parts(contrast, 0, full=True)[1]
+    cautions = [
+        *repeat_cautions(contrast),
+        *agree_notes,
+        *cell_notes,
+        *_cautions(contrast),
+        *plan_notes,
+    ]
+    lines += caveat_lines(cautions, indent=0, detail="full")
     return "\n".join(lines)
 
 
@@ -401,4 +479,14 @@ def contrast_summary(contrast: Any, detail: str = "short") -> str:
     return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
-__all__ = ["FEW_UNITS_D", "NO_CONTROL", "P_ALPHA", "contrast_parts", "contrast_summary"]
+__all__ = [
+    "FEW_UNITS_D",
+    "NO_CONTROL",
+    "P_ALPHA",
+    "SHORT_CONTRASTS",
+    "across_tested",
+    "contrast_parts",
+    "contrast_summary",
+    "design_limited",
+    "repeat_cautions",
+]

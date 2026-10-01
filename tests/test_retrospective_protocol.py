@@ -138,7 +138,7 @@ def test_the_protocol_number_must_hold_from_there_on():
 def test_the_interval_does_not_narrow_with_more_draws_or_splits():
     built = SCENARIOS["condition_repeat_groups"]()
     criterion = OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better")
-    hierarchy = SamplingHierarchy("image_file", "repeat")
+    hierarchy = SamplingHierarchy("image_file", "biological_repeat")
 
     def run(draws, splits):
         per_sample = sampling_reliability(
@@ -152,7 +152,7 @@ def test_the_interval_does_not_narrow_with_more_draws_or_splits():
             draws=draws,
         )
         result = protocol_reliability(per_sample, hierarchy, threshold=0.9, strata=["condition"])
-        flags = result.difficulty.set_index(["condition", "repeat"])
+        flags = result.difficulty.set_index(["condition", "biological_repeat"])
         return result.table.set_index(["condition", "fovs"]), flags
 
     few, few_flags = run(4, 2)

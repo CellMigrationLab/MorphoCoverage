@@ -29,12 +29,12 @@ setup = Setup(
     features=features,                        # explicit columns; never inferred
     control={"condition": "MOCK"},            # negative-control groups
     normalize="control_mean",                 # or None: divide by the repeat's control mean
-    positive=PositiveControl({"condition": "YAP"}, fovs_seen=10, pair_cols=("repeat",)),
+    positive=PositiveControl({"condition": "YAP"}, fovs_seen=10, pair_cols=("biological_repeat",)),
     novelty=default_novelty(features),        # the definition of "new"; None to skip
     tolerances=(0.05, 0.025),                 # the readout's mean within 5% and 2.5%
     acquisition_order_col="acquisition_order",
     stage_cols=("stage_x_um", "stage_y_um"),
-    group_cols=("condition", "repeat", "technical_repeat"),  # the well: a technical repeat
+    group_cols=("condition", "biological_repeat", "technical_repeat"),  # the well: a technical repeat
     observation_unit="nucleus",
     n_jobs=-1,
 )
@@ -196,7 +196,7 @@ and whether the values are normalised. It closes
 with **what this dataset cannot tell me**: every question not assessed, with
 what it would need (a control, a positive control, stage coordinates, a
 hierarchy, a replay), and the notes to read the answers with. Missing
-columns never stop the report: without `condition` or `repeat` every field is
+columns never stop the report: without `condition` or `biological_repeat` every field is
 one group and the sections that need them say so.
 
 Every workflow runs `check_tables` on the setup's columns and control before
@@ -228,7 +228,7 @@ figures = plots(objects, fovs, setup, features=["YAPTAZ_Ratio", "Nuclei_Area"])
 ```
 
 PlotsOfData-style figures (`morphocoverage.plots`), one per feature:
-within each condition the biological repeats (the `repeat` column) sit side
+within each condition the biological repeats (the `biological_repeat` column) sit side
 by side, labelled above their cluster, so that a difference between
 conditions can be read against the spread between repeats. Every object is
 a jittered point coloured by technical repeat (`technical_col`, by default
@@ -391,7 +391,7 @@ yourself with the same fields.
 from morphocoverage.workflows import LiveFolder, live_session, write_fov
 
 # acquisition side, once per completed field
-write_fov(folder, field_objects, {"condition": "MOCK", "repeat": "1A", "image_file": "002006-1.tif"})
+write_fov(folder, field_objects, {"condition": "MOCK", "biological_repeat": "1A", "image_file": "002006-1.tif"})
 
 # analysis side
 live = LiveFolder(folder, live_session(setup))

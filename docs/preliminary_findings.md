@@ -1052,3 +1052,79 @@ objects were random.
   report does, would count fewer fields holding the state.
 - **Few fields per idr0139 well.** With 4 fields, clustering can hardly be
   detected, and the fields needed carry wide bounds.
+
+## 11. Which test for a condition: repeat means or cells? (2026-09-30)
+
+`data/simulations/test_choice.py` (results in `data/simulations/results/test_choice.csv`)
+simulates the lab's usual design: 1-6 biological repeats, one well per condition per repeat,
+30 cells a well. A batch shift is shared by both wells of a repeat, and the difference varies
+between repeats by `s_rep` cell SDs (0, 0.25, 0.5; the lab datasets estimate 0.3-0.5). There are
+1000 experiments per setting and alpha is 0.05.
+
+- **False positives without an effect.** The paired t on repeat means, raw or on log ratios, stays
+  at 4-6% everywhere.
+- The cell-level tests are inflated once repeats differ. Normalised to each repeat's control,
+  they give 15-17% at `s_rep` 0.25 and 32-37% at 0.5, which matches
+  `2·P(Z > 1.96/√(1 + n·s²/2))` within a few points; that formula labels the cell-level test in
+  question 9. On raw values (Plot&Stats, pooled) the rate is at or below it: 5-17% at 0.25 and
+  19-36% at 0.5, falling with more repeats as the shared batch shifts add noise.
+- Normalising removes the shift that both wells of a repeat share, but not the pseudo-replication.
+- The mixed model with a z reference is inflated at 2-3 repeats; with a t reference it almost
+  never rejects at 2-3 repeats and has less power than the paired t. The hierarchical bootstrap is inflated with few repeats (22%, 12%, 5% at
+  `s_rep` 0.5 over 2, 3, 4 repeats). The sign-flip test cannot reject below 6 repeats.
+- **Power of the paired t** (`s_rep` 0 / 0.25 / 0.5):
+
+  | repeats | d 0.5 | d 1.0 | d 1.5 | d 2.0 |
+  | --- | --- | --- | --- | --- |
+  | 2 | 17 / 11 / 9% | 31 / 23 / 15% | 41 / 33 / 22% | 52 / 40 / 30% |
+  | 3 | 41 / 27 / 18% | 85 / 67 / 39% | 98 / 90 / 63% | 100 / 98 / 83% |
+  | 4 | 74 / 47 / 24% | 100 / 93 / 67% | 100 / 100 / 92% | 100 / 100 / 99% |
+  | 6 | 96 / 77 / 44% | 100 / 100 / 92% | 100 / 100 / 100% | 100 / 100 / 100% |
+
+- **Reading.** With 3 repeats, the paired t finds the effects the lab usually reports (d ≥ 1.5)
+  while keeping false positives at the nominal 5%. The cell-level test responds with 1-2 repeats,
+  where the paired t cannot, but its p is not a 5% test once repeats differ. So question 9 gives
+  both: the paired t across repeats, and the cell-level test labelled with its chance of a
+  positive without an effect.
+- **Unequal cells per repeat** are simulated in entry 12.
+
+## 12. Unbalanced repeats: resampling, normalising, and the false-positive label (2026-10-01)
+
+`data/simulations/unbalanced.py` (results in `data/simulations/results/unbalanced.csv`) uses
+the generator of entry 11 with 3 biological repeats that hold different numbers of cells. There
+are 1000 experiments per setting, with no effect or d 1.0, and repeats differing by `s_rep` 0,
+0.25 or 0.5 cell SD. It compares Plot&Stats as provided, the package's balanced test, and the
+paired t on repeat means, each raw and normalised to the same repeat's control. Each balanced
+draw uses the cell t-test p instead of the randomization p; in entry 11 the two differ by at most
+1 point.
+
+False positives without an effect, normalised, at `s_rep` 0.25 (0.5):
+
+| cells per repeat | as provided | balanced | paired t | label (as provided) |
+| --- | --- | --- | --- | --- |
+| 30 / 30 / 30 | 16% (37%) | 17% (36%) | 5% (6%) | 16% (37%) |
+| 60 / 30 / 30 | 22% (45%) | 14% (35%) | 4% (5%) | 21% (45%) |
+| 120 / 30 / 30 | 31% (58%) | 12% (32%) | 5% (5%) | 32% (58%) |
+| 240 / 30 / 30 | 46% (71%) | 12% (32%) | 5% (5%) | 46% (70%) |
+| 30 / 30 / 30, control also from 3 other repeats | 22% (44%) | 16% (36%) | 6% (6%) | 16% (37%) |
+| 100 / 100 / 8 | 32% (58%) | 32% (59%) | 5% (5%) | 33% (59%) |
+
+- **One repeat holding more cells** makes the test as provided worse, because that repeat weighs
+  more. The label matches this within 1-2 points once the cells per well are weighted by each
+  repeat's share (`sum(n²) / sum(n)`); the report now uses it. Balancing brings the rate back to
+  the equal-repeats level or below; the median p over draws is a little conservative.
+- **A control pooled from repeats the condition was not imaged in** is the worst case on raw
+  values. Batch shifts between repeats no longer cancel, so the raw test gives 46% false
+  positives even when the repeats agree perfectly (`s_rep` 0), and it shrinks d (0.73 for 1.0).
+  Normalising cuts that to 9% (22% at 0.25). The balanced test, against the control of the
+  condition's own repeats, gives 2% raw and 4% normalised, as with equal repeats.
+- **A very small repeat** (8 cells against 100) is left out of the balanced test. The result
+  matches two repeats of 100, as the label at 100 cells says. The paired t keeps it as one repeat
+  and stays at 2-5%, at some cost in power (77% against 88% at d 1.0 and `s_rep` 0).
+- **The small-repeat rule** now compares a repeat with the median repeat, not the largest. With
+  240/30/30 cells, the largest-repeat rule called both ordinary repeats too small and balanced on
+  the dominant repeat alone (its false-positive rate then that of one repeat of 240).
+- **The paired t** is at 2-6% in every scenario: one value per repeat makes it insensitive to the
+  cells each repeat holds.
+- **Power** (d 1.0) is 96-100% for every cell-level version except the raw test with the control
+  from other repeats (88-90%), and 37-93% for the paired t, as in entry 11.

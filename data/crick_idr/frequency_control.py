@@ -131,7 +131,9 @@ def run(n_jobs: int = -1) -> tuple[pd.DataFrame, pd.DataFrame]:
         for plate, host_well, donor_well in DESIGN:
             host = fov_matrices(objects, fovs, plate, host_well, features)
             donor = fov_matrices(objects, fovs, plate, donor_well, features)
-            table = fovs[(fovs["repeat"] == plate) & (fovs["technical_repeat"] == host_well)]
+            table = fovs[
+                (fovs["biological_repeat"] == plate) & (fovs["technical_repeat"] == host_well)
+            ]
             positions = table[["stage_x_um", "stage_y_um"]].to_numpy(float)
             for p in FREQUENCIES:
                 for layout in LAYOUTS:

@@ -60,7 +60,7 @@ def _raster_well(*, drift: float, rare_rows: int = 0, seed: int = 3, objects_per
             pd.DataFrame(
                 {
                     "condition": "MOCK",
-                    "repeat": "R1",
+                    "biological_repeat": "R1",
                     "image_file": name,
                     READOUT: values,
                     "rare": rare,
@@ -70,7 +70,7 @@ def _raster_well(*, drift: float, rare_rows: int = 0, seed: int = 3, objects_per
         fov_rows.append(
             {
                 "condition": "MOCK",
-                "repeat": "R1",
+                "biological_repeat": "R1",
                 "image_file": name,
                 "order": rank,
                 "stage_x": 500.0 * column,

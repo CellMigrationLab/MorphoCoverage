@@ -11,7 +11,7 @@ MorphoBricks-compatible feature tables
 metadata/FOV resolution
         |
         v
-condition x repeat x technical_repeat grouping
+condition x biological_repeat x technical_repeat grouping
         |
         v
 ValidatedInput
@@ -33,7 +33,7 @@ The shared runner owns validation, MorphoBricks metadata handling, grouping, tim
 The framework follows the shared MorphoBricks metadata conventions:
 
 - `condition`
-- `repeat`
+- `biological_repeat` (formerly `repeat`, still read with a `DeprecationWarning`: `docs/data_format.md`)
 - `technical_repeat` (a well, a dish, a coverslip within a repeat)
 - `position_id` (when file layout is not one-file-per-position)
 - `image_file`
@@ -42,16 +42,16 @@ The framework follows the shared MorphoBricks metadata conventions:
 
 When the caller does not provide an FOV identifier, `position_id` is preferred, followed by `image_file` when one file equals one position, then `fov_id`. One FOV is one independently selected spatial position; z/c/t observations from that position remain nested within it. A candidate column present in only one of the linked tables is an error, never a reason to fall back to the next candidate.
 
-When the caller does not provide grouping columns, the `condition`, `repeat` and `technical_repeat` columns present are used automatically. This keeps biological/sample groups independent without requiring every strategy to understand those columns. A canonical column present in the observations but not in the FOV table raises instead of silently pooling; one present only in the FOV table is attached to the observations when the identifier is unambiguous ("Lean feature tables" below). Non-canonical spellings such as `Repeat`, `technical.repeat` or a pandas copy `Repeat.1` raise unless named explicitly.
+When the caller does not provide grouping columns, the `condition`, `biological_repeat` and `technical_repeat` columns present are used automatically. This keeps biological/sample groups independent without requiring every strategy to understand those columns. A canonical column present in the observations but not in the FOV table raises instead of silently pooling; one present only in the FOV table is attached to the observations when the identifier is unambiguous ("Lean feature tables" below). Non-canonical spellings such as `Biological_Repeat`, `bio_repeat`, `tec_repeat`, `technical.repeat` or a pandas copy `Repeat.1` raise, with the column meant, unless named explicitly; the former name `repeat` is read as `biological_repeat` with a `DeprecationWarning` (`_former_repeat`).
 
 ### FOV identity versus analysis grouping
 
 Two concepts are kept separate:
 
-- **FOV identity** (`ValidatedInput.fov_key`): the columns that jointly identify one acquired FOV. It always contains the analysis group columns plus any canonical `condition`/`repeat`/`technical_repeat` columns, then the FOV column.
+- **FOV identity** (`ValidatedInput.fov_key`): the columns that jointly identify one acquired FOV. It always contains the analysis group columns plus any canonical `condition`/`biological_repeat`/`technical_repeat` columns, then the FOV column.
 - **Analysis groups** (`ValidatedInput.group_cols`): which FOVs are evaluated together.
 
-Passing `group_cols=[]` is an explicit request to pool FOVs into one analysis. It does not remove `condition`/`repeat`/`technical_repeat` from FOV identity, so `R1/img_001.tif` and `R2/img_001.tif` remain two FOVs. Strategies that need FOV identity must use `fov_key`, not `fov_col` alone.
+Passing `group_cols=[]` is an explicit request to pool FOVs into one analysis. It does not remove `condition`/`biological_repeat`/`technical_repeat` from FOV identity, so `R1/img_001.tif` and `R2/img_001.tif` remain two FOVs. Strategies that need FOV identity must use `fov_key`, not `fov_col` alone.
 
 Metadata columns are never inferred as phenotype features. Strategies read phenotype values through `ValidatedInput.feature_matrix()`.
 
@@ -128,7 +128,7 @@ The framework builds every result; strategies never construct one. A `StrategyRe
 - overall decision: `continue`, `stop`, `unsupported` or `None` (undefined), for the objective;
 - `component_decisions`, one per component, and `rule_decision`, the rule's own verdict over the components it decides (what a self-assessment, a replay or a calibration reads; `docs/sampling_objectives.md`);
 - number of FOVs and number of observations;
-- resolved condition/repeat group identity;
+- resolved condition/biological-repeat group identity;
 - strategy parameters, and `configuration` (name, type, `config_id` and parameters of each estimator and policy);
 - feature columns and FOV key;
 - `compute_seconds`, with `runtime_seconds` as an alias, and `timing`, which breaks the whole decision down (see below).
@@ -303,7 +303,7 @@ NaN phenotype values may enter the framework. They are never automatically imput
 
 A feature table does not have to duplicate all FOV-level metadata. If observation
 rows contain a globally unique FOV/position identifier and the FOV table carries
-`condition`, `repeat`, or explicitly requested grouping columns, validation
+`condition`, `biological_repeat`, or explicitly requested grouping columns, validation
 attaches those columns to the observations before grouping. When field names
 restart in each repeat, the join goes through the other group columns the
 observations carry (the repeat and the field name together). An optional shared

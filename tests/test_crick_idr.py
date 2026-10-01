@@ -33,10 +33,11 @@ POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 
 
 def _load(name):
-    """The stored tables with the well named as the loader names it (technical_repeat)."""
+    """The stored tables with the well and the plate named as the loader names them
+    (technical_repeat, biological_repeat; the stored files keep "well" and "repeat")."""
     fovs = pd.read_csv(DATA / f"{name}_fovs.csv.gz", dtype={"repeat": str})
     objects = pd.read_csv(DATA / f"{name}_nuclei.csv.gz", dtype={"repeat": str})
-    rename = {"well": "technical_repeat"}
+    rename = {"well": "technical_repeat", "repeat": "biological_repeat"}
     return objects.rename(columns=rename), fovs.rename(columns=rename)
 
 
@@ -95,12 +96,12 @@ def test_tables_validate_with_morphobricks_defaults(dataset, n_wells, fields_per
         objects,
         fovs=fovs,
         feature_cols=features,
-        group_cols=["condition", "repeat", "technical_repeat"],
+        group_cols=["condition", "biological_repeat", "technical_repeat"],
     )
     assert data.fov_col == "image_file"
-    assert data.fov_key == ("condition", "repeat", "technical_repeat", "image_file")
+    assert data.fov_key == ("condition", "biological_repeat", "technical_repeat", "image_file")
     assert len(data.fovs) == n_wells * fields_per_well
-    assert fovs.groupby(["repeat", "technical_repeat"]).size().eq(fields_per_well).all()
+    assert fovs.groupby(["biological_repeat", "technical_repeat"]).size().eq(fields_per_well).all()
     # Location and identifiers are carried as metadata, not features.
     assert not {"nucleus_x_px", "nucleus_y_px", "label_id"} & set(data.feature_cols)
 
@@ -108,15 +109,15 @@ def test_tables_validate_with_morphobricks_defaults(dataset, n_wells, fields_per
 def test_well_names_reused_across_plates_stay_distinct(idr0028):
     _, fovs = idr0028
     j23 = fovs[fovs["technical_repeat"].eq("J23")]
-    assert set(j23["repeat"]) == {"1A", "2A"}
+    assert set(j23["biological_repeat"]) == {"1A", "2A"}
     assert len(j23) == 56
 
 
 def test_idr0028_acquisition_order_is_defined_within_each_well(idr0028):
     _, fovs = idr0028
-    assert not fovs.duplicated(["repeat", "technical_repeat", "acquisition_order"]).any()
+    assert not fovs.duplicated(["biological_repeat", "technical_repeat", "acquisition_order"]).any()
     assert (
-        fovs.groupby(["repeat", "technical_repeat"])["acquisition_order"]
+        fovs.groupby(["biological_repeat", "technical_repeat"])["acquisition_order"]
         .agg(["min", "max"])
         .eq([1, 28])
         .all()
@@ -142,15 +143,18 @@ def test_all_baselines_replay_on_real_acquisitions(idr0028):
         feature_cols=[feature],
         acquisition_order_col="acquisition_order",
         objective=POPULATION,
-        group_cols=["condition", "repeat", "technical_repeat"],
+        group_cols=["condition", "biological_repeat", "technical_repeat"],
     )
     assert len(results) == len(fovs) * len(strategies)
-    counts = objects.groupby(["repeat", "technical_repeat"]).size()
+    counts = objects.groupby(["biological_repeat", "technical_repeat"]).size()
     for item in results:
         assert item.result.n_fovs == item.step
         if item.step == 28:
             group = item.result.group
-            assert item.result.n_objects == counts[group["repeat"], group["technical_repeat"]]
+            assert (
+                item.result.n_objects
+                == counts[group["biological_repeat"], group["technical_repeat"]]
+            )
 
 
 def test_benchmark_protocol_runs_on_a_real_acquisition(idr0028):
@@ -166,7 +170,7 @@ def test_benchmark_protocol_runs_on_a_real_acquisition(idr0028):
                 lambda: (objects, fovs),
                 feature_cols=[feature],
                 acquisition_order_col="acquisition_order",
-                group_cols=["condition", "repeat", "technical_repeat"],
+                group_cols=["condition", "biological_repeat", "technical_repeat"],
                 area_col="area_um2",
             )
         ]
@@ -202,7 +206,7 @@ def test_sufficiency_report_answers_both_questions_on_idr0028():
     from morphocoverage.transforms import Standardize
 
     objects, fovs = _load("idr0028_screenB")
-    wells = fovs[["repeat", "technical_repeat"]].drop_duplicates().iloc[:2]
+    wells = fovs[["biological_repeat", "technical_repeat"]].drop_duplicates().iloc[:2]
     fovs = fovs.merge(wells)
     objects = objects.merge(wells)
     features = [c for c in objects.columns if c.startswith(("Nuclei_", "Cytoplasm_"))]
@@ -211,7 +215,7 @@ def test_sufficiency_report_answers_both_questions_on_idr0028():
         objects,
         fovs,
         feature_cols=features,
-        group_cols=["condition", "repeat", "technical_repeat"],
+        group_cols=["condition", "biological_repeat", "technical_repeat"],
         strategies=[FixedFOVStrategy(10)],
         objective=ObjectiveConfig(SamplingObjective.POPULATION),
         orders=[AcquisitionOrder.recorded()],
@@ -266,9 +270,9 @@ def test_every_stored_dataset_loads_ready_to_use(name, wells, fields_per_well, n
     datasets = _crick_scripts()
     dataset = datasets.load(name)
     objects, fovs = dataset.tables
-    key = ["condition", "repeat", "image_file"]
-    assert fovs.groupby(["repeat", "technical_repeat"]).size().eq(fields_per_well).all()
-    assert len(fovs.groupby(["repeat", "technical_repeat"])) == wells
+    key = ["condition", "biological_repeat", "image_file"]
+    assert fovs.groupby(["biological_repeat", "technical_repeat"]).size().eq(fields_per_well).all()
+    assert len(fovs.groupby(["biological_repeat", "technical_repeat"])) == wells
     assert not fovs.duplicated(key).any()
     assert objects[key].merge(fovs[key], how="left", indicator=True)["_merge"].eq("both").all()
     assert len(dataset.features) == n_features
@@ -301,7 +305,7 @@ def test_the_stored_readout_is_the_papers_ratio_and_the_plates_contain_the_paper
         ratio = _ratio(paper.objects, protein)
         assert (paper.objects[paper.readout] - ratio).abs().max() < 1e-5
         full = datasets.load(plate).objects
-        key = ["repeat", "image_file", "label_id"]
+        key = ["biological_repeat", "image_file", "label_id"]
         joined = paper.objects[[*key, "condition", "technical_repeat", paper.readout]].merge(
             full[[*key, "condition", "technical_repeat", paper.readout]],
             on=key,

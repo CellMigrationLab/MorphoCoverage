@@ -18,7 +18,15 @@ import pandas as pd
 
 from .._seeds import group_identity  # noqa: F401  (re-exported for the summaries)
 from .._style import group_label, rule_label
-from .._wording import fields, number, percent, plural, rows_of, where  # noqa: F401  (re-exported)
+from .._wording import (  # noqa: F401  (re-exported)
+    column_word,
+    fields,
+    number,
+    percent,
+    plural,
+    rows_of,
+    where,
+)
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..schema import unit_plural  # noqa: F401  (re-exported for the summaries)
 
@@ -56,11 +64,6 @@ def unit_word(hierarchy: Mapping[str, Any], unit: str) -> str:
     if unit == hierarchy.get("biological_repeat"):
         return "repeat"
     return unit
-
-
-def column_word(column: object) -> str:
-    """A column's own name as a word: ``plate``, ``technical repeat`` (underscores as spaces)."""
-    return str(column).replace("_", " ")
 
 
 def median_beyond(values: Sequence[Any] | pd.Series) -> float | None:

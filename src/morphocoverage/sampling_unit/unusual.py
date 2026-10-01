@@ -54,6 +54,7 @@ import pandas as pd
 
 from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
+from .._former_repeat import one_warning, read_former
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..schema import unit_plural
@@ -92,6 +93,7 @@ class UnusualObjects:
         return "\n".join([text, *caveat_lines(unusual_parts(self)[1], indent=0, detail=detail)])
 
 
+@one_warning
 def unusual_objects(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -118,6 +120,7 @@ def unusual_objects(
     ``objects`` (its index is kept). ``seed_checks`` refits with the
     next seeds and reports how much the labels agree.
     """
+    (reference,) = read_former(reference=reference)
     if not 0 < quantile < 1:
         raise ValueError("quantile must be between 0 and 1")
     n_neighbors = as_count(n_neighbors, "n_neighbors", 1)

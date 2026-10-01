@@ -125,12 +125,12 @@ def test_fov_table_from_observations_warns_and_carries_fov_level_columns():
     objects = built.objects.merge(built.fovs[["image_file", "stage_x"]], on="image_file")
     with pytest.warns(UserWarning, match="without observations are missing"):
         table = fov_table_from_observations(
-            objects, ["condition", "repeat", "image_file"], carry=["stage_x"]
+            objects, ["condition", "biological_repeat", "image_file"], carry=["stage_x"]
         )
     # The four acquired empty FOVs are lost, which is exactly what the warning says.
     assert len(table) == len(built.fovs) - len(built.truth["empty_fovs"])
     assert not set(built.truth["empty_fovs"]) & set(table["image_file"])
-    assert list(table.columns) == ["condition", "repeat", "image_file", "stage_x"]
+    assert list(table.columns) == ["condition", "biological_repeat", "image_file", "stage_x"]
     with pytest.raises(ValueError, match="varies within FOV"), warnings.catch_warnings():
         warnings.simplefilter("ignore")
         fov_table_from_observations(objects, ["image_file"], carry=["feature_a"])
@@ -278,12 +278,12 @@ def test_draws_of_only_empty_fovs_are_not_enough_rather_than_undefined():
     # dropped as undefined, which inflated the share at 1 field to about 97%.
     rng = np.random.default_rng(0)
     names = [f"f{i:02d}" for i in range(40)]
-    fovs = pd.DataFrame({"condition": "c", "repeat": "r", "image_file": names})
+    fovs = pd.DataFrame({"condition": "c", "biological_repeat": "r", "image_file": names})
     full = [n for i, n in enumerate(names) if i % 5 < 2]
     objects = pd.DataFrame(
         {
             "condition": "c",
-            "repeat": "r",
+            "biological_repeat": "r",
             "image_file": np.repeat(full, 20),
             "feature_a": rng.normal(10, 0.1, 20 * len(full)),
         }

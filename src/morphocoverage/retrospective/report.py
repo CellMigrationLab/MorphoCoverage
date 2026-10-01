@@ -341,9 +341,9 @@ def microscopist_report(
     if controls is not None:
         parts["controls"].append(controls.summary(detail="full"))
         short["controls"] = controls_short(controls)
-    parts["enough"] += enough_full(sufficiency, calibration, controls)
+    parts["enough"] += enough_full(sufficiency, calibration, controls, contrast)
     if parts["enough"]:
-        short["enough"] = enough_short(sufficiency, calibration, controls)
+        short["enough"] = enough_short(sufficiency, calibration, controls, contrast=contrast)
     if adequacy is not None:
         parts["bought"].append(adequacy.summary(detail="full"))
     if reliability is not None:
@@ -367,20 +367,14 @@ def microscopist_report(
     profile = sampling_profile(controls, effort, redundancy, inspection, variability, clustering)
     if len(profile) or unusual is not None or clustering is not None:
         parts["profile"].append("profile")  # its text, wrapped at its indent, is set below
-    generalizing = assumption(
-        "This describes what these fields support about a difference under this feature; "
-        "generalizing it needs independent biological repeats, which is the user's inference."
-    )
     if contrast is not None:
         parts["conditions"].append(contrast.summary(detail="full"))
-        parts["conditions"].append("\n".join(caveat_lines([generalizing], 0, detail="full")))
     if ranking is not None:
         parts["conditions"].append(ranking.summary(detail="full"))
     if contrast is not None or ranking is not None:
         answers = [contrast_parts(contrast, indent=2)] if contrast is not None else []
         answers += [ranking.short_parts(indent=2)] if ranking is not None else []
-        closing = [generalizing] if contrast is not None else []
-        short["conditions"] = short_section(answers, *closing)
+        short["conditions"] = short_section(answers)
     # Redundancy alone feeds the profile; question 8 is answered by an order replay.
     frame = assumption(
         "Whether these were the right positions needs every candidate position from an "

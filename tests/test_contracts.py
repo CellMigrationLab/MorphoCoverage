@@ -194,7 +194,7 @@ def test_neighbouring_fovs_are_more_similar_than_random_pairs():
 
 def test_batch_shift_is_present_between_repeats():
     scenario = SCENARIOS["batch_shift"]()
-    means = scenario.objects.groupby("repeat")["feature_a"].mean()
+    means = scenario.objects.groupby("biological_repeat")["feature_a"].mean()
     assert abs((means["R2"] - means["R1"]) - scenario.truth["shift"]) < 0.5
 
 
@@ -219,11 +219,11 @@ def test_counts_match_the_acquisition_record(name, strategy):
         feature_cols=list(FEATURE_COLS),
         objective=POPULATION,
     )
-    expected_fovs = scenario.fovs.groupby(["condition", "repeat"]).size()
-    expected_objects = scenario.objects.groupby(["condition", "repeat"]).size()
+    expected_fovs = scenario.fovs.groupby(["condition", "biological_repeat"]).size()
+    expected_objects = scenario.objects.groupby(["condition", "biological_repeat"]).size()
     assert len(results) == len(expected_fovs)
     for result in results:
-        group = (result.group["condition"], result.group["repeat"])
+        group = (result.group["condition"], result.group["biological_repeat"])
         assert result.n_fovs == expected_fovs[group]
         assert result.n_objects == expected_objects.get(group, 0)
 
@@ -231,14 +231,14 @@ def test_counts_match_the_acquisition_record(name, strategy):
 @pytest.mark.parametrize("name", SCENARIO_IDS)
 def test_replay_reveals_whole_fovs_in_acquisition_order(name):
     scenario = SCENARIOS[name]()
-    key = ["condition", "repeat", "image_file"]
+    key = ["condition", "biological_repeat", "image_file"]
     all_objects_per_fov = Counter(scenario.objects.loc[:, key].itertuples(index=False, name=None))
     for item in replay(scenario, [_probe()]):
         group = item.result.group
         ordered = (
             scenario.fovs[
                 scenario.fovs["condition"].eq(group["condition"])
-                & scenario.fovs["repeat"].eq(group["repeat"])
+                & scenario.fovs["biological_repeat"].eq(group["biological_repeat"])
             ]
             .sort_values(ORDER_COL)
             .loc[:, key]
@@ -269,7 +269,7 @@ def test_replay_exposes_no_future_fovs(name):
         assert {fov[-1] for fov in diagnostics["objects_per_fov"]} <= visible_names
         assert diagnostics["category_levels"] <= visible_names | {
             item.result.group["condition"],
-            item.result.group["repeat"],
+            item.result.group["biological_repeat"],
         }
 
 
@@ -317,7 +317,9 @@ def test_duplicated_objects_add_objects_but_not_fovs():
 @pytest.mark.parametrize("name", ["condition_repeat_groups", "batch_shift"])
 def test_groups_are_independent(name, strategy):
     scenario = SCENARIOS[name]()
-    target = scenario.objects["condition"].eq("control") & scenario.objects["repeat"].eq("R1")
+    target = scenario.objects["condition"].eq("control") & scenario.objects["biological_repeat"].eq(
+        "R1"
+    )
     perturbed = scenario.objects.copy()
     perturbed.loc[~target, list(FEATURE_COLS)] *= -100.0
     perturbed = perturbed[target | (perturbed.index % 2 == 0)]  # also drop other groups' objects
@@ -326,7 +328,7 @@ def test_groups_are_independent(name, strategy):
         return [
             item
             for item in without_timing(replay(replace(scenario, objects=objects), [strategy]))
-            if item.result.group == {"condition": "control", "repeat": "R1"}
+            if item.result.group == {"condition": "control", "biological_repeat": "R1"}
         ]
 
     assert control_r1(scenario.objects) == control_r1(perturbed)
@@ -397,15 +399,15 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     plateau = DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL)
     spread = DescriptorSpreadStrategy("feature_a", 0.5, "object", 50, 0)
     # The multi-sample JCB plan, made on a pilot repeat that is not evaluated.
-    pilot = scenario.objects.assign(repeat="PILOT")
+    pilot = scenario.objects.assign(biological_repeat="PILOT")
     planned = PlannedObjectCountStrategy(
         plan_objects_to_average(
             pilot,
-            fovs=scenario.fovs.assign(repeat="PILOT"),
+            fovs=scenario.fovs.assign(biological_repeat="PILOT"),
             feature="feature_a",
             target_cv=0.005,
             sd_estimate="point",
-            sample_cols=("condition", "repeat"),
+            sample_cols=("condition", "biological_repeat"),
             control={"condition": "control"},
         )
     )

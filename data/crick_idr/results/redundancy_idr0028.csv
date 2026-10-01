@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,redundancy_distance,pairs_closer,smallest_lag,largest_lag,fov_mean_variance,null_share,beyond_chance,permutations,share,unit,reason
+condition,biological_repeat,technical_repeat,redundancy_distance,pairs_closer,smallest_lag,largest_lag,fov_mean_variance,null_share,beyond_chance,permutations,share,unit,reason
 MOCK,1A,B6,779.772,58,336,2036.96,9.21646e-05,0.06,False,199,0.9,µm,
 LATS1,1A,I23,336,0,336,2036.96,0.000187843,1,False,199,0.9,µm,
 LATS1,1A,J23,336,0,336,2036.96,0.000234687,1,False,199,0.9,µm,

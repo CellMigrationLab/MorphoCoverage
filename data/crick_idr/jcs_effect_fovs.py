@@ -81,7 +81,9 @@ def _paper_wells(name: str) -> tuple[list[np.ndarray], dict[str, list[np.ndarray
     objects, metric = dataset.objects, dataset.readout
 
     def fields(well: str) -> list[np.ndarray]:
-        rows = objects[(objects["repeat"] == repeat) & (objects["technical_repeat"] == well)]
+        rows = objects[
+            (objects["biological_repeat"] == repeat) & (objects["technical_repeat"] == well)
+        ]
         return [g[metric].to_numpy() for _, g in rows.groupby("image_file")]
 
     return fields(control), {c: fields(w) for c, w in treated.items()}

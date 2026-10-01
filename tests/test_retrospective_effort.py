@@ -26,7 +26,7 @@ def _simulate(rng, components, repeats, samples, fovs, cells, balanced=True):
             for f in range(n_fovs):
                 field = rng.normal(0, np.sqrt(v_fov))
                 name = f"r{r}_s{s}_f{f}"
-                fov_rows.append({"repeat": f"R{r}", "well": f"W{s}", "image_file": name})
+                fov_rows.append({"biological_repeat": f"R{r}", "well": f"W{s}", "image_file": name})
                 m = cells if balanced else rng.integers(max(1, cells - 10), cells + 11)
                 values = rep + sample + field + rng.normal(0, np.sqrt(v_obs), m)
                 object_rows.append(pd.DataFrame({"image_file": name, "x": values}))
@@ -38,8 +38,8 @@ def _simulate(rng, components, repeats, samples, fovs, cells, balanced=True):
 
 def _codes(objects):
     keys = [
-        objects["repeat"],
-        objects["repeat"] + objects["well"],
+        objects["biological_repeat"],
+        objects["biological_repeat"] + objects["well"],
         objects["image_file"],
     ]
     return [pd.factorize(k)[0] for k in keys]
@@ -92,7 +92,7 @@ def test_few_independent_units_give_no_recommendation():
         objects,
         fovs,
         feature="x",
-        hierarchy=SamplingHierarchy("image_file", "well", "repeat"),
+        hierarchy=SamplingHierarchy("image_file", "well", "biological_repeat"),
         strata=["condition"],
         n_boot=100,
     )
@@ -103,7 +103,7 @@ def test_few_independent_units_give_no_recommendation():
     assert "only 3 repeats" in short
     assert not result.comparisons["resolved"].any()
     levels = result.components.set_index("level")
-    assert list(levels.index) == ["repeat", "well", "image_file", "observation"]
+    assert list(levels.index) == ["biological_repeat", "well", "image_file", "observation"]
     assert levels["share"].sum() == pytest.approx(1)
     assert (levels["low"] <= levels["high"]).all()
 
@@ -134,7 +134,12 @@ def test_fields_without_observations_count_as_acquired_effort():
     rng = np.random.default_rng(8)
     objects, fovs = _simulate(rng, TRUTH, 1, 6, 6, 20)
     extra = pd.DataFrame(
-        {"repeat": "R0", "well": "W0", "image_file": ["empty1", "empty2"], "condition": "ctrl"}
+        {
+            "biological_repeat": "R0",
+            "well": "W0",
+            "image_file": ["empty1", "empty2"],
+            "condition": "ctrl",
+        }
     )
     with_empty = pd.concat([fovs, extra], ignore_index=True)
     hierarchy = SamplingHierarchy("image_file", "well")
@@ -189,7 +194,7 @@ def test_invalid_declarations_are_refused():
             objects,
             fovs,
             feature="x",
-            hierarchy=SamplingHierarchy("image_file", "well", "repeat", ("condition",)),
+            hierarchy=SamplingHierarchy("image_file", "well", "biological_repeat", ("condition",)),
             strata=[],
         )
     with pytest.raises(ValueError, match="strata missing"):
@@ -209,7 +214,7 @@ def test_invalid_declarations_are_refused():
         single,
         single_fovs,
         feature="x",
-        hierarchy=SamplingHierarchy("image_file", "well", "repeat"),
+        hierarchy=SamplingHierarchy("image_file", "well", "biological_repeat"),
         strata=[],
         n_boot=20,
     )
@@ -218,7 +223,9 @@ def test_invalid_declarations_are_refused():
     assert (result.components["unit"] == "well").all()
     assert result.components["units"].iloc[0] == 3  # W0 of R0, R1 and R2 are three samples
     text = " ".join(result.summary(detail="full").split())
-    assert "Every repeat holds a single sample here" in text
+    assert "Every biological repeat holds a single sample here" in text
     assert "cannot tell from these data (only 3 samples)" in text
     short = " ".join(result.summary().split())
-    assert "Every repeat holds a single sample here" in short and "only 3 samples" in short
+    assert (
+        "Every biological repeat holds a single sample here" in short and "only 3 samples" in short
+    )

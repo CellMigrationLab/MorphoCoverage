@@ -9,7 +9,7 @@ development dataset: nothing here is a protocol.
   how many wells are adequately represented at each number of fields, a well
   counting when at least 90% of random acquisitions preserved what was wanted.
   Wells of all conditions are pooled explicitly; the independent unit is the
-  plate (``repeat``).
+  plate (``biological_repeat``).
 - **R5, inspection** (``inspection_idr0028.csv``): fields to reopen per
   well, for the mean and the 95th percentile of the YAP/TAZ ratio, new states
   (support novelty on all 30 standardized features, ``epsilon = sqrt(30)``,
@@ -87,7 +87,7 @@ from morphocoverage.strategies import SupportNoveltyEstimator
 from morphocoverage.sufficiency import sufficiency_report
 from morphocoverage.transforms import Standardize
 
-GROUPS = ["condition", "repeat", "technical_repeat"]
+GROUPS = ["condition", "biological_repeat", "technical_repeat"]
 STAGE = ("stage_x_um", "stage_y_um")
 LABELS = {
     "relative_mean_error:YAPTAZ_Ratio <= 0.05": "the well mean of YAP/TAZ ratio within 5%",
@@ -104,9 +104,10 @@ def _timed(label, run):
 
 
 def _stored(name: str) -> pd.DataFrame:
-    """A tracked result table; its ``well`` column is the loader's ``technical_repeat``."""
-    table = pd.read_csv(RESULTS / name, dtype={"repeat": str})
-    return table.rename(columns={"well": "technical_repeat"})
+    """A tracked result table; its ``well`` column is the loader's ``technical_repeat``, and a
+    ``repeat`` column (tables written before the renaming) its ``biological_repeat``."""
+    table = pd.read_csv(RESULTS / name, dtype={"biological_repeat": str, "repeat": str})
+    return table.rename(columns={"well": "technical_repeat", "repeat": "biological_repeat"})
 
 
 def reliability_from_tables() -> ReliabilityResult:
@@ -126,7 +127,7 @@ def protocol():
     per_sample = reliability_from_tables()
     return protocol_reliability(
         per_sample,
-        SamplingHierarchy("image_file", "technical_repeat", "repeat"),
+        SamplingHierarchy("image_file", "technical_repeat", "biological_repeat"),
         threshold=0.9,
         strata=[],
     )
@@ -167,7 +168,7 @@ def controls(objects, fovs, features):
         feature_cols=features,
         novelty=novelty,
         control=control,
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=10,
         draws=20,
         observation_unit=OBSERVATION_UNIT,
@@ -180,8 +181,8 @@ def effort(objects, fovs):
     # identity of a field and of a well (it is not a variance level here: in MOCK
     # every plate holds one well, so plate and well cannot be separated).
     ids = {
-        "position_id": lambda t: t["repeat"] + "/" + t["image_file"],
-        "well_id": lambda t: t["repeat"] + "/" + t["technical_repeat"],
+        "position_id": lambda t: t["biological_repeat"] + "/" + t["image_file"],
+        "well_id": lambda t: t["biological_repeat"] + "/" + t["technical_repeat"],
     }
     objects, fovs = objects.assign(**ids), fovs.assign(**ids)
     return effort_projection(

@@ -18,7 +18,7 @@ dividing by zero has no meaning, and dividing by a negative mean flips the
 sign of every value, so a treated mean above its control would read as below
 it (a signed feature such as a velocity or a log-ratio is compared raw). A
 repeat column named explicitly but absent from the tables raises too, rather
-than pooling the repeats; only the default ``"repeat"`` may be absent.
+than pooling the repeats; only the default ``"biological_repeat"`` may be absent.
 
 A signed feature whose control mean happens to be positive is still
 normalised, but ``normalize_to_control`` warns (``UserWarning``) whenever the
@@ -41,9 +41,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._former_repeat import one_warning, read_former
 from ._wording import listing
 from .data_check import validate_input_tables
-from .metadata import MORPHOBRICKS_GROUP_COLUMNS
+from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN
 from .statistics import mean_is_zero
 
 CONTROL_MEAN = "control_mean"
@@ -54,7 +55,7 @@ class _DefaultRepeat(str):
     """The default repeat column: the only name that may be absent from the tables."""
 
 
-# A str subclass, so the default still reads (and compares) as "repeat".
+# A str subclass, so the default still reads (and compares) as "biological_repeat".
 _DEFAULT_REPEAT_COL = _DefaultRepeat(MORPHOBRICKS_GROUP_COLUMNS[1])
 
 
@@ -89,6 +90,7 @@ def _refused_means(means: pd.Series, chosen: pd.DataFrame, feature_cols: Sequenc
     return refused
 
 
+@one_warning
 def control_means(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -109,13 +111,23 @@ def control_means(
     explicitly must be a column. Raises when a repeat has no control objects
     or a control mean is zero (up to rounding), negative or undefined.
 
-    Each row holds ``repeat``, ``control_objects`` (the number of control
+    Each row holds ``biological_repeat``, ``control_objects`` (the number of control
     objects the means rest on: an object missing a feature's value is left
     out of that feature's mean, so with missing values this is the smallest
     count over the features), ``negative_features`` (the features whose
     control objects in that repeat include negative values, as a tuple; see
-    the module docstring) and the mean of every feature.
+    the module docstring) and the mean of every feature. The former name
+    ``repeat`` (a column, a key of ``control``, ``repeat_col``) is read as
+    ``biological_repeat``, with a ``DeprecationWarning``.
     """
+    objects, fovs, control, repeat_col, fov_col, group_cols = read_former(
+        objects=objects,
+        fovs=fovs,
+        control=control,
+        repeat_col=repeat_col,
+        fov_col=fov_col,
+        group_cols=group_cols,
+    )
     if not isinstance(control, Mapping) or condition_col not in control:
         raise ValueError(f"control must name the condition column {condition_col!r}")
     data = validate_input_tables(
@@ -158,7 +170,7 @@ def control_means(
         negative = tuple(column for column in feature_cols if (chosen[column] < 0).any())
         rows.append(
             {
-                "repeat": repeat,
+                REPEAT_COLUMN: repeat,
                 "control_objects": with_values,
                 "negative_features": negative,
                 **means.to_dict(),
@@ -184,6 +196,7 @@ def negative_values_sentence(means: pd.DataFrame) -> str | None:
     )
 
 
+@one_warning
 def normalize_to_control(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -203,8 +216,17 @@ def normalize_to_control(
     arguments and the errors. When the control objects hold negative values of
     a feature, the values are still divided but a ``UserWarning`` says why they
     are not multiples of the control, and ``attrs["normalization_note"]``
-    keeps the sentence.
+    keeps the sentence. A ``repeat`` column is returned as ``biological_repeat``
+    (see ``control_means``).
     """
+    objects, fovs, control, repeat_col, fov_col, group_cols = read_former(
+        objects=objects,
+        fovs=fovs,
+        control=control,
+        repeat_col=repeat_col,
+        fov_col=fov_col,
+        group_cols=group_cols,
+    )
     means = control_means(
         objects,
         fovs,
@@ -232,7 +254,7 @@ def normalize_to_control(
     if repeat_col is None:
         divisors = means.iloc[[0] * len(objects)][list(feature_cols)].to_numpy()
     else:
-        by_repeat = means.set_index("repeat")[list(feature_cols)]
+        by_repeat = means.set_index(REPEAT_COLUMN)[list(feature_cols)]
         divisors = by_repeat.loc[attached[repeat_col].tolist()].to_numpy()
     values = objects[list(feature_cols)].to_numpy(dtype=float) / divisors
     normalized[list(feature_cols)] = values

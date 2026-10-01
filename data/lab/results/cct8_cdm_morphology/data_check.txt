@@ -1,0 +1,10 @@
+✅ MorphoCoverage data check — 0 errors, 0 warnings; the tables can be analysed
+
+What was understood
+  - 174 observations (cell); 174 rows in the FOV table.
+  - A field is identified by 'position_id' within condition, biological_repeat, technical_repeat.
+  - Analysis groups: condition, biological_repeat, technical_repeat.
+  - 10 feature columns: 'Area', 'Perim.', 'Major', 'Minor', 'Circ.', 'Feret', 'MinFeret', 'AR' and 2
+    more.
+
+The expected format, column by column, is in docs/data_format.md.

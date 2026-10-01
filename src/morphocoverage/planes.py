@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 
 from ._checks import is_number
+from ._former_repeat import read_former
 from ._wording import count
 from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -59,7 +60,7 @@ def planes_as_features(
     """The observation table with each feature split per plane, and the new feature names.
 
     ``objects`` holds one row per object per plane: the field identity (the
-    MorphoBricks ``condition``, ``repeat``, ``technical_repeat`` present, and
+    MorphoBricks ``condition``, ``biological_repeat``, ``technical_repeat`` present, and
     ``fov_col`` or the identifier ``validate_input_tables`` would choose,
     with ``fovs`` read as it reads it), ``object_col``, the ``axes`` columns
     and the ``features``. The result holds one row per object per field, in
@@ -84,12 +85,14 @@ def planes_as_features(
     were measured in, unless ``allow_missing_planes=True`` (opt-in), which
     keeps its features in that plane as missing values (NaN) that every
     analysis then treats as it treats any missing value; a new name that is
-    already a column.
+    already a column. The former name ``repeat`` is read, and returned, as
+    ``biological_repeat``, with a ``DeprecationWarning``.
     """
     if not isinstance(objects, pd.DataFrame):
         raise TypeError("objects must be a pandas DataFrame")
     if fovs is not None and not isinstance(fovs, pd.DataFrame):
         raise TypeError("fovs must be a pandas DataFrame when provided")
+    objects, fovs, fov_col = read_former(objects=objects, fovs=fovs, fov_col=fov_col)
     features = list(column_names(features, "features") or ())
     axes = _plane_columns(objects, list(column_names(axes, "axes") or ()))
     if not isinstance(allow_missing_planes, bool):

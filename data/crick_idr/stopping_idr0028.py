@@ -79,7 +79,7 @@ def main() -> None:
         min_fovs=2,
         incremental=True,
         n_jobs=-1,
-        group_cols=["condition", "repeat", "technical_repeat"],
+        group_cols=["condition", "biological_repeat", "technical_repeat"],
     )
     seconds = time.perf_counter() - started
     calibration = stopping_calibration(replay)
@@ -91,7 +91,15 @@ def main() -> None:
     realized = adequacy.realized[adequacy.realized["criterion"] == ALL_CRITERIA]
     points = adequacy.apparent.merge(
         realized.drop(columns=["criterion"]),
-        on=["condition", "repeat", "technical_repeat", "split", "order_id", "order", "stream_fovs"],
+        on=[
+            "condition",
+            "biological_repeat",
+            "technical_repeat",
+            "split",
+            "order_id",
+            "order",
+            "stream_fovs",
+        ],
     )
     points.to_csv(RESULTS / "adequacy_idr0028.csv", index=False)
     print(f"replay: {seconds:.0f} s")

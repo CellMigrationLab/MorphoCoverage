@@ -52,6 +52,7 @@ import pandas as pd
 from scipy import stats
 
 from .._checks import as_count, check_seed
+from .._former_repeat import read_former
 from .._seeds import group_rng
 from ..statistics import bootstrap_fields
 from .hierarchy import SamplingHierarchy
@@ -119,6 +120,7 @@ def _check(
     if isinstance(strata, str):
         # A bare name would be iterated letter by letter.
         raise TypeError("strata must be a sequence of column names, for example ['condition']")
+    (strata,) = read_former(strata=strata)  # the former name ``repeat``
     groups = set(per_sample.group_cols)
     sample_cols = hierarchy.unit_key(hierarchy.sample)
     unit_cols = hierarchy.unit_key(hierarchy.independent_unit)

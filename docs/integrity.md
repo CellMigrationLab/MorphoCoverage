@@ -73,6 +73,17 @@ through float32 (parquet, HDF5, `.npy`) or a six-digit export still matches:
   `block_length`, or half the smaller field) but not in one run: a copy with
   observations dropped or added and reordered, or a block pasted in another
   order;
+- **copied small field**: every observation of a field too small for the
+  checks above (fewer than 5, down to one cell per field) is also in one other
+  field, each with values in at least 3 continuous features
+  (`DISTINCTIVE_FEATURES`), so a coincidence to 6 significant digits is not
+  plausible: positions of 2-4 tracks exported twice under two names, or a
+  manually measured cell's row written twice (Fiji's Measure pressed twice).
+  With fewer than 3 continuous features this check is not applicable, since
+  one shared observation can then be a coincidence. Added after the lab
+  datasets (`data/lab/FINDINGS.md`): the default thresholds missed 3 of 6
+  copied track positions of 4 tracks, and could never see a copied cell with
+  one cell per field;
 - **repeated within a field**: a field holds many of its observations twice
   ("the field holds its observations 1-28 again from observation 29": a table
   appended to itself, or merged with one that has a row per channel);
@@ -108,7 +119,7 @@ CellProfiler or CellPatcher grid) cost no more than fields of any size.
 
 **Out of reach**, and said in every summary: a copy re-rounded to fewer than
 6 significant digits (exported with 4 decimals), a block of fewer than 10
-observations and fields of fewer than 5, a copy with two feature columns
+observations that is not the whole of the smaller field, a copy with two feature columns
 swapped or a feature (or a value) missing in one copy only, and observations
 pasted into two or more other fields (they read as recurring).
 

@@ -147,7 +147,7 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     objects, fovs = _acquisition()
     # A labelled state in two fields of every group: the rare criterion has something to judge.
     objects["state"] = False
-    for _, group in objects.groupby(["condition", "repeat"]):
+    for _, group in objects.groupby(["condition", "biological_repeat"]):
         first_two = group["image_file"].drop_duplicates().iloc[:2]
         objects.loc[group.index[group["image_file"].isin(first_two)], "state"] = True
     setup = _setup(fingerprint=(_fingerprint(),), rare=_rare(), rare_label="state")
@@ -186,7 +186,9 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     before = (objects.copy(), fovs.copy())
     setup = _setup(
         novelty=default_novelty(FEATURE_COLS),
-        positive=PositiveControl({"condition": "drug"}, fovs_seen=4, pair_cols=("repeat",)),
+        positive=PositiveControl(
+            {"condition": "drug"}, fovs_seen=4, pair_cols=("biological_repeat",)
+        ),
     )
     result = report(objects, fovs, setup)
     text = result.summary(detail="full")
@@ -194,7 +196,7 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     assert "4. How many fields" not in text  # a planning answer never enters the report
     # A control condition and another condition: the contrast runs, per repeat.
     assert "9. Do the conditions differ" in text and "drug vs control" in text
-    assert list(result.results["contrast"].table["repeat"]) == ["R1", "R2"]
+    assert list(result.results["contrast"].table["biological_repeat"]) == ["R1", "R2"]
     opening = f"{result.document.statuses['overview'].marker} What is in the dataset"
     assert text.startswith(opening) and "What this dataset cannot tell me" in text
     assert result.results["overview"].counts["fields"] == len(fovs)
@@ -208,7 +210,9 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     assert "values: every feature divided by the mean of the control" in normalised.summary()
     prepared = normalised_setup.prepared(objects, fovs)
     control = prepared[prepared["condition"] == "control"]
-    assert control.groupby("repeat")[READOUT].mean().tolist() == pytest.approx([1.0, 1.0])
+    assert control.groupby("biological_repeat")[READOUT].mean().tolist() == pytest.approx(
+        [1.0, 1.0]
+    )
     expected = condition_contrast(
         prepared, fovs, feature=READOUT, control={"condition": "control"}, random_state=0
     )
@@ -266,13 +270,18 @@ def test_benchmark_runs_on_the_given_families():
 
 
 def _fields(objects, fovs):
-    for _, row in fovs.sort_values(["condition", "repeat", "acquisition_order"]).iterrows():
+    for _, row in fovs.sort_values(
+        ["condition", "biological_repeat", "acquisition_order"]
+    ).iterrows():
         mine = objects[
             objects["condition"].eq(row["condition"])
-            & objects["repeat"].eq(row["repeat"])
+            & objects["biological_repeat"].eq(row["biological_repeat"])
             & objects["image_file"].eq(row["image_file"])
         ]
-        yield mine, row[["condition", "repeat", "image_file", "acquisition_order"]].to_dict()
+        yield (
+            mine,
+            row[["condition", "biological_repeat", "image_file", "acquisition_order"]].to_dict(),
+        )
 
 
 def _decisions(updates):
@@ -491,15 +500,17 @@ def test_positive_control_keeps_the_declared_fov_identity():
     # Two wells per condition and repeat, each naming its positions s0..s3: the well is
     # part of the FOV identity, as the setup's group columns say.
     objects, fovs = _acquisition(n_fovs=8)
-    index = fovs.groupby(["condition", "repeat"]).cumcount()
+    index = fovs.groupby(["condition", "biological_repeat"]).cumcount()
     fovs = fovs.assign(well=np.where(index < 4, "w1", "w2"), pos=[f"s{i % 4}" for i in index])
-    names = fovs.set_index(["condition", "repeat", "image_file"])[["well", "pos"]]
-    objects = objects.join(names, on=["condition", "repeat", "image_file"])
+    names = fovs.set_index(["condition", "biological_repeat", "image_file"])[["well", "pos"]]
+    objects = objects.join(names, on=["condition", "biological_repeat", "image_file"])
     setup = _setup(
         novelty=default_novelty(FEATURE_COLS),
-        positive=PositiveControl({"condition": "drug"}, fovs_seen=2, pair_cols=("repeat",)),
+        positive=PositiveControl(
+            {"condition": "drug"}, fovs_seen=2, pair_cols=("biological_repeat",)
+        ),
         fov_col="pos",
-        group_cols=("condition", "repeat", "well"),
+        group_cols=("condition", "biological_repeat", "well"),
         acquisition_order_col=None,
         stage_cols=None,
     )
@@ -511,8 +522,8 @@ def _with_technical_repeats(objects, fovs):
     fovs = fovs.copy()
     fovs["technical_repeat"] = [f"w{i % 2}" for i in range(len(fovs))]
     objects = objects.merge(
-        fovs[["condition", "repeat", "image_file", "technical_repeat"]],
-        on=["condition", "repeat", "image_file"],
+        fovs[["condition", "biological_repeat", "image_file", "technical_repeat"]],
+        on=["condition", "biological_repeat", "image_file"],
     )
     return objects, fovs
 
@@ -524,7 +535,7 @@ def test_a_technical_repeat_column_derives_the_hierarchy_and_ranks_the_features(
     objects, fovs = _with_technical_repeats(*_acquisition())
     setup = _setup()
     hierarchy = setup.resolved_hierarchy(objects, fovs)
-    assert hierarchy == SamplingHierarchy("image_file", "technical_repeat", "repeat")
+    assert hierarchy == SamplingHierarchy("image_file", "technical_repeat", "biological_repeat")
     assert setup.resolved_effort_strata(fovs) == ["condition"]
     declared = _setup(hierarchy=SamplingHierarchy("image_file", "technical_repeat"))
     assert declared.resolved_hierarchy(objects, fovs) == declared.hierarchy

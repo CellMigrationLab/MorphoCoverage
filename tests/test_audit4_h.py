@@ -57,7 +57,7 @@ def _tables(spec, seed=0, per_field=20, obs_sd=1.0):
         for j in range(n_fields):
             key = {
                 "condition": condition,
-                "repeat": repeat,
+                "biological_repeat": repeat,
                 "technical_repeat": well,
                 "position_id": f"{repeat}_{condition}_{well}_f{j}",
             }
@@ -86,7 +86,7 @@ def _frontier_result(units: int, low: float | None = 1.0, high: float | None = 3
             },
         ]
     )
-    settings = {"label": "the mean", "units": units, "unit_cols": ["repeat"]}
+    settings = {"label": "the mean", "units": units, "unit_cols": ["biological_repeat"]}
     return FrontierResult(pd.DataFrame(), scores, pd.DataFrame(), settings)
 
 
@@ -117,7 +117,10 @@ def test_p8_1_frontier_gives_no_interval_below_five_units():
         [rule_line] = [line for line in text.split("\n") if "rule at 0.05" in line]
         assert "interval" not in rule_line and "to" not in rule_line.split("%")[-1]
         text = " ".join(text.split())
-        assert "No interval: only 2 units (repeat) to resample, and at least 5 are needed" in text
+        assert (
+            "No interval: only 2 units (biological_repeat) to resample, and at least 5 are needed"
+            in text
+        )
 
 
 def _calibration_runs(premature: int, beyond: int, correct: int) -> pd.DataFrame:
@@ -163,8 +166,8 @@ def test_p2_9_calibration_headlines_the_stops_not_preserved_with_bounds():
 def test_p9_2_retyped_labels_keep_their_draws_and_shares_carry_their_monte_carlo_error():
     # Owner decision: seed by the labels written canonically, so a retyped label is the
     # same group; other groups keep independent draws and never enter a group's seed.
-    assert group_seed(0, {"repeat": 1}) == group_seed(0, {"repeat": "1"})
-    assert group_seed(0, {"repeat": 1}) == group_seed(0, {"repeat": 1.0})
+    assert group_seed(0, {"biological_repeat": 1}) == group_seed(0, {"biological_repeat": "1"})
+    assert group_seed(0, {"biological_repeat": 1}) == group_seed(0, {"biological_repeat": 1.0})
     assert group_seed(3, {"well": "A1"}, 2)[::2] == [3, 2]
     first = group_rng(0, {"condition": "ctrl"}).permutation(12)
     assert not (group_rng(0, {"condition": "drug"}).permutation(12) == first).all()
@@ -180,8 +183,8 @@ def test_p9_2_retyped_labels_keep_their_draws_and_shares_carry_their_monte_carlo
     numbered = {"R1": 1, "R2": 2, "R3": 3}
 
     def retyped(table: pd.DataFrame, as_text: bool) -> pd.DataFrame:
-        labels = table["repeat"].map(lambda r: numbered.get(r, r))
-        return table.assign(repeat=labels.astype(str) if as_text else labels.astype(int))
+        labels = table["biological_repeat"].map(lambda r: numbered.get(r, r))
+        return table.assign(biological_repeat=labels.astype(str) if as_text else labels.astype(int))
 
     as_numbers = sampling_reliability(
         retyped(built.objects, False), retyped(built.fovs, False), **settings
@@ -270,7 +273,7 @@ def _grid_well(rng, well, trend, n=6, pitch=500.0):
         for j in range(n):
             key = {
                 "condition": "c",
-                "repeat": "r",
+                "biological_repeat": "r",
                 "technical_repeat": well,
                 "position_id": f"{well}_{i}_{j}",
             }
@@ -372,7 +375,9 @@ _WELLS = [
 
 def test_p1_7_the_report_names_the_variance_between_technical_repeats():
     objects, fovs = _tables(_WELLS)
-    results, document = _report_parts(objects, fovs, ["condition", "repeat", "technical_repeat"])
+    results, document = _report_parts(
+        objects, fovs, ["condition", "biological_repeat", "technical_repeat"]
+    )
     document = _technical_repeats(document, results)
     profile = document.sections["profile"]
     assert "Between technical repeats (x): in 2 condition and repeat groups" in profile
@@ -383,7 +388,7 @@ def test_p1_7_the_report_names_the_variance_between_technical_repeats():
 
 def test_p1_8_a_group_that_pools_technical_repeats_says_so_beside_enough():
     objects, fovs = _tables(_WELLS)
-    results, document = _report_parts(objects, fovs, ["condition", "repeat"])
+    results, document = _report_parts(objects, fovs, ["condition", "biological_repeat"])
     document = _technical_repeats(document, results)
     enough = document.sections["enough"]
     assert "Each analysis group pools the technical repeats of its condition and repeat" in enough
@@ -420,7 +425,7 @@ def test_p9_4_effort_intervals_do_not_depend_on_the_row_order_of_the_tables():
         ],
         per_field=8,
     )
-    hierarchy = SamplingHierarchy("position_id", "technical_repeat", "repeat")
+    hierarchy = SamplingHierarchy("position_id", "technical_repeat", "biological_repeat")
 
     def components(obj, fov):
         result = effort_projection(

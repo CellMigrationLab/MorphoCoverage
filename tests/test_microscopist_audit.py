@@ -53,7 +53,7 @@ def test_sufficiency_summary_works_without_a_novelty_definition():
         orders=[AcquisitionOrder.permuted(0)],
     )
     text = report.summary(detail="full")
-    assert "control · R1 — " in text and "Analysis groups: condition · repeat." in text
+    assert "control · R1 — " in text and "Analysis groups: condition · biological_repeat." in text
     assert "Each rule by its own threshold" in text and "One more field" not in text
     assert "One more field" not in report.summary()
 
@@ -404,7 +404,9 @@ def test_a_result_explains_its_decision_in_one_line():
     )
     for _, fov in built.fovs.iloc[:3].iterrows():
         rows = built.objects[built.objects["image_file"] == fov["image_file"]]
-        results = session.add_fov(rows.drop(columns=["condition", "repeat"]), fov.to_dict())
+        results = session.add_fov(
+            rows.drop(columns=["condition", "biological_repeat"]), fov.to_dict()
+        )
     fixed, novelty = results
     # A stop says what it rests on (audit 4, Q2): here, the random-sample assumption.
     assert fixed.explain() == (

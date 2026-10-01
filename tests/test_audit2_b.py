@@ -47,12 +47,12 @@ def _two_groups(n_a=12, n_b=12, seed=0):
     fovs = pd.DataFrame(
         {
             "condition": ["a"] * n_a + ["b"] * n_b,
-            "repeat": "r1",
+            "biological_repeat": "r1",
             "position_id": [f"p{i:02d}" for i in range(n_a + n_b)],
             "order": list(range(n_a)) + list(range(n_b)),
         }
     )
-    objects = fovs.loc[fovs.index.repeat(10), ["condition", "repeat", "position_id"]]
+    objects = fovs.loc[fovs.index.repeat(10), ["condition", "biological_repeat", "position_id"]]
     objects = objects.reset_index(drop=True)
     objects["f"] = rng.normal(10, 1, len(objects)) + np.repeat(rng.normal(0, 1, len(fovs)), 10)
     return objects, fovs
@@ -71,9 +71,9 @@ def test_b1_live_session_refuses_z_planes_counted_as_fovs():
     for position in range(3):
         for z in range(4):
             name = f"pos{position}_z{z}.tif"
-            fov_rows.append({"condition": "a", "repeat": "r1", "image_file": name})
+            fov_rows.append({"condition": "a", "biological_repeat": "r1", "image_file": name})
             rows += [
-                {"condition": "a", "repeat": "r1", "image_file": name, "z": z, "f": v}
+                {"condition": "a", "biological_repeat": "r1", "image_file": name, "z": z, "f": v}
                 for v in np.linspace(1, 2, 5)
             ]
     objects, fovs = pd.DataFrame(rows), pd.DataFrame(fov_rows)
@@ -117,7 +117,7 @@ def test_b2_replay_prefixes_equal_the_live_arrival_order():
     session = OnlineSession(
         strategies=[strategy], feature_cols=list(FEATURE_COLS), objective=POPULATION
     )
-    key = ["condition", "repeat", "image_file"]
+    key = ["condition", "biological_repeat", "image_file"]
     for _, meta in built.fovs.sort_values(ORDER_COL).iterrows():
         mask = (built.objects[key] == meta[key]).all(axis=1)
         (live,) = session.add_fov(built.objects[mask], meta.to_dict())

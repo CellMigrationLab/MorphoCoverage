@@ -46,7 +46,7 @@ def _wells(fields, cells, seed=0, repeats=None):
             name = f"s{s}_f{f}"
             row = {"well": f"W{s}", "image_file": name, "condition": "c"}
             if repeats is not None:
-                row["repeat"] = repeats[s]
+                row["biological_repeat"] = repeats[s]
             fov_rows.append(row)
             values = sample + rng.normal(0, np.sqrt(V_FIELD)) + rng.normal(0, np.sqrt(V_OBJECT), m)
             object_rows.append(pd.DataFrame({"image_file": name, "x": values}))
@@ -119,7 +119,7 @@ def test_g2_samples_and_units_are_counted_among_those_with_observations():
 def test_g3_the_repeat_is_left_out_for_the_reason_that_holds():
     # Repeat R1 was imaged but holds no object: one repeat has observations.
     objects, fovs = _wells([4] * 6, [20, 20, 20, 0, 0, 0], repeats=["R0"] * 3 + ["R1"] * 3)
-    hierarchy = SamplingHierarchy("image_file", "well", "repeat")
+    hierarchy = SamplingHierarchy("image_file", "well", "biological_repeat")
     result = effort_projection(
         objects, fovs, feature="x", hierarchy=hierarchy, strata=[], n_boot=20
     )
@@ -127,7 +127,7 @@ def test_g3_the_repeat_is_left_out_for_the_reason_that_holds():
     assert row["repeat_dropped_reason"] == "single repeat"
     assert (row["repeats"], row["repeats_acquired"]) == (1, 2)
     text = result.summary()
-    assert "Only one of the 2 repeats here holds objects" in text
+    assert "Only one of the 2 biological repeats here holds objects" in text
     assert "Every repeat holds a single sample" not in text
 
 
@@ -303,19 +303,19 @@ def test_g12_a_planting_that_cannot_happen_is_said():
         feature_cols=FEATURES,
         novelty=NOVELTY,
         control=control,
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=6,
         draws=5,
     )
     assert "planted" not in set(result.pooled["candidate"])
     gaps = result.settings["planted_skipped"]
-    assert [g["stratum"] for g in gaps] == ["repeat=P1", "repeat=P2"]
+    assert [g["stratum"] for g in gaps] == ["biological_repeat=P1", "biological_repeat=P2"]
     assert (
         "no positive-control field holds 30 objects to plant (the largest holds 25)"
         in (gaps[0]["reason"])
     )
-    assert "Planted objects: not measured in repeat P1" in result.summary()
-    assert "Planted objects: not measured in repeat P2" in result.summary()
+    assert "Planted objects: not measured in biological repeat P1" in result.summary()
+    assert "Planted objects: not measured in biological repeat P2" in result.summary()
 
 
 def test_g13_the_chance_expectation_uses_the_leave_one_field_out_rate():
@@ -328,7 +328,7 @@ def test_g13_the_chance_expectation_uses_the_leave_one_field_out_rate():
         feature_cols=FEATURES,
         novelty=novelty,
         control=control,
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=3,
         draws=20,
     )
@@ -339,7 +339,7 @@ def test_g13_the_chance_expectation_uses_the_leave_one_field_out_rate():
         feature_cols=FEATURES,
         novelty=novelty,
         count_ratio=None,
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
     )
     new = inspection.fovs[inspection.fovs["reason"] == "new state"]
     flagged_reference = int((new["condition"] == "MOCK").sum())
@@ -363,9 +363,9 @@ def _sufficiency():
 
     # The analysis groups of the controls' tables (audit 3, G-20: other groups are refused).
     next_fov = pd.DataFrame(
-        [{"condition": "MOCK", "repeat": "P1", "unseen_state_max_frequency": 0.12}]
+        [{"condition": "MOCK", "biological_repeat": "P1", "unseen_state_max_frequency": 0.12}]
     )
-    return SimpleNamespace(group_cols=("condition", "repeat"), next_fov=next_fov)
+    return SimpleNamespace(group_cols=("condition", "biological_repeat"), next_fov=next_fov)
 
 
 def test_g13_the_adjusted_bound_uses_the_rate_against_every_reference_field():
@@ -378,7 +378,7 @@ def test_g13_the_adjusted_bound_uses_the_rate_against_every_reference_field():
         feature_cols=FEATURES,
         novelty=novelty,
         control=control,
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=6,
         draws=10,
     )
@@ -488,7 +488,7 @@ def test_g19_the_adjusted_bound_is_given_with_a_positive_control_only():
         feature_cols=FEATURES,
         novelty=novelty,
         control=RepresentationControl(positive={"condition": "KD"}),
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=6,
         draws=10,
     )

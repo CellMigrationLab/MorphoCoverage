@@ -26,7 +26,7 @@ def _cells(**columns) -> pd.DataFrame:
     table = pd.DataFrame(
         {
             "condition": ["a"] * 4,
-            "repeat": ["r1"] * 4,
+            "biological_repeat": ["r1"] * 4,
             "position_id": ["p1", "p1", "p2", "p2"],
             "area": [1.0, 2.0, 3.0, 4.0],
         }
@@ -35,7 +35,7 @@ def _cells(**columns) -> pd.DataFrame:
 
 
 def _fields(objects: pd.DataFrame) -> pd.DataFrame:
-    return objects[["condition", "repeat", "position_id"]].drop_duplicates()
+    return objects[["condition", "biological_repeat", "position_id"]].drop_duplicates()
 
 
 def _agree(objects, fovs, **arguments):
@@ -71,8 +71,8 @@ def test_a1_object_columns_without_text_are_never_blank():
         False,
     ]
     dates = [datetime.date(2024, 1, 5)] * 2 + [datetime.date(2024, 2, 1)] * 2
-    objects = _cells(repeat=dates, position_id=["p1", "p2", "p1", "p2"])
-    accepted, _ = _agree(objects, objects[["condition", "repeat", "position_id"]])
+    objects = _cells(biological_repeat=dates, position_id=["p1", "p2", "p1", "p2"])
+    accepted, _ = _agree(objects, objects[["condition", "biological_repeat", "position_id"]])
     assert accepted
 
 
@@ -101,31 +101,31 @@ def test_a3_group_and_feature_columns_are_read_once_whatever_their_type(make):
         objects,
         fovs=fovs,
         feature_cols=make(["area"]),
-        group_cols=make(["condition", "repeat"]),
+        group_cols=make(["condition", "biological_repeat"]),
         observation_unit="cell",
     )
-    assert data.group_cols == ("condition", "repeat") and data.feature_cols == ("area",)
+    assert data.group_cols == ("condition", "biological_repeat") and data.feature_cols == ("area",)
     assert all(type(c) is str for c in (*data.group_cols, *data.feature_cols))
     check = check_tables(
         objects,
         fovs,
         feature_cols=make(["area"]),
-        group_cols=make(["condition", "repeat"]),
+        group_cols=make(["condition", "biological_repeat"]),
         observation_unit="cell",
     )
-    assert check.ok and "Analysis groups: condition, repeat." in check.understood
+    assert check.ok and "Analysis groups: condition, biological_repeat." in check.understood
     results = mc.run_strategies(
         objects,
         fovs=fovs,
-        group_cols=make(["condition", "repeat"]),
+        group_cols=make(["condition", "biological_repeat"]),
         strategies=[mc.FixedFOVStrategy(10)],
         feature_cols=["area"],
         objective=mc.ObjectiveConfig(),
         observation_unit="cell",
     )
     assert [dict(r.group) for r in results] == [
-        {"condition": "a", "repeat": "r1"},
-        {"condition": "b", "repeat": "r1"},
+        {"condition": "a", "biological_repeat": "r1"},
+        {"condition": "b", "biological_repeat": "r1"},
     ]
 
 
@@ -177,13 +177,13 @@ def test_a7_labels_restarting_in_each_named_field_are_not_repeats():
     objects = pd.DataFrame(
         {
             "condition": ["a"] * 4,
-            "repeat": ["r1"] * 4,
+            "biological_repeat": ["r1"] * 4,
             "site": ["s1", "s1", "s2", "s2"],
             "label_id": [1, 2, 1, 2],
             "area": [1.0, 2.0, 3.0, 4.0],
         }
     )
-    fovs = objects[["condition", "repeat", "site"]].drop_duplicates()
+    fovs = objects[["condition", "biological_repeat", "site"]].drop_duplicates()
     accepted, check = _agree(objects, fovs, fov_col="site")
     assert accepted and not any("label_id" in t for t in _titles(check, "warning"))
     twice = objects.assign(label_id=[1, 1, 1, 2])
@@ -204,9 +204,14 @@ def test_a8_a_named_group_missing_from_the_fov_table_is_said_so():
 def test_a9_planes_counted_as_fields_are_found_in_the_fov_table_and_warned_about():
     files = [f"pos{p}_z{z}.tif" for p in (1, 2) for z in range(3)]
     z = [0, 1, 2, 0, 1, 2]
-    fovs = pd.DataFrame({"condition": "a", "repeat": "r1", "image_file": files})
+    fovs = pd.DataFrame({"condition": "a", "biological_repeat": "r1", "image_file": files})
     cells = pd.DataFrame(
-        {"condition": "a", "repeat": "r1", "image_file": np.repeat(files, 2), "area": 1.0}
+        {
+            "condition": "a",
+            "biological_repeat": "r1",
+            "image_file": np.repeat(files, 2),
+            "area": 1.0,
+        }
     )
     # z only in the FOV table, several cells per plane file: refused, as with z on the rows.
     accepted, check = _agree(cells, fovs.assign(z=z))
@@ -261,7 +266,11 @@ def test_a13_a_rare_missing_share_is_not_printed_as_zero():
     area = np.arange(5000.0)
     area[0] = np.nan
     objects = pd.DataFrame(
-        {"condition": "a", "repeat": "r", "position_id": [f"p{i % 10}" for i in range(5000)]}
+        {
+            "condition": "a",
+            "biological_repeat": "r",
+            "position_id": [f"p{i % 10}" for i in range(5000)],
+        }
     ).assign(area=area)
     _, check = _agree(objects, _fields(objects))
     assert "Feature 'area' is missing in 0.02% of observations." in _titles(check, "warning")
@@ -338,7 +347,7 @@ def test_a19_the_observation_index_is_kept_when_groups_come_from_the_fov_table()
         {"position_id": ["p1", "p2"], "area": [1.0, 2.0]}, index=["cellA", "cellB"]
     )
     fovs = pd.DataFrame(
-        {"condition": ["a", "b"], "repeat": ["r", "r"], "position_id": ["p1", "p2"]}
+        {"condition": ["a", "b"], "biological_repeat": ["r", "r"], "position_id": ["p1", "p2"]}
     )
     data = validate_input_tables(objects, fovs=fovs, feature_cols=["area"], observation_unit="cell")
     assert list(data.objects.index) == ["cellA", "cellB"]
@@ -351,8 +360,8 @@ _BASE = _cells()
 _AGREEMENT_CASES = {
     "clean": (_BASE, _fields(_BASE), {}),
     "dates as repeats": (
-        _BASE.assign(repeat=[datetime.date(2024, 1, 5)] * 4),
-        _fields(_BASE.assign(repeat=[datetime.date(2024, 1, 5)] * 4)),
+        _BASE.assign(biological_repeat=[datetime.date(2024, 1, 5)] * 4),
+        _fields(_BASE.assign(biological_repeat=[datetime.date(2024, 1, 5)] * 4)),
         {},
     ),
     "blank category": (
@@ -399,14 +408,14 @@ def test_a20_check_tables_accepts_exactly_what_the_validator_accepts(name):
     ("column", "meant"),
     [
         ("Conditions", "condition"),
-        ("repeats", "repeat"),
+        ("repeats", "biological_repeat"),
         ("PositionID", "position_id"),
         ("positionId", "position_id"),
         ("technicalRepeat", "technical_repeat"),
         ("TechnicalRepeats", "technical_repeat"),
         ("ImageFile", "image_file"),
         ("FOVID", "fov_id"),
-        ("Repeat", "repeat"),
+        ("Repeat", "biological_repeat"),
         ("technical repeat", "technical_repeat"),
     ],
 )
@@ -419,5 +428,13 @@ def test_a21_plurals_and_camel_case_are_near_misses(column, meant):
 
 
 def test_a21_exact_names_and_unrelated_columns_are_not_near_misses():
-    for column in ("condition", "repeat", "image_file", "well", "area", "position", "reps"):
+    for column in (
+        "condition",
+        "biological_repeat",
+        "image_file",
+        "well",
+        "area",
+        "position",
+        "reps",
+    ):
         assert canonical_spelling(column) is None

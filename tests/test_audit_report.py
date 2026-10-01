@@ -53,8 +53,9 @@ COMMON = {
 
 
 def test_g3_bonferroni_counts_the_contrasts_tested():
-    objects, fovs = _two_conditions(shift=1.0, field_sd=0.3)
-    kept = fovs[~((fovs["repeat"] == "R2") & (fovs["condition"] == "control"))]
+    # Five wells a side, so the test within a repeat can reach p <= 0.05 and is run.
+    objects, fovs = _two_conditions(shift=1.0, field_sd=0.3, n_wells=5)
+    kept = fovs[~((fovs["biological_repeat"] == "R2") & (fovs["condition"] == "control"))]
     result = condition_contrast(
         objects[objects["image_file"].isin(kept["image_file"])], kept, **COMMON
     )
@@ -64,8 +65,8 @@ def test_g3_bonferroni_counts_the_contrasts_tested():
 
 def test_g4_the_jcs_line_is_kept_without_a_repeat_column():
     objects, fovs = _two_conditions(shift=1.0, field_sd=0.3)
-    one = objects[objects["repeat"] == "R1"].drop(columns="repeat")
-    one_fovs = fovs[fovs["repeat"] == "R1"].drop(columns="repeat")
+    one = objects[objects["biological_repeat"] == "R1"].drop(columns="biological_repeat")
+    one_fovs = fovs[fovs["biological_repeat"] == "R1"].drop(columns="biological_repeat")
     result = condition_contrast(one, one_fovs, **{**COMMON, "group_cols": ["condition", "well"]})
     assert "JCS effect size" in result.summary()
 

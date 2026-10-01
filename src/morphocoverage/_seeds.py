@@ -7,7 +7,9 @@ over the group's fields in a canonical order (the FOV key). So adding,
 removing or re-sorting other groups never changes a group's result, and
 retyping a label (repeat ``1`` read as ``"1"`` or ``1.0``) is the same group,
 with the same draws. Renaming a group is a new Monte Carlo draw of its
-answers; the summaries state their Monte Carlo errors (audit 4, P9-2).
+answers; the summaries state their Monte Carlo errors (audit 4, P9-2). The
+biological repeat seeds under its former column name, ``repeat``, so the
+renaming of that column to ``biological_repeat`` left every draw as it was.
 
 ``group_key`` tells groups apart for lookups (``1`` and ``"1"`` differ there);
 ``group_identity`` is a 32-bit hash for seeding only.
@@ -23,6 +25,11 @@ from typing import Any
 import numpy as np
 
 from ._checks import is_integer, is_number
+from ._former_repeat import FORMER_REPEAT_COLUMN
+from .metadata import REPEAT_COLUMN
+
+# Column names as seeding writes them: the biological repeat under its former name.
+_SEED_NAMES = {REPEAT_COLUMN: FORMER_REPEAT_COLUMN}
 
 
 def _plain(value: Any) -> Any:
@@ -34,7 +41,7 @@ def group_key(group: Mapping[str, Any]) -> str:
     """A group's identity as text, for looking groups up.
 
     Unlike ``group_identity`` (a 32-bit hash, fine for seeding), two different
-    groups never share a key: ``{'repeat': 1}`` and ``{'repeat': '1'}`` differ,
+    groups never share a key: ``{'plate': 1}`` and ``{'plate': '1'}`` differ,
     and a numpy value keys like the Python value it holds.
     """
     items = sorted(((str(k), _plain(v)) for k, v in group.items()), key=lambda kv: kv[0])
@@ -64,7 +71,7 @@ def _seed_label(value: Any) -> str:
 
 def seed_labels(group: Mapping[str, Any]) -> str:
     """A group's labels written canonically, for seeding (``_seed_label``)."""
-    items = sorted((str(k), _seed_label(v)) for k, v in group.items())
+    items = sorted((_SEED_NAMES.get(str(k), str(k)), _seed_label(v)) for k, v in group.items())
     return json.dumps(items)
 
 

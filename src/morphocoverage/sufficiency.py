@@ -74,6 +74,7 @@ import numpy as np
 import pandas as pd
 
 from ._checks import is_integer
+from ._former_repeat import one_warning
 from ._parallel import check_n_jobs
 from ._style import check_detail
 from ._wording import rows_of
@@ -369,6 +370,7 @@ def _check_report_inputs(
             raise TypeError("calibration must be CalibrationSettings")
 
 
+@one_warning
 def sufficiency_report(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,

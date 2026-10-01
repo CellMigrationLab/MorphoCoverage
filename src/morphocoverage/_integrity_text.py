@@ -231,8 +231,9 @@ def _out_of_reach(settings: dict[str, Any]) -> str:
     return assumption(
         f"Out of reach of these checks: a copy re-rounded to fewer than {match.DIGITS} "
         f"significant digits, a block of fewer than {settings.get('block_length', 10)} "
-        "observations, a copy with feature columns swapped or a feature (or a value) "
-        "missing in one copy only, and observations pasted into two or more other fields "
+        "observations that is not the whole of the smaller field, a copy with feature "
+        "columns swapped or a feature (or a value) missing in one copy only, and "
+        "observations pasted into two or more other fields "
         "(they read as recurring)."
     )
 

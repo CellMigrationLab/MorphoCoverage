@@ -20,20 +20,25 @@ def _plate(seed=0, shift=6.0, plates=("P1", "P2"), fovs_per_well=12):
             for i in range(fovs_per_well):
                 name = f"{plate}_{well}_{i}"
                 fov_rows.append(
-                    {"condition": condition, "repeat": plate, "well": well, "image_file": name}
+                    {
+                        "condition": condition,
+                        "biological_repeat": plate,
+                        "well": well,
+                        "image_file": name,
+                    }
                 )
                 values = rng.normal(0.0, 1.0, size=(25, 2))
                 values[:, 0] += offset
                 object_rows.append(
                     pd.DataFrame(values, columns=FEATURES).assign(
-                        condition=condition, repeat=plate, well=well, image_file=name
+                        condition=condition, biological_repeat=plate, well=well, image_file=name
                     )
                 )
     return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
 
 
 def _control(objects, fovs, control, **kwargs):
-    settings = {"pair_cols": ["repeat"], "fovs_seen": 6, "draws": 10}
+    settings = {"pair_cols": ["biological_repeat"], "fovs_seen": 6, "draws": 10}
     settings.update(kwargs)
     return representation_control(
         objects, fovs, feature_cols=FEATURES, novelty=NOVELTY, control=control, **settings
@@ -54,7 +59,7 @@ def test_a_strong_positive_is_detected_and_rates_are_counted():
     # Five scattered planted cells do not always link into one new state.
     assert rates["reference"] < rates["planted"] < rates["positive"]
     per = result.table[result.table["candidate"] == "positive"]
-    assert set(per["repeat"]) == {"P1", "P2"}
+    assert set(per["biological_repeat"]) == {"P1", "P2"}
     assert (per["candidates"] == 10 * 12).all()
     text = result.summary()
     assert "KD fields (positive control)" in text and "100% of 240 checks" in text
@@ -88,7 +93,9 @@ def test_declarations_are_checked():
     with pytest.raises(ValueError, match="both a positive and a reference"):
         _control(
             *_plate(),
-            RepresentationControl(positive={"repeat": "P1"}, reference={"condition": "MOCK"}),
+            RepresentationControl(
+                positive={"biological_repeat": "P1"}, reference={"condition": "MOCK"}
+            ),
         )
     with pytest.raises(ValueError, match="not in the FOV table"):
         _control(*_plate(), RepresentationControl(positive={"genotype": "KD"}))
@@ -104,8 +111,10 @@ def test_deterministic_under_a_seed():
 
 def test_controls_on_different_plates_are_declared_but_not_judged():
     objects, fovs = _plate()
-    unpaired = fovs[~((fovs["repeat"] == "P1") & (fovs["condition"] == "MOCK"))]
-    unpaired = unpaired[~((unpaired["repeat"] == "P2") & (unpaired["condition"] == "KD"))]
+    unpaired = fovs[~((fovs["biological_repeat"] == "P1") & (fovs["condition"] == "MOCK"))]
+    unpaired = unpaired[
+        ~((unpaired["biological_repeat"] == "P2") & (unpaired["condition"] == "KD"))
+    ]
     objects = objects[objects["image_file"].isin(unpaired["image_file"])]
     result = _control(objects, unpaired, BOTH)
     assert result.status == "not assessed"
@@ -127,11 +136,11 @@ def test_missing_values_leave_checks_unjudged_instead_of_crashing():
 
 def test_adding_a_plate_does_not_change_another_plates_rates():
     objects, fovs = _plate()
-    one = fovs[fovs["repeat"] == "P1"]
-    alone = _control(objects[objects["repeat"] == "P1"], one, BOTH).table
+    one = fovs[fovs["biological_repeat"] == "P1"]
+    alone = _control(objects[objects["biological_repeat"] == "P1"], one, BOTH).table
     both = _control(objects, fovs, BOTH).table
     pd.testing.assert_frame_equal(
-        both[both["repeat"] == "P1"].reset_index(drop=True), alone.reset_index(drop=True)
+        both[both["biological_repeat"] == "P1"].reset_index(drop=True), alone.reset_index(drop=True)
     )
 
 

@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,order,strategy,config_id,criterion,runs,stopped,median_stop_fovs,median_stop_fovs_mc_se,correct,not_preserved_at_stop,premature,not_preserved_by_stream,undefined_at_stop,never_stopped,never_stopped_preserved_at_end,stream_fovs
+condition,biological_repeat,technical_repeat,order,strategy,config_id,criterion,runs,stopped,median_stop_fovs,median_stop_fovs_mc_se,correct,not_preserved_at_stop,premature,not_preserved_by_stream,undefined_at_stop,never_stopped,never_stopped_preserved_at_end,stream_fovs
 MOCK,1A,B6,recorded,scalar_precision_object,da039b1b4339adc1,relative_mean_error:YAPTAZ_Ratio <= 0.05,5,1.0000,2.0000,0.0000,1.0000,0.0000,0.0000,0.0000,0.0000,0.0000,,18
 MOCK,1A,B6,recorded,scalar_precision_object,da039b1b4339adc1,relative_mean_error:YAPTAZ_Ratio <= 0.025,5,1.0000,2.0000,0.0000,1.0000,0.0000,0.0000,0.0000,0.0000,0.0000,,18
 MOCK,1A,B6,recorded,scalar_precision_object,da039b1b4339adc1,all criteria,5,1.0000,2.0000,0.0000,1.0000,0.0000,0.0000,0.0000,0.0000,0.0000,,18

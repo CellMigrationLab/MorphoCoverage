@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,order,runs,unjudged,reached,median_fovs,median_travel,median_travel_total,median_time,stream_fovs,longest_stream_fovs
+condition,biological_repeat,technical_repeat,order,runs,unjudged,reached,median_fovs,median_travel,median_travel_total,median_time,stream_fovs,longest_stream_fovs
 MOCK,1A,B6,recorded,5,0,1.0,1.0,0.0,12897.0,,18,18
 MOCK,1A,B6,permuted,25,0,1.0,1.0,0.0,22109.6,,18,18
 MOCK,1A,B6,dispersed,25,0,1.0,1.0,0.0,23938.5,,18,18

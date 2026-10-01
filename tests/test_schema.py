@@ -9,7 +9,7 @@ def _objects():
     return pd.DataFrame(
         {
             "condition": ["control", "control", "control"],
-            "repeat": ["R1", "R1", "R1"],
+            "biological_repeat": ["R1", "R1", "R1"],
             "fov_id": ["F1", "F1", "F2"],
             "object_id": [1, 2, 3],
             "area": [10.0, 11.0, 20.0],
@@ -24,7 +24,7 @@ def test_validates_explicit_feature_columns():
         _objects(),
         feature_cols=["area", "texture"],
         fov_col="fov_id",
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
     )
     assert result.feature_cols == ("area", "texture")
     assert list(result.fovs["fov_id"]) == ["F1", "F2"]
@@ -108,9 +108,9 @@ def test_rejects_metadata_used_as_feature():
     with pytest.raises(ValueError, match="group columns cannot also"):
         validate_input_tables(
             _objects(),
-            feature_cols=["area", "repeat"],
+            feature_cols=["area", "biological_repeat"],
             fov_col="fov_id",
-            group_cols=["repeat"],
+            group_cols=["biological_repeat"],
         )
 
 
@@ -118,7 +118,7 @@ def test_fov_table_preserves_zero_object_fov():
     fovs = pd.DataFrame(
         {
             "condition": ["control", "control", "control"],
-            "repeat": ["R1", "R1", "R1"],
+            "biological_repeat": ["R1", "R1", "R1"],
             "fov_id": ["F1", "F2", "F3"],
             "stage_x": [0.0, 100.0, 200.0],
         }
@@ -128,40 +128,46 @@ def test_fov_table_preserves_zero_object_fov():
         feature_cols=["area", "texture"],
         fov_col="fov_id",
         fovs=fovs,
-        group_cols=["condition", "repeat"],
+        group_cols=["condition", "biological_repeat"],
     )
     assert set(result.fovs["fov_id"]) == {"F1", "F2", "F3"}
     assert "F3" not in set(result.objects["fov_id"])
 
 
 def test_rejects_object_fov_missing_from_fov_table():
-    fovs = pd.DataFrame({"condition": ["control"], "repeat": ["R1"], "fov_id": ["F1"]})
+    fovs = pd.DataFrame({"condition": ["control"], "biological_repeat": ["R1"], "fov_id": ["F1"]})
     with pytest.raises(ValueError, match="absent from the supplied fovs table"):
         validate_input_tables(
             _objects(),
             feature_cols=["area"],
             fov_col="fov_id",
             fovs=fovs,
-            group_cols=["condition", "repeat"],
+            group_cols=["condition", "biological_repeat"],
         )
 
 
 def test_allows_same_fov_id_in_different_groups():
-    objects = pd.DataFrame({"repeat": ["R1", "R2"], "fov_id": ["F1", "F1"], "area": [10.0, 20.0]})
-    fovs = pd.DataFrame({"repeat": ["R1", "R2"], "fov_id": ["F1", "F1"]})
+    objects = pd.DataFrame(
+        {"biological_repeat": ["R1", "R2"], "fov_id": ["F1", "F1"], "area": [10.0, 20.0]}
+    )
+    fovs = pd.DataFrame({"biological_repeat": ["R1", "R2"], "fov_id": ["F1", "F1"]})
     result = validate_input_tables(
         objects,
         feature_cols=["area"],
         fov_col="fov_id",
         fovs=fovs,
-        group_cols=["repeat"],
+        group_cols=["biological_repeat"],
     )
     assert len(result.fovs) == 2
 
 
 def test_rejects_duplicate_fov_rows_within_group():
     fovs = pd.DataFrame(
-        {"condition": ["control", "control"], "repeat": ["R1", "R1"], "fov_id": ["F1", "F1"]}
+        {
+            "condition": ["control", "control"],
+            "biological_repeat": ["R1", "R1"],
+            "fov_id": ["F1", "F1"],
+        }
     )
     with pytest.raises(ValueError, match="exactly one row"):
         validate_input_tables(
@@ -169,7 +175,7 @@ def test_rejects_duplicate_fov_rows_within_group():
             feature_cols=["area"],
             fov_col="fov_id",
             fovs=fovs,
-            group_cols=["repeat"],
+            group_cols=["biological_repeat"],
         )
 
 
@@ -192,14 +198,14 @@ def test_group_metadata_can_live_only_in_fov_table_when_fov_id_is_unique():
     fovs = pd.DataFrame(
         {
             "condition": ["control", "drug"],
-            "repeat": ["R1", "R1"],
+            "biological_repeat": ["R1", "R1"],
             "position_id": ["P1", "P2"],
         }
     )
     result = validate_input_tables(objects, fovs=fovs, feature_cols=["area"])
-    assert result.group_cols == ("condition", "repeat")
+    assert result.group_cols == ("condition", "biological_repeat")
     assert list(result.objects["condition"]) == ["control", "control", "drug"]
-    assert list(result.objects["repeat"]) == ["R1", "R1", "R1"]
+    assert list(result.objects["biological_repeat"]) == ["R1", "R1", "R1"]
 
 
 def test_group_metadata_is_not_guessed_when_fov_id_is_reused():
@@ -212,7 +218,7 @@ def test_group_metadata_is_not_guessed_when_fov_id_is_reused():
     fovs = pd.DataFrame(
         {
             "condition": ["control", "drug"],
-            "repeat": ["R1", "R1"],
+            "biological_repeat": ["R1", "R1"],
             "image_file": ["same.tif", "same.tif"],
         }
     )
@@ -267,6 +273,6 @@ def test_feature_problems_are_reported_in_column_order():
 
 def test_an_observation_of_an_unlisted_fov_is_named_when_groups_come_from_fovs():
     objects = pd.DataFrame({"image_file": ["a", "zz"], "x": [1.0, 2.0]})
-    fovs = pd.DataFrame({"image_file": ["a"], "condition": ["c"], "repeat": ["r"]})
+    fovs = pd.DataFrame({"image_file": ["a"], "condition": ["c"], "biological_repeat": ["r"]})
     with pytest.raises(ValueError, match=r"absent from the supplied fovs table.*\['zz'\]"):
         validate_input_tables(objects, fovs=fovs, feature_cols=["x"])

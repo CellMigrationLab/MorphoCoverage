@@ -45,7 +45,7 @@ import pandas as pd
 
 from .._checks import as_count, check_seed
 from .._seeds import group_key
-from .._wording import listing
+from .._wording import column_word, listing
 from ..metadata import REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
 from ..schema import ValidatedInput, fov_values
 from ..statistics import RELATIVE_TOLERANCE, cohen_d, mean_is_zero
@@ -99,7 +99,7 @@ def resolve_columns(
 ) -> tuple[str | None, str | None]:
     """The repeat and technical-repeat columns to use, after checking every named column.
 
-    Only a default may be absent: without the ``repeat`` column the whole
+    Only a default may be absent: without the ``biological_repeat`` column the whole
     table is one implicit repeat, and without a ``technical_repeat`` column
     ``resolve_unit`` looks for another unit. A column named explicitly that the FOV table
     does not hold (a misspelling, say) raises, since dropping it would pool
@@ -323,7 +323,12 @@ def opposite_signs(
         if not {-1.0, 1.0} <= set(np.sign(block["d_fields"].to_numpy(dtype=float)).tolist()):
             continue
         records = block.to_dict("records")
-        listed = listing([f"{repeat_col} {r['repeat']} (d {r['d_fields']:.2f})" for r in records])
+        listed = listing(
+            [
+                f"{column_word(repeat_col)} {r[REPEAT_COLUMN]} (d {r['d_fields']:.2f})"
+                for r in records
+            ]
+        )
         lines.append(
             f"{what(key if isinstance(key, tuple) else (key,))} in opposite "
             f"directions in {listed}: that reads as a shift between repeats, wells or dishes, "

@@ -5,13 +5,14 @@ At a glance
   ✅ Foundation. Why count fields? — a mean from whole fields varies 2.1x as much as from random
      nuclei (median); the JCB count rule still held with whole fields in all 12 technical repeats
   ⚠️ 1. Can the features see the phenotype? — YAP fields recognized in 100% of checks; false alarms
-     2%; not judged in repeat 2B (no positive-control field with nuclei)
-  ⚠️ 2. Did I image enough? — 3 of 4 rules said enough in every technical repeat; 'nothing new' not
-     yet shown; held-back fields: some rules stopped too early (up to 60%)
+     2%; not judged in biological repeat 2B (no positive-control field with nuclei)
+  ⚠️ 2. Did I image enough? — the difference from the control is resolved in 6 of 6 contrasts; JCB
+     rule, per nucleus, 5%: met in 12 of 12 technical repeats; held-back fields: some rules stopped
+     too early (up to 60%)
   ⚠️ 3. What limits my sampling? — whole fields 2.1x as variable as random nuclei; unusual nuclei
      clustered in 4 of 11 technical repeats; most variance between samples in 3 of 4 conditions
   ⚠️ 4. How many fields next time? — 8 fields served every technical repeat for 2 of 3 targets; 1 of
-     3 targets not shown (held-back fields cap it); only 3 repeats
+     3 targets not shown (held-back fields cap it); only 3 biological repeats
   ✅ 5. What did the extra fields buy? — held-back fields confirmed everything wanted from field 1
      (median); by field 3 in 90% of runs
   ⚠️ 6. Which fields should I look at? — 4 fields to reopen in 3 technical repeats (new state in 4)
@@ -19,17 +20,19 @@ At a glance
      between samples in 3 of 4 conditions
   ⚠️ 8. A better order? — another order needed fewer fields in 1 of 12 technical repeats (up to 3
      fields)
-  ⚠️ 9. Do the conditions differ? — 6 contrasts, |d| on field means 1.1-5.3; untested (one technical
-     repeat on a side)
+  ➖ 9. Do the conditions differ? — 3 conditions across 2 biological repeats: 3 in the same direction
+     in every repeat (1 lower, 2 higher than the control); cell-level test, raw / normalised: 3 / 3
+     of 3 at Bonferroni p ≤ 0.05 (balanced over the repeats: 3 / 3); within repeats: not tested (one
+     technical repeat on a side)
 
 ➖ What is in the dataset
   9550 nuclei in 336 fields, none empty; a field is
-    condition · repeat · technical_repeat · image_file.
+    condition · biological_repeat · technical_repeat · image_file.
   31 features (YAPTAZ_Ratio, Nuclei_Intensity_IntegratedIntensityEdge_YAPTAZ,
     Nuclei_Intensity_IntegratedIntensity_YAPTAZ and 28 more); values as given (not normalised).
   4 conditions (ARAP2, LATS1, MOCK, YAP), 3 repeats (2A, 2B, 1A), 12 technical repeats; 12 analysis
-    groups (condition · repeat · technical_repeat), each analysed apart; 28 to 56 fields per
-    condition and repeat.
+    groups (condition · biological_repeat · technical_repeat), each analysed apart; 28 to 56 fields
+    per condition and repeat.
   ➖ Data checks not run (report() runs them).
   ➖ Copy checks not run (report(..., integrity=True) runs them).
 
@@ -50,10 +53,11 @@ At a glance
     ARAP2 · 2B · C13      28     999              5%            2.8                 21%
     ARAP2 · 2B · C17      28     956              7%            3.4                 36%
     MOCK · 2B · P13       28     963              5%            2.8                 29%
-  Groups: condition · repeat · technical_repeat. Between fields: the share of the variance that lies
-    between fields. Fields that differ: more than random nuclei would let them (about 5% expected).
+  Groups: condition · biological_repeat · technical_repeat. Between fields: the share of the
+    variance that lies between fields. Fields that differ: more than random nuclei would let them
+    (about 5% expected).
   Would the JCB count rule hold with whole fields? The nuclei it asks for, taken as whole fields in
-    random order, against the mean of all MOCK nuclei of the same repeat:
+    random order, against the mean of all MOCK nuclei of the same biological repeat:
     target  held in   nuclei asked  fields taken  error: SD/sqrt(n) → real  as fields (upper-95 SD)
     5%      12 of 12           2-3             1  1-2% → 1-2% (0.9-1.8x)    1 (1)
     2.5%    12 of 12          6-10             1  1-2% → 1-2% (0.9-1.8x)    1 (1-2)
@@ -61,22 +65,33 @@ At a glance
     nuclei.
 
 ⚠️ 1. Can these features detect what I care about?
-  Can these features see the declared phenotype (YAP against MOCK, within each repeat)?
+  Can these features see the declared phenotype (YAP against MOCK, within each biological repeat)?
     recognized as different                after 10 reference fields  as inspect_fovs judges
     YAP fields (positive control)          100% of 1680 checks        100% of 84 checks
     MOCK fields with 5 YAP nuclei planted  100% of 720 checks         100% of 56 checks
     MOCK fields (false alarms)             2% of 720 checks           0% of 84 fields
   After 10 reference fields with nuclei: as a stopping rule judges the next field. As inspect_fovs
     judges: each field against the other reference fields of its analysis group
-    (condition · repeat · technical_repeat).
-  By repeat, positive-control fields recognized: 1A 100%, 2A 100%.
-  ⚠️ Not judged after 10 reference fields in repeat 2B: no positive-control field with nuclei.
+    (condition · biological_repeat · technical_repeat).
+  By biological repeat, positive-control fields recognized: 1A 100%, 2A 100%.
+  ⚠️ Not judged after 10 reference fields in biological repeat 2B: no positive-control field with
+     nuclei.
   Assumptions: This holds for this definition of new and these features, on these controls; a
     phenotype unlike the control may be seen better or worse: a whole-field phenotype says little
     about a small or sparse state in an ordinary field (the planted rates measure that).
 
 ⚠️ 2. Did I image enough?
-  Analysis groups: condition · repeat · technical_repeat.
+  Enough to resolve the difference from the control? YAPTAZ_Ratio, each condition against the
+    control of the same repeat:
+    contrast            fields    d nuclei (95% interval)  enough?
+    LATS1 vs MOCK · 1A  56 vs 28  1.32 (1.12 to 1.52)      resolved
+    YAP vs MOCK · 1A    56 vs 28  -1.08 (-1.23 to -0.94)   resolved
+    ARAP2 vs MOCK · 2A  28 vs 28  0.29 (0.17 to 0.39)      resolved
+    LATS1 vs MOCK · 2A  28 vs 28  0.69 (0.56 to 0.84)      resolved
+    YAP vs MOCK · 2A    28 vs 28  -1.63 (-1.81 to -1.45)   resolved
+    ARAP2 vs MOCK · 2B  56 vs 28  0.35 (0.21 to 0.50)      resolved
+  The precision of each group's own mean:
+  Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 12 groups:
     rule                       met in    recorded order  random orders: median (10-90%)
     fixed 8 fields             12 of 12  8               8 (8-8)
@@ -100,6 +115,7 @@ At a glance
     (31-689 at the current rate of new fields; never at the current rate in LATS1 · 2A · J23).
   'New': at least 3 similar nuclei that no other field shows; the exact definition is in the full
     report.
+  The cautions on these rules are in the full report.
   Adjusted for detection (5 planted positive-control nuclei recognized in 100% of 56 checks, at
     least 95% at 95% confidence): a phenotype seen as well as the control, and shown by no field
     yet, could still be in up to 11% of fields (the 10% bound divided by 95%).
@@ -109,29 +125,25 @@ At a glance
     fixed 8 fields             0-20%     0%      0-12%
     JCB rule, per nucleus, 5%  0-60%     4-36%   0-48%
     JCB rule, per field, 5%    0-40%     0-8%    0-16%
-  ⚠️ JCB rule, per nucleus, 5%, in 7 of 12 groups: the upper-95 SD bound assumes normal values, and
-     these nuclei have excess kurtosis 2.3 to 9.2 and bimodality coefficient 0.19 to 0.50 (above 2
-     or 0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of nuclei
-     at four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
-  ⚠️ JCB rule, per field, 5%, in 4 of 12 groups: field size and field mean are related (Spearman rho
-     -0.55 to -0.41, p = 0.0023 to 0.032, over 28 fields with nuclei): the per-field averaging CV
-     can then be several times too small; check it against a bootstrap of whole fields
-     (FOVBootstrapEstimator, centroid summary) or the mean of field means
-     (statistics.field_weighted_mean_se)
-  Assumptions: Fixed 8 fields: a fixed amount of effort reaching its target says nothing about what
-    the data show. JCB rule, per nucleus, 5% treats nuclei as independent draws: it assumes a
-    spatially uniform sample. Order check: no trend with acquisition order (Spearman p = 0.053 to
-    0.93) and no spatial autocorrelation (Moran's I permutation p = 0.037 to 0.84) over 28 fields;
-    every stop still treats the fields as a random sample of the well's positions; a raster over a
-    spatial trend can stop early. The next-field bound is approximate: the leave-one-field-out
-    outcomes share their reference fields. The novelty bounds treat fields as independent,
-    representative draws: neighbouring fields acquired in a raster over patchy states make them too
-    low. Every novelty bound holds at a number of fields fixed in advance, not at the first field
-    where it passes: stopping there is premature more often than 5% of the time. A state carried by
-    fewer than 3 similar nuclei per field is never counted, however many fields hold it. The
-    detection-adjusted bound assumes detection is independent between fields. Judged on held-back
-    fields the rule never saw; each acquisition is one hold-out and one order of the same fields,
-    not an independent experiment.
+  Assumptions: Resolved: the 95% interval of d, from the fields resampled as they were acquired
+    (technical repeats, then their fields, with replacement), excludes 0. The fields a side to
+    resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields));
+    beyond 4 times the fields acquired a difference is called too small to settle here. This asks
+    whether the fields pin down the difference between these nuclei; whether it holds across
+    biological repeats is question 9. Fixed 8 fields: a fixed amount of effort reaching its target
+    says nothing about what the data show. JCB rule, per nucleus, 5% treats nuclei as independent
+    draws: it assumes a spatially uniform sample. Order check: no trend with acquisition order
+    (Spearman p = 0.053 to 0.93) and no spatial autocorrelation (Moran's I permutation p = 0.037 to
+    0.84) over 28 fields; every stop still treats the fields as a random sample of the well's
+    positions; a raster over a spatial trend can stop early. The next-field bound is approximate:
+    the leave-one-field-out outcomes share their reference fields. The novelty bounds treat fields
+    as independent, representative draws: neighbouring fields acquired in a raster over patchy
+    states make them too low. Every novelty bound holds at a number of fields fixed in advance, not
+    at the first field where it passes: stopping there is premature more often than 5% of the time.
+    A state carried by fewer than 3 similar nuclei per field is never counted, however many fields
+    hold it. The detection-adjusted bound assumes detection is independent between fields. Judged on
+    held-back fields the rule never saw; each acquisition is one hold-out and one order of the same
+    fields, not an independent experiment.
 
 ⚠️ 3. What is limiting my sampling?
   - Fields: a mean from whole fields varies 2.1 times as much as one from as many random nuclei
@@ -159,21 +171,22 @@ At a glance
 
 ⚠️ 4. How many fields should I image next time?
   Fields per technical repeat, for experiments like this one, over all samples (12 technical repeats
-    in 3 repeats; a technical repeat counts when at least 90% of random acquisitions were enough):
+    in 3 biological repeats; a technical repeat counts when at least 90% of random acquisitions were
+    enough):
     to preserve                                 all served from  needed   left-out check
     the well mean of YAP/TAZ ratio within 5%    2 fields         2        12 of 12
     the well mean of YAP/TAZ ratio within 2.5%  8 fields         2 (2-8)  11 of 12
     the variance of YAP/TAZ ratio within 10%    not shown        –        not checked
   All served from: every technical repeat that could be judged was served at that count and every
     larger one. Needed: the median (range) of the fields each needed. Left-out check: the number
-    chosen on the other repeats, tried on the one left out.
+    chosen on the other biological repeats, tried on the one left out.
   The variance of YAP/TAZ ratio within 10%: for 12 of 12 technical repeats even every available
     field together was enough in fewer than 90% of hold-outs (10-50%): the held-back fields are
     themselves a sample and cap what can be shown, so these are not counted as needing more fields;
-    for 3 repeats, the others reached no number that served enough technical repeats, so nothing was
-    checked there.
+    for 3 biological repeats, the others reached no number that served enough technical repeats, so
+    nothing was checked there.
 
-  Analysis groups: condition · repeat · technical_repeat.
+  Analysis groups: condition · biological_repeat · technical_repeat.
   How often that many random fields were enough, judged on held-back fields (the range over 12
     groups):
     (1) the well mean of YAP/TAZ ratio within 5%; (2) the well mean of YAP/TAZ ratio within 2.5%;
@@ -188,7 +201,7 @@ At a glance
     all 18       100%  90-100%  10-50%
   Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
     beyond 18 fields.
-  ⚠️ Uncertainty is large with only 3 repeats: add more before fixing a protocol.
+  ⚠️ Uncertainty is large with only 3 biological repeats: add more before fixing a protocol.
   Assumptions: The last row, all available fields together, is the ceiling: the held-back fields are
     themselves a sample, so the curve cannot be read above this. Fields are treated as random draws,
     as random-position sampling does. The shares are conservative by construction: the held-back
@@ -196,7 +209,7 @@ At a glance
     read from this curve errs high.
 
 ✅ 5. What did the extra fields buy?
-  Analysis groups: condition · repeat · technical_repeat.
+  Analysis groups: condition · biological_repeat · technical_repeat.
   Judged on held-back fields (the well mean within 2.5%): the field from which everything wanted was
     preserved (medians over hold-outs and orders, the range over 12 groups):
     order                          first preserved  reliably from  90% of runs by
@@ -213,8 +226,8 @@ At a glance
     hold-out is a different set of held-back fields.
 
 ⚠️ 6. Which fields should I look at?
-  4 fields to reopen in 3 groups (condition · repeat · technical_repeat): a state no other field
-    shows (4 fields).
+  4 fields to reopen in 3 groups (condition · biological_repeat · technical_repeat): a state no
+    other field shows (4 fields).
     group             field          why
     YAP · 1A · N23    014023-15.tif  3 nuclei of a state no other field shows
     LATS1 · 2A · J23  010023-3.tif   3 nuclei of a state no other field shows
@@ -237,7 +250,7 @@ At a glance
 
 ⚠️ 8. Could I have sampled more efficiently?
   Fields until reliably enough for this criterion, median over hold-outs and orders, in 12 groups
-    (condition · repeat · technical_repeat):
+    (condition · biological_repeat · technical_repeat):
     order       fields  stage travel    never enough
     recorded    1-4     0 µm to 1.7 mm  –
     random      1       0 µm            –
@@ -252,10 +265,33 @@ At a glance
   Assumptions: Whether these were the right positions needs every candidate position from an
     overview (not available: sampling-frame bias is not assessed).
 
-⚠️ 9. Do the conditions differ, and how confidently?
-  YAPTAZ_Ratio, each condition against the control (MOCK), within each repeat; the fields of a
-    condition's analysis groups are pooled. Cohen's d with nuclei, fields and technical repeats
-    (tech.) as the unit:
+➖ 9. Do the conditions differ, and how confidently?
+  Across the 2 biological repeats (each repeat's value is the mean of its nuclei, paired with the
+    control of the same repeat):
+    condition      vs control, by repeat  d nuclei: mean (range)
+    LATS1 vs MOCK  higher in 2 of 2       1.00 (0.69 to 1.32)
+    YAP vs MOCK    lower in 2 of 2        -1.35 (-1.63 to -1.08)
+    ARAP2 vs MOCK  higher in 2 of 2       0.32 (0.29 to 0.35)
+  Cell-level test (as in Plot&Stats): Cohen's d on every nucleus against the control, the
+    randomization test shuffling the labels over the nuclei:
+    Balance: for every condition, one biological repeat holds more than 25% more nuclei than another
+      (up to 2.5 times) and the control is pooled from 1 biological repeat the condition was not
+      imaged in, so the test is given as provided and balanced (each condition against the control
+      of its own biological repeats, the same number of nuclei from each biological repeat; the
+      median d and p over 100 draws).
+    As provided:
+    condition      raw: d (p Bonf.)  normalised      p ≤ 0.05 without an effect
+    LATS1 vs MOCK  1.06 (0.0015)     1.08 (0.0015)   about 84%
+    YAP vs MOCK    -1.23 (0.0015)    -1.22 (0.0015)  about 82%
+    ARAP2 vs MOCK  0.35 (0.0015)     0.34 (0.0015)   about 5%
+    Balanced over the repeats:
+    condition      raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
+    LATS1 vs MOCK  0.98 (0.003)      0.99 (0.003)   about 83%
+    YAP vs MOCK    -1.33 (0.003)     -1.33 (0.003)  about 79%
+    ARAP2 vs MOCK  0.32 (0.003)      0.32 (0.003)   about 5%
+  Within each repeat: YAPTAZ_Ratio, each condition against the control (MOCK), within each
+    biological repeat; the fields of a condition's analysis groups are pooled. Cohen's d with
+    nuclei, fields and technical repeats (tech.) as the unit:
     contrast            fields    nuclei       tech.   d nuclei  d fields  p (Bonferroni)
     LATS1 vs MOCK · 1A  56 vs 28  1365 vs 966  2 vs 1  1.32      4.94      no test
     YAP vs MOCK · 1A    56 vs 28  1258 vs 966  2 vs 1  -1.08     -4.36     no test
@@ -271,15 +307,42 @@ At a glance
     100     99.5-100%      94-100%       3.5-5.3 fields
     200     100%           99-100%       6.5-10.3 fields
     500     100%           100%          14.8-25.5 fields
-  ⚠️ No randomization test in all 6 contrasts: only one technical repeat (technical_repeat) with
-     observations on one side: its fields cannot stand in for technical repeats, so there is no
-     test.
-  Assumptions: The test and the effect sizes compare means: a difference confined to a subpopulation
-    of nuclei or to the shape of the distribution is not tested (see the unusual nuclei and the rare
-    label). The draws resample these fields and nuclei, not wells or repeats: a same-sign share
-    describes these fields and is not a confidence in the effect. This describes what these fields
-    support about a difference under this feature; generalizing it needs independent biological
-    repeats, which is the user's inference.
+  Planning the next experiment, with 2 biological repeats as here: the fields a side each repeat
+    needs to resolve the difference from the control, and what limits it:
+    condition      d nuclei, mean  fields a side per repeat  limited by
+    LATS1 vs MOCK  1.00            about 2                   repeats differ (more fields help little)
+    YAP vs MOCK    -1.35           about 2                   repeats differ (more fields help little)
+    ARAP2 vs MOCK  0.32            about 5                   sampling (more fields help)
+  Assumptions: With 2 biological repeats holding both sides, LATS1, YAP and ARAP2 are described by
+    direction and effect size; the paired test across repeats needs 3. Cell-level test (Cohen's d,
+    randomization over the nuclei): it assumes the nuclei are independent draws, so it asks whether
+    these wells differ, not whether the effect repeats, and it responds with one or two repeats.
+    Limitation: when the difference varies between repeats it gives p ≤ 0.05 without an effect in
+    about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n nuclei per well, each repeat weighted by its
+    share when they differ; s the SD between repeats in observation SDs;
+    data/simulations/test_choice.py and unbalanced.py), the 'without an effect' column; more nuclei
+    per well raise it, and a stricter cutoff does not remove it (22% at p ≤ 0.01 with 30 per well
+    and s = 0.5). Normalised: each value divided by the mean of its own repeat's control, which
+    removes a scale both wells of a repeat share (staining, imaging) and pairs every condition with
+    its own repeat's control. It assumes a positive feature on a ratio scale (not computed when a
+    control mean is 0 or below); it does not remove the part of the effect that varies between
+    repeats, so the cell-level chance still applies. Balanced: the median d and median p over 100
+    draws taking the same number of nuclei from each repeat, against the control of the condition's
+    own repeats; it describes the typical draw and is not the p of one test. In
+    data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of the others,
+    the test as provided gives 22-46% false positives where equal repeats give 16% (s = 0.25), and
+    the balanced test 12-14%; with the control pooled from repeats the condition was not imaged in,
+    the raw test as provided gives 46% even when the repeats agree, the balanced test 2%. Balancing
+    removes the weight of the repeats holding more, not the independence assumption. No
+    randomization test in all 6 contrasts: only one technical repeat (technical_repeat) with
+    observations on one side: its fields cannot stand in for technical repeats, so there is no test.
+    The test and the effect sizes compare means: a difference confined to a subpopulation of nuclei
+    or to the shape of the distribution is not tested (see the unusual nuclei and the rare label).
+    The draws resample these fields and nuclei, not wells or repeats: a same-sign share describes
+    these fields and is not a confidence in the effect. The fields a side per repeat are the most
+    any repeat needs, projected from its interval of d (narrowing as 1/sqrt(fields)); limited by:
+    whether the repeats' d differ more than their sampling error, which more fields cannot reduce.
+    Both are estimated from the repeats here, so the plan is a guide.
 
 What this dataset cannot tell me
   Every question could be answered; the assumptions each answer rests on are listed with it.

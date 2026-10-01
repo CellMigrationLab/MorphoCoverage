@@ -28,9 +28,10 @@ from typing import Any
 
 import pandas as pd
 
+from .._former_repeat import renamed_tables
 from .._wording import count
 from ..benchmark import AcquisitionOrder
-from ..data_check import DataCheck, Problem
+from ..data_check import DataCheck, Problem, validate_input_tables
 from ..data_check import check_tables as _check_tables
 from ..metadata import (
     CONDITION_COLUMN,
@@ -50,7 +51,7 @@ from ..sampling_unit import (
     object_rule_check,
     unusual_objects,
 )
-from ..schema import ValidatedInput
+from ..schema import ValidatedInput, resolve_observation_unit
 from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
@@ -89,10 +90,15 @@ def orders(
     return chosen
 
 
-def check_workflow_inputs(objects: Any, fovs: Any, setup: Any, *, warn: bool = True) -> DataCheck:
+def check_workflow_inputs(
+    objects: Any, fovs: Any, setup: Any, *, warn: bool = True
+) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck]:
     """Refuse inputs the workflows cannot use, before any analysis runs, and check the rest.
 
-    Returns ``check_tables`` on the setup's columns and control, whose warnings
+    Returns the tables every analysis of the workflow reads, with the former
+    name ``repeat`` read as ``biological_repeat`` (one ``DeprecationWarning``;
+    the caller's tables are not modified), and ``check_tables`` on the setup's
+    columns and control, whose warnings
     (copied rows, labels that print alike, repeats without a control, ...) a
     workflow would otherwise never mention. With ``warn`` they are also issued
     as one ``UserWarning``; ``report`` prints them in its overview instead. Its
@@ -108,6 +114,7 @@ def check_workflow_inputs(objects: Any, fovs: Any, setup: Any, *, warn: bool = T
         raise TypeError("objects and fovs must be pandas DataFrames (every acquired FOV in fovs)")
     if not isinstance(setup, Setup):
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
+    objects, fovs = renamed_tables(objects, fovs)
     if setup.rare_label is not None and setup.rare_label not in objects.columns:
         raise ValueError(
             f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
@@ -128,7 +135,7 @@ def check_workflow_inputs(objects: Any, fovs: Any, setup: Any, *, warn: bool = T
             UserWarning,
             stacklevel=3,
         )
-    return check
+    return objects, fovs, check
 
 
 def _states_the_design(problem: Problem) -> bool:
@@ -293,15 +300,57 @@ def unusual_label(objects: pd.DataFrame, setup: Setup) -> str:
     return label if label not in objects.columns else f"{label} (report)"
 
 
+def one_per_field(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> bool:
+    """Whether every field with observations holds exactly one (one cell per image)."""
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=[setup.readout], **setup.common)
+    sizes = data.objects.groupby(list(data.fov_key), dropna=False).size()
+    return bool(len(sizes)) and int(sizes.max()) == 1
+
+
+def one_per_field_reasons(setup: Setup) -> dict[str, str]:
+    """Why the questions about fields do not apply when each field holds one observation,
+    by question (``with_reasons``): fields and observations coincide, so their difference
+    cannot be measured, and a new state needing several similar observations in one field
+    cannot occur."""
+    unit = resolve_observation_unit(setup.observation_unit)[0]
+    words = setup.unit_words
+    reasons = {
+        "unit": (
+            f"not applicable: each field holds one {unit}, so fields and {words} coincide and "
+            f"every per-{unit} answer is also the per-field one"
+        ),
+        "profile": (
+            f"not applicable: with one {unit} per field, how {words} spread over fields "
+            "cannot be measured"
+        ),
+    }
+    novelty = setup.novelty
+    needed = int(getattr(novelty, "min_novel_observations", 1)) if novelty is not None else 1
+    if needed > 1:
+        reasons["enough"] = (
+            f"'nothing new' is left out: the definition of new needs {needed} similar "
+            f"{words} in one field, and each field holds one"
+        )
+    return reasons
+
+
 def control_checks(
-    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, reasons: dict[str, str]
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    setup: Setup,
+    reasons: dict[str, str],
+    per_field: bool = True,
 ) -> dict[str, Any]:
     """The Foundation's rule check and R4's unusual observations against the control.
 
     Both compare each analysis group with the control's groups, so group
-    columns that pool the control's columns make them "not assessed".
+    columns that pool the control's columns make them "not assessed". With one
+    observation per field (``per_field=False``) neither applies (their fields
+    are their observations), so neither is run.
     """
     assert setup.control is not None
+    if not per_field:
+        return {}
     common = setup.common
     pooled = pooled_columns(objects, fovs, setup, list(setup.control))
     if pooled:

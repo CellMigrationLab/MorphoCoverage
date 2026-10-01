@@ -41,7 +41,7 @@ from morphocoverage.workflows import (
 from morphocoverage.workflows._document import plan_settings
 from morphocoverage.workflows._shared import order_seeds, orders, replay_rules, sufficiency_rules
 
-KEY = ["condition", "repeat", "technical_repeat", "image_file"]
+KEY = ["condition", "biological_repeat", "technical_repeat", "image_file"]
 QUICK = {
     "fov_counts": [2],
     "reservoir_fraction": 0.25,
@@ -83,7 +83,7 @@ def test_i1_setup_random_state_seeds_the_report_random_orders(monkeypatch):
 def test_i2_livetables_waits_for_the_first_fov_row_before_fixing_its_key():
     objects, fovs = _tables()
     setup = _setup(rules=(FixedFOVStrategy(4),))
-    ordered = fovs.sort_values(["condition", "repeat", "acquisition_order"])
+    ordered = fovs.sort_values(["condition", "biological_repeat", "acquisition_order"])
     ordered = ordered.reset_index(drop=True)
     parts = [objects.merge(ordered.iloc[[i]][KEY], on=KEY) for i in range(len(ordered))]
     tables = LiveTables(live_session(setup))
@@ -91,7 +91,7 @@ def test_i2_livetables_waits_for_the_first_fov_row_before_fixing_its_key():
         grown = pd.concat(parts[: i + 1], ignore_index=True)
         tables.update(grown, ordered[:i])  # the field's objects arrive first ...
         tables.update(grown, ordered[: i + 1])  # ... then its FOV row
-    assert tables.key == ("condition", "repeat", "technical_repeat", "image_file")
+    assert tables.key == ("condition", "biological_repeat", "technical_repeat", "image_file")
     assert [u.n_objects for u in tables.updates] == [len(p) for p in parts]
 
 
@@ -218,12 +218,12 @@ def test_i5_every_preset_is_printed_and_minimum_detection_reaches_the_report(mon
 def test_i6_the_positive_control_pairs_within_repeats_by_default_and_prints_pooling():
     objects, fovs = _acquisition(n_fovs=10, n_objects=6)
     default = PositiveControl({"condition": "drug"}, fovs_seen=4)
-    assert default.pair_cols is None and default.resolved_pair_cols(fovs) == ("repeat",)
-    assert default.resolved_pair_cols(fovs.drop(columns="repeat")) == ()
+    assert default.pair_cols is None and default.resolved_pair_cols(fovs) == ("biological_repeat",)
+    assert default.resolved_pair_cols(fovs.drop(columns="biological_repeat")) == ()
     # A definition of new that these few fields can judge.
     novelty = SupportNoveltyEstimator(1.5, 1, Standardize(), 2, 2)
     paired = report(objects, fovs, _setup(novelty=novelty, positive=default, stage_cols=None))
-    assert paired.results["controls"].pair_cols == ("repeat",)
+    assert paired.results["controls"].pair_cols == ("biological_repeat",)
     pooled = PositiveControl({"condition": "drug"}, fovs_seen=4, pair_cols=())
     setup = _setup(novelty=novelty, positive=pooled, stage_cols=None)
     assert "every repeat pooled (pair_cols=())" in " ".join(setup.declaration())
@@ -321,7 +321,7 @@ def test_i13_the_unusual_labels_are_named_for_the_reader():
 
 def test_i14_livetables_key_is_built_from_the_validator_resolvers():
     objects, fovs = _tables()
-    one = fovs[(fovs["condition"] == "control") & (fovs["repeat"] == "R1")].copy()
+    one = fovs[(fovs["condition"] == "control") & (fovs["biological_repeat"] == "R1")].copy()
     mine = objects.merge(one[KEY], on=KEY)
     # A producer that writes every column leaves the optional ones empty.
     one["technical_repeat"], mine["technical_repeat"] = None, None
@@ -329,7 +329,7 @@ def test_i14_livetables_key_is_built_from_the_validator_resolvers():
     tables = LiveTables(live_session(_setup(rules=(FixedFOVStrategy(4),), stage_cols=None)))
     assert len(tables.update(mine, one)) == len(one)
     data = validate_input_tables(mine, fovs=one, feature_cols=[READOUT])
-    assert tables.key == data.fov_key == ("condition", "repeat", "image_file")
+    assert tables.key == data.fov_key == ("condition", "biological_repeat", "image_file")
 
 
 def test_i15_declaration_claims_new_phenotypes_only_with_a_definition_of_new():

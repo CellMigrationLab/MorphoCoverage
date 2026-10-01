@@ -47,7 +47,7 @@ from morphocoverage.transforms import Standardize
 SYNTHETIC = Path(__file__).resolve().parents[1] / "data" / "synthetic"
 SYN_FEATURES = ["area", "intensity", "eccentricity"]
 SYN_NOVELTY = SupportNoveltyEstimator(float(np.sqrt(3)), 1, Standardize(), 5, 3)
-KEY = ["condition", "repeat", "technical_repeat", "image_file"]
+KEY = ["condition", "biological_repeat", "technical_repeat", "image_file"]
 
 
 @pytest.fixture(scope="module")
@@ -58,7 +58,7 @@ def synthetic():
 
 
 def _syn_control(objects, fovs, **kwargs):
-    settings = {"pair_cols": ["repeat"], "fovs_seen": 10, "draws": 2}
+    settings = {"pair_cols": ["biological_repeat"], "fovs_seen": 10, "draws": 2}
     settings.update(kwargs)
     return representation_control(
         objects,
@@ -95,7 +95,7 @@ def _pooled(**rates):
         ]
     )
     table = pooled.assign(stratum="all FOVs")
-    return ControlResult(table, pooled, "assessed", ("repeat",), {"fovs_seen": 10})
+    return ControlResult(table, pooled, "assessed", ("biological_repeat",), {"fovs_seen": 10})
 
 
 def test_g1_false_alarms_are_measured_within_the_inspections_groups(synthetic):
@@ -122,7 +122,7 @@ def test_g1_false_alarms_are_measured_within_the_inspections_groups(synthetic):
 
 def test_g2_the_chance_expectation_counts_only_fields_judged_for_new_states(synthetic):
     objects, fovs = synthetic
-    short = (fovs["repeat"] == "2026_01_19") & fovs["image_file"].isin(
+    short = (fovs["biological_repeat"] == "2026_01_19") & fovs["image_file"].isin(
         ["field_05.tif", "field_06.tif"]
     )
     fovs = fovs[~short]
@@ -157,11 +157,16 @@ def test_g4_same_named_dishes_of_pooled_conditions_are_different_samples(synthet
         table = table.copy()
         table["technical_repeat"] = "dish" + table["technical_repeat"].str[-1]
         table["image_file"] = (
-            table["condition"] + "_" + table["repeat"] + "_" + table["technical_repeat"] + "_"
+            table["condition"]
+            + "_"
+            + table["biological_repeat"]
+            + "_"
+            + table["technical_repeat"]
+            + "_"
         ) + table["image_file"]
         return table
 
-    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "repeat")
+    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "biological_repeat")
     result = effort_projection(
         rename(objects),
         rename(fovs),
@@ -177,7 +182,7 @@ def test_g4_same_named_dishes_of_pooled_conditions_are_different_samples(synthet
 
 def test_g5_an_allocation_with_fewer_samples_than_repeats_covers_fewer_repeats(synthetic):
     objects, fovs = synthetic
-    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "repeat")
+    hierarchy = SamplingHierarchy("image_file", "technical_repeat", "biological_repeat")
     result = effort_projection(
         objects,
         fovs,
@@ -326,19 +331,19 @@ def test_g10_small_shares_are_not_written_as_zero_percent():
             "current_fovs_per_sample": [4.0],
         }
     )
-    line = effort_text._allocation_line(compared, {}, 12, "repeat", "sample")
+    line = effort_text._allocation_line(compared, {}, 12, "biological_repeat", "sample")
     assert "a 0.4% smaller standard error" in line
 
 
 def _counted(counts, stage=False):
     names = [f"f{i}" for i in range(len(counts))]
-    fovs = pd.DataFrame({"condition": "a", "repeat": "r", "image_file": names})
+    fovs = pd.DataFrame({"condition": "a", "biological_repeat": "r", "image_file": names})
     if stage:
         fovs["x"] = [float(i % 5) for i in range(len(names))]
         fovs["y"] = [float(i // 5) for i in range(len(names))]
     rng = np.random.default_rng(len(counts))
     rows = [
-        {"condition": "a", "repeat": "r", "image_file": name, "v": 10.0 + value}
+        {"condition": "a", "biological_repeat": "r", "image_file": name, "v": 10.0 + value}
         for name, n in zip(names, counts, strict=True)
         for value in rng.normal(0.0, 1.0, n)
     ]
@@ -387,7 +392,7 @@ def test_g14_projections_assume_the_same_share_of_fields_would_be_empty_again():
         objects,
         fovs,
         feature="feature_a",
-        hierarchy=SamplingHierarchy("image_file", "well", "repeat"),
+        hierarchy=SamplingHierarchy("image_file", "well", "biological_repeat"),
         strata=["condition"],
         n_boot=20,
     )
@@ -406,7 +411,7 @@ def test_g15_the_closing_notes_do_not_point_below():
 
 def test_g16_the_profile_labels_each_rate_by_how_it_was_measured():
     controls = _pooled(positive=(18, 20), reference=(1, 20), reference_lofo=(2, 30))
-    controls.settings["lofo_group_cols"] = ["condition", "repeat"]
+    controls.settings["lofo_group_cols"] = ["condition", "biological_repeat"]
     profile = sampling_profile(controls, None, None, None)
     statements = list(profile["statement"])
     assert "90% of declared positive-control fields recognized as different after 10 " in (
@@ -414,12 +419,12 @@ def test_g16_the_profile_labels_each_rate_by_how_it_was_measured():
     )
     assert any("after 10 reference fields (false alarms)" in s for s in statements)
     lofo = profile[profile["item"] == "representation, as inspect_fovs judges"]
-    assert "their analysis group (condition, repeat)" in lofo["statement"].iloc[0]
+    assert "their analysis group (condition, biological_repeat)" in lofo["statement"].iloc[0]
 
 
 def test_g17_the_leave_one_field_out_false_alarms_are_measured_without_a_positive():
     objects, fovs = _plate()
-    keep = ~((fovs["repeat"] == "P2") & (fovs["condition"] == "KD"))
+    keep = ~((fovs["biological_repeat"] == "P2") & (fovs["condition"] == "KD"))
     fovs = fovs[keep]
     objects = objects[objects["image_file"].isin(fovs["image_file"])]
     control = RepresentationControl(positive={"condition": "KD"}, reference={"condition": "MOCK"})
@@ -429,14 +434,14 @@ def test_g17_the_leave_one_field_out_false_alarms_are_measured_without_a_positiv
         feature_cols=FEATURES,
         novelty=NOVELTY,
         control=control,
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=6,
         draws=3,
     )
-    rows = result.table.set_index(["repeat", "candidate"])
+    rows = result.table.set_index(["biological_repeat", "candidate"])
     assert ("P2", "reference_lofo") in rows.index
     assert ("P2", "positive") not in rows.index
-    assert [s["stratum"] for s in result.settings["skipped_strata"]] == ["repeat=P2"]
+    assert [s["stratum"] for s in result.settings["skipped_strata"]] == ["biological_repeat=P2"]
 
 
 def test_g18_a_fixed_count_beyond_the_held_out_streams_acquires_the_whole_stream():
@@ -493,9 +498,9 @@ def test_g20_rates_of_another_definition_of_new_are_not_combined():
     )
     text = _detection_adjusted_bounds(sufficiency, controls)
     assert text.startswith("The unseen-state bound is not adjusted for detection")
-    controls.settings["lofo_group_cols"] = ["condition", "repeat"]
+    controls.settings["lofo_group_cols"] = ["condition", "biological_repeat"]
     sufficiency.novelty_definition = "one definition"
-    assert "measured within the groups condition, repeat" in _detection_adjusted_bounds(
+    assert "measured within the groups condition, biological_repeat" in _detection_adjusted_bounds(
         sufficiency, controls
     )
 

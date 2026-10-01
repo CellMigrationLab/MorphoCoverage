@@ -1,0 +1,325 @@
+❌ What is in the dataset
+  174 cells in 174 acquired fields; a field is identified by condition, biological_repeat, technical_repeat, position_id.
+  10 feature columns: Area, Perim., Major, Minor, Circ., Feret, MinFeret, AR, Round, Solidity.
+  9 technical repeats (technical_repeat, a well or a dish within a repeat, 1 per condition and repeat).
+  3 conditions (condition: siCTRL, siCCT8#5, siCCT8#8); 3 repeats (biological_repeat: 1, 2, 3).
+    condition  biological_repeat  fields  empty  cells  technical repeats
+    siCTRL     1                      18      0     18                  1
+    siCTRL     2                      24      0     24                  1
+    siCTRL     3                      11      0     11                  1
+    siCCT8#5   1                      25      0     25                  1
+    siCCT8#5   2                      21      0     21                  1
+    siCCT8#5   3                      17      0     17                  1
+    siCCT8#8   1                      27      0     27                  1
+    siCCT8#8   2                      16      0     16                  1
+    siCCT8#8   3                      15      0     15                  1
+  Values: as given (not normalised).
+  ✅ Data checks: no warning.
+
+  ❌ Data integrity — 1 finding in 2 fields (structure to inspect, not a judgment)
+    Exact checks for copied data, to 6 significant digits: 174 fields and 174 cells checked, on Area,
+    Perim., Major, Minor, Circ. and 5 more.
+    Fields are named condition · biological_repeat · technical_repeat · position_id.
+    - copied small field: siCCT8#5 · 1 · single · siCCT8#5|1|cell007 and
+      siCCT8#5 · 1 · single · siCCT8#5|1|cell008 (1 observation): the two fields hold the same single
+      observation (to 6 significant digits, in at least 3 continuous features): a field too small for
+      the whole-field checks, exported twice or pasted.
+    Check where these fields came from (a file read or exported twice, a field identifier reused, a
+    copy in another unit, a merge that repeats rows) before reading the answers.
+    ⚠️ Whole fields compared: 0 of 174; 174 fields held fewer than 5 observations.
+    Assumptions:
+      - Out of reach of these checks: a copy re-rounded to fewer than 6 significant digits, a block of
+        fewer than 10 observations that is not the whole of the smaller field, a copy with feature
+        columns swapped or a feature (or a value) missing in one copy only, and observations pasted
+        into two or more other fields (they read as recurring).
+
+What this acquisition was asked to preserve
+  - Population summary: the mean of Area over all cells, within 5% and 2.5% of its value on
+    held-back fields.
+  - Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), so the answers
+    below speak of the mean, not of the distribution of phenotypes.
+  - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
+    state was sampled enough.
+  - Representation: readout Area; 10 declared feature columns for unusual cells (against the control
+    cells, their repeats pooled) and new phenotypes; definition of new: support_novelty.
+  - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
+    chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
+    It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
+    benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
+    few fields (few_fovs).
+  - Stopping rules: JCB rule, per cell, 5% [scalar_precision_object_upper95 (feature=Area,
+    target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and JCB rule, per field, 5%
+    [scalar_precision_fov_upper95 (feature=Area, target_cv=0.05, resampling_unit=fov,
+    sd_estimate=upper_95)] (the default, rules=None: the JCB rule per cell and per field at 5%);
+    assessed in the report, calibrated by optimise, run live. The JCB rules stop on the averaging
+    CV: a CV of 5% is one standard error of 5% of the mean, not a bound of ±5% on its error; whether
+    the mean is within 5% and 2.5% is judged on held-back fields (report, optimise), never by the
+    rules.
+  - Acquisition order: no acquisition_order_col or stage_cols, so nothing is checked and every stop
+    treats the fields as a random sample of the well's positions; a raster over a spatial trend can
+    stop early. Image fields in a random or dispersed order.
+  - Live decision: the population objective (population summary); a rule decides only the targets it
+    has evidence about, and a target no rule decides stays unsupported rather than assumed adequate.
+
+➖ Foundation: why count fields, and not only objects?
+  Not applicable: each field holds one cell, so fields and cells coincide and every per-cell answer is also the per-field one.
+
+➖ 1. Can these features detect what I care about?
+  Not assessed: declare a positive control (and a reference) with representation_control.
+
+⚠️ 2. Did I image enough?
+  Enough to resolve the difference from the control? Area, each condition against the control of the
+    same repeat, 95% interval of d from the fields resampled as acquired:
+    contrast                fields    d cells (95% interval)  enough?
+    siCCT8#5 vs siCTRL · 1  25 vs 18  -0.48 (-1.39 to 0.08)   about 42 fields a side
+    siCCT8#8 vs siCTRL · 1  27 vs 18  -0.38 (-1.15 to 0.18)   about 56 fields a side
+    siCCT8#5 vs siCTRL · 2  21 vs 24  -0.09 (-0.76 to 0.48)   too small to settle here
+    siCCT8#8 vs siCTRL · 2  16 vs 24  -0.43 (-1.22 to 0.26)   about 48 fields a side
+    siCCT8#5 vs siCTRL · 3  17 vs 11  -1.13 (-2.41 to -0.37)  resolved
+    siCCT8#8 vs siCTRL · 3  15 vs 11  -0.96 (-2.54 to -0.11)  resolved
+    Resolved: the 95% interval of d, from the fields resampled as they were acquired (technical repeats, then their fields, with replacement), excludes 0. The fields a side to resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields)); beyond 4 times the fields acquired a difference is called too small to settle here. This asks whether the fields pin down the difference between these cells; whether it holds across biological repeats is question 9.
+
+  Analysis groups: condition · biological_repeat · technical_repeat.
+  Each rule by its own threshold (not a held-out check), in 9 groups:
+    rule                     met in  random orders: median (10-90%)
+    JCB rule, per cell, 5%   0 of 9  never
+    JCB rule, per field, 5%  0 of 9  never
+  First met after: the fields acquired when it first said enough; random: the median of the groups'
+    medians, 10-90% from the lowest to the highest group.
+  Rules: JCB rule, per cell, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05; config
+    8d1fdaa201845e06); JCB rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05;
+    config 96023624bc06b3a0).
+  Per group below: whether each rule was met by its own threshold, where it was first met, and the
+    fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
+    without them; only where the acquired fields are enough).
+
+  siCCT8#5 · 1 · single — 25 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.4, bimodality coefficient 0.59.
+
+  siCCT8#5 · 2 · single — 21 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 1.6, bimodality coefficient 0.68.
+
+  siCCT8#5 · 3 · single — 17 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 5.1, bimodality coefficient 0.62.
+
+  siCCT8#8 · 1 · single — 27 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+
+  siCCT8#8 · 2 · single — 16 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 1.5, bimodality coefficient 0.57.
+
+  siCCT8#8 · 3 · single — 15 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 9.0, bimodality coefficient 0.67.
+
+  siCTRL · 1 · single — 18 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+
+  siCTRL · 2 · single — 24 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+    Cautions here: JCB rule, per cell, 5%: excess kurtosis 7.3, bimodality coefficient 0.59.
+
+  siCTRL · 3 · single — 11 fields acquired:
+    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
+    JCB rule, per cell, 5%   no      never                                    –
+    JCB rule, per field, 5%  no      never                                    –
+
+  ⚠️ JCB rule, per cell, 5%, in 6 of 9 groups (siCCT8#5 · 1 · single, siCCT8#5 · 2 · single,
+     siCCT8#5 · 3 · single, siCCT8#8 · 2 · single, siCCT8#8 · 3 · single and 1 more): the SD between
+     cells exceeds 50% CV; the paper advises acquiring more data and repeating the estimate; the
+     upper-95 SD bound assumes normal values, and these cells have excess kurtosis 1.5 to 9.0 and
+     bimodality coefficient 0.57 to 0.68 (above 2 or 0.56: a heavy tail or a minority state), so the
+     bound can be optimistic (with 10% of cells at four times the level of the rest it covered the
+     true SD 68-88% of the time, not 97.5%)
+  ⚠️ JCB rule, per cell, 5%, in 1 of 9 groups (siCCT8#8 · 1 · single): the upper-95 SD bound assumes
+     normal values, and these cells have excess kurtosis -0.5 and bimodality coefficient 0.56 (above 2
+     or 0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of cells at
+     four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+  ⚠️ JCB rule, per field, 5%, in 6 of 9 groups (siCCT8#5 · 1 · single, siCCT8#5 · 2 · single,
+     siCCT8#5 · 3 · single, siCCT8#8 · 2 · single, siCCT8#8 · 3 · single and 1 more): the SD between
+     cells exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
+  Assumptions:
+    - JCB rule, per cell, 5% treats cells as independent draws: it assumes a spatially uniform
+      sample.
+
+  'nothing new' is left out: the definition of new needs 3 similar cells in one field, and each
+    field holds one.
+
+➖ 3. What is limiting my sampling?
+  Not applicable: with one cell per field, how cells spread over fields cannot be measured.
+
+⚠️ 6. Which fields should I look at?
+  Analysis groups: condition · biological_repeat · technical_repeat.
+  siCCT8#5 · 3 · single: fields to reopen before trusting the result
+    siCCT8#5|3|cell015 (image_file unrecorded): removing it lowers the field-weighted mean of Area by
+      13%.
+  siCCT8#8 · 2 · single: fields to reopen before trusting the result
+    siCCT8#8|2|cell003 (image_file unrecorded): removing it lowers the field-weighted mean of Area by
+      11%.
+    siCCT8#8|2|cell009 (image_file unrecorded): removing it lowers the field-weighted mean of Area by
+      11%.
+  siCCT8#8 · 3 · single: fields to reopen before trusting the result
+    siCCT8#8|3|cell012 (image_file unrecorded): removing it lowers the field-weighted mean of Area by
+      15%.
+  None of these is called an error: look at the images to see whether it is biology, technique or
+    simply a large field.
+
+  The data-integrity checks (in the overview) name 2 fields in 1 finding (fields that hold another field's observations, or their own twice); every answer here counts them as independent fields, so look at them first: condition=siCCT8#5, biological_repeat=1, technical_repeat=single, position_id=siCCT8#5|1|cell007 and condition=siCCT8#5, biological_repeat=1, technical_repeat=single, position_id=siCCT8#5|1|cell008.
+
+✅ 9. Do the conditions differ, and how confidently?
+  Feature Area, each condition against the control {'condition': 'siCTRL'}, within each biological
+    repeat. The fields of a condition's analysis groups are pooled for this comparison. Objects are
+    compared as Plot&Stats does and, since a microscope acquires them through fields, with the field
+    as the unit and, where each side has at least two, with the technical repeat (technical_repeat) as
+    the unit.
+  Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
+    control of the same repeat):
+    condition           vs control, by repeat  d cells: mean (range)   paired t p (Bonf.)  normalised
+    siCCT8#5 vs siCTRL  lower in 3 of 3        -0.57 (-1.13 to -0.09)  0.2 (0.39)          0.21 (0.42)
+    siCCT8#8 vs siCTRL  lower in 3 of 3        -0.59 (-0.96 to -0.38)  0.1 (0.2)           0.11 (0.22)
+  Independent reagents for one target (target), against the control in each repeat:
+    target  reagents            repeats
+    CCT8    siCCT8#5, siCCT8#8  all lower in 3 of 3
+  Cell-level test (as in Plot&Stats): Cohen's d on every cell against the control, the randomization
+    test shuffling the labels over the cells:
+    Balance: for every condition, one biological repeat holds more than 25% more cells than another
+      (up to 2.2 times), so the test is given as provided and balanced (each condition against the
+      control of its own biological repeats, the same number of cells from each biological repeat; the
+      median d and p over 100 draws).
+    As provided:
+    condition           raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
+    siCCT8#5 vs siCTRL  -0.44 (0.04)      -0.44 (0.058)  about 17%
+    siCCT8#8 vs siCTRL  -0.57 (0.005)     -0.51 (0.011)  about 5%
+    Balanced over the repeats:
+    condition           raw: d (p Bonf.)  normalised     cells per repeat, condition / control  p ≤ 0.05 without an effect
+    siCCT8#5 vs siCTRL  -0.44 (0.1)       -0.48 (0.071)  17 / 11                                about 14%
+    siCCT8#8 vs siCTRL  -0.57 (0.033)     -0.56 (0.031)  15 / 11                                about 5%
+  Within each repeat:
+    contrast                fields    cells     tech. repeats  d cells  JCS, every cell
+    siCCT8#5 vs siCTRL · 1  25 vs 18  25 vs 18  1 vs 1         -0.48    -0.69
+    siCCT8#8 vs siCTRL · 1  27 vs 18  27 vs 18  1 vs 1         -0.38    -0.41
+    siCCT8#5 vs siCTRL · 2  21 vs 24  21 vs 24  1 vs 1         -0.09    -0.11
+    siCCT8#8 vs siCTRL · 2  16 vs 24  16 vs 24  1 vs 1         -0.43    -0.45
+    siCCT8#5 vs siCTRL · 3  17 vs 11  17 vs 11  1 vs 1         -1.13    -1.23
+    siCCT8#8 vs siCTRL · 3  15 vs 11  15 vs 11  1 vs 1         -0.96    -1.08
+  Planning the next experiment, with 3 biological repeats as here: the fields a side each repeat needs
+    to resolve the difference from the control, and what limits it (full report: the repeats a paired
+    test needs for 80% power at p ≤ 0.05, per condition):
+    condition           d cells, mean  fields a side per repeat  limited by                   repeats needed  with twice the fields
+    siCCT8#5 vs siCTRL  -0.57          too small to settle       sampling (more fields help)  9               7
+    siCCT8#8 vs siCTRL  -0.59          about 56                  sampling (more fields help)  7               5
+
+  Which features separate the conditions? Each of the 10 declared features, every condition against
+    the control {'condition': 'siCTRL'} within each biological repeat: Cohen's d on field means and a
+    randomization test over whole technical repeats (technical_repeat) as in the contrast above,
+    though no contrast could be tested; a test passes the gate when q <= 0.05 (fiberfeatures' gated
+    effect size). Features are ranked by the largest |d| among their passing contrasts (|d| above 20
+    counts as 20).
+    Not ranked because no contrast could be tested (10 features): AR (only one technical repeat
+      (technical_repeat) with observations on one side: its fields cannot stand in for technical
+      repeats, so there is no test), Area (only one technical repeat (technical_repeat) with
+      observations on one side: its fields cannot stand in for technical repeats, so there is no
+      test), Circ. (only one technical repeat (technical_repeat) with observations on one side: its
+      fields cannot stand in for technical repeats, so there is no test), Feret (only one technical
+      repeat (technical_repeat) with observations on one side: its fields cannot stand in for
+      technical repeats, so there is no test), Major (only one technical repeat (technical_repeat)
+      with observations on one side: its fields cannot stand in for technical repeats, so there is no
+      test), MinFeret (only one technical repeat (technical_repeat) with observations on one side: its
+      fields cannot stand in for technical repeats, so there is no test), Minor (only one technical
+      repeat (technical_repeat) with observations on one side: its fields cannot stand in for
+      technical repeats, so there is no test), Perim. (only one technical repeat (technical_repeat)
+      with observations on one side: its fields cannot stand in for technical repeats, so there is no
+      test), Round (only one technical repeat (technical_repeat) with observations on one side: its
+      fields cannot stand in for technical repeats, so there is no test), Solidity (only one technical
+      repeat (technical_repeat) with observations on one side: its fields cannot stand in for
+      technical repeats, so there is no test).
+  Assumptions:
+    - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) treats
+      each biological repeat as one replicate and assumes the differences (raw) or the log ratios to
+      the control (normalised) are normally distributed and independent between biological repeats.
+      It keeps false positives at 5% when the effect varies between biological repeats, which the
+      cell-level test does not; the cost is power: with 3 biological repeats and 30 cells a well, d
+      1.5 is found in 98, 90 and 63% of experiments and d 1.0 in 85, 67 and 39% as biological
+      repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py);
+      Bonferroni-corrected over the conditions.
+    - Reagents of one target that go the same way in every repeat speak against an off-target effect
+      of one of them; this is described, not tested, since they share the control.
+    - Cell-level test (Cohen's d, randomization over the cells): it assumes the cells are
+      independent draws, so it asks whether these wells differ, not whether the effect repeats, and
+      it responds with one or two repeats. Limitation: when the difference varies between repeats it
+      gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n cells
+      per well, each repeat weighted by its share when they differ; s the SD between repeats in
+      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'without an effect'
+      column; more cells per well raise it, and a stricter cutoff does not remove it (22% at p ≤
+      0.01 with 30 per well and s = 0.5).
+    - Normalised: each value divided by the mean of its own repeat's control, which removes a scale
+      both wells of a repeat share (staining, imaging) and pairs every condition with its own
+      repeat's control. It assumes a positive feature on a ratio scale (not computed when a control
+      mean is 0 or below); it does not remove the part of the effect that varies between repeats, so
+      the cell-level chance still applies.
+    - Balanced: the median d and median p over 100 draws taking the same number of cells from each
+      repeat, against the control of the condition's own repeats; it describes the typical draw and
+      is not the p of one test. In data/simulations/unbalanced.py, with one repeat holding 2 to 8
+      times the cells of the others, the test as provided gives 22-46% false positives where equal
+      repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control pooled from
+      repeats the condition was not imaged in, the raw test as provided gives 46% even when the
+      repeats agree, the balanced test 2%. Balancing removes the weight of the repeats holding more,
+      not the independence assumption.
+    - Within a repeat the conditions are described by their effect sizes; they are tested across
+      repeats (the first table).
+    - The test and the effect sizes compare means: a difference confined to a subpopulation of cells
+      or to the shape of the distribution is not tested (see the unusual cells and the rare label).
+    - The fields a side per repeat are the most any repeat needs, projected from its interval of d
+      (narrowing as 1/sqrt(fields)); limited by: whether the repeats' d differ more than their
+      sampling error, which more fields cannot reduce. Both are estimated from the repeats here, so
+      the plan is a guide.
+
+What this dataset cannot tell me
+  ➖ Foundation: why count fields, and not only objects?: not assessed; needs: run fov_variability
+     (and object_rule_check or descriptor_spread_check) from morphocoverage.sampling_unit.
+  ➖ 1. Can these features detect what I care about?: not assessed; needs: declare a positive control
+     (and a reference) with representation_control.
+  ➖ 3. What is limiting my sampling?: not assessed; needs: run representation_control,
+     fov_variability, fov_clustering, effort_projection, redundancy_distance or inspect_fovs; the
+     profile lists what they measured.
+  ❌ Data integrity: the checks in the overview name 2 fields in 1 finding (fields that hold another
+     field's observations, or their own twice), and every answer counts them as independent fields.
+  ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
+     and this definition of new cannot see.
+  ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
+     redundancy and dispersed orders were not assessed.
+  ⚠️ No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
+     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
+     not seen.
+  ⚠️ 2. Did I image enough? 'nothing new' is left out: the definition of new needs 3 similar cells
+     in one field, and each field holds one.
+  Assumptions:
+    - Every answer holds for the stated features, tolerances and definition of new.
+    - Replays, draws and hold-outs describe these samples; they are not independent experiments.
+      Statements across samples count samples or repeats.
+    - A field count that preserved this acquisition is not a protocol until it holds on samples it
+      was not chosen on.
+    - Technical drift between repeats, batches or plates is not assessed: groups are analysed apart,
+      and a shift shared by all fields of a group is not new within it.
+
+Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.

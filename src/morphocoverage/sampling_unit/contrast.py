@@ -20,15 +20,15 @@ pooled within the repeat, and the summary says so):
   means that do not vary within either side but differ between them are a
   perfect separation, an infinite d (as ``feature_ranking`` scores it);
 - **Cohen's d on technical-repeat means**, when the fields have a unit they
-  share and each side holds at least two: one value per unit, the level at
+  share and each side holds more than ``FEW_UNITS_D`` (3; from fewer means a d
+  can be very large by chance, so it is not computed): one value per unit, the level at
   which a well-to-well shift counts once. The unit (``_units.resolve_unit``)
   is the MorphoBricks ``technical_repeat`` column (a well, a dish), or the
   column ``technical_col`` names, whatever ``group_cols`` says (analysis
   groups that pool technical repeats are split by it); without it, the
   analysis group when ``group_cols`` hold a column beyond the condition and
   the repeat (``well``, ``Metadata_Well``) nested within condition x repeat
-  with more than one value in some condition. With three or fewer units a
-  side the summary says the d is unstable;
+  with more than one value in some condition;
 - **a randomization test over whole units**: condition labels are shuffled
   ``n_permutations`` times over the units of the repeat when both sides hold
   at least two (each keeps its fields together); the statistic is the
@@ -72,17 +72,24 @@ independent repeats to generalize.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from .._checks import as_count
+from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..metadata import (
+    MORPHOBRICKS_GROUP_COLUMNS,
+    REPEAT_COLUMN,
+    TARGET_COLUMN,
+    TECHNICAL_REPEAT_COLUMN,
+)
 from ..statistics import cohen_d, field_sample, fields_holding, jcs_effect_size
 from ._common import groups, validated
+from ._reach import reachable
 from ._units import (
     FIELD,
     check_arguments,
@@ -97,8 +104,12 @@ from ._units import (
     sides,
     unit_means,
 )
-from .contrast_text import NO_CONTROL, contrast_summary
+from .contrast_cells import CELL_COLUMNS, cell_table
+from .contrast_repeats import REPEAT_COLUMNS, TARGET_COLUMNS, across_repeats, reagent_agreement
+from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
+from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
+from .repeat_plan import PLAN_COLUMNS, repeat_plan
 
 DEFAULT_OBJECT_COUNTS = (50, 100, 200, 500)
 
@@ -118,7 +129,11 @@ class ConditionContrast:
       (``p_exact``: every assignment enumerated), the smallest p-value the
       test can give (``p_floor``), the JCS effect size from every object
       (``effect_full``), and ``status`` (``"ok"``, or why there is no test;
-      the effect sizes are computed either way).
+      the effect sizes are computed either way); and for question 2, whether the
+      fields acquired resolve the difference (``contrast_sampling``: ``d_low``
+      and ``d_high``, the 95% bootstrap interval of ``d_objects`` over whole
+      fields; ``resolved``; ``fields_to_resolve`` per side when not;
+      ``too_small`` when that is beyond a practical number of fields).
     - ``effects``: one row per repeat, condition, sampling and object count:
       the median and interquartile band of the JCS effect size over the draws,
       the share of draws with the sign of ``effect_full``, and for whole
@@ -129,11 +144,43 @@ class ConditionContrast:
     - ``settings``: the arguments, with ``unit`` (what the test shuffles
       beyond fields, ``None`` without one), ``unit_note`` (why a group column
       was not used as the unit) and ``fields_independent``.
+    - ``repeats``: one row per condition and control across the biological
+      repeats, the repeat as the replicate (``contrast_repeats.across_repeats``):
+      the repeats holding both sides, how many have the condition below or above
+      the control (``lower``, ``higher``), the mean difference of the repeat
+      means, the mean and range of the per-repeat ``d_objects``, an exact
+      sign-flip test and a paired t-test on the repeat means, raw and on the log
+      ratios to the control (``p_paired_t_normalised``), each
+      Bonferroni-corrected, with the sign-flip test's smallest possible p
+      (``p_sign_flip_floor``) and ``status``. Empty without repeats kept apart.
+      The per-repeat ``table`` holds each side's ``mean`` of the observations.
+    - ``plan``: the next experiment planned from these repeats
+      (``repeat_plan``): per condition, the mean per-repeat d, the variation
+      between repeats, and the repeats a paired test needs with the fields a
+      side acquired and with twice as many; with one repeat, why it cannot be
+      planned yet. Empty without repeats kept apart.
+    - ``targets``: with the FOV table's ``target`` column (``target_col``),
+      one row per target with two or more reagents: in how many repeats all
+      of them are on the same side of the control (``reagent_agreement``).
+    - ``cells``: the lab's Plot&Stats test, one row per condition, pooled as
+      provided (``contrast_cells``): Cohen's d on every observation against
+      every control observation, the randomization p over observations and its
+      Bonferroni correction over the conditions, on raw and on normalised
+      values (``*_normalised``: divided by the own repeat's control mean), and
+      the chance it gives
+      p <= 0.05 without an effect given the variation between repeats
+      (``chance_low``/``chance_high``, a range when one repeat cannot estimate it);
+      the balance check (``unbalanced``, ``sparse_repeats``) and, when unbalanced,
+      the same test balanced over the repeats (``d_balanced``, ``p_balanced``).
     """
 
     table: pd.DataFrame
     effects: pd.DataFrame
     settings: dict[str, Any]
+    repeats: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=REPEAT_COLUMNS))
+    plan: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=PLAN_COLUMNS))
+    targets: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=TARGET_COLUMNS))
+    cells: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=CELL_COLUMNS))
 
     def summary(self, detail: str = "short") -> str:
         """The contrasts in a table and the draws in another, each caveat once
@@ -234,6 +281,7 @@ def _effect_rows(
     return rows
 
 
+@one_warning
 def condition_contrast(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -251,6 +299,7 @@ def condition_contrast(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     fields_independent: bool = False,
+    target_col: str | None = TARGET_COLUMN,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
@@ -269,8 +318,12 @@ def condition_contrast(
     ``group_cols``) is the unit; without either, there is no randomization
     test unless ``fields_independent=True`` declares the fields independent
     draws, when whole fields are shuffled. ``object_counts`` are the JCS
-    sample sizes; counts above what a side holds are left out.
+    sample sizes; counts above what a side holds are left out. ``target_col``
+    names what each condition acts on (default the ``target`` column, when the
+    FOV table has it): the reagents of one target are then said to agree or
+    not across the repeats.
     """
+    control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
     n_permutations, random_state = check_arguments(
@@ -308,10 +361,14 @@ def condition_contrast(
         return ConditionContrast(pd.DataFrame(), pd.DataFrame(), settings)
 
     rows, effect_rows = [], []
+    # The cell-level test pools every repeat as provided: each condition's observations, and
+    # every control observation once per repeat.
+    pooled: dict[Any, dict[str, Any]] = {}
+    control_cells: dict[Any, np.ndarray] = {}
     for repeat, condition in contrasts:
         treated, controls = sides(described, repeat, condition)
         base = {
-            "repeat": repeat,
+            REPEAT_COLUMN: repeat,
             "condition": condition,
             "control_condition": control_label(described, controls) or str(control[condition_col]),
         }
@@ -327,7 +384,8 @@ def condition_contrast(
         test = randomization_test(
             t_units, c_units, unit, n_permutations, rng, bool(fields_independent)
         )
-        by_unit = min(test["technical"], test["control_technical"]) >= 2
+        units = min(test["technical"], test["control_technical"])
+        by_unit = units >= 2
         row = {
             **base,
             "fields": t_acquired,
@@ -335,29 +393,102 @@ def condition_contrast(
             "control_fields": c_acquired,
             "control_observations": len(c_objects),
             **test,
+            "mean": float(t_objects.mean()) if len(t_objects) else np.nan,
+            "control_mean": float(c_objects.mean()) if len(c_objects) else np.nan,
             "d_objects": cohen_d(t_objects, c_objects),
             "d_technical": (
-                separation_d(unit_means(t_units), unit_means(c_units)) if by_unit else np.nan
+                separation_d(unit_means(t_units), unit_means(c_units))
+                if units > FEW_UNITS_D
+                else np.nan
             ),
             "p_bonferroni": np.nan,
             "effect_full": jcs_effect_size(t_objects, c_objects),
         }
+        control_cells.setdefault(repeat, c_objects)
+        side = pooled.setdefault(
+            condition,
+            {
+                "treated_by_repeat": {},
+                "control_by_repeat": {},
+                "control_condition": base["control_condition"],
+            },
+        )
+        side["treated_by_repeat"][repeat] = t_objects
+        side["control_by_repeat"][repeat] = c_objects
+        # Question 2 with a control: do the fields acquired resolve this difference? Its own
+        # generator, so the draws below are unchanged.
+        own = group_rng(random_state, {**base, "question": "enough"})
+        row.update(sampling_row(t_units, c_units, row["d_objects"], own))
         rows.append(row)
         # The effect sizes do not depend on the test: computed for every contrast.
         resampled = unit if by_unit else None
         effect_rows += _effect_rows(
             base, t_units, c_units, resampled, counts, n_draws, row["effect_full"], rng
         )
-    table = pd.DataFrame(rows)[_COLUMNS]
+    table = _without_unreachable(pd.DataFrame(rows)[_COLUMNS])
     tested = table["p_value"].notna()
     table["p_bonferroni"] = np.where(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
-    return ConditionContrast(table, pd.DataFrame(effect_rows), settings)
+    repeats = across_repeats(table, repeat_col, random_state)
+    plan = repeat_plan(table) if repeat_col is not None else pd.DataFrame(columns=PLAN_COLUMNS)
+    agreement = reagent_agreement(table, _targets(fovs, condition_col, target_col))
+    for side in pooled.values():
+        side["control_all"] = control_cells
+    cells = (
+        cell_table(
+            pooled,
+            plan,
+            n_permutations,
+            lambda condition, values: group_rng(
+                random_state, {"condition": condition, "test": "cells", "values": values}
+            ),
+        )
+        if pooled
+        else pd.DataFrame(columns=CELL_COLUMNS)
+    )
+    settings["target_col"] = target_col if len(agreement) else None
+    return ConditionContrast(
+        table, pd.DataFrame(effect_rows), settings, repeats, plan, agreement, cells
+    )
+
+
+def _targets(fovs: pd.DataFrame, condition_col: str, target_col: str | None) -> dict:
+    """Each condition's target, from the FOV table (empty without the column); a condition
+    naming two targets is an error, since its reagents could not be grouped."""
+    if target_col is None or target_col not in fovs.columns:
+        return {}
+    named = fovs.dropna(subset=[target_col])
+    per = named.groupby(condition_col)[target_col].unique()
+    several = [str(c) for c, values in per.items() if len(values) > 1]
+    if several:
+        raise ValueError(
+            f"the {target_col!r} column names more than one target for condition "
+            f"{several[0]!r}: give each condition one target"
+        )
+    return {condition: values[0] for condition, values in per.items()}
+
+
+# Why a test is not run when the design cannot make it informative.
+UNREACHABLE = (
+    "too few technical repeats on a side for the randomization test to reach p ≤ 0.05 after "
+    "the Bonferroni correction, so it is not run"
+)
+
+
+def _without_unreachable(table: pd.DataFrame) -> pd.DataFrame:
+    """The per-repeat table with the tests that cannot help set aside (``UNREACHABLE``):
+    with 2 technical repeats a side the exact test's smallest p is 1/3, so it is not run."""
+    tested = table["p_value"].notna()
+    drop = tested & ~reachable(table["p_floor"].where(tested))
+    table.loc[drop, ["p_value", "p_bonferroni"]] = np.nan
+    table.loc[drop, "p_exact"] = False
+    table.loc[drop, "status"] = UNREACHABLE
+    return table
 
 
 _COLUMNS = [
-    "repeat",
+    REPEAT_COLUMN,
     "condition",
     "control_condition",
     "fields",
@@ -366,6 +497,8 @@ _COLUMNS = [
     "control_observations",
     "technical",
     "control_technical",
+    "mean",
+    "control_mean",
     "d_objects",
     "d_fields",
     "d_technical",
@@ -376,6 +509,7 @@ _COLUMNS = [
     "p_exact",
     "p_floor",
     "effect_full",
+    *SAMPLING_COLUMNS,
     "status",
 ]
 _NO_TEST = {
@@ -385,6 +519,8 @@ _NO_TEST = {
     "control_observations": 0,
     "technical": 0,
     "control_technical": 0,
+    "mean": np.nan,
+    "control_mean": np.nan,
     "d_objects": np.nan,
     "d_fields": np.nan,
     "d_technical": np.nan,
@@ -395,7 +531,12 @@ _NO_TEST = {
     "p_exact": False,
     "p_floor": np.nan,
     "effect_full": np.nan,
+    "d_low": np.nan,
+    "d_high": np.nan,
+    "resolved": False,
+    "fields_to_resolve": np.nan,
+    "too_small": False,
 }
 
 
-__all__ = ["ConditionContrast", "condition_contrast"]
+__all__ = ["UNREACHABLE", "ConditionContrast", "condition_contrast"]

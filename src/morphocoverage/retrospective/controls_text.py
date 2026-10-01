@@ -25,7 +25,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._style import check_detail, group_columns, group_label, table, wrap
-from .._wording import count
+from .._wording import column_word, count
 from ._text import percent, unit_plural
 
 if TYPE_CHECKING:
@@ -58,9 +58,9 @@ def _stratum(entry: Mapping[str, Any], pair_cols: tuple[str, ...]) -> str:
 
 
 def named_stratum(entry: Mapping[str, Any], pair_cols: tuple[str, ...]) -> str:
-    """``repeat 2B`` (one pairing column, named), else the stratum's values."""
+    """``biological repeat 2B`` (one pairing column, in words), else the stratum's values."""
     if len(pair_cols) == 1 and pair_cols[0] in entry:
-        return f"{pair_cols[0]} {entry[pair_cols[0]]}"
+        return f"{column_word(pair_cols[0])} {entry[pair_cols[0]]}"
     return _stratum(entry, pair_cols)
 
 
@@ -165,7 +165,8 @@ def _by_stratum(result: ControlResult) -> str | None:
     for row in by.to_dict("records"):
         judged = "not judged" if pd.isna(row["rate"]) else percent(row["rate"])
         parts.append(f"{_stratum(row, pair_cols)} {judged}")
-    return f"By {group_columns(pair_cols)}, positive-control fields recognized: {', '.join(parts)}."
+    words = " · ".join(column_word(c) for c in pair_cols)
+    return f"By {words}, positive-control fields recognized: {', '.join(parts)}."
 
 
 def _not_assessed(result: ControlResult) -> str:
@@ -191,7 +192,8 @@ def _lead(result: ControlResult) -> str:
     control = result.settings.get("control") or {}
     positive, reference = _selected(control.get("positive")), _selected(control.get("reference"))
     against = f"{positive} against {reference}" if positive and reference else positive
-    paired = f", within each {group_columns(result.pair_cols)}" if result.pair_cols else ""
+    words = " · ".join(column_word(c) for c in result.pair_cols)
+    paired = f", within each {words}" if result.pair_cols else ""
     declared = f" ({against}{paired})" if against else ""
     return f"Can these features see the declared phenotype{declared}?"
 

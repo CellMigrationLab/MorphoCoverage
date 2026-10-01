@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import check_seed, is_integer, is_number
+from .._former_repeat import read_fields
 from .._parallel import check_n_jobs
 from .._wording import rate
 from ..metadata import (
@@ -106,6 +107,7 @@ class PositiveControl:
             if isinstance(self.pair_cols, str):
                 raise TypeError("pair_cols must be a sequence of column names, not a string")
             object.__setattr__(self, "pair_cols", tuple(self.pair_cols))
+        read_fields(self, "selector", "pair_cols")  # the former name ``repeat``
 
     def resolved_pair_cols(self, fovs: pd.DataFrame) -> tuple[str, ...]:
         """``pair_cols`` as declared; by default the repeat column when the FOV table has one."""
@@ -248,6 +250,7 @@ class Setup:
             if isinstance(self.group_cols, str):
                 raise TypeError("group_cols must be a sequence of column names")
             object.__setattr__(self, "group_cols", tuple(self.group_cols))
+        read_fields(self, "control", "fov_col", "group_cols", "effort_strata")  # ``repeat``
         if self.rules is not None:
             object.__setattr__(self, "rules", tuple(self.rules))
         if not isinstance(self.fields_independent, (bool, np.bool_)):

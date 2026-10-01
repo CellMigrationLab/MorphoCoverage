@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,split,order_id,order,strategy,config_id,first_apparent,sustained_apparent,stream_fovs,first_realized,sustained_realized,judged_fovs,last_judged
+condition,biological_repeat,technical_repeat,split,order_id,order,strategy,config_id,first_apparent,sustained_apparent,stream_fovs,first_realized,sustained_realized,judged_fovs,last_judged
 MOCK,1A,B6,0,recorded,recorded,scalar_precision_object,da039b1b4339adc1,2,2,18,1,1,18,18
 MOCK,1A,B6,0,recorded,recorded,scalar_precision_fov,a31ed4460a1a4e40,3,3,18,1,1,18,18
 MOCK,1A,B6,0,recorded,recorded,fixed_fov,c98993127110c360,4,4,18,1,1,18,18

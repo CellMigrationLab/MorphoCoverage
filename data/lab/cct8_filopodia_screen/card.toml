@@ -1,0 +1,138 @@
+# Facts about the stored tables; every sentence from the paper is quoted with its source.
+# DATASET.md is generated from this card (python data/lab/catalog.py render cct8_filopodia_screen).
+
+id = "cct8_filopodia_screen"
+title = "Filopodia per cell after siRNA silencing of six MYO10-proximal candidates (CCT8 paper, Fig. 2C)"
+curator = "Claude (on behalf of Guillaume Jacquemet)"
+created = "2026-09-30"
+verified_by = ""        # the owner, after checking the quotes and the mapping
+verified_on = ""
+contract_version = "2026-09-biological_repeat"
+role = "development"
+observation_unit = "cell"
+feature_cols = ["Filopodia number"]
+readout = "Filopodia number"
+control = { condition = "siCTRL" }
+
+[source]
+repository = "Zenodo"
+record = "20704995"
+doi = "10.5281/zenodo.20704995"
+concept_record = "17779714"
+licence = "CC-BY-4.0"
+retrieved = "2026-09-30"
+archive = "Fig2 and FigS2.zip"
+archive_md5 = "354a7ffd888bcb55e193bd7c6f9ae697"
+member = "Fig2 and FigS2/Fig2C filopodia numbers after silencing/FILOPODIA NUMBER ALL.xlsx"
+member_sha256 = "4efb5c9913a47ad1f40be801ab12932ffdd697db4db6893b75b30cebfdb17b56"
+member_columns = ["Condition", "Filopodia number", "Repeat", "dataset"]
+also_in_archive = "Stats/ (the paper's summary, Cohen's d and randomization-test tables for this panel), PlotsOfData figures, representative images"
+provided_by_owner = "the same spreadsheet (identical sha256), 2026-09-30"
+
+[publication]
+doi = "10.1242/jcs.265278"
+preprint_doi = "10.64898/2025.12.03.691809"
+citation = "CCT8 associates with the MYO10 motor domain and regulates filopodia and breast cancer cell invasion. Journal of Cell Science (2026)"
+version_quoted = "revised manuscript for JCS provided by the owner (clean copy), 2026-09-30"
+figure = "Fig. 2C (images: Fig. 2B; knockdown validation: Fig. S2B-G)"
+things_done_ledger = "ledger/publications/2026.yaml (doi 10.1242/jcs.265278)"
+
+[biology]
+cells = "U-87 MG glioblastoma cells stably expressing MYO10-GFP"
+conditions = "siCTRL (AllStars negative control) and two independent siRNAs for each of MAP4K4, MINK1, NF2, SCRIB, CSNK1A1 and CCT8"
+control = "siCTRL, run within each experimental set"
+positive_control = "none declared"
+human_material = "established cell line (U-87 MG, ATCC HTB-14); no patient-derived material"
+animal_material = "none"
+ethics_statement = "not applicable"
+identifiers_screened = "yes: the tables hold siRNA names, set names, repeat numbers and counts only"
+
+[acquisition]
+microscope = { value = "spinning-disk confocal (Marianas, Yokogawa CSU-W1, Zeiss Axio Observer Z1)", quote = "To quantify filopodia, images were captured on a spinning-disk confocal microscope with a 100× objective, and filopodia per cell were manually counted.", source = "Methods (owner's manuscript copy)" }
+objective = "100×/1.4 NA oil (Zeiss Plan-Apochromat)"
+sample = { value = "cells plated on fibronectin-coated coverslips for 2 h, then fixed", quote = "After siRNA treatment, cells were plated on fibronectin-coated coverslips for 2 hours, then fixed and imaged using a spinning-disk confocal microscope.", source = "Fig. 2 legend" }
+field_selection = "operator: the operator chose the cells to image, one per field (owner's statement, 2026-09-30); not stated in the paper"
+fields = "one cell per field (owner's statement, 2026-09-30); the image of each cell is not in the deposit"
+stage_coordinates = "not recorded"
+acquisition_order = "not recorded (the spreadsheet order is kept as source_row, not as an acquisition order)"
+concurrent_acquisition = "no (fixed samples)"
+
+[analysis_in_paper]
+pipeline = "manual counting of MYO10-positive filopodia per cell"
+filters = "not stated"
+normalisation = "none (raw counts)"
+statistics = { value = "randomization test with Cohen's d, 10,000 iterations, Bonferroni-corrected; cells as the unit; siCTRL pooled over the six sets", quote = "Randomization tests used Cohen's d as the effect-size metric, with 10,000 iterations per test.", source = "Methods, Statistical analysis; the pooling from the Fig. 2 legend and the deposit's Stats/ tables" }
+
+[design]
+experiment = "the experimental set, one per targeted gene (source column 'dataset'); each has its own siCTRL"
+condition = "the siRNA (source column 'Condition')"
+biological_repeat = "'<set>_<Repeat>': repeat 1-3 within each set; repeat 1 of one set is not repeat 1 of another (each set was run as its own experiment: owner's statement, 2026-09-30)"
+technical_repeat = "single: one coverslip per siRNA per biological repeat (owner's statement, 2026-09-30); rules out any test that needs technical repeats within a biological repeat"
+field = "one cell per field (owner); position_id is synthetic ('<set>|<siRNA>|<repeat>|cellNNN', numbered in spreadsheet order); image_file is 'unrecorded'"
+observation = "one cell; label_id = 1"
+fov_table_source = "one field per cell (owner's statement); empty fields: not applicable (fields were images of chosen cells)"
+non_features = ["source_row", "label_id"]
+
+[design.counts]
+experiments = 6
+conditions = 13
+biological_repeats = 18
+cells = 1686
+cells_per_condition = "76-113 (siCTRL: 84-104 per set, 555 pooled)"
+cells_per_condition_and_repeat = "13-49"
+
+[columns]
+renamed = { Condition = "condition", dataset = "experiment", Repeat = "biological_repeat (as '<set>_<Repeat>')" }
+added = ["target (the gene the siRNA silences; non-targeting for siCTRL)", "technical_repeat (single)", "image_file (unrecorded)", "position_id (synthetic)", "label_id (1)", "source_row (spreadsheet row, 1 = header)"]
+features = { "Filopodia number" = "MYO10-positive filopodia counted per cell (count)" }
+
+[[claims]]
+figure = "Fig. 2C"
+claim = "Silencing MINK1, CSNK1A1, SCRIB or CCT8 reduced the number of MYO10-positive filopodia per cell"
+quote = "depletion of MINK1 (~80% efficiency), CSNK1A1 (~80% efficiency), SCRIB (~80–90% efficiency), or CCT8 (~75% efficiency) significantly reduced the number of MYO10-positive filopodia (Fig. 2B and 2C)."
+quote_source = "Results, owner's manuscript copy"
+stated_n = "n = 76-113 cells per condition, three biological repeats; the siCTRL condition pools data from 6 experimental sets"
+stated_test = "randomization test (Cohen's d, 10,000 iterations), Bonferroni-corrected, against pooled siCTRL"
+direction = "decrease"
+reproduction = { status = "match", value = "all 8 siRNAs: Cohen's d 0.51-1.24 against pooled siCTRL, identical to the deposit's Stats table to 4 decimals; randomization p < 1e-4 for each; means 30.6-45.5 against 56.9", note = "also lower than their own set's siCTRL in every one of the 3 repeats" }
+
+[[claims]]
+figure = "Fig. 2C"
+claim = "Silencing MAP4K4 or NF2 did not significantly alter filopodia number"
+quote = "While silencing MAP4K4 (~85% efficiency) or NF2 (~87% efficiency) did not significantly alter filopodia number"
+quote_source = "Results, owner's manuscript copy"
+stated_n = "as above"
+stated_test = "as above"
+direction = "no change"
+reproduction = { status = "partly", value = "siMAP4K4#5 d 0.10 (Bonferroni p 1.0), siNF2#7 d 0.23 and siNF2#17 d 0.19 (Bonferroni p 1.0): no significant change against pooled siCTRL; but siMAP4K4#6 d 0.50, mean 68.2 against 56.9, Bonferroni p 0.0078 (an increase), as in the deposit's Stats table", note = "the claim holds if a hit needs both siRNAs; against each set's own siCTRL, both MAP4K4 siRNAs and both NF2 siRNAs are higher in all 3 repeats (MAP4K4 set siCTRL mean 42.0 against the pooled 56.9). To discuss with the owner; not a correction of the paper." }
+
+[[claims]]
+figure = "Fig. 2C (legend)"
+claim = "Cell counts per condition and pooled control"
+quote = "n = 76-113 cells per condition, three biological repeats); the siCTRL condition pools data from 6 experimental sets."
+quote_source = "Fig. 2 legend, owner's manuscript copy"
+stated_n = "76-113 cells per condition"
+stated_test = ""
+direction = ""
+reproduction = { status = "match", value = "76-113 cells per siRNA; 555 pooled siCTRL cells; 3 repeats in every set; counts, means and SDs identical to the deposit's summary table", note = "" }
+
+[hypotheses]
+written = "2026-09-30, before any MorphoCoverage run"
+items = [
+  "Within each set and repeat, the per-cell rules should judge the counts precise with few cells: the per-object JCB rule at 5% should be met in every condition and repeat.",
+  "With fields = cells, the field-level design effect should be about 1, so objects and fields should agree (no clustering by construction).",
+  "The condition contrast (each siRNA against its own set's siCTRL, within each repeat) cannot be tested: one coverslip per siRNA and repeat (one unit per side). MorphoCoverage should say so, and report effect sizes and their direction per repeat instead.",
+  "Direction per repeat: decreases for CCT8, CSNK1A1, MINK1 and SCRIB in 3/3 repeats; increases for MAP4K4 and NF2 in 3/3 repeats against their own set's control.",
+  "Pooling siCTRL across sets (as the figure does) hides the set-to-set difference in control level (42-65 filopodia per cell); the per-set pairing should expose it.",
+]
+
+[[caveats]]
+text = "One cell per field is the owner's statement; the images and their names are not in the deposit, so field identities are synthetic."
+[[caveats]]
+text = "One coverslip per siRNA and repeat (technical repeat 'single'): no test within a biological repeat is possible; cells are not independent replicates."
+[[caveats]]
+text = "Cells were chosen by the operator and counted manually (the paper states no selection rule): a chosen, not random, sample of cells."
+[[caveats]]
+text = "Counts are integers (7-178): quantized features can trip exact-copy and novelty checks by coincidence."
+[[caveats]]
+text = "The figure pools siCTRL across the six sets; these tables keep each set's control, so numbers against 'the control' depend on the choice."

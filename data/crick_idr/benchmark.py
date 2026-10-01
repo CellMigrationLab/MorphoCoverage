@@ -53,7 +53,10 @@ from morphocoverage.strategies import (
 from morphocoverage.transforms import Standardize
 
 LOCK = Path(__file__).resolve().parent / "benchmark_protocol.lock"
-GROUPS = ["condition", "repeat", "technical_repeat"]
+GROUPS = ["condition", "biological_repeat", "technical_repeat"]
+# The locked protocol names the plate by the MorphoBricks name of its time, "repeat";
+# the column is now "biological_repeat". Mapped here, so the locked digest stays valid.
+PROTOCOL_COLUMNS = {"repeat": "biological_repeat"}
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 READOUT = {"idr0028_screenB": YAPTAZ_RATIO, "idr0139": FASCIN_RATIO}
 
@@ -173,7 +176,7 @@ def run_mean() -> tuple[list[str], list[pd.DataFrame]]:
                 families,
                 criterion=criterion.name,
                 alphas=PROTOCOL["alphas"],
-                unit_cols=settings["unit_cols"],
+                unit_cols=[PROTOCOL_COLUMNS.get(c, c) for c in settings["unit_cols"]],
                 n_boot=PROTOCOL["n_boot"],
                 random_state=PROTOCOL["random_state"],
                 label=criterion.label,
@@ -198,9 +201,11 @@ def _planted_tables(question: dict):
     rng = np.random.default_rng(PROTOCOL["random_state"])
     object_parts, fov_parts = [], []
     for plate, host, donor in question["design"]:
-        in_host = (fovs["repeat"] == plate) & (fovs["technical_repeat"] == host)
+        in_host = (fovs["biological_repeat"] == plate) & (fovs["technical_repeat"] == host)
         host_fovs = fovs[in_host].reset_index(drop=True)
-        donor_cells = objects[(objects["repeat"] == plate) & (objects["technical_repeat"] == donor)]
+        donor_cells = objects[
+            (objects["biological_repeat"] == plate) & (objects["technical_repeat"] == donor)
+        ]
         donor_blocks = [block for _, block in donor_cells.groupby("image_file")]
         usable = [b for b in donor_blocks if len(b) >= question["planted_objects"]]
         xy = host_fovs[["stage_x_um", "stage_y_um"]].to_numpy(float)
@@ -217,7 +222,7 @@ def _planted_tables(question: dict):
                     fov_parts.append(host_fovs.assign(**group, planted_fov=planted))
                     for fov, plant in zip(host_fovs["image_file"], planted, strict=True):
                         cells = objects[
-                            (objects["repeat"] == plate) & (objects["image_file"] == fov)
+                            (objects["biological_repeat"] == plate) & (objects["image_file"] == fov)
                         ]
                         object_parts.append(cells.assign(**group, planted=False))
                         if plant:

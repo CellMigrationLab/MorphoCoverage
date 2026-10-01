@@ -19,7 +19,7 @@ import pandas as pd
 
 MORPHOBRICKS_SHARED_COLUMNS = (
     "condition",
-    "repeat",
+    "biological_repeat",
     "technical_repeat",
     "position_id",
     "image_file",
@@ -29,9 +29,13 @@ MORPHOBRICKS_SHARED_COLUMNS = (
 # Default analysis groups and FOV identity, outermost first: the condition, the
 # biological repeat and, when present, the technical repeat (a well, a dish, a
 # coverslip within a repeat; optional in the shared contract). Each is used
-# when its column exists in the linked tables.
-MORPHOBRICKS_GROUP_COLUMNS = ("condition", "repeat", "technical_repeat")
+# when its column exists in the linked tables. The biological repeat's former
+# name, ``repeat``, is still read, with a warning (``_former_repeat``).
+MORPHOBRICKS_GROUP_COLUMNS = ("condition", "biological_repeat", "technical_repeat")
 CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN = MORPHOBRICKS_GROUP_COLUMNS
+# Optional: what each condition acts on (the gene two siRNAs silence), so the report can say
+# whether independent reagents for one target agree. Not a grouping column.
+TARGET_COLUMN = "target"
 # Group columns the shared contract makes optional.
 OPTIONAL_GROUP_COLUMNS = (TECHNICAL_REPEAT_COLUMN,)
 # Optional shared columns that a producer writing every column (CellPatcher
@@ -255,7 +259,7 @@ def _tables(
     return tables
 
 
-# A copy of a column that pandas renamed on reading ("repeat.1" for a second "repeat").
+# A copy of a column that pandas renamed on reading ("condition.1" for a second "condition").
 _PANDAS_COPY = re.compile(r"\.\d+$")
 
 
@@ -275,10 +279,24 @@ def _plain_spelling(name: str) -> str:
     return re.sub(r"\s+", "", _PANDAS_COPY.sub("", name)).lower()
 
 
-# The canonical names by their squashed form, for ``canonical_spelling``.
-_CANONICAL_BY_SQUASHED = {
-    _squashed(name): name for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
-}
+# The canonical names by their squashed form, for ``canonical_spelling``, with the
+# short and former names of the repeats: ``bio_repeat`` or ``tech_rep`` would
+# otherwise be an ordinary column, and its repeats pooled. The exact former name
+# ``repeat`` is read as ``biological_repeat`` before any spelling is checked
+# (``_former_repeat``); its near misses (``Repeat``, ``repeats``) are refused.
+_CANONICAL_BY_SQUASHED = (
+    {_squashed(name): name for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)}
+    | {
+        _squashed(f"{prefix}{word}"): column
+        for column, prefixes in (
+            (REPEAT_COLUMN, ("bio", "biol", "biological")),
+            (TECHNICAL_REPEAT_COLUMN, ("tec", "tech", "technical")),
+        )
+        for prefix in prefixes
+        for word in ("repeat", "rep", "replicate")
+    }
+    | {"repeat": REPEAT_COLUMN}
+)
 # Other names of the within-field coordinates, by their squashed form: a plane,
 # channel or frame column under any of them would be read as an ordinary column,
 # so one file per plane would count as one field per plane.
@@ -298,9 +316,11 @@ def canonical_spelling(column: object) -> str | None:
     dots, camelCase or no separator for underscores, in a plural ``s``, in
     surrounding whitespace, in a byte-order mark that a spreadsheet wrote
     before the first header, or in the ``.1`` pandas gives a second column of
-    the same name (``Repeat``, ``technical repeat``, ``technical.repeat``,
+    the same name (``Biological_Repeat``, ``technical repeat``, ``technical.repeat``,
     ``technicalRepeat``, ``PositionID``, ``Conditions``, ``condition ``,
-    ``\ufeffcondition``, ``Repeat.1``). A near miss of a within-field
+    ``\ufeffcondition``, ``Repeat.1``), or is a short or former name of a repeat
+    (``bio_repeat``, ``biological replicate``, ``tec_repeat``, ``tech_rep``; ``Repeat``
+    or ``repeats`` for the former ``repeat``). A near miss of a within-field
     coordinate (``z``, ``z0``, ``z1``, ``c``, ``t``) differs only in case or
     whitespace (``Z``, ``T ``), or is one of its other names (``plane``,
     ``slice``, ``channel``, ``frame``, ``timepoint``, ...). Either may carry
@@ -355,7 +375,10 @@ def near_miss_advice(column: str, meant: str) -> str:
             f"pandas names the second of two {base!r} columns {column!r}: keep one of them"
             f"{rename}, or name it in group_cols/fov_col to use it as it is."
         )
-    return f"Rename it to {meant!r}, or name it in group_cols/fov_col to use it as it is."
+    return (
+        f"Did you mean {meant!r}? Rename it to {meant!r}, or name it in group_cols/fov_col "
+        "to use it as it is."
+    )
 
 
 def check_canonical_spellings(
@@ -536,6 +559,7 @@ __all__ = [
     "MORPHOBRICKS_SHARED_COLUMNS",
     "OPTIONAL_GROUP_COLUMNS",
     "REPEAT_COLUMN",
+    "TARGET_COLUMN",
     "TECHNICAL_REPEAT_COLUMN",
     "WITHIN_FOV_METADATA_COLUMNS",
     "attach_mapping",

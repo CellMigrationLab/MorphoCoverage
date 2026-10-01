@@ -1,4 +1,4 @@
-condition,repeat,technical_repeat,image_file,label_id,area,intensity,eccentricity,rare
+condition,biological_repeat,technical_repeat,image_file,label_id,area,intensity,eccentricity,rare
 control,2026_01_05,B02,field_01.tif,1,106.797,57.212,0.3138,False
 control,2026_01_05,B02,field_01.tif,2,87.999,54.021,0.4817,False
 control,2026_01_05,B02,field_01.tif,3,102.173,46.372,0.5087,False

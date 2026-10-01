@@ -64,6 +64,7 @@ from scipy import stats
 
 from .._caveats import caveat_lines
 from .._checks import as_count, check_seed
+from .._former_repeat import one_warning, read_former
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..bounds import interval
@@ -103,6 +104,7 @@ class FOVClustering:
         return "\n".join([*lines, *caveat_lines(cautions, indent=0, detail=detail)])
 
 
+@one_warning
 def fov_clustering(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -145,6 +147,7 @@ def fov_clustering(
     ``technical_repeats_holding`` (with a ``technical_repeat`` column). The
     clustering ratio and its test count every field with one of the objects.
     """
+    (reference,) = read_former(reference=reference)
     if not isinstance(label_col, str) or label_col not in objects.columns:
         raise ValueError(f"label_col {label_col!r} is not a column of objects")
     if not 0 < detection_probability < 1 or not 0 < confidence < 1:

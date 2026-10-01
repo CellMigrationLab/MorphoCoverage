@@ -49,7 +49,7 @@ def _fov_table(
     return pd.DataFrame(
         {
             "condition": condition,
-            "repeat": repeat,
+            "biological_repeat": repeat,
             "image_file": [f"img_{i:03d}.tif" for i in index],
             ORDER_COL: index + 1,
             "stage_x": (index % grid_width) * 100.0,
@@ -75,14 +75,21 @@ def _objects_for(
             rows.append(
                 {
                     "condition": fov.condition,
-                    "repeat": fov.repeat,
+                    "biological_repeat": fov.biological_repeat,
                     "image_file": fov.image_file,
                     "label_id": label_id,
                     "true_state": 0,
                     **dict(zip(FEATURE_COLS, value)),
                 }
             )
-    columns = ["condition", "repeat", "image_file", "label_id", "true_state", *FEATURE_COLS]
+    columns = [
+        "condition",
+        "biological_repeat",
+        "image_file",
+        "label_id",
+        "true_state",
+        *FEATURE_COLS,
+    ]
     return pd.DataFrame(rows, columns=columns)
 
 

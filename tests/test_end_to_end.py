@@ -36,7 +36,7 @@ from morphocoverage.workflows import (
 
 SYNTHETIC = Path(__file__).resolve().parents[1] / "data" / "synthetic"
 FEATURES = ("area", "intensity", "eccentricity")
-FIELD_KEY = ["condition", "repeat", "technical_repeat", "image_file"]
+FIELD_KEY = ["condition", "biological_repeat", "technical_repeat", "image_file"]
 
 
 def load() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
@@ -98,8 +98,8 @@ def test_the_checker_understands_the_tables(tables):
         f"{truth['counts']['empty_fields']} fields of the FOV table hold no observation."
     ]
     assert (
-        "A field is identified by 'image_file' within condition, repeat, technical_repeat."
-        in check.understood
+        "A field is identified by 'image_file' within condition, biological_repeat, "
+        "technical_repeat." in check.understood
     )
 
 
@@ -137,7 +137,7 @@ def test_a_fixed_count_above_the_acquired_fields_is_never_met(reported):
 def test_the_drug_effect_is_found_in_every_repeat_with_fields_as_the_unit(reported, tables):
     truth = tables[2]["truth"]
     contrast = reported.results["contrast"].table
-    assert list(contrast["repeat"]) == tables[2]["design"]["repeats"]
+    assert list(contrast["biological_repeat"]) == tables[2]["design"]["repeats"]
     assert (contrast["status"] == "ok").all()
     # Within a repeat the effect over the cell SD; 5 wells a side move it by about 0.2.
     assert (
@@ -172,7 +172,9 @@ def test_the_planted_rare_cells_are_unusual_and_clustered(reported, tables):
     assert unusual.labels[planted].all()  # every planted cell is far from the control
     clustering = fov_clustering(objects, tables[1], label_col="rare", states=[True])
     table = clustering.table
-    host = table[(table["repeat"] == rare["repeat"]) & (table["technical_repeat"] == rare["well"])]
+    host = table[
+        (table["biological_repeat"] == rare["repeat"]) & (table["technical_repeat"] == rare["well"])
+    ]
     assert int(host["state_objects"].iloc[0]) == tables[2]["counts"]["rare_cells"]
     assert int(host["fovs_with_state"].iloc[0]) == tables[2]["counts"]["rare_fields"]
     assert float(host["p_clustered"].iloc[0]) <= 0.05
@@ -233,4 +235,4 @@ def test_normalising_to_the_control_puts_every_control_mean_at_one(tables):
     setup = synthetic_setup(normalize="control_mean")
     prepared = setup.prepared(objects, fovs)
     control = prepared[prepared["condition"] == "control"]
-    assert np.allclose(control.groupby("repeat")["area"].mean(), 1.0)
+    assert np.allclose(control.groupby("biological_repeat")["area"].mean(), 1.0)

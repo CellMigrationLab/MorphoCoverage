@@ -138,7 +138,7 @@ def test_c2_a_plan_whose_samples_are_constant_is_refused():
     pilot = pd.DataFrame(
         {
             "condition": ["ctrl"] * 4 + ["drug"] * 4,
-            "repeat": ["r1", "r1", "r2", "r2"] * 2,
+            "biological_repeat": ["r1", "r1", "r2", "r2"] * 2,
             "image_file": ["p1", "p1", "p2", "p2", "p3", "p3", "p4", "p4"],
             "n_nuclei": [1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 3.0, 3.0],
         }
@@ -149,7 +149,7 @@ def test_c2_a_plan_whose_samples_are_constant_is_refused():
             feature="n_nuclei",
             target_cv=0.05,
             sd_estimate="upper_95",
-            sample_cols=["condition", "repeat"],
+            sample_cols=["condition", "biological_repeat"],
             control={"condition": "ctrl"},
         )
     # A hand-made plan of 0 objects cannot drive the strategy either.
@@ -164,7 +164,7 @@ def _area_plan():
     pilot = pd.DataFrame(
         {
             "condition": ["ctrl"] * 20 + ["drug"] * 20,
-            "repeat": "p",
+            "biological_repeat": "p",
             "image_file": [f"p{i // 5}" for i in range(40)],
             "area": rng.normal(100, 30, 40),
         }
@@ -174,7 +174,7 @@ def _area_plan():
         feature="area",
         target_cv=0.05,
         sd_estimate="point",
-        sample_cols=["condition", "repeat"],
+        sample_cols=["condition", "biological_repeat"],
         control={"condition": "ctrl"},
     )
 
@@ -187,13 +187,13 @@ def test_c3_the_planned_count_counts_measured_values_of_the_planned_feature():
     objects = pd.DataFrame(
         {
             "condition": "ctrl",
-            "repeat": "e",
+            "biological_repeat": "e",
             "image_file": [f"e{i % 4}" for i in range(n)],
             "area": area,
         }
     )
     fovs = pd.DataFrame(
-        {"condition": "ctrl", "repeat": "e", "image_file": [f"e{j}" for j in range(4)]}
+        {"condition": "ctrl", "biological_repeat": "e", "image_file": [f"e{j}" for j in range(4)]}
     ).assign(order=range(4))
     last = _replay(objects, fovs, PlannedObjectCountStrategy(plan))[-1].result
     assert last.n_observations == n
@@ -299,7 +299,7 @@ def test_c12_a_blank_sample_column_in_the_pilot_is_refused_with_a_reason():
     pilot = pd.DataFrame(
         {
             "condition": ["ctrl"] * 6 + ["drug"] * 6,
-            "repeat": "r1",
+            "biological_repeat": "r1",
             "well": ["A1", "A1", "A1", "A2", "A2", np.nan] + ["B1"] * 3 + ["B2"] * 3,
             "image_file": [f"p{i}" for i in range(12)],
             "area": [10, 12, 11, 9, 13, 30, 20, 22, 21, 19, 23, 18.0],
@@ -311,7 +311,7 @@ def test_c12_a_blank_sample_column_in_the_pilot_is_refused_with_a_reason():
             feature="area",
             target_cv=0.05,
             sd_estimate="point",
-            sample_cols=["condition", "repeat", "well"],
+            sample_cols=["condition", "biological_repeat", "well"],
             control={"condition": "ctrl"},
         )
 

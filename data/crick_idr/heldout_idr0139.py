@@ -84,7 +84,7 @@ def main() -> None:
 
     protocol = protocol_reliability(
         reliability,
-        SamplingHierarchy("image_file", "technical_repeat", "repeat"),
+        SamplingHierarchy("image_file", "technical_repeat", "biological_repeat"),
         threshold=0.9,
         strata=[],
     )

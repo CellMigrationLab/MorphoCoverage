@@ -75,7 +75,7 @@ def test_sequential_runner_uses_morphobricks_defaults():
     objects = pd.DataFrame(
         {
             "condition": ["control", "control", "drug"],
-            "repeat": ["R1", "R1", "R1"],
+            "biological_repeat": ["R1", "R1", "R1"],
             "image_file": ["c1.tif", "c2.tif", "d1.tif"],
             "area": [1.0, 2.0, 3.0],
         }
@@ -83,7 +83,7 @@ def test_sequential_runner_uses_morphobricks_defaults():
     fovs = pd.DataFrame(
         {
             "condition": ["control", "control", "drug"],
-            "repeat": ["R1", "R1", "R1"],
+            "biological_repeat": ["R1", "R1", "R1"],
             "image_file": ["c1.tif", "c2.tif", "d1.tif"],
             "order": [1, 2, 1],
         }
@@ -99,8 +99,8 @@ def test_sequential_runner_uses_morphobricks_defaults():
     )
 
     assert len(results) == 3
-    assert results[0].result.group == {"condition": "control", "repeat": "R1"}
-    assert results[-1].result.group == {"condition": "drug", "repeat": "R1"}
+    assert results[0].result.group == {"condition": "control", "biological_repeat": "R1"}
+    assert results[-1].result.group == {"condition": "drug", "biological_repeat": "R1"}
 
 
 # --- Incremental replay ---------------------------------------------------------
@@ -190,7 +190,7 @@ def test_slice_by_slice_stack_is_revealed_as_one_position():
     objects = pd.DataFrame(
         {
             "condition": ["control"] * 6,
-            "repeat": ["R1"] * 6,
+            "biological_repeat": ["R1"] * 6,
             "position_id": ["P1", "P1", "P1", "P2", "P2", "P2"],
             "image_file": [
                 "P1_z000.tif",
@@ -207,7 +207,7 @@ def test_slice_by_slice_stack_is_revealed_as_one_position():
     fovs = pd.DataFrame(
         {
             "condition": ["control", "control"],
-            "repeat": ["R1", "R1"],
+            "biological_repeat": ["R1", "R1"],
             "position_id": ["P1", "P2"],
             "order": [1, 2],
         }

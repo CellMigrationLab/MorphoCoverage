@@ -86,6 +86,8 @@ from ._shared import (
     check_workflow_inputs,
     conditions,
     control_checks,
+    one_per_field,
+    one_per_field_reasons,
     rare_clustering,
     replay_rules,
     report_only,
@@ -164,10 +166,14 @@ def report(
     data-integrity checks (``integrity_checks``: copied, reordered or scaled
     fields, repeated blocks and field summaries) on every declared column.
     """
-    data_check = check_workflow_inputs(objects, fovs, setup, warn=False)
+    objects, fovs, data_check = check_workflow_inputs(objects, fovs, setup, warn=False)
     common = setup.common
     readout = setup.readout
-    reasons: dict[str, str] = {}
+    # One observation per field (one cell per image): the questions about fields do not
+    # apply, and are said so once, not answered with warnings.
+    per_field = not one_per_field(objects, fovs, setup)
+    reasons: dict[str, str] = {} if per_field else one_per_field_reasons(setup)
+    novelty = setup.novelty if per_field or "enough" not in reasons else None
     results: dict[str, Any] = {
         "overview": dataset_overview(
             objects,
@@ -178,10 +184,11 @@ def report(
             data_check=data_check,
             **common,
         ),
-        "variability": fov_variability(objects, fovs, feature=readout, **common),
     }
+    if per_field:
+        results["variability"] = fov_variability(objects, fovs, feature=readout, **common)
     if setup.control is not None:
-        results.update(control_checks(objects, fovs, setup, reasons))
+        results.update(control_checks(objects, fovs, setup, reasons, per_field))
     if setup.positive is not None:  # Setup guarantees features and novelty with it
         positive = setup.positive
         results["controls"] = representation_control(
@@ -214,6 +221,8 @@ def report(
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     results.update(conditions(setup.prepared(objects, fovs), fovs, setup, reasons))
     rules, novelty_target = sufficiency_rules(setup)
+    if novelty is None:
+        novelty_target = None
     sufficiency = sufficiency_report(
         objects,
         fovs,
@@ -224,13 +233,13 @@ def report(
         objective=setup.objective(),
         # sufficiency_report seeds a permutation by its order's seed alone.
         orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
-        novelty=setup.novelty,
+        novelty=novelty,
         novelty_target=novelty_target,
-        few_fovs=setup.resolved_few_fovs,
+        few_fovs=setup.resolved_few_fovs if novelty is not None else None,
         acquisition_order_col=setup.acquisition_order_col,
         # "New" is judged on the declared features only, as in the controls and the
         # inspection; the rules read the readout.
-        novelty_cols=list(setup.features) if setup.novelty is not None else None,
+        novelty_cols=list(setup.features) if novelty is not None else None,
         # The order check beside every stop: the readout against order and stage.
         readout=setup.readout,
         stage_cols=setup.stage_cols,
@@ -240,13 +249,13 @@ def report(
     results["sufficiency"] = report_only(sufficiency, setup)
     # Every reason at once: new states on the declared features, influence, empty
     # or crowded fields and stage neighbours on the readout.
-    novel = setup.novelty is not None and bool(setup.features)
+    novel = novelty is not None and bool(setup.features)
     results["inspection"] = inspect_fovs(
         objects,
         fovs,
         feature_cols=[readout],
         summaries=[Summary(readout, "mean")],
-        novelty=setup.novelty if novel else None,
+        novelty=novelty if novel else None,
         novelty_cols=list(setup.features) if novel else None,
         stage_cols=setup.stage_cols,
         **common,
@@ -341,7 +350,7 @@ def optimise(
     represented; the summary prints it. A count of fields is a recommendation
     only once it holds on samples it was not chosen on.
     """
-    check_workflow_inputs(objects, fovs, setup)
+    objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     common = setup.common
     criteria = setup.criteria()
     hierarchy = setup.resolved_hierarchy(objects, fovs)

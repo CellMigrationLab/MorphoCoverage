@@ -46,7 +46,7 @@ def _group(condition, repeat, *, n_fields=24, per_field=30, field_sd=0.0, seed=0
         [
             {
                 "condition": condition,
-                "repeat": repeat,
+                "biological_repeat": repeat,
                 "image_file": f"{condition}{repeat}{j}",
                 "x": v,
             }
@@ -54,7 +54,11 @@ def _group(condition, repeat, *, n_fields=24, per_field=30, field_sd=0.0, seed=0
             for v in mean + offsets[j] + rng.normal(0, 1.0, per_field)
         ]
     )
-    fovs = objects[["condition", "repeat", "image_file"]].drop_duplicates().reset_index(drop=True)
+    fovs = (
+        objects[["condition", "biological_repeat", "image_file"]]
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
     return objects, fovs
 
 
@@ -90,12 +94,14 @@ def _plate(shift=6.0, plates=("P1", "P2")):
         for condition, offset in (("MOCK", 0.0), ("KD", shift)):
             for i in range(12):
                 name = f"{plate}_{condition}_{i}"
-                fov_rows.append({"condition": condition, "repeat": plate, "image_file": name})
+                fov_rows.append(
+                    {"condition": condition, "biological_repeat": plate, "image_file": name}
+                )
                 values = rng.normal(0.0, 1.0, size=(25, 2))
                 values[:, 0] += offset
                 object_rows.append(
                     pd.DataFrame(values, columns=["a", "b"]).assign(
-                        condition=condition, repeat=plate, image_file=name
+                        condition=condition, biological_repeat=plate, image_file=name
                     )
                 )
     return pd.concat(object_rows, ignore_index=True), pd.DataFrame(fov_rows)
@@ -114,7 +120,7 @@ def _control(objects, fovs):
         feature_cols=["a", "b"],
         novelty=novelty,
         control=CONTROL,
-        pair_cols=["repeat"],
+        pair_cols=["biological_repeat"],
         fovs_seen=6,
         draws=10,
     )
@@ -197,7 +203,7 @@ def test_the_jcb_check_full_keeps_every_number_and_the_short_names_misses(unit):
         ):
             assert value in full
     short = _flat(result.summary())
-    assert "the mean of all MOCK objects of the same repeat" in short
+    assert "the mean of all MOCK objects of the same biological repeat" in short
     missed = ok[~ok["meets_target"].astype(bool)]
     # A strong field effect: the rule's promise breaks with whole fields.
     assert len(missed) and "misses its target with whole fields" in short
@@ -236,14 +242,14 @@ def test_the_control_full_keeps_every_count(controls):
 
 def test_a_stratum_not_judged_is_named_by_its_column_and_value():
     objects, fovs = _plate()
-    keep = ~(fovs["repeat"].eq("P2") & fovs["condition"].eq("KD"))
+    keep = ~(fovs["biological_repeat"].eq("P2") & fovs["condition"].eq("KD"))
     fovs = fovs[keep]
     objects = objects[objects["image_file"].isin(fovs["image_file"])]
     result = _control(objects, fovs)
     status, headline = controls_status(result, minimum_detection=0.01)
     assert status is Status.CAUTION
-    assert "not judged in repeat P2 (no positive-control field with objects)" in headline
-    assert "Not judged after 6 reference fields in repeat P2" in _flat(result.summary())
+    assert "not judged in biological repeat P2 (no positive-control field with objects)" in headline
+    assert "Not judged after 6 reference fields in biological repeat P2" in _flat(result.summary())
 
 
 def test_clustering_short_answers_per_state_and_full_keeps_every_number(states):

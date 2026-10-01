@@ -23,7 +23,7 @@ from .._style import (
     wrap,
 )
 from .._wording import count, listing, percent
-from ._text import sample_word, unit_plural, unit_word
+from ._text import column_word, sample_word, unit_plural, unit_word
 from .protocol import FEW_UNITS
 
 if TYPE_CHECKING:
@@ -229,7 +229,8 @@ def _words(result: EffortResult) -> dict[str, Any]:
         "observations": observations,
         "levels": level_words(hierarchy, observations),
         "samples": sample_word(hierarchy),
-        "repeat": hierarchy.get("biological_repeat"),
+        # The repeat level's column in words (``biological repeat``, ``plate``).
+        "repeat": column_word(hierarchy.get("biological_repeat")),
     }
 
 

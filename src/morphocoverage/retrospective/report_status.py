@@ -52,6 +52,12 @@ The rules, question by question:
   ``PREMATURE_CAUTION`` of the acquisitions of a group and order kind; ⚠️
   otherwise (met in some groups or by some rules only, or a caution). Only
   fixed amounts of effort: ⚠️ (reaching a target is not evidence).
+  With a control and other conditions, the answer is first whether the
+  fields acquired resolve the difference from the control in each repeat
+  (``report_resolved``): ✅ when every difference is resolved or too small to
+  settle with a practical number of fields, ⚠️ when some would be resolved
+  with more (the headline says about how many a side); the precision of each
+  group's mean follows without a marker of its own.
   With a weak representation (question 1 ❌), ❌ whatever the rules say
   (``weak_status``), as for questions 4 and 5: a "nothing new" or an
   "enough" cannot exclude a phenotype like the control.
@@ -98,14 +104,26 @@ The rules, question by question:
   runs never reached the criterion; ✅ otherwise. The headline says whether
   another order than the recorded one needed fewer fields, and in how many
   groups (``order_text.group_comparison``).
-- **9. Do the conditions differ?** (``conditions_status``): ⚠️ when some
-  contrast has no randomization test (one technical repeat or too few fields
-  on a side, wells unknown, no control), when a condition differs from the
-  control at p <= 0.05 in opposite directions in different repeats, or when
-  the feature ranking could test no contrast; ✅ otherwise. The headline gives
-  the contrasts, the range of |d| on field means, how many tested contrasts
-  differ after the Bonferroni correction and how many features pass the
-  ranking's gate.
+- **9. Do the conditions differ?** (``conditions_status``): with biological
+  repeats kept apart, the headline leads with the answer across them (the
+  repeat is the replicate, ``contrast_repeats``): the conditions compared, how
+  many are on one side of the control in every repeat (lower and higher), and
+  how many are significant on the repeat means after the Bonferroni correction
+  (paired t-test; the sign-flip test's floor is said in the section). Then the
+  contrasts within repeats: without the across-repeat answer, their number and
+  the range of |d| on field means; how many tested contrasts differ after the
+  Bonferroni correction; and how many features pass the ranking's gate. One
+  well or dish per condition and repeat is the usual design, so when a
+  condition has a test across repeats neither the untested contrasts within
+  repeats nor a ranking without tests is a caution. ⚠️ when some contrast
+  within a repeat has no randomization test (one technical repeat or too few
+  fields on a side, wells unknown, no control) and no condition has a test
+  across repeats, when a condition differs from the control at p <= 0.05 in
+  opposite directions in different repeats, or when the feature ranking could
+  test no contrast and nothing was tested across repeats; ➖ when no test could
+  run because of the design (one or few technical repeats a side, fewer than 3
+  biological repeats): the effect sizes are given, and a test that cannot help
+  is left out rather than flagged; ✅ otherwise.
 - **optimise's rule check** (``calibration_status``, P5 and P6: how reliable
   is each stopping rule?): ⚠️ when some rule stopped where a criterion was
   not preserved in held-back fields in more than ``PREMATURE_CAUTION`` of the
@@ -126,11 +144,9 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import has_caution
-from .._style import Status, among, span, worst
+from .._style import Status, among, worst
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
-from ..sampling_unit._units import opposite_signs
-from ..sampling_unit.contrast_text import P_ALPHA
 from ..schema import unit_plural
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
@@ -138,6 +154,7 @@ from .calibration import PREMATURE_CAUTION
 from .controls_text import _selected
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
+from .report_resolved import has_resolution, precision_words, resolved_headline
 from .report_sampling import (
     clustered_states,
     largest_sources,
@@ -146,6 +163,7 @@ from .report_sampling import (
     skipped_strata,
     unstable_labels,
 )
+from .report_status_conditions import conditions_status
 from .report_status_plan import (
     FEW_UNITS,
     RELIABLE_SHARE,
@@ -343,9 +361,24 @@ def calibration_status(calibration: Any) -> Answer:
     return Status.OK, text
 
 
-def enough_status(sufficiency: Any, calibration: Any = None) -> Answer:
+def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = None) -> Answer:
     """2. Did I image enough? (see the module)."""
     tallies = rule_tallies(sufficiency) if sufficiency is not None else []
+    if has_resolution(contrast):
+        status, text = resolved_headline(contrast)
+        precision = precision_words(tallies, group_word(sufficiency)) if tallies else None
+        premature = _premature(calibration)
+        if premature is not None and premature > PREMATURE_CAUTION:
+            status = Status.CAUTION
+            precision = "; ".join(
+                p
+                for p in (
+                    precision,
+                    f"held-back fields: some rules stopped too early (up to {percent(premature)})",
+                )
+                if p
+            )
+        return status, text + (f"; {precision}" if precision else "")
     premature = _premature(calibration)
     if not tallies and premature is None:
         return Status.NOT_ASSESSED, "not assessed"
@@ -468,56 +501,6 @@ def order_status(efficiency: Any) -> Answer:
     return (Status.CAUTION if differ or unreached else Status.OK), text
 
 
-_UNTESTED = {
-    "only one technical repeat": "one technical repeat on a side",
-    "fewer than 2 fields": "too few fields on a side",
-    "fields of one dish or well": "the fields' wells unknown",
-    "no control group": "no control fields",
-}
-
-
-def _untested_words(statuses: Sequence[str]) -> str:
-    """Why contrasts have no test, in a few words."""
-    words = {
-        next((short for start, short in _UNTESTED.items() if s.startswith(start)), s)
-        for s in statuses
-    }
-    return words.pop() if len(words) == 1 else "too few units on a side"
-
-
-def conditions_status(contrast: Any, ranking: Any) -> Answer:
-    """9. Do the conditions differ, and how confidently? (see the module)."""
-    if contrast is None and ranking is None:
-        return Status.NOT_ASSESSED, "not assessed"
-    status, parts = Status.OK, []
-    if contrast is not None and len(contrast.table):
-        table = contrast.table
-        sizes = table["d_fields"].abs().dropna()
-        size = f", |d| on field means {span(sizes)}" if len(sizes) else ""
-        parts.append(f"{count(len(table), 'contrast')}{size}")
-        tested = table[table["status"] == "ok"]
-        untested = table[table["status"] != "ok"]
-        if len(tested):
-            differ = int((tested["p_bonferroni"] <= 0.05).sum())
-            parts.append(f"{differ} of {len(tested)} tested differ (Bonferroni p ≤ 0.05)")
-        if len(untested):
-            status = Status.CAUTION
-            which = "untested" if not len(tested) else f"{len(untested)} untested"
-            parts.append(f"{which} ({_untested_words(list(untested['status']))})")
-        passing = tested[tested["p_value"] <= P_ALPHA]
-        if opposite_signs(passing, ["condition"], contrast.settings["repeat_col"], str):
-            status = Status.CAUTION
-            parts.append("opposite signs between repeats")
-    elif contrast is not None:
-        parts.append("no condition to compare with the control")
-    if ranking is not None and len(ranking.ranking):
-        passing = int(ranking.ranking["score"].notna().sum())
-        parts.append(f"{passing} of {count(len(ranking.ranking), 'feature')} pass the gate")
-        if not ranking.ranking["tests"].any():
-            status = Status.CAUTION
-    return status, "; ".join(parts)
-
-
 def question_statuses(
     results: Mapping[str, Any], profile: pd.DataFrame, minimum_detection: float
 ) -> dict[str, Answer]:
@@ -526,7 +509,7 @@ def question_statuses(
     return {
         "unit": unit_status(get("variability"), get("object_rules"), get("descriptor_spread")),
         "controls": controls_status(get("controls"), minimum_detection),
-        "enough": enough_status(get("sufficiency"), get("calibration")),
+        "enough": enough_status(get("sufficiency"), get("calibration"), get("contrast")),
         "profile": profile_status(profile, [get("clustering")], get("unusual")),
         "next_time": next_time_status(get("reliability"), get("protocol")),
         "bought": bought_status(get("adequacy")),
