@@ -77,6 +77,16 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
             f"the control is pooled from {count(int(others['other_control_repeats'].max()), word)} "
             "the condition was not imaged in"
         )
+    shift = others["control_shift"].max() if len(others) and "control_shift" in others else np.nan
+    # A pooled control mixes these levels: the raw test as provided then compares a condition
+    # with other repeats' level.
+    shifted = (
+        f" The control means differ up to {shift:.1f}x between {word}s, so the raw test as "
+        "provided compares each condition with other repeats' level: read the normalised or "
+        "balanced columns."
+        if pd.notna(shift) and shift > IMBALANCE
+        else ""
+    )
     who = (
         "every condition"
         if len(unbalanced) == len(cells)
@@ -85,7 +95,7 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
     return (
         f"Balance: for {who}, {' and '.join(reasons)}, so the test is given as provided and "
         f"balanced (each condition against the control of its own {word}s, the same number of "
-        f"{words} from each {word}; the median d and p over {BALANCED_DRAWS} draws)."
+        f"{words} from each {word}; the median d and p over {BALANCED_DRAWS} draws)." + shifted
     )
 
 

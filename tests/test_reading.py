@@ -107,6 +107,8 @@ def test_the_glioma_reading_names_why_the_raw_test_differs(glioma):
     )
     short = " ".join(glioma.summary().split())
     assert short.startswith("Reading, condition by condition, against siCTRL")
+    # The control shift between the CCT7 and CCT8 repeats is named where it matters.
+    assert "The control means differ up to 1.8x between biological repeats" in short
 
 
 def test_a_pilot_headline_counts_the_cell_level_test():

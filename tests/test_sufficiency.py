@@ -238,8 +238,9 @@ def test_the_report_states_what_the_fovs_rule_out():
     assert "To bring the nominal 95% bound for the next FOV below 20%" in answer
     short = " ".join(report.summary().split())
     assert "is in at most 21% of fields (95% confidence); rarer states can remain" in short
-    assert "To rule out unseen states in more than 20% of fields: at least 1 more field " in short
-    assert "To bring the next-field bound below 20%" in short
+    # The projections are in the full form; the short form points there.
+    assert "To rule out unseen states" not in short
+    assert "or bring the next-field bound below 20%, is in the full report" in short
     full = " ".join(report.summary(detail="full").split())
     assert "Not yet seen: at most 21% of fields (95% confidence, about 3 / 13)" in full
     assert "at least 1 more field with nothing new to rule out unseen states" in full

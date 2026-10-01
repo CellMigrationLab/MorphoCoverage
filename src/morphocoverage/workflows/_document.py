@@ -160,7 +160,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
 def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:
     """The report with the fields the integrity checks name among the fields to look at (6)
     and in the limits: every answer counts them as independent fields."""
-    involved = integrity.fields_involved()
+    involved = integrity.field_labels()
     if not involved:
         return document
     named = (
@@ -171,12 +171,17 @@ def _with_integrity(document: MicroscopistReport, integrity: Any) -> Microscopis
         f"The data-integrity checks (in the overview) name {named}; every answer here counts "
         f"them as independent fields, so look at them first: {listing(involved, limit=5)}."
     )
+    # The short form names them once, in the overview, and points there.
+    pointer = (
+        f"Look first at the {count(len(involved), 'field')} the integrity checks name in the "
+        "overview: every answer here counts them as independent fields."
+    )
     # Appended whether or not the fields were inspected: the question stays "not assessed"
     # without an inspection, and its status asks the reader to look either way.
     sections, short = dict(document.sections), dict(document.short)
-    sections["inspect"] = f"{sections['inspect']}\n\n  {sentence}"
+    sections["inspect"] = f"{sections['inspect']}\n\n{wrap(sentence, 2, hang=4)}"
     if "inspect" in short:
-        short["inspect"] = f"{short['inspect']}\n\n  {sentence}"
+        short["inspect"] = f"{short['inspect']}\n\n{wrap(pointer, 2, hang=4)}"
     statuses = {**document.statuses, "inspect": Status.CAUTION}
     headlines = dict(document.headlines)
     headlines["inspect"] = "; ".join(
@@ -308,16 +313,21 @@ def coverage_notes(results: Mapping[str, Any], setup: Setup) -> list[str]:
                 "spread in them is not judged by any stopping rule."
             )
         )
+    # Options left at their defaults: what they leave unassessed, as notes, not cautions.
     if setup.stage_cols is None:
         notes.append(
-            "No stage coordinates (stage_cols): neighbouring fields were not compared, and "
-            "spatial redundancy and dispersed orders were not assessed."
+            assumption(
+                "No stage coordinates (stage_cols): neighbouring fields were not compared, and "
+                "spatial redundancy and dispersed orders were not assessed."
+            )
         )
     if setup.acquisition_order_col is None:
         notes.append(
-            "No acquisition order (acquisition_order_col): the recorded order was not "
-            "replayed, and the random orders treat the fields as exchangeable, so a drift or "
-            "a raster along the acquisition is not seen."
+            assumption(
+                "No acquisition order (acquisition_order_col): the recorded order was not "
+                "replayed, and the random orders treat the fields as exchangeable, so a drift "
+                "or a raster along the acquisition is not seen."
+            )
         )
     return notes
 

@@ -26,7 +26,7 @@ def test_an_empty_report_says_what_each_question_needs():
     for _, title in QUESTIONS:
         assert title in text
     assert text.count("Not assessed:") == len(QUESTIONS)
-    assert "No representation control" in text
+    assert "No representation control" in " ".join(text.split())
     assert report.profile.empty
 
 

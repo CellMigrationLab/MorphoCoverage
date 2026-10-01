@@ -416,8 +416,10 @@ def microscopist_report(
     weakened: list[str] = []
     if controls is None or controls.status == "not assessed":
         notes.append(
-            "No representation control: a 'nothing new' answer says nothing about phenotypes "
-            "these features and this definition of new cannot see."
+            assumption(
+                "No representation control: a 'nothing new' answer says nothing about "
+                "phenotypes these features and this definition of new cannot see."
+            )
         )
     else:
         # With planted objects declared, the rare-state rate gates the warning (P6-4).
@@ -547,7 +549,7 @@ def opening(overview: DatasetOverview, integrity: Any = None) -> dict[str, Any]:
     short = "\n".join(wrap(text, 2, hang=4) for text in overview.short_lines())
     full = overview.summary(detail="full")
     if integrity is not None:
-        involved = integrity.fields_involved()
+        involved = integrity.field_labels()
         if involved:
             line = f"{line[:-1]}: {listing(involved, limit=3)}."
         full = f"{full}\n\n{integrity.summary(detail='full')}"

@@ -404,10 +404,10 @@ def test_p1_9_the_limits_say_what_was_not_read_or_not_recorded():
     assert any("No acquisition order (acquisition_order_col)" in n for n in notes)
     placed = Setup(readout="x", stage_cols=("sx", "sy"), acquisition_order_col="t")
     assert coverage_notes({}, placed) == []
-    # The readout-only note holds for every dataset (an assumption); the missing stage
-    # coordinates and acquisition order are cautions about these data (_caveats).
+    # Every note is standing: options left at their defaults (no stage coordinates, no
+    # acquisition order) are notes on what was not assessed, not cautions about these data.
     kinds = {n.split(" ")[0]: is_assumption(n) for n in notes}
-    assert kinds == {"The": True, "No": False}
+    assert kinds == {"The": True, "No": True}
     # Nothing left unassessed still reads as "on the assumptions stated", never "everything".
     assessed = MicroscopistReport({}, pd.DataFrame(), inputs={})
     closing = assessed.limits()
