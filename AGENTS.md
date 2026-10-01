@@ -245,6 +245,7 @@ src/morphocoverage/
     statistics.py          # shared statistics, written once: effect sizes, tolerances, whole-field sampling and bootstrap, variance components, design effect, JCB counts, detection counts, field-level JCB estimands
     normalize.py           # features divided by the control condition's mean, biological repeat by biological repeat
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
+    glossary.py            # the report's glossary: every test, rule and term in plain words, with its papers
     embedding.py           # PCA and UMAP of the declared features (embed): coordinates and loadings, no figure
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
@@ -287,7 +288,7 @@ src/morphocoverage/
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         __init__.py        # the subpackage's public names
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
-        object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
+        object_rules.py    # mean-precision rule and JCS descriptor spread with random objects and whole FOVs
         contrast.py        # each condition against the control: per repeat, across repeats, cell-level; question 9
         contrast_text.py   # its words: the readings first, then a table per contrast and per draw size, each caveat once
         contrast_repeats.py  # across biological repeats: direction, per-repeat d, paired t raw and normalised, sign-flip
@@ -307,7 +308,7 @@ src/morphocoverage/
         clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered
         _outliers.py       # private: the distances and leave-one-group-out thresholds behind unusual_objects
         _common.py         # private: validation and group helpers shared by the sampling-unit checks
-        _unit_text.py      # private: the Foundation's checks in words, short and full (variability, JCB rule, JCS spread)
+        _unit_text.py      # private: the Foundation's checks in words, short and full (variability, mean-precision rule, JCS spread)
         _state_text.py     # private: unusual objects and state clustering in words, short and full
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         __init__.py        # the subpackage's public names
@@ -315,6 +316,8 @@ src/morphocoverage/
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
+        html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
+        _html_render.py    # private: the page's style and script, the report's text as HTML, status chips
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal
@@ -370,7 +373,7 @@ data/
     simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py) and results
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
 
-docs/                      # questions.md (the questions and their status), condition_tests.md (question 9's tests,
+docs/                      # questions.md (the questions and their status), glossary.md (generated from glossary.py), condition_tests.md (question 9's tests,
                            # assumptions and limitations), data_format.md, workflows.md, preliminary_findings.md, ...
 
 `tests/test_contracts.py` checks that every module under `src/morphocoverage/` is listed above, as it checks section 9's scenarios. A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.

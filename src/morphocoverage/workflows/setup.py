@@ -195,7 +195,7 @@ class Setup:
     - ``fov_col``, ``group_cols``, ``observation_unit``: as for
       ``validate_input_tables`` (MorphoBricks defaults when ``None``).
     - ``rules``: the stopping rules to assess, calibrate and run live; by
-      default the JCB rule (upper-95 SD, first tolerance) per observation and
+      default the mean-precision rule (upper-95 SD, first tolerance) per observation and
       per FOV (the declaration names them and marks the default).
     - ``random_state``: the seed of every random procedure the workflows run
       (subset draws, hold-outs, replay orders, the report's random orders,
@@ -583,7 +583,8 @@ class Setup:
         }
 
     def stopping_rules(self) -> tuple[SamplingStrategy, ...]:
-        """``rules``, or the JCB rule per observation and per FOV at the first tolerance."""
+        """``rules``, or the mean-precision rule per observation and per FOV at the first
+        tolerance."""
         if self.rules is not None:
             return self.rules
         target = self.tolerances[0]

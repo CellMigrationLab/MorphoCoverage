@@ -336,7 +336,7 @@ def test_i15_declaration_claims_new_phenotypes_only_with_a_definition_of_new():
     text = " ".join(_setup().declaration())
     assert "new phenotypes are not assessed (no definition of new" in text
     assert "and new phenotypes; definition of new: not declared" not in text
-    assert "normalizes the JCB rule" not in Setup.__doc__
+    assert "normalizes the mean-precision rule" not in Setup.__doc__
     assert "object_rule_check" in Setup.__doc__
 
 

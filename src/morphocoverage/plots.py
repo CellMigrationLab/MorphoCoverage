@@ -33,7 +33,7 @@ the groups the caller asked to keep apart: name it as ``condition_col``,
 ``repeat_col`` or ``technical_col``, or leave it out of ``group_cols``.
 
 Limits keep the figures legible and are arguments: at most ``max_conditions``
-conditions per figure (more are split over several figures), at most
+conditions per figure (more are split evenly over several figures), at most
 ``max_repeats`` biological repeats side by side (more are pooled into one
 cluster per condition, and the title says so), at most ``max_technical``
 colours (up to 8; more technical repeats of a biological repeat share one
@@ -278,8 +278,7 @@ def _draw_cluster(
         ax.scatter(x + jitter, y, s=6, alpha=0.35, color=colour, linewidths=0, rasterized=True)
     tops = [t for t in by_top.values() if any(len(f) for unit in t for f in unit)]
     if len(tops) > 1:
-        # Pooled biological repeats: the repeats alone are resampled, each with all the
-        # fields of all its technical repeats as acquired (Ren et al. 2010).
+        # Pooled repeats: the repeats alone resampled, all their fields as acquired (Ren 2010).
         units_resampled = [[f for unit in top for f in unit] for top in tops]
     else:
         units_resampled = tops[0] if tops else [[]]
@@ -518,8 +517,9 @@ def plots_of_data(
         values = data.feature_values(feature)
         per_field = fov_values(data, values)  # every acquired field, empty ones included
         figures[feature] = []
-        for start in range(0, len(layout.conditions), max_conditions):
-            chunk = layout.conditions[start : start + max_conditions]
+        size = -(-len(layout.conditions) // -(-len(layout.conditions) // max_conditions))
+        for start in range(0, len(layout.conditions), size):
+            chunk = layout.conditions[start : start + size]
             figure = Figure(figsize=(max(6.5, 0.9 * len(chunk) * n_repeats + 2.0), 4.6))
             ax = figure.add_subplot(111)
             repeat_labels: list[tuple[float, str]] = []

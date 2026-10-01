@@ -42,8 +42,8 @@ MIN_DIST = 0.1
 @dataclass(frozen=True)
 class Embedding:
     """``points``: one row per observation kept (its condition and biological repeat when
-    the tables have them, ``pc1``, ``pc2``, ``umap1``, ``umap2``; UMAP NaN for observations
-    outside its sample); ``loadings``: one row per feature (``pc1``, ``pc2``, ``top``);
+    the tables have them, its ``field``, ``pc1``, ``pc2``, ``umap1``, ``umap2``; UMAP NaN for
+    observations outside its sample); ``loadings``: one row per feature (``pc1``, ``pc2``, ``top``);
     ``explained``: the share of the variance on each PCA axis; ``settings``."""
 
     points: pd.DataFrame
@@ -135,9 +135,10 @@ def embed(
         )
     scores, loadings, explained = _pca(z)
     meta = data.fovs.iloc[positions[complete]].reset_index(drop=True)
-    points = pd.DataFrame(
-        {c: meta[c].to_numpy() for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in meta}
-    )
+    columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in meta]
+    points = pd.DataFrame({c: meta[c].to_numpy() for c in columns})
+    if data.fov_col in meta and data.fov_col not in columns:
+        points["field"] = meta[data.fov_col].to_numpy()
     points["pc1"], points["pc2"] = scores[:, 0], scores[:, 1]
     points["umap1"] = points["umap2"] = np.nan
     sampled = 0

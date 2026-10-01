@@ -10,7 +10,7 @@ report, before its questions (``docs/questions.md``):
 
 - ``fov_variability``: how much FOVs differ, the design effect and the FOVs
   that differ more than random objects would (Foundation);
-- ``object_rule_check`` and ``descriptor_spread_check``: the JCB rule and the
+- ``object_rule_check`` and ``descriptor_spread_check``: the mean-precision rule and the
   JCS Fig. 2A procedure, each run with random objects and with whole FOVs
   (Foundation; OPTIMISE, P5);
 - ``unusual_objects`` and ``fov_clustering``: out-of-distribution objects

@@ -93,8 +93,8 @@ RANDOM_OBJECTS = "random objects"
 WHOLE_FOVS = "whole FOVs"
 _NEGATIVE = (
     "not applicable: the feature takes negative values here or in the control, and an error "
-    "relative to the mean depends on where zero lies; the JCB rule applies to non-negative "
-    "measurements"
+    "relative to the mean depends on where zero lies; the mean-precision rule applies to "
+    "non-negative measurements"
 )
 _ZERO_REFERENCE = "not applicable: the reference mean is 0, so an error relative to it is undefined"
 # Repeat control means differing by more than this factor are flagged (D3).
@@ -111,7 +111,7 @@ _CONSTANT = (
 
 @dataclass(frozen=True)
 class ObjectRuleCheck:
-    """The JCB rule applied to whole FOVs, per analysis group and target.
+    """The mean-precision rule applied to whole FOVs, per analysis group and target.
 
     ``table`` has, per group and target: the rule's number of objects
     (``rule_objects``), the objects and FOVs a draw really took
@@ -314,8 +314,8 @@ def object_rule_check(
             means, obtained, used = _fovs_until(sizes, sums / reference, n, n_draws, rng)
             real = float(means.std(ddof=1))
             predicted = float(np.mean(sd / np.sqrt(obtained)))
-            # The JCB rule with the field as the unit: the SD of one field's mean, from the
-            # unweighted mean of field means (statistics.field_weighted_mean_se), not the
+            # The mean-precision rule with the field as the unit: the SD of one field's mean, from
+            # the unweighted mean of field means (statistics.field_weighted_mean_se), not the
             # object-weighted ratio estimator of ScalarPrecisionStrategy(resampling_unit="fov").
             _, fov_se, n_filled = field_weighted_mean_se(np.array([v.mean() for v in filled]))
             fov_sd = fov_se * math.sqrt(n_filled) / reference

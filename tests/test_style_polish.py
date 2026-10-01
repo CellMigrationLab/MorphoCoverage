@@ -226,7 +226,7 @@ def test_the_question_2_headline_counts_the_rules_as_the_table_lists_them():
     assert int(found.group(2)) == len(rows) == 3
     everywhere = sum(" 4 of 4 " in f" {row} " for row in rows)
     assert int(found.group(1)) == everywhere == 2
-    assert "JCB rule, per field, 0.0001%, point SD: in 0 of 4" in text
+    assert "mean-precision rule, per field, 0.0001%, point SD: in 0 of 4" in text
     assert "cautions below" not in text and status is Status.CAUTION
 
 

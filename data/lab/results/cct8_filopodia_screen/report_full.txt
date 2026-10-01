@@ -33,14 +33,14 @@ What this acquisition was asked to preserve
     It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
     benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
     few fields (few_fovs).
-  - Stopping rules: JCB rule, per cell, 5% [scalar_precision_object_upper95 (feature=Filopodia
-    number, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and JCB rule, per field,
-    5% [scalar_precision_fov_upper95 (feature=Filopodia number, target_cv=0.05, resampling_unit=fov,
-    sd_estimate=upper_95)] (the default, rules=None: the JCB rule per cell and per field at 5%);
-    assessed in the report, calibrated by optimise, run live. The JCB rules stop on the averaging
-    CV: a CV of 5% is one standard error of 5% of the mean, not a bound of ±5% on its error; whether
-    the mean is within 5% and 2.5% is judged on held-back fields (report, optimise), never by the
-    rules.
+  - Stopping rules: mean-precision rule, per cell, 5% [scalar_precision_object_upper95
+    (feature=Filopodia number, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and
+    mean-precision rule, per field, 5% [scalar_precision_fov_upper95 (feature=Filopodia number,
+    target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95)] (the default, rules=None: the
+    mean-precision rule per cell and per field at 5%); assessed in the report, calibrated by
+    optimise, run live. The mean-precision rules stop on the averaging CV: a CV of 5% is one
+    standard error of 5% of the mean, not a bound of ±5% on its error; whether the mean is within 5%
+    and 2.5% is judged on held-back fields (report, optimise), never by the rules.
   - Acquisition order: no acquisition_order_col or stage_cols, so nothing is checked and every stop
     treats the fields as a random sample of the well's positions; a raster over a spatial trend can
     stop early. Image fields in a random or dispersed order.
@@ -97,325 +97,340 @@ What this acquisition was asked to preserve
 
   Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 54 groups:
-    rule                     met in   random orders: median (10-90%)
-    JCB rule, per cell, 5%   0 of 54  17 (11-25); 3 of 270 orders
-    JCB rule, per field, 5%  0 of 54  17 (11-25); 3 of 270 orders
+    rule                                met in   random orders: median (10-90%)
+    mean-precision rule, per cell, 5%   0 of 54  17 (11-25); 3 of 270 orders
+    mean-precision rule, per field, 5%  0 of 54  17 (11-25); 3 of 270 orders
   First met after: the fields acquired when it first said enough; random: the median of the groups'
     medians, 10-90% from the lowest to the highest group.
-  Rules: JCB rule, per cell, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05; config
-    e9f24df659290c3b); JCB rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05;
-    config a98770e3a9571327).
+  Rules: mean-precision rule, per cell, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05;
+    config e9f24df659290c3b); mean-precision rule, per field, 5% (scalar_precision_fov_upper95:
+    averaging_cv <= 0.05; config a98770e3a9571327).
   Per group below: whether each rule was met by its own threshold, where it was first met, and the
     fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
     without them; only where the acquired fields are enough).
 
   siCCT8#5 · siCCT8_1 · single — 34 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCCT8#5 · siCCT8_2 · single — 49 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCCT8#5 · siCCT8_3 · single — 30 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCCT8#8 · siCCT8_1 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 2.6, bimodality coefficient 0.48.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.6, bimodality coefficient
+      0.48.
 
   siCCT8#8 · siCCT8_2 · single — 38 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCCT8#8 · siCCT8_3 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siCCT8_1 · single — 33 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siCCT8_2 · single — 39 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siCCT8_3 · single — 32 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCSNK1A1#11 · siCSNK1A1_1 · single — 34 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCSNK1A1#11 · siCSNK1A1_2 · single — 34 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCSNK1A1#11 · siCSNK1A1_3 · single — 34 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCSNK1A1#5 · siCSNK1A1_1 · single — 35 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 3.4, bimodality coefficient 0.43.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 3.4, bimodality coefficient
+      0.43.
 
   siCSNK1A1#5 · siCSNK1A1_2 · single — 34 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCSNK1A1#5 · siCSNK1A1_3 · single — 34 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siCSNK1A1_1 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.2, bimodality coefficient 0.54.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.2, bimodality coefficient
+      0.54.
 
   siCTRL · siCSNK1A1_2 · single — 33 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siCSNK1A1_3 · single — 33 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siMAP4K4_1 · single — 30 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siMAP4K4_2 · single — 32 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siMAP4K4_3 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.4, bimodality coefficient 0.51.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.4, bimodality coefficient
+      0.51.
 
   siMAP4K4#5 · siMAP4K4_1 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMAP4K4#5 · siMAP4K4_2 · single — 13 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 6.3, bimodality coefficient 0.59.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 6.3, bimodality coefficient
+      0.59.
 
   siMAP4K4#5 · siMAP4K4_3 · single — 32 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMAP4K4#6 · siMAP4K4_1 · single — 37 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 2.2, bimodality coefficient 0.34.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.2, bimodality coefficient
+      0.34.
 
   siMAP4K4#6 · siMAP4K4_2 · single — 29 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMAP4K4#6 · siMAP4K4_3 · single — 32 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 2.8, bimodality coefficient 0.48.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.8, bimodality coefficient
+      0.48.
 
   siCTRL · siMINK1_1 · single — 34 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siMINK1_2 · single — 32 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siMINK1_3 · single — 18 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMINK1#10 · siMINK1_1 · single — 33 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMINK1#10 · siMINK1_2 · single — 29 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMINK1#10 · siMINK1_3 · single — 27 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMINK1#3 · siMINK1_1 · single — 38 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMINK1#3 · siMINK1_2 · single — 27 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siMINK1#3 · siMINK1_3 · single — 20 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siNF2_1 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siNF2_2 · single — 29 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siNF2_3 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      23 (2.5; 21-25); 2 of 5 orders           –
-    JCB rule, per field, 5%  no      23 (2.5; 21-25); 2 of 5 orders           –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.6, bimodality coefficient 0.56.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      23 (2.5; 21-25); 2 of 5 orders           –
+    mean-precision rule, per field, 5%  no      23 (2.5; 21-25); 2 of 5 orders           –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.6, bimodality coefficient
+      0.56.
 
   siNF2#17 · siNF2_1 · single — 32 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siNF2#17 · siNF2_2 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siNF2#17 · siNF2_3 · single — 30 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siNF2#7 · siNF2_1 · single — 30 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 3.9, bimodality coefficient 0.51.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 3.9, bimodality coefficient
+      0.51.
 
   siNF2#7 · siNF2_2 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siNF2#7 · siNF2_3 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      11 (11-11); 1 of 5 orders                –
-    JCB rule, per field, 5%  no      11 (11-11); 1 of 5 orders                –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 4.8, bimodality coefficient 0.31.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      11 (11-11); 1 of 5 orders                –
+    mean-precision rule, per field, 5%  no      11 (11-11); 1 of 5 orders                –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.8, bimodality coefficient
+      0.31.
 
   siCTRL · siSCRIB_1 · single — 30 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 5.9, bimodality coefficient 0.60.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 5.9, bimodality coefficient
+      0.60.
 
   siCTRL · siSCRIB_2 · single — 26 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siCTRL · siSCRIB_3 · single — 30 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siSCRIB#6 · siSCRIB_1 · single — 30 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siSCRIB#6 · siSCRIB_2 · single — 31 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis 2.0, bimodality coefficient 0.51.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.0, bimodality coefficient
+      0.51.
 
   siSCRIB#6 · siSCRIB_3 · single — 28 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
-    Cautions here: JCB rule, per cell, 5%: excess kurtosis -0.8, bimodality coefficient 0.57.
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis -0.8, bimodality coefficient
+      0.57.
 
   siSCRIB#7 · siSCRIB_1 · single — 33 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siSCRIB#7 · siSCRIB_2 · single — 29 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
   siSCRIB#7 · siSCRIB_3 · single — 29 fields acquired:
-    rule                     enough  5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per cell, 5%   no      never                                    –
-    JCB rule, per field, 5%  no      never                                    –
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
 
-  ⚠️ JCB rule, per cell, 5%, in 1 of 54 groups (siCCT8#5 · siCCT8_2 · single): the SD between cells
-     exceeds 50% CV; the paper advises acquiring more data and repeating the estimate; the upper-95 SD
-     bound assumes normal values, and these cells have excess kurtosis 2.7 and bimodality coefficient
-     0.51 (above 2 or 0.56: a heavy tail or a minority state), so the bound can be optimistic (with
-     10% of cells at four times the level of the rest it covered the true SD 68-88% of the time, not
-     97.5%)
-  ⚠️ JCB rule, per cell, 5%, in 13 of 54 groups (siCCT8#8 · siCCT8_1 · single,
+  ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siCCT8#5 · siCCT8_2 · single): the SD
+     between cells exceeds 50% CV; the paper advises acquiring more data and repeating the estimate;
+     the upper-95 SD bound assumes normal values, and these cells have excess kurtosis 2.7 and
+     bimodality coefficient 0.51 (above 2 or 0.56: a heavy tail or a minority state), so the bound can
+     be optimistic (with 10% of cells at four times the level of the rest it covered the true SD
+     68-88% of the time, not 97.5%)
+  ⚠️ Mean-precision rule, per cell, 5%, in 13 of 54 groups (siCCT8#8 · siCCT8_1 · single,
      siCSNK1A1#5 · siCSNK1A1_1 · single, siCTRL · siCSNK1A1_1 · single, siCTRL · siMAP4K4_3 · single,
      siMAP4K4#5 · siMAP4K4_2 · single and 8 more): the upper-95 SD bound assumes normal values, and
      these cells have excess kurtosis -0.8 to 6.3 and bimodality coefficient 0.31 to 0.60 (above 2 or
      0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of cells at
      four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
-  ⚠️ JCB rule, per cell, 5%, in 1 of 54 groups (siMINK1#10 · siMINK1_2 · single): the SD between cells
-     exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
-  ⚠️ JCB rule, per cell, 5% was met and then lost as more fields arrived, in 2 of 54 groups.
-  ⚠️ JCB rule, per field, 5%, in 2 of 54 groups (siCCT8#5 · siCCT8_2 · single and
+  ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siMINK1#10 · siMINK1_2 · single): the SD
+     between cells exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
+  ⚠️ Mean-precision rule, per cell, 5% was met and then lost as more fields arrived, in 2 of 54
+     groups.
+  ⚠️ Mean-precision rule, per field, 5%, in 2 of 54 groups (siCCT8#5 · siCCT8_2 · single and
      siMINK1#10 · siMINK1_2 · single): the SD between cells exceeds 50% CV; the paper advises
      acquiring more data and repeating the estimate.
-  ⚠️ JCB rule, per field, 5% was met and then lost as more fields arrived, in 2 of 54 groups.
+  ⚠️ Mean-precision rule, per field, 5% was met and then lost as more fields arrived, in 2 of 54
+     groups.
   ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of the
      well's positions; a raster over a spatial trend can stop early.
   Assumptions:
-    - JCB rule, per cell, 5% treats cells as independent draws: it assumes a spatially uniform
-      sample.
+    - Mean-precision rule, per cell, 5% treats cells as independent draws: it assumes a spatially
+      uniform sample.
 
   'nothing new' is left out: the definition of new needs 3 similar cells in one field, and each
     field holds one.

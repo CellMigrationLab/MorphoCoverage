@@ -20,7 +20,7 @@ Summaries:
 
 - ``"centroid"``: the per-observation mean of each feature (a ratio estimator
   under cluster sampling). For one feature without a transform this extends
-  the FOV-unit JCB rule (``ScalarPrecisionStrategy(..., "fov", ...)``) from
+  the FOV-unit mean-precision rule (``ScalarPrecisionStrategy(..., "fov", ...)``) from
   one mean to a vector of means. When every visible FOV holds observations,
   the raw bootstrap SE approaches the analytic ratio-estimator SE times
   ``sqrt((k - 1) / k)``. With empty FOVs it does not: the analytic SE counts
@@ -75,7 +75,7 @@ order (``base._canonical_fovs``; blocks by value), so the FOV table's row
 order never changes them.
 
 A selected feature without spread so far makes the quantity
-``insufficient_data``, as for the JCB rule: for the centroid, FOV means that
+``insufficient_data``, as for the mean-precision rule: for the centroid, FOV means that
 are all alike (the feature's SE is then 0 whatever the well holds: a count
 of 0 in every FOV so far, a saturated intensity), for the covariance and the
 quantiles, observations that are all alike (audit 4, P4-1). The PCA

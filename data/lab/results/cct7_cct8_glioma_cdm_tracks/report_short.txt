@@ -5,11 +5,12 @@ At a glance
     applicable or not assessed. A marker says how far to trust an answer, not what it found.
   ❌ The data — data checks: no warning; integrity: 6 findings in 12 fields; check them first
   ⚠️ Foundation. Why count fields? — a mean from whole fields varies 1.0x as much as from random
-     tracks (median); the JCB count rule missed with whole fields in 7 of 18 technical repeats
+     tracks (median); the mean-precision count rule missed with whole fields in 7 of 18 technical
+     repeats
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control
   ⚠️ 2. Did I image enough? — the difference from the control is resolved in 8 of 12 contrasts; 2
-     would need about 9-11 fields a side; 2 too small to settle with more fields here; JCB rule, per
-     track, 5%: met in 0 of 18 technical repeats
+     would need about 9-11 fields a side; 2 too small to settle with more fields here;
+     mean-precision rule, per track, 5%: met in 0 of 18 technical repeats
   ⚠️ 3. What limits my sampling? — whole fields 1.0x as variable as random tracks; labelled states
      spread like random tracks in all 4 groups seen
   ⚠️ 6. Which fields should I look at? — 9 fields to reopen in 8 technical repeats (new state in 6,
@@ -40,17 +41,18 @@ What this acquisition was asked to preserve
     control tracks, their repeats pooled) and new phenotypes; definition of new: support_novelty.
   Report-only rule: nothing new ≤5%, judged by the report only (not live, not calibrated by optimise
     and benchmark); seen in few fields: fewer than 3 other fields.
-  Stopping rules: JCB rule, per track, 5% and JCB rule, per field, 5% (the default); run live,
-    calibrated by optimise.
+  Stopping rules: mean-precision rule, per track, 5% and mean-precision rule, per field, 5% (the
+    default); run live, calibrated by optimise.
   Live decision: the population objective (population summary); a target no rule decides stays
     unsupported, never assumed adequate.
   Assumptions: No phenotypic fingerprint declared (fingerprint), so the answers speak of the mean,
     not of the distribution of phenotypes. No rare phenotype declared (rare), so no answer says
-    whether a rare state was sampled enough. The JCB rules stop on the averaging CV (5% is one
-    standard error of 5% of the mean), not on a ±5% bound on its error; whether the mean is within
-    5% and 2.5% is judged on held-back fields. No acquisition order or stage coordinates, so the
-    order is not checked: every stop treats the fields as a random sample of the well's positions; a
-    raster over a spatial trend can stop early; image fields in a random or dispersed order.
+    whether a rare state was sampled enough. The mean-precision rules stop on the averaging CV (5%
+    is one standard error of 5% of the mean), not on a ±5% bound on its error; whether the mean is
+    within 5% and 2.5% is judged on held-back fields. No acquisition order or stage coordinates, so
+    the order is not checked: every stop treats the fields as a random sample of the well's
+    positions; a raster over a spatial trend can stop early; image fields in a random or dispersed
+    order.
 
 ⚠️ Foundation: why count fields, and not only objects?
   How variable are the fields (Mean Speed)? A mean from whole fields has 1.0-2.7 times the variance
@@ -78,8 +80,8 @@ What this acquisition was asked to preserve
   Groups: condition · biological_repeat · technical_repeat. Between fields: the share of the
     variance that lies between fields. Fields that differ: more than random tracks would let them
     (about 5% expected).
-  Would the JCB count rule hold with whole fields? The tracks it asks for, taken as whole fields in
-    random order, against the mean of all siCTRL tracks of the same biological repeat:
+  Would the mean-precision count rule hold with whole fields? The tracks it asks for, taken as whole
+    fields in random order, against the mean of all siCTRL tracks of the same biological repeat:
     target  held in   tracks asked  fields taken  error: SD/sqrt(n) → real  as fields (upper-95 SD)
     5%      11 of 18         12-71        3-16.5  5% → 2-8% (0.5-1.6x)      2-67 (6-322)
     2.5%    11 of 18        47-281     10.5-63.8  2% → 1-4% (0.5-1.6x)      5-266 (24-1287)
@@ -108,10 +110,10 @@ What this acquisition was asked to preserve
   The precision of each group's own mean:
   Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 18 groups:
-    rule                     met in   random orders: median (10-90%)
-    JCB rule, per track, 5%  0 of 18  never
-    JCB rule, per field, 5%  0 of 18  5.2 (3-7); 3 of 90 orders
-    nothing new (≤5%)        0 of 18  never
+    rule                                met in   random orders: median (10-90%)
+    mean-precision rule, per track, 5%  0 of 18  never
+    mean-precision rule, per field, 5%  0 of 18  5.2 (3-7); 3 of 90 orders
+    nothing new (≤5%)                   0 of 18  never
   First met after: the fields acquired when it first said enough; random: the median of the groups'
     medians, 10-90% from the lowest to the highest group.
   One more field: fields with a state counted as new in 6 of 18 groups: siCCT7#3 · CCT7_3 · B5 (1
@@ -132,13 +134,14 @@ What this acquisition was asked to preserve
     resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields));
     beyond 4 times the fields acquired a difference is called too small to settle here. This asks
     whether the fields pin down the difference between these tracks; whether it holds across
-    biological repeats is question 9. JCB rule, per track, 5% treats tracks as independent draws: it
-    assumes a spatially uniform sample. The next-field bound is approximate: the leave-one-field-out
-    outcomes share their reference fields. The novelty bounds treat fields as independent,
-    representative draws: neighbouring fields acquired in a raster over patchy states make them too
-    low. Every novelty bound holds at a number of fields fixed in advance, not at the first field
-    where it passes: stopping there is premature more often than 5% of the time. A state carried by
-    fewer than 3 similar tracks per field is never counted, however many fields hold it.
+    biological repeats is question 9. Mean-precision rule, per track, 5% treats tracks as
+    independent draws: it assumes a spatially uniform sample. The next-field bound is approximate:
+    the leave-one-field-out outcomes share their reference fields. The novelty bounds treat fields
+    as independent, representative draws: neighbouring fields acquired in a raster over patchy
+    states make them too low. Every novelty bound holds at a number of fields fixed in advance, not
+    at the first field where it passes: stopping there is premature more often than 5% of the time.
+    A state carried by fewer than 3 similar tracks per field is never counted, however many fields
+    hold it.
 
 ⚠️ 3. What is limiting my sampling?
   - Fields: a mean from whole fields varies 1.0 times as much as one from as many random tracks

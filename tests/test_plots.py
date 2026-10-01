@@ -76,7 +76,9 @@ def test_many_conditions_split_and_many_repeats_are_pooled():
         objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS, technical_col="well"
     )
     assert len(figures["x"]) == 2
-    assert "conditions 1 to 12 of 14" in figures["x"][0].axes[0].get_title(loc="left")
+    # Split evenly over the two figures, never 12 and 2.
+    assert "conditions 1 to 7 of 14" in figures["x"][0].axes[0].get_title(loc="left")
+    assert "conditions 8 to 14 of 14" in figures["x"][1].axes[0].get_title(loc="left")
     objects, fovs = _tables(n_conditions=1, n_repeats=9, n_fields=2)
     figures = plots_of_data(
         objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS, technical_col="well"

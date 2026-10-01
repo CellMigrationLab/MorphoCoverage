@@ -97,6 +97,37 @@ stops so you can choose another folder. Extra `Setup` fields go through
 `guide(..., n_jobs=4, normalize="control_mean")`; `load_answers(folder)` and
 `answers.setup(scan)` rebuild the `Setup` without the questions.
 
+### The report as a web page
+
+```python
+from morphocoverage.workflows import html_report
+
+result = report(objects, fovs, setup)
+html_report(result, objects, fovs, "results")   # results/report.html, results/figures/
+```
+
+`report.html` is one file that opens in any browser, offline, and can be
+emailed or archived as it is; the guided session writes it too. A sidebar
+lists every answer with its status; "At a glance" gives each status as a chip
+with its word (never colour alone) and links to the answer. Each answer shows
+its short form with the full text folded under "Full detail", in the words of
+`Report.summary`, its aligned tables as tables you can sort by clicking a
+header. Under question 9 come the figures: the readout and the best-ranked
+features (each links to its PNG and PDF), and with three or more features an
+interactive PCA and UMAP of all of them. Hover a point for its condition,
+repeat and field, click a condition to hide it, and switch between PCA and
+UMAP, and between raw values and values normalised to each repeat's control.
+Every figure is also saved in `figures/` as PNG and as PDF (vector, for
+papers). The page follows the light or dark setting of the viewer, with a
+switch, and prints with every section open. It ends with a glossary of every
+test, rule and term it uses, with the papers they come from
+([`glossary.md`](glossary.md), the same entries), and a Files section: every
+figure (PNG and PDF), both text reports, the feature table as CSV and, from the
+guided session, the design scan and the saved answers are inside the page, each
+saved with its button, so the page alone is the file to share. The guided
+session also zips the whole folder (`zip_results(folder)`: `<folder>.zip`) for
+archiving.
+
 ## Declare the dataset
 
 ```python
@@ -120,7 +151,7 @@ setup = Setup(
 
 Every field left at `None` switches off the analyses that need it. The report
 then says "Not assessed" and names what would be needed. The stopping rules
-default to the JCB rule (upper-95 SD, first tolerance), per object and per
+default to the mean-precision rule (upper-95 SD, first tolerance), per object and per
 field; pass `rules=(...)` to assess others. `random_state` (default 0) seeds
 every random procedure the workflows run, the report's random orders
 included, and `minimum_detection` (default 0.9, a provisional preset) is the
@@ -155,7 +186,7 @@ Features measured plane by plane are split before the `Setup`:
 `normalize="control_mean"` divides every declared column (the readout and
 the features) by the mean of the control condition's objects of the same
 repeat, for the analyses that compare values across repeats (below), as the
-JCB rule and the lab's Plot&Stats notebook express values
+mean-precision rule and the lab's Plot&Stats notebook express values
 (`morphocoverage.normalize`). It needs
 `control` to name the condition column, every repeat must hold control
 objects (a repeat without them raises, since mixing scales inside one
@@ -461,7 +492,7 @@ resolved or has no interval; ➖ when a fixed count never met the risk level
 lastingly, so no rule is scored.
 
 `default_families(setup.readout)` holds the rule families and threshold grids
-of the locked protocol (version 5, whose grids are those of versions 1 to 4): the JCB rule and the JCS descriptor
+of the locked protocol (version 5, whose grids are those of versions 1 to 4): the mean-precision rule and the JCS descriptor
 spread, each per object and per field, and the FOV bootstrap of the mean
 (on the readout only, whatever other features are declared).
 `default_families` takes `random_state` for its resampling rules; `benchmark`
@@ -486,7 +517,7 @@ dataset's role: keeping the two apart is up to you.
 (`setup.objective()`). Each update ends with one view per target: the
 population summary, the phenotypic fingerprint and the rare phenotype, each
 with the decision of the rules that decide it, then the overall decision. The
-default rules (the JCB rule per object and per field) decide the population
+default rules (the mean-precision rule per object and per field) decide the population
 summary only; declare a fingerprint or a rare target and the view says that
 no rule decides it until you pass `rules=(...)` with one that does (for
 example a `FOVBootstrapStrategy` on the covariance), and the overall decision

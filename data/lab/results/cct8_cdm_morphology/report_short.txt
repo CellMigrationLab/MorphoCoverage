@@ -8,8 +8,8 @@ At a glance
      coincide and every per-cell answer is also the per-field one
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control
   ⚠️ 2. Did I image enough? — the difference from the control is resolved in 2 of 6 contrasts; 3
-     would need about 42-56 fields a side; 1 too small to settle with more fields here; JCB rule,
-     per cell, 5%: met in 0 of 9 technical repeats
+     would need about 42-56 fields a side; 1 too small to settle with more fields here;
+     mean-precision rule, per cell, 5%: met in 0 of 9 technical repeats
   ➖ 3. What limits my sampling? — not applicable: with one cell per field, how cells spread over
      fields cannot be measured
   ⚠️ 6. Which fields should I look at? — 4 fields to reopen in 3 technical repeats (influence in 4);
@@ -37,17 +37,18 @@ What this acquisition was asked to preserve
     cells, their repeats pooled) and new phenotypes; definition of new: support_novelty.
   Report-only rule: nothing new ≤5%, judged by the report only (not live, not calibrated by optimise
     and benchmark); seen in few fields: fewer than 3 other fields.
-  Stopping rules: JCB rule, per cell, 5% and JCB rule, per field, 5% (the default); run live,
-    calibrated by optimise.
+  Stopping rules: mean-precision rule, per cell, 5% and mean-precision rule, per field, 5% (the
+    default); run live, calibrated by optimise.
   Live decision: the population objective (population summary); a target no rule decides stays
     unsupported, never assumed adequate.
   Assumptions: No phenotypic fingerprint declared (fingerprint), so the answers speak of the mean,
     not of the distribution of phenotypes. No rare phenotype declared (rare), so no answer says
-    whether a rare state was sampled enough. The JCB rules stop on the averaging CV (5% is one
-    standard error of 5% of the mean), not on a ±5% bound on its error; whether the mean is within
-    5% and 2.5% is judged on held-back fields. No acquisition order or stage coordinates, so the
-    order is not checked: every stop treats the fields as a random sample of the well's positions; a
-    raster over a spatial trend can stop early; image fields in a random or dispersed order.
+    whether a rare state was sampled enough. The mean-precision rules stop on the averaging CV (5%
+    is one standard error of 5% of the mean), not on a ±5% bound on its error; whether the mean is
+    within 5% and 2.5% is judged on held-back fields. No acquisition order or stage coordinates, so
+    the order is not checked: every stop treats the fields as a random sample of the well's
+    positions; a raster over a spatial trend can stop early; image fields in a random or dispersed
+    order.
 
 ➖ Foundation: why count fields, and not only objects?
   Not applicable: each field holds one cell, so fields and cells coincide and every per-cell answer is also the per-field one.
@@ -68,9 +69,9 @@ What this acquisition was asked to preserve
   The precision of each group's own mean:
   Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 9 groups:
-    rule                     met in  random orders: median (10-90%)
-    JCB rule, per cell, 5%   0 of 9  never
-    JCB rule, per field, 5%  0 of 9  never
+    rule                                met in  random orders: median (10-90%)
+    mean-precision rule, per cell, 5%   0 of 9  never
+    mean-precision rule, per field, 5%  0 of 9  never
   First met after: the fields acquired when it first said enough; random: the median of the groups'
     medians, 10-90% from the lowest to the highest group.
   The cautions on these rules are in the full report.
@@ -79,8 +80,8 @@ What this acquisition was asked to preserve
     resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields));
     beyond 4 times the fields acquired a difference is called too small to settle here. This asks
     whether the fields pin down the difference between these cells; whether it holds across
-    biological repeats is question 9. JCB rule, per cell, 5% treats cells as independent draws: it
-    assumes a spatially uniform sample.
+    biological repeats is question 9. Mean-precision rule, per cell, 5% treats cells as independent
+    draws: it assumes a spatially uniform sample.
 
   'nothing new' is left out: the definition of new needs 3 similar cells in one field, and each
     field holds one.

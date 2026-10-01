@@ -52,7 +52,7 @@ OBJECTIVES = [
 
 
 def _pilot_plan():
-    """A JCB cell plan from a pilot repeat that no scenario evaluates."""
+    """A mean-precision cell plan from a pilot repeat that no scenario evaluates."""
     pilot = SCENARIOS["homogeneous"]()
     return plan_objects_to_average(
         pilot.objects.assign(biological_repeat="PILOT"),

@@ -159,7 +159,7 @@ def _pilot_values(
     data = validate_input_tables(
         objects, feature_cols=[feature], observation_unit=observation_unit, **validation
     )
-    reason = unsupported_observation_unit(data, OBJECT_LIKE_UNITS, method="JCB planning")
+    reason = unsupported_observation_unit(data, OBJECT_LIKE_UNITS, method="mean-precision planning")
     if reason is not None:
         raise ValueError(reason)
     missing = [column for column in sample_cols if column not in data.objects.columns]
@@ -337,7 +337,9 @@ class PlannedObjectCountEstimator(Estimator):
         from its visible rows, so each prefix is a cheap full recomputation.
         """
         values = data.feature_values(self.plan.feature)  # fails early on a non-feature column
-        reason = unsupported_observation_unit(data, OBJECT_LIKE_UNITS, method="a JCB cell plan")
+        reason = unsupported_observation_unit(
+            data, OBJECT_LIKE_UNITS, method="a mean-precision cell plan"
+        )
         if reason is None:
             seen = _samples_seen(data, self.plan.sample_cols)
             if seen is None:

@@ -51,7 +51,7 @@ and changed only that one thing.
    270 objects, so 250 objects is just one or two pictures, and the advice
    breaks down.
 
-3. **The JCB rule misses its target when its objects come as whole
+3. **The mean-precision rule misses its target when its objects come as whole
    pictures.** The rule is designed to keep the
    error of an average below 5%, or 2.5% for paired experiments. In the JCS
    dataset, the objects it asks for fit in one picture. That one picture met
@@ -140,7 +140,7 @@ groups = ["condition", "biological_repeat", "technical_repeat"]  # the well is t
 # How different are my fields, and how much does an object count understate the error?
 print(fov_variability(objects, fovs, feature="ratio", group_cols=groups).summary())
 
-# Would the JCB rule hold if its objects come as whole fields?
+# Would the mean-precision rule hold if its objects come as whole fields?
 print(
     object_rule_check(
         objects, fovs, feature="ratio", control={"condition": "control"}, group_cols=groups

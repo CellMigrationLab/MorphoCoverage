@@ -132,9 +132,9 @@ policy's rule beside its evidence, and the effort, for example
 FOVs, 1100 cells; treats the fields as a random sample of the well's
 positions; a raster over a spatial trend can stop early`. Every stop ends with
 what it rests on (see [Acquisition order](#acquisition-order-random-or-dispersed)),
-and a rule that treats objects as independent draws (the JCB rule per object)
+and a rule that treats objects as independent draws (the mean-precision rule per object)
 says so. When the rule decides some of the objective's targets but not all (a
-JCB rule under a declared rare target) the line says
+mean-precision rule under a declared rare target) the line says
 `stop (decides the population summary only): ...`; when it decides none of
 them (a novelty rule under the population objective) it says
 `unsupported (the rule itself: continue): ...`, so the rule's own verdict is

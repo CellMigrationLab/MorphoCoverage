@@ -230,8 +230,9 @@ def test_the_declaration_short_form_names_the_rules_and_states_each_caveat_once(
     setup = _setup(fingerprint=(_fingerprint(),), rare=_rare(), rare_label="state")
     text = declaration_short(setup)
     assert "Population summary: the mean of" in text
-    assert "Stopping rules: JCB rule, per object, 5% and JCB rule, per field, 5% (the default)" in (
-        _flat(text)
+    assert (
+        "Stopping rules: mean-precision rule, per object, 5% and mean-precision rule, per "
+        "field, 5% (the default)" in _flat(text)
     )
     assert _flat(text).count("one standard error of 5%") == 1
     assert "the binomial plan asks for 14 representative fields" in _flat(text)
@@ -243,7 +244,7 @@ def test_the_declaration_short_form_names_the_rules_and_states_each_caveat_once(
     assert "the order is not checked" in _flat(plain)
     # The full sentences name each rule in words, with its strategy.
     rules = next(s for s in setup.declaration() if s.startswith("Stopping rules:"))
-    assert "JCB rule, per object, 5% [scalar_precision_object_upper95 (" in rules
+    assert "mean-precision rule, per object, 5% [scalar_precision_object_upper95 (" in rules
 
 
 def test_the_workflow_document_prints_the_short_declaration_and_the_full_one_on_demand():

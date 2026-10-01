@@ -1,7 +1,7 @@
 """Were the fields a random sample of the well? A check of the acquisition order that flags.
 
 Every stopping rule reads the fields seen so far as a random sample of the
-well's positions: the per-field JCB rule as exchangeable fields, the
+well's positions: the per-field mean-precision rule as exchangeable fields, the
 per-object rule as independent objects, the rare-incidence rule as
 exchangeable fields, the novelty bound as independent fields. A raster that
 tiles the well row by row breaks that when the readout follows a spatial

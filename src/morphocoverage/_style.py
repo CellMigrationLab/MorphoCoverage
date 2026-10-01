@@ -16,7 +16,7 @@ same everywhere; the numbers inside go through ``_wording``.
   its one-line answer.
 - ``group_label`` (``"MOCK · 1A · B6"``) and ``group_columns`` (the columns,
   named once per section).
-- ``rule_label``: a stopping rule in words (``"JCB rule, per nucleus, 5%"``),
+- ``rule_label``: a stopping rule in words (``"mean-precision rule, per nucleus, 5%"``),
   from a strategy or from a row of a result table.
 - ``table``: rows as aligned plain text; ``wrap``: text wrapped to 100
   characters under an indent.
@@ -258,7 +258,11 @@ def _named(name: str, thresholds: Mapping, parameters: Mapping, unit: str) -> st
     if name.startswith("scalar_precision_planned"):
         plan = parameters.get("plan") or {}
         needed = plan.get("required_objects") if isinstance(plan, Mapping) else None
-        return f"JCB plan, {count(needed, unit, units)}" if needed else "JCB planned count"
+        return (
+            f"mean-precision plan, {count(needed, unit, units)}"
+            if needed
+            else "mean-precision planned count"
+        )
     if name.startswith("scalar_precision_"):
         parts = name.split("_")[2:]
         if not parts or parts[0] not in ("object", "fov"):
@@ -266,7 +270,8 @@ def _named(name: str, thresholds: Mapping, parameters: Mapping, unit: str) -> st
         target = _threshold(
             thresholds, parameters, "averaging_cv", "pilot_projected_averaging_cv", "target_cv"
         )
-        label = f"JCB rule, {_per(parts[0], unit)}, {'?' if target is None else rate(target)}"
+        shown = "?" if target is None else rate(target)
+        label = f"mean-precision rule, {_per(parts[0], unit)}, {shown}"
         if "upper95" not in parts:
             label += ", point SD"
         if "pilot" in parts:
@@ -317,15 +322,15 @@ def _named(name: str, thresholds: Mapping, parameters: Mapping, unit: str) -> st
 
 
 def rule_label(rule: Any, unit: str | None = None, *, detail: str = "short") -> str:
-    """A stopping rule in words: ``"JCB rule, per nucleus, 5%"``, ``"fixed 8 fields"``.
+    """A stopping rule in words: ``"mean-precision rule, per nucleus, 5%"``, ``"fixed 8 fields"``.
 
     ``rule`` is a strategy, or a row of a result table: its ``rule`` entry when
     it has one, else its ``criterion`` (or ``strategy``) name and its
     ``settings`` (or ``policies``) text, such as ``averaging_cv <= 0.05``.
     ``unit`` is the observation unit (``nucleus``; ``object`` when ``None``).
     Every default rule family has a name (the fixed field, object and area
-    counts, the JCB rule per object and per field with the point or upper-95
-    SD and a pilot, the JCB plan, the JCS spread and plateau, the FOV
+    counts, the mean-precision rule per object and per field with the point or upper-95
+    SD and a pilot, the mean-precision plan, the JCS spread and plateau, the FOV
     bootstrap, the support-novelty quantities, the rare-state rules and the
     incidence coverage); any other rule keeps the strategy's own name.
     ``detail="full"`` adds the strategy's name, settings and config id.
