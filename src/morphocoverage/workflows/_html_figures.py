@@ -14,7 +14,7 @@ from __future__ import annotations
 import base64
 import html
 import json
-import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +26,8 @@ from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
-from ._html_plotly import feature_specs
+from ..plots_pairwise import PAIR_NOTE
+from ._html_plotly import feature_specs, interactive_caption
 from ._shared import check_workflow_inputs
 from .figures import plots
 from .retrospective import Report
@@ -84,34 +85,20 @@ def condition_colours(objects: pd.DataFrame, fovs: pd.DataFrame, control: Any) -
     return {name: COLOURS[i % len(COLOURS)] for i, name in enumerate(names)}
 
 
-PAIR_NOTE = (
-    "Every pair of conditions. Lower left: Cohen's d on the observations, the row's condition "
-    "minus the column's (blue lower, red higher, full colour at |d| ≥ 2). Upper right: the "
-    "paired t-test on the biological repeats' means, Bonferroni-corrected over the pairs "
-    "tested (✓ at p ≤ 0.05); – : fewer than 3 repeats imaged both; † : imaged in different "
-    "repeats, so d holds the batch too. Pairs without the control describe; the declared "
-    "comparisons are against the control."
-)
-
-
-def _interactive_caption(figure: Any) -> str:
-    """The static figure's title in sentences, coloured as the interactive one is: by
-    condition (the static figure colours by technical repeat)."""
-    caption = re.sub(
-        r", coloured by technical repeat \([^)]*\)", "", getattr(figure, "caption", "")
-    )
-    lines = [line.strip() for line in caption.split("\n") if line.strip()]
-    if len(lines) > 1:
-        lines[1] += ", coloured by condition; hover for its repeat, technical repeat and field"
-    return ". ".join(line[:1].upper() + line[1:] for line in lines) + "."
-
-
 def feature_figures(
     result: Report, objects, fovs, folder: Path
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """The readout and best-ranked features: each figure's block (interactive, with its
     static PNG and PDF) and the specs the page's script draws (``_html_plotly``)."""
-    drawn = plots(objects, fovs, result.setup, ranking=result.discovery)
+    setup = result.setup
+    drawn = plots(objects, fovs, setup, ranking=result.discovery)
+    views = _views(setup)
+    figures_by_view = {views[0][0]: drawn}
+    for key, view in views[1:]:
+        try:
+            figures_by_view[key] = plots(objects, fovs, view, features=list(drawn))
+        except ValueError:
+            views = views[:1]  # a control mean at or below 0: the declared values only
     discovery = result.discovery
     top = discovery.top(len(discovery.ranking)) if discovery is not None else []
     blocks, names = [], {}
@@ -135,24 +122,59 @@ def feature_figures(
                 if pairs is not None and len(pairs)
                 else ""
             )
+            switch = "".join(
+                f'<button type="button" data-key="values" data-value="{key}" '
+                f'aria-pressed="{str(key == views[0][0]).lower()}">{key.capitalize()}</button>'
+                for key, _ in views
+            )
+            switch = (
+                f'<span class="seg" role="group" aria-label="Values">{switch}</span>'
+                if len(views) > 1
+                else ""
+            )
             blocks.append(
                 f'<div class="feature" data-spec="{html.escape(name)}">'
-                f'<div class="feature-head"><h4>{html.escape(label)}</h4>'
-                '<button type="button" class="dl full">Enlarge</button></div>'
+                f'<div class="feature-head"><h4>{html.escape(label)}</h4><span class="tools">'
+                f'{switch}<button type="button" class="dl full">Enlarge</button></span></div>'
                 f'<div class="pl-plot" id="pl-{html.escape(name)}"></div>{pair}'
-                f'<p class="caption note">{html.escape(_interactive_caption(figure))}</p>'
+                f'<p class="caption note">{html.escape(interactive_caption(figure))}</p>'
                 f'<p class="note sampled"></p><p class="tools">'
                 f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
                 "</p><details><summary>The static figure (as in the PDF)</summary>"
                 f'<figure><img src="{uri}" alt="{html.escape(label)}" loading="lazy"></figure>'
                 "</details></div>"
             )
-    checked, prepared_fovs, _ = check_workflow_inputs(objects, fovs, result.setup)
-    prepared = result.setup.prepared(checked, prepared_fovs)
-    control = (result.setup.control or {}).get(CONDITION_COLUMN)
+    checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    control = (setup.control or {}).get(CONDITION_COLUMN)
     colours = condition_colours(objects, fovs, control)
-    specs = feature_specs(drawn, prepared, prepared_fovs, result.setup, colours, names)
+    by_view = {}
+    for key, view in views:
+        prepared = view.prepared(checked, checked_fovs)
+        by_view[key] = feature_specs(
+            figures_by_view[key], prepared, checked_fovs, view, colours, names
+        )
+    first = views[0][0]
+    specs = [
+        {
+            "id": spec["id"],
+            "feature": spec["feature"],
+            "current": first,
+            "views": {key: by_view[key][i] for key in by_view},
+        }
+        for i, spec in enumerate(by_view[first])
+    ]
     return blocks, specs
+
+
+def _views(setup: Any) -> list[tuple[str, Any]]:
+    """The values the feature figures can show: those the setup declares first, and, when a
+    control condition is declared, the others (raw or normalised to each repeat's control)."""
+    declared = "normalised" if setup.normalize is not None else "raw"
+    views = [(declared, setup)]
+    if CONDITION_COLUMN not in (setup.control or {}):
+        return views
+    other = replace(setup, normalize=None if setup.normalize else "control_mean")
+    return [*views, ("raw" if declared == "normalised" else "normalised", other)]
 
 
 def _set(embedding: Embedding, method: str, order: dict, values: str) -> dict[str, Any] | None:

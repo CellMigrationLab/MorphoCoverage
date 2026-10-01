@@ -254,7 +254,14 @@ def test_the_interactive_figures_draw_the_static_figures_numbers(tmp_path):
     # plotly.js is inside the page, so it works offline; and only once.
     assert page.count("plotly.js (cartesian - minified)") == 1
     specs = json.loads(re.search(r'id="feature-data">(.*?)</script>', page).group(1))
-    readout = next(s for s in specs if s["feature"] == "area")
+    entry = next(s for s in specs if s["feature"] == "area")
+    # Declared raw, with a control: the normalised values are the other view.
+    assert entry["current"] == "raw" and set(entry["views"]) == {"raw", "normalised"}
+    readout, normalised = entry["views"]["raw"], entry["views"]["normalised"]
+    assert "relative to control" in normalised["ylabel"]
+    control = [c["summary"] for c in normalised["clusters"] if c["condition"] == 0]
+    assert control == pytest.approx([1.0], abs=0.15) or all(0.8 < v < 1.2 for v in control)
+    assert 'data-value="normalised"' in page
     assert [c["name"] for c in readout["conditions"]] == ["ctrl", "drug"]
     assert readout["conditions"][0]["colour"] == COLOURS[0]
     # One cluster per condition and repeat, every observation drawn (few here).
@@ -263,8 +270,9 @@ def test_the_interactive_figures_draw_the_static_figures_numbers(tmp_path):
     assert all(c["low"] <= c["summary"] <= c["high"] for c in readout["clusters"])
     # The matrix: d below the diagonal, the corrected p above it.
     matrix = readout["pairwise"]
-    assert matrix["names"] == ["ctrl", "drug"] and matrix["tested"] == 1
+    assert matrix["names"] == ["ctrl", "drug"]
+    assert "randomization test on d" in matrix["hover"][0][1]
     assert matrix["text"][1][0].startswith("+") and matrix["text"][0][1]
     assert 'class="pl-pair"' in page and "The static figure (as in the PDF)" in page
     # Its caption says how the interactive figure is coloured.
-    assert "coloured by condition" in page
+    assert "a point in its condition&#x27;s colour" in page

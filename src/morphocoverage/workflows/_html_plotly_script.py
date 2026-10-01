@@ -8,6 +8,9 @@ PLOTLY_SCRIPT = r"""
 (function () {
   if (typeof Plotly === 'undefined') return;
   var FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  // The technical repeats' shapes, by rank, as matplotlib's markers in the static figures.
+  var SHAPES = ['circle', 'square', 'triangle-up', 'diamond', 'triangle-down', 'cross', 'x',
+    'star'];
   function css(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
@@ -57,28 +60,39 @@ PLOTLY_SCRIPT = r"""
   // Feature figures: the observations, each repeat's summary and interval, every pair.
   var store = document.getElementById('feature-data');
   var specs = store ? JSON.parse(store.textContent) : [];
-  specs.forEach(function (spec) {
-    var block = document.querySelector('.feature[data-spec="' + spec.id + '"]');
+  specs.forEach(function (entry) {
+    var block = document.querySelector('.feature[data-spec="' + entry.id + '"]');
     if (!block) return;
     var plot = block.querySelector('.pl-plot'), pair = block.querySelector('.pl-pair');
-    var points = spec.points;
-    if (points.shown < points.total) {
-      block.querySelector('.sampled').textContent = points.shown + ' of ' + points.total +
-        ' observations drawn (a seeded sample of each cluster); the summaries, intervals ' +
-        'and tests use every one.';
-    }
-    var height = 460, many = spec.conditions.length > 5;
+    // The values shown (raw, or normalised to each repeat's control): the switch redraws the
+    // points, the summaries, the intervals and the matrix's d from that view's numbers.
+    var state = entry.current, height = 460;
+    block.querySelectorAll('.seg button').forEach(function (button) {
+      button.addEventListener('click', function () {
+        state = button.dataset.value;
+        block.querySelectorAll('.seg button').forEach(function (other) {
+          other.setAttribute('aria-pressed', other === button ? 'true' : 'false');
+        });
+        draw();
+      });
+    });
     function draw() {
+      var spec = entry.views[state], points = spec.points, many = spec.conditions.length > 5;
+      block.querySelector('.caption').textContent = spec.caption;
+      block.querySelector('.sampled').textContent = points.shown < points.total ?
+        points.shown + ' of ' + points.total + ' observations drawn (a seeded sample of ' +
+        'each cluster); the summaries, intervals and tests use every one.' : '';
       var t = theme(), traces = [];
       spec.conditions.forEach(function (c, ci) {
-        var x = [], y = [], text = [];
+        var x = [], y = [], text = [], symbol = [];
         points.cluster.forEach(function (k, i) {
           if (spec.clusters[k].condition !== ci) return;
           x.push(points.x[i]); y.push(points.y[i]); text.push(points.label[i]);
+          symbol.push(SHAPES[points.shape[i]] || 'circle-dot');
         });
         traces.push({ type: 'scatter', mode: 'markers', x: x, y: y, text: text,
           name: c.name, legendgroup: c.name,
-          marker: { color: c.colour, size: 6, opacity: 0.5 },
+          marker: { color: c.colour, size: 7, opacity: 0.55, symbol: symbol },
           hovertemplate: '<b>' + escape(c.name) + '</b> · %{text}<br>' + escape(spec.feature) +
             ' %{y}<extra></extra>' });
       });
@@ -145,7 +159,7 @@ PLOTLY_SCRIPT = r"""
     });
     var common = { type: 'heatmap', x: pw.names, y: pw.names, showscale: false, xgap: 4,
       ygap: 4, hoverongaps: false, customdata: pw.hover, texttemplate: '%{text}',
-      textfont: { size: n > 8 ? 12 : 15 }, hovertemplate: '%{customdata}<extra></extra>' };
+      textfont: { size: n > 8 ? 12 : 14 }, hovertemplate: '%{customdata}<extra></extra>' };
     var traces = [
       merge(merge({}, common), { z: pw.d, text: lower, zmin: -pw.cap, zmax: pw.cap,
         colorscale: [[0, 'rgb(42,120,214)'], [0.5, 'rgb(240,239,236)'], [1, 'rgb(227,73,72)']]
@@ -153,7 +167,7 @@ PLOTLY_SCRIPT = r"""
       merge(merge({}, common), { z: pw.p, text: upper, zmin: 0, zmax: 1,
         colorscale: [[0, 'rgb(240,239,236)'], [1, 'rgb(46,125,50)']] })
     ];
-    var cell = n > 8 ? 52 : 74, left = 24 + 8.5 * longest;
+    var cell = n > 8 ? 58 : 80, left = 24 + 8.5 * longest;
     var side = cell * n;
     var layout = merge(base(t), {
       width: left + side + 20, height: side + 20 + 8.5 * longest * 0.7 + 30,

@@ -250,6 +250,7 @@ src/morphocoverage/
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
     _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend
+    _palette.py            # private: the colour per condition, technical-repeat shapes, axis style
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
         __init__.py        # the subpackage's public names
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance

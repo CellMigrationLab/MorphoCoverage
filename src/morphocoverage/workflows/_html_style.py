@@ -175,6 +175,7 @@ dl.glossary dt.hit { background: var(--caution-bg); border-radius: 4px; }
   padding: 12px 16px; min-width: 0; }
 .feature-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .feature-head h4 { margin: 0; font-size: 16px; }
+.feature-head .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .pl-plot { width: 100%; min-height: 460px; }
 .pair-row { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: flex-start;
   margin-top: 4px; }

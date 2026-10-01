@@ -4,7 +4,8 @@ Postma and Goedhart's PlotsOfData shows every value as a point beside a
 summary and its 95% confidence interval; SuperPlots keep the biological
 repeats apart. These plots do the same for one feature per figure: within
 each condition the biological repeats (the repeat column) sit side by side,
-every object is a jittered point coloured by technical repeat (the
+every object is a jittered point in its condition's colour (``_palette``, the same as the
+HTML report's), shaped by technical repeat (the
 MorphoBricks ``technical_repeat`` column, a well or a dish, or the column
 ``technical_col`` names; never a biological repeat), and each biological
 repeat's summary (median by default, or mean) carries its interval from
@@ -36,8 +37,8 @@ Limits keep the figures legible and are arguments: at most ``max_conditions``
 conditions per figure (more are split evenly over several figures), at most
 ``max_repeats`` biological repeats side by side (more are pooled into one
 cluster per condition, and the title says so), at most ``max_technical``
-colours (up to 8; more technical repeats of a biological repeat share one
-grey), at most ``max_features`` features per call (more raise, so the caller
+shapes (up to 8; more technical repeats of a biological repeat share small
+dots), at most ``max_features`` features per call (more raise, so the caller
 chooses). A column named explicitly that the tables do not hold raises; only
 the default ``condition`` and ``biological_repeat`` columns may be absent. The layout's
 columns are read from the FOV table (or, when only the observations carry
@@ -67,6 +68,7 @@ from matplotlib.figure import Figure
 
 from ._checks import is_integer
 from ._former_repeat import one_warning, read_former
+from ._palette import COLOURS, FONT, INK, MARKERS, MUTED, OTHER_MARKER, style_axes
 from ._plots_text import legend, title
 from ._seeds import group_rng
 from .data_check import validate_input_tables
@@ -88,9 +90,8 @@ MAX_FEATURES = 24
 GAP = 0.8
 INCHES_PER_SLOT = 0.62
 SUMMARIES: dict[str, Callable[[np.ndarray], float]] = {"median": np.median, "mean": np.mean}
-# No grey in the palette: grey marks the technical repeats beyond it.
-PALETTE = ("#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860", "#DA8BC3", "#64B5CD")
-GREY = "0.6"
+# One colour per condition (``_palette``); the technical repeats differ by shape.
+PALETTE = COLOURS
 
 
 @dataclass(frozen=True)
@@ -251,14 +252,15 @@ def _draw_cluster(
     values: np.ndarray,
     fields: tuple[pd.DataFrame, pd.DataFrame, list[np.ndarray], np.ndarray],
     layout: _Layout,
-    colours: Sequence[str],
+    colour: str,
     statistic: Callable[[np.ndarray], float],
     n_boot: int,
     confidence: float,
     rng: np.random.Generator,
 ) -> tuple[float, float, float]:
-    """One cluster (a condition and biological repeat): technical-repeat points, summary, interval.
-    Returns the summary and its interval.
+    """One cluster (a condition and biological repeat): its points in the condition's
+    ``colour``, each technical repeat by shape, then the summary and interval. Returns the
+    summary and its interval.
 
     ``rows`` is the boolean mask of the cluster's observations; ``fields``
     holds every acquired field's metadata, every observation's (its field's),
@@ -273,7 +275,7 @@ def _draw_cluster(
     half = 0.4 * width
     by_top: dict[tuple, list[list[np.ndarray]]] = {}
     for top, replicate in units:
-        # Colours by rank within the top-level unit (the biological repeat), as the legend says.
+        # Shapes by rank within the top-level unit (the biological repeat), as the legend says.
         rank = len(by_top.setdefault(top, []))
         unit_fields = in_cluster & _unit_mask(meta, layout, top, replicate)
         by_top[top].append([per_field[i] for i in np.flatnonzero(unit_fields)])
@@ -281,9 +283,19 @@ def _draw_cluster(
         y = y[~np.isnan(y)]
         if not len(y):
             continue
-        colour = colours[rank] if rank < len(colours) else GREY
+        marker = MARKERS[rank] if rank < len(MARKERS) else OTHER_MARKER
         jitter = rng.uniform(-half, half, size=len(y))
-        ax.scatter(x + jitter, y, s=6, alpha=0.35, color=colour, linewidths=0, rasterized=True)
+        ax.scatter(
+            x + jitter,
+            y,
+            s=16,
+            alpha=0.5,
+            color=colour,
+            marker=marker,
+            linewidths=0,
+            rasterized=True,
+            zorder=1,
+        )
     tops = [t for t in by_top.values() if any(len(f) for unit in t for f in unit)]
     if len(tops) > 1:
         # Pooled repeats: the repeats alone resampled, all their fields as acquired (Ren 2010).
@@ -294,11 +306,11 @@ def _draw_cluster(
         units_resampled, statistic, n_boot=n_boot, rng=rng, confidence=confidence
     )
     if np.isfinite(low) and np.isfinite(high):
-        # A thick bar with caps behind the summary line, so a narrow interval stays visible.
-        ax.vlines(x, low, high, color="black", lw=7, alpha=0.3, zorder=2)
-        ax.hlines([low, high], x - 0.3 * width, x + 0.3 * width, color="black", lw=1, zorder=3)
+        # The interval as an error bar with caps, so a narrow one stays visible.
+        ax.vlines(x, low, high, color=INK, lw=1.8, zorder=3)
+        ax.hlines([low, high], x - 0.13 * width, x + 0.13 * width, color=INK, lw=1.8, zorder=3)
     if np.isfinite(point):
-        ax.hlines(point, x - half, x + half, color="black", lw=2, zorder=4)
+        ax.hlines(point, x - 0.34 * width, x + 0.34 * width, color=INK, lw=3, zorder=4)
     return float(point), float(low), float(high)
 
 
@@ -378,9 +390,9 @@ def plots_of_data(
             raise ValueError(f"{name} must be a positive integer")
     n_boot, max_conditions = int(n_boot), int(max_conditions)
     max_repeats, max_technical = int(max_repeats), int(max_technical)
-    if max_technical > len(PALETTE):
+    if max_technical > len(MARKERS):
         raise ValueError(
-            f"max_technical can be at most {len(PALETTE)}, the colours that can be told apart"
+            f"max_technical can be at most {len(MARKERS)}, the shapes that can be told apart"
         )
     data = validate_input_tables(
         objects,
@@ -392,7 +404,8 @@ def plots_of_data(
     )
     first = dict(control or {}).get(condition_col) if condition_col is not None else None
     layout = _layout(data, condition_col, repeat_col, technical_col, max_repeats, first)
-    colours = PALETTE[:max_technical]
+    shapes = MARKERS[:max_technical]
+    colours = {c: COLOURS[i % len(COLOURS)] for i, c in enumerate(layout.conditions)}
     meta = _field_metadata(
         data,
         [layout.condition_col, layout.repeat_col, layout.technical_col, *layout.pooled_cols],
@@ -449,7 +462,7 @@ def plots_of_data(
                         values,
                         (meta, observed, per_field, in_cluster),
                         layout,
-                        colours,
+                        colours[condition],
                         statistic,
                         n_boot,
                         confidence,
@@ -476,8 +489,8 @@ def plots_of_data(
                     xycoords=("data", "axes fraction"),
                     ha="center",
                     va="bottom",
-                    fontsize=8.5,
-                    color="0.35",
+                    fontsize=9.5,
+                    color=MUTED,
                 )
             ax.set_ylabel(feature if value_note is None else f"{feature} ({value_note})")
             part = (
@@ -491,13 +504,14 @@ def plots_of_data(
             ax.set_title(
                 words,
                 fontsize=10,
+                color=MUTED,
                 wrap=True,  # wrapped at the figure's edge when drawn: a narrow figure fits it
                 loc="left",
                 pad=16,
             )
-            legend(ax, layout, colours, n_technical)
-            for side in ("top", "right"):
-                ax.spines[side].set_visible(False)
+            legend(ax, layout, shapes, n_technical)
+            style_axes(ax)
+            ax.tick_params(axis="x", labelsize=FONT + 1)
             figure.tight_layout()
             figure.cluster_summaries = pd.DataFrame(summaries)
             figure.caption = words

@@ -9,21 +9,24 @@ from typing import Any
 
 from matplotlib.axes import Axes
 
+from ._palette import MUTED
 from ._wording import ordinal, rate
 from .metadata import REPEAT_COLUMN
 
 
-def legend(ax: Axes, layout: Any, colours: Sequence[str], n_technical: int) -> None:
-    """Colours by technical-repeat rank, or a note when there are too many to colour."""
-    if layout.technical_col is None:
+def legend(ax: Axes, layout: Any, shapes: Sequence[str], n_technical: int) -> None:
+    """The technical repeats' shapes, by rank, beside the plot; nothing when every biological
+    repeat has one, and a note when there are more than shapes."""
+    if layout.technical_col is None or n_technical < 2:
         return
-    if n_technical <= len(colours):
+    if n_technical <= len(shapes):
         handles = [
             ax.scatter(
                 [],
                 [],
-                color=colours[rank],
-                s=20,
+                color=MUTED,
+                marker=shapes[rank],
+                s=30,
                 label=f"{ordinal(rank + 1)} {layout.technical_col}",
             )
             for rank in range(n_technical)
@@ -31,21 +34,26 @@ def legend(ax: Axes, layout: Any, colours: Sequence[str], n_technical: int) -> N
         ax.legend(
             handles=handles,
             frameon=False,
-            fontsize=9,
+            fontsize=9.5,
             title=(
-                f"technical repeat ({layout.technical_col}), in order within each biological repeat"
+                f"technical repeat\n({layout.technical_col}),\nin order within each\n"
+                "biological repeat"
             ),
-            title_fontsize=9,
+            title_fontsize=9.5,
+            loc="upper left",
+            bbox_to_anchor=(1.01, 1.0),
+            alignment="left",
         )
     else:
         ax.text(
             0.01,
             0.99,
             f"up to {n_technical} technical repeats ({layout.technical_col}) per biological "
-            f"repeat: the first {len(colours)} coloured in order, the others grey",
+            f"repeat: the first {len(shapes)} shaped in order, the others small dots",
             transform=ax.transAxes,
             va="top",
             fontsize=9,
+            color=MUTED,
         )
 
 
@@ -100,7 +108,7 @@ def title(
     single = [technical[0] for n, technical in clusters if n == 1]
     coloured, phrases, caveat = "", [], ""
     if layout.technical_col:
-        coloured = f", coloured by technical repeat ({layout.technical_col})"
+        coloured = f", shaped by technical repeat ({layout.technical_col})"
     if by_top:
         phrases.append(
             f"whole {_pooled_name(layout)}, each with all its fields as acquired "
@@ -126,7 +134,7 @@ def title(
             phrases.append("whole fields")
     resampled = " or, in a cluster of one, ".join(phrases)
     return (
-        f"{feature}{part}{repeats}\nevery {unit} a point{coloured}\n"
+        f"{feature}{part}{repeats}\nevery {unit} a point in its condition's colour{coloured}\n"
         f"{summary} with its {rate(level)} interval from resampling {resampled}{caveat}"
     )
 

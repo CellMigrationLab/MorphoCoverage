@@ -3,23 +3,25 @@ under each plot: the effect size and the test, in one matrix.
 
 - ``pairwise_contrasts``: for every pair of conditions, Cohen's d on the observations
   (``statistics.cohen_d``, the row's condition minus the column's: signed, so lower and
-  higher read apart) and the paired t-test on the biological repeats' means, paired within
-  each repeat that imaged both conditions (on the log ratios when every mean is positive,
-  else on the differences, as the discovery's second gate does). A pair needs
-  ``MIN_REPEATS`` such repeats to be tested; one imaged in different repeats gets d only,
-  since comparing means from different repeats would read a batch as an effect. The p-values
-  are Bonferroni-corrected over the pairs tested. Pairs without the control are not the
-  declared comparisons: they describe, as the notebook's do.
+  higher read apart) and the randomization test on it, as Plot&Stats runs it: the condition
+  labels shuffled over every observation of the two conditions, pooled over the repeats
+  (``contrast_cells.cell_randomization``, ``N_PERMUTATIONS`` shuffles). The p-values are
+  Benjamini-Hochberg corrected over the pairs (``q``), as the feature discovery corrects
+  its gate. The paired t-test on the repeats' means is kept beside it (``p_paired``, for
+  pairs imaged in ``MIN_REPEATS`` shared repeats), not drawn: on three repeats it has
+  little power. A pair imaged in different repeats is tested too, but its difference holds
+  the batch between them: it is marked. Pairs without the control are not the declared
+  comparisons: they describe, as the notebook's do.
 - ``add_pairwise``: the matrix drawn under a ``plots.plots_of_data`` figure, the figure made
   taller for it: the lower-left triangle holds d (blue lower, red higher, full colour at
-  ``D_CAP``), the upper-right triangle the corrected p (green and bold at or below
-  ``ALPHA``, darker the smaller; grey above it), "–" where a pair could not be tested,
-  and † on a d whose conditions were imaged in different repeats (the difference between
-  batches is in it).
+  ``D_CAP``), the upper-right triangle the q-value (green and bold at or below ``ALPHA``,
+  darker the smaller; grey above it), and † where the two conditions were imaged in
+  different repeats.
 
-Cohen's d treats every observation as an independent draw, so it describes the size of a
-difference, not its evidence; the paired test is the evidence across repeats, with little
-power on three.
+The randomization test treats every observation as an independent draw: it finds
+differences between these cells, and when the difference varies between repeats it passes
+more often than ``ALPHA`` without an effect ("Do the conditions differ?" gives that chance
+for the readout); the paired test holds its rate but needs the repeats.
 """
 
 from __future__ import annotations
@@ -32,14 +34,28 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
+from ._palette import MUTED
+from ._seeds import group_rng
 from .data_check import validate_input_tables
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
+from .sampling_unit.contrast_cells import cell_randomization
 from .sampling_unit.contrast_repeats import MIN_REPEATS, _paired_t
 from .schema import fov_positions
-from .statistics import cohen_d
+from .statistics import benjamini_hochberg
 
 ALPHA = 0.05
 D_CAP = 2.0
+N_PERMUTATIONS = 1999
+PAIR_NOTE = (
+    "Every pair of conditions. Lower left: Cohen's d on the observations, the row's "
+    "condition minus the column's (blue lower, red higher, full colour at |d| ≥ 2). Upper "
+    "right: the randomization test on d, every observation of the two conditions shuffled "
+    "(as Plot&Stats), Benjamini-Hochberg corrected over the pairs (q; green at q ≤ 0.05, "
+    "darker the smaller). It treats every observation as an independent draw, so when the repeats "
+    "differ it passes more often than 5% without an effect. † : imaged in different "
+    "repeats, so the batch is in the difference. Pairs without the control describe; the "
+    "declared comparisons are against the control."
+)
 PAIR_COLUMNS = [
     "feature",
     "first",
@@ -48,9 +64,10 @@ PAIR_COLUMNS = [
     "observations",
     "second_observations",
     "shared_repeats",
-    "paired_values",
     "p",
-    "p_bonferroni",
+    "q",
+    "p_paired",
+    "paired_values",
     "status",
 ]
 # The colours of d (lower, higher, the middle) and of p (strongest, weakest).
@@ -79,9 +96,12 @@ def pairwise_contrasts(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    n_permutations: int = N_PERMUTATIONS,
+    random_state: int = 0,
 ) -> pd.DataFrame:
     """One row per pair of ``conditions`` (all, the ``control`` first, by default); see the
-    module. ``first`` and ``second`` follow the order of the conditions."""
+    module. ``first`` and ``second`` follow the order of the conditions; each pair's shuffles
+    are seeded from ``random_state``, the feature and the pair."""
     data = validate_input_tables(
         objects,
         fovs=fovs,
@@ -113,15 +133,13 @@ def pairwise_contrasts(
             continue
         repeats_a = {r: g.to_numpy() for r, g in a.groupby("repeat", sort=False)["value"]}
         repeats_b = {r: g.to_numpy() for r, g in b.groupby("repeat", sort=False)["value"]}
-        p, paired_values, shared = _paired(repeats_a, repeats_b)
-        if not shared:
-            status = "not imaged in the same repeats"
-        elif not np.isfinite(p) and shared < MIN_REPEATS:
-            status = (
-                f"{shared} repeat{'s' if shared > 1 else ''} with both, fewer than {MIN_REPEATS}"
-            )
-        elif not np.isfinite(p):
-            status = "the repeat means do not vary"
+        p_paired, paired_values, shared = _paired(repeats_a, repeats_b)
+        rng = group_rng(random_state, {"feature": feature, "first": first, "second": second})
+        d, p = cell_randomization(a["value"].to_numpy(), b["value"].to_numpy(), n_permutations, rng)
+        if not np.isfinite(p):
+            status = "one value everywhere"
+        elif not shared:
+            status = "imaged in different repeats"
         else:
             status = "ok"
         rows.append(
@@ -129,18 +147,18 @@ def pairwise_contrasts(
                 "feature": feature,
                 "first": first,
                 "second": second,
-                "d": cohen_d(a["value"].to_numpy(), b["value"].to_numpy()),
+                "d": d,
                 "observations": len(a),
                 "second_observations": len(b),
                 "shared_repeats": shared,
-                "paired_values": paired_values,
                 "p": p,
+                "p_paired": p_paired,
+                "paired_values": paired_values,
                 "status": status,
             }
         )
-    table = pd.DataFrame(rows, columns=[c for c in PAIR_COLUMNS if c != "p_bonferroni"])
-    tested = int(np.isfinite(table["p"].astype(float)).sum()) if len(table) else 0
-    table["p_bonferroni"] = (table["p"].astype(float) * tested).clip(upper=1.0)
+    table = pd.DataFrame(rows, columns=[c for c in PAIR_COLUMNS if c != "q"])
+    table["q"] = benjamini_hochberg(table["p"].to_numpy(float)) if len(table) else []
     return table[PAIR_COLUMNS]
 
 
@@ -187,7 +205,7 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
     if n < 2 or table.empty:
         return
     labels = [str(c) for c in conditions]
-    cell = 0.55 if n <= 8 else max(0.3, 4.4 / n)
+    cell = 0.72 if n <= 8 else max(0.4, 5.6 / n)
     label_w = min(2.8, 0.11 * max(len(t) for t in labels) + 0.3)
     extra = cell * n + 0.4 + label_w * 0.6
     width, height = figure.get_size_inches()
@@ -203,7 +221,7 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
         [left / width, (label_w * 0.6) / total, cell * n / width, cell * n / total]
     )
     lookup = {(r.first, r.second): r for r in table.itertuples()}
-    font = 9.5 if n <= 8 else 7.5
+    font = 11 if n <= 8 else 8.5
     for i, row in enumerate(conditions):
         for j, column in enumerate(conditions):
             if i == j:
@@ -221,10 +239,12 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
                     text += "†"  # different repeats: the batch is in d too
                 weight = "normal"
             else:
-                p = pair.p_bonferroni
-                colour = p_colour(p)
-                text = "–" if not np.isfinite(p) else format_p(p)
-                weight = "bold" if np.isfinite(p) and p <= ALPHA else "normal"
+                q = pair.q
+                colour = p_colour(q)
+                text = "–" if not np.isfinite(q) else format_p(q)
+                if np.isfinite(q) and pair.shared_repeats == 0:
+                    text += "†"
+                weight = "bold" if np.isfinite(q) and q <= ALPHA else "normal"
             ax.add_patch(_square(j, i, colour))
             ax.text(
                 j + 0.5,
@@ -232,7 +252,7 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
                 text,
                 ha="center",
                 va="center",
-                fontsize=font,
+                fontsize=font if len(text) < 6 else font - 1.5,
                 color=_ink(colour),
                 weight=weight,
             )
@@ -245,32 +265,31 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
     ax.tick_params(length=0)
     for side in ax.spines.values():
         side.set_visible(False)
-    tested = int(np.isfinite(table["p"].astype(float)).sum())
-    note = (
-        "Every pair of conditions. Lower left: Cohen's d on the observations, the row's "
-        "condition minus the column's (blue lower, red higher). Upper right: the paired "
-        f"t-test on the biological repeats' means, Bonferroni over the {tested} pairs tested "
-        f"(bold at p ≤ {ALPHA:g}); – : fewer than {MIN_REPEATS} repeats imaged both; † : "
-        "imaged in different repeats, so d holds the batch too. d describes a size; the "
-        "paired test is the evidence across repeats."
-    )
+    note = PAIR_NOTE
     x = (left + cell * n + 0.35) / width
     if x < 0.8:
         figure.text(
             x,
             (label_w * 0.6 + cell * n) / total,
             _wrapped(note, width * (1 - x) * 11),
-            fontsize=9,
+            fontsize=9.5,
             va="top",
             ha="left",
-            color="0.3",
+            color=MUTED,
         )
 
 
 def _square(x: float, y: float, colour: tuple[float, float, float]):
-    from matplotlib.patches import Rectangle
+    from matplotlib.patches import FancyBboxPatch
 
-    return Rectangle((x + 0.03, y + 0.03), 0.94, 0.94, facecolor=colour, edgecolor="none")
+    return FancyBboxPatch(
+        (x + 0.05, y + 0.05),
+        0.9,
+        0.9,
+        boxstyle="round,pad=0,rounding_size=0.08",
+        facecolor=colour,
+        edgecolor="none",
+    )
 
 
 def _wrapped(text: str, width: float) -> str:
@@ -282,7 +301,9 @@ def _wrapped(text: str, width: float) -> str:
 __all__ = [
     "ALPHA",
     "D_CAP",
+    "N_PERMUTATIONS",
     "PAIR_COLUMNS",
+    "PAIR_NOTE",
     "add_pairwise",
     "d_colour",
     "format_p",

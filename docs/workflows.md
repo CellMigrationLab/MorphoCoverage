@@ -135,16 +135,21 @@ The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
 which the page carries (about 1.5 MB, MIT licence), so they work offline. A
 feature figure shows every observation in its condition's colour, the biological
 repeats side by side (each condition only as wide as the repeats it holds), and
-each repeat's median with its interval: the numbers of the static figure. Hover a
-point for its repeat, technical repeat and field, or a median for its interval;
-zoom by dragging; "Enlarge" fills the window. Beyond 4000 observations a figure
+each repeat's median with its interval: the numbers of the static figure; the
+technical repeats of a biological repeat differ by shape. With a control
+declared, "Raw" and "Normalised" switch the figure between the values as measured
+and the values divided by each repeat's control mean (it opens on the values the
+setup declares, and the caption and axis say which). Hover a point for its
+repeat, technical repeat and field, or a median for its interval; zoom by
+dragging; "Enlarge" fills the window. Beyond 4000 observations a figure
 draws a seeded sample of each cluster, and says so (the summaries and tests use
 every observation). Under it, as in Plot&Stats, the matrix of every pair of
 conditions: Cohen's d below the diagonal (the row's condition minus the column's),
-the paired t-test on the repeats' means above it, Bonferroni-corrected over the
-pairs tested; a pair imaged in fewer than 3 shared repeats is not tested, and a d
-between conditions imaged in different repeats is marked †, since the batch is in
-it (`plots_pairwise`). The static figure (PNG and PDF, for papers) is folded
+and above it the randomization test on d, every observation of the two conditions
+shuffled as Plot&Stats does, Benjamini-Hochberg corrected over the pairs (the
+paired t-test on the repeats' means is in the hover, not drawn: on three repeats
+it has little power); a pair imaged in different repeats is marked †, since the
+batch is in its difference (`plots_pairwise`). The static figure (PNG and PDF, for papers) is folded
 under each, with the same matrix under the plot. On the PCA and UMAP, hover a
 point for its condition, repeat and field, click a condition in the legend to
 hide it, switch between PCA and UMAP and between raw values and values
@@ -385,14 +390,18 @@ only as wide as the repeats it holds, so repeats imaged for other conditions
 take no room. Under the plot, with two or more conditions, the matrix of every
 pair of conditions, as Plot&Stats draws it (`plots(..., pairwise=False)` leaves
 it out): Cohen's d on the observations below the diagonal, the row's condition
-minus the column's (signed, blue lower, red higher), and the paired t-test on
-the biological repeats' means above it (on the log ratios when every mean is
-positive), Bonferroni-corrected over the pairs tested; a pair needs 3 repeats
-that imaged both, and a d between conditions imaged in different repeats is
-marked †, since the difference between batches is in it
-(`plots_pairwise.pairwise_contrasts` gives the table, and each figure carries it
-as `figure.pairwise`). Every object is
-a jittered point coloured by technical repeat (`technical_col`, by default
+minus the column's (signed, blue lower, red higher), and above it the
+randomization test on d (the condition labels shuffled over every observation of
+the two conditions, pooled over the repeats, 1999 shuffles seeded from
+`random_state`), Benjamini-Hochberg corrected over the pairs (q, green and bold
+at 0.05). It treats every observation as an independent draw, so when the
+repeats differ it passes more often than 5% without an effect; the table keeps
+the paired t-test on the repeats' means beside it (`p_paired`, with 3 repeats
+that imaged both), and a pair imaged in different repeats is marked †, since the
+difference between batches is in it (`plots_pairwise.pairwise_contrasts` gives
+the table, and each figure carries it as `figure.pairwise`). Every object is a
+jittered point in its condition's colour (the HTML report's colours), shaped by
+technical repeat (`technical_col`, by default
 the MorphoBricks `technical_repeat` column; another column, such as a `well`
 group column, is used only when named, `plots(..., technical_col="well")`,
 and an analysis-group column the figure does not place raises: a well is a
@@ -408,10 +417,10 @@ are split over several figures, more than 8 biological repeats are pooled
 into one cluster per condition and the title says so (a pooled cluster
 resamples its repeats alone, each with all its fields, so the technical
 repeats' variance is not counted twice), more than 8
-technical repeats go uncoloured with a note, and more than 24 features
+technical repeats are drawn as small dots with a note, and more than 24 features
 raise so that you choose; all four are arguments (`max_conditions`,
 `max_repeats`, `max_technical`, `max_features`), and `max_technical` above 8,
-the colours that can be told apart, raises. The features must be
+the shapes that can be told apart, raises. The features must be
 declared in the setup, and the plots use the same normalised values as the
 report when `normalize` is set; the value axis then says "relative to
 control" (`plots_of_data(..., value_note=...)` adds any such note). With `folder`, each figure is saved as a PNG.

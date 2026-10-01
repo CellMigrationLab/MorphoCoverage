@@ -362,7 +362,7 @@ def test_h16_a_technical_column_of_the_fov_table_only_is_used():
     fovs["well"] = [p.split("_")[2] for p in fovs["position_id"]]
     ax = plots_of_data(objects, fovs, features=["x"], technical_col="well", n_boot=10)["x"][0]
     title = ax.axes[0].get_title(loc="left")
-    assert "coloured by technical repeat (well)" in title
+    assert "shaped by technical repeat (well)" in title
     assert "whole technical repeats with their fields as acquired (3 per cluster" in title
 
 

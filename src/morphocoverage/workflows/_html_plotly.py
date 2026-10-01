@@ -26,7 +26,6 @@ import pandas as pd
 from ..data_check import validate_input_tables
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..plots_pairwise import ALPHA, D_CAP, format_p, p_shade
-from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..schema import fov_positions
 
 ASSET = Path(__file__).with_name("assets") / "plotly-cartesian.min.js"
@@ -91,30 +90,31 @@ def _pairwise(table: pd.DataFrame, names: list[Any]) -> dict[str, Any] | None:
                     + ("; imaged in different repeats, so d holds the batch too" if apart else "")
                 )
             else:
-                corrected = float(pair.p_bonferroni)
-                if np.isfinite(corrected):
-                    p[i][j] = round(p_shade(corrected), 3)
-                    text[i][j] = format_p(corrected) + (" ✓" if corrected <= ALPHA else "")
-                    hover[i][j] = (
-                        f"{row} and {column}: paired t-test on {pair.shared_repeats} repeats' "
-                        f"means ({pair.paired_values}), p {format_p(float(pair.p))}, "
-                        f"Bonferroni {format_p(corrected)}"
-                    )
-                else:
-                    p[i][j] = 0.0
-                    text[i][j] = "–"
-                    hover[i][j] = f"{row} and {column}: not tested ({pair.status})"
-    tested = int(np.isfinite(table["p"].astype(float)).sum())
+                q = float(pair.q)
+                apart = pair.shared_repeats == 0
+                p[i][j] = round(p_shade(q), 3) if np.isfinite(q) else 0.0
+                text[i][j] = "–" if not np.isfinite(q) else (format_p(q) + ("†" if apart else ""))
+                paired = (
+                    f"; the paired t-test on {pair.shared_repeats} repeats' means gives p "
+                    f"{format_p(float(pair.p_paired))}"
+                    if np.isfinite(float(pair.p_paired))
+                    else ""
+                )
+                hover[i][j] = (
+                    f"{row} and {column}: randomization test on d, p {format_p(float(pair.p))},"
+                    f" q {format_p(q)} (Benjamini-Hochberg over the pairs){paired}"
+                    + ("; imaged in different repeats, so the batch is in it" if apart else "")
+                    if np.isfinite(q)
+                    else f"{row} and {column}: not tested ({pair.status})"
+                )
     return {
         "names": [str(c) for c in names],
         "d": d,
         "p": p,
         "text": text,
         "hover": hover,
-        "tested": tested,
         "alpha": ALPHA,
         "cap": D_CAP,
-        "min_repeats": MIN_REPEATS,
     }
 
 
@@ -133,7 +133,7 @@ def _points(frame: pd.DataFrame, summaries: pd.DataFrame, seed: int) -> dict[str
         total += len(block)
         chunks.append((row, block))
     share = min(1.0, MAX_POINTS / total) if total else 1.0
-    out: dict[str, list] = {"x": [], "y": [], "cluster": [], "label": []}
+    out: dict[str, list] = {"x": [], "y": [], "cluster": [], "label": [], "shape": []}
     for index, (row, block) in enumerate(chunks):
         if share < 1.0 and len(block):
             keep = max(1, round(len(block) * share))
@@ -142,12 +142,24 @@ def _points(frame: pd.DataFrame, summaries: pd.DataFrame, seed: int) -> dict[str
         out["x"] += [round(float(row.x + j), 3) for j in jitter]
         out["y"] += [_number(v) for v in block["value"]]
         out["cluster"] += [index] * len(block)
+        # Each technical repeat's shape, by its rank within the biological repeat, as in the
+        # static figure.
+        ranks = {t: i for i, t in enumerate(dict.fromkeys(block["technical"]))}
+        out["shape"] += [ranks[t] for t in block["technical"]]
         out["label"] += [
             " · ".join(str(v) for v in values if v is not None and pd.notna(v))
             for values in block[["repeat", "technical", "field"]].itertuples(index=False)
         ]
     out["shown"], out["total"] = len(out["x"]), total
     return out
+
+
+def interactive_caption(figure: Any) -> str:
+    """The static figure's title in sentences, and what hovering a point gives."""
+    lines = [line.strip() for line in getattr(figure, "caption", "").split("\n") if line.strip()]
+    if len(lines) > 1:
+        lines[1] += "; hover for its repeat, technical repeat and field"
+    return ". ".join(line[:1].upper() + line[1:] for line in lines) + "."
 
 
 def feature_specs(
@@ -173,7 +185,7 @@ def feature_specs(
             spec = {
                 "id": name,
                 "feature": str(feature),
-                "caption": getattr(figure, "caption", str(feature)),
+                "caption": interactive_caption(figure),
                 "ylabel": figure.axes[0].get_ylabel(),
                 "conditions": [
                     {
@@ -204,4 +216,4 @@ def feature_specs(
     return specs
 
 
-__all__ = ["MAX_POINTS", "feature_specs", "plotly_js"]
+__all__ = ["MAX_POINTS", "feature_specs", "interactive_caption", "plotly_js"]

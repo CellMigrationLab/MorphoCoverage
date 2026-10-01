@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from morphocoverage.plots_pairwise import add_pairwise, format_p, pairwise_contrasts
+from morphocoverage.statistics import benjamini_hochberg
 from morphocoverage.workflows import Setup, plots
 
 
@@ -34,9 +35,9 @@ def _tables(seed=0):
     return objects, fovs
 
 
-def test_every_pair_gets_a_signed_d_and_a_paired_test_where_the_repeats_allow():
+def test_every_pair_gets_a_signed_d_and_its_randomization_test():
     objects, fovs = _tables()
-    table = pairwise_contrasts(objects, fovs, feature="area", control="ctrl")
+    table = pairwise_contrasts(objects, fovs, feature="area", control="ctrl", n_permutations=499)
     assert list(zip(table["first"], table["second"], strict=True)) == [
         ("ctrl", "drug"),
         ("ctrl", "other"),
@@ -45,16 +46,21 @@ def test_every_pair_gets_a_signed_d_and_a_paired_test_where_the_repeats_allow():
     rows = table.set_index(["first", "second"])
     # Signed: the first condition minus the second.
     assert rows.loc[("ctrl", "drug"), "d"] < 0 < rows.loc[("ctrl", "other"), "d"]
+    # Every pair is tested on the observations, a shift of 3 SD found at once.
+    assert rows.loc[("ctrl", "drug"), "p"] == pytest.approx(1 / 500)
+    # Benjamini-Hochberg over the three pairs.
+    assert table["q"].tolist() == pytest.approx(benjamini_hochberg(table["p"].to_numpy()))
+    # The paired test on the repeats' means is kept beside it, where 3 repeats imaged both.
     assert rows.loc[("ctrl", "drug"), "shared_repeats"] == 3
     assert rows.loc[("ctrl", "drug"), "paired_values"] == "log ratios"
-    # Imaged in different repeats: d only, never a test across batches.
+    assert np.isfinite(rows.loc[("ctrl", "drug"), "p_paired"])
+    # Imaged in different repeats: tested on the cells, and said so (the batch is in it).
     apart = rows.loc[("drug", "other")]
-    assert apart["shared_repeats"] == 0 and np.isnan(apart["p"])
-    assert apart["status"] == "not imaged in the same repeats"
-    # Bonferroni over the two pairs tested.
-    tested = table.dropna(subset=["p"])
-    assert len(tested) == 2
-    assert tested["p_bonferroni"].tolist() == pytest.approx((tested["p"] * 2).clip(upper=1))
+    assert apart["shared_repeats"] == 0 and np.isnan(apart["p_paired"])
+    assert apart["status"] == "imaged in different repeats"
+    # Seeded: the same table again.
+    again = pairwise_contrasts(objects, fovs, feature="area", control="ctrl", n_permutations=499)
+    assert again["p"].tolist() == table["p"].tolist()
 
 
 def test_the_panel_is_drawn_under_each_figure_with_its_table():
@@ -67,7 +73,7 @@ def test_the_panel_is_drawn_under_each_figure_with_its_table():
     assert panel.get_position().y1 < plot.get_position().y0
     texts = [t.get_text() for t in panel.texts]
     assert any(t.endswith("†") for t in texts)  # drug and other: different repeats
-    assert "–" in texts  # and so not tested
+    assert sum(t.endswith("†") for t in texts) == 2  # d and q of that pair
     assert len(figure.pairwise) == 3
     summaries = figure.cluster_summaries
     assert set(summaries["condition"]) == {"ctrl", "drug", "other"}

@@ -47,7 +47,7 @@ def plots(
     also takes ``settings`` such as ``summary`` or ``max_conditions``). Normalised
     values (``Setup.normalize``) say so on the value axis. With ``pairwise`` (the default)
     and two or more conditions, every pair of the figure's conditions is drawn under it, as
-    Plot&Stats does (``plots_pairwise``): Cohen's d and the paired test across repeats, and
+    Plot&Stats does (``plots_pairwise``): Cohen's d and its randomization test, and
     each figure carries the table as ``pairwise``.
     With ``folder`` each figure is also saved there as
     ``<feature>[_<part>].png``. Returns the figures by feature.
@@ -97,7 +97,14 @@ def _add_pairwise(
     """Every pair of each figure's conditions under it (see ``plots``)."""
     control = (setup.control or {}).get(CONDITION_COLUMN)
     for feature, parts in figures.items():
-        table = pairwise_contrasts(prepared, fovs, feature=feature, control=control, **setup.common)
+        table = pairwise_contrasts(
+            prepared,
+            fovs,
+            feature=feature,
+            control=control,
+            random_state=setup.random_state,
+            **setup.common,
+        )
         for figure in parts:
             summaries = getattr(figure, "cluster_summaries", None)
             if summaries is None or summaries.empty:

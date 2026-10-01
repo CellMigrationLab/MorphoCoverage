@@ -63,11 +63,11 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     title = ax.get_title(loc="left")
     assert "resampling whole technical repeats with their fields as acquired" in title
     assert "biological repeats (biological_repeat) side by side" in title
-    # Repeats are labelled above their clusters; points are coloured by the well.
+    # Repeats are labelled above their clusters; points are shaped by the well, and one
+    # well per repeat needs no legend.
     assert sorted(t.get_text() for t in ax.texts) == ["r0", "r0", "r1", "r1"]
-    legend = ax.get_legend()
-    assert legend.get_title().get_text().startswith("technical repeat (well)")
-    assert [t.get_text() for t in legend.get_texts()] == ["1st well"]
+    assert ax.get_legend() is None
+    assert "shaped by technical repeat (well)" in title
 
 
 def test_many_conditions_split_and_many_repeats_are_pooled():
@@ -162,8 +162,8 @@ def test_the_morphobricks_technical_repeat_is_the_default_colour_and_bootstrap_u
     figures = plots_of_data(*bare, features=["x"], n_boot=30)
     ax = figures["x"][0].axes[0]
     title = ax.get_title(loc="left")
-    assert "coloured by technical repeat (technical_repeat)" in title
+    assert "shaped by technical repeat (technical_repeat)" in title
     legend = ax.get_legend()
-    assert legend.get_title().get_text().startswith("technical repeat (technical_repeat)")
+    assert legend.get_title().get_text().startswith("technical repeat\n(technical_repeat)")
     labels = [t.get_text() for t in legend.get_texts()]
     assert labels == ["1st technical_repeat", "2nd technical_repeat"]
