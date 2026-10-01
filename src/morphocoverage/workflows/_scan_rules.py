@@ -1,0 +1,348 @@
+"""The rules of the design scan (private): the findings on how the tables were loaded, the
+columns that would say more, and the questions to answer before the analysis
+(``scan.scan_design``; the text is ``_scan_text``)."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from .._integrity_text import integrity_status
+from .._style import Status
+from .._wording import count, listing, percent
+from ..sampling_unit.contrast_cells import IMBALANCE, MIN_BALANCED, SPARSE
+from ..schema import unit_plural
+from .scan import GOALS, DesignScan, Finding, Question
+
+# Data-check warnings the scan turns into a suggestion or a question instead.
+_ASKED = {"No FOV table was given.", "The observation unit is not declared."}
+_UNITS = ("cell", "nucleus", "track", "patch", "object")
+_UNIT_HINTS = (
+    ("track", re.compile(r"track|speed|displacement", re.IGNORECASE)),
+    ("nucleus", re.compile(r"nucle", re.IGNORECASE)),
+)
+
+
+def unit_words(scan: DesignScan) -> tuple[str, str]:
+    """The observation unit in the singular and plural (``observation`` when not declared)."""
+    unit = scan.settings["observation_unit"] or "observation"
+    return unit, unit_plural(unit)
+
+
+def compared(scan: DesignScan) -> list[Any]:
+    """The conditions compared with the control (all of them when there is no control)."""
+    control = scan.design.get("control_guess")
+    return [c for c in scan.design["conditions"] if c != control]
+
+
+def _check_findings(scan: DesignScan) -> list[Finding]:
+    check = scan.data_check
+    found = [
+        Finding(Status.PROBLEM, "loaded", f"{p.title} Where: {p.where} Fix: {p.fix}")
+        for p in check.errors
+    ]
+    found += [
+        Finding(Status.CAUTION, "loaded", f"{p.title} Fix: {p.fix}")
+        for p in check.warnings
+        if p.title not in _ASKED
+    ]
+    if not found:
+        found.append(Finding(Status.OK, "loaded", "The data check found nothing to fix."))
+    return found
+
+
+def _copy_finding(scan: DesignScan) -> Finding | None:
+    integrity = scan.integrity
+    if integrity is None:
+        if not scan.data_check.ok:
+            return None  # the errors above come first
+        return Finding(
+            Status.NOT_ASSESSED, "copies", "Copies were not checked: no numeric feature column."
+        )
+    status = integrity_status(integrity)
+    if status is Status.PROBLEM:
+        involved = integrity.field_labels()
+        return Finding(
+            status,
+            "copies",
+            f"{count(len(integrity.findings), 'copy finding')} in "
+            f"{count(len(involved), 'field')} ({listing(involved, 4)}): structure to inspect, "
+            "not a judgment; scan.integrity.summary() names each.",
+        )
+    if status is Status.NOT_ASSESSED:
+        return Finding(
+            status,
+            "copies",
+            "Copies could not be checked: no feature varies enough to tell observations apart.",
+        )
+    checked = int((integrity.checks["status"] == "checked").sum())
+    return Finding(
+        Status.OK,
+        "copies",
+        f"No copied field or row ({checked} copy checks: fields read twice, rows pasted into "
+        "another field, units changed).",
+    )
+
+
+def _balance_findings(scan: DesignScan) -> list[Finding]:
+    rows = scan.design["balance"]
+    if not rows:
+        return []
+    _, words = unit_words(scan)
+    found = []
+    unbalanced = [r for r in rows if r["unbalanced"]]
+    if unbalanced:
+        widest = max(unbalanced, key=lambda r: r["spread"])
+        found.append(
+            Finding(
+                Status.OK,
+                "balance",
+                f"The {words} per biological repeat differ by more than "
+                f"{percent(IMBALANCE - 1)} in {count(len(unbalanced), 'condition')} of "
+                f"{len(rows)} (up to {widest['spread']:.1f}× in {widest['condition']}); the "
+                f"report tests the {words} both as provided and balanced over the repeats.",
+            )
+        )
+    else:
+        found.append(
+            Finding(
+                Status.OK,
+                "balance",
+                f"The {words} per biological repeat are balanced (within "
+                f"{percent(IMBALANCE - 1)}) in every condition.",
+            )
+        )
+    by_repeat: dict[str, list[str]] = {}
+    for row in rows:
+        for repeat in row["sparse"]:
+            label = f"{row['condition']} ({row['sizes'][repeat]} {words})"
+            by_repeat.setdefault(str(repeat), []).append(label)
+    for repeat, entries in by_repeat.items():
+        found.append(
+            Finding(
+                Status.CAUTION,
+                "balance",
+                f"Few {words} in biological repeat {repeat}: {listing(entries)}, under "
+                f"{percent(SPARSE)} of the median repeat or under {MIN_BALANCED}. The balanced "
+                "test leaves it out rather than draw every repeat down to it; check it was not "
+                "cut short or filtered by mistake.",
+            )
+        )
+    return found
+
+
+def findings(scan: DesignScan) -> list[Finding]:
+    """How the tables were loaded: the data check, copies, constant features, balance."""
+    found = _check_findings(scan)
+    copy = _copy_finding(scan)
+    if copy is not None:
+        found.append(copy)
+    for name in scan.design["constant"]:
+        found.append(
+            Finding(
+                Status.CAUTION,
+                "features",
+                f"Feature {name!r} holds one value in every row: check the column was exported "
+                "as intended.",
+            )
+        )
+    found += _balance_findings(scan)
+    return found
+
+
+def _target_suggestion(scan: DesignScan) -> str | None:
+    others = compared(scan)
+    if len(others) < 2 or scan.design["targets"] is not None:
+        return None
+    text = (
+        f"Several conditions are compared ({len(others)}"
+        + (" besides the control" if scan.design.get("control_guess") is not None else "")
+        + "): add a 'target' column naming what each acts on, if some should have the same "
+        "effect; the report then says whether they agree."
+    )
+    groups = scan.design["reagent_groups"]
+    if groups:
+        named = [
+            f"{listing(members)} look like reagents of {target}"
+            for target, members in groups.items()
+        ]
+        text += " By their names, " + "; ".join(named) + "."
+    return text
+
+
+def suggestions(scan: DesignScan) -> list[str]:
+    """The columns that would say more, most useful first."""
+    design, settings = scan.design, scan.settings
+    unit, words = unit_words(scan)
+    found = []
+    if not design["conditions"]:
+        found.append(
+            "Add a 'condition' column naming the experimental group of each row; without it "
+            "nothing is compared."
+        )
+    if not design["repeats"]:
+        found.append(
+            "Add a 'biological_repeat' column (the independent experiment, often its date); "
+            "without it the conditions cannot be compared across repeats."
+        )
+    if settings["fov_added"]:
+        found.append(
+            "Add 'image_file' (or 'position_id', one value per stage position): no image "
+            f"identifier was found, so each {unit} is assumed to be on its own image. With it "
+            f"the report tells images from {words} (how many fields, copies between images)."
+        )
+    elif not settings["fovs_given"]:
+        found.append(
+            "Add a FOV table listing every imaged field, empty ones included: without it, "
+            f"fields with no {unit} are not known and the sampling answers are optimistic."
+        )
+    target = _target_suggestion(scan)
+    if target:
+        found.append(target)
+    if design["technical"] is None and design["repeats"]:
+        found.append(
+            "No technical repeat found: add 'technical_repeat' if a condition was imaged in "
+            "more than one well, dish or coverslip per biological repeat; the report then "
+            "tells wells from fields."
+        )
+    missing = []
+    if not design["order"]:
+        missing.append("'acquisition_order'")
+    if not design["stage"]:
+        missing.append("stage coordinates ('stage_x_um', 'stage_y_um')")
+    if missing and not settings["fov_added"]:
+        found.append(
+            f"Optional, for planning the next experiment: {listing(missing)} let optimise check "
+            "whether the order of the fields mattered."
+        )
+    return found
+
+
+def _unit_hint(scan: DesignScan) -> str | None:
+    names = " ".join(str(c) for c in scan.settings["feature_cols"])
+    for unit, pattern in _UNIT_HINTS:
+        if pattern.search(names):
+            return unit
+    return None
+
+
+def questions(scan: DesignScan) -> list[Question]:
+    """What to answer before the analysis, the goal first."""
+    design, settings = scan.design, scan.settings
+    features = settings["feature_cols"]
+    asked = [
+        Question(
+            "goal",
+            "What should the analysis answer: compare the population averages of the "
+            "conditions, compare their phenotypic fingerprints, or check a rare population?",
+            GOALS,
+            "averages",
+            "averages: the readout's mean per condition across biological repeats (the "
+            "default); fingerprint: the distribution of phenotypes over several features, "
+            "declared as fingerprint=(OutcomeCriterion(...), ...); rare: whether a rare "
+            "population was sampled enough, declared as rare=RareTarget(...).",
+        ),
+        Question(
+            "readout",
+            "Which feature is the readout you report?",
+            tuple(str(f) for f in features),
+            str(features[0]) if len(features) == 1 else None,
+            "Every answer is about the readout; the other features describe the phenotype.",
+        ),
+    ]
+    if not settings["control_declared"] and design["conditions"]:
+        guesses = design.get("control_guesses", [])
+        asked.append(
+            Question(
+                "control",
+                "Which condition is the negative control?",
+                tuple(str(c) for c in design["conditions"]),
+                None if design["control_guess"] is None else str(design["control_guess"]),
+                "The conditions are compared with it, within each biological repeat"
+                + (f"; {listing(guesses)} are all named like a control" if len(guesses) > 1 else "")
+                + ".",
+            )
+        )
+    if not settings["features_declared"]:
+        asked.append(
+            Question(
+                "features",
+                "Which columns are the features?",
+                tuple(str(f) for f in features),
+                None,
+                f"The scan read {count(len(features), 'numeric column')} as candidates, for "
+                "the copy checks only; declare the ones that describe the phenotype.",
+            )
+        )
+    if settings["observation_unit"] is None:
+        asked.append(
+            Question(
+                "observation_unit",
+                "What is one row: a cell, a nucleus, a track?",
+                _UNITS,
+                _unit_hint(scan),
+                "The report names it in every sentence.",
+            )
+        )
+    return asked
+
+
+def repeat_lines(scan: DesignScan) -> list[str]:
+    """How the conditions fall across the biological repeats, in sentences."""
+    design = scan.design
+    repeats, sets = design["repeats"], design["repeat_sets"]
+    if not repeats:
+        return []
+    head = f"{count(len(repeats), 'biological repeat')} ({listing(repeats, 6)})"
+    if len(repeats) == 1:
+        return [f"{head}: a pilot; the report describes it, and nothing is tested across repeats."]
+    if len(sets) == 1:
+        return [f"{head}; every condition in every repeat."]
+    lines = [f"{head}, holding different conditions (separate acquisitions):"]
+    control = design.get("control_guess")
+    for entry in sets:
+        held = [c for c in entry["conditions"] if c != control]
+        shared = " with the control" if control in entry["conditions"] else ""
+        lines.append(f"  {listing(entry['repeats'], 4)}: {listing(held, 6)}{shared}")
+    held_in = scan.layout.notna().sum(axis=1)
+    single = [c for c in design["conditions"] if held_in.get(c, 0) == 1]
+    if single:
+        lines.append(f"  In one repeat only: {listing(single)}.")
+    return lines
+
+
+def fields_line(scan: DesignScan) -> str:
+    """The fields and the observations per field, in a sentence."""
+    unit, words = unit_words(scan)
+    low, median, high = scan.design["per_field"]
+    fields = count(scan.design["fields"], "field")
+    if scan.settings["fov_added"]:
+        return f"{fields}, assumed: one per row (no image identifier)."
+    if high == 1:
+        return f"{fields}, one {unit} per field."
+    if low == high:
+        return f"{fields}, {low} {words} per field."
+    return f"{fields}, {low}-{high} {words} per field (median {median:g})."
+
+
+def technical_line(scan: DesignScan) -> str | None:
+    technical = scan.design["technical"]
+    if not scan.design["repeats"]:
+        return None
+    if technical is None:
+        return "Technical repeats: none recorded (one well per condition and repeat)."
+    low, high = technical["low"], technical["high"]
+    spread = f"{low}" if low == high else f"{low}-{high}"
+    return f"Technical repeats: {spread} per condition and biological repeat."
+
+
+__all__ = [
+    "compared",
+    "fields_line",
+    "findings",
+    "questions",
+    "repeat_lines",
+    "suggestions",
+    "technical_line",
+    "unit_words",
+]

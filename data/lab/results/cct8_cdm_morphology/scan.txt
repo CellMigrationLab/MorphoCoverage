@@ -1,0 +1,40 @@
+❌ Design scan — 174 cells in 174 fields, 3 conditions, 3 biological repeats
+
+What the dataset is
+  Conditions: siCTRL (the control), siCCT8#5 and siCCT8#8.
+  3 biological repeats (1, 2 and 3); every condition in every repeat.
+  Technical repeats: none recorded (one well per condition and repeat).
+  174 fields, one cell per field.
+  Targets with several conditions: CCT8 (siCCT8#5 and siCCT8#8).
+  Features: 10 features declared (Area, Perim., Major and 7 more).
+  Cells per condition and biological repeat:
+    condition   1   2   3
+    siCTRL     18  24  11
+    siCCT8#5   25  21  17
+    siCCT8#8   27  16  15
+
+Loaded correctly?
+  ✅ The data check found nothing to fix.
+  ❌ 1 copy finding in 2 fields (siCCT8#5 · 1 · single · siCCT8#5|1|cell007 and
+     siCCT8#5 · 1 · single · siCCT8#5|1|cell008): structure to inspect, not a judgment;
+     scan.integrity.summary() names each.
+  ✅ The cells per biological repeat differ by more than 25% in 3 conditions of 3 (up to 2.2× in
+     siCTRL); the report tests the cells both as provided and balanced over the repeats.
+
+Columns that would say more
+  - No technical repeat found: add 'technical_repeat' if a condition was imaged in more than one
+    well, dish or coverslip per biological repeat; the report then tells wells from fields.
+  - Optional, for planning the next experiment: 'acquisition_order' and stage coordinates
+    ('stage_x_um', 'stage_y_um') let optimise check whether the order of the fields mattered.
+
+Before the analysis
+  1. What should the analysis answer: compare the population averages of the conditions, compare
+     their phenotypic fingerprints, or check a rare population? Suggested: averages.
+     averages: the readout's mean per condition across biological repeats (the default);
+     fingerprint: the distribution of phenotypes over several features, declared as
+     fingerprint=(OutcomeCriterion(...), ...); rare: whether a rare population was sampled enough,
+     declared as rare=RareTarget(...).
+  2. Which feature is the readout you report? Options: Area, Perim., Major, Minor, Circ., Feret,
+     MinFeret, AR and 2 more.
+     Every answer is about the readout; the other features describe the phenotype.
+  Then: setup = scan.setup(readout=..., goal=...) and report(scan.objects, scan.fovs, setup).

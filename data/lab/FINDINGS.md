@@ -263,3 +263,21 @@ changed.
   9 are a sentence per test; question 2's novelty projections are in the full report.
 - The short reports are 192 (CDM, from 215) and 288 (glioma, from 313) lines; the screen grows to
   254 (from 231) with its 12 readings.
+
+## 2026-10-01 — tenth run: the design scan before any analysis
+
+`workflows.scan_design` (`results/<id>/scan.txt`) reads the tables before any declaration beyond
+the card's features, control and unit. Nothing in it is estimated or tested.
+
+- **What the dataset is**: the screen and the glioma tracks are read as separate acquisitions
+  sharing the control (6 and 2 sets of 3 biological repeats, each with its two siRNAs); the CDM
+  shape as one experiment with every condition in every repeat. The targets in the card's
+  `target` column are listed.
+- **Copies**: the glioma tracks give the 6 duplicated pairs of the curation, the CDM shape the
+  cell measured twice; the screen gives none.
+- **Balance**: unbalanced repeats (more than 25%) in 3 of 5 (glioma), 3 of 3 (CDM) and 5 of 13
+  (screen) conditions, stated without a caution (the report tests both ways); no sparse repeat.
+- **Columns that would say more**, tried by dropping columns: without `position_id` and
+  `image_file` the CDM shape is read as one image per row and the scan says so; without `target`
+  the screen's names give all 6 reagent pairs the card records; without `technical_repeat` the
+  scan suggests one if a condition was imaged in more than one well.

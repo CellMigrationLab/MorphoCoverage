@@ -1,0 +1,59 @@
+✅ Design scan — 1686 cells in 1686 fields, 13 conditions, 18 biological repeats
+
+What the dataset is
+  Conditions: siCTRL (the control), siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siMAP4K4#5,
+    siMAP4K4#6, siMINK1#10, siMINK1#3, siNF2#17, siNF2#7, siSCRIB#6 and 1 more.
+  18 biological repeats (siCCT8_1, siCCT8_2, siCCT8_3, siCSNK1A1_1, siCSNK1A1_2, siCSNK1A1_3 and 12
+    more), holding different conditions (separate acquisitions):
+    siCCT8_1, siCCT8_2 and siCCT8_3: siCCT8#5 and siCCT8#8 with the control
+    siCSNK1A1_1, siCSNK1A1_2 and siCSNK1A1_3: siCSNK1A1#11 and siCSNK1A1#5 with the control
+    siMAP4K4_1, siMAP4K4_2 and siMAP4K4_3: siMAP4K4#5 and siMAP4K4#6 with the control
+    siMINK1_1, siMINK1_2 and siMINK1_3: siMINK1#10 and siMINK1#3 with the control
+    siNF2_1, siNF2_2 and siNF2_3: siNF2#17 and siNF2#7 with the control
+    siSCRIB_1, siSCRIB_2 and siSCRIB_3: siSCRIB#6 and siSCRIB#7 with the control
+  Technical repeats: none recorded (one well per condition and repeat).
+  1686 fields, one cell per field.
+  Targets with several conditions: CCT8 (siCCT8#5 and siCCT8#8); CSNK1A1 (siCSNK1A1#11 and
+    siCSNK1A1#5); MAP4K4 (siMAP4K4#5 and siMAP4K4#6); MINK1 (siMINK1#10 and siMINK1#3); NF2
+    (siNF2#17 and siNF2#7); SCRIB (siSCRIB#6 and siSCRIB#7).
+  Features: 1 feature declared (Filopodia number).
+  Cells per condition (over its biological repeats):
+    condition     repeats  per repeat  total
+    siCTRL             18       18-39    555
+    siCCT8#5            3       30-49    113
+    siCCT8#8            3       31-38    100
+    siCSNK1A1#11        3       34-34    102
+    siCSNK1A1#5         3       34-35    103
+    siMAP4K4#5          3       13-32     76
+    siMAP4K4#6          3       29-37     98
+    siMINK1#10          3       27-33     89
+    siMINK1#3           3       20-38     85
+    siNF2#17            3       30-32     93
+    siNF2#7             3       30-31     92
+    siSCRIB#6           3       28-31     89
+    siSCRIB#7           3       29-33     91
+
+Loaded correctly?
+  ✅ The data check found nothing to fix.
+  ✅ No copied field or row (7 copy checks: fields read twice, rows pasted into another field, units
+     changed).
+  ✅ The cells per biological repeat differ by more than 25% in 5 conditions of 13 (up to 2.5× in
+     siMAP4K4#5); the report tests the cells both as provided and balanced over the repeats.
+
+Columns that would say more
+  - No technical repeat found: add 'technical_repeat' if a condition was imaged in more than one
+    well, dish or coverslip per biological repeat; the report then tells wells from fields.
+  - Optional, for planning the next experiment: 'acquisition_order' and stage coordinates
+    ('stage_x_um', 'stage_y_um') let optimise check whether the order of the fields mattered.
+
+Before the analysis
+  1. What should the analysis answer: compare the population averages of the conditions, compare
+     their phenotypic fingerprints, or check a rare population? Suggested: averages.
+     averages: the readout's mean per condition across biological repeats (the default);
+     fingerprint: the distribution of phenotypes over several features, declared as
+     fingerprint=(OutcomeCriterion(...), ...); rare: whether a rare population was sampled enough,
+     declared as rare=RareTarget(...).
+  2. Which feature is the readout you report? Suggested: Filopodia number. Options: Filopodia
+     number.
+     Every answer is about the readout; the other features describe the phenotype.
+  Then: setup = scan.setup(readout=..., goal=...) and report(scan.objects, scan.fovs, setup).
