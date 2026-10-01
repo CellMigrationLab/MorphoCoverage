@@ -271,8 +271,10 @@ def test_the_interactive_figures_draw_the_static_figures_numbers(tmp_path):
     # The matrix: d below the diagonal, the corrected p above it.
     matrix = readout["pairwise"]
     assert matrix["names"] == ["ctrl", "drug"]
-    assert "randomization test on d" in matrix["hover"][0][1]
-    assert matrix["text"][1][0].startswith("+") and matrix["text"][0][1]
+    assert "randomization test on d" in matrix["b"]["hover"][0][1]
+    assert "paired t-test" in matrix["c"]["hover"][1][0]
+    assert "<strong>Legend:</strong>" in page and "<p>(C) The paired t-test" in page
+    assert matrix["b"]["text"][1][0].startswith("+") and matrix["b"]["text"][0][1]
     assert 'class="pl-pair"' in page and "The static figure (as in the PDF)" in page
     # Its caption says how the interactive figure is coloured.
     assert "a point in its condition&#x27;s colour" in page

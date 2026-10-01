@@ -107,15 +107,42 @@ def _pairwise(table: pd.DataFrame, names: list[Any]) -> dict[str, Any] | None:
                     if np.isfinite(q)
                     else f"{row} and {column}: not tested ({pair.status})"
                 )
+    panel_b = {"lower": d, "upper": p, "text": text, "hover": hover, "lower_scale": "d"}
     return {
         "names": [str(c) for c in names],
-        "d": d,
-        "p": p,
-        "text": text,
-        "hover": hover,
+        "b": panel_b,
+        "c": _paired_panel(lookup, names),
         "alpha": ALPHA,
         "cap": D_CAP,
     }
+
+
+def _paired_panel(lookup: dict, names: list[Any]) -> dict[str, Any]:
+    """Panel C: the paired t-test on the repeats' means, uncorrected p in the lower-left
+    triangle, the Benjamini-Hochberg q above."""
+    n = len(names)
+    lower = [[None] * n for _ in range(n)]
+    upper = [[None] * n for _ in range(n)]
+    text = [[""] * n for _ in range(n)]
+    hover = [[""] * n for _ in range(n)]
+    for i, row in enumerate(names):
+        for j, column in enumerate(names):
+            pair = lookup.get((row, column)) or lookup.get((column, row))
+            if i == j or pair is None:
+                continue
+            value = float(pair.p_paired if i > j else pair.q_paired)
+            target = lower if i > j else upper
+            target[i][j] = round(p_shade(value), 3) if np.isfinite(value) else 0.0
+            text[i][j] = format_p(value) if np.isfinite(value) else "–"
+            what = "p, uncorrected" if i > j else "q, Benjamini-Hochberg over the pairs tested"
+            hover[i][j] = (
+                f"{row} and {column}: paired t-test on {pair.shared_repeats} repeats' means "
+                f"({pair.paired_values}), {what} {text[i][j]}"
+                if np.isfinite(value)
+                else f"{row} and {column}: not tested ({pair.shared_repeats} repeats imaged "
+                "both, fewer than 3)"
+            )
+    return {"lower": lower, "upper": upper, "text": text, "hover": hover, "lower_scale": "p"}
 
 
 def _points(frame: pd.DataFrame, summaries: pd.DataFrame, seed: int) -> dict[str, Any]:

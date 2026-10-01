@@ -19,7 +19,7 @@ technical repeats as acquired (``bootstrap_nested`` with the repeats as the
 units): resampling the technical repeats again within each drawn repeat would
 count their variance twice. Acquired fields without observations take part,
 as in ``statistics.bootstrap_fields``, when the FOV table places them in the
-cluster. The title says how many units a cluster's interval resamples, and
+cluster. The legend (at the bottom) says how many units a cluster's interval resamples, and
 warns when one has only 2 or 3, which no resampling turns into a reliable
 interval, or a single technical repeat, whose interval shows field-to-field
 variation only.
@@ -28,7 +28,7 @@ Every column of FOV identity that the figure does not place (condition,
 repeat or technical repeat) is pooled within a cluster, never merged: with
 ``repeat_col=None`` on several repeats that reuse well names, well ``A`` of
 each repeat stays its own technical repeat, and the repeats are resampled as
-pooled repeats, which the title says. An analysis-group column (``group_cols``)
+pooled repeats, which the legend says. An analysis-group column (``group_cols``)
 that the figure does not place raises instead, since the figure would pool
 the groups the caller asked to keep apart: name it as ``condition_col``,
 ``repeat_col`` or ``technical_col``, or leave it out of ``group_cols``.
@@ -36,7 +36,7 @@ the groups the caller asked to keep apart: name it as ``condition_col``,
 Limits keep the figures legible and are arguments: at most ``max_conditions``
 conditions per figure (more are split evenly over several figures), at most
 ``max_repeats`` biological repeats side by side (more are pooled into one
-cluster per condition, and the title says so), at most ``max_technical``
+cluster per condition, and the legend says so), at most ``max_technical``
 shapes (up to 8; more technical repeats of a biological repeat share small
 dots), at most ``max_features`` features per call (more raise, so the caller
 chooses). A column named explicitly that the tables do not hold raises; only
@@ -51,8 +51,9 @@ not change with the other features or conditions of the call. Figures are
 a notebook and save with ``savefig`` without touching global state. Each carries
 ``cluster_summaries``: per cluster drawn, its condition, repeat (``None`` when pooled),
 x position and width, and its summary with the interval (``summary``, ``low``, ``high``),
-and ``caption``, its title unwrapped, so another rendering (the HTML report's) draws the
-same numbers.
+and ``caption``, what it shows (one clause per line), so another rendering (the HTML
+report's) draws the same numbers. The caption is the figure's legend, at its bottom
+(``_figure_layout``); its title is the feature.
 """
 
 from __future__ import annotations
@@ -67,6 +68,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from ._checks import is_integer
+from ._figure_layout import sentences, set_legend
 from ._former_repeat import one_warning, read_former
 from ._palette import COLOURS, FONT, INK, MARKERS, MUTED, OTHER_MARKER, style_axes
 from ._plots_text import legend, title
@@ -501,20 +503,15 @@ def plots_of_data(
             words = title(
                 feature, part, layout, data.observation_unit, summary, confidence, clusters
             )
-            ax.set_title(
-                words,
-                fontsize=10,
-                color=MUTED,
-                wrap=True,  # wrapped at the figure's edge when drawn: a narrow figure fits it
-                loc="left",
-                pad=16,
-            )
+            # The feature on top; what the figure shows is its legend, at the bottom.
+            ax.set_title(f"{feature}{part}", fontsize=13, weight="bold", loc="left", pad=22)
             legend(ax, layout, shapes, n_technical)
             style_axes(ax)
             ax.tick_params(axis="x", labelsize=FONT + 1)
             figure.tight_layout()
             figure.cluster_summaries = pd.DataFrame(summaries)
             figure.caption = words
+            set_legend(figure, [sentences(words)])
             figures[feature].append(figure)
     return figures
 

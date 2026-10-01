@@ -26,7 +26,7 @@ from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
-from ..plots_pairwise import PAIR_NOTE
+from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE
 from ._html_plotly import feature_specs, interactive_caption
 from ._shared import check_workflow_inputs
 from .figures import plots
@@ -116,11 +116,28 @@ def feature_figures(
             uri = _save(figure, folder, name)
             label = f"{feature}: {role}"
             pairs = getattr(figure, "pairwise", None)
+            paired = pairs is not None and len(pairs) > 0
             pair = (
-                f'<div class="pair-row"><div class="pl-pair" id="pp-{html.escape(name)}"></div>'
-                f'<p class="note">{html.escape(PAIR_NOTE)}</p></div>'
-                if pairs is not None and len(pairs)
+                '<div class="pair-row">'
+                + "".join(
+                    f'<div class="panel"><p class="panel-title"><b>{letter}</b> {title}</p>'
+                    f'<div class="pl-pair" data-panel="{letter.lower()}"></div></div>'
+                    for letter, title in (
+                        ("B", "d · randomization test"),
+                        ("C", "paired t-test, repeat means"),
+                    )
+                )
+                + "</div>"
+                if paired
                 else ""
+            )
+            letter_a = '<p class="panel-title"><b>A</b></p>' if paired else ""
+            caption = f'<span class="caption">{html.escape(interactive_caption(figure))}</span>'
+            legend = (
+                f"<p>(A) {caption}</p><p>(B) {html.escape(PAIR_NOTE)}</p>"
+                f"<p>(C) {html.escape(PAIRED_NOTE)}</p>"
+                if paired
+                else f"<p>{caption}</p>"
             )
             switch = "".join(
                 f'<button type="button" data-key="values" data-value="{key}" '
@@ -136,8 +153,9 @@ def feature_figures(
                 f'<div class="feature" data-spec="{html.escape(name)}">'
                 f'<div class="feature-head"><h4>{html.escape(label)}</h4><span class="tools">'
                 f'{switch}<button type="button" class="dl full">Enlarge</button></span></div>'
-                f'<div class="pl-plot" id="pl-{html.escape(name)}"></div>{pair}'
-                f'<p class="caption note">{html.escape(interactive_caption(figure))}</p>'
+                f'<div class="panel">{letter_a}'
+                f'<div class="pl-plot" id="pl-{html.escape(name)}"></div></div>{pair}'
+                f'<div class="figure-legend"><p><strong>Legend:</strong></p>{legend}</div>'
                 f'<p class="note sampled"></p><p class="tools">'
                 f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
                 "</p><details><summary>The static figure (as in the PDF)</summary>"

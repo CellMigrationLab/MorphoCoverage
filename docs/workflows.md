@@ -144,12 +144,15 @@ repeat, technical repeat and field, or a median for its interval; zoom by
 dragging; "Enlarge" fills the window. Beyond 4000 observations a figure
 draws a seeded sample of each cluster, and says so (the summaries and tests use
 every observation). Under it, as in Plot&Stats, the matrix of every pair of
-conditions: Cohen's d below the diagonal (the row's condition minus the column's),
-and above it the randomization test on d, every observation of the two conditions
-shuffled as Plot&Stats does, Benjamini-Hochberg corrected over the pairs (the
-paired t-test on the repeats' means is in the hover, not drawn: on three repeats
-it has little power); a pair imaged in different repeats is marked †, since the
-batch is in its difference (`plots_pairwise`). The static figure (PNG and PDF, for papers) is folded
+conditions in two panels: (B) Cohen's d below the diagonal (the row's condition
+minus the column's) and above it the randomization test on d, every observation of
+the two conditions shuffled as Plot&Stats does, Benjamini-Hochberg corrected over
+the pairs; (C) the paired t-test on the repeats' means, its uncorrected p below the
+diagonal and its Benjamini-Hochberg q above (with 3 repeats that imaged both; it
+holds its false-positive rate but has little power on three). A pair imaged in
+different repeats is marked †, since the batch is in its difference
+(`plots_pairwise`). The words are a legend under the panels, "(A)", "(B)", "(C)",
+as in a paper. The static figure (PNG and PDF, for papers) is folded
 under each, with the same matrix under the plot. On the PCA and UMAP, hover a
 point for its condition, repeat and field, click a condition in the legend to
 hide it, switch between PCA and UMAP and between raw values and values
@@ -387,17 +390,21 @@ within each condition the biological repeats (the `biological_repeat` column) si
 by side, labelled above their cluster, so that a difference between
 conditions can be read against the spread between repeats; each condition is
 only as wide as the repeats it holds, so repeats imaged for other conditions
-take no room. Under the plot, with two or more conditions, the matrix of every
-pair of conditions, as Plot&Stats draws it (`plots(..., pairwise=False)` leaves
-it out): Cohen's d on the observations below the diagonal, the row's condition
+take no room. The figure's title is the feature; what it shows is its legend, at
+the bottom. Under the plot (panel A), with two or more conditions, the matrices of
+every pair of conditions, as Plot&Stats draws them (`plots(..., pairwise=False)`
+leaves them out), side by side when the figure is wide enough, else one under the
+other, the legend then lettered (A) to (C). Panel B: Cohen's d on the observations
+below the diagonal, the row's condition
 minus the column's (signed, blue lower, red higher), and above it the
 randomization test on d (the condition labels shuffled over every observation of
 the two conditions, pooled over the repeats, 1999 shuffles seeded from
 `random_state`), Benjamini-Hochberg corrected over the pairs (q, green and bold
 at 0.05). It treats every observation as an independent draw, so when the
 repeats differ it passes more often than 5% without an effect; the table keeps
-the paired t-test on the repeats' means beside it (`p_paired`, with 3 repeats
-that imaged both), and a pair imaged in different repeats is marked †, since the
+the paired t-test on the repeats' means beside it, drawn as panel C (`p_paired`
+below the diagonal, uncorrected, and `q_paired`, Benjamini-Hochberg over the pairs
+tested, above; with 3 repeats that imaged both), and a pair imaged in different repeats is marked †, since the
 difference between batches is in it (`plots_pairwise.pairwise_contrasts` gives
 the table, and each figure carries it as `figure.pairwise`). Every object is a
 jittered point in its condition's colour (the HTML report's colours), shaped by
@@ -410,11 +417,11 @@ biological repeat's median (or `summary="mean"`) carries its 95% interval
 from resampling that repeat's whole technical repeats, each with its fields
 as acquired (Ren et al. 2010; whole fields alone when there is one technical
 repeat; with only 2 or 3 technical repeats no resampling gives a reliable
-interval, and the title says so), never objects, so
+interval, and the legend says so), never objects, so
 it reflects how the data were sampled: a well-to-well shift widens the
 interval instead of passing for field-to-field noise. More than 12 conditions
 are split over several figures, more than 8 biological repeats are pooled
-into one cluster per condition and the title says so (a pooled cluster
+into one cluster per condition and the legend says so (a pooled cluster
 resamples its repeats alone, each with all its fields, so the technical
 repeats' variance is not counted twice), more than 8
 technical repeats are drawn as small dots with a note, and more than 24 features

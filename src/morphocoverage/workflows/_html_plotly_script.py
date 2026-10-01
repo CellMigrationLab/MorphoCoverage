@@ -8,6 +8,9 @@ PLOTLY_SCRIPT = r"""
 (function () {
   if (typeof Plotly === 'undefined') return;
   var FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  // The matrices' colours: d diverging from the middle, p and q green when they pass.
+  var DIVERGING = [[0, 'rgb(42,120,214)'], [0.5, 'rgb(240,239,236)'], [1, 'rgb(227,73,72)']];
+  var GREENS = [[0, 'rgb(240,239,236)'], [1, 'rgb(46,125,50)']];
   // The technical repeats' shapes, by rank, as matplotlib's markers in the static figures.
   var SHAPES = ['circle', 'square', 'triangle-up', 'diamond', 'triangle-down', 'cross', 'x',
     'star'];
@@ -63,7 +66,8 @@ PLOTLY_SCRIPT = r"""
   specs.forEach(function (entry) {
     var block = document.querySelector('.feature[data-spec="' + entry.id + '"]');
     if (!block) return;
-    var plot = block.querySelector('.pl-plot'), pair = block.querySelector('.pl-pair');
+    var plot = block.querySelector('.pl-plot');
+    var pairs = Array.prototype.slice.call(block.querySelectorAll('.pl-pair'));
     // The values shown (raw, or normalised to each repeat's control): the switch redraws the
     // points, the summaries, the intervals and the matrix's d from that view's numbers.
     var state = entry.current, height = 460;
@@ -140,34 +144,42 @@ PLOTLY_SCRIPT = r"""
         })
       });
       Plotly.react(plot, traces, layout, config);
-      if (pair && spec.pairwise) matrix(pair, spec.pairwise, t);
+      if (spec.pairwise) {
+        pairs.forEach(function (node, k) {
+          matrix(node, spec.pairwise, spec.pairwise[node.dataset.panel], t, k === 0 ||
+            node.parentNode.offsetTop !== pairs[0].parentNode.offsetTop);
+        });
+      }
     }
     draw();
     redraws.push(draw);
-    enlarger(block, [plot, pair], [height, pair ? pair.offsetHeight || 420 : 0]);
+    enlarger(block, [plot], [height]);
   });
 
-  function matrix(node, pw, t) {
+  // A matrix of every pair (panel B or C): its lower-left and upper-right triangles drawn as
+  // two heatmaps with their own colours, the text and the hover of every cell.
+  function matrix(node, pw, panel, t, labels) {
     var n = pw.names.length, longest = Math.max.apply(null, pw.names.map(function (s) {
       return s.length;
     }));
-    var lower = pw.text.map(function (row, i) {
-      return row.map(function (v, j) { return i > j ? v : ''; });
-    });
-    var upper = pw.text.map(function (row, i) {
-      return row.map(function (v, j) { return i < j ? v : ''; });
-    });
+    function half(below) {
+      return panel.text.map(function (row, i) {
+        return row.map(function (v, j) { return (below ? i > j : i < j) ? v : ''; });
+      });
+    }
     var common = { type: 'heatmap', x: pw.names, y: pw.names, showscale: false, xgap: 4,
-      ygap: 4, hoverongaps: false, customdata: pw.hover, texttemplate: '%{text}',
+      ygap: 4, hoverongaps: false, customdata: panel.hover, texttemplate: '%{text}',
       textfont: { size: n > 8 ? 12 : 14 }, hovertemplate: '%{customdata}<extra></extra>' };
+    function scale(stops) { return stops.map(function (stop) { return stop.slice(); }); }
+    var lowerScale = panel.lower_scale === 'd' ?
+      { zmin: -pw.cap, zmax: pw.cap, colorscale: scale(DIVERGING) } :
+      { zmin: 0, zmax: 1, colorscale: scale(GREENS) };
     var traces = [
-      merge(merge({}, common), { z: pw.d, text: lower, zmin: -pw.cap, zmax: pw.cap,
-        colorscale: [[0, 'rgb(42,120,214)'], [0.5, 'rgb(240,239,236)'], [1, 'rgb(227,73,72)']]
-      }),
-      merge(merge({}, common), { z: pw.p, text: upper, zmin: 0, zmax: 1,
-        colorscale: [[0, 'rgb(240,239,236)'], [1, 'rgb(46,125,50)']] })
+      merge(merge(merge({}, common), lowerScale), { z: panel.lower, text: half(true) }),
+      merge(merge({}, common), { z: panel.upper, text: half(false), zmin: 0, zmax: 1,
+        colorscale: scale(GREENS) })
     ];
-    var cell = n > 8 ? 58 : 80, left = 24 + 8.5 * longest;
+    var cell = n > 8 ? 58 : 80, left = labels ? 24 + 8.5 * longest : 20;
     var side = cell * n;
     var layout = merge(base(t), {
       width: left + side + 20, height: side + 20 + 8.5 * longest * 0.7 + 30,
@@ -175,7 +187,8 @@ PLOTLY_SCRIPT = r"""
       xaxis: { tickangle: -35, showgrid: false, zeroline: false, tickfont: { size: 14 },
         constrain: 'domain', ticks: '', showline: false },
       yaxis: { autorange: 'reversed', showgrid: false, zeroline: false, tickfont: { size: 14 },
-        scaleanchor: 'x', constrain: 'domain', ticks: '', showline: false }
+        scaleanchor: 'x', constrain: 'domain', ticks: '', showline: false,
+        showticklabels: labels }
     });
     Plotly.react(node, traces, layout, merge(merge({}, config), { responsive: false }));
   }

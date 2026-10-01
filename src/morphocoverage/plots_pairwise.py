@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
+from ._figure_layout import grow_bottom, panel_letter, remove_legend, sentences, set_legend
 from ._palette import MUTED
 from ._seeds import group_rng
 from .data_check import validate_input_tables
@@ -56,6 +57,14 @@ PAIR_NOTE = (
     "repeats, so the batch is in the difference. Pairs without the control describe; the "
     "declared comparisons are against the control."
 )
+PAIRED_NOTE = (
+    "The paired t-test on the biological repeats' means: each condition's mean paired with "
+    "the other's in every repeat that imaged both (on the log ratios when every mean is "
+    "positive). Lower left: its p-value, uncorrected; upper right: Benjamini-Hochberg "
+    "corrected over the pairs tested (q). Green at ≤ 0.05, darker the smaller. It holds "
+    "its false-positive rate when the repeats differ, but has little power on three "
+    "repeats; – : fewer than 3 repeats imaged both."
+)
 PAIR_COLUMNS = [
     "feature",
     "first",
@@ -67,6 +76,7 @@ PAIR_COLUMNS = [
     "p",
     "q",
     "p_paired",
+    "q_paired",
     "paired_values",
     "status",
 ]
@@ -157,8 +167,9 @@ def pairwise_contrasts(
                 "status": status,
             }
         )
-    table = pd.DataFrame(rows, columns=[c for c in PAIR_COLUMNS if c != "q"])
-    table["q"] = benjamini_hochberg(table["p"].to_numpy(float)) if len(table) else []
+    table = pd.DataFrame(rows, columns=[c for c in PAIR_COLUMNS if c not in ("q", "q_paired")])
+    for p_column, q_column in (("p", "q"), ("p_paired", "q_paired")):
+        table[q_column] = benjamini_hochberg(table[p_column].to_numpy(float)) if len(table) else []
     return table[PAIR_COLUMNS]
 
 
@@ -189,37 +200,37 @@ def p_colour(p: float) -> tuple[float, float, float]:
 
 
 def format_p(p: float) -> str:
-    """A p-value in a cell: three significant digits, ``<0.001`` below."""
-    return "<0.001" if p < 0.001 else f"{p:.2g}" if p < 0.01 else f"{p:.2f}"
+    """A p-value in a cell: ``<0.001``, two significant digits below 0.01, three decimals
+    below 0.1 (so a p either side of 0.05 never reads as 0.05), else two."""
+    if p < 0.001:
+        return "<0.001"
+    return f"{p:.2g}" if p < 0.01 else f"{p:.3f}" if p < 0.1 else f"{p:.2f}"
 
 
 def _ink(colour: tuple[float, float, float]) -> str:
     return "white" if sum(colour) / 3 < 0.55 else "#0b0b0b"
 
 
-def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any]) -> None:
-    """Draw the matrix of ``table`` (``pairwise_contrasts``) for ``conditions`` under the
-    figure's plot, the figure made taller for it; nothing with fewer than two conditions."""
-    conditions = list(conditions)
+def _cells_d(pair: Any, row: Any) -> tuple[str, tuple, str]:
+    """Panel B, lower left: d of the row's condition minus the column's."""
+    d = pair.d if pair.first == row else -pair.d
+    text = "–" if not np.isfinite(d) else f"{d:+.2f}"
+    if np.isfinite(d) and pair.shared_repeats == 0:
+        text += "†"  # different repeats: the batch is in d too
+    return text, d_colour(d), "normal"
+
+
+def _cells_p(value: float, apart: bool = False) -> tuple[str, tuple, str]:
+    """A p- or q-value cell: green at or below ``ALPHA``, "–" when there is none."""
+    if not np.isfinite(value):
+        return "–", p_colour(np.nan), "normal"
+    text = format_p(value) + ("†" if apart else "")
+    return text, p_colour(value), "bold" if value <= ALPHA else "normal"
+
+
+def _matrix(ax: Any, conditions: list, table: pd.DataFrame, panel: str, *, ylabels: bool):
+    """Draw panel ``"B"`` (d and the randomization q) or ``"C"`` (the paired p and q)."""
     n = len(conditions)
-    if n < 2 or table.empty:
-        return
-    labels = [str(c) for c in conditions]
-    cell = 0.72 if n <= 8 else max(0.4, 5.6 / n)
-    label_w = min(2.8, 0.11 * max(len(t) for t in labels) + 0.3)
-    extra = cell * n + 0.4 + label_w * 0.6
-    width, height = figure.get_size_inches()
-    total = height + extra
-    figure.set_size_inches(width, total)
-    for ax in figure.axes:
-        box = ax.get_position()
-        ax.set_position(
-            [box.x0, (box.y0 * height + extra) / total, box.width, box.height * height / total]
-        )
-    left = label_w + 0.2
-    ax = figure.add_axes(
-        [left / width, (label_w * 0.6) / total, cell * n / width, cell * n / total]
-    )
     lookup = {(r.first, r.second): r for r in table.itertuples()}
     font = 11 if n <= 8 else 8.5
     for i, row in enumerate(conditions):
@@ -230,21 +241,15 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
             pair = lookup.get((row, column)) or lookup.get((column, row))
             if pair is None:
                 continue
-            if i > j:
-                # Lower left: d of the row's condition minus the column's.
-                d = pair.d if pair.first == row else -pair.d
-                colour = d_colour(d)
-                text = "–" if not np.isfinite(d) else f"{d:+.2f}"
-                if np.isfinite(d) and pair.shared_repeats == 0:
-                    text += "†"  # different repeats: the batch is in d too
-                weight = "normal"
+            if panel == "B":
+                cell = (
+                    _cells_d(pair, row)
+                    if i > j
+                    else _cells_p(float(pair.q), pair.shared_repeats == 0)
+                )
             else:
-                q = pair.q
-                colour = p_colour(q)
-                text = "–" if not np.isfinite(q) else format_p(q)
-                if np.isfinite(q) and pair.shared_repeats == 0:
-                    text += "†"
-                weight = "bold" if np.isfinite(q) and q <= ALPHA else "normal"
+                cell = _cells_p(float(pair.p_paired if i > j else pair.q_paired))
+            text, colour, weight = cell
             ax.add_patch(_square(j, i, colour))
             ax.text(
                 j + 0.5,
@@ -256,27 +261,53 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
                 color=_ink(colour),
                 weight=weight,
             )
+    labels = [str(c) for c in conditions]
     ax.set_xlim(0, n)
     ax.set_ylim(n, 0)
     ax.set_xticks(np.arange(n) + 0.5)
     ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=font + 0.5)
     ax.set_yticks(np.arange(n) + 0.5)
-    ax.set_yticklabels(labels, fontsize=font + 0.5)
+    ax.set_yticklabels(labels if ylabels else [], fontsize=font + 0.5)
     ax.tick_params(length=0)
     for side in ax.spines.values():
         side.set_visible(False)
-    note = PAIR_NOTE
-    x = (left + cell * n + 0.35) / width
-    if x < 0.8:
-        figure.text(
-            x,
-            (label_w * 0.6 + cell * n) / total,
-            _wrapped(note, width * (1 - x) * 11),
-            fontsize=9.5,
-            va="top",
-            ha="left",
-            color=MUTED,
-        )
+    title = "d · randomization test" if panel == "B" else "paired t-test, repeat means"
+    ax.set_title(title, fontsize=10.5, loc="left", color=MUTED, pad=8)
+
+
+def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any]) -> None:
+    """Panels B (d and the randomization test) and C (the paired t-test on the repeats'
+    means) under the figure's plot, side by side when the figure is wide enough, else one
+    under the other; the legend says what each shows. Nothing with fewer than two
+    conditions."""
+    conditions = list(conditions)
+    n = len(conditions)
+    if n < 2 or table.empty:
+        return
+    caption = getattr(figure, "caption", "")
+    remove_legend(figure)  # written again under the new panels
+    cell = 0.72 if n <= 8 else max(0.4, 5.6 / n)
+    label_w = min(2.8, 0.11 * max(len(str(c)) for c in conditions) + 0.3)
+    side = cell * n
+    width = figure.get_size_inches()[0]
+    beside = label_w + 0.3 + 2 * side + 0.7 <= width - 0.2
+    row_h = side + label_w * 0.6 + 0.75  # the cells, the slanted labels, the panel title
+    extra = row_h if beside else 2 * row_h
+    grow_bottom(figure, extra)
+    total = figure.get_size_inches()[1]
+    left = label_w + 0.3
+    bottom_b = (extra - side - 0.55) / total
+    ax_b = figure.add_axes([left / width, bottom_b, side / width, side / total])
+    if beside:
+        ax_c = figure.add_axes([(left + side + 0.7) / width, bottom_b, side / width, side / total])
+    else:
+        ax_c = figure.add_axes([left / width, bottom_b - row_h / total, side / width, side / total])
+    _matrix(ax_b, conditions, table, "B", ylabels=True)
+    _matrix(ax_c, conditions, table, "C", ylabels=not beside)
+    panel_letter(figure.axes[0], "A", pad=22)
+    panel_letter(ax_b, "B", pad=8)
+    panel_letter(ax_c, "C", pad=8)
+    set_legend(figure, [sentences(caption), PAIR_NOTE, PAIRED_NOTE])
 
 
 def _square(x: float, y: float, colour: tuple[float, float, float]):
@@ -292,16 +323,11 @@ def _square(x: float, y: float, colour: tuple[float, float, float]):
     )
 
 
-def _wrapped(text: str, width: float) -> str:
-    import textwrap
-
-    return "\n".join(textwrap.wrap(text, max(30, int(width))))
-
-
 __all__ = [
     "ALPHA",
     "D_CAP",
     "N_PERMUTATIONS",
+    "PAIRED_NOTE",
     "PAIR_COLUMNS",
     "PAIR_NOTE",
     "add_pairwise",

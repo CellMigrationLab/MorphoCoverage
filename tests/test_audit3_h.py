@@ -134,7 +134,7 @@ def test_h2_pooled_repeats_resample_the_repeats_alone(monkeypatch):
     title = plots_of_data(objects, fovs, features=["x"], n_boot=20)["x"][0].axes[0]
     # One call for the one pooled cluster: ten repeats, each with its 6 fields (2 wells).
     assert calls == [[6] * 10]
-    text = title.get_title(loc="left")
+    text = title.figure.caption
     assert (
         "resampling whole biological repeats (biological_repeat), each with all its fields" in text
     )
@@ -150,7 +150,7 @@ def test_h3_plot_intervals_are_the_widened_nested_ones_with_the_small_unit_cavea
     ax = plots_of_data(objects, fovs, features=["x"], n_boot=50)["x"][0].axes[0]
     assert calls == [[4, 4, 4]]  # the wells, each with its fields, into bootstrap_nested
     assert "with only 2-3 technical repeats a cluster's interval is not reliable" in (
-        ax.get_title(loc="left")
+        ax.figure.caption
     )
 
 
@@ -161,7 +161,7 @@ def test_h4_repeats_left_out_of_the_layout_are_pooled_not_merged(monkeypatch):
     ax = plots_of_data(objects, fovs, features=["x"], repeat_col=None, n_boot=20)["x"][0].axes[0]
     # Three repeats, each with its two wells of four fields: never well A of all repeats.
     assert calls == [[8, 8, 8]]
-    title = ax.get_title(loc="left")
+    title = ax.figure.caption
     assert "repeat not shown apart, pooled within each cluster" in title
     assert "whole biological repeats (biological_repeat)" in title
     labels = [t.get_text() for t in ax.get_legend().get_texts()]
@@ -187,7 +187,7 @@ def test_h5_only_the_technical_repeat_column_is_taken_by_itself():
     )
     ax = figures["x"][0].axes[0]
     assert [t.get_text() for t in ax.get_xticklabels()] == ["ctrl", "drug"]
-    assert "coloured by technical repeat" not in ax.get_title(loc="left")
+    assert "coloured by technical repeat" not in ax.figure.caption
 
 
 def test_h6_a_missing_technical_repeat_value_raises():
@@ -361,7 +361,7 @@ def test_h16_a_technical_column_of_the_fov_table_only_is_used():
     objects, fovs = _without_technical(*_tables(spec, per_field=10))
     fovs["well"] = [p.split("_")[2] for p in fovs["position_id"]]
     ax = plots_of_data(objects, fovs, features=["x"], technical_col="well", n_boot=10)["x"][0]
-    title = ax.axes[0].get_title(loc="left")
+    title = ax.axes[0].figure.caption
     assert "shaped by technical repeat (well)" in title
     assert "whole technical repeats with their fields as acquired (3 per cluster" in title
 

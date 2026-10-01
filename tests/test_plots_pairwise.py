@@ -67,11 +67,17 @@ def test_the_panel_is_drawn_under_each_figure_with_its_table():
     objects, fovs = _tables()
     setup = Setup(readout="area", control={"condition": "ctrl"}, observation_unit="cell")
     figure = plots(objects, fovs, setup)["area"][0]
-    assert len(figure.axes) == 2
-    plot, panel = figure.axes
+    # A plot and, under it, panels B (d, randomization) and C (the paired t-test).
+    assert len(figure.axes) == 3
+    plot, panel, paired = figure.axes
     # The plot moved up, the panel sits under it.
     assert panel.get_position().y1 < plot.get_position().y0
     texts = [t.get_text() for t in panel.texts]
+    # Panel C: the paired test's p and q, and – where fewer than 3 repeats imaged both.
+    assert "–" in [t.get_text() for t in paired.texts]
+    # The legend at the bottom, a paragraph a panel, lettered.
+    legend = figure.legend_artist.get_text()
+    assert legend.startswith("Legend:\n(A) ") and "\n\n(B) " in legend and "\n\n(C) " in legend
     assert any(t.endswith("†") for t in texts)  # drug and other: different repeats
     assert sum(t.endswith("†") for t in texts) == 2  # d and q of that pair
     assert len(figure.pairwise) == 3
@@ -95,4 +101,4 @@ def test_one_condition_draws_no_panel_and_p_values_read_in_a_cell():
     figure.add_subplot(111)
     add_pairwise(figure, table, ["ctrl"])
     assert len(figure.axes) == 1
-    assert [format_p(p) for p in (0.0004, 0.004, 0.04, 0.4)] == ["<0.001", "0.004", "0.04", "0.40"]
+    assert [format_p(p) for p in (0.0004, 0.004, 0.04, 0.4)] == ["<0.001", "0.004", "0.040", "0.40"]

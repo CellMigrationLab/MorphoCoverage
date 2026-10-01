@@ -251,6 +251,7 @@ src/morphocoverage/
     plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
     _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend
     _palette.py            # private: the colour per condition, technical-repeat shapes, axis style
+    _figure_layout.py      # private: a static figure's lettered panels and its legend at the bottom
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
         __init__.py        # the subpackage's public names
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance

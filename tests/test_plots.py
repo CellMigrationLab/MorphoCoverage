@@ -60,7 +60,7 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     assert len(ax.collections) >= 4  # points per condition and repeat, plus legend handles
     # Per condition and repeat cluster: the interval bar, its caps and the median line.
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 12
-    title = ax.get_title(loc="left")
+    title = ax.figure.caption
     assert "resampling whole technical repeats with their fields as acquired" in title
     assert "biological repeats (biological_repeat) side by side" in title
     # Repeats are labelled above their clusters; points are shaped by the well, and one
@@ -77,16 +77,14 @@ def test_many_conditions_split_and_many_repeats_are_pooled():
     )
     assert len(figures["x"]) == 2
     # Split evenly over the two figures, never 12 and 2.
-    assert "conditions 1 to 7 of 14" in figures["x"][0].axes[0].get_title(loc="left")
-    assert "conditions 8 to 14 of 14" in figures["x"][1].axes[0].get_title(loc="left")
+    assert "conditions 1 to 7 of 14" in figures["x"][0].axes[0].figure.caption
+    assert "conditions 8 to 14 of 14" in figures["x"][1].axes[0].figure.caption
     objects, fovs = _tables(n_conditions=1, n_repeats=9, n_fields=2)
     figures = plots_of_data(
         objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS, technical_col="well"
     )
     ax = figures["x"][0].axes[0]
-    assert "biological repeats (biological_repeat) pooled, more than the 8" in ax.get_title(
-        loc="left"
-    )
+    assert "biological repeats (biological_repeat) pooled, more than the 8" in ax.figure.caption
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 3 and not ax.texts
     # Too many technical replicates of one biological repeat to colour: a note instead of a
     # legend (well names are counted per repeat, so 9 fields a repeat, each its own well).
@@ -161,7 +159,7 @@ def test_the_morphobricks_technical_repeat_is_the_default_colour_and_bootstrap_u
     bare = objects.drop(columns="well"), fovs.drop(columns="well")
     figures = plots_of_data(*bare, features=["x"], n_boot=30)
     ax = figures["x"][0].axes[0]
-    title = ax.get_title(loc="left")
+    title = ax.figure.caption
     assert "shaped by technical repeat (technical_repeat)" in title
     legend = ax.get_legend()
     assert legend.get_title().get_text().startswith("technical repeat\n(technical_repeat)")
