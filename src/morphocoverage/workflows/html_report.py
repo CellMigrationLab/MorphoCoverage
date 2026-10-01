@@ -169,6 +169,8 @@ def _feature_figures(result: Report, objects, fovs, folder: Path) -> list[str]:
             role = "the readout" if feature == result.setup.readout else "best-ranked feature"
             if feature in top:
                 role = f"best-ranked feature {top.index(feature) + 1}"
+            if len(parts) > 1:
+                role += f", part {index} of {len(parts)}"
             blocks.append(_figure(_save(figure, folder, name), name, f"{feature}: {role}"))
     return blocks
 
