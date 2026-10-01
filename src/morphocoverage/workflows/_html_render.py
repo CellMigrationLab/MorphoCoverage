@@ -13,6 +13,7 @@ import html
 import re
 
 from .._style import Status
+from ..glossary import GLOSSARY, PHRASES, Term, slug
 
 STATUS_WORDS = {
     Status.OK: ("ok", "Answered"),
@@ -25,6 +26,57 @@ _MARKER_LINE = re.compile(r"^(✅|⚠️|❌|➖)\s+(.*)$")
 _COLUMNS = re.compile(r"\S {2,}\S")
 _SPLIT = re.compile(r" {2,}")
 _NUMBER = re.compile(r"^[−+-]?[<>≤≥]?\d[\d.,]*%?$")
+
+
+class Terms:
+    """The glossary's phrases in the report's text, each linked to its entry with its meaning
+    as a tooltip: only the first mention of a term in each section (``annotate``), never inside
+    a link or a table, so the text stays readable."""
+
+    def __init__(self) -> None:
+        by_name = {term.name: term for term in GLOSSARY}
+        self.lookup: dict[str, Term] = {}
+        for name, phrases in PHRASES.items():
+            for phrase in phrases:
+                self.lookup[html.escape(phrase).lower()] = by_name[name]
+        alternatives = sorted(self.lookup, key=len, reverse=True)
+        self.pattern = re.compile(
+            r"(?<![\w-])(" + "|".join(re.escape(a) for a in alternatives) + r")(?![\w-])",
+            re.IGNORECASE,
+        )
+
+    def _link(self, match: re.Match, seen: set[str]) -> str:
+        term = self.lookup[match.group(1).lower()]
+        if term.name in seen:
+            return match.group(0)
+        seen.add(term.name)
+        return (
+            f'<a class="term" href="#{slug(term)}">{match.group(0)}'
+            f'<span class="tip" role="tooltip">{html.escape(term.meaning)}</span></a>'
+        )
+
+    def annotate(self, markup: str) -> str:
+        """``markup`` with the first mention of each term linked (its text, not its tags)."""
+        seen: set[str] = set()
+        out, in_link, in_table = [], 0, 0
+        for piece in re.split(r"(<[^>]+>)", markup):
+            if piece.startswith("<"):
+                if re.match(r"<a[\s>]", piece):
+                    in_link += 1
+                elif piece.startswith("</a"):
+                    in_link = max(0, in_link - 1)
+                elif re.match(r"<table[\s>]", piece):
+                    in_table += 1
+                elif piece.startswith("</table"):
+                    in_table = max(0, in_table - 1)
+                out.append(piece)
+            # A table scrolls sideways, which would clip a tooltip; its words are explained
+            # around it.
+            elif in_link or in_table or not piece.strip():
+                out.append(piece)
+            else:
+                out.append(self.pattern.sub(lambda m: self._link(m, seen), piece))
+        return "".join(out)
 
 
 def chip(status: Status | None) -> str:
@@ -236,6 +288,15 @@ figcaption a { color: #1c5cab; }
   color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
   font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); display: none; white-space: nowrap; }
 .note { color: var(--text-3); font-size: 13px; }
+a.term { color: inherit; text-decoration: underline dotted var(--text-3);
+  text-underline-offset: 3px; position: relative; }
+a.term .tip { display: none; position: absolute; left: 0; top: 1.5em; z-index: 10;
+  width: max-content; max-width: min(340px, 80vw); white-space: normal;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  font-weight: 400; line-height: 1.45; box-shadow: 0 4px 14px rgba(0,0,0,.18); text-align: left; }
+a.term:hover .tip, a.term:focus .tip { display: block; }
+dl.glossary dt:target { background: var(--caution-bg); border-radius: 4px; }
 button.dl { border: 1px solid var(--border); background: var(--surface); color: var(--link);
   border-radius: 6px; padding: 1px 8px; font: inherit; font-size: 12px; cursor: pointer; }
 figcaption button.dl { background: #ffffff; color: #1c5cab; border-color: #dddcd7; }
@@ -430,4 +491,4 @@ SCRIPT = """
 })();
 """
 
-__all__ = ["CSS", "SCRIPT", "STATUS_WORDS", "chip", "text_html"]
+__all__ = ["CSS", "SCRIPT", "STATUS_WORDS", "Terms", "chip", "text_html"]

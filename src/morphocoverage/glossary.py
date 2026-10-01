@@ -308,6 +308,43 @@ GLOSSARY: tuple[Term, ...] = (
 )
 
 
+# The words the report uses for each term, for its inline tooltips (``html_report``): a term
+# not listed here is in the glossary only. Matched whole, ignoring case.
+PHRASES: dict[str, tuple[str, ...]] = {
+    "Biological repeat": ("biological repeat", "biological repeats"),
+    "Technical repeat": ("technical repeat", "technical repeats"),
+    "Pilot": ("pilot",),
+    "Normalised values": ("normalised", "normalised values"),
+    "Mean-precision rule": ("mean-precision rule", "mean-precision rules"),
+    "Mean-precision count check": ("mean-precision count rule", "mean-precision check"),
+    "JCS spread and plateau rules": ("JCS spread", "JCS plateau"),
+    "Held-back fields": ("held-back fields",),
+    "Resolved": ("resolved",),
+    "Cohen's d": ("Cohen's d",),
+    "Cell-level randomization test": ("cell-level test", "cell-level gate", "cell-level"),
+    "Balanced test": ("balanced",),
+    "Sparse repeat": ("sparse",),
+    "Paired t-test on the repeat means": ("paired t-test", "paired test", "paired t"),
+    "Sign-flip test": ("sign-flip test",),
+    "Bonferroni correction": ("Bonferroni",),
+    "Benjamini-Hochberg q-value": ("Benjamini-Hochberg", "q-value", "q-values"),
+    "Discovery gate and confirmed across repeats": ("confirmed across repeats", "discovery gate"),
+    "Reagents of one target": ("reagents",),
+    "JCS effect size": ("JCS effect size",),
+    "PCA and loadings": ("PCA", "loadings"),
+    "UMAP": ("UMAP",),
+    "Integrity checks": ("integrity",),
+    "Unusual cells and 'nothing new'": ("unusual", "nothing new"),
+    "Positive control (representation)": ("positive control",),
+    "Between-field share": ("between fields",),
+}
+
+
+def slug(term: Term) -> str:
+    """The anchor of ``term``'s entry in the HTML report (``g-mean-precision-rule``)."""
+    return "g-" + "-".join("".join(c if c.isalnum() else " " for c in term.name.lower()).split())
+
+
 def _reference_markdown(reference: Reference) -> str:
     return f"[{reference.text}]({reference.url})" if reference.url else reference.text
 
@@ -335,4 +372,4 @@ def glossary_markdown() -> str:
     return "\n".join(lines) + "\n"
 
 
-__all__ = ["GLOSSARY", "Reference", "Term", "glossary_markdown"]
+__all__ = ["GLOSSARY", "PHRASES", "Reference", "Term", "glossary_markdown", "slug"]
