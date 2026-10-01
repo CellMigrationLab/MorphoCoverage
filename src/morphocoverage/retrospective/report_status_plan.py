@@ -150,7 +150,17 @@ def bought_status(adequacy: Any) -> Answer:
 
 def effort_status(effort: Any) -> Answer:
     """7. More fields or more samples? (see the module)."""
-    if effort is None or effort.comparisons.empty:
+    if effort is None:
+        return Status.NOT_ASSESSED, "not assessed"
+    if effort.comparisons.empty:
+        reasons = " ".join(map(str, getattr(effort, "skipped", pd.DataFrame()).get("reason", [])))
+        if "single" in reasons and "unit holds observations" in reasons:
+            # A pilot with one well per condition: say what would answer it next time.
+            sample = sample_word(effort.settings.get("hierarchy", {}))
+            return Status.NOT_ASSESSED, (
+                f"not estimable with one {sample} per condition; image at least 2 per "
+                "condition next time to answer it"
+            )
         return Status.NOT_ASSESSED, "not assessed"
     strata_cols = list(effort.settings.get("strata", []))
     word = " · ".join(column_word(c) for c in strata_cols) or "stratum"

@@ -454,14 +454,22 @@ def effort_short_parts(result: EffortResult, indent: int = 2) -> tuple[list[str]
         texts = [text for _, text in alike]
         merged = merge_numbers(texts) if len(texts) > 1 else texts[0]
         cautions.append(f"{_where([label for label, _ in alike], total, lead=False)}{merged}")
+    # Strata skipped for one reason are named together, the reason said once.
+    skipped: dict[str, list[str]] = {}
     for row in result.skipped.itertuples(index=False):
-        lines.append(
-            wrap(
-                f"{_skipped_label(result, row)}: {_not_estimable(result, row)}",
-                pad,
-                hang=indent + 2,
+        skipped.setdefault(_not_estimable(result, row), []).append(_skipped_label(result, row))
+    for text, labels in skipped.items():
+        lines.append(wrap(f"{listing(labels, 6)}: {text}", pad, hang=indent + 2))
+        if "single" in text and "unit holds observations" in text:
+            lines.append(
+                wrap(
+                    f"To answer it next time, image at least 2 {samples}s of each condition in "
+                    "one biological repeat: the variance between them is what this experiment "
+                    "cannot measure.",
+                    pad,
+                    hang=indent + 2,
+                )
             )
-        )
     return lines, cautions
 
 

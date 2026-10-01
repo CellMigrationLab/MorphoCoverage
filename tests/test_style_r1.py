@@ -218,7 +218,7 @@ def test_the_foundation_status_follows_the_rule_with_whole_fields(unit):
     )
     status, headline = unit_status(unit["variability"], held, None)
     assert status is Status.OK
-    assert "still held with whole fields in all 2 groups" in headline
+    assert "still held with whole fields in both groups" in headline
     assert "a mean from whole fields varies" in headline
 
 

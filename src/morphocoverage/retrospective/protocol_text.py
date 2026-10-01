@@ -263,8 +263,17 @@ def _few(blocks: Sequence[Mapping[str, Any]], w: Mapping[str, str]) -> list[str]
     repeats is a usual design, so it is a standing note on how to read the count, not a
     caution about these data."""
     texts = [
-        f"With {count(b['units'], w['unit'], w['units'])} the field count is a guide: it rests "
-        f"on these {w['units']}, so check it on the next experiment before fixing a protocol."
+        (
+            f"With 1 {w['unit']} the field count rests on that {w['unit']} alone: it covers the "
+            f"variation between its fields, not how other {w['units']} or {w['samples']} "
+            "differ, so check it on the next experiment before fixing a protocol."
+        )
+        if b["units"] == 1
+        else (
+            f"With {count(b['units'], w['unit'], w['units'])} the field count is a guide: it "
+            f"rests on these {w['units']}, so check it on the next experiment before fixing a "
+            "protocol."
+        )
         for b in blocks
         if b["units"] < FEW_UNITS
     ]
@@ -337,9 +346,14 @@ def protocol_short_parts(result: ProtocolResult, indent: int = 2) -> tuple[list[
             hang=indent + 2,
         )
     )
-    for block in blocks:
-        if not block["short_notes"]:
-            continue
+    noted = [block for block in blocks if block["short_notes"]]
+    shared = {"; ".join(block["short_notes"]) for block in noted}
+    if len(noted) == len(blocks) > 1 and len(shared) == 1:
+        # The same note for every stratum and target: said once.
+        text = f"For every {'stratum and ' if strata else ''}target: {shared.pop()}."
+        lines.append(wrap(text, indent, hang=indent + 2))
+        noted = []
+    for block in noted:
         where = group_label(block["stratum"]) + ", " if strata else ""
         text = f"{where}{block['label']}: {'; '.join(block['short_notes'])}."
         lines.append(wrap(text[:1].upper() + text[1:], indent, hang=indent + 2))
