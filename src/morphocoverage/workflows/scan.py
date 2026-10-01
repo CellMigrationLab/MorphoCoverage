@@ -148,12 +148,13 @@ class DesignScan:
             return Status.PROBLEM
         return Status.CAUTION if Status.CAUTION in statuses else Status.OK
 
-    def summary(self, detail: str = "short") -> str:
+    def summary(self, detail: str = "short", *, questions: bool = True) -> str:
         """``"short"``: the design, the checks, the columns that would say more and the
-        questions; ``"full"`` adds the data check and the copy checks in full."""
+        questions; ``"full"`` adds the data check and the copy checks in full. With
+        ``questions=False`` the questions are left out (the guided session asks them)."""
         from ._scan_text import scan_summary
 
-        return scan_summary(self, check_detail(detail))
+        return scan_summary(self, check_detail(detail), questions=questions)
 
     def setup(self, readout: str, *, goal: str = "averages", **fields: Any) -> Setup:
         """A ``Setup`` from the scan: the features, the control, the field identifier, the

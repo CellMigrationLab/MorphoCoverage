@@ -162,7 +162,7 @@ def _question_lines(scan: Any) -> list[str]:
     return lines
 
 
-def scan_summary(scan: Any, detail: str) -> str:
+def scan_summary(scan: Any, detail: str, questions: bool = True) -> str:
     """The scan's text: the design, the checks, the columns, the questions (``"full"`` adds
     the data check and the copy checks as they print themselves)."""
     sections = [
@@ -170,7 +170,7 @@ def scan_summary(scan: Any, detail: str) -> str:
         _design_lines(scan),
         _finding_lines(scan),
         _suggestion_lines(scan),
-        _question_lines(scan),
+        _question_lines(scan) if questions else [],
     ]
     if detail == "full":
         sections.append([scan.data_check.summary(detail="full")])
