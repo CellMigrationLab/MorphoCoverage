@@ -13,7 +13,9 @@ import pytest
 from morphocoverage._style import Status
 from morphocoverage.glossary import GLOSSARY, PHRASES, glossary_markdown, slug
 from morphocoverage.workflows import Setup, html_report, report, zip_results
+from morphocoverage.workflows._html_figures import COLOURS
 from morphocoverage.workflows._html_render import Terms, chip, text_html
+from morphocoverage.workflows._html_sections import heatmap, hidden, unnumbered
 
 
 def test_text_becomes_paragraphs_status_lines_and_tables():
@@ -145,3 +147,93 @@ def test_terms_link_to_the_glossary_once_per_section_and_never_in_tables():
     names = {term.name for term in GLOSSARY}
     assert set(PHRASES) <= names
     assert len({slug(term) for term in GLOSSARY}) == len(GLOSSARY)
+
+
+def test_a_hanging_item_is_its_own_paragraph():
+    text = (
+        "  2 fields to reopen in 1 group: sways a\n"
+        "    declared summary (2 fields).\n"
+        "    ctrl · r1 · f01: removing it lowers the mean of area\n"
+        "      by 13%.\n"
+        "    ctrl · r1 · f02: removing it lowers the mean of area\n"
+        "      by 11%.\n"
+    )
+    page = text_html(text)
+    assert page.count("<p") == 3
+    assert "sways a declared summary (2 fields).</p>" in page
+    assert "f02: removing it lowers the mean of area by 11%.</p>" in page
+
+
+def test_the_page_has_no_question_numbers():
+    assert unnumbered("whether it holds across repeats is question 9.") == (
+        "whether it holds across repeats is “Do the conditions differ?”."
+    )
+    assert unnumbered("➖ 1. Can the features see the phenotype? — not assessed") == (
+        "➖ Can these features detect what I care about? — not assessed"
+    )
+    # A planning question keeps its words, without its number.
+    assert unnumbered("4. How many fields should I image next time?: not assessed") == (
+        "How many fields should I image next time?: not assessed"
+    )
+
+
+def test_a_section_this_design_cannot_answer_is_left_out():
+    assert hidden(Status.NOT_ASSESSED, "not applicable: each field holds one cell")
+    assert not hidden(Status.NOT_ASSESSED, "not assessed; needs a positive control")
+    assert not hidden(Status.CAUTION, "not applicable")
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_the_page_reads_in_order_with_a_heatmap_a_drawer_and_no_grey(tmp_path):
+    objects, fovs = _tables()
+    setup = Setup(
+        readout="area",
+        features=("area", "speed", "aspect"),
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+    )
+    result = report(objects, fovs, setup)
+    page = html_report(result, objects, fovs, tmp_path).read_text()
+    body = re.sub(r"<script.*?</script>", "", page, flags=re.DOTALL)
+    # QC before the result, the result before how far the sampling supports it.
+    where = [body.index(f'id="{key}"') for key in ("overview", "inspect", "conditions", "enough")]
+    assert where == sorted(where)
+    assert not re.search(r"<h2>[^<]*\d\. ", body) and "Foundation" not in body
+    assert "What was checked" in body and "Negative control: ctrl" in body
+    # Did I image enough? answers in sentences before its numbers.
+    enough = body[body.index('id="enough"') :]
+    assert enough.index('class="reading"') < enough.index("The numbers")
+    # Question 9: the reading, then the heatmap and figures, then the tests.
+    conditions = body[body.index('id="conditions"') : body.index('id="enough"')]
+    assert conditions.index("Reading, condition by condition") < conditions.index('class="heatmap"')
+    assert conditions.index('class="heatmap"') < conditions.index("The tests behind")
+    assert 'aria-label="Cohen' in conditions and 'class="selection"' in conditions
+    # The glossary is a drawer with a search.
+    assert '<aside class="drawer" id="glossary"' in body and 'type="search"' in body
+    data = json.loads(re.search(r'id="embedding-data">(.*?)</script>', page).group(1))
+    assert data["colours"][0] == COLOURS[0] and "#999999" not in data["colours"]
+
+
+def test_the_heatmap_marks_the_gates():
+    tests = pd.DataFrame(
+        {
+            "feature": ["a", "a", "b", "b"],
+            "condition": ["x", "y", "x", "y"],
+            "d": [2.5, -0.4, np.nan, 0.9],
+            "passes": [True, False, False, True],
+            "confirmed": [True, False, False, False],
+            "q_cells": [0.001, 0.4, np.nan, 0.01],
+            "q_paired": [0.01, 0.6, np.nan, 0.2],
+        }
+    )
+
+    class Discovery:
+        pass
+
+    discovery = Discovery()
+    discovery.tests = tests
+    discovery.ranking = pd.DataFrame({"feature": ["a", "b"]})
+    svg = heatmap(discovery, ["x", "y"])
+    assert "+2.50 ✓" in svg and "+0.90 ●" in svg and "-0.40<" in svg and "–<" in svg
+    assert "q cells 0.001; q paired 0.01" in svg
+    assert heatmap(None, []) == ""

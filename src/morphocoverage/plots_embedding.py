@@ -1,11 +1,12 @@
 """Figures of an ``embedding.Embedding``: the PCA biplot and the UMAP, coloured by condition.
 
 - **PCA**: every observation a point on the first two axes (each labelled with its share of
-  the variance), coloured by condition (the control grey, drawn first so the conditions sit
-  on top), and an arrow per highlighted feature: its loadings on the two axes, scaled to
-  the cloud, so the direction a feature pulls the observations is read off the figure. The
-  highlighted features are the discovery's best-ranked (``Embedding.loadings["top"]``), or
-  the ``ARROWS`` features with the largest loadings when none is ranked.
+  the variance), coloured by condition (the control in the first colour, not grey, and drawn
+  first so the conditions sit on top), and an arrow per highlighted feature: its loadings on
+  the two axes, scaled to the cloud, so the direction a feature pulls the observations is
+  read off the figure. The highlighted features are the discovery's best-ranked
+  (``Embedding.loadings["top"]``), or the ``ARROWS`` features with the largest loadings when
+  none is ranked.
 - **UMAP**: the observations UMAP placed, coloured the same way; its axes have no units.
 
 Figures are ``matplotlib.figure.Figure`` objects built without pyplot, as in ``plots``.
@@ -23,22 +24,19 @@ from matplotlib.figure import Figure
 from ._wording import count, percent
 from .embedding import Embedding
 from .metadata import CONDITION_COLUMN, sorted_labels
-from .plots import GREY, PALETTE
+from .plots import PALETTE
 
 ARROWS = 5
 MAX_CONDITIONS = len(PALETTE)
 
 
 def _colours(points: pd.DataFrame, control: Any) -> dict[Any, str]:
-    """A colour per condition: the control grey, the others the palette, in sorted order."""
+    """A colour per condition, the palette in sorted order (the control first, in the palette's
+    first colour: a grey control is hard to see)."""
     if CONDITION_COLUMN not in points:
         return {None: PALETTE[0]}
     conditions = sorted_labels(points[CONDITION_COLUMN], control)
-    others = [c for c in conditions if c != control]
-    colours = {c: PALETTE[i % len(PALETTE)] for i, c in enumerate(others)}
-    if control in conditions:
-        colours = {control: GREY, **colours}
-    return colours
+    return {c: PALETTE[i % len(PALETTE)] for i, c in enumerate(conditions)}
 
 
 def _scatter(ax, points: pd.DataFrame, x: str, y: str, colours: dict[Any, str]) -> None:
@@ -83,7 +81,7 @@ def embedding_figures(
     embedding: Embedding, *, control: Mapping[str, Any] | None = None
 ) -> dict[str, Figure]:
     """``{"pca": Figure, "umap": Figure}`` (UMAP only when it was computed; see the module).
-    ``control`` (``{"condition": ...}``) is drawn grey."""
+    ``control`` (``{"condition": ...}``) is drawn first, in the first colour."""
     if not isinstance(embedding, Embedding):
         raise TypeError("embedding must be an embedding.Embedding")
     points = embedding.points

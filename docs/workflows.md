@@ -80,7 +80,10 @@ session = guide("cells.csv", folder="results")   # paths or DataFrames; asked fo
 or, from a terminal, `python -m morphocoverage.workflows cells.csv [fovs.csv] --folder results`.
 The session loads the tables, scans them and prints the scan, then asks: did
 the dataset load correctly (if not, it stops); the control to log (the scan's
-guess is the default, "no control" is an answer); the aim (population
+guess is the default, "no control" is an answer); a positive control, a
+condition known to change the phenotype, which checks that the features can see
+a change ("none", the default, leaves that check out; it can be named later,
+whenever such a condition was imaged); the aim (population
 averages, a phenotypic fingerprint, or both); the features to assess
 (several by number, range or name, or all the numeric columns); the readout
 among them; what one row is; and, for a fingerprint, its tolerance (the
@@ -107,26 +110,45 @@ html_report(result, objects, fovs, "results")   # results/report.html, results/f
 ```
 
 `report.html` is one file that opens in any browser, offline, and can be
-emailed or archived as it is; the guided session writes it too. A sidebar
-lists every answer with its status; "At a glance" gives each status as a chip
-with its word (never colour alone) and links to the answer. Each answer shows
-its short form with the full text folded under "Full detail", in the words of
-`Report.summary`, its aligned tables as tables you can sort by clicking a
-header. Under question 9 come the figures: the readout and the best-ranked
-features (each links to its PNG and PDF), and with three or more features an
-interactive PCA and UMAP of all of them. Hover a point for its condition,
-repeat and field, click a condition to hide it, and switch between PCA and
-UMAP, and between raw values and values normalised to each repeat's control.
-Every figure is also saved in `figures/` as PNG and as PDF (vector, for
-papers). The page follows the light or dark setting of the viewer, with a
-switch, and prints with every section open. It ends with a glossary of every
-test, rule and term it uses, with the papers they come from
-([`glossary.md`](glossary.md), the same entries); in the answers, the first
-mention of a term in each section is underlined, shows its meaning on hover or
-focus, and links to its entry (`glossary.PHRASES` lists the words matched; terms
-inside tables are left plain, explained by the sentences around them), and a Files section: every
-figure (PNG and PDF), both text reports, the feature table as CSV and, from the
-guided session, the design scan and the saved answers are inside the page, each
+emailed or archived as it is; the guided session writes it too. It reads in the
+order a user acts on it, with titles instead of the text report's question
+numbers: the data, what was checked (the declaration in short lines, naming what
+was not declared and so not checked), the fields to check (quality control),
+whether the conditions differ, whether enough was imaged, and the rest. A
+section this design cannot answer ("not applicable", such as the field-versus-cell
+check when every field holds one cell) is left out; its reason stays in "What
+this dataset cannot tell me". Each section says in a sentence what it is for and
+gives its answer in a line; "Did I image enough?" answers in sentences (resolved
+within each repeat or not, how many fields would resolve the rest, what to do)
+before its numbers. A sidebar lists every section with its status; "At a glance"
+gives each status as a chip with its word (never colour alone). The full text is
+folded under "Full detail", in the words of `Report.summary`, its aligned tables
+as tables you can sort by clicking a header.
+
+"Do the conditions differ?" opens with the reading per condition, then a heatmap
+of Cohen's d of every feature and condition against the control (● passes the
+cell-level gate, ✓ also confirmed across repeats; hover a cell for its
+q-values), the readout and the best-ranked features (each with its PNG and PDF),
+and with three or more features an interactive PCA and UMAP of all of them, then
+the tests behind the reading. Click a figure or the heatmap to see it large. On
+the PCA and UMAP, hover a point for its condition, repeat and field, click a
+condition to hide it, switch between PCA and UMAP and between raw values and
+values normalised to each repeat's control, enlarge the plot, and draw around
+points to see which conditions they come from: their number, their share of the
+selection, the share chance would give and the ratio of the two. Every condition,
+the control included, has a colour of its own (no grey, hard to see), in the
+interactive and the static figures. Every figure is also saved in `figures/` as
+PNG and as PDF (vector, for papers). The page follows the light or dark setting
+of the viewer, with a switch, and prints with every section open.
+
+The glossary of every test, rule and term the page uses, with the papers they
+come from ([`glossary.md`](glossary.md), the same entries), is a drawer on the
+side with a search: its tab, the sidebar and every underlined term open it. In
+the answers, the first mention of a term in each section is underlined and shows
+its meaning on hover or focus (`glossary.PHRASES` lists the words matched; terms
+inside tables are left plain, explained by the sentences around them). A Files
+section holds every figure (PNG and PDF), both text reports, the feature table
+as CSV and, from the guided session, the design scan and the saved answers, each
 saved with its button, so the page alone is the file to share. The guided
 session also zips the whole folder (`zip_results(folder)`: `<folder>.zip`) for
 archiving.
@@ -374,7 +396,7 @@ takes the ranking over whole technical repeats instead).
 
 With three or more features, `embedding_plots(objects, fovs, setup,
 discovery=result.discovery, folder=...)` draws two overviews of all of them,
-coloured by condition (the control grey) on the same values as the plots: a
+coloured by condition (the control in the first colour, no grey) on the same values as the plots: a
 PCA of the robustly standardised features, each axis labelled with its share
 of the variance and the best-ranked features drawn as arrows of their
 loadings, so the axes read in features; and a UMAP (`umap-learn`, seeded by

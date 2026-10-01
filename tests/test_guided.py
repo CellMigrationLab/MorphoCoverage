@@ -60,12 +60,15 @@ def _run(objects, folder, answers, **kwargs):
 
 
 def test_the_questions_are_asked_and_the_answers_saved(tmp_path):
-    # loaded? control (default: siCTRL), aim, features, readout, unit (default), tolerance
+    # loaded? control (default: siCTRL), positive control, aim, features, readout, unit
+    # (default), tolerance
     result, script = _run(
-        _cells(), tmp_path, ["y", "", "both", "1,3", "area", "", "15%"], run_report=False
+        _cells(), tmp_path, ["y", "", "siA#1", "both", "1,3", "area", "", "15%"], run_report=False
     )
     answers = result.answers
     assert answers.control == {"condition": "siCTRL"}
+    assert answers.positive == {"condition": "siA#1"}
+    assert result.setup.positive.selector == {"condition": "siA#1"}
     assert answers.aim == "both"
     assert answers.features == ["area", "aspect"]
     assert answers.readout == "area"
@@ -85,7 +88,7 @@ def test_the_questions_are_asked_and_the_answers_saved(tmp_path):
 
 
 def test_saved_answers_are_continued_or_deleted(tmp_path):
-    _run(_cells(), tmp_path, ["y", "", "", "all", "", ""], run_report=False)
+    _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""], run_report=False)
     result, script = _run(_cells(), tmp_path, [""], run_report=False)
     assert "were found for this table" in script.text
     assert result.answers.aim == "population" and result.setup.fingerprint == ()
@@ -99,13 +102,13 @@ def test_saved_answers_are_continued_or_deleted(tmp_path):
 
 
 def test_answers_for_another_table_are_never_reused(tmp_path):
-    _run(_cells(), tmp_path, ["y", "", "", "all", "", ""], run_report=False)
+    _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""], run_report=False)
     other = _cells(seed=1)
     result, script = _run(other, tmp_path, ["n"], run_report=False)
     assert "cannot be reused for this one" in script.text
     assert result.stopped.endswith("choose another folder for this table")
     assert (tmp_path / ANSWERS_FILE).exists()
-    _run(other, tmp_path, ["y", "y", "", "", "1", ""], run_report=False)
+    _run(other, tmp_path, ["y", "y", "", "", "", "1", ""], run_report=False)
     assert load_answers(tmp_path).dataset["checksum"] == table_checksum(other)
 
 
@@ -121,7 +124,23 @@ def test_paths_and_the_folder_are_asked_and_bad_answers_asked_again(tmp_path):
     _cells().to_csv(path, index=False)
     folder = tmp_path / "results"
     script = Script(
-        [str(path), "", str(folder), "maybe", "y", "9", "", "2", "0", "1-2", "", "", "200", "0.2"]
+        [
+            str(path),
+            "",
+            str(folder),
+            "maybe",
+            "y",
+            "9",
+            "",
+            "",
+            "2",
+            "0",
+            "1-2",
+            "",
+            "",
+            "200",
+            "0.2",
+        ]
     )
     result = guide(ask=script.ask, say=script.say, run_report=False)
     assert result.folder == folder
@@ -153,13 +172,13 @@ def test_an_unreadable_answers_file_is_offered_for_deletion(tmp_path):
     (tmp_path / ANSWERS_FILE).write_text("{not json")
     with pytest.raises(ValueError, match="not a saved-answers file"):
         load_answers(tmp_path)
-    _, script = _run(_cells(), tmp_path, ["y", "y", "", "", "1", ""], run_report=False)
+    _, script = _run(_cells(), tmp_path, ["y", "y", "", "", "", "1", ""], run_report=False)
     assert "cannot be read" in script.text
     assert load_answers(tmp_path).features == ["area"]
 
 
 def test_the_session_ends_with_the_report_saved(tmp_path):
-    result, script = _run(_cells(), tmp_path, ["y", "", "", "all", "", ""])
+    result, script = _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""])
     for name in ("scan.txt", "report_short.txt", "report_full.txt", ANSWERS_FILE):
         assert (tmp_path / name).exists()
     # The page, with the readout and the best-ranked features, then the PCA and UMAP of all

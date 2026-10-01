@@ -317,7 +317,11 @@ src/morphocoverage/
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
-        _html_render.py    # private: the page's style and script, the report's text as HTML, status chips
+        _html_render.py    # private: the report's text as HTML, glossary term links, status chips
+        _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
+        _html_figures.py   # private: figures as PNG/PDF, PCA/UMAP data and markup, palette
+        _html_style.py     # private: the page's style sheet (light/dark, drawer, lightbox)
+        _html_script.py    # private: the page's script (sort, downloads, lightbox, drawer, lasso)
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal
