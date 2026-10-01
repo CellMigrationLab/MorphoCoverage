@@ -97,6 +97,30 @@ stops so you can choose another folder. Extra `Setup` fields go through
 `guide(..., n_jobs=4, normalize="control_mean")`; `load_answers(folder)` and
 `answers.setup(scan)` rebuild the `Setup` without the questions.
 
+### The report as a web page
+
+```python
+from morphocoverage.workflows import html_report
+
+result = report(objects, fovs, setup)
+html_report(result, objects, fovs, "results")   # results/report.html, results/figures/
+```
+
+`report.html` is one file that opens in any browser, offline, and can be
+emailed or archived as it is; the guided session writes it too. A sidebar
+lists every answer with its status; "At a glance" gives each status as a chip
+with its word (never colour alone) and links to the answer. Each answer shows
+its short form with the full text folded under "Full detail", in the words of
+`Report.summary`, its aligned tables as tables you can sort by clicking a
+header. Under question 9 come the figures: the readout and the best-ranked
+features (each links to its PNG and PDF), and with three or more features an
+interactive PCA and UMAP of all of them. Hover a point for its condition,
+repeat and field, click a condition to hide it, and switch between PCA and
+UMAP, and between raw values and values normalised to each repeat's control.
+Every figure is also saved in `figures/` as PNG and as PDF (vector, for
+papers). The page follows the light or dark setting of the viewer, with a
+switch, and prints with every section open.
+
 ## Declare the dataset
 
 ```python

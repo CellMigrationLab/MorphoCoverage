@@ -315,6 +315,8 @@ src/morphocoverage/
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
+        html_report.py     # html_report: the report as one HTML page, its figures as PNG and PDF beside it
+        _html_render.py    # private: the page's style and script, the report's text as HTML, status chips
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal

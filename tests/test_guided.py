@@ -162,10 +162,14 @@ def test_the_session_ends_with_the_report_saved(tmp_path):
     result, script = _run(_cells(), tmp_path, ["y", "", "", "all", "", ""])
     for name in ("scan.txt", "report_short.txt", "report_full.txt", ANSWERS_FILE):
         assert (tmp_path / name).exists()
-    # The readout and the discovery's best-ranked features, then the PCA and UMAP of all three.
-    for name in ("area.png", "pca.png", "umap.png"):
-        assert (tmp_path / "figures" / name).exists()
-    assert "and in figures/: area.png" in script.text
+    # The page, with the readout and the best-ranked features, then the PCA and UMAP of all
+    # three, raw and normalised, each as PNG and PDF.
+    assert "report.html (open it in a browser)" in script.text
+    page = (tmp_path / "report.html").read_text()
+    assert "All 3 features at once" in page and "embedding-data" in page
+    for name in ("area", "pca_raw", "umap_raw", "pca_normalised", "umap_normalised"):
+        for kind in ("png", "pdf"):
+            assert (tmp_path / "figures" / f"{name}.{kind}").exists()
     assert result.report.discovery.top()[0] == "area"
     assert "Microscopist's report" in (tmp_path / "report_short.txt").read_text()
     assert result.report is not None

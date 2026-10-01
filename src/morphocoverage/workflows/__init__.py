@@ -27,7 +27,10 @@ Declare the dataset once with a ``Setup``, then:
   ``embedding_plots(objects, fovs, setup, discovery=result.discovery)``: the PCA
   biplot and the UMAP of the declared features, coloured by condition.
 
-Each returns its results with a ``summary()`` in sentences. Their scientific
+Each returns its results with a ``summary()`` in sentences;
+``html_report(result, objects, fovs, folder)`` writes a report as one HTML page
+(every answer, the figures, the interactive PCA and UMAP), its figures as PNG
+and PDF beside it. Their scientific
 choices are the ``Setup``'s fields and explicit arguments; the few presets they
 default (``Setup.minimum_detection``, the default stopping rules, the
 positive control's pairing, ``protocol_threshold``, ``alphas``) are printed in
@@ -38,6 +41,7 @@ from ``Setup.random_state``. See ``docs/workflows.md``.
 
 from .figures import embedding_plots, plots
 from .guided import Answers, GuidedResult, guide, load_answers, save_answers
+from .html_report import html_report
 from .live import LiveFolder, LiveTables, LiveUpdate, live_session, write_fov
 from .retrospective import (
     Benchmark,
@@ -72,6 +76,7 @@ __all__ = [
     "document",
     "embedding_plots",
     "guide",
+    "html_report",
     "live_session",
     "load_answers",
     "optimise",
