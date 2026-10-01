@@ -38,7 +38,7 @@ import pandas as pd
 from .._style import Status
 from .._wording import percent
 from ..embedding import MIN_FEATURES, Embedding, embed
-from ..glossary import GLOSSARY
+from ..glossary import GLOSSARY, slug
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
@@ -49,7 +49,7 @@ from ..retrospective.report import (
     QUESTIONS,
     SHORT_QUESTIONS,
 )
-from ._html_render import CSS, SCRIPT, chip, text_html
+from ._html_render import CSS, SCRIPT, Terms, chip, text_html
 from .figures import plots
 from .retrospective import REPORT_QUESTIONS, Report
 
@@ -149,7 +149,7 @@ def _glossary_card() -> str:
             for r in term.references
         )
         parts.append(
-            f"<dt>{html.escape(term.name)}</dt><dd>{html.escape(term.meaning)}"
+            f'<dt id="{slug(term)}">{html.escape(term.name)}</dt><dd>{html.escape(term.meaning)}'
             f'<span class="where">Where: {html.escape(term.where)}.</span>'
             + (f'<span class="refs">See: {refs}</span>' if refs else "")
             + "</dd>"
@@ -321,10 +321,15 @@ def _embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[
     return markup, static
 
 
+_TERMS = Terms()
+
+
 def _section(key: str, title: str, status: Status | None, short: str, full: str | None) -> str:
-    body = text_html(short)
+    body = _TERMS.annotate(text_html(short))
     if full and full.strip() != short.strip():
-        body += f"<details><summary>Full detail</summary>{text_html(full)}</details>"
+        body += (
+            f"<details><summary>Full detail</summary>{_TERMS.annotate(text_html(full))}</details>"
+        )
     return (
         f'<section class="card" id="{key}"><h2>{chip(status)} {html.escape(title)}</h2>'
         f"{body}</section>"
@@ -387,7 +392,8 @@ def html_report(
     subtitle = _first_sentence(overview_short)
     cards = [
         '<section class="card" id="glance"><h2>At a glance</h2><p class="key">A marker says '
-        "how far to trust an answer, not what it found.</p>" + "".join(glance) + "</section>"
+        "how far to trust an answer, not what it found. Underlined words open their meaning "
+        "(the glossary is at the end).</p>" + _TERMS.annotate("".join(glance)) + "</section>"
     ]
     if doc.overview:
         cards.append(

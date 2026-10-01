@@ -11,9 +11,9 @@ import pandas as pd
 import pytest
 
 from morphocoverage._style import Status
-from morphocoverage.glossary import GLOSSARY, glossary_markdown
+from morphocoverage.glossary import GLOSSARY, PHRASES, glossary_markdown, slug
 from morphocoverage.workflows import Setup, html_report, report, zip_results
-from morphocoverage.workflows._html_render import chip, text_html
+from morphocoverage.workflows._html_render import Terms, chip, text_html
 
 
 def test_text_becomes_paragraphs_status_lines_and_tables():
@@ -103,6 +103,8 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     assert base64.b64decode(files["figures/area.pdf"][1]).startswith(b"%PDF")
     assert 'data-file="figures/area.pdf"' in page and 'href="figures/' not in page
     assert 'id="glossary"' in page and "Benjamini-Hochberg q-value" in page
+    # Terms in the answers open their meaning, and link to their entry.
+    assert 'class="term"' in page and 'id="g-mean-precision-rule"' in page
     with pytest.raises(TypeError, match="Report"):
         html_report("not a report", objects, fovs, tmp_path)
 
@@ -124,3 +126,22 @@ def test_zip_holds_every_file_of_the_folder(tmp_path):
     zip_results(folder)  # a second zip replaces the first, never contains it
     with zipfile.ZipFile(archive) as opened:
         assert sorted(opened.namelist()) == ["results/figures/a.png", "results/report.html"]
+
+
+def test_terms_link_to_the_glossary_once_per_section_and_never_in_tables():
+    terms = Terms()
+    page = terms.annotate(
+        text_html(
+            "  The paired t-test, the cell-level test (balanced); the paired test again.\n"
+            "    condition  paired t p\n"
+            "    drug       0.02"
+        )
+    )
+    assert page.count('class="term"') == 3
+    assert 'href="#g-paired-t-test-on-the-repeat-means">paired t-test<span class="tip"' in page
+    # The table keeps its plain header: a tooltip there would be clipped by its scrolling.
+    assert "<th>paired t p</th>" in page
+    # Every phrase names a glossary entry, and every anchor exists in the glossary.
+    names = {term.name for term in GLOSSARY}
+    assert set(PHRASES) <= names
+    assert len({slug(term) for term in GLOSSARY}) == len(GLOSSARY)
