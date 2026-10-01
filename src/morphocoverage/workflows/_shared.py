@@ -46,6 +46,7 @@ from ..retrospective.replay import ReplayResult
 from ..sampling_unit import (
     FOVClustering,
     condition_contrast,
+    feature_discovery,
     feature_ranking,
     fov_clustering,
     object_rule_check,
@@ -447,6 +448,14 @@ def conditions(
         )
     }
     if len(setup.columns) > 1:
+        results["discovery"] = feature_discovery(
+            objects,
+            fovs,
+            features=setup.columns,
+            control=setup.control,
+            random_state=setup.random_state,
+            **setup.common,
+        )
         results["ranking"] = feature_ranking(
             objects,
             fovs,

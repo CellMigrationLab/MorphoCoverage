@@ -4,6 +4,9 @@
   result: ``inspection_text.inspection_parts``, ``order_text.order_parts``,
   ``contrast_text.contrast_parts``, ``FeatureRanking.short_parts``) as one
   section, the caveats of all its parts pooled and stated once at its end;
+- ``conditions_sections``: question 9's full parts and short section: the contrast, the
+  features the discovery ranks, and the ranking over whole technical repeats only when it
+  could test something (with the discovery, its "not ranked" would repeat it);
 - ``limits_text``: "What this dataset cannot tell me". Every question not
   assessed with what it needs (short: its "At a glance" line; full: the whole
   need), then the notes, each once, marked by what they are: ❌ a weak
@@ -28,6 +31,22 @@ ASSESSED = (
 # Notes that change how every answer is read: a weak representation, fields that the
 # integrity checks name.
 _PROBLEMS = ("Weak representation", "Data integrity")
+
+
+def conditions_sections(contrast: Any, ranking: Any, discovery: Any) -> tuple[list[str], str]:
+    """Question 9's full parts and its short section (empty without any result)."""
+    from ..sampling_unit.contrast_text import contrast_parts
+
+    shuffled = ranking is not None and (
+        discovery is None or bool(len(ranking.ranking) and ranking.ranking["tests"].any())
+    )
+    shown = [r for r in (contrast, discovery, ranking if shuffled else None) if r is not None]
+    full = [result.summary(detail="full") for result in shown]
+    if not shown:
+        return full, ""
+    answers = [contrast_parts(contrast, indent=2)] if contrast is not None else []
+    answers += [r.short_parts(indent=2) for r in shown if r is not contrast]
+    return full, short_section(answers)
 
 
 def short_section(parts: Sequence[tuple[list[str], list[str]]], *cautions: str) -> str:
@@ -86,4 +105,9 @@ def limits_text(
     return "\n".join([*lines, *_notes(notes, detail)])
 
 
-__all__ = ["ASSESSED", "limits_text", "short_section"]
+__all__ = [
+    "ASSESSED",
+    "conditions_sections",
+    "limits_text",
+    "short_section",
+]

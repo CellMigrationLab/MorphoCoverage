@@ -159,9 +159,14 @@ def test_an_unreadable_answers_file_is_offered_for_deletion(tmp_path):
 
 
 def test_the_session_ends_with_the_report_saved(tmp_path):
-    result, _ = _run(_cells(), tmp_path, ["y", "", "", "area,intensity", "", ""])
+    result, script = _run(_cells(), tmp_path, ["y", "", "", "all", "", ""])
     for name in ("scan.txt", "report_short.txt", "report_full.txt", ANSWERS_FILE):
         assert (tmp_path / name).exists()
+    # The readout and the discovery's best-ranked features, then the PCA and UMAP of all three.
+    for name in ("area.png", "pca.png", "umap.png"):
+        assert (tmp_path / "figures" / name).exists()
+    assert "and in figures/: area.png" in script.text
+    assert result.report.discovery.top()[0] == "area"
     assert "Microscopist's report" in (tmp_path / "report_short.txt").read_text()
     assert result.report is not None
     save_answers(tmp_path, result.answers)

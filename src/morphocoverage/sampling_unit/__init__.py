@@ -37,6 +37,7 @@ The results on the committed data, in plain language, are in
 
 from .clustering import FOVClustering, UnusualObjects, fov_clustering, unusual_objects
 from .contrast import ConditionContrast, condition_contrast
+from .discovery import FeatureDiscovery, feature_discovery
 from .object_rules import (
     DESCRIPTORS,
     RANDOM_OBJECTS,
@@ -57,11 +58,13 @@ __all__ = [
     "DescriptorSpreadCheck",
     "FOVClustering",
     "FOVVariability",
+    "FeatureDiscovery",
     "FeatureRanking",
     "ObjectRuleCheck",
     "UnusualObjects",
     "condition_contrast",
     "descriptor_spread_check",
+    "feature_discovery",
     "feature_ranking",
     "fov_clustering",
     "fov_variability",

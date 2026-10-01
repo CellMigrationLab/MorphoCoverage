@@ -281,3 +281,19 @@ the card's features, control and unit. Nothing in it is estimated or tested.
   `image_file` the CDM shape is read as one image per row and the scan says so; without `target`
   the screen's names give all 6 reagent pairs the card records; without `technical_repeat` the
   scan suggests one if a condition was imaged in more than one well.
+
+## 2026-10-01 — eleventh run: which features separate the conditions, by the cell-level gate
+
+Owner decision: rank the features by the cell-level randomization test (discovery), with the
+paired t on the repeat means beside it as the second gate; PCA and UMAP of all features
+(`sampling_unit.feature_discovery`, `workflows.embedding_plots`). Before, the ranking shuffled
+whole technical repeats, so with one well per condition and repeat it ranked nothing.
+
+- **CDM shape** (10 features): 9 pass the cell-level gate; 4 are confirmed by the paired gate
+  (Round, AR, Major, Feret, all in the same direction in 3 of 3 repeats). Perim. and Circ. pass
+  for siCCT8#8 but go up in some repeats and down in others, which the section flags.
+- **Glioma tracks** (13 features): 12 pass the cell-level gate, led by the speed features for
+  siCCT8#8 (d about -1.1 to -1.2, lower in 3 of 3 repeats, paired q 0.16); 1 is confirmed
+  (Tortuosity Rolling). On raw values the UMAP separates the CCT7 from the CCT8 acquisitions
+  more than the conditions: a batch between experiments, not a condition effect.
+- **Filopodia screen**: one feature, so no ranking (unchanged).

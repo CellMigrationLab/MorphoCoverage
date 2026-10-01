@@ -128,6 +128,28 @@ small, nothing is balanced and only the test as provided is given.
 - **The simulations are one design.** They have one well per condition and
   repeat and normal cell noise.
 
+## Many features
+
+With several declared features, `feature_discovery` asks which of them separate
+the conditions (owner decision, 2026-10-01: the cell-level test for discovery,
+the paired test kept as the second gate):
+
+- **The discovery gate**: the cell-level test of every feature and condition, in
+  the version the readings trust most (normalised, balanced when unbalanced),
+  Benjamini-Hochberg over all of them, a feature passing at q ≤ 0.05; passing
+  features are ranked by |d| and the plots draw the best-ranked.
+- **The second gate**: the paired t on the repeat means (log ratios when every
+  mean is positive), Benjamini-Hochberg over every feature and condition with 3
+  or more repeats. A passing feature it also passes is *confirmed across
+  repeats*.
+
+The discovery gate inherits the cell-level test's assumption: with variation
+between repeats it passes more features than 5% without an effect, so its list
+is candidates; the paired gate holds 5% and, with 3 repeats, confirms only
+large, consistent effects. The PCA and UMAP (`embedding_plots`) describe how the
+conditions sit over all features at once and test nothing; on raw values a
+separation can be a batch between repeats.
+
 ## Reading them together
 
 With three or more repeats, the paired t answers whether the effect repeats,

@@ -16,8 +16,8 @@ At a glance
      influence in 1, unusual count in 3); integrity names 12 fields
   ✅ 9. Do the conditions differ? — 4 conditions across 3 biological repeats: same direction in every
      repeat, not confirmed: siCCT8#5 and siCCT8#8 (lower); no consistent direction: siCCT7#3 and
-     siCCT7#6; reagents agree in every repeat for 1 of 2 targets; 13 features not ranked (no
-     contrast could be tested)
+     siCCT7#6; reagents agree in every repeat for 1 of 2 targets; 12 of 13 features pass the
+     cell-level gate, 1 confirmed by the paired test
   Questions 4, 5, 7 and 8, planning the next experiment, come from workflows.optimise.
 
 ❌ What is in the dataset
@@ -238,11 +238,21 @@ What this acquisition was asked to preserve
     siCCT7#6 vs siCTRL  -0.17           about 11                  repeats differ (more fields help little)
     siCCT8#5 vs siCTRL  -1.06           about 4                   repeats differ (more fields help little)
     siCCT8#8 vs siCTRL  -1.11           about 4                   repeats differ (more fields help little)
-  Which features separate the conditions? None is ranked: for the 13 declared features no contrast
-    could be tested.
-  Not ranked because no contrast could be tested (13 features: Directionality Rolling, Max Speed
-    Rolling, Mean Speed and 10 more): only one technical repeat (technical_repeat) with observations
-    on one side: its fields cannot stand in for technical repeats, so there is no test.
+  Which features separate the conditions? 12 of 13 features pass the cell-level gate (q ≤ 0.05,
+    Benjamini-Hochberg over 52 tests: each condition against the control (siCTRL), Cohen's d on the
+    observations and a randomization test over them, normalised to each repeat's control and
+    balanced over the repeats where they are not), ranked by |d| (capped at 20); the paired t on the
+    repeat means is the second gate:
+    rank  feature                              d  condition  q cells  q paired  repeats
+       1  Median Speed                     -1.23  siCCT8#8     0.002     0.164  3 of 3 lower
+       2  Total Turning Angle Rolling      -1.11  siCCT8#8     0.002     0.164  3 of 3 lower
+       3  Median Speed Rolling             -1.11  siCCT8#8     0.002     0.164  3 of 3 lower
+       4  Total Distance Traveled Rolling  -1.06  siCCT8#8     0.002     0.164  3 of 3 lower
+       5  Mean Speed                       -1.06  siCCT8#8     0.002     0.164  3 of 3 lower
+    and 7 more ranked features
+    Confirmed across repeats (paired q ≤ 0.05): 1 feature (Tortuosity Rolling).
+  No contrast passes the gate for 1 feature: Directionality Rolling.
+  Plotted by default: the readout and up to 5 best-ranked features.
   Assumptions: Across biological repeats, the paired t-test on the repeat means (as in SuperPlots)
     treats each biological repeat as one replicate: it keeps false positives at 5%, but with 3
     biological repeats it needs a large effect (the simulated power is in the full report and
@@ -259,7 +269,11 @@ What this acquisition was asked to preserve
     distribution is not tested (see the unusual tracks and the rare label). The fields a side per
     repeat are the most any repeat needs, projected from its interval of d (narrowing as
     1/sqrt(fields)); limited by: whether the repeats' d differ more than their sampling error, which
-    more fields cannot reduce. Both are estimated from the repeats here, so the plan is a guide.
+    more fields cannot reduce. Both are estimated from the repeats here, so the plan is a guide. The
+    cell-level gate treats every observation as an independent draw: it finds candidates, and when a
+    difference varies between repeats it passes more often than 0.05 without an effect (question 9
+    gives that chance for the readout). The paired t on the repeat means holds its rate, but needs 3
+    or more repeats and has little power with 3.
 
 What this dataset cannot tell me
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control

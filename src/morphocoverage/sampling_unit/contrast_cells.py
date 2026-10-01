@@ -229,6 +229,40 @@ def _tests(
     return d, p, d_bal, p_bal, per_t, per_c
 
 
+def trusted_test(
+    by_t: dict[Any, np.ndarray],
+    by_c: dict[Any, np.ndarray],
+    every: dict[Any, np.ndarray],
+    n_permutations: int,
+    rng: np.random.Generator,
+) -> dict[str, Any]:
+    """The cell-level test in the version the readings trust most (``reading_text``): on
+    values normalised to each repeat's control when every control mean is positive, and
+    balanced over the repeats that are not sparse when the condition is unbalanced (as
+    ``cell_table`` decides it); otherwise pooled as provided. ``d``, ``p``, whether the
+    values were ``normalised`` and the test ``balanced``, and the observations it used."""
+    sizes = {r: len(x) for r, x in by_t.items()}
+    control_sizes = {r: len(x) for r, x in by_c.items()}
+    spread = max(max(n.values()) / max(min(n.values()), 1) for n in (sizes, control_sizes))
+    unbalanced = bool(spread > IMBALANCE or len(every) > len(control_sizes))
+    small = set(sparse(sizes)) | set(sparse(control_sizes))
+    kept = [r for r in by_t if r not in small] if unbalanced else []
+    scaled = normalised(by_t, every), normalised(by_c, every), normalised(every, every)
+    values = scaled if all(x is not None for x in scaled) else (by_t, by_c, every)
+    d, p, d_bal, p_bal, per_t, per_c = _tests(*values, kept, n_permutations, rng)
+    balanced = bool(kept) and bool(np.isfinite(p_bal))
+    return {
+        "d": d_bal if balanced else d,
+        "p": p_bal if balanced else p,
+        "normalised": values is scaled,
+        "balanced": balanced,
+        "observations": per_t * len(kept) if balanced else sum(sizes.values()),
+        "control_observations": (
+            per_c * len(kept) if balanced else sum(len(x) for x in every.values())
+        ),
+    }
+
+
 def cell_table(
     pooled: dict[Any, dict[str, Any]],
     plan: pd.DataFrame,
@@ -344,4 +378,5 @@ __all__ = [
     "effective_per_well",
     "normalised",
     "sparse",
+    "trusted_test",
 ]

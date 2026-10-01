@@ -516,7 +516,7 @@ def question_statuses(
         "inspect": inspect_status(get("inspection")),
         "effort": effort_status(get("effort")),
         "order": order_status(get("efficiency")),
-        "conditions": conditions_status(get("contrast"), get("ranking")),
+        "conditions": conditions_status(get("contrast"), get("ranking"), get("discovery")),
     }
 
 

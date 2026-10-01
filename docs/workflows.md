@@ -332,10 +332,22 @@ the colours that can be told apart, raises. The features must be
 declared in the setup, and the plots use the same normalised values as the
 report when `normalize` is set; the value axis then says "relative to
 control" (`plots_of_data(..., value_note=...)` adds any such note). With `folder`, each figure is saved as a PNG.
-Without `features`, the readout is plotted and, given the report's ranking
-(`plots(objects, fovs, setup, ranking=result.ranking)`), the five
-best-ranked other features (`top=`): those that separate the conditions
-beyond chance, as question 9 describes below.
+Without `features`, the readout is plotted and, given the report's
+discovery (`plots(objects, fovs, setup, ranking=result.discovery)`), the five
+best-ranked other features (`top=`): those that pass the cell-level gate,
+largest |d| first, as question 9 describes below (`ranking=result.ranking`
+takes the ranking over whole technical repeats instead).
+
+With three or more features, `embedding_plots(objects, fovs, setup,
+discovery=result.discovery, folder=...)` draws two overviews of all of them,
+coloured by condition (the control grey) on the same values as the plots: a
+PCA of the robustly standardised features, each axis labelled with its share
+of the variance and the best-ranked features drawn as arrows of their
+loadings, so the axes read in features; and a UMAP (`umap-learn`, seeded by
+`random_state`; above 5000 observations on a seeded sample of the same share
+of every condition). Both describe, they do not test: a separation is a
+pattern to read with question 9's tests, and on raw values a separation can
+be a batch between repeats, which `normalize="control_mean"` takes out.
 
 When `control` names a condition and the FOV table holds other conditions,
 the report also answers question 9, "Do the conditions differ, and how
@@ -358,8 +370,27 @@ replacement when both sides have them; otherwise they resample these fields
 only, and their "same sign in X% of draws" is not a confidence in the effect.
 Every test compares means, and the section says that a difference confined
 to a subpopulation is not tested. It describes what these fields support;
-generalizing needs independent repeats. With several declared features the section also
-ranks them (`sampling_unit.feature_ranking`), as fiberfeatures scores a
+generalizing needs independent repeats.
+
+With several declared features the section also says which of them separate
+the conditions (`sampling_unit.feature_discovery`, the owner's choice of
+2026-10-01): every feature and condition by the cell-level test, in the
+version the readings trust most (on values normalised to each repeat's
+control, balanced over the repeats when they are not), Benjamini-Hochberg
+corrected together, a discovery gate at q <= 0.05, the passing features
+ranked by |d|. Beside it, the paired t-test on the repeat means (log ratios
+to the control), corrected the same way over every feature and condition
+with three or more repeats, is the second gate: a passing feature it also
+passes is "confirmed across repeats". The table gives each feature's best
+contrast, both q-values and its direction in each repeat; a passing feature
+that goes up in some repeats and down in others is flagged. The cell-level
+gate treats observations as independent: it finds candidates, and passes
+more often than 5% without an effect when the difference varies between
+repeats; the paired gate holds 5% but needs three repeats and has little
+power with three.
+
+When there are wells to shuffle, the section also ranks the features within
+each repeat (`sampling_unit.feature_ranking`), as fiberfeatures scores a
 feature set: the same test for every feature and contrast, Benjamini-Hochberg
 corrected together, a gate at q <= 0.05, and the passing features ordered by
 the largest |d| on field means. The ranking says which features are worth

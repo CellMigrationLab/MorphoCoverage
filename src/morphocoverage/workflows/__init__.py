@@ -19,11 +19,13 @@ Declare the dataset once with a ``Setup``, then:
   at a time;
 - ``benchmark(objects, fovs, setup, reservoir_fraction=...)``: BENCHMARK,
   which rule needs the fewest fields for the same risk;
-- ``plots(objects, fovs, setup, ranking=result.ranking, folder=...)``: PlotsOfData-style
+- ``plots(objects, fovs, setup, ranking=result.discovery, folder=...)``: PlotsOfData-style
   figures of the readout, the biological repeats side by side, every object a
   point coloured by technical repeat, the median with its interval from
   resampling whole technical repeats with their fields as acquired (not
-  reliable with only 2-3 technical repeats, which the title says).
+  reliable with only 2-3 technical repeats, which the title says);
+  ``embedding_plots(objects, fovs, setup, discovery=result.discovery)``: the PCA
+  biplot and the UMAP of the declared features, coloured by condition.
 
 Each returns its results with a ``summary()`` in sentences. Their scientific
 choices are the ``Setup``'s fields and explicit arguments; the few presets they
@@ -34,7 +36,7 @@ resamples, grids, the fields held back), and every random procedure is seeded
 from ``Setup.random_state``. See ``docs/workflows.md``.
 """
 
-from .figures import plots
+from .figures import embedding_plots, plots
 from .guided import Answers, GuidedResult, guide, load_answers, save_answers
 from .live import LiveFolder, LiveTables, LiveUpdate, live_session, write_fov
 from .retrospective import (
@@ -68,6 +70,7 @@ __all__ = [
     "default_families",
     "default_novelty",
     "document",
+    "embedding_plots",
     "guide",
     "live_session",
     "load_answers",

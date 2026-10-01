@@ -63,9 +63,9 @@ def _untested_words(statuses: Sequence[str]) -> str:
     return words.pop() if len(words) == 1 else "too few units on a side"
 
 
-def conditions_status(contrast: Any, ranking: Any) -> Answer:
+def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Answer:
     """9. Do the conditions differ, and how confidently? (see the module)."""
-    if contrast is None and ranking is None:
+    if contrast is None and ranking is None and discovery is None:
         return Status.NOT_ASSESSED, "not assessed"
     status, parts, limited = Status.OK, [], False
     if contrast is not None and len(contrast.table):
@@ -106,6 +106,15 @@ def conditions_status(contrast: Any, ranking: Any) -> Answer:
             parts.append("opposite signs between repeats")
     elif contrast is not None:
         parts.append("no condition to compare with the control")
+    if discovery is not None and len(discovery.ranking):
+        passing = int(discovery.ranking["score"].notna().sum())
+        n_features = count(len(discovery.ranking), "feature")
+        confirmed = len(discovery.confirmed())
+        parts.append(
+            f"{passing} of {n_features} pass the cell-level gate, {confirmed} confirmed by the "
+            "paired test"
+        )
+        return status, "; ".join(parts)
     if ranking is not None and len(ranking.ranking):
         passing = int(ranking.ranking["score"].notna().sum())
         n_features = count(len(ranking.ranking), "feature")

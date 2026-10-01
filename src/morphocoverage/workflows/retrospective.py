@@ -68,6 +68,7 @@ from ..retrospective.calibration import calibration_short_parts
 from ..retrospective.report import LIMITS_TITLE
 from ..retrospective.report_status import calibration_status
 from ..sampling_unit import (
+    FeatureDiscovery,
     FeatureRanking,
     fov_variability,
 )
@@ -134,8 +135,15 @@ class Report:
 
     @property
     def ranking(self) -> FeatureRanking | None:
-        """The gated feature ranking (question 9), when several features were declared."""
+        """The ranking over whole technical repeats (question 9), when several features were
+        declared."""
         return self.results.get("ranking")
+
+    @property
+    def discovery(self) -> FeatureDiscovery | None:
+        """The features the cell-level gate ranks, the paired test beside it (question 9),
+        when several features were declared; ``plots`` draws its best-ranked by default."""
+        return self.results.get("discovery")
 
 
 def report(

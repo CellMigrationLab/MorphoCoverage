@@ -9,8 +9,10 @@ from typing import Any
 import pandas as pd
 from matplotlib.figure import Figure
 
+from ..embedding import MIN_FEATURES, embed
 from ..plots import plots_of_data
-from ..sampling_unit import FeatureRanking
+from ..plots_embedding import embedding_figures
+from ..sampling_unit import FeatureDiscovery, FeatureRanking
 from ..sampling_unit.ranking import TOP_FEATURES
 from ._shared import check_workflow_inputs
 from .setup import Setup
@@ -23,15 +25,16 @@ def plots(
     *,
     features: Sequence[str] | None = None,
     folder: str | Path | None = None,
-    ranking: FeatureRanking | None = None,
+    ranking: FeatureDiscovery | FeatureRanking | None = None,
     top: int = TOP_FEATURES,
     **settings: Any,
 ) -> dict[str, list[Figure]]:
     """PlotsOfData-style figures of the readout (or ``features``), on the prepared table.
 
-    Without ``features``, the readout is plotted and, given the report's
-    ``ranking`` (``Report.ranking``), the ``top`` best-ranked other features:
-    those that separate the conditions beyond chance, largest |d| first.
+    Without ``features``, the readout is plotted and, given a ranking from the report
+    (``Report.discovery``, the cell-level gate, or ``Report.ranking``, the test over whole
+    technical repeats), the ``top`` best-ranked other features: those that pass its gate,
+    largest |d| first.
 
     Within each condition the biological repeats sit side by side; every
     object is a point coloured by technical repeat (a well), with each
@@ -47,8 +50,8 @@ def plots(
     if features is None:
         chosen = [setup.readout]
         if ranking is not None:
-            if not isinstance(ranking, FeatureRanking):
-                raise TypeError("ranking must be the report's FeatureRanking")
+            if not isinstance(ranking, (FeatureDiscovery, FeatureRanking)):
+                raise TypeError("ranking must be the report's discovery or ranking")
             # The readout is always plotted, so it never takes one of the ``top`` places.
             others = [f for f in ranking.top(len(ranking.ranking)) if f != setup.readout]
             chosen += others[:top]
@@ -79,4 +82,47 @@ def plots(
     return figures
 
 
-__all__ = ["plots"]
+def embedding_plots(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    setup: Setup,
+    *,
+    discovery: FeatureDiscovery | None = None,
+    folder: str | Path | None = None,
+    **settings: Any,
+) -> dict[str, Figure]:
+    """The PCA biplot and the UMAP of the declared features (``embedding.embed``), coloured
+    by condition, on the values the plots read (normalised with ``Setup.normalize``).
+
+    The discovery's best-ranked features (``Report.discovery``) are the PCA's arrows.
+    ``settings`` go to ``embed`` (``umap=False``, ``max_points``, ``n_neighbors``,
+    ``min_dist``). Needs ``embedding.MIN_FEATURES`` declared features. With ``folder``,
+    saved as ``pca.png`` and ``umap.png``. Returns the figures by name.
+    """
+    objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    if len(setup.columns) < MIN_FEATURES:
+        raise ValueError(
+            f"an embedding needs at least {MIN_FEATURES} declared features; the setup has "
+            f"{len(setup.columns)}"
+        )
+    if discovery is not None and not isinstance(discovery, FeatureDiscovery):
+        raise TypeError("discovery must be the report's FeatureDiscovery")
+    embedding = embed(
+        setup.prepared(objects, fovs),
+        fovs,
+        features=setup.columns,
+        top=discovery.top() if discovery is not None else (),
+        random_state=settings.pop("random_state", setup.random_state),
+        **settings,
+        **setup.common,
+    )
+    figures = embedding_figures(embedding, control=setup.control)
+    if folder is not None:
+        target = Path(folder)
+        target.mkdir(parents=True, exist_ok=True)
+        for name, figure in figures.items():
+            figure.savefig(target / f"{name}.png", dpi=150)
+    return figures
+
+
+__all__ = ["embedding_plots", "plots"]
