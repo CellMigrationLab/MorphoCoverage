@@ -69,14 +69,14 @@ What this acquisition was asked to preserve
     It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
     benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
     few fields (few_fovs).
-  - Stopping rules: JCB rule, per track, 5% [scalar_precision_object_upper95 (feature=Mean Speed,
-    target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and JCB rule, per field, 5%
-    [scalar_precision_fov_upper95 (feature=Mean Speed, target_cv=0.05, resampling_unit=fov,
-    sd_estimate=upper_95)] (the default, rules=None: the JCB rule per track and per field at 5%);
-    assessed in the report, calibrated by optimise, run live. The JCB rules stop on the averaging
-    CV: a CV of 5% is one standard error of 5% of the mean, not a bound of ±5% on its error; whether
-    the mean is within 5% and 2.5% is judged on held-back fields (report, optimise), never by the
-    rules.
+  - Stopping rules: mean-precision rule, per track, 5% [scalar_precision_object_upper95
+    (feature=Mean Speed, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and
+    mean-precision rule, per field, 5% [scalar_precision_fov_upper95 (feature=Mean Speed,
+    target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95)] (the default, rules=None: the
+    mean-precision rule per track and per field at 5%); assessed in the report, calibrated by
+    optimise, run live. The mean-precision rules stop on the averaging CV: a CV of 5% is one
+    standard error of 5% of the mean, not a bound of ±5% on its error; whether the mean is within 5%
+    and 2.5% is judged on held-back fields (report, optimise), never by the rules.
   - Acquisition order: no acquisition_order_col or stage_cols, so nothing is checked and every stop
     treats the fields as a random sample of the well's positions; a raster over a spatial trend can
     stop early. Image fields in a random or dispersed order.
@@ -110,8 +110,8 @@ What this acquisition was asked to preserve
     many times SD / sqrt(n) understates its error (the square root). Differ: the share of fields
     whose mean differs more than random tracks would let it (about 5% expected).
 
-  Would the JCB object-count rule hold with whole fields? Feature Mean Speed; reference mean: the
-    mean of all siCTRL tracks of the same biological repeat; analysis groups:
+  Would the mean-precision object-count rule hold with whole fields? Feature Mean Speed; reference
+    mean: the mean of all siCTRL tracks of the same biological repeat; analysis groups:
     condition · biological_repeat · technical_repeat.
     group                   target       tracks asked  fields taken  SD/sqrt(n) → real   as fields  of
     siCCT7#3 · CCT7_1 · B5  5% missed              28           7.4  5% → 5% (1.1x)         6 (27)   7
@@ -184,28 +184,28 @@ What this acquisition was asked to preserve
 
   Analysis groups: condition · biological_repeat · technical_repeat.
   Each rule by its own threshold (not a held-out check), in 18 groups:
-    rule                     met in   random orders: median (10-90%)
-    JCB rule, per track, 5%  0 of 18  never
-    JCB rule, per field, 5%  0 of 18  5.2 (3-7); 3 of 90 orders
-    nothing new (≤5%)        0 of 18  never
+    rule                                met in   random orders: median (10-90%)
+    mean-precision rule, per track, 5%  0 of 18  never
+    mean-precision rule, per field, 5%  0 of 18  5.2 (3-7); 3 of 90 orders
+    nothing new (≤5%)                   0 of 18  never
   First met after: the fields acquired when it first said enough; random: the median of the groups'
     medians, 10-90% from the lowest to the highest group.
-  Rules: JCB rule, per track, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05; config
-    17ac4f49f10d88ce); JCB rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05;
-    config d757b01eda57fc1e); nothing new (≤5%) (support_novelty: lofo_novel_fov_upper <= 0.05; config
-    3270f42ad71a05ec).
+  Rules: mean-precision rule, per track, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05;
+    config 17ac4f49f10d88ce); mean-precision rule, per field, 5% (scalar_precision_fov_upper95:
+    averaging_cv <= 0.05; config d757b01eda57fc1e); nothing new (≤5%) (support_novelty:
+    lofo_novel_fov_upper <= 0.05; config 3270f42ad71a05ec).
   Per group below: whether each rule was met by its own threshold, where it was first met, and the
     fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
     without them; only where the acquired fields are enough).
 
   siCCT7#3 · CCT7_1 · B5 — 7 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 1 of 7 fields hold a state seen in 2 to 3 fields; together 14% of fields (95%
@@ -216,13 +216,13 @@ What this acquisition was asked to preserve
       anything new (52 at the current rate of new fields).
 
   siCCT7#3 · CCT7_2 · B5 — 8 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
@@ -233,13 +233,13 @@ What this acquisition was asked to preserve
       anything new (51 at the current rate of new fields).
 
   siCCT7#3 · CCT7_3 · B5 — 7 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields (95%
@@ -250,13 +250,13 @@ What this acquisition was asked to preserve
       anything new (never at it of new fields).
 
   siCCT7#6 · CCT7_1 · B6 — 7 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields (95%
@@ -267,13 +267,13 @@ What this acquisition was asked to preserve
       anything new (never at it of new fields).
 
   siCCT7#6 · CCT7_2 · B6 — 8 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         7 (7-7); 1 of 5 orders                   –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         7 (7-7); 1 of 5 orders                   –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields (95%
@@ -284,13 +284,13 @@ What this acquisition was asked to preserve
       anything new (never at it of new fields).
 
   siCCT7#6 · CCT7_3 · B6 — 6 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 17% (nominal 95% bound 58%); 1 of 6 fields showed a state counted as new.
     Not yet seen: at most 39% of fields (95% confidence, about 3 / 6).
     Seen in few fields: 2 of 6 fields hold a state seen in 2 to 3 fields; together 33% of fields (95%
@@ -301,13 +301,13 @@ What this acquisition was asked to preserve
       anything new (never at it of new fields).
 
   siCTRL · CCT7_1 · B4 — 8 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 3 of 8 fields hold a state seen in 2 to 3 fields; together 38% of fields (95%
@@ -318,13 +318,13 @@ What this acquisition was asked to preserve
       anything new (never at it of new fields).
 
   siCTRL · CCT7_2 · B4 — 7 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields (95%
@@ -335,13 +335,13 @@ What this acquisition was asked to preserve
       anything new (52 at the current rate of new fields).
 
   siCTRL · CCT7_3 · B4 — 5 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 45%); 0 of 5 fields showed a state counted as new.
     Not yet seen: at most 45% of fields (95% confidence, about 3 / 5).
     Seen in few fields: 4 of 5 fields hold a state seen in 2 to 3 fields; together 80% of fields (95%
@@ -353,13 +353,13 @@ What this acquisition was asked to preserve
       anything new (54 at the current rate of new fields).
 
   siCCT8#5 · CCT8_1 · B2 — 8 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
@@ -370,13 +370,13 @@ What this acquisition was asked to preserve
       anything new (51 at the current rate of new fields).
 
   siCCT8#5 · CCT8_2 · B2 — 8 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields (95%
@@ -387,13 +387,13 @@ What this acquisition was asked to preserve
       anything new (51 at the current rate of new fields).
 
   siCCT8#5 · CCT8_3 · B2 — 7 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         3.5 (0.6; 3-4); 2 of 5 orders            –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         3.5 (0.6; 3-4); 2 of 5 orders            –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 4 of 7 fields hold a state seen in 2 to 3 fields; together 57% of fields (95%
@@ -405,13 +405,13 @@ What this acquisition was asked to preserve
       anything new (52 at the current rate of new fields).
 
   siCCT8#8 · CCT8_1 · B3 — 8 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 4 of 8 fields hold a state seen in 2 to 3 fields; together 50% of fields (95%
@@ -423,13 +423,13 @@ What this acquisition was asked to preserve
       anything new (51 at the current rate of new fields).
 
   siCCT8#8 · CCT8_2 · B3 — 8 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields (95%
@@ -440,13 +440,13 @@ What this acquisition was asked to preserve
       anything new (51 at the current rate of new fields).
 
   siCCT8#8 · CCT8_3 · B3 — 7 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields (95%
@@ -457,13 +457,13 @@ What this acquisition was asked to preserve
       anything new (52 at the current rate of new fields).
 
   siCTRL · CCT8_1 · B1 — 7 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields (95%
@@ -474,13 +474,13 @@ What this acquisition was asked to preserve
       anything new (never at it of new fields).
 
   siCTRL · CCT8_2 · B1 — 9 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 28%); 0 of 9 fields showed a state counted as new.
     Not yet seen: at most 28% of fields (95% confidence, about 3 / 9).
     Seen in few fields: 2 of 9 fields hold a state seen in 2 to 3 fields; together 22% of fields (95%
@@ -491,13 +491,13 @@ What this acquisition was asked to preserve
       anything new (50 at the current rate of new fields).
 
   siCTRL · CCT8_3 · B1 — 8 fields acquired:
-    rule                     enough     5 random orders: median (MC SE; 10-90%)  beyond
-    JCB rule, per track, 5%  undefined  never                                    –
-    JCB rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)        no         never                                    –
-    Cautions here: JCB rule, per track, 5%: undefined (the object-unit JCB criterion assumes
-      observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-      'track').
+    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per track, 5%  undefined  never                                    –
+    mean-precision rule, per field, 5%  no         never                                    –
+    nothing new (≤5%)                   no         never                                    –
+    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
+      criterion assumes observation rows are individual objects (observation_unit in ('cell',
+      'nucleus', 'object')), got 'track').
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
@@ -512,12 +512,13 @@ What this acquisition was asked to preserve
     (robust_standardize), on 13 features (Mean Speed, Median Speed, Speed Standard Deviation and 10
     more); two observations of a state that varies by one SD per feature sit about 5.1 apart.
 
-  ⚠️ JCB rule, per track, 5% is undefined in all 18 groups: the object-unit JCB criterion assumes
-     observation rows are individual objects (observation_unit in ('cell', 'nucleus', 'object')), got
-     'track'.
-  ⚠️ JCB rule, per field, 5%, in 1 of 18 groups (siCCT8#5 · CCT8_1 · B2): the SD between tracks
-     exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
-  ⚠️ JCB rule, per field, 5% was met and then lost as more fields arrived, in 2 of 18 groups.
+  ⚠️ Mean-precision rule, per track, 5% is undefined in all 18 groups: the object-unit mean-precision
+     criterion assumes observation rows are individual objects (observation_unit in ('cell',
+     'nucleus', 'object')), got 'track'.
+  ⚠️ Mean-precision rule, per field, 5%, in 1 of 18 groups (siCCT8#5 · CCT8_1 · B2): the SD between
+     tracks exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
+  ⚠️ Mean-precision rule, per field, 5% was met and then lost as more fields arrived, in 2 of 18
+     groups.
   ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of the
      well's positions; a raster over a spatial trend can stop early.
   Assumptions:
@@ -526,8 +527,8 @@ What this acquisition was asked to preserve
       field but is not established either: it counts as recurrent, so look at those fields before
       calling the sample settled.
     - Fields that cluster a state need more fields than the planning numbers.
-    - JCB rule, per track, 5% treats tracks as independent draws: it assumes a spatially uniform
-      sample.
+    - Mean-precision rule, per track, 5% treats tracks as independent draws: it assumes a spatially
+      uniform sample.
     - The next-field bound is approximate: the leave-one-field-out outcomes share their reference
       fields.
     - The novelty bounds treat fields as independent, representative draws: neighbouring fields

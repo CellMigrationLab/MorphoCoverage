@@ -132,7 +132,7 @@ def test_too_few_fields_is_reported_not_guessed():
     assert pd.isna(row["design_effect"])
 
 
-# -- the JCB rule with whole FOVs -----------------------------------------------------
+# -- the mean-precision rule with whole FOVs -----------------------------------------------------
 
 
 def test_the_rule_asks_for_the_papers_number_of_objects():
@@ -143,7 +143,7 @@ def test_the_rule_asks_for_the_papers_number_of_objects():
 
 
 def test_with_fovs_like_random_objects_the_rule_keeps_its_promise():
-    # A mean far from zero: the JCB rule applies to non-negative measurements.
+    # A mean far from zero: the mean-precision rule applies to non-negative measurements.
     objects, fovs = acquisition(field_sd=0.0, per_field=10, n_fields=80, object_sd=3.0, mean=30.0)
     row = object_rule_check(objects, fovs, feature="x", targets=[0.05], n_draws=3000)
     row = row.table.iloc[0]
@@ -428,7 +428,7 @@ def test_the_report_opens_with_the_sampling_unit_and_profiles_clustering():
     marker = report.statuses["unit"].marker
     assert unit.startswith(f"{marker} Foundation: why count fields, and not only objects?")
     assert "How variable are the fields?" in unit
-    assert "Would the JCB object-count rule hold" in unit
+    assert "Would the mean-precision object-count rule hold" in unit
     items = set(report.profile["item"])
     assert {"fields against random objects", "rare-state clustering"} <= items
     assert report.inputs["unit"] == "given"

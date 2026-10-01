@@ -181,7 +181,7 @@ def _rules(setup: Setup) -> str:
     )
     if setup.rules is None:
         named += (
-            f" (the default, rules=None: the JCB rule per {unit} and per field at "
+            f" (the default, rules=None: the mean-precision rule per {unit} and per field at "
             f"{rate(setup.tolerances[0])})"
         )
     else:
@@ -194,7 +194,7 @@ def _rules(setup: Setup) -> str:
         # The JCB criterion is the paper's: a CV of the mean, not a tolerance on it.
         cvs = " and ".join(f"{rate(t)} is one standard error of {rate(t)}" for t in targets)
         line += (
-            f" The JCB rules stop on the averaging CV: a CV of {cvs} of the mean, not a "
+            f" The mean-precision rules stop on the averaging CV: a CV of {cvs} of the mean, not a "
             f"bound of ±{rate(targets[0])} on its error; whether the mean is within "
             f"{' and '.join(rate(t) for t in setup.tolerances)} is judged on held-back "
             "fields (report, optimise), never by the rules."
@@ -398,7 +398,7 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         cvs = " and ".join(f"{rate(t)} is one standard error of {rate(t)}" for t in targets)
         cautions.append(
             assumption(
-                f"the JCB rules stop on the averaging CV ({cvs} of the mean), not on a "
+                f"the mean-precision rules stop on the averaging CV ({cvs} of the mean), not on a "
                 f"±{rate(targets[0])} bound on its error; whether the mean is within {tolerances} "
                 "is judged on held-back fields"
             )

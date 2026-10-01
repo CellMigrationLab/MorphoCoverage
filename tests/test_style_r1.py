@@ -212,7 +212,7 @@ def test_the_jcb_check_full_keeps_every_number_and_the_short_names_misses(unit):
 def test_the_foundation_status_follows_the_rule_with_whole_fields(unit):
     status, headline = unit_status(unit["variability"], unit["object_rules"], None)
     assert status is Status.CAUTION
-    assert "the JCB count rule missed with whole fields in" in headline
+    assert "the mean-precision count rule missed with whole fields in" in headline
     held = dataclasses.replace(
         unit["object_rules"], table=unit["object_rules"].table.assign(meets_target=True)
     )

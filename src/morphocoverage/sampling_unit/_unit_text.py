@@ -191,7 +191,7 @@ def variability_full(result: Any, indent: int = 0) -> str:
     return join(lines, _variability_cautions(result, rows, words), indent, "full")
 
 
-# --- The JCB object-count rule ----------------------------------------------------
+# --- The mean-precision object-count rule ----------------------------------------------------
 
 
 def _selector(selector: Mapping[str, Any]) -> str:
@@ -204,7 +204,7 @@ def _selector(selector: Mapping[str, Any]) -> str:
 
 
 def rule_reference(settings: Mapping[str, Any], words: str) -> str:
-    """The reference mean of the JCB check, in words."""
+    """The reference mean of the mean-precision check, in words."""
     control = settings.get("control")
     if not control:
         return str(settings["reference"])
@@ -224,7 +224,7 @@ def _rule_cautions(result: Any, rows: list[dict]) -> list[str]:
         where = f"{_group(row, result.group_cols)} ({rate(row['target'])})"
         reasons.setdefault(str(row["status"]), []).append(where)
     for reason, where in reasons.items():
-        cautions.append(f"JCB check in {listing(where, limit=3)}: {reason}")
+        cautions.append(f"mean-precision check in {listing(where, limit=3)}: {reason}")
     return cautions
 
 
@@ -238,8 +238,8 @@ def object_rule_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str
     reference = rule_reference(result.settings, words)
     lines = [
         wrap(
-            f"Would the JCB count rule hold with whole fields? The {words} it asks for, taken as "
-            f"whole fields in random order, against {reference}:",
+            f"Would the mean-precision count rule hold with whole fields? The {words} it asks "
+            f"for, taken as whole fields in random order, against {reference}:",
             indent,
             hang=indent + 2,
         )
@@ -295,7 +295,7 @@ def object_rule_full(result: Any, indent: int = 0) -> str:
     ok = [r for r in rows if r["status"] == "ok"]
     lines = [
         wrap(
-            f"Would the JCB object-count rule hold with whole fields? Feature "
+            f"Would the mean-precision object-count rule hold with whole fields? Feature "
             f"{result.settings['feature']}; reference mean: "
             f"{rule_reference(result.settings, words)}; analysis groups: {group_columns(keys)}.",
             indent,

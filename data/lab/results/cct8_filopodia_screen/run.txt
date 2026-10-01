@@ -1,7 +1,7 @@
 dataset: cct8_filopodia_screen
-morphocoverage: unversioned at commit a9c41f8
+morphocoverage: unversioned at commit c3d7560
 readout: Filopodia number; features: 1; control: {'condition': 'siCTRL'}
 novelty: default_novelty(features); rules: the defaults; random_state 0
-run time: 37 s
+run time: 26 s
 warnings:
   none

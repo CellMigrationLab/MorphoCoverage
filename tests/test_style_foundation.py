@@ -119,13 +119,15 @@ EXPECTED_LABELS = {
     "fixed_fov": "fixed 5 fields",
     "fixed_objects": "fixed 100 nuclei",
     "fixed_observations": "fixed 100 nuclei",
-    "scalar_precision_object": "JCB rule, per nucleus, 5%, point SD",
-    "scalar_precision_fov": "JCB rule, per field, 5%, point SD",
-    "scalar_precision_object_upper95_pilot": "JCB rule, per nucleus, 5%, pilot of 3 fields",
+    "scalar_precision_object": "mean-precision rule, per nucleus, 5%, point SD",
+    "scalar_precision_fov": "mean-precision rule, per field, 5%, point SD",
+    "scalar_precision_object_upper95_pilot": (
+        "mean-precision rule, per nucleus, 5%, pilot of 3 fields"
+    ),
     "descriptor_plateau": "JCS plateau, ≤0.1 over 3 fields",
     "descriptor_spread_object": "JCS spread, per nucleus, ≤0.3",
     "descriptor_spread_fov": "JCS spread, per field, ≤0.3",
-    "scalar_precision_planned": "JCB plan, 122 nuclei",
+    "scalar_precision_planned": "mean-precision plan, 122 nuclei",
     "fov_bootstrap_centroid": "field bootstrap of the mean, SE ≤0.05",
     "fov_bootstrap_quantiles": "field bootstrap of the quantiles, SE ≤0.1",
     "fov_bootstrap_covariance": "field bootstrap of the covariance, SE ≤0.1",
@@ -144,15 +146,15 @@ def test_every_default_rule_family_has_a_readable_name():
     assert names == EXPECTED_LABELS
     families = {f.name: rule_label(f.strategy, "nucleus") for f in default_families("x")}
     assert families == {
-        "JCB per object": "JCB rule, per nucleus, 0.25%",
-        "JCB per field": "JCB rule, per field, 0.25%",
+        "JCB per object": "mean-precision rule, per nucleus, 0.25%",
+        "JCB per field": "mean-precision rule, per field, 0.25%",
         "JCS spread per object": "JCS spread, per nucleus, ≤0.001",
         "JCS spread per field": "JCS spread, per field, ≤0.001",
         "FOV bootstrap of the mean": "field bootstrap of the mean, SE ≤0.0005",
     }
-    # The report's own rules: the JCB rule with the upper-95 SD, as published.
+    # The report's own rules: the mean-precision rule with the upper-95 SD, as published.
     assert rule_label(ScalarPrecisionStrategy("x", 0.05, "object", "upper_95"), "nucleus") == (
-        "JCB rule, per nucleus, 5%"
+        "mean-precision rule, per nucleus, 5%"
     )
     assert rule_label(FixedFOVStrategy(8)) == "fixed 8 fields"
     assert rule_label(DescriptorSpreadStrategy("x", 0.3, "fov", 20, 0)) == (
@@ -194,7 +196,7 @@ def test_an_unknown_rule_keeps_the_strategys_own_name():
 
 def test_rows_of_result_tables_are_named_like_their_strategies():
     row = {"criterion": "scalar_precision_fov_upper95", "settings": "averaging_cv <= 0.05"}
-    assert rule_label(row, "nucleus") == "JCB rule, per field, 5%"
+    assert rule_label(row, "nucleus") == "mean-precision rule, per field, 5%"
     final = pd.Series({"strategy": "fixed_fov", "policies": "n_fovs >= 8", "config_id": "abc"})
     assert rule_label(final) == "fixed 8 fields"
     assert rule_label(final, detail="full") == "fixed 8 fields (fixed_fov: n_fovs >= 8; config abc)"
@@ -338,7 +340,7 @@ def test_the_short_answer_has_the_verdicts_and_each_caveat_once():
         [FixedFOVStrategy(2), ScalarPrecisionStrategy("feature_a", 0.5, "fov", "point")]
     )
     short = report.summary()
-    assert "fixed 2 fields" in short and "JCB rule, per field, 50%, point SD" in short
+    assert "fixed 2 fields" in short and "mean-precision rule, per field, 50%, point SD" in short
     assert "4 of 4" in short  # met in every group, in the table
     assert short.count("treats the fields as a random sample") == 1
     assert short.count("a fixed amount of effort reaching its target") == 1

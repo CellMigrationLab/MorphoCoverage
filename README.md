@@ -84,7 +84,7 @@ Microscopist's report — 9550 nuclei in 336 fields
 At a glance
   ➖ The data — data checks and copy checks not run (report(..., integrity=True) runs both)
   ✅ Foundation. Why count fields? — a mean from whole fields varies 2.1x as much as from random
-     nuclei (median); the JCB count rule still held with whole fields in all 12 technical repeats
+     nuclei (median); the mean-precision count rule still held with whole fields in all 12 technical repeats
   ⚠️ 1. Can the features see the phenotype? — YAP fields recognized in 100% of checks; false alarms
      2%; not judged in biological repeat 2B (no positive-control field with nuclei)
   ⚠️ 2. Did I image enough? — 3 of 4 rules said enough in every technical repeat; 'nothing new' not
@@ -95,10 +95,10 @@ At a glance
   …
     rule                       met in    recorded order  random orders: median (10-90%)
     fixed 8 fields             12 of 12  8               8 (8-8)
-    JCB rule, per nucleus, 5%  12 of 12  1-2             1 (1-2)
-    JCB rule, per field, 5%    12 of 12  3-6             4 (3-5)
+    mean-precision rule, per nucleus, 5%  12 of 12  1-2             1 (1-2)
+    mean-precision rule, per field, 5%    12 of 12  3-6             4 (3-5)
     nothing new (≤5%)          0 of 12   never           never
-  ⚠️ JCB rule, per nucleus, 5%, in 7 of 12 groups: the upper-95 SD bound assumes normal values, …
+  ⚠️ mean-precision rule, per nucleus, 5%, in 7 of 12 groups: the upper-95 SD bound assumes normal values, …
   Assumptions: …
 ```
 
@@ -119,7 +119,7 @@ MorphoCoverage is a strategy-comparison framework. No default coverage estimator
   - rare-state rules for a `RareTarget` with FOV incidence: a fixed binomial plan (`FOVIncidencePlanStrategy`) and a beta-binomial risk that stops on recurrence (`RareIncidenceStrategy`).
 - **Was it sampled enough, and would one more FOV show something new?** `morphocoverage.sufficiency.sufficiency_report` answers both for a finished dataset, per analysis group. For each criterion (strategy and thresholds) it says whether the acquired FOVs meet it and after how many FOVs it was first met across acquisition orders. Given a definition of "new" (`SupportNoveltyEstimator`), it gives the chance that one more FOV shows a phenotype the other FOVs do not (a cluster of similar unsupported cells, so scattered outliers do not count), a nominal upper bound whose coverage is checked empirically, how many more FOVs are needed to bring that bound below a target, the frequency above which an unseen state is ruled out (about 3/k after k FOVs, for a state this definition of new detects, in fields that are independent, representative draws: a random or dispersed order, not a raster; for a state detected in only part of the fields that hold it, the detection-adjusted bound of `representation_control` applies), and the cells counted as new so they can be checked in the images. `report.summary()` states the answers in sentences.
 - **Is that chance right?** `morphocoverage.calibration.calibrate_next_fov_novelty` checks it on the dataset itself: it predicts from random subsets of FOVs and compares with how often the remaining FOVs actually showed something new.
-- **Objects or fields?** `morphocoverage.sampling_unit`, whose variability and object-rule checks open the report (the unusual objects and their clustering are reported under "What is limiting my sampling?"), measures how much fields differ and how much an object count understates the error of a field-sampled mean. It runs the JCB rule and the JCS stabilisation procedure with random objects and with whole fields, labels objects unlike declared control groups, and tests whether any labelled state is clustered in a few fields (`docs/objects_or_fields.md`, `docs/preliminary_findings.md` entries 9 and 10).
+- **Objects or fields?** `morphocoverage.sampling_unit`, whose variability and object-rule checks open the report (the unusual objects and their clustering are reported under "What is limiting my sampling?"), measures how much fields differ and how much an object count understates the error of a field-sampled mean. It runs the mean-precision rule and the JCS stabilisation procedure with random objects and with whole fields, labels objects unlike declared control groups, and tests whether any labelled state is clustered in a few fields (`docs/objects_or_fields.md`, `docs/preliminary_findings.md` entries 9 and 10).
 - **Leakage-safe replay.** Recorded acquisitions are evaluated prefix by prefix: `evaluate_acquisition_prefixes`.
 - **Benchmark protocol.** Datasets are declared as development or held out, and tuning on held-out data raises. `run_benchmark` replays recorded or seeded-permuted acquisition orders and records one row per run: effort at the stop, strategy-independent outcome metrics, and compute time (`morphocoverage.benchmark`, `morphocoverage.outcomes`). Outcomes can be scored against a held-out evaluation reservoir split by spatial block instead of the self-containing full acquisition (`morphocoverage.reservoir`), and include multivariate distribution errors (`morphocoverage.multivariate_outcomes`: centroid, covariance, quantile, Fréchet, energy and MMD U-statistics, sliced Wasserstein). `morphocoverage.spatial` gives FOV semivariograms for choosing block sizes. `morphocoverage.retrospective.frontier` scores rule families by fields saved against a fixed field count at matched risk of stopping too early, with approximate 95% intervals over independent units (widened for few units, and withheld below 5 units or when fewer than 90% of the resamples reach the risk level) and transfer from development to held-out data; the first locked run is in `docs/preliminary_findings.md`, entry 8.
 - **Leakage-safe preprocessing.** Feature transforms (`Standardize`, `PCA`, `Chain`) are fitted on the visible prefix only, with the fitted state recorded as provenance (`morphocoverage.transforms`).

@@ -409,7 +409,7 @@ def test_fixed_cell_and_fixed_fov_baselines_are_distinguishable():
     precision_fovs = ScalarPrecisionStrategy("feature_a", 0.005, "fov", "point")
     plateau = DescriptorPlateauStrategy("feature_a", 0.1, 3, ORDER_COL)
     spread = DescriptorSpreadStrategy("feature_a", 0.5, "object", 50, 0)
-    # The multi-sample JCB plan, made on a pilot repeat that is not evaluated.
+    # The multi-sample mean-precision plan, made on a pilot repeat that is not evaluated.
     pilot = scenario.objects.assign(biological_repeat="PILOT")
     planned = PlannedObjectCountStrategy(
         plan_objects_to_average(

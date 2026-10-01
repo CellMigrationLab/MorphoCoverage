@@ -413,7 +413,7 @@ def srs_relative_rmse(variance: float, mean: float, n: float, total: float) -> f
     return math.sqrt(variance / n * (1 - n / total)) / abs(mean)
 
 
-# The JCB rule with the field as the unit can estimate two different means. Both are
+# The mean-precision rule with the field as the unit can estimate two different means. Both are
 # kept, under distinct names, because they answer different questions; they agree
 # when every field holds as many objects, and differ most when field size and the
 # phenotype are related (a few crowded fields of one state, many sparse ones of another).

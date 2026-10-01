@@ -206,7 +206,7 @@ def test_field_identity_is_resolved_only_by_metadata():
 
 # The precision and stabilization rules judge a spread; with no spread so far (a count of 0
 # in every object, a saturated intensity) theirs is 0, which says nothing (audit 3 C-1 for the
-# JCB rule, audit 4 P4-1 for the JCS rules and the FOV bootstrap).
+# mean-precision rule, audit 4 P4-1 for the JCS rules and the FOV bootstrap).
 _READOUT_RULES = (
     "ScalarPrecisionStrategy",
     "DescriptorPlateauStrategy",

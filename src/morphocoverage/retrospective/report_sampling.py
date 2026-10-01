@@ -1,7 +1,7 @@
 """The Foundation, question 1 and question 3 of the microscopist's report, short and full.
 
 - **Foundation** ("why count fields, and not only objects?"): the field
-  variability, the JCB rule and the JCS descriptor spread with whole fields
+  variability, the mean-precision rule and the JCS descriptor spread with whole fields
   (``sampling_unit``), each as one answer and one table (short) or every
   number of each group (full); the caveats of the three once, at the end.
 - **1** ("can these features detect what I care about?"): the representation
@@ -93,7 +93,8 @@ def unit_full(variability: Any, object_rules: Any, descriptor_spread: Any, inden
 
 
 def rule_held(object_rules: Any) -> tuple[int, int]:
-    """In how many groups the JCB rule held with whole fields at every target, of how many."""
+    """In how many groups the mean-precision rule held with whole fields at every target, of
+    how many."""
     table = object_rules.table
     checked = table[table["status"] == "ok"]
     if not len(checked):

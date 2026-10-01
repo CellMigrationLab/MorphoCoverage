@@ -59,7 +59,7 @@ is left out of R2 with a note, and R7 shows one d (`workflows._shared.one_per_fi
 The Foundation reports, per analysis group: objects per field; the
 between-field share of variance, the design effect and the fields that
 differ more than random objects would (`sampling_unit.fov_variability`); the
-JCB rule and the JCS stabilisation, each run with random objects and with
+mean-precision rule and the JCS stabilisation, each run with random objects and with
 whole fields (`object_rule_check`, `descriptor_spread_check`; also P5);
 whether labelled rare or unusual states are spread over the fields or
 clustered in a few (`fov_clustering`, reported under R4); and, where stage

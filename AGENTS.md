@@ -287,7 +287,7 @@ src/morphocoverage/
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         __init__.py        # the subpackage's public names
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
-        object_rules.py    # JCB rule and JCS descriptor spread with random objects and whole FOVs
+        object_rules.py    # mean-precision rule and JCS descriptor spread with random objects and whole FOVs
         contrast.py        # each condition against the control: per repeat, across repeats, cell-level; question 9
         contrast_text.py   # its words: the readings first, then a table per contrast and per draw size, each caveat once
         contrast_repeats.py  # across biological repeats: direction, per-repeat d, paired t raw and normalised, sign-flip
@@ -307,7 +307,7 @@ src/morphocoverage/
         clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered
         _outliers.py       # private: the distances and leave-one-group-out thresholds behind unusual_objects
         _common.py         # private: validation and group helpers shared by the sampling-unit checks
-        _unit_text.py      # private: the Foundation's checks in words, short and full (variability, JCB rule, JCS spread)
+        _unit_text.py      # private: the Foundation's checks in words, short and full (variability, mean-precision rule, JCS spread)
         _state_text.py     # private: unusual objects and state clustering in words, short and full
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         __init__.py        # the subpackage's public names

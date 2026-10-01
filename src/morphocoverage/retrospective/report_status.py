@@ -30,12 +30,12 @@ The rules, question by question:
   data-integrity checks ✅ with no finding, ❌ with a finding (every answer
   counts those fields as independent), ➖ not run or not applicable. The
   worse of the two.
-- **Foundation** (``unit_status``): ⚠️ when the JCB object-count rule missed
+- **Foundation** (``unit_status``): ⚠️ when the mean-precision object-count rule missed
   its target with whole fields in some group, when whole-field samples never
   stayed within the random-object descriptor spread in some group, or when a
   group's variability could not be estimated; ✅ otherwise. Headline: how
   much more a mean from whole fields varies (the median design effect), and
-  in how many groups the JCB rule held with whole fields.
+  in how many groups the mean-precision rule held with whole fields.
 - **1. Controls** (``controls_status``): ❌ when the declared positive
   control (the planted objects when declared) was recognized in fewer than
   ``minimum_detection`` of checks (weak representation); ⚠️ when a stratum
@@ -250,14 +250,14 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
         kept, total = rule_held(object_rules)
         word = group_word(object_rules)
         if not total:
-            parts.append("JCB count rule not applicable")
+            parts.append("mean-precision count rule not applicable")
         elif kept == total:
             held = among(kept, total, word)
-            parts.append(f"the JCB count rule still held with whole fields in {held}")
+            parts.append(f"the mean-precision count rule still held with whole fields in {held}")
         else:
             status = Status.CAUTION
             missed = among(total - kept, total, word)
-            parts.append(f"the JCB count rule missed with whole fields in {missed}")
+            parts.append(f"the mean-precision count rule missed with whole fields in {missed}")
     if descriptor_spread is not None:
         rows = descriptor_spread.at_threshold
         keys = list(descriptor_spread.group_cols)

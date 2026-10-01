@@ -94,7 +94,7 @@ def test_the_short_block_marks_continue_and_stop_and_names_what_is_missing():
     first, eighth = updates[0].summary(), updates[7].summary()
     assert first.startswith("⏳ field 1 · MOCK · 1A — continue: 1 of 3 rules say enough")
     assert "fixed 8 fields (7 more fields)" in _flat(first)
-    assert "JCB rule, per field, 5%" in first
+    assert "mean-precision rule, per field, 5%" in first
     assert eighth.startswith("✅ field 8 · MOCK · 1A — stop: all 3 rules say enough")
     # The counts: this field, the group so far, in the declared unit.
     assert "f07.tif: 30 nuclei (read in" in eighth and "240 nuclei in 8 fields so far" in eighth
@@ -114,7 +114,7 @@ def test_caveats_are_stated_once_at_a_stop_and_wait_while_the_objective_continue
     stop = updates[7].summary()
     flat = _flat(stop)
     assert flat.count(RANDOM_SAMPLE_ASSUMPTION) == 1
-    assert flat.count(INDEPENDENT) == 1 and "JCB rule, per nucleus, 5% treats" in flat
+    assert flat.count(INDEPENDENT) == 1 and "Mean-precision rule, per nucleus, 5% treats" in flat
     assert flat.count("one standard error of 5% of the mean, not a ±5% bound") == 1
     # No order check ran here: that is a caution about these fields (⚠️); the rules'
     # independent draws and what an averaging CV is are standing assumptions.

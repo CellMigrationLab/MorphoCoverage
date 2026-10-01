@@ -56,7 +56,7 @@ when every descriptor is within tolerance) is unchanged.
 Missing values in the feature make every quantity ``not_applicable``: the
 framework does not drop them, and more acquisition does not remove them. No
 spread so far (every visible object alike: a zero count, a saturated
-intensity) makes them ``insufficient_data`` in both rules, as in the JCB rule:
+intensity) makes them ``insufficient_data`` in both rules, as in the mean-precision rule:
 a range or spread of 0 says nothing, and a later FOV can differ (audit 4,
 P4-1: the rules stopped at 1-3 FOVs on counts of 0, well mean 0.137).
 

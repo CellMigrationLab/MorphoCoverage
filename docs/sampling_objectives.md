@@ -84,7 +84,7 @@ Estimators report quantities tagged with the component they are evidence about (
 
 - each objective needs a decision for every component in the table above;
 - an objective with several components stops only when every one stops;
-- a required component with no evidence of that kind gives `unsupported`, never `stop`. Among the current-practice baselines, the JCB rule and the fixed counts are population rules, so under `distribution` they return `unsupported`; the JCS descriptor rules are population evidence from their location descriptors and distribution evidence from their spread descriptors, so with the default descriptors they decide both. Under `rare_discovery` every baseline returns `unsupported`, while still reporting its own verdict;
+- a required component with no evidence of that kind gives `unsupported`, never `stop`. Among the current-practice baselines, the mean-precision rule and the fixed counts are population rules, so under `distribution` they return `unsupported`; the JCS descriptor rules are population evidence from their location descriptors and distribution evidence from their spread descriptors, so with the default descriptors they decide both. Under `rare_discovery` every baseline returns `unsupported`, while still reporting its own verdict;
 - a quantity that needs more data gives `continue`; one that is undefined for the data gives `None`.
 
 Every result therefore carries two decisions. `decision` is the objective's,

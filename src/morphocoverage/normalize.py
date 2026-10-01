@@ -1,6 +1,6 @@
 """Normalise features to the control condition, repeat by repeat.
 
-The JCB rule and the lab's Plot&Stats notebook express values relative to the
+The mean-precision rule and the lab's Plot&Stats notebook express values relative to the
 control: each value is divided by the mean of the control condition's objects
 of the same repeat, so a treated mean of 1.2 reads as 20% above its own
 repeat's control and repeats with different absolute levels become

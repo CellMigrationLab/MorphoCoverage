@@ -144,7 +144,7 @@ setup = Setup(
 
 Every field left at `None` switches off the analyses that need it. The report
 then says "Not assessed" and names what would be needed. The stopping rules
-default to the JCB rule (upper-95 SD, first tolerance), per object and per
+default to the mean-precision rule (upper-95 SD, first tolerance), per object and per
 field; pass `rules=(...)` to assess others. `random_state` (default 0) seeds
 every random procedure the workflows run, the report's random orders
 included, and `minimum_detection` (default 0.9, a provisional preset) is the
@@ -179,7 +179,7 @@ Features measured plane by plane are split before the `Setup`:
 `normalize="control_mean"` divides every declared column (the readout and
 the features) by the mean of the control condition's objects of the same
 repeat, for the analyses that compare values across repeats (below), as the
-JCB rule and the lab's Plot&Stats notebook express values
+mean-precision rule and the lab's Plot&Stats notebook express values
 (`morphocoverage.normalize`). It needs
 `control` to name the condition column, every repeat must hold control
 objects (a repeat without them raises, since mixing scales inside one
@@ -485,7 +485,7 @@ resolved or has no interval; ➖ when a fixed count never met the risk level
 lastingly, so no rule is scored.
 
 `default_families(setup.readout)` holds the rule families and threshold grids
-of the locked protocol (version 5, whose grids are those of versions 1 to 4): the JCB rule and the JCS descriptor
+of the locked protocol (version 5, whose grids are those of versions 1 to 4): the mean-precision rule and the JCS descriptor
 spread, each per object and per field, and the FOV bootstrap of the mean
 (on the readout only, whatever other features are declared).
 `default_families` takes `random_state` for its resampling rules; `benchmark`
@@ -510,7 +510,7 @@ dataset's role: keeping the two apart is up to you.
 (`setup.objective()`). Each update ends with one view per target: the
 population summary, the phenotypic fingerprint and the rare phenotype, each
 with the decision of the rules that decide it, then the overall decision. The
-default rules (the JCB rule per object and per field) decide the population
+default rules (the mean-precision rule per object and per field) decide the population
 summary only; declare a fingerprint or a rare target and the view says that
 no rule decides it until you pass `rules=(...)` with one that does (for
 example a `FOVBootstrapStrategy` on the covariance), and the overall decision

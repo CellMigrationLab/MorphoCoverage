@@ -82,8 +82,8 @@ def _insufficient_reason(result: StrategyResult) -> str | None:
 def _warning_list(diagnostics: Mapping[str, Any]) -> tuple[str, ...]:
     """The caveats a rule's evidence carries (``field_size_warning``, ``warning``), one by one.
 
-    The FOV-unit JCB rule warns when FOV size and FOV mean are related (its
-    CV can then be several times too small) and the JCB rule when the SD
+    The FOV-unit mean-precision rule warns when FOV size and FOV mean are related (its
+    CV can then be several times too small) and the mean-precision rule when the SD
     exceeds 50% CV; its pilot's own warnings are marked as the pilot's.
     """
     found = [diagnostics.get(key) for key in ("field_size_warning", "warning")]

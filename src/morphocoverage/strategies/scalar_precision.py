@@ -394,7 +394,7 @@ class ScalarPrecisionEstimator(Estimator):
         if self.resampling_unit != "object":
             return None
         return unsupported_observation_unit(
-            data, OBJECT_LIKE_UNITS, method="the object-unit JCB criterion"
+            data, OBJECT_LIKE_UNITS, method="the object-unit mean-precision criterion"
         )
 
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
