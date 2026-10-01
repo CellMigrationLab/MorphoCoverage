@@ -23,6 +23,8 @@ from ._html_sections import _resolution
 from ._html_tabs import tabs_html
 
 _MARKS = {ENOUGH: "✅", PARTLY: "⚠️", NOT_YET: "⚠️"}
+# The summary table's rows shown before "Show all" (the style hides the others).
+_FIRST_ROWS = 20
 _STOPPING = "  The stopping rules, as optimise and live run them (on the readout):"
 
 
@@ -106,8 +108,16 @@ def enough_body(
         (r["feature"], _MARKS[r["verdict"]], annotate(_panel(features, r["feature"], word, fields)))
         for r in rows
     ]
+    shown = text_html(head)
+    if len(rows) > _FIRST_ROWS:
+        # Hundreds of features: the first rows, sortable over them all, and a button.
+        shown = (
+            f'<div class="long-table">{shown}<button type="button" class="show-all" '
+            f'data-rows="{_FIRST_ROWS}" aria-expanded="false">Show all {len(rows)} features'
+            "</button></div>"
+        )
     body = (
-        f'<div class="reading">{annotate(summary)}</div>{text_html(head)}'
+        f'<div class="reading">{annotate(summary)}</div>{shown}'
         "<h3>One feature at a time</h3>" + tabs_html("enough", items, "Features")
     )
     if rest.strip():

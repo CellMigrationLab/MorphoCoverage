@@ -197,7 +197,7 @@ def features_table(features: FeatureEnough, word: str = "well", indent: int = 2)
             r["feature"],
             f"{r['verdict']}: shown in {r['shown']} of {r['comparisons']}",
             _needed(r, fields),
-            _precision_cell(r, word),
+            *([_precision_cell(r, word)] if rule else []),
         ]
         for r in features.table.to_dict("records")
     ]

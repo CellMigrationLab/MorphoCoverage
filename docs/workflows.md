@@ -120,7 +120,14 @@ check when every field holds one cell) is left out; its reason stays in "What
 this dataset cannot tell me". Each section says in a sentence what it is for and
 gives its answer in a line; "Did I image enough?" answers in sentences (resolved
 within each repeat or not, how many fields would resolve the rest, what to do)
-before its numbers. A sidebar lists every section with its status; "At a glance"
+before its numbers. With several features it asks each of them alike: a table
+across the features (enough, partly or not yet to compare with the control, the
+fields still needed, how many wells meet the precision asked for their own mean;
+the first 20 rows, sortable, and a button for the rest), then one feature at a
+time as tabs, or above 12 features a list to search; the stopping rules follow,
+on the readout, as optimise and live run them. The per-feature contrasts skip
+the cell-level test (`condition_contrast(cell_test=False)`) and run in parallel
+with `Setup(n_jobs=...)`. A sidebar lists every section with its status; "At a glance"
 gives each status as a chip with its word (never colour alone). The full text is
 folded under "Full detail", in the words of `Report.summary`, its aligned tables
 as tables you can sort by clicking a header.
@@ -129,7 +136,9 @@ as tables you can sort by clicking a header.
 of Cohen's d of every feature and condition against the control (● passes the
 exploratory cell-level screen, ✓ also significant across repeats; hover a cell for its
 q-values), then the readout and the best-ranked features, then with three or
-more features the PCA and UMAP of all of them, then the tests behind the reading.
+more features the PCA and UMAP of all of them, then the tests behind the reading,
+one kind of test at a time as tabs (across repeats, reagents, the cell-level
+screen, within repeats, planning, every feature).
 
 The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
 which the page carries (about 1.5 MB, MIT licence), so they work offline. A
