@@ -3,7 +3,9 @@
 Start with ``scan_design(objects, fovs)``: what the dataset is, whether it was
 loaded correctly (data check, copies, balance over the biological repeats),
 which columns would say more, and the questions to answer before the analysis;
-``scan.setup(readout=...)`` turns the answers into a ``Setup``.
+``scan.setup(readout=...)`` turns the answers into a ``Setup``. ``guide()`` (or
+``python -m morphocoverage.workflows``) asks those questions interactively,
+saves the answers in the results folder, and runs the report.
 
 Declare the dataset once with a ``Setup``, then:
 
@@ -33,6 +35,7 @@ from ``Setup.random_state``. See ``docs/workflows.md``.
 """
 
 from .figures import plots
+from .guided import Answers, GuidedResult, guide, load_answers, save_answers
 from .live import LiveFolder, LiveTables, LiveUpdate, live_session, write_fov
 from .retrospective import (
     Benchmark,
@@ -49,9 +52,11 @@ from .scan import DesignScan, scan_design
 from .setup import PositiveControl, Setup, default_novelty
 
 __all__ = [
+    "Answers",
     "Benchmark",
     "DesignScan",
     "Family",
+    "GuidedResult",
     "LiveFolder",
     "LiveTables",
     "LiveUpdate",
@@ -63,10 +68,13 @@ __all__ = [
     "default_families",
     "default_novelty",
     "document",
+    "guide",
     "live_session",
+    "load_answers",
     "optimise",
     "plots",
     "report",
+    "save_answers",
     "scan_design",
     "write_fov",
 ]

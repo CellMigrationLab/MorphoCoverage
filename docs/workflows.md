@@ -67,6 +67,36 @@ features, field identifier, groups and unit; a guessed control is never used
 without being declared, and a fingerprint or rare goal needs its criterion,
 whose tolerance has no default. Nothing in the scan is estimated or tested.
 
+### A guided session
+
+`guide()` asks those questions for you, one at a time, and keeps the answers:
+
+```python
+from morphocoverage.workflows import guide
+
+session = guide("cells.csv", folder="results")   # paths or DataFrames; asked for when left out
+```
+
+or, from a terminal, `python -m morphocoverage.workflows cells.csv [fovs.csv] --folder results`.
+The session loads the tables, scans them and prints the scan, then asks: did
+the dataset load correctly (if not, it stops); the control to log (the scan's
+guess is the default, "no control" is an answer); the aim (population
+averages, a phenotypic fingerprint, or both); the features to assess
+(several by number, range or name, or all the numeric columns); the readout
+among them; what one row is; and, for a fingerprint, its tolerance (the
+covariance of the standardised features within a share you state; 10% is
+offered, with no published meaning). Enter takes each default.
+
+The answers are saved in the folder as `morphocoverage_answers.json`, with a
+checksum of the observation table, before the report runs; the folder then
+holds `scan.txt`, `report_short.txt` and `report_full.txt`. Run in the same
+folder again, the session shows the saved answers and offers to continue with
+them (straight to the report) or to delete them and start over. Answers saved
+for another table are never reused: the session offers to delete them, or
+stops so you can choose another folder. Extra `Setup` fields go through
+`guide(..., n_jobs=4, normalize="control_mean")`; `load_answers(folder)` and
+`answers.setup(scan)` rebuild the `Setup` without the questions.
+
 ## Declare the dataset
 
 ```python
