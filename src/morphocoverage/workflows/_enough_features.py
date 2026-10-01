@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from .._parallel import map_units
+from .._parallel import check_n_jobs, map_units
 from .._style import Status, table, wrap
 from .._wording import count, listing
 from ..retrospective.report_resolved import has_resolution, resolved_full
@@ -43,6 +43,8 @@ if TYPE_CHECKING:
 ENOUGH, PARTLY, NOT_YET = "enough", "partly", "not yet"
 # Where the readout's own resolution ends in the short form and its rules begin.
 _RULES_HEAD = "The precision of each group's own mean:"
+# Fewest features a worker replays on its own: below it, one replay over them all.
+_PER_SHARE = 8
 
 
 @dataclass(frozen=True)
@@ -65,8 +67,10 @@ def _order(features: list[str], discovery: Any) -> list[str]:
     return first + [f for f in features if f not in first]
 
 
-def _precision(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, features: list[str]):
-    """The mean-precision tally of every feature: one replay with every feature's rules."""
+def _replay(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, features: list[str], n_jobs: int
+) -> dict[str, dict[str, Any]]:
+    """The mean-precision tally of ``features``: one replay with each feature's rules."""
     from ._shared import orders
 
     # The readout's own mean-precision rules, the same rule on each feature in turn.
@@ -91,7 +95,7 @@ def _precision(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, features
             setup, permuted=0 if setup.acquisition_order_col else 1, dispersed=0, seed_permuted=True
         ),
         acquisition_order_col=setup.acquisition_order_col,
-        n_jobs=setup.n_jobs,
+        n_jobs=n_jobs,
         **setup.common,
     )
     tallies: dict[str, dict[str, Any]] = {}
@@ -101,6 +105,21 @@ def _precision(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, features
         if feature is not None and defined and feature not in tallies:
             tallies[feature] = tally
     return tallies
+
+
+def _precision(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, features: list[str]):
+    """The mean-precision tally of every feature. With many features and several workers,
+    one replay per worker over its share of the features (the orders are drawn per group, the
+    same in every share): about three times faster than one replay over them all."""
+    workers = min(check_n_jobs(setup.n_jobs), len(features) // _PER_SHARE)
+    if workers <= 1:
+        return _replay(objects, fovs, setup, features, setup.n_jobs)
+    shares = [list(share) for share in np.array_split(np.array(features, dtype=object), workers)]
+    jobs = [(objects, fovs, setup, share, 1) for share in shares]
+    tallies: dict[str, dict[str, Any]] = {}
+    for share in map_units(_replay, jobs, workers):
+        tallies.update(share)
+    return {f: tallies[f] for f in features if f in tallies}
 
 
 def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str, Any]:

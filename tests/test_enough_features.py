@@ -6,13 +6,14 @@ import html
 import re
 import warnings
 
+import numpy as np
 import pandas as pd
 import pytest
 from test_html_report import _tables
 
 from morphocoverage._style import Status
 from morphocoverage.sampling_unit.contrast import condition_contrast
-from morphocoverage.workflows import _html_tabs, html_report, report
+from morphocoverage.workflows import _enough_features, _html_tabs, html_report, report
 from morphocoverage.workflows._enough_features import (
     ENOUGH,
     NOT_YET,
@@ -154,3 +155,21 @@ def test_the_tests_behind_the_reading_are_one_kind_at_a_time():
     assert markup.endswith("<pre>  ⚠️ one caution.\n  Assumptions: fields independent.</pre>")
     one = "  Across the repeats: paired t."
     assert _html_tabs.tests_tabs(one, lambda t: f"<pre>{t}</pre>") == f"<pre>{one}</pre>"
+
+
+def test_the_precision_split_over_workers_is_the_one_replay():
+    objects, fovs = _tables()
+    rng = np.random.default_rng(1)
+    for i in range(16):
+        objects[f"f{i:02d}"] = objects["area"] + rng.normal(0, 1 + i, len(objects))
+    features = [f"f{i:02d}" for i in range(16)]
+    setup = Setup(
+        readout="f00",
+        features=tuple(features),
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+        n_jobs=2,
+    )
+    split = _enough_features._precision(objects, fovs, setup, features)
+    assert split == _enough_features._replay(objects, fovs, setup, features, 1)
+    assert split and list(split) == [f for f in features if f in split]
