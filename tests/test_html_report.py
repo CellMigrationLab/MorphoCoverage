@@ -203,9 +203,10 @@ def test_the_page_reads_in_order_with_a_heatmap_a_drawer_and_no_grey(tmp_path):
     assert where == sorted(where)
     assert not re.search(r"<h2>[^<]*\d\. ", body) and "Foundation" not in body
     assert "What was checked" in body and "Negative control: ctrl" in body
-    # Did I image enough? answers in sentences before its numbers.
+    # Did I image enough? answers in sentences, then one feature at a time, as tabs.
     enough = body[body.index('id="enough"') :]
-    assert enough.index('class="reading"') < enough.index("The numbers")
+    assert enough.index('class="reading"') < enough.index("One feature at a time")
+    assert enough.count('role="tab"') == 3 and 'id="enough-panel-2"' in enough
     # Question 9: the reading, then the heatmap and figures, then the tests.
     conditions = body[body.index('id="conditions"') : body.index('id="enough"')]
     assert conditions.index("Reading, condition by condition") < conditions.index('class="heatmap"')

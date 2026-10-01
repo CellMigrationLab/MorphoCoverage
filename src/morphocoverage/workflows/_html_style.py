@@ -194,6 +194,27 @@ button.dl { border: 1px solid var(--border); background: var(--surface); color: 
 figcaption button.dl { background: #ffffff; color: #1c5cab; border-color: #dddcd7; }
 button.dl:hover { background: var(--surface-2); }
 dl.glossary { margin: 6px 0 14px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 14px 0 0; border-bottom: 1px solid
+  var(--border); }
+.tabs [role="tab"] { border: 1px solid var(--border); border-bottom: 0;
+  background: var(--surface); color: var(--text-2); padding: 6px 12px;
+  border-radius: 8px 8px 0 0; cursor: pointer; font: inherit; }
+.tabs [role="tab"][aria-selected="true"] { background: var(--surface-2); color: var(--text);
+  font-weight: 600; }
+.tabs [role="tab"] .mark { margin-left: 6px; }
+.tab-panel { border: 1px solid var(--border); border-top: 0; border-radius: 0 0 8px 8px;
+  padding: 10px 14px; }
+.picker .pick { display: flex; flex-direction: column; gap: 6px; max-width: 520px;
+  margin: 14px 0 0; }
+.picker input[type="search"], .picker select { padding: 6px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit;
+  font-size: 14px; }
+.picker .panel-name { margin: 2px 0 6px; font-size: 16px; }
+.picker .tab-panel { border-top: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
+.long-table:not(.open) tbody tr:nth-child(n+21) { display: none; }
+.long-table button.show-all { border: 1px solid var(--border); background: var(--surface);
+  color: var(--link); border-radius: 6px; padding: 3px 10px; font: inherit; font-size: 13px;
+  cursor: pointer; margin: 6px 0; }
 .legend-box { border-left: 3px solid var(--link); background: var(--surface-2); padding: 10px 14px;
   border-radius: 6px; margin: 12px 0; }
 dl.glossary dt { font-weight: 600; margin-top: 10px; }

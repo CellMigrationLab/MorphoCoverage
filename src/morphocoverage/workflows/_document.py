@@ -33,16 +33,22 @@ from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_
 from ..retrospective.report import QUESTIONS, with_opening
 from ..retrospective.report_profile import sampling_profile
 from ..retrospective.report_sampling import states_lines
-from ..retrospective.report_status import RESULT_QUESTIONS, caveat_status, profile_status
+from ..retrospective.report_status import (
+    RESULT_QUESTIONS,
+    caveat_status,
+    group_word,
+    profile_status,
+)
 from ..sampling_unit._state_text import clustering_parts
 from ..schema import unit_plural
 from ._declaration import declaration_short
+from ._enough_features import with_features
 
 if TYPE_CHECKING:
     from .setup import Setup
 
 # Results of the report that ``microscopist_report`` does not take; ``assemble`` adds them.
-_EXTRA_RESULTS = ("rare_clustering", "integrity")
+_EXTRA_RESULTS = ("rare_clustering", "integrity", "enough_features")
 
 
 def pooling_reason(analyses: str, setup: Setup, pooled: Sequence[str]) -> str:
@@ -154,7 +160,10 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
             status=Status.CAUTION,
             short_text="\n".join(caveat_lines([text], indent=2)),
         )
-    return document
+    # Question 2 over every feature alike (the report is neutral).
+    features = results.get("enough_features")
+    word = group_word(results.get("sufficiency"))
+    return with_features(document, features, results.get("contrast"), word)
 
 
 def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:

@@ -23,7 +23,7 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption
-from .._style import Status, table, wrap
+from .._style import SINGLE_LEVEL, Status, table, wrap
 from .._wording import count, percent
 from ..metadata import REPEAT_COLUMN
 from ..sampling_unit.contrast_sampling import LEVEL, PRACTICAL
@@ -76,7 +76,10 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
 def _name(row: dict[str, Any]) -> str:
     name = f"{row['condition']} vs {row['control_condition']}"
     repeat = row.get(REPEAT_COLUMN)
-    return name if repeat is None or pd.isna(repeat) else f"{name}, repeat {repeat}"
+    # CellPatcher's "single" names a folder level the data did not have: no repeat to name.
+    if repeat is None or pd.isna(repeat) or str(repeat) == SINGLE_LEVEL:
+        return name
+    return f"{name}, repeat {repeat}"
 
 
 def _answer(row: dict[str, Any], fields: str = "fields") -> str:
