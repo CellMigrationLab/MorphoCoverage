@@ -317,14 +317,14 @@ def coverage_notes(results: Mapping[str, Any], setup: Setup) -> list[str]:
     if setup.stage_cols is None:
         notes.append(
             assumption(
-                "No stage coordinates (stage_cols): neighbouring fields were not compared, and "
+                "No stage coordinates: neighbouring fields were not compared, and "
                 "spatial redundancy and dispersed orders were not assessed."
             )
         )
     if setup.acquisition_order_col is None:
         notes.append(
             assumption(
-                "No acquisition order (acquisition_order_col): the recorded order was not "
+                "No acquisition order: the recorded order was not "
                 "replayed, and the random orders treat the fields as exchangeable, so a drift "
                 "or a raster along the acquisition is not seen."
             )

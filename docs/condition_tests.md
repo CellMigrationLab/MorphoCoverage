@@ -73,8 +73,11 @@ small, nothing is balanced and only the test as provided is given.
   already).
 - **Balancing** assumes the observations of a repeat are exchangeable, so any
   subset of them represents it.
-- **Bonferroni** correction is applied over the conditions, each test
-  separately.
+- **Benjamini-Hochberg** correction is applied within each sub-experiment
+  (the conditions that share their biological repeats and their control, as
+  when a screen runs target by target), each test separately: one part of a
+  screen does not dilute another (owner, 2026-10-01). The tests within one
+  repeat keep their Bonferroni correction.
 
 ## Limitations
 

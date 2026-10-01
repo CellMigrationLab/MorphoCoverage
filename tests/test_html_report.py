@@ -89,7 +89,9 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     for anchor in ("glance", "overview", "enough", "conditions", "limits"):
         assert f'id="{anchor}"' in page
     assert "Full detail" in page
-    assert "None" not in re.sub(r"<script.*?</script>", "", page, flags=re.DOTALL)
+    # Embedded images are base64, which can spell anything: left out with the scripts.
+    text = re.sub(r"<script.*?</script>|data:[\w/+.-]+;base64,[\w+/=]+", "", page, flags=re.DOTALL)
+    assert "None" not in text
     # Every figure is embedded and saved as PNG and PDF.
     assert page.count("data:image/png;base64,") >= 4
     for name in ("area", "pca_raw", "umap_raw", "pca_normalised", "umap_normalised"):
@@ -236,7 +238,7 @@ def test_the_heatmap_marks_the_gates():
     discovery.ranking = pd.DataFrame({"feature": ["a", "b"]})
     svg = heatmap(discovery, ["x", "y"])
     assert "+2.50 ✓" in svg and "+0.90 ●" in svg and "-0.40<" in svg and "–<" in svg
-    assert "q cells 0.001; q paired 0.01" in svg
+    assert "cell-level q 0.001; repeat means q 0.010" in svg
     assert heatmap(None, []) == ""
 
 

@@ -26,9 +26,11 @@ MARGIN = 0.18
 
 
 def sentences(caption: str) -> str:
-    """A figure's caption (one clause per line) as sentences."""
+    """A figure's caption (one clause per line) as sentences; the first line starts with the
+    feature's own name, kept as written."""
     lines = [line.strip() for line in caption.split("\n") if line.strip()]
-    return ". ".join(line[:1].upper() + line[1:] for line in lines) + ("." if lines else "")
+    lines = lines[:1] + [line[:1].upper() + line[1:] for line in lines[1:]]
+    return ". ".join(lines) + ("." if lines else "")
 
 
 def grow_bottom(figure: Figure, inches: float) -> None:

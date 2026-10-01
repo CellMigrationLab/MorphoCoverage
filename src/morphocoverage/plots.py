@@ -474,7 +474,8 @@ def plots_of_data(
                         {"condition": condition, "repeat": repeat, "x": x, "width": width}
                         | {"summary": point, "low": low, "high": high}
                     )
-                    if repeat is not None:
+                    # CellPatcher's "single" names a folder level the data did not have.
+                    if repeat is not None and str(repeat) != "single":
                         repeat_labels.append((x, str(repeat)))
             many = len(chunk) > 4
             ax.set_xticks([b + max(len(p), 1) / 2 for b, p in zip(starts, present, strict=True)])

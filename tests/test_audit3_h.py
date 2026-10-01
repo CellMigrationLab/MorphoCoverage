@@ -135,9 +135,7 @@ def test_h2_pooled_repeats_resample_the_repeats_alone(monkeypatch):
     # One call for the one pooled cluster: ten repeats, each with its 6 fields (2 wells).
     assert calls == [[6] * 10]
     text = title.figure.caption
-    assert (
-        "resampling whole biological repeats (biological_repeat), each with all its fields" in text
-    )
+    assert "resampling whole biological repeats with all their fields" in text
     assert not hasattr(plots_module, "_bootstrap_repeats")
 
 
@@ -149,9 +147,7 @@ def test_h3_plot_intervals_are_the_widened_nested_ones_with_the_small_unit_cavea
     objects, fovs = _tables(spec, per_field=10)
     ax = plots_of_data(objects, fovs, features=["x"], n_boot=50)["x"][0].axes[0]
     assert calls == [[4, 4, 4]]  # the wells, each with its fields, into bootstrap_nested
-    assert "with only 2-3 technical repeats a cluster's interval is not reliable" in (
-        ax.figure.caption
-    )
+    assert "with 2-3 technical repeats the interval is only a guide" in (ax.figure.caption)
 
 
 def test_h4_repeats_left_out_of_the_layout_are_pooled_not_merged(monkeypatch):
@@ -163,9 +159,9 @@ def test_h4_repeats_left_out_of_the_layout_are_pooled_not_merged(monkeypatch):
     assert calls == [[8, 8, 8]]
     title = ax.figure.caption
     assert "repeat not shown apart, pooled within each cluster" in title
-    assert "whole biological repeats (biological_repeat)" in title
+    assert "whole biological repeats with all their fields" in title
     labels = [t.get_text() for t in ax.get_legend().get_texts()]
-    assert labels == ["1st technical_repeat", "2nd technical_repeat"]
+    assert labels == ["1st", "2nd"]
 
 
 def test_h5_only_the_technical_repeat_column_is_taken_by_itself():
@@ -219,7 +215,7 @@ def test_h8_a_constant_feature_is_reported_not_a_crash():
         objects["x"] = value
         result = object_rule_check(objects, fovs, feature="x", n_draws=50)
         assert result.table["status"].str.startswith("the feature does not vary").all()
-        assert "the feature does not vary" in result.summary()
+        assert "the feature does not vary" in " ".join(result.summary().split())
 
 
 def _repeat_shifted(shift, seed, n_repeats):
@@ -362,8 +358,8 @@ def test_h16_a_technical_column_of_the_fov_table_only_is_used():
     fovs["well"] = [p.split("_")[2] for p in fovs["position_id"]]
     ax = plots_of_data(objects, fovs, features=["x"], technical_col="well", n_boot=10)["x"][0]
     title = ax.axes[0].figure.caption
-    assert "shaped by technical repeat (well)" in title
-    assert "whole technical repeats with their fields as acquired (3 per cluster" in title
+    assert "its shape the technical repeat (well)" in title
+    assert "whole technical repeats (well) with their fields (3 per repeat" in title
 
 
 def test_h17_contrast_and_ranking_share_one_test_and_variability_the_design_effect():

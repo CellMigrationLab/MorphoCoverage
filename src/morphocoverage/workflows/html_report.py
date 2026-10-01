@@ -28,6 +28,7 @@ from __future__ import annotations
 import base64
 import html
 import json
+import re
 import time
 import warnings
 from collections.abc import Sequence
@@ -39,7 +40,7 @@ import pandas as pd
 
 from .._style import Status
 from ..embedding import MIN_FEATURES
-from ..glossary import GLOSSARY, slug
+from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
 from ..sampling_unit.reading_text import readings_parts
 from ._html_figures import download, embeddings, feature_figures
@@ -107,9 +108,21 @@ def _files_card(files: dict[str, list[str]]) -> str:
     )
 
 
-def _glossary_drawer() -> str:
+def _on_page(term: Any, text: str) -> bool:
+    """Whether the page's ``text`` (lower case, without tags) uses ``term``: its name or one
+    of its phrases, whole."""
+    name = re.sub(r"\s*\(.*\)$", "", term.name)
+    words = (name, *PHRASES.get(term.name, ()))
+    return any(re.search(rf"(?<![\w-]){re.escape(w.lower())}(?![\w-])", text) for w in words)
+
+
+def _glossary_drawer(page: str) -> str:
     """The glossary as a drawer on the side (opened by its tab, the sidebar and every
-    underlined term), with a search; printed at the end of the page."""
+    underlined term), with a search; printed at the end of the page. Only the terms the
+    page uses (``page``, its markup) are in it."""
+    # The tooltips repeat the glossary's own words: left out.
+    page = re.sub(r'<span class="tip"[^>]*>.*?</span>', " ", page, flags=re.DOTALL)
+    text = html.unescape(re.sub(r"<[^>]+>", " ", page)).lower()
     parts = [
         (
             '<button type="button" class="glossary-tab" aria-controls="glossary">Glossary'
@@ -121,7 +134,7 @@ def _glossary_drawer() -> str:
         )
     ]
     section = None
-    for term in GLOSSARY:
+    for term in (t for t in GLOSSARY if _on_page(t, text)):
         if term.section != section:
             if section is not None:
                 parts.append("</dl>")
@@ -177,7 +190,8 @@ def _section(
         body += f"<details><summary>Full detail</summary>{detail}</details>"
     name = title or TITLES.get(key, key)
     return (
-        f'<section class="card" id="{key}"><h2>{chip(status)} {html.escape(name)}</h2>'
+        f'<section class="card" id="{key}"><h2>{chip(status, key, answer or "")} '
+        f"{html.escape(name)}</h2>"
         f"{head}{body}</section>"
     )
 
@@ -284,7 +298,7 @@ def html_report(
         if status is not None:
             glance.append(
                 f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(TITLES[key])}'
-                f'<br>{chip(status)}</span><span class="a">'
+                f'<br>{chip(status, key, headlines.get(key, ""))}</span><span class="a">'
                 f"{html.escape(headlines.get(key, ''))}</span></a>"
             )
     for anchor, label in (
@@ -372,7 +386,7 @@ def html_report(
         + "<footer>"
         + html.escape(_settings(result))
         + "</footer></main></div>"
-        + _glossary_drawer()
+        + _glossary_drawer(subtitle + "".join(cards))
         + '<script type="application/json" id="files-data">'
         + json.dumps(files, separators=(",", ":"))
         + f"</script><script>{SCRIPT}</script>"

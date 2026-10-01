@@ -79,11 +79,19 @@ class Terms:
         return "".join(out)
 
 
-def chip(status: Status | None) -> str:
-    """The status as a coloured chip with its icon and word (never colour alone)."""
+# What a caution means, per question, where one word says it better than "Caution".
+CAUTION_WORDS = {"inspect": "Fields to inspect", "enough": "Partly"}
+
+
+def chip(status: Status | None, key: str = "", answer: str = "") -> str:
+    """The status as a coloured chip with its icon and word (never colour alone); a caution
+    says what it is where it can (the question's ``key`` and ``answer``)."""
     if status is None:
         return ""
     kind, word = STATUS_WORDS[status]
+    if status is Status.CAUTION:
+        trend = key == "conditions" and "none confirmed" in answer
+        word = "Trend only" if trend else CAUTION_WORDS.get(key, word)
     icon = f'<span aria-hidden="true">{status.marker}</span>'
     return f'<span class="chip {kind}">{icon} {word}</span>'
 

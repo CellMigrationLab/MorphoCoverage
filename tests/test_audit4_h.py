@@ -118,7 +118,7 @@ def test_p8_1_frontier_gives_no_interval_below_five_units():
         assert "interval" not in rule_line and "to" not in rule_line.split("%")[-1]
         text = " ".join(text.split())
         assert (
-            "No interval: only 2 units (biological_repeat) to resample, and at least 5 are needed"
+            "No interval: only 2 units (biological repeat) to resample, and at least 5 are needed"
             in text
         )
 
@@ -400,8 +400,8 @@ def test_p1_9_the_limits_say_what_was_not_read_or_not_recorded():
     setup = Setup(readout="x", features=("x", "y"))
     notes = coverage_notes({"variability": object()}, setup)
     assert any("read the readout (x) only" in n and "(y)" in n for n in notes)
-    assert any("No stage coordinates (stage_cols)" in n for n in notes)
-    assert any("No acquisition order (acquisition_order_col)" in n for n in notes)
+    assert any("No stage coordinates:" in n for n in notes)
+    assert any("No acquisition order:" in n for n in notes)
     placed = Setup(readout="x", stage_cols=("sx", "sy"), acquisition_order_col="t")
     assert coverage_notes({}, placed) == []
     # Every note is standing: options left at their defaults (no stage coordinates, no

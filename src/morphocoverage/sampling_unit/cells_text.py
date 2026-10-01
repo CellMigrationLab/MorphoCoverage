@@ -22,7 +22,7 @@ import pandas as pd
 
 from .._caveats import assumption
 from .._style import table, wrap
-from .._wording import column_word, count, listing, percent
+from .._wording import column_word, count, listing, p_value, percent
 from ..schema import unit_plural
 from .contrast_cells import (
     ALPHA,
@@ -39,9 +39,10 @@ def _cells(contrast: Any) -> pd.DataFrame:
 
 
 def _test(d: float, p: float, corrected: float) -> str:
+    """``d, p (q)``: the effect, its uncorrected and its corrected p."""
     if pd.isna(d):
         return "–"
-    return f"{d:.2f}" if pd.isna(p) else f"{d:.2f} ({corrected:.2g})"
+    return f"{d:+.2f}" if pd.isna(p) else f"{d:+.2f}, {p_value(p)} ({p_value(corrected)})"
 
 
 def _chance(row: dict[str, Any], prefix: str = "chance") -> str:
@@ -150,17 +151,22 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
     as_provided = [
         [
             f"{row['condition']} vs {row['control_condition']}",
-            _test(row["d_cells"], row["p_cells"], row["p_cells_bonferroni"]),
+            _test(row["d_cells"], row["p_cells"], row["q_cells"]),
             _test(
                 row["d_cells_normalised"],
                 row["p_cells_normalised"],
-                row["p_cells_normalised_bonferroni"],
+                row["q_cells_normalised"],
             ),
             _chance(row),
         ]
         for row in cells.to_dict("records")
     ]
-    columns = ["condition", "raw: d (p Bonf.)", "normalised", f"p ≤ {ALPHA:g} without an effect"]
+    columns = [
+        "condition",
+        "raw: d, p (q)",
+        "normalised: d, p (q)",
+        f"gives p ≤ {ALPHA:g} with no effect",
+    ]
     if balanced:
         lines.append(wrap("As provided:", indent + 2, hang=indent + 4))
     lines.append(table(as_provided, columns, indent=indent + 2))
@@ -170,11 +176,11 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         for row in cells[cells["p_balanced"].notna()].to_dict("records"):
             values = [
                 f"{row['condition']} vs {row['control_condition']}",
-                _test(row["d_balanced"], row["p_balanced"], row["p_balanced_bonferroni"]),
+                _test(row["d_balanced"], row["p_balanced"], row["q_balanced"]),
                 _test(
                     row["d_balanced_normalised"],
                     row["p_balanced_normalised"],
-                    row["p_balanced_normalised_bonferroni"],
+                    row["q_balanced_normalised"],
                 ),
             ]
             if full:
@@ -183,9 +189,9 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
                 )
             values.append(_chance(row, "chance_balanced"))
             rows.append(values)
-        names = ["condition", "raw: d (p Bonf.)", "normalised"]
+        names = ["condition", "raw: d, p (q)", "normalised: d, p (q)"]
         names += [f"{words} per repeat, condition / control"] if full else []
-        names.append(f"p ≤ {ALPHA:g} without an effect")
+        names.append(f"gives p ≤ {ALPHA:g} with no effect")
         lines.append(table(rows, names, indent=indent + 2))
     return lines, (_notes if full else _short_notes)(contrast, cells, balanced)
 
@@ -195,14 +201,12 @@ def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str
     docs/condition_tests.md give the formula and the simulations)."""
     words = unit_plural(contrast.settings["observation_unit"])
     text = (
-        f"The cell-level test treats the {words} as independent: it asks whether these wells "
-        "differ, not whether the effect repeats, and the 'without an effect' column says how "
-        "often it would be positive with no effect at the variation between repeats seen here. "
-        "Normalised: each value divided by the mean of its own repeat's control"
+        f"The cell-level test treats the {words} as independent, so it asks whether these "
+        "wells differ, not whether the effect repeats. Normalised: each value divided by its "
+        "own repeat's control mean"
     )
     text += (
-        f". Balanced: the median over {BALANCED_DRAWS} draws with the same number of {words} "
-        "from each repeat, against the control of the condition's own repeats."
+        f". Balanced: the median over {BALANCED_DRAWS} draws with as many {words} from each repeat."
         if balanced
         else "."
     )
@@ -222,7 +226,7 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
             f"about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n {words} per well, each repeat "
             "weighted by its share when they differ; s the SD between repeats in observation "
             "SDs; data/simulations/test_choice.py and unbalanced.py), the "
-            "'without an effect' column"
+            "'with no effect' column"
             + (
                 f" (with one repeat s is unknown and taken as "
                 f"{TYPICAL_BETWEEN[0]:g}–{TYPICAL_BETWEEN[1]:g})"
@@ -259,18 +263,18 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
 
 def _passing(cells: pd.DataFrame, column: str) -> str:
     tested = cells[cells[column].notna()]
-    return f"{int((tested[f'{column}_bonferroni'] <= ALPHA).sum())}"
+    return f"{int((tested[column.replace('p_', 'q_', 1)] <= ALPHA).sum())}"
 
 
 def cells_headline(contrast: Any) -> str | None:
-    """``cell-level test, raw / normalised: 9 / 10 of 12 at Bonferroni p ≤ 0.05 (balanced
+    """``cell-level test, raw / normalised: 9 / 10 of 12 at q ≤ 0.05 (balanced
     over the repeats: 10 / 11)``, or ``None``."""
     cells = _cells(contrast)
     if cells.empty or contrast.settings.get("repeat_col") is None:
         return None
     text = (
         f"cell-level test, raw / normalised: {_passing(cells, 'p_cells')} / "
-        f"{_passing(cells, 'p_cells_normalised')} of {len(cells)} at Bonferroni p ≤ {ALPHA:g}"
+        f"{_passing(cells, 'p_cells_normalised')} of {len(cells)} at q ≤ {ALPHA:g}"
     )
     if cells["p_balanced"].notna().any():
         text += (

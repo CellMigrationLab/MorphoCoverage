@@ -61,13 +61,13 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     # Per condition and repeat cluster: the interval bar, its caps and the median line.
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 12
     title = ax.figure.caption
-    assert "resampling whole technical repeats with their fields as acquired" in title
-    assert "biological repeats (biological_repeat) side by side" in title
+    assert "resampling its fields (one technical repeat (well) per repeat)" in title
+    assert "each biological repeat side by side" in title
     # Repeats are labelled above their clusters; points are shaped by the well, and one
     # well per repeat needs no legend.
     assert sorted(t.get_text() for t in ax.texts) == ["r0", "r0", "r1", "r1"]
     assert ax.get_legend() is None
-    assert "shaped by technical repeat (well)" in title
+    assert "its shape the technical repeat (well)" in title
 
 
 def test_many_conditions_split_and_many_repeats_are_pooled():
@@ -84,7 +84,7 @@ def test_many_conditions_split_and_many_repeats_are_pooled():
         objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS, technical_col="well"
     )
     ax = figures["x"][0].axes[0]
-    assert "biological repeats (biological_repeat) pooled, more than the 8" in ax.figure.caption
+    assert "each condition's biological repeats pooled (more than the 8" in ax.figure.caption
     assert sum(isinstance(c, LineCollection) for c in ax.collections) == 3 and not ax.texts
     # Too many technical replicates of one biological repeat to colour: a note instead of a
     # legend (well names are counted per repeat, so 9 fields a repeat, each its own well).
@@ -160,8 +160,8 @@ def test_the_morphobricks_technical_repeat_is_the_default_colour_and_bootstrap_u
     figures = plots_of_data(*bare, features=["x"], n_boot=30)
     ax = figures["x"][0].axes[0]
     title = ax.figure.caption
-    assert "shaped by technical repeat (technical_repeat)" in title
+    assert "its shape the technical repeat\n" in title
     legend = ax.get_legend()
-    assert legend.get_title().get_text().startswith("technical repeat\n(technical_repeat)")
+    assert legend.get_title().get_text().startswith("technical repeat,\nin order")
     labels = [t.get_text() for t in legend.get_texts()]
-    assert labels == ["1st technical_repeat", "2nd technical_repeat"]
+    assert labels == ["1st", "2nd"]

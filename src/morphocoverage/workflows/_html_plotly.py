@@ -174,7 +174,9 @@ def _points(frame: pd.DataFrame, summaries: pd.DataFrame, seed: int) -> dict[str
         ranks = {t: i for i, t in enumerate(dict.fromkeys(block["technical"]))}
         out["shape"] += [ranks[t] for t in block["technical"]]
         out["label"] += [
-            " · ".join(str(v) for v in values if v is not None and pd.notna(v))
+            " · ".join(
+                str(v) for v in values if v is not None and pd.notna(v) and str(v) != "single"
+            )
             for values in block[["repeat", "technical", "field"]].itertuples(index=False)
         ]
     out["shown"], out["total"] = len(out["x"]), total
@@ -186,7 +188,8 @@ def interactive_caption(figure: Any) -> str:
     lines = [line.strip() for line in getattr(figure, "caption", "").split("\n") if line.strip()]
     if len(lines) > 1:
         lines[1] += "; hover for its repeat, technical repeat and field"
-    return ". ".join(line[:1].upper() + line[1:] for line in lines) + "."
+    # The first line starts with the feature's own name, kept as written.
+    return ". ".join(lines[:1] + [line[:1].upper() + line[1:] for line in lines[1:]]) + "."
 
 
 def feature_specs(

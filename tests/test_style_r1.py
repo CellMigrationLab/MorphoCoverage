@@ -162,13 +162,13 @@ def test_groups_print_by_their_values_not_as_column_equals_value(unit, controls,
         for detail in ("short", "full"):
             text = result.summary(detail=detail)
             assert "condition=" not in text and "repeat=" not in text, (result, detail)
-    assert "MOCK · r1" in unit["variability"].summary()
+    assert "MOCK · repeat r1" in unit["variability"].summary()
 
 
 def test_the_field_variability_short_is_one_answer_and_one_table(unit):
     text = unit["variability"].summary()
     assert text.startswith("How variable are the fields (x)? A mean from whole fields has")
-    assert "design effect" in text and "KD · r1" in text
+    assert "design effect" in text and "KD · repeat r1" in text
     assert all(width(line) <= 100 for line in text.splitlines())
 
 
@@ -256,7 +256,7 @@ def test_clustering_short_answers_per_state_and_full_keeps_every_number(states):
     clustering, _ = states
     short = _flat(clustering.summary())
     assert "Are the state objects spread over the fields?" in short
-    assert "in 1 of 2 groups where seen (MOCK · r1)" in short
+    assert "in 1 of 2 groups where seen (MOCK · repeat r1)" in short
     full = clustering.summary(detail="full")
     for row in clustering.table[clustering.table["state_objects"] > 0].to_dict("records"):
         for value in (

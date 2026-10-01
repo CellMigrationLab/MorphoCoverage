@@ -95,11 +95,11 @@ def test_a_pilot_of_two_repeats_gets_a_plan(cdm):
     assert (plan["repeats"] == 2).all() and (plan["status"] == "ok").all()
     assert (plan["repeats_needed"] >= 2).all()
     text = " ".join(two.summary().split())
-    assert "Planning the next experiment, with 2 biological repeats as here" in text
-    assert "fields a side per repeat" in text and "limited by" in text
-    # The repeats a paired test needs are in the full report only.
-    assert "repeats needed" not in text
-    assert "with twice the fields" in " ".join(two.summary(detail="full").split())
+    assert "Planning the next experiment: the biological repeats a paired t-test" in text
+    # One cell per field here: the advice counts cells, not fields (images).
+    assert "cells a side per repeat" in text and "limited by" in text
+    # The repeats a paired test needs lead the plan (the limit is the repeats).
+    assert "repeats needed" in text and "with twice the cells" in text
 
 
 def test_a_pilot_of_one_repeat_is_told_what_a_second_repeat_gives(cdm):
@@ -111,5 +111,5 @@ def test_a_pilot_of_one_repeat_is_told_what_a_second_repeat_gives(cdm):
     )
     text = " ".join(one.summary().split())
     assert "were imaged in one biological repeat: a second repeat shows how much" in text
-    assert "fields a side per repeat" in text
+    assert "cells a side per repeat" in text and "unknown with one repeat" in text
     assert "⚠️" not in one.summary()

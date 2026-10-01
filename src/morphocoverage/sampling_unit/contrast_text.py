@@ -69,9 +69,10 @@ def _short_statistic(value: float) -> str:
 
 
 def _name(row: dict[str, Any], repeat_col: str | None) -> str:
-    """``LATS1 vs MOCK · 1A``: the contrast, and its repeat when repeats are kept apart."""
+    """``LATS1 vs MOCK, repeat 1A``: the contrast, and its repeat when repeats are kept
+    apart."""
     name = f"{row['condition']} vs {row['control_condition']}"
-    return f"{name} · {row[REPEAT_COLUMN]}" if repeat_col else name
+    return f"{name}, repeat {row[REPEAT_COLUMN]}" if repeat_col else name
 
 
 def _head(contrast: Any, short: bool) -> str:
@@ -316,9 +317,10 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         # Nothing was tested within a repeat: the per-repeat d are in question 2 and the
         # across-repeat table, so the table would repeat them.
         lines[-1] = wrap(
-            "Within each repeat there is no test (one technical repeat on a side); the "
-            "per-repeat d are in question 2, and every number in the full report "
-            "(detail='full').",
+            "Within a single repeat there is no test: each condition has one technical "
+            "repeat there, so there is nothing to shuffle. The per-repeat d are in question "
+            "2, and every number in the full report "
+            "(report_full.txt).",
             indent,
             hang=indent + 2,
         )
@@ -326,7 +328,7 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         lines[-1] = wrap(
             f"Within each repeat: {count(len(rows), 'contrast')}, one per condition and "
             "repeat, with Cohen's d on observations and on fields and the randomization test, "
-            "are in the full report (detail='full').",
+            "are in the full report (report_full.txt).",
             indent,
             hang=indent + 2,
         )
@@ -334,7 +336,8 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         lines.append(table(rows, columns, indent=indent + 2))
     tests = _tests_short(contrast)
     lines += [wrap(tests, indent, hang=indent + 2)] if tests else []
-    lines += _draws_short(contrast, indent)
+    # Across repeats the reading and the tables answer; the JCS draws stay in the full report.
+    lines += [] if across else _draws_short(contrast, indent)
     planned, plan_notes = plan_parts(contrast, indent)
     lines += planned
     side_notes = (reagents_parts(contrast, indent)[1] if across else []) + cell_notes

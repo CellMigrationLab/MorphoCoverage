@@ -136,7 +136,9 @@ PLOTLY_SCRIPT = r"""
           range: [Math.min.apply(null, xs) - 0.7, Math.max.apply(null, xs) + 0.7] },
         yaxis: { title: { text: escape(spec.ylabel), font: { size: 15 } }, gridcolor: t.grid,
           zeroline: false },
-        annotations: spec.clusters.filter(function (k) { return k.repeat; }).map(function (k) {
+        annotations: spec.clusters.filter(function (k) {
+          return k.repeat && k.repeat !== 'single';  // CellPatcher's word for no such level
+        }).map(function (k) {
           // Slanted when the slots are narrow, so neighbouring repeats' names never overlap.
           return { x: k.x, y: 1, yref: 'paper', yanchor: 'bottom', xanchor: slant ? 'left' :
             'center', showarrow: false, textangle: slant ? -40 : 0, text: escape(k.repeat),

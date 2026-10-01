@@ -92,10 +92,10 @@ def _setup(**extra):
 def test_the_short_block_marks_continue_and_stop_and_names_what_is_missing():
     updates = _updates(_setup(), *_well())
     first, eighth = updates[0].summary(), updates[7].summary()
-    assert first.startswith("⏳ field 1 · MOCK · 1A — continue: 1 of 3 rules say enough")
+    assert first.startswith("⏳ field 1 · MOCK · repeat 1A — continue: 1 of 3 rules say enough")
     assert "fixed 8 fields (7 more fields)" in _flat(first)
     assert "mean-precision rule, per field, 5%" in first
-    assert eighth.startswith("✅ field 8 · MOCK · 1A — stop: all 3 rules say enough")
+    assert eighth.startswith("✅ field 8 · MOCK · repeat 1A — stop: all 3 rules say enough")
     # The counts: this field, the group so far, in the declared unit.
     assert "f07.tif: 30 nuclei (read in" in eighth and "240 nuclei in 8 fields so far" in eighth
     # One table of the rules: each rule's verdict and its evidence against its threshold.
@@ -152,7 +152,9 @@ def test_a_target_without_a_rule_reads_not_decided_and_a_rare_stop_says_where_it
     )
     common = {"readout": READOUT, "rare": target, "rare_label": "rare"}
     alone = _updates(Setup(rules=rules[:1], **common), objects, fovs)[-1].summary()
-    assert alone.startswith("➖ field 16 · MOCK · 1A — not decided: no rule decides the rare")
+    assert alone.startswith(
+        "➖ field 16 · MOCK · repeat 1A — not decided: no rule decides the rare"
+    )
     assert "rare phenotype ➖ no rule decides it" in _flat(alone)
     staged = Setup(rules=rules, stage_cols=("stage_x", "stage_y"), **common)
     updates = _updates(staged, objects, fovs)

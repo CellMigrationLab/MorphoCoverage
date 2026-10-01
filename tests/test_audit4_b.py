@@ -370,7 +370,7 @@ def test_p9_10_control_first_then_sorted_whatever_the_row_order():
     assert "(condition: mock, a_drug)" in overview.summary(detail="full")
     assert "(biological_repeat: 2026_01_01, 2026_01_02)" in overview.summary(detail="full")
     short = " ".join(overview.summary().split())
-    assert "2 conditions (mock, a_drug), 2 repeats (2026_01_01, 2026_01_02)" in short
+    assert "2 conditions (mock, a_drug), 2 biological repeats (2026_01_01, 2026_01_02)" in short
     data = validate_input_tables(shuffled_cells, fovs=shuffled, feature_cols=["area"])
     layout = _layout(data, "condition", "biological_repeat", None, 6, "mock")
     assert layout.conditions == ["mock", "a_drug"]

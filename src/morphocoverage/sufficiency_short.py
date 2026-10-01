@@ -173,16 +173,24 @@ def _rules_table(report: Any, tallies: list[dict[str, Any]], indent: int) -> lis
     """The rules across groups: met in, first met after (recorded; random orders)."""
     groups = max(t["groups"] for t in tallies)
     kinds = [k for k in ("recorded", "permuted") if k in set(report.stops.get("order_kind", []))]
-    header = ["rule", "met in", *(("recorded order",) if "recorded" in kinds else ())]
+    header = [
+        "rule",
+        "met with the fields acquired",
+        *(("fields when first met",) if "recorded" in kinds else ()),
+    ]
     if "permuted" in kinds:
-        header.append("random orders: median (10-90%)")
+        header.append("fields needed in random orders: median (10-90%)")
     rows = []
     for tally in tallies:
         if tally["groups"] == 1:
             one = report.enough[report.enough["config_id"].eq(tally["config_id"])]
             met = str(one["sampled_enough"].iloc[0])
+        elif tally["undefined"] == tally["groups"]:
+            met = "not defined here"
         else:
-            met = f"{tally['met']} of {tally['groups']}"
+            met = f"{tally['met']} of {tally['groups']}" + (
+                f" ({tally['undefined']} not defined)" if tally["undefined"] else ""
+            )
         cells = [tally["label"], met]
         cells += [_stops_cell(report.stops, tally["config_id"], k, tally["groups"]) for k in kinds]
         rows.append(cells)
@@ -200,7 +208,7 @@ def _rules_table(report: Any, tallies: list[dict[str, Any]], indent: int) -> lis
                 "highest group"
             )
         text = "; ".join(
-            ["First met after: the fields acquired when it first said enough", *spreads]
+            ["Fields when first met: in the order acquired, when it first said enough", *spreads]
         )
         lines.append(wrap(f"{text}.", indent, hang=indent + 2))
     return lines
@@ -276,7 +284,7 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
         # points there (they read as a plan, not as what these fields showed).
         lines.append(
             "How many more fields would rule out unseen states, or bring the next-field bound "
-            f"below {percent(target)}, is in the full report (detail='full')."
+            f"below {percent(target)}, is in the full report (report_full.txt)."
         )
         cautions.append(
             assumption(

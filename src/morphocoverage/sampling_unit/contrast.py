@@ -150,14 +150,16 @@ class ConditionContrast:
       the control (``lower``, ``higher``), the mean difference of the repeat
       means, the mean and range of the per-repeat ``d_objects``, an exact
       sign-flip test and a paired t-test on the repeat means, raw and on the log
-      ratios to the control (``p_paired_t_normalised``), each
-      Bonferroni-corrected, with the sign-flip test's smallest possible p
+      ratios to the control (``p_paired_t_normalised``), each with its
+      Benjamini-Hochberg q within the condition's sub-experiment (``experiment``,
+      ``_experiments``), with the sign-flip test's smallest possible p
       (``p_sign_flip_floor``) and ``status``. Empty without repeats kept apart.
       The per-repeat ``table`` holds each side's ``mean`` of the observations.
     - ``plan``: the next experiment planned from these repeats
       (``repeat_plan``): per condition, the mean per-repeat d, the variation
-      between repeats, and the repeats a paired test needs with the fields a
-      side acquired and with twice as many; with one repeat, why it cannot be
+      between repeats, and the repeats a paired test needs (at alpha/m, m the
+      conditions of the sub-experiment) with the fields a side acquired and with
+      twice as many; with one repeat, why it cannot be
       planned yet. Empty without repeats kept apart.
     - ``targets``: with the FOV table's ``target`` column (``target_col``),
       one row per target with two or more reagents: in how many repeats all
@@ -165,7 +167,7 @@ class ConditionContrast:
     - ``cells``: the lab's Plot&Stats test, one row per condition, pooled as
       provided (``contrast_cells``): Cohen's d on every observation against
       every control observation, the randomization p over observations and its
-      Bonferroni correction over the conditions, on raw and on normalised
+      Benjamini-Hochberg q within the sub-experiment, on raw and on normalised
       values (``*_normalised``: divided by the own repeat's control mean), and
       the chance it gives
       p <= 0.05 without an effect given the variation between repeats

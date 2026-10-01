@@ -387,7 +387,8 @@ def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: An
     parts += names
     if seen and not clustered:
         words = unit_plural(_unit(clustering, unusual))
-        parts.append(f"labelled states spread like random {words} in all {seen} groups seen")
+        where = "the one group seen" if seen == 1 else f"all {seen} groups seen"
+        parts.append(f"labelled states spread like random {words} in {where}")
     # The main answer only: whether the largest share is established and whether the
     # unusual labels are stable are cautions of the section (and raise its status).
     largest, _ = largest_sources(profile)

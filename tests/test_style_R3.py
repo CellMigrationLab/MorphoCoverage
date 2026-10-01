@@ -48,15 +48,16 @@ def test_the_fields_to_reopen_are_one_table_and_the_full_form_keeps_every_reason
     result = _inspect(objects, fovs, stage_cols=("stage_x", "stage_y"))
     short = result.summary()
     assert short.splitlines()[0].startswith("3 fields to reopen in 1 group")
-    assert re.search(r"group\s+field\s+why", short)
+    # A long reason (an influence) does not fit a table row: one line per field.
+    assert "control · repeat R1 · f07: removing it lowers" in short
     for name in ("f03", "f07", "f12"):
         assert name in short
     # Said once, and the reason not judged is a caveat.
     assert short.count("None of these is called an error") == 1
-    assert f"{CAUTION} Stage neighbours were not compared in control · R1" in short
+    assert f"{CAUTION} Stage neighbours were not compared in control · repeat R1" in short
     full = result.summary(detail="full")
-    assert "Analysis groups: condition · biological_repeat." in full
-    assert "control · R1: fields to reopen before trusting the result" in full
+    assert "Analysis groups: condition · biological repeat." in full
+    assert "control · repeat R1: fields to reopen before trusting the result" in full
     for detail in result.fovs["detail"]:
         assert _flat(detail) in _flat(full)
     assert "f07 (stage_x 200.0, stage_y 100.0)" in full
@@ -106,7 +107,7 @@ def test_the_order_comparison_is_one_table_per_order_kind_and_every_median_in_fu
         if row["median_fovs"] is not None and not np.isnan(row["median_fovs"]):
             fields = f"{row['median_fovs']:g} field"
             assert fields in full
-    assert "Analysis groups: condition · biological_repeat." in full
+    assert "Analysis groups: condition · biological repeat." in full
     assert "min" in full  # the timing was given
     with pytest.raises(ValueError, match="short"):
         result.summary(detail="brief")
@@ -160,7 +161,7 @@ def test_a_contrast_the_design_cannot_test_is_left_out_said_once_not_flagged():
     result = condition_contrast(objects, fovs, feature="x", control=CONTROL, n_draws=5)
     status, headline = conditions_status(result, None)
     assert status is Status.NOT_ASSESSED
-    assert "not tested (one technical repeat on a side)" in headline
+    assert "not tested (one technical repeat per condition in a repeat)" in headline
     short = result.summary()
     assert " ".join(short.split()).count("only one technical repeat") == 1
     assert "no test" in short and CAUTION not in short

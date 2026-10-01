@@ -16,7 +16,7 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption
-from .._wording import column_word, count, listing
+from .._wording import column_word, count, listing, p_value
 from ..schema import unit_plural
 from .contrast_repeats import MIN_REPEATS
 
@@ -44,7 +44,7 @@ def _direction(row: dict[str, Any]) -> str:
 
 
 def _p_cell(p: float, corrected: float) -> str:
-    return "–" if pd.isna(p) else f"{p:.2g} ({corrected:.2g})"
+    return "–" if pd.isna(p) else f"{p_value(p)} ({p_value(corrected)})"
 
 
 def _repeat_rows(contrast: Any, full: bool = False) -> tuple[list[list[str]], list[str]]:
@@ -59,21 +59,19 @@ def _repeat_rows(contrast: Any, full: bool = False) -> tuple[list[list[str]], li
         d = (
             "–"
             if pd.isna(row["d_mean"])
-            else f"{row['d_mean']:.2f} ({_range(pd.Series([row['d_min'], row['d_max']]))})"
+            else f"{row['d_mean']:+.2f} ({_range(pd.Series([row['d_min'], row['d_max']]))})"
         )
         cells = [f"{row['condition']} vs {row['control_condition']}", _direction(row), d]
         if tested:
-            cells.append(_p_cell(row["p_paired_t"], row["p_paired_t_bonferroni"]))
-            cells.append(
-                _p_cell(row["p_paired_t_normalised"], row["p_paired_t_normalised_bonferroni"])
-            )
+            cells.append(_p_cell(row["p_paired_t"], row["q_paired_t"]))
+            cells.append(_p_cell(row["p_paired_t_normalised"], row["q_paired_t_normalised"]))
         if flip:
-            cells.append(_p_cell(row["p_sign_flip"], row["p_sign_flip_bonferroni"]))
+            cells.append(_p_cell(row["p_sign_flip"], row["q_sign_flip"]))
         rows.append(cells)
-    columns = ["condition", "vs control, by repeat", f"d {words}: mean (range)"]
+    columns = ["condition", "vs control, by repeat", f"d {words} per repeat: mean (range)"]
     columns += [
-        *(["paired t p (Bonf.)", "normalised"] if tested else []),
-        *(["sign-flip p (Bonf.)"] if flip else []),
+        *(["paired t, raw: p (q)", "paired t, normalised: p (q)"] if tested else []),
+        *(["sign-flip: p (q)"] if flip else []),
     ]
     return rows, columns
 
@@ -113,10 +111,10 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
     if repeats["p_paired_t"].notna().any() and not full:
         notes.append(
             assumption(
-                f"Across {word}s, the paired t-test on the repeat means (as in SuperPlots) "
-                f"treats each {word} as one replicate: it keeps false positives at 5%, but with "
-                f"3 {word}s it needs a large effect (the simulated power is in the full report "
-                "and docs/condition_tests.md); Bonferroni-corrected over the conditions."
+                f"The paired t-test on the repeat means treats each {word} as one replicate: "
+                f"it keeps false positives at 5%, but with 3 {word}s it confirms only large "
+                "effects. q: Benjamini-Hochberg within each sub-experiment; confirmed uses the "
+                "normalised q."
             )
         )
     elif repeats["p_paired_t"].notna().any():
@@ -137,7 +135,8 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
                     if flip
                     else ""
                 )
-                + "; Bonferroni-corrected over the conditions."
+                + ". p uncorrected, q corrected (Benjamini-Hochberg within each "
+                "sub-experiment: the conditions sharing their repeats and control)."
             )
         )
     return notes

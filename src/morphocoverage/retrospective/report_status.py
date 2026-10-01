@@ -108,8 +108,10 @@ The rules, question by question:
   repeats kept apart, the headline leads with the answer across them (the
   repeat is the replicate, ``contrast_repeats``): the conditions compared, how
   many are on one side of the control in every repeat (lower and higher), and
-  how many are significant on the repeat means after the Bonferroni correction
-  (paired t-test; the sign-flip test's floor is said in the section). Then the
+  how many are significant on the repeat means (paired t-test, q ≤ 0.05 with
+  Benjamini-Hochberg within each sub-experiment; the sign-flip test's floor is said
+  in the section). ⚠️ "none confirmed across repeats" when no condition is
+  confirmed there: a trend at most is never a green answer. Then the
   contrasts within repeats: without the across-repeat answer, their number and
   the range of |d| on field means; how many tested contrasts differ after the
   Bonferroni correction; and how many features pass the ranking's gate. One
@@ -144,6 +146,7 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import has_caution
+from .._integrity_text import rows_only
 from .._style import Status, among, worst
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
@@ -203,6 +206,9 @@ def data_check_status(overview: Any) -> Answer:
     return Status.CAUTION, f"data checks: {count(len(warnings), 'warning')} ({titles})"
 
 
+# The checks that compare whole fields (or a field's single observation) for copies.
+
+
 def integrity_status(integrity: Any) -> Answer:
     """The data-integrity checks: not run, nothing found, or the fields they name."""
     if integrity is None:
@@ -216,6 +222,15 @@ def integrity_status(integrity: Any) -> Answer:
         )
     if integrity.status is Status.NOT_ASSESSED:  # no check applied to these features
         return Status.NOT_ASSESSED, "integrity checks not applicable"
+    if rows_only(integrity):
+        # Only the row checks ran: "nothing found" would claim more than was looked at.
+        return (
+            Status.NOT_ASSESSED,
+            (
+                "integrity: no copied rows; copied fields not checkable here (fields too small "
+                "or too few features to compare)"
+            ),
+        )
     return Status.OK, "integrity: nothing found"
 
 

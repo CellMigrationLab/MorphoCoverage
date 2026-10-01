@@ -101,7 +101,7 @@ def feature_figures(
             views = views[:1]  # a control mean at or below 0: the declared values only
     discovery = result.discovery
     top = discovery.top(len(discovery.ranking)) if discovery is not None else []
-    blocks, names = [], {}
+    blocks, names, explained = [], {}, False
     for feature, parts in drawn.items():
         for index, figure in enumerate(parts, start=1):
             name = f"{feature}_{index}" if len(parts) > 1 else str(feature)
@@ -110,7 +110,7 @@ def feature_figures(
             rank = f"best-ranked feature {top.index(feature) + 1}" if feature in top else ""
             role = rank or "a declared feature"
             if feature == result.setup.readout:
-                role = "the readout" + (f", {rank}" if rank else "")
+                role = "the readout"
             if len(parts) > 1:
                 role += f", part {index} of {len(parts)}"
             uri = _save(figure, folder, name)
@@ -133,12 +133,18 @@ def feature_figures(
             )
             letter_a = '<p class="panel-title"><b>A</b></p>' if paired else ""
             caption = f'<span class="caption">{html.escape(interactive_caption(figure))}</span>'
+            # Panels B and C read the same in every figure: explained under the first.
             legend = (
-                f"<p>(A) {caption}</p><p>(B) {html.escape(PAIR_NOTE)}</p>"
-                f"<p>(C) {html.escape(PAIRED_NOTE)}</p>"
+                f"<p>(A) {caption}</p>"
+                + (
+                    "<p>(B) and (C): as in the first figure above.</p>"
+                    if explained
+                    else f"<p>(B) {html.escape(PAIR_NOTE)}</p><p>(C) {html.escape(PAIRED_NOTE)}</p>"
+                )
                 if paired
                 else f"<p>{caption}</p>"
             )
+            explained = explained or paired
             switch = "".join(
                 f'<button type="button" data-key="values" data-value="{key}" '
                 f'aria-pressed="{str(key == views[0][0]).lower()}">{key.capitalize()}</button>'

@@ -51,7 +51,8 @@ def integrity_summary(result: IntegrityResult, detail: str = "short") -> str:
     short = check_detail(detail) == "short"
     settings = result.settings
     status = integrity_status(result)
-    lines = [headline(status, TITLE, _verdict(result, status))]
+    shown = Status.NOT_ASSESSED if status is Status.OK and rows_only(result) else status
+    lines = [headline(shown, TITLE, _verdict(result, status))]
     lines.append(wrap(_checked(settings, short), 2))
     columns = settings.get("field_columns")
     if not result.findings.empty and columns:
@@ -74,7 +75,23 @@ def _verdict(result: IntegrityResult, status: Status) -> str:
         return f"{found} in {fields} (structure to inspect, not a judgment)"
     if status is Status.NOT_ASSESSED:
         return "no check could be applied to these features"
+    if rows_only(result):
+        return "no copied rows; copied fields not checkable here"
     return "nothing found by the exact copy checks"
+
+
+# The checks that compare whole fields (the others compare rows).
+FIELD_COPY_CHECKS = ("copied field", "reordered copy", "scaled copy", "copied small field")
+
+
+def rows_only(result: IntegrityResult) -> bool:
+    """Whether only the row checks compared anything, so "nothing found" would claim more
+    than was looked at."""
+    checks = result.checks
+    if not len(checks) or "compared" not in checks:
+        return False
+    compared = checks.set_index("check")["compared"]
+    return not compared.reindex(list(FIELD_COPY_CHECKS)).fillna(0).gt(0).any()
 
 
 def _checked(settings: dict[str, Any], short: bool = False) -> str:
@@ -238,4 +255,12 @@ def _out_of_reach(settings: dict[str, Any]) -> str:
     )
 
 
-__all__ = ["PRECISION", "SUMMARY_LINES", "TITLE", "integrity_status", "integrity_summary"]
+__all__ = [
+    "FIELD_COPY_CHECKS",
+    "PRECISION",
+    "SUMMARY_LINES",
+    "TITLE",
+    "integrity_status",
+    "integrity_summary",
+    "rows_only",
+]

@@ -551,12 +551,17 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
     whole = effects[effects["sampling"] == "whole FOVs"]
     assert (whole["fields_treated"] >= 2).all() and whole["fields_treated"].max() <= 9
     text = " ".join(result.summary().split())
-    assert "treated vs control · R1" in text
+    assert "treated vs control, repeat R1" in text
     assert "d objects d fields" in text
     assert "Randomization tests over whole technical repeats (well)" in text
-    assert "JCS effect size" in text and "fields of technical repeats (well) drawn with" in text
     full = " ".join(result.summary(detail="full").split())
-    assert "treated vs control · R1: randomization test over whole technical repeats (well" in full
+    # Across repeats the JCS draws are in the full form only.
+    assert "JCS effect size" not in text and "JCS effect size" in full
+    assert "fields of technical repeats (well) drawn with" in full
+    assert (
+        "treated vs control, repeat R1: randomization test over whole technical repeats (well"
+        in full
+    )
     assert re.search(r"whole fields fields resampled", full)
 
 

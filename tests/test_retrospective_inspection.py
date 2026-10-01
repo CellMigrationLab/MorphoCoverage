@@ -189,7 +189,7 @@ def test_a_group_whose_stage_neighbours_cannot_be_compared_says_so():
         {
             "group": "condition=control, biological_repeat=R1",
             "reason": "stage coordinates are missing",
-            "label": "control · R1",
+            "label": "control · repeat R1",
         }
     ]
     assert "Stage neighbours were not compared" in result.summary()

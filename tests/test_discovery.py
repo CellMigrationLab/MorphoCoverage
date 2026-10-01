@@ -63,10 +63,10 @@ def test_a_consistent_difference_passes_both_gates_and_noise_neither():
     assert row["normalised"] and not row["balanced"]
     assert row["paired_values"] == "normalised"
     text = " ".join(result.summary().split())
-    assert "1 of 4 features passes the cell-level gate" in text
-    assert "Confirmed across repeats (paired q ≤ 0.05): 1 feature (area)." in text
+    assert "1 of 4 features is a candidate: they differ at the cell level" in text
+    assert "Confirmed across repeats (paired q ≤ 0.05): 1 feature (area, for drug)." in text
     assert "Not tested (1 feature, one value everywhere): flat." in text
-    assert "has little power with 3" in text
+    assert "only the paired t-test on the repeat means (3 or more repeats) confirms" in text
 
 
 def test_unbalanced_repeats_use_the_balanced_test():

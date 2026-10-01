@@ -4,7 +4,8 @@ The lab's Plot&Stats test compares every observation of a condition with every
 observation of the control, pooled as provided (all repeats together): Cohen's
 d on the observations, with a randomization test that shuffles the condition
 labels over the observations (``n_permutations``, ``(extreme + 1) / (n + 1)``),
-Bonferroni-corrected over the conditions. It asks whether these wells differ,
+Benjamini-Hochberg corrected within each sub-experiment (``_experiments``; the ``q_``
+columns). It asks whether these wells differ,
 and it is the only test that responds with one or two biological repeats.
 
 Every number is given on the raw values and on the **normalised** values: each
@@ -24,7 +25,7 @@ control of its own repeats only, each draw taking the same number of
 observations from every one of those repeats (the fewest any repeat holds, the
 condition's and the control's separately), so every repeat weighs the same;
 ``BALANCED_DRAWS`` draws, the randomization test on each, and the median d and
-median p over the draws (Bonferroni-corrected over the conditions). Across the
+median p over the draws (corrected the same way). Across the
 draws every observation is used.
 
 Balancing down to a repeat that holds very few observations would leave little
@@ -73,6 +74,7 @@ import pandas as pd
 from scipy import stats
 
 from ..statistics import cohen_d
+from ._experiments import corrected, experiments
 
 ALPHA = 0.05
 # Balanced resamples per condition, and the shuffles of the randomization test in each.
@@ -93,10 +95,10 @@ CELL_COLUMNS = [
     "control_observations",
     "d_cells",
     "p_cells",
-    "p_cells_bonferroni",
+    "q_cells",
     "d_cells_normalised",
     "p_cells_normalised",
-    "p_cells_normalised_bonferroni",
+    "q_cells_normalised",
     "repeats",
     "spread",
     "other_control_repeats",
@@ -108,16 +110,17 @@ CELL_COLUMNS = [
     "balanced_control_cells",
     "d_balanced",
     "p_balanced",
-    "p_balanced_bonferroni",
+    "q_balanced",
     "d_balanced_normalised",
     "p_balanced_normalised",
-    "p_balanced_normalised_bonferroni",
+    "q_balanced_normalised",
     "per_well",
     "between_sd",
     "chance_low",
     "chance_high",
     "chance_balanced_low",
     "chance_balanced_high",
+    "experiment",
 ]
 
 
@@ -354,11 +357,12 @@ def cell_table(
             }
         )
     table = pd.DataFrame(rows, columns=CELL_COLUMNS)
+    family = experiments(
+        {condition: list(side["treated_by_repeat"]) for condition, side in pooled.items()}
+    )
+    table["experiment"] = table["condition"].map(family)
     for column in ("p_cells", "p_cells_normalised", "p_balanced", "p_balanced_normalised"):
-        tested = table[column].notna()
-        table[f"{column}_bonferroni"] = np.where(
-            tested, np.minimum(1.0, table[column] * int(tested.sum())), np.nan
-        )
+        table[column.replace("p_", "q_", 1)] = corrected(table[column], table["experiment"])
     return table
 
 

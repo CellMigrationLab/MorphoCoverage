@@ -42,8 +42,8 @@ def _row(condition, lower, higher, p_raw, p_norm, n=3):
         "lower": lower,
         "higher": higher,
         "d_mean": -1.0 if lower else 1.0,
-        "p_paired_t_bonferroni": p_raw,
-        "p_paired_t_normalised_bonferroni": p_norm,
+        "q_paired_t": p_raw,
+        "q_paired_t_normalised": p_norm,
     }
 
 
@@ -63,14 +63,14 @@ def test_each_verdict_follows_the_direction_and_the_paired_test():
     # Two repeats: the same direction, but the paired test cannot run.
     assert readings.loc["D", "verdict"] == CONSISTENT
     assert "the paired test needs 3 biological repeats" in readings.loc["D", "reading"]
-    assert "paired test p 0.01" in readings.loc["A", "reading"]
+    assert "paired t-test on the repeat means q 0.010" in readings.loc["A", "reading"]
 
 
 def test_the_normalised_paired_test_is_read_and_a_disagreeing_raw_one_named():
     readings = condition_readings(_contrast([_row("A", 3, 0, 0.2, 0.01)]))
     [text] = readings["reading"]
     assert readings["verdict"].iloc[0] == CONFIRMED
-    assert "paired test p 0.01, raw values p 0.2" in text
+    assert "paired t-test on the repeat means q 0.010; on raw values q 0.20" in text
 
 
 def test_one_repeat_is_its_own_verdict():
@@ -93,20 +93,25 @@ def test_the_glioma_reading_names_why_the_raw_test_differs(glioma):
     readings = condition_readings(glioma).set_index("condition")
     assert readings.loc["siCCT7#3", "verdict"] == MIXED
     text = readings.loc["siCCT7#3", "reading"]
-    assert "the raw pooled test gives p 0.002, but it pools the control of repeats" in text
-    assert "(balanced, normalised; false-positive chance" in text
+    assert "the raw pooled test gives q < 0.001, but it pools the control of repeats" in text
+    assert "(balanced, normalised; with no real effect it gives p ≤ 0.05 in about" in text
     assert readings.loc["siCCT8#5", "verdict"] == CONSISTENT
     assert (
         "siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats" in readings.loc["siCCT8#5", "reading"]
     )
     _, headline = conditions_status(glioma, None)
+    # Nothing confirmed for the readout: said first, as the caution.
     assert headline.startswith(
-        "4 conditions across 3 biological repeats: same direction in every repeat, not "
+        "Mean Speed: none confirmed across repeats; 4 conditions against the control, each "
+        "in 3 biological repeats (6 in all): same direction in every repeat, not "
         "confirmed: siCCT8#5 and siCCT8#8 (lower); no consistent direction: siCCT7#3 and "
         "siCCT7#6"
     )
     short = " ".join(glioma.summary().split())
-    assert short.startswith("Reading, condition by condition, against siCTRL")
+    assert short.startswith(
+        "Design: 2 sub-experiments, each with its own siCTRL in its own 3 biological repeats "
+        "(siCCT7#3 and siCCT7#6; siCCT8#5 and siCCT8#8). Reading, condition by condition"
+    )
     # The control shift between the CCT7 and CCT8 repeats is named where it matters.
     assert "The control means differ up to 1.8x between biological repeats" in short
 
@@ -123,4 +128,7 @@ def test_a_pilot_headline_counts_the_cell_level_test():
     )
     headline = readings_headline(one)
     assert headline.startswith("2 conditions across 1 biological repeat: one repeat:")
-    assert "; cell-level test: 0 of 2 at Bonferroni p ≤ 0.05 (false-positive chance" in headline
+    assert (
+        "; cell-level test: 0 of 2 at q ≤ 0.05 (with no real effect it gives p ≤ 0.05 in"
+        in headline
+    )

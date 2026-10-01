@@ -6,9 +6,10 @@ import pandas as pd
 
 
 def reachable(floors: pd.Series, alpha: float = 0.05) -> pd.Series:
-    """Which tests can reach ``alpha`` after Bonferroni over the tests kept: their smallest
-    possible p times the number kept is at most ``alpha`` (dropping a test lowers the factor,
-    so this is repeated until it holds for every test kept)."""
+    """Which tests can reach ``alpha`` once corrected over the tests kept: their smallest
+    possible p times the number kept is at most ``alpha``, so a test can pass however the
+    others fall, under Bonferroni and Benjamini-Hochberg alike (dropping a test lowers the
+    factor, so this is repeated until it holds for every test kept)."""
     keep = floors.notna()
     while keep.any():
         kept = keep & (floors * int(keep.sum()) <= alpha)

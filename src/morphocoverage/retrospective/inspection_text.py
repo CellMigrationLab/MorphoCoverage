@@ -163,7 +163,7 @@ def inspection_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]
             lines.append(wrap(f"{' · '.join(row[:-1])}: {row[-1]}.", indent + 2, hang=indent + 4))
     if len(listed) > SHORT_FIELDS:
         more = len(listed) - SHORT_FIELDS
-        lines.append(" " * (indent + 2) + f"and {fields_text(more)} more (detail='full').")
+        lines.append(" " * (indent + 2) + f"and {fields_text(more)} more (report_full.txt).")
     lines.append(wrap(_NOT_AN_ERROR, indent, hang=indent + 2))
     return lines, cautions
 
