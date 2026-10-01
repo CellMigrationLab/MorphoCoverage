@@ -115,13 +115,13 @@ def group_columns(columns: Sequence[str]) -> str:
 
 
 def among(k: int, n: int, word: str = "group") -> str:
-    """``"all 12 groups"``, ``"7 of 12 groups"``, ``"none of 12 groups"``; ``"the group"``
-    or ``"no group"`` when there is one."""
+    """``"all 12 groups"``, ``"7 of 12 groups"``, ``"none of 12 groups"``; ``"both groups"``
+    for 2 of 2; ``"the group"`` or ``"no group"`` when there is one."""
     if n == 1:
         return f"the {word}" if k else f"no {word}"
     words = plural(word)
     if k == n:
-        return f"all {n} {words}"
+        return f"both {words}" if n == 2 else f"all {n} {words}"
     return f"none of {n} {words}" if k == 0 else f"{k} of {n} {words}"
 
 

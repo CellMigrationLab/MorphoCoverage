@@ -267,8 +267,9 @@ def _rare_short(setup: Setup) -> tuple[str | None, list[str]]:
     """The rare phenotype in one line, and its caveats."""
     target = setup.rare
     if target is None:
+        # An option left at its default is a standing note, not a caution about the data.
         return None, [
-            (
+            assumption(
                 "no rare phenotype declared (rare), so no answer says whether a rare state was "
                 "sampled enough"
             )
@@ -323,9 +324,9 @@ def _order_short(setup: Setup) -> tuple[str | None, list[str]]:
     advice = "image fields in a random or dispersed order"
     if order is None and stage is None:
         return None, [
-            (
-                f"No acquisition order or stage coordinates, so nothing is checked: every stop "
-                f"{RANDOM_SAMPLE_ASSUMPTION}; {advice}"
+            assumption(
+                f"No acquisition order or stage coordinates, so the order is not checked: every "
+                f"stop {RANDOM_SAMPLE_ASSUMPTION}; {advice}"
             )
         ]
     tests = []
@@ -362,8 +363,10 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         lines.append(f"Phenotypic fingerprint: {named} (judged on held-back fields).")
     else:
         cautions.append(
-            "no phenotypic fingerprint declared (fingerprint), so the answers speak of the "
-            "mean, not of the distribution of phenotypes"
+            assumption(
+                "no phenotypic fingerprint declared (fingerprint), so the answers speak of the "
+                "mean, not of the distribution of phenotypes"
+            )
         )
     rare, rare_cautions = _rare_short(setup)
     lines += [rare] if rare else []

@@ -134,6 +134,11 @@ class IntegrityResult:
         names = [*self.findings["field"], *self.findings["other_field"]]
         return list(dict.fromkeys(names))
 
+    def field_labels(self) -> list[str]:
+        """The fields of ``fields_involved`` as the summary prints them (``MOCK · 1A · B6``)."""
+        labels = self.settings.get("field_labels", {})
+        return [labels.get(name, name) for name in self.fields_involved()]
+
     @property
     def status(self) -> Status:
         """❌ with a finding, ➖ when no check applied to these features, ✅ otherwise."""

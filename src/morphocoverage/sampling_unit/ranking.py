@@ -232,16 +232,18 @@ class FeatureRanking:
             )
         untested = unranked[unranked["tests"] == 0]["feature"].tolist()
         if untested:
-            reasons = []
+            # Features that share a reason are listed under it once, not the reason per feature.
+            by_reason: dict[str, list[str]] = {}
             for feature in untested:
                 statuses = self.tests.loc[self.tests["feature"] == feature, "status"]
                 # The long independence reason is explained once, with the caveats.
                 shown = [_UNKNOWN_WELLS if st == NOT_INDEPENDENT else st for st in statuses]
-                reasons.append(f"{feature} ({'; '.join(dict.fromkeys(shown))})")
-            lines.append(
-                f"Not ranked because no contrast could be tested "
-                f"({count(len(untested), 'feature')}): {_listed(reasons, limit)}."
-            )
+                by_reason.setdefault("; ".join(dict.fromkeys(shown)), []).append(feature)
+            for reason, features in by_reason.items():
+                lines.append(
+                    f"Not ranked because no contrast could be tested "
+                    f"({count(len(features), 'feature')}: {_listed(features, limit)}): {reason}."
+                )
         return lines
 
     def _cautions(self) -> list[str]:

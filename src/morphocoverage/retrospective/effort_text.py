@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from .._caveats import caveat_lines
+from .._caveats import assumption, caveat_lines
 from .._style import (
     check_detail,
     group_columns,
@@ -344,6 +344,28 @@ def _not_estimable(result: EffortResult, row: Any) -> str:
     )
 
 
+# A level holding at least this share of the variance of the mean makes the estimates lean to
+# more of that level (more samples) or more fields, before the split can be established.
+LEANING_SHARE = 0.75
+FEW_NOTE = (
+    "with few independent units the shares are point estimates (in a simulation with 3 "
+    "samples and no variance between them, most variance was put between samples in 4 of 20 "
+    "runs), so a leaning is a reading, not a result"
+)
+
+
+def _leaning(top: Mapping[str, Any], hierarchy: Mapping[str, Any], samples: str) -> str:
+    """``leans to more samples`` (or fields) when one level holds ``LEANING_SHARE`` of the
+    variance of the mean, else ''."""
+    if pd.isna(top.get("share")) or float(top["share"]) < LEANING_SHARE:
+        return ""
+    if top["level"] == hierarchy.get("sample"):
+        return f"leans to more {samples}s (not established)"
+    if top["level"] == hierarchy.get("fov"):
+        return "leans to more fields (not established)"
+    return ""
+
+
 def _allocation_cell(
     compared: pd.DataFrame, first: Mapping[str, Any], units: int, unit: str, samples: str
 ) -> tuple[str, str | None]:
@@ -387,6 +409,9 @@ def effort_short_parts(result: EffortResult, indent: int = 2) -> tuple[list[str]
                 shares.setdefault(caveat, []).append(label)
         compared = result.comparisons[result.comparisons["stratum"] == stratum]
         answer, reason = _allocation_cell(compared, first, units, unit, samples)
+        if reason and units < FEW_UNITS and len(ranked):
+            # Too few units to establish it, but the estimates still read one way: say how.
+            answer = _leaning(ranked.iloc[0], w["hierarchy"], samples) or answer
         if reason:
             reasons.setdefault(reason, []).append(label)
         rows.append([label, count(units, unit), largest, answer])
@@ -420,19 +445,31 @@ def effort_short_parts(result: EffortResult, indent: int = 2) -> tuple[list[str]
         (reasons, f"cannot tell whether more fields or more {samples}s would help"),
     ):
         for reason, where in reasons_of.items():
-            cautions.append(f"{lead}{_where(where, total)}: {reason}")
+            text = f"{lead}{_where(where, total)}: {reason}"
+            # Few independent units is the design, not a fault of these data: a note, not a
+            # caution (the owner's rule: three repeats are a usual design).
+            few = reason.startswith("only ")
+            cautions.append(assumption(f"{text}; {FEW_NOTE}") if few else text)
     for alike in notes.values():
         texts = [text for _, text in alike]
         merged = merge_numbers(texts) if len(texts) > 1 else texts[0]
         cautions.append(f"{_where([label for label, _ in alike], total, lead=False)}{merged}")
+    # Strata skipped for one reason are named together, the reason said once.
+    skipped: dict[str, list[str]] = {}
     for row in result.skipped.itertuples(index=False):
-        lines.append(
-            wrap(
-                f"{_skipped_label(result, row)}: {_not_estimable(result, row)}",
-                pad,
-                hang=indent + 2,
+        skipped.setdefault(_not_estimable(result, row), []).append(_skipped_label(result, row))
+    for text, labels in skipped.items():
+        lines.append(wrap(f"{listing(labels, 6)}: {text}", pad, hang=indent + 2))
+        if "single" in text and "unit holds observations" in text:
+            lines.append(
+                wrap(
+                    f"To answer it next time, image at least 2 {samples}s of each condition in "
+                    "one biological repeat: the variance between them is what this experiment "
+                    "cannot measure.",
+                    pad,
+                    hang=indent + 2,
+                )
             )
-        )
     return lines, cautions
 
 

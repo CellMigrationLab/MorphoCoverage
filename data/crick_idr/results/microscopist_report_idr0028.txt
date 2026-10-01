@@ -1,6 +1,8 @@
 Microscopist's report — 9550 nuclei in 336 fields
 
 At a glance
+  Key: ✅ answered · ⚠️ answered, with a caution about these data · ❌ check the data first · ➖ not
+    applicable or not assessed. A marker says how far to trust an answer, not what it found.
   ➖ The data — data checks and copy checks not run (report(..., integrity=True) runs both)
   ✅ Foundation. Why count fields? — a mean from whole fields varies 2.1x as much as from random
      nuclei (median); the JCB count rule still held with whole fields in all 12 technical repeats
@@ -12,17 +14,17 @@ At a glance
   ⚠️ 3. What limits my sampling? — whole fields 2.1x as variable as random nuclei; unusual nuclei
      clustered in 4 of 11 technical repeats; most variance between samples in 3 of 4 conditions
   ⚠️ 4. How many fields next time? — 8 fields served every technical repeat for 2 of 3 targets; 1 of
-     3 targets not shown (held-back fields cap it); only 3 biological repeats
+     3 targets not shown (held-back fields cap it); from 3 biological repeats
   ✅ 5. What did the extra fields buy? — held-back fields confirmed everything wanted from field 1
      (median); by field 3 in 90% of runs
   ⚠️ 6. Which fields should I look at? — 4 fields to reopen in 3 technical repeats (new state in 4)
-  ⚠️ 7. More fields or more samples? — cannot tell with only 3 samples per condition; most variance
-     between samples in 3 of 4 conditions
+  ✅ 7. More fields or more samples? — not established with 3 samples per condition; the estimates
+     lean to more samples in 3 of 4 conditions
   ⚠️ 8. A better order? — another order needed fewer fields in 1 of 12 technical repeats (up to 3
      fields)
-  ➖ 9. Do the conditions differ? — 3 conditions across 2 biological repeats: 3 in the same direction
-     in every repeat (1 lower, 2 higher than the control); cell-level test, raw / normalised: 3 / 3
-     of 3 at Bonferroni p ≤ 0.05 (balanced over the repeats: 3 / 3); within repeats: not tested (one
+  ➖ 9. Do the conditions differ? — 3 conditions across 2 biological repeats: same direction in every
+     repeat, not confirmed: YAP (lower); LATS1 and ARAP2 (higher); cell-level test: 3 of 3 at
+     Bonferroni p ≤ 0.05 (false-positive chance 5%–83% here); within repeats: not tested (one
      technical repeat on a side)
 
 ➖ What is in the dataset
@@ -108,11 +110,8 @@ At a glance
   Seen in few fields: 5 of 12 groups hold a state seen in only 2 to 3 fields (MOCK · 1A · B6,
     LATS1 · 1A · I23, MOCK · 2A · K16 and 2 more); look at those fields before calling the sample
     settled.
-  Seeing such a state again with 95% probability takes about 41-83 independent representative fields
-    (up to 3314 at the low end of its interval); fields that cluster the state need more.
-  To rule out unseen states in more than 5% of fields: at least 31 more fields with nothing new.
-  To bring the next-field bound below 5%: at least 31-96 more fields if none shows anything new
-    (31-689 at the current rate of new fields; never at the current rate in LATS1 · 2A · J23).
+  How many more fields would rule out unseen states, or bring the next-field bound below 5%, is in
+    the full report (detail='full').
   'New': at least 3 similar nuclei that no other field shows; the exact definition is in the full
     report.
   The cautions on these rules are in the full report.
@@ -201,12 +200,13 @@ At a glance
     all 18       100%  90-100%  10-50%
   Judged on 10 or more held-back fields in 10 splits over 10 distinct hold-outs; nothing is said
     beyond 18 fields.
-  ⚠️ Uncertainty is large with only 3 biological repeats: add more before fixing a protocol.
-  Assumptions: The last row, all available fields together, is the ceiling: the held-back fields are
-    themselves a sample, so the curve cannot be read above this. Fields are treated as random draws,
-    as random-position sampling does. The shares are conservative by construction: the held-back
-    fields are a sample too, and their own error counts against the drawn fields, so a field count
-    read from this curve errs high.
+  Assumptions: With 3 biological repeats the field count is a guide: it rests on these biological
+    repeats, so check it on the next experiment before fixing a protocol. The last row, all
+    available fields together, is the ceiling: the held-back fields are themselves a sample, so the
+    curve cannot be read above this. Fields are treated as random draws, as random-position sampling
+    does. The shares are conservative by construction: the held-back fields are a sample too, and
+    their own error counts against the drawn fields, so a field count read from this curve errs
+    high.
 
 ✅ 5. What did the extra fields buy?
   Analysis groups: condition · biological_repeat · technical_repeat.
@@ -236,17 +236,22 @@ At a glance
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
 
-⚠️ 7. More fields or more samples?
+✅ 7. More fields or more samples?
   For the mean YAPTAZ_Ratio: where most of the uncertainty of the mean sits (its share of the
     variance with the acquired design), and whether more fields or more samples would help at the
     same total of fields:
     condition  independent units  largest share                       more fields or samples?
     MOCK       3 samples          54% between fields within a sample  cannot tell
-    LATS1      3 samples          98% between samples                 cannot tell
-    YAP        3 samples          99% between samples                 cannot tell
-    ARAP2      3 samples          79% between samples                 cannot tell
-  ⚠️ The largest share is not established: only 3 samples, its interval includes zero.
-  ⚠️ Cannot tell whether more fields or more samples would help: only 3 samples.
+    LATS1      3 samples          98% between samples                 leans to more samples (not established)
+    YAP        3 samples          99% between samples                 leans to more samples (not established)
+    ARAP2      3 samples          79% between samples                 leans to more samples (not established)
+  Assumptions: The largest share is not established: only 3 samples, its interval includes zero;
+    with few independent units the shares are point estimates (in a simulation with 3 samples and no
+    variance between them, most variance was put between samples in 4 of 20 runs), so a leaning is a
+    reading, not a result. Cannot tell whether more fields or more samples would help: only 3
+    samples; with few independent units the shares are point estimates (in a simulation with 3
+    samples and no variance between them, most variance was put between samples in 4 of 20 runs), so
+    a leaning is a reading, not a result.
 
 ⚠️ 8. Could I have sampled more efficiently?
   Fields until reliably enough for this criterion, median over hold-outs and orders, in 12 groups
@@ -266,6 +271,17 @@ At a glance
     overview (not available: sampling-frame bias is not assessed).
 
 ➖ 9. Do the conditions differ, and how confidently?
+  Reading, condition by condition, against MOCK (paired test: Bonferroni, on normalised values;
+    cell-level: the version below that is least biased by the repeats):
+    - LATS1 — same direction in every repeat, not confirmed: higher in 2 of 2 biological repeats (d
+      1.00); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
+      false-positive chance about 83% here).
+    - YAP — same direction in every repeat, not confirmed: lower in 2 of 2 biological repeats (d
+      -1.35); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
+      false-positive chance about 79% here).
+    - ARAP2 — same direction in every repeat, not confirmed: higher in 2 of 2 biological repeats (d
+      0.32); the paired test needs 3 biological repeats; cell-level p 0.003 (balanced, normalised;
+      false-positive chance about 5% here).
   Across the 2 biological repeats (each repeat's value is the mean of its nuclei, paired with the
     control of the same repeat):
     condition      vs control, by repeat  d nuclei: mean (range)
@@ -289,16 +305,8 @@ At a glance
     LATS1 vs MOCK  0.98 (0.003)      0.99 (0.003)   about 83%
     YAP vs MOCK    -1.33 (0.003)     -1.33 (0.003)  about 79%
     ARAP2 vs MOCK  0.32 (0.003)      0.32 (0.003)   about 5%
-  Within each repeat: YAPTAZ_Ratio, each condition against the control (MOCK), within each
-    biological repeat; the fields of a condition's analysis groups are pooled. Cohen's d with
-    nuclei, fields and technical repeats (tech.) as the unit:
-    contrast            fields    nuclei       tech.   d nuclei  d fields  p (Bonferroni)
-    LATS1 vs MOCK · 1A  56 vs 28  1365 vs 966  2 vs 1  1.32      4.94      no test
-    YAP vs MOCK · 1A    56 vs 28  1258 vs 966  2 vs 1  -1.08     -4.36     no test
-    ARAP2 vs MOCK · 2A  28 vs 28  797 vs 953   1 vs 1  0.29      1.08      no test
-    LATS1 vs MOCK · 2A  28 vs 28  736 vs 953   1 vs 1  0.69      2.45      no test
-    YAP vs MOCK · 2A    28 vs 28  557 vs 953   1 vs 1  -1.63     -5.29     no test
-    ARAP2 vs MOCK · 2B  56 vs 28  1955 vs 963  2 vs 1  0.35      1.19      no test
+  Within each repeat there is no test (one technical repeat on a side); the per-repeat d are in
+    question 2, and every number in the full report (detail='full').
   JCS effect size (treated mean minus control mean, over the control SD) from every nucleus: -1.52
     to 1.42 over the 6 contrasts; in draws of a fixed number of nuclei, the share of draws with that
     sign (lowest to highest contrast):
@@ -314,38 +322,27 @@ At a glance
     YAP vs MOCK    -1.35           about 2                   repeats differ (more fields help little)
     ARAP2 vs MOCK  0.32            about 5                   sampling (more fields help)
   Assumptions: With 2 biological repeats holding both sides, LATS1, YAP and ARAP2 are described by
-    direction and effect size; the paired test across repeats needs 3. Cell-level test (Cohen's d,
-    randomization over the nuclei): it assumes the nuclei are independent draws, so it asks whether
-    these wells differ, not whether the effect repeats, and it responds with one or two repeats.
-    Limitation: when the difference varies between repeats it gives p ≤ 0.05 without an effect in
-    about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n nuclei per well, each repeat weighted by its
-    share when they differ; s the SD between repeats in observation SDs;
-    data/simulations/test_choice.py and unbalanced.py), the 'without an effect' column; more nuclei
-    per well raise it, and a stricter cutoff does not remove it (22% at p ≤ 0.01 with 30 per well
-    and s = 0.5). Normalised: each value divided by the mean of its own repeat's control, which
-    removes a scale both wells of a repeat share (staining, imaging) and pairs every condition with
-    its own repeat's control. It assumes a positive feature on a ratio scale (not computed when a
-    control mean is 0 or below); it does not remove the part of the effect that varies between
-    repeats, so the cell-level chance still applies. Balanced: the median d and median p over 100
-    draws taking the same number of nuclei from each repeat, against the control of the condition's
-    own repeats; it describes the typical draw and is not the p of one test. In
-    data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of the others,
-    the test as provided gives 22-46% false positives where equal repeats give 16% (s = 0.25), and
-    the balanced test 12-14%; with the control pooled from repeats the condition was not imaged in,
-    the raw test as provided gives 46% even when the repeats agree, the balanced test 2%. Balancing
-    removes the weight of the repeats holding more, not the independence assumption. No
-    randomization test in all 6 contrasts: only one technical repeat (technical_repeat) with
-    observations on one side: its fields cannot stand in for technical repeats, so there is no test.
-    The test and the effect sizes compare means: a difference confined to a subpopulation of nuclei
-    or to the shape of the distribution is not tested (see the unusual nuclei and the rare label).
-    The draws resample these fields and nuclei, not wells or repeats: a same-sign share describes
-    these fields and is not a confidence in the effect. The fields a side per repeat are the most
-    any repeat needs, projected from its interval of d (narrowing as 1/sqrt(fields)); limited by:
-    whether the repeats' d differ more than their sampling error, which more fields cannot reduce.
-    Both are estimated from the repeats here, so the plan is a guide.
+    direction and effect size; the paired test across repeats needs 3. The cell-level test treats
+    the nuclei as independent: it asks whether these wells differ, not whether the effect repeats,
+    and the 'without an effect' column says how often it would be positive with no effect at the
+    variation between repeats seen here. Normalised: each value divided by the mean of its own
+    repeat's control. Balanced: the median over 100 draws with the same number of nuclei from each
+    repeat, against the control of the condition's own repeats. No randomization test in all 6
+    contrasts: only one technical repeat (technical_repeat) with observations on one side: its
+    fields cannot stand in for technical repeats, so there is no test. The test and the effect sizes
+    compare means: a difference confined to a subpopulation of nuclei or to the shape of the
+    distribution is not tested (see the unusual nuclei and the rare label). The draws resample these
+    fields and nuclei, not wells or repeats: a same-sign share describes these fields and is not a
+    confidence in the effect. The fields a side per repeat are the most any repeat needs, projected
+    from its interval of d (narrowing as 1/sqrt(fields)); limited by: whether the repeats' d differ
+    more than their sampling error, which more fields cannot reduce. Both are estimated from the
+    repeats here, so the plan is a guide.
 
 What this dataset cannot tell me
-  Every question could be answered; the assumptions each answer rests on are listed with it.
+  ➖ 9. Do the conditions differ? — 3 conditions across 2 biological repeats: same direction in every
+     repeat, not confirmed: YAP (lower); LATS1 and ARAP2 (higher); cell-level test: 3 of 3 at
+     Bonferroni p ≤ 0.05 (false-positive chance 5%–83% here); within repeats: not tested (one
+     technical repeat on a side)
   Assumptions: Every answer holds for the stated features, tolerances and definition of new.
     Replays, draws and hold-outs describe these samples; they are not independent experiments.
     Statements across samples count samples or repeats. A field count that preserved this

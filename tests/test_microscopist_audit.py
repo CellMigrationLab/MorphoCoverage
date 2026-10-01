@@ -598,8 +598,9 @@ def test_a_state_seen_in_few_fovs_gets_a_planning_line_from_its_incidence():
     assert "about 59 independent representative fields, up to" in full
     assert "Fields that cluster a state need more fields than the planning numbers." in full
     short = " ".join(report.summary().split())
-    assert "takes about 59 independent representative fields" in short
-    assert "fields that cluster the state need more" in short
+    # The recurrence projection is in the full form; the short form keeps the actionable line.
+    assert "takes about 59 independent representative fields" not in short
+    assert "look at those fields before calling the sample settled" in short
 
 
 def test_the_unseen_state_bound_is_divided_by_the_controls_detection_rate():

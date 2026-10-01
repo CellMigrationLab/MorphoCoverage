@@ -624,7 +624,11 @@ What this acquisition was asked to preserve
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
 
-  The data-integrity checks (in the overview) name 12 fields in 6 findings (fields that hold another field's observations, or their own twice); every answer here counts them as independent fields, so look at them first: condition=siCCT7#3, biological_repeat=CCT7_2, technical_repeat=B5, position_id=B5_04, condition=siCCT7#6, biological_repeat=CCT7_3, technical_repeat=B6, position_id=B6_01-1, condition=siCCT7#6, biological_repeat=CCT7_3, technical_repeat=B6, position_id=B6_04-1, condition=siCTRL, biological_repeat=CCT7_1, technical_repeat=B4, position_id=B4_05, condition=siCCT8#5, biological_repeat=CCT8_3, technical_repeat=B2, position_id=B2_01 and 7 more.
+  The data-integrity checks (in the overview) name 12 fields in 6 findings (fields that hold another
+    field's observations, or their own twice); every answer here counts them as independent fields,
+    so look at them first: siCCT7#3 · CCT7_2 · B5 · B5_04, siCCT7#6 · CCT7_3 · B6 · B6_01-1,
+    siCCT7#6 · CCT7_3 · B6 · B6_04-1, siCTRL · CCT7_1 · B4 · B4_05, siCCT8#5 · CCT8_3 · B2 · B2_01
+    and 7 more.
 
 ✅ 9. Do the conditions differ, and how confidently?
   Feature Mean Speed, each condition against the control {'condition': 'siCTRL'}, within each
@@ -632,6 +636,22 @@ What this acquisition was asked to preserve
     Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
     the field as the unit and, where each side has at least two, with the technical repeat
     (technical_repeat) as the unit.
+  Reading, condition by condition, against siCTRL (paired test: Bonferroni, on normalised values;
+    cell-level: the version below that is least biased by the repeats):
+    - siCCT7#3 — no consistent direction: lower in 1 and higher in 2 of 3 biological repeats; paired
+      test p 1; cell-level p 0.71 (balanced, normalised; false-positive chance about 36% here); the
+      raw pooled test gives p 0.002, but it pools the control of repeats this condition was not imaged
+      in; siCCT7#6 (CCT7) agrees in 2 of 3 biological repeats.
+    - siCCT7#6 — no consistent direction: lower in 2 and higher in 1 of 3 biological repeats; paired
+      test p 1; cell-level p 1 (balanced, normalised; false-positive chance about 35% here); the raw
+      pooled test gives p 0.02, but it pools the control of repeats this condition was not imaged in;
+      siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
+    - siCCT8#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -1.06); paired test p 0.2; cell-level p 0.004 (balanced, normalised; false-positive chance about
+      34% here); siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
+    - siCCT8#8 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -1.11); paired test p 0.2; cell-level p 0.004 (balanced, normalised; false-positive chance about
+      35% here); siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its tracks, paired with the
     control of the same repeat):
     condition           vs control, by repeat  d tracks: mean (range)  paired t p (Bonf.)  normalised
@@ -649,7 +669,9 @@ What this acquisition was asked to preserve
       (up to 1.4 times) and the control is pooled from 3 biological repeats the condition was not
       imaged in, so the test is given as provided and balanced (each condition against the control of
       its own biological repeats, the same number of tracks from each biological repeat; the median d
-      and p over 100 draws).
+      and p over 100 draws). The control means differ up to 1.8x between biological repeats, so the
+      raw test as provided compares each condition with other repeats' level: read the normalised or
+      balanced columns.
     As provided:
     condition           raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
     siCCT7#3 vs siCTRL  0.68 (0.002)      0.25 (0.21)    about 38%
@@ -691,32 +713,12 @@ What this acquisition was asked to preserve
     though no contrast could be tested; a test passes the gate when q <= 0.05 (fiberfeatures' gated
     effect size). Features are ranked by the largest |d| among their passing contrasts (|d| above 20
     counts as 20).
-    Not ranked because no contrast could be tested (13 features): Directionality Rolling (only one
+    Not ranked because no contrast could be tested (13 features: Directionality Rolling, Max Speed
+      Rolling, Mean Speed, Mean Speed Rolling, Median Speed, Median Speed Rolling, Min Speed Rolling
+      Rolling, Spatial Coverage Rolling, Speed Standard Deviation, Speed Standard Deviation Rolling,
+      Tortuosity Rolling, Total Distance Traveled Rolling, Total Turning Angle Rolling): only one
       technical repeat (technical_repeat) with observations on one side: its fields cannot stand in
-      for technical repeats, so there is no test), Max Speed Rolling (only one technical repeat
-      (technical_repeat) with observations on one side: its fields cannot stand in for technical
-      repeats, so there is no test), Mean Speed (only one technical repeat (technical_repeat) with
-      observations on one side: its fields cannot stand in for technical repeats, so there is no
-      test), Mean Speed Rolling (only one technical repeat (technical_repeat) with observations on one
-      side: its fields cannot stand in for technical repeats, so there is no test), Median Speed (only
-      one technical repeat (technical_repeat) with observations on one side: its fields cannot stand
-      in for technical repeats, so there is no test), Median Speed Rolling (only one technical repeat
-      (technical_repeat) with observations on one side: its fields cannot stand in for technical
-      repeats, so there is no test), Min Speed Rolling Rolling (only one technical repeat
-      (technical_repeat) with observations on one side: its fields cannot stand in for technical
-      repeats, so there is no test), Spatial Coverage Rolling (only one technical repeat
-      (technical_repeat) with observations on one side: its fields cannot stand in for technical
-      repeats, so there is no test), Speed Standard Deviation (only one technical repeat
-      (technical_repeat) with observations on one side: its fields cannot stand in for technical
-      repeats, so there is no test), Speed Standard Deviation Rolling (only one technical repeat
-      (technical_repeat) with observations on one side: its fields cannot stand in for technical
-      repeats, so there is no test), Tortuosity Rolling (only one technical repeat (technical_repeat)
-      with observations on one side: its fields cannot stand in for technical repeats, so there is no
-      test), Total Distance Traveled Rolling (only one technical repeat (technical_repeat) with
-      observations on one side: its fields cannot stand in for technical repeats, so there is no
-      test), Total Turning Angle Rolling (only one technical repeat (technical_repeat) with
-      observations on one side: its fields cannot stand in for technical repeats, so there is no
-      test).
+      for technical repeats, so there is no test.
   Assumptions:
     - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) treats
       each biological repeat as one replicate and assumes the differences (raw) or the log ratios to
@@ -765,19 +767,14 @@ What this dataset cannot tell me
   ❌ Data integrity: the checks in the overview name 12 fields in 6 findings (fields that hold
      another field's observations, or their own twice), and every answer counts them as independent
      fields.
-  ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
-     and this definition of new cannot see.
-  ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
-     redundancy and dispersed orders were not assessed.
-  ⚠️ No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
-     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
-     not seen.
   Assumptions:
     - Every answer holds for the stated features, tolerances and definition of new.
     - Replays, draws and hold-outs describe these samples; they are not independent experiments.
       Statements across samples count samples or repeats.
     - A field count that preserved this acquisition is not a protocol until it holds on samples it
       was not chosen on.
+    - No representation control: a 'nothing new' answer says nothing about phenotypes these features
+      and this definition of new cannot see.
     - Technical drift between repeats, batches or plates is not assessed: groups are analysed apart,
       and a shift shared by all fields of a group is not new within it.
     - Each 'enough' is per technical repeat; the condition mean also varies between technical
@@ -788,5 +785,10 @@ What this dataset cannot tell me
       Deviation, Mean Speed Rolling, Median Speed Rolling, Max Speed Rolling and 7 more) enter
       novelty, the representation control, the unusual tracks and the feature ranking, so a heavy
       tail or a between-well spread in them is not judged by any stopping rule.
+    - No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
+      redundancy and dispersed orders were not assessed.
+    - No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
+      random orders treat the fields as exchangeable, so a drift or a raster along the acquisition
+      is not seen.
 
 Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.

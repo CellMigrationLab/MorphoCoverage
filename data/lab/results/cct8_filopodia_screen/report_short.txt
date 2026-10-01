@@ -1,6 +1,8 @@
 Microscopist's report — 1686 cells in 1686 fields
 
 At a glance
+  Key: ✅ answered · ⚠️ answered, with a caution about these data · ❌ check the data first · ➖ not
+    applicable or not assessed. A marker says how far to trust an answer, not what it found.
   ✅ The data — data checks: no warning; integrity: nothing found
   ➖ Foundation. Why count fields? — not applicable: each field holds one cell, so fields and cells
      coincide and every per-cell answer is also the per-field one
@@ -11,11 +13,11 @@ At a glance
   ➖ 3. What limits my sampling? — not applicable: with one cell per field, how cells spread over
      fields cannot be measured
   ✅ 6. Which fields should I look at? — no field stands out
-  ✅ 9. Do the conditions differ? — 12 conditions across 3 biological repeats: 12 in the same
-     direction in every repeat (8 lower, 4 higher than the control); paired t on the repeat means,
-     raw / normalised: 0 / 0 of 12 at Bonferroni p ≤ 0.05; reagents agree in every repeat for 6 of 6
-     targets; cell-level test, raw / normalised: 9 / 12 of 12 at Bonferroni p ≤ 0.05 (balanced over
-     the repeats: 10 / 11)
+  ✅ 9. Do the conditions differ? — 12 conditions across 3 biological repeats: same direction in
+     every repeat, not confirmed: siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5 and 4 more (lower);
+     siMAP4K4#5, siMAP4K4#6, siNF2#17 and siNF2#7 (higher); reagents agree in every repeat for 6 of
+     6 targets
+  Questions 4, 5, 7 and 8, planning the next experiment, come from workflows.optimise.
 
 ✅ What is in the dataset
   1686 cells in 1686 fields, none empty; a field is
@@ -39,15 +41,13 @@ What this acquisition was asked to preserve
     calibrated by optimise.
   Live decision: the population objective (population summary); a target no rule decides stays
     unsupported, never assumed adequate.
-  ⚠️ No phenotypic fingerprint declared (fingerprint), so the answers speak of the mean, not of the
-     distribution of phenotypes.
-  ⚠️ No rare phenotype declared (rare), so no answer says whether a rare state was sampled enough.
-  ⚠️ No acquisition order or stage coordinates, so nothing is checked: every stop treats the fields
-     as a random sample of the well's positions; a raster over a spatial trend can stop early; image
-     fields in a random or dispersed order.
-  Assumptions: The JCB rules stop on the averaging CV (5% is one standard error of 5% of the mean),
-    not on a ±5% bound on its error; whether the mean is within 5% and 2.5% is judged on held-back
-    fields.
+  Assumptions: No phenotypic fingerprint declared (fingerprint), so the answers speak of the mean,
+    not of the distribution of phenotypes. No rare phenotype declared (rare), so no answer says
+    whether a rare state was sampled enough. The JCB rules stop on the averaging CV (5% is one
+    standard error of 5% of the mean), not on a ±5% bound on its error; whether the mean is within
+    5% and 2.5% is judged on held-back fields. No acquisition order or stage coordinates, so the
+    order is not checked: every stop treats the fields as a random sample of the well's positions; a
+    raster over a spatial trend can stop early; image fields in a random or dispersed order.
 
 ➖ Foundation: why count fields, and not only objects?
   Not applicable: each field holds one cell, so fields and cells coincide and every per-cell answer is also the per-field one.
@@ -95,6 +95,47 @@ What this acquisition was asked to preserve
   No field stands out under the declared thresholds (influence, count checked).
 
 ✅ 9. Do the conditions differ, and how confidently?
+  Reading, condition by condition, against siCTRL (paired test: Bonferroni, on normalised values;
+    cell-level: the version below that is least biased by the repeats):
+    - siCCT8#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -1.44); paired test p 0.44; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 8% here); siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
+    - siCCT8#8 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -1.54); paired test p 0.32; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 37% here); siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
+    - siCSNK1A1#11 — same direction in every repeat, not confirmed: lower in 3 of 3 biological
+      repeats (d -1.86); paired test p 0.14; cell-level p 0.012 (balanced, normalised;
+      false-positive chance about 21% here); siCSNK1A1#5 (CSNK1A1) agrees in 3 of 3 biological
+      repeats.
+    - siCSNK1A1#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological
+      repeats (d -1.92); paired test p 0.12; cell-level p 0.012 (balanced, normalised;
+      false-positive chance about 26% here); siCSNK1A1#11 (CSNK1A1) agrees in 3 of 3 biological
+      repeats.
+    - siMAP4K4#5 — same direction in every repeat, not confirmed: higher in 3 of 3 biological
+      repeats (d 0.82); paired test p 0.16; cell-level p 0.012 (balanced, normalised; false-positive
+      chance about 5% here); siMAP4K4#6 (MAP4K4) agrees in 3 of 3 biological repeats.
+    - siMAP4K4#6 — same direction in every repeat, not confirmed: higher in 3 of 3 biological
+      repeats (d 1.39); paired test p 0.69; cell-level p 0.012 (balanced, normalised; false-positive
+      chance about 40% here); siMAP4K4#5 (MAP4K4) agrees in 3 of 3 biological repeats.
+    - siMINK1#10 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -0.88); paired test p 0.77; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 18% here); siMINK1#3 (MINK1) agrees in 3 of 3 biological repeats.
+    - siMINK1#3 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -0.49); paired test p 0.74; cell-level p 0.15 (balanced, normalised; false-positive chance
+      about 5% here); the raw pooled test gives p 0.006, but it pools the control of repeats this
+      condition was not imaged in; siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
+    - siNF2#17 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats
+      (d 0.53); paired test p 1; cell-level p 0.048 (balanced, normalised; false-positive chance
+      about 27% here); siNF2#7 (NF2) agrees in 3 of 3 biological repeats.
+    - siNF2#7 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats
+      (d 0.55); paired test p 0.99; cell-level p 0.024 (balanced, normalised; false-positive chance
+      about 17% here); siNF2#17 (NF2) agrees in 3 of 3 biological repeats.
+    - siSCRIB#6 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -1.62); paired test p 0.15; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 34% here); siSCRIB#7 (SCRIB) agrees in 3 of 3 biological repeats.
+    - siSCRIB#7 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -1.55); paired test p 0.11; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 22% here); siSCRIB#6 (SCRIB) agrees in 3 of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
     condition               vs control, by repeat  d cells: mean (range)   paired t p (Bonf.)  normalised
@@ -124,7 +165,9 @@ What this acquisition was asked to preserve
       (up to 2.5 times) and the control is pooled from 15 biological repeats the condition was not
       imaged in, so the test is given as provided and balanced (each condition against the control
       of its own biological repeats, the same number of cells from each biological repeat; the
-      median d and p over 100 draws).
+      median d and p over 100 draws). The control means differ up to 2.0x between biological
+      repeats, so the raw test as provided compares each condition with other repeats' level: read
+      the normalised or balanced columns.
     As provided:
     condition               raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
     siCCT8#5 vs siCTRL      -0.99 (0.006)     -1.36 (0.006)  about 8%
@@ -153,8 +196,8 @@ What this acquisition was asked to preserve
     siNF2#7 vs siCTRL       0.44 (0.048)      0.51 (0.024)   about 17%
     siSCRIB#6 vs siCTRL     -1.51 (0.012)     -1.46 (0.012)  about 34%
     siSCRIB#7 vs siCTRL     -1.49 (0.012)     -1.48 (0.012)  about 22%
-  Within each repeat: 36 contrasts, one per condition and repeat, with Cohen's d on observations and
-    on fields and the randomization test, are in the full report (detail='full').
+  Within each repeat there is no test (one technical repeat on a side); the per-repeat d are in
+    question 2, and every number in the full report (detail='full').
   JCS effect size (treated mean minus control mean, over the control SD) from every cell: -1.91 to
     2.56 over the 36 contrasts.
   Planning the next experiment, with 3 biological repeats as here: the fields a side each repeat
@@ -173,40 +216,22 @@ What this acquisition was asked to preserve
     siSCRIB#6 vs siCTRL     -1.62          about 7                   repeats differ (more fields help little)
     siSCRIB#7 vs siCTRL     -1.55          about 5                   repeats differ (more fields help little)
   Assumptions: Across biological repeats, the paired t-test on the repeat means (as in SuperPlots)
-    treats each biological repeat as one replicate and assumes the differences (raw) or the log
-    ratios to the control (normalised) are normally distributed and independent between biological
-    repeats. It keeps false positives at 5% when the effect varies between biological repeats, which
-    the cell-level test does not; the cost is power: with 3 biological repeats and 30 cells a well,
-    d 1.5 is found in 98, 90 and 63% of experiments and d 1.0 in 85, 67 and 39% as biological
-    repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py);
-    Bonferroni-corrected over the conditions. Reagents of one target that go the same way in every
-    repeat speak against an off-target effect of one of them; this is described, not tested, since
-    they share the control. Cell-level test (Cohen's d, randomization over the cells): it assumes
-    the cells are independent draws, so it asks whether these wells differ, not whether the effect
-    repeats, and it responds with one or two repeats. Limitation: when the difference varies between
-    repeats it gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments
-    (n cells per well, each repeat weighted by its share when they differ; s the SD between repeats
-    in observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'without an effect'
-    column; more cells per well raise it, and a stricter cutoff does not remove it (22% at p ≤ 0.01
-    with 30 per well and s = 0.5). Normalised: each value divided by the mean of its own repeat's
-    control, which removes a scale both wells of a repeat share (staining, imaging) and pairs every
-    condition with its own repeat's control. It assumes a positive feature on a ratio scale (not
-    computed when a control mean is 0 or below); it does not remove the part of the effect that
-    varies between repeats, so the cell-level chance still applies. Balanced: the median d and
-    median p over 100 draws taking the same number of cells from each repeat, against the control of
-    the condition's own repeats; it describes the typical draw and is not the p of one test. In
-    data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of the others,
-    the test as provided gives 22-46% false positives where equal repeats give 16% (s = 0.25), and
-    the balanced test 12-14%; with the control pooled from repeats the condition was not imaged in,
-    the raw test as provided gives 46% even when the repeats agree, the balanced test 2%. Balancing
-    removes the weight of the repeats holding more, not the independence assumption. Within a repeat
-    the conditions are described by their effect sizes; they are tested across repeats (the first
-    table). The test and the effect sizes compare means: a difference confined to a subpopulation of
-    cells or to the shape of the distribution is not tested (see the unusual cells and the rare
-    label). The fields a side per repeat are the most any repeat needs, projected from its interval
-    of d (narrowing as 1/sqrt(fields)); limited by: whether the repeats' d differ more than their
-    sampling error, which more fields cannot reduce. Both are estimated from the repeats here, so
-    the plan is a guide.
+    treats each biological repeat as one replicate: it keeps false positives at 5%, but with 3
+    biological repeats it needs a large effect (the simulated power is in the full report and
+    docs/condition_tests.md); Bonferroni-corrected over the conditions. Reagents of one target that
+    go the same way in every repeat speak against an off-target effect of one of them; this is
+    described, not tested, since they share the control. The cell-level test treats the cells as
+    independent: it asks whether these wells differ, not whether the effect repeats, and the
+    'without an effect' column says how often it would be positive with no effect at the variation
+    between repeats seen here. Normalised: each value divided by the mean of its own repeat's
+    control. Balanced: the median over 100 draws with the same number of cells from each repeat,
+    against the control of the condition's own repeats. Within a repeat the conditions are described
+    by their effect sizes; they are tested across repeats (the first table). The test and the effect
+    sizes compare means: a difference confined to a subpopulation of cells or to the shape of the
+    distribution is not tested (see the unusual cells and the rare label). The fields a side per
+    repeat are the most any repeat needs, projected from its interval of d (narrowing as
+    1/sqrt(fields)); limited by: whether the repeats' d differ more than their sampling error, which
+    more fields cannot reduce. Both are estimated from the repeats here, so the plan is a guide.
 
 What this dataset cannot tell me
   ➖ Foundation. Why count fields? — not applicable: each field holds one cell, so fields and cells
@@ -214,18 +239,16 @@ What this dataset cannot tell me
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control
   ➖ 3. What limits my sampling? — not applicable: with one cell per field, how cells spread over
      fields cannot be measured
-  ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
-     and this definition of new cannot see.
-  ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
-     redundancy and dispersed orders were not assessed.
-  ⚠️ No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
-     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
-     not seen.
   Assumptions: Every answer holds for the stated features, tolerances and definition of new.
     Replays, draws and hold-outs describe these samples; they are not independent experiments.
     Statements across samples count samples or repeats. A field count that preserved this
-    acquisition is not a protocol until it holds on samples it was not chosen on. Technical drift
-    between repeats, batches or plates is not assessed: groups are analysed apart, and a shift
-    shared by all fields of a group is not new within it.
+    acquisition is not a protocol until it holds on samples it was not chosen on. No representation
+    control: a 'nothing new' answer says nothing about phenotypes these features and this definition
+    of new cannot see. Technical drift between repeats, batches or plates is not assessed: groups
+    are analysed apart, and a shift shared by all fields of a group is not new within it. No stage
+    coordinates (stage_cols): neighbouring fields were not compared, and spatial redundancy and
+    dispersed orders were not assessed. No acquisition order (acquisition_order_col): the recorded
+    order was not replayed, and the random orders treat the fields as exchangeable, so a drift or a
+    raster along the acquisition is not seen.
 
 Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.

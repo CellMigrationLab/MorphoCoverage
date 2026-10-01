@@ -119,6 +119,14 @@ DECLARATION_TITLE = "What this acquisition was asked to preserve"
 LIMITS_TITLE = "What this dataset cannot tell me"
 REPORT_TITLE = "Microscopist's report"
 GLANCE_TITLE = "At a glance"
+# The planning questions, answered by workflows.optimise rather than by report.
+_PLANNING = ("next_time", "bought", "effort", "order")
+# What the markers mean: a status says whether an answer needs attention, not what it found.
+GLANCE_KEY = (
+    "Key: ✅ answered · ⚠️ answered, with a caution about these data · ❌ check the data first · "
+    "➖ not applicable or not assessed. A marker says how far to trust an answer, not what it "
+    "found."
+)
 
 QUESTIONS = (
     ("unit", "Foundation: why count fields, and not only objects?"),
@@ -244,7 +252,7 @@ class MicroscopistReport:
 
     def at_a_glance(self, keys: Sequence[str] | None = None) -> str:
         """One line per answer: ``<marker> <n>. <short question> — <headline>``."""
-        lines = [GLANCE_TITLE]
+        lines = [GLANCE_TITLE, wrap(GLANCE_KEY, "  ", hang=4)]
         chosen = [k for k, _ in QUESTIONS if keys is None or k in keys]
         for key in ["overview", *chosen]:
             status = self.statuses.get(key)
@@ -252,6 +260,20 @@ class MicroscopistReport:
                 continue
             line = headline(status, SHORT_QUESTIONS[key], self.headlines.get(key))
             lines.append(wrap(line, "  ", hang=5))
+        # The planning questions come from optimise; say so rather than skip their numbers.
+        missing = [
+            title.split(".")[0]
+            for key, title in QUESTIONS
+            if key in _PLANNING and key not in chosen
+        ]
+        if missing and any(key in chosen for key in ("inspect", "conditions")):
+            subject = (
+                f"Questions {listing(missing, 8)}"
+                if len(missing) > 1
+                else (f"Question {missing[0]}")
+            )
+            note = f"{subject}, planning the next experiment, come from workflows.optimise."
+            lines.append(wrap(note, "  ", hang=4))
         return "\n".join(lines)
 
     def limits(self, questions: Sequence[str] | None = None, detail: str = "full") -> str:
@@ -394,8 +416,10 @@ def microscopist_report(
     weakened: list[str] = []
     if controls is None or controls.status == "not assessed":
         notes.append(
-            "No representation control: a 'nothing new' answer says nothing about phenotypes "
-            "these features and this definition of new cannot see."
+            assumption(
+                "No representation control: a 'nothing new' answer says nothing about "
+                "phenotypes these features and this definition of new cannot see."
+            )
         )
     else:
         # With planted objects declared, the rare-state rate gates the warning (P6-4).
@@ -525,7 +549,7 @@ def opening(overview: DatasetOverview, integrity: Any = None) -> dict[str, Any]:
     short = "\n".join(wrap(text, 2, hang=4) for text in overview.short_lines())
     full = overview.summary(detail="full")
     if integrity is not None:
-        involved = integrity.fields_involved()
+        involved = integrity.field_labels()
         if involved:
             line = f"{line[:-1]}: {listing(involved, limit=3)}."
         full = f"{full}\n\n{integrity.summary(detail='full')}"

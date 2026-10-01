@@ -65,7 +65,11 @@ def limits_text(
     """The closing section of ``report`` (see the module), among ``questions`` or all."""
     full = check_detail(detail) == "full"
     chosen = [(key, title) for key, title in titles if questions is None or key in questions]
-    missing = [(k, t) for k, t in chosen if report.inputs.get(k) == "not assessed"]
+    missing = [
+        (k, t)
+        for k, t in chosen
+        if report.inputs.get(k) == "not assessed" or report.statuses.get(k) is Status.NOT_ASSESSED
+    ]
     lines = []
     for key, title in missing:
         if full:

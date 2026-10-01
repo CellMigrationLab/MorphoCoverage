@@ -239,3 +239,27 @@ from the seventh run (CDM siCCT8#5: Bonferroni p 0.040 here, 0.028 there).
   moves by 1-4 points (glioma CCT7 34% to 38%), since no repeat holds more than about half the
   cells. The balanced table now carries its own label at the cells per repeat it keeps. No repeat
   here is small enough to leave out under the median-repeat rule.
+
+## 2026-10-01 — ninth run: the report read as a user would
+
+An audit of the short reports found the right numbers but no conclusion: the reader had to
+combine five to eight tables per condition. The changes are wording and layout; no statistic
+changed.
+
+- **Question 9 opens with a reading per condition**: confirmed across repeats, same direction in
+  every repeat but not confirmed, no consistent direction, or one repeat; then the direction and
+  d, the paired test (normalised), the cell-level test in its least biased version with its
+  false-positive chance here, and whether the target's other reagent agrees. CDM shape: both CCT8
+  siRNAs lower in 3 of 3 (d -0.57, -0.59), not confirmed by the paired test (p 0.42, 0.22).
+  Glioma tracks: CCT8 the same (d about -1.1, p 0.2); CCT7 no consistent direction, and its raw
+  pooled cell-level p 0.002 is named as coming from the control of the CCT8 repeats. Filopodia
+  screen: all 12 in the same direction in every repeat, none confirmed with 3 repeats.
+- **At a glance** opens with a key (a marker says how far to trust an answer, not what it found),
+  says that questions 4, 5, 7 and 8 come from optimise, and no longer says "0 of 10 features pass
+  the gate" when none could be tested.
+- **No caution for a usual design**: three repeats, options left at their defaults (fingerprint,
+  rare phenotype, order, stage) and a missing representation control are notes, not ⚠️.
+- **Said once**: the duplicated fields are named in the overview only; the short notes of question
+  9 are a sentence per test; question 2's novelty projections are in the full report.
+- The short reports are 192 (CDM, from 215) and 288 (glioma, from 313) lines; the screen grows to
+  254 (from 231) with its 12 readings.

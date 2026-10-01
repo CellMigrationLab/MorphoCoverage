@@ -421,7 +421,8 @@ def test_the_short_report_opens_with_a_title_and_one_line_per_question():
     title, glance = text.split("\n\n")[:2]
     assert title.startswith("Microscopist's report — ")
     lines = glance.splitlines()
-    answers = [line for line in lines[1:] if not line.startswith("     ")]
+    # The key opens the block (two lines); the answers follow, one per question.
+    answers = [line for line in lines[1:] if not line.startswith(("     ", "    ", "  Key:"))]
     assert lines[0] == GLANCE_TITLE and len(answers) == 1 + len(QUESTIONS)
     assert answers[0].startswith(f"  {NOT_ASSESSED} The data — ")
     assert all(line[2] in "✅⚠❌➖" for line in answers)

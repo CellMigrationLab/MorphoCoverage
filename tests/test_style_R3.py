@@ -192,7 +192,9 @@ def test_the_report_prints_the_short_forms_and_its_caveats_once():
     report = microscopist_report(contrast=contrast, inspection=inspection)
     short = report.summary()
     # The answer across biological repeats first, then the contrasts within each repeat.
-    assert report.short["conditions"].startswith("  Across the 2 biological repeats")
+    # The reading per condition leads, then the table across repeats.
+    assert report.short["conditions"].startswith("  Reading, condition by condition")
+    assert "Across the 2 biological repeats" in report.short["conditions"]
     assert "Within each repeat: x, each condition against the control" in _flat(short)
     assert "user's inference" not in _flat(short)
     assert _flat(short).count("compare means") == 1
@@ -235,9 +237,10 @@ def test_the_declaration_short_form_names_the_rules_and_states_each_caveat_once(
     assert "the binomial plan asks for 14 representative fields" in _flat(text)
     assert all(width <= 101 for width in _widths(text))
     plain = declaration_short(_setup(acquisition_order_col=None, stage_cols=None))
-    assert f"{CAUTION} No phenotypic fingerprint declared" in plain
-    assert f"{CAUTION} No rare phenotype declared" in plain
-    assert "nothing is checked" in _flat(plain)
+    # Options left at their defaults are standing notes, not cautions.
+    assert "No phenotypic fingerprint declared" in _flat(plain) and CAUTION not in plain
+    assert "No rare phenotype declared" in _flat(plain)
+    assert "the order is not checked" in _flat(plain)
     # The full sentences name each rule in words, with its strategy.
     rules = next(s for s in setup.declaration() if s.startswith("Stopping rules:"))
     assert "JCB rule, per object, 5% [scalar_precision_object_upper95 (" in rules

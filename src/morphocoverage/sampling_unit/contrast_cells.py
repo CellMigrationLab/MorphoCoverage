@@ -100,6 +100,7 @@ CELL_COLUMNS = [
     "repeats",
     "spread",
     "other_control_repeats",
+    "control_shift",
     "unbalanced",
     "sparse_repeats",
     "balanced_repeats",
@@ -255,6 +256,13 @@ def cell_table(
         control_sizes = {r: len(x) for r, x in by_c.items()}
         spread = max(max(n.values()) / max(min(n.values()), 1) for n in (sizes, control_sizes))
         others = len(every) - len(control_sizes)
+        # How far apart the repeats' control means are: pooled, they mix those levels.
+        control_means = [float(np.mean(x)) for x in every.values() if len(x)]
+        shift = (
+            max(control_means) / min(control_means)
+            if control_means and min(control_means) > 0
+            else np.nan
+        )
         unbalanced = bool(spread > IMBALANCE or others > 0)
         small = sorted(set(sparse(sizes)) | set(sparse(control_sizes)), key=str)
         kept = [r for r in by_t if r not in small] if unbalanced else []
@@ -293,6 +301,7 @@ def cell_table(
                 "repeats": len(sizes),
                 "spread": float(spread),
                 "other_control_repeats": others,
+                "control_shift": shift,
                 "unbalanced": unbalanced,
                 "sparse_repeats": small,
                 "balanced_repeats": len(kept),

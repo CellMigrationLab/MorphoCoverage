@@ -77,6 +77,16 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
             f"the control is pooled from {count(int(others['other_control_repeats'].max()), word)} "
             "the condition was not imaged in"
         )
+    shift = others["control_shift"].max() if len(others) and "control_shift" in others else np.nan
+    # A pooled control mixes these levels: the raw test as provided then compares a condition
+    # with other repeats' level.
+    shifted = (
+        f" The control means differ up to {shift:.1f}x between {word}s, so the raw test as "
+        "provided compares each condition with other repeats' level: read the normalised or "
+        "balanced columns."
+        if pd.notna(shift) and shift > IMBALANCE
+        else ""
+    )
     who = (
         "every condition"
         if len(unbalanced) == len(cells)
@@ -85,7 +95,7 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
     return (
         f"Balance: for {who}, {' and '.join(reasons)}, so the test is given as provided and "
         f"balanced (each condition against the control of its own {word}s, the same number of "
-        f"{words} from each {word}; the median d and p over {BALANCED_DRAWS} draws)."
+        f"{words} from each {word}; the median d and p over {BALANCED_DRAWS} draws)." + shifted
     )
 
 
@@ -177,7 +187,26 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         names += [f"{words} per repeat, condition / control"] if full else []
         names.append(f"p ≤ {ALPHA:g} without an effect")
         lines.append(table(rows, names, indent=indent + 2))
-    return lines, _notes(contrast, cells, balanced)
+    return lines, (_notes if full else _short_notes)(contrast, cells, balanced)
+
+
+def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
+    """The same assumptions in a sentence each, for the short report (the full report and
+    docs/condition_tests.md give the formula and the simulations)."""
+    words = unit_plural(contrast.settings["observation_unit"])
+    text = (
+        f"The cell-level test treats the {words} as independent: it asks whether these wells "
+        "differ, not whether the effect repeats, and the 'without an effect' column says how "
+        "often it would be positive with no effect at the variation between repeats seen here. "
+        "Normalised: each value divided by the mean of its own repeat's control"
+    )
+    text += (
+        f". Balanced: the median over {BALANCED_DRAWS} draws with the same number of {words} "
+        "from each repeat, against the control of the condition's own repeats."
+        if balanced
+        else "."
+    )
+    return [assumption(text)]
 
 
 def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:

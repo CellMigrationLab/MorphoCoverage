@@ -38,6 +38,7 @@ from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
 from .cells_text import cells_parts
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
+from .reading_text import readings_parts
 from .reagents_text import reagents_parts
 from .repeat_plan_text import plan_parts
 from .repeats_text import _range, _repeat_head, _repeat_rows, _repeats, repeat_cautions
@@ -297,11 +298,12 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
         return [*lines, wrap(reason, indent, hang=indent + 2)], []
     across = not _repeats(contrast).empty
     cell_lines, cell_notes = cells_parts(contrast, indent)
+    reading = readings_parts(contrast, indent)
     if not across:
         # A pilot (one repeat): the cell-level test is the one that responds, so it leads.
-        lines = cell_lines + lines
+        lines = reading + cell_lines + lines
     else:
-        lines = [wrap(_repeat_head(contrast), indent, hang=indent + 2)]
+        lines = [*reading, wrap(_repeat_head(contrast), indent, hang=indent + 2)]
         rows, columns = _repeat_rows(contrast)
         lines.append(table(rows, columns, indent=indent + 2))
         lines += reagents_parts(contrast, indent)[0] + cell_lines
@@ -309,7 +311,18 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
             wrap(f"Within each repeat: {_head(contrast, short=True)}", indent, hang=indent + 2)
         )
     rows, columns = _contrast_rows(contrast, full=False)
-    if across and len(rows) > SHORT_CONTRASTS:
+    within_untested = bool((contrast.table["status"] != "ok").all())
+    if across and within_untested:
+        # Nothing was tested within a repeat: the per-repeat d are in question 2 and the
+        # across-repeat table, so the table would repeat them.
+        lines[-1] = wrap(
+            "Within each repeat there is no test (one technical repeat on a side); the "
+            "per-repeat d are in question 2, and every number in the full report "
+            "(detail='full').",
+            indent,
+            hang=indent + 2,
+        )
+    elif across and len(rows) > SHORT_CONTRASTS:
         lines[-1] = wrap(
             f"Within each repeat: {count(len(rows), 'contrast')}, one per condition and "
             "repeat, with Cohen's d on observations and on fields and the randomization test, "
@@ -325,7 +338,12 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
     planned, plan_notes = plan_parts(contrast, indent)
     lines += planned
     side_notes = (reagents_parts(contrast, indent)[1] if across else []) + cell_notes
-    return lines, [*repeat_cautions(contrast), *side_notes, *_cautions(contrast), *plan_notes]
+    return lines, [
+        *repeat_cautions(contrast, full=False),
+        *side_notes,
+        *_cautions(contrast),
+        *plan_notes,
+    ]
 
 
 def _tests_short(contrast: Any) -> str | None:
@@ -425,6 +443,7 @@ def _full(contrast: Any) -> str:
     if contrast.table.empty:
         lines.append(contrast.settings.get("reason", "No condition to compare with the control."))
         return "\n".join(lines)
+    lines += readings_parts(contrast, 0)
     if not _repeats(contrast).empty:
         rows, columns = _repeat_rows(contrast, full=True)
         lines += [wrap(_repeat_head(contrast), 0, hang=2), table(rows, columns)]

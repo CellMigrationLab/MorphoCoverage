@@ -77,9 +77,9 @@ def test_per_unit_counts_and_the_named_difficult_sample():
     assert "2 of 4 samples" in text  # at 5 fields, in the full form's table
     assert "B3 · P2 (more than 5)" in text
     assert "could not be judged at this depth" in text
-    assert "Uncertainty is large with only 2 plates" in text
+    assert "With 2 plates the field count is a guide" in text
     short = result.summary()
-    assert "B3 · P2 (more than 5)" in short and "Uncertainty is large with only 2 plates" in short
+    assert "B3 · P2 (more than 5)" in short and "With 2 plates the field count is a guide" in short
     for word in ("reservoir", "criterion", "bootstrap"):
         assert word not in text and word not in short
 

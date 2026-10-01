@@ -272,7 +272,12 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
         )
     lines += _few_lines(estimable, keys, confidence)
     if target is not None:
-        lines += _target_lines(estimable, target, keys)
+        # The fields still needed are projections: the full form gives them, the short form
+        # points there (they read as a plan, not as what these fields showed).
+        lines.append(
+            "How many more fields would rule out unseen states, or bring the next-field bound "
+            f"below {percent(target)}, is in the full report (detail='full')."
+        )
         cautions.append(
             assumption(
                 "every novelty bound holds at a number of fields fixed in advance, not at the "
@@ -338,41 +343,6 @@ def _few_lines(frame: pd.DataFrame, keys: Sequence[str], confidence: str) -> lis
         f"Seen in few fields: {who} a state seen in only {span} fields{where}; look at those "
         "fields before calling the sample settled."
     )
-    lines.append(
-        f"Seeing such a state again with {confidence} probability takes about "
-        f"{_span(holding['fovs_to_see_again'])} independent representative fields (up to "
-        f"{int(holding['fovs_to_see_again_low_end'].max())} at the low end of its interval); "
-        "fields that cluster the state need more."
-    )
-    return lines
-
-
-def _target_lines(frame: pd.DataFrame, target: float, keys: Sequence[str]) -> list[str]:
-    """The fields still needed to rule out unseen states and to bring the bound below target."""
-    lines = []
-    extra = frame["extra_fovs_to_rule_out_target"].dropna().astype(int)
-    rule_out = f"To rule out unseen states in more than {percent(target)} of fields"
-    if len(extra):
-        lines.append(
-            f"{rule_out}: already reached."
-            if extra.max() == 0
-            else f"{rule_out}: at least {_more(extra[extra > 0])} with nothing new."
-        )
-    open_rows = frame[frame["chance_new_at_most"].astype(float) > target]
-    goal = f"To bring the next-field bound below {percent(target)}"
-    if open_rows.empty:
-        lines.append(f"{goal}: already reached in every group.")
-        return lines
-    best = _more(open_rows["extra_fovs_if_nothing_new"].dropna())
-    rate = open_rows["extra_fovs_at_current_rate"]
-    never = open_rows[~rate.map(_present)]
-    at_rate = rate[rate.map(_present)]
-    parts = [f"{_span(at_rate)} at the current rate of new fields"] if len(at_rate) else []
-    if len(never):
-        parts.append(f"never at the current rate in {_labels(never, keys)}")
-    reached = len(frame) - len(open_rows)
-    done = f"; already reached in {among(reached, len(frame))}" if reached else ""
-    lines.append(f"{goal}: at least {best} if none shows anything new ({'; '.join(parts)}){done}.")
     return lines
 
 

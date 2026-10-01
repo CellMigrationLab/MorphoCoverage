@@ -89,10 +89,11 @@ def _repeat_head(contrast: Any) -> str:
     )
 
 
-def repeat_cautions(contrast: Any) -> list[str]:
+def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
     """The notes of the across-repeat table, once each (see ``contrast_repeats``): which
-    tests ran and what they assume. None is a caution: the tests the repeats cannot support
-    are left out, not flagged."""
+    tests ran and what they assume, in a sentence (``full=False``, the short report) or with
+    the simulated power (``full=True``). None is a caution: the tests the repeats cannot
+    support are left out, not flagged."""
     repeats = _repeats(contrast)
     if repeats.empty:
         return []
@@ -109,7 +110,16 @@ def repeat_cautions(contrast: Any) -> list[str]:
                 f"size; the paired test across repeats needs {MIN_REPEATS}."
             )
         )
-    if repeats["p_paired_t"].notna().any():
+    if repeats["p_paired_t"].notna().any() and not full:
+        notes.append(
+            assumption(
+                f"Across {word}s, the paired t-test on the repeat means (as in SuperPlots) "
+                f"treats each {word} as one replicate: it keeps false positives at 5%, but with "
+                f"3 {word}s it needs a large effect (the simulated power is in the full report "
+                "and docs/condition_tests.md); Bonferroni-corrected over the conditions."
+            )
+        )
+    elif repeats["p_paired_t"].notna().any():
         flip = repeats["p_sign_flip"].notna().any()
         notes.append(
             assumption(

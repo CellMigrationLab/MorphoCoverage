@@ -433,6 +433,45 @@ What this acquisition was asked to preserve
     Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
     the field as the unit and, where each side has at least two, with the technical repeat
     (technical_repeat) as the unit.
+  Reading, condition by condition, against siCTRL (paired test: Bonferroni, on normalised values;
+    cell-level: the version below that is least biased by the repeats):
+    - siCCT8#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -1.44); paired test p 0.44; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 8% here); siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
+    - siCCT8#8 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -1.54); paired test p 0.32; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 37% here); siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
+    - siCSNK1A1#11 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -1.86); paired test p 0.14; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 21% here); siCSNK1A1#5 (CSNK1A1) agrees in 3 of 3 biological repeats.
+    - siCSNK1A1#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -1.92); paired test p 0.12; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 26% here); siCSNK1A1#11 (CSNK1A1) agrees in 3 of 3 biological repeats.
+    - siMAP4K4#5 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats
+      (d 0.82); paired test p 0.16; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 5% here); siMAP4K4#6 (MAP4K4) agrees in 3 of 3 biological repeats.
+    - siMAP4K4#6 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats
+      (d 1.39); paired test p 0.69; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 40% here); siMAP4K4#5 (MAP4K4) agrees in 3 of 3 biological repeats.
+    - siMINK1#10 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
+      (d -0.88); paired test p 0.77; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 18% here); siMINK1#3 (MINK1) agrees in 3 of 3 biological repeats.
+    - siMINK1#3 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -0.49); paired test p 0.74; cell-level p 0.15 (balanced, normalised; false-positive chance about
+      5% here); the raw pooled test gives p 0.006, but it pools the control of repeats this condition
+      was not imaged in; siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
+    - siNF2#17 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats (d
+      0.53); paired test p 1; cell-level p 0.048 (balanced, normalised; false-positive chance about
+      27% here); siNF2#7 (NF2) agrees in 3 of 3 biological repeats.
+    - siNF2#7 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats (d
+      0.55); paired test p 0.99; cell-level p 0.024 (balanced, normalised; false-positive chance about
+      17% here); siNF2#17 (NF2) agrees in 3 of 3 biological repeats.
+    - siSCRIB#6 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -1.62); paired test p 0.15; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 34% here); siSCRIB#7 (SCRIB) agrees in 3 of 3 biological repeats.
+    - siSCRIB#7 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
+      -1.55); paired test p 0.11; cell-level p 0.012 (balanced, normalised; false-positive chance
+      about 22% here); siSCRIB#6 (SCRIB) agrees in 3 of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
     condition               vs control, by repeat  d cells: mean (range)   paired t p (Bonf.)  normalised
@@ -462,7 +501,9 @@ What this acquisition was asked to preserve
       (up to 2.5 times) and the control is pooled from 15 biological repeats the condition was not
       imaged in, so the test is given as provided and balanced (each condition against the control of
       its own biological repeats, the same number of cells from each biological repeat; the median d
-      and p over 100 draws).
+      and p over 100 draws). The control means differ up to 2.0x between biological repeats, so the
+      raw test as provided compares each condition with other repeats' level: read the normalised or
+      balanced columns.
     As provided:
     condition               raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
     siCCT8#5 vs siCTRL      -0.99 (0.006)     -1.36 (0.006)  about 8%
@@ -594,13 +635,6 @@ What this dataset cannot tell me
   ➖ 3. What is limiting my sampling?: not assessed; needs: run representation_control,
      fov_variability, fov_clustering, effort_projection, redundancy_distance or inspect_fovs; the
      profile lists what they measured.
-  ⚠️ No representation control: a 'nothing new' answer says nothing about phenotypes these features
-     and this definition of new cannot see.
-  ⚠️ No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
-     redundancy and dispersed orders were not assessed.
-  ⚠️ No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
-     random orders treat the fields as exchangeable, so a drift or a raster along the acquisition is
-     not seen.
   ⚠️ 2. Did I image enough? 'nothing new' is left out: the definition of new needs 3 similar cells
      in one field, and each field holds one.
   Assumptions:
@@ -609,7 +643,14 @@ What this dataset cannot tell me
       Statements across samples count samples or repeats.
     - A field count that preserved this acquisition is not a protocol until it holds on samples it
       was not chosen on.
+    - No representation control: a 'nothing new' answer says nothing about phenotypes these features
+      and this definition of new cannot see.
     - Technical drift between repeats, batches or plates is not assessed: groups are analysed apart,
       and a shift shared by all fields of a group is not new within it.
+    - No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
+      redundancy and dispersed orders were not assessed.
+    - No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
+      random orders treat the fields as exchangeable, so a drift or a raster along the acquisition
+      is not seen.
 
 Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.
