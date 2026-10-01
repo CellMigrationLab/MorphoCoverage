@@ -513,7 +513,7 @@ def microscopist_report(
     short = {key: pool_assumptions(text) for key, text in short.items()}
     answers = question_statuses(results, profile, minimum_detection)
     for key, (status, glance) in answers.items():
-        answers[key] = caveat_status(status, short.get(key, sections[key])), glance
+        answers[key] = caveat_status(status, short.get(key, sections[key]), key), glance
     statuses = {key: answers[key][0] for key, _ in QUESTIONS}
     headlines = {key: answers[key][1] for key, _ in QUESTIONS}
     for key, _ in QUESTIONS:

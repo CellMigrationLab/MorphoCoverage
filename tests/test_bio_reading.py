@@ -122,3 +122,22 @@ def test_any_feature_significant_across_repeats_answers_yes():
     assert "Area" not in headline
     # Without the other features, the readout alone is a trend.
     assert conditions_status(contrast, None)[0] is Status.CAUTION
+
+
+def test_a_caution_in_the_section_does_not_turn_differs_into_a_caution():
+    """Through the whole report: CDM's conditions section holds ⚠️ lines (candidates that go
+    different ways between repeats), and its answer is still ✅, the features significant."""
+    import warnings
+
+    import run_lab
+
+    from morphocoverage.workflows import report
+
+    data = catalog.load("cct8_cdm_morphology")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(*data.tables, run_lab.setup_for(data))
+    status = result.document.statuses["conditions"]
+    headline = result.document.headlines["conditions"]
+    assert status is Status.OK and headline.startswith("4 of 10 features significant")
+    assert "⚠️" in result.document.short["conditions"]
