@@ -466,7 +466,7 @@ What this acquisition was asked to preserve
     As provided:
     condition               raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
     siCCT8#5 vs siCTRL      -0.99 (0.006)     -1.36 (0.006)  about 8%
-    siCCT8#8 vs siCTRL      -0.97 (0.006)     -1.36 (0.006)  about 37%
+    siCCT8#8 vs siCTRL      -0.97 (0.006)     -1.36 (0.006)  about 39%
     siCSNK1A1#11 vs siCTRL  -1.16 (0.006)     -1.49 (0.006)  about 21%
     siCSNK1A1#5 vs siCTRL   -1.24 (0.006)     -1.58 (0.006)  about 26%
     siMAP4K4#5 vs siCTRL    -0.10 (1)         0.95 (0.006)   about 5%
@@ -475,22 +475,22 @@ What this acquisition was asked to preserve
     siMINK1#3 vs siCTRL     -0.51 (0.006)     -0.55 (0.006)  about 5%
     siNF2#17 vs siCTRL      0.19 (1)          0.46 (0.006)   about 28%
     siNF2#7 vs siCTRL       0.23 (0.55)       0.51 (0.006)   about 17%
-    siSCRIB#6 vs siCTRL     -1.07 (0.006)     -1.38 (0.006)  about 36%
+    siSCRIB#6 vs siCTRL     -1.07 (0.006)     -1.38 (0.006)  about 35%
     siSCRIB#7 vs siCTRL     -1.04 (0.006)     -1.36 (0.006)  about 23%
     Balanced over the repeats:
-    condition               raw: d (p Bonf.)  normalised     cells per repeat, condition / control
-    siCCT8#5 vs siCTRL      -1.30 (0.012)     -1.38 (0.012)  30 / 32
-    siCCT8#8 vs siCTRL      -1.31 (0.012)     -1.45 (0.012)  31 / 32
-    siCSNK1A1#11 vs siCTRL  -1.84 (0.012)     -1.85 (0.012)  34 / 31
-    siCSNK1A1#5 vs siCTRL   -1.89 (0.012)     -1.88 (0.012)  34 / 31
-    siMAP4K4#5 vs siCTRL    0.86 (0.012)      0.82 (0.012)   13 / 30
-    siMAP4K4#6 vs siCTRL    1.34 (0.012)      1.29 (0.012)   29 / 30
-    siMINK1#10 vs siCTRL    -0.87 (0.012)     -0.82 (0.012)  27 / 18
-    siMINK1#3 vs siCTRL     -0.43 (0.29)      -0.49 (0.15)   20 / 18
-    siNF2#17 vs siCTRL      0.40 (0.11)       0.45 (0.048)   30 / 29
-    siNF2#7 vs siCTRL       0.44 (0.048)      0.51 (0.024)   30 / 29
-    siSCRIB#6 vs siCTRL     -1.51 (0.012)     -1.46 (0.012)  28 / 26
-    siSCRIB#7 vs siCTRL     -1.49 (0.012)     -1.48 (0.012)  29 / 26
+    condition               raw: d (p Bonf.)  normalised     cells per repeat, condition / control  p ≤ 0.05 without an effect
+    siCCT8#5 vs siCTRL      -1.30 (0.012)     -1.38 (0.012)  30 / 32                                about 8%
+    siCCT8#8 vs siCTRL      -1.31 (0.012)     -1.45 (0.012)  31 / 32                                about 37%
+    siCSNK1A1#11 vs siCTRL  -1.84 (0.012)     -1.85 (0.012)  34 / 31                                about 21%
+    siCSNK1A1#5 vs siCTRL   -1.89 (0.012)     -1.88 (0.012)  34 / 31                                about 26%
+    siMAP4K4#5 vs siCTRL    0.86 (0.012)      0.82 (0.012)   13 / 30                                about 5%
+    siMAP4K4#6 vs siCTRL    1.34 (0.012)      1.29 (0.012)   29 / 30                                about 40%
+    siMINK1#10 vs siCTRL    -0.87 (0.012)     -0.82 (0.012)  27 / 18                                about 18%
+    siMINK1#3 vs siCTRL     -0.43 (0.29)      -0.49 (0.15)   20 / 18                                about 5%
+    siNF2#17 vs siCTRL      0.40 (0.11)       0.45 (0.048)   30 / 29                                about 27%
+    siNF2#7 vs siCTRL       0.44 (0.048)      0.51 (0.024)   30 / 29                                about 17%
+    siSCRIB#6 vs siCTRL     -1.51 (0.012)     -1.46 (0.012)  28 / 26                                about 34%
+    siSCRIB#7 vs siCTRL     -1.49 (0.012)     -1.48 (0.012)  29 / 26                                about 22%
   Within each repeat:
     contrast                              fields    cells     tech. repeats  d cells  JCS, every cell
     siCCT8#5 vs siCTRL · siCCT8_1         34 vs 33  34 vs 33  1 vs 1         -1.11    -1.05
@@ -560,17 +560,23 @@ What this acquisition was asked to preserve
       independent draws, so it asks whether these wells differ, not whether the effect repeats, and
       it responds with one or two repeats. Limitation: when the difference varies between repeats it
       gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n cells
-      per well, s the SD between repeats in observation SDs; data/simulations/test_choice.py), the
-      'without an effect' column; more cells per well raise it, and a stricter cutoff does not
-      remove it (22% at p ≤ 0.01 with 30 per well and s = 0.5).
+      per well, each repeat weighted by its share when they differ; s the SD between repeats in
+      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'without an effect'
+      column; more cells per well raise it, and a stricter cutoff does not remove it (22% at p ≤
+      0.01 with 30 per well and s = 0.5).
     - Normalised: each value divided by the mean of its own repeat's control, which removes a scale
       both wells of a repeat share (staining, imaging) and pairs every condition with its own
       repeat's control. It assumes a positive feature on a ratio scale (not computed when a control
       mean is 0 or below); it does not remove the part of the effect that varies between repeats, so
       the cell-level chance still applies.
     - Balanced: the median d and median p over 100 draws taking the same number of cells from each
-      repeat; it describes the typical draw and is not the p of one test. It removes the weight of
-      the repeats holding more, not the independence assumption of the cell-level test.
+      repeat, against the control of the condition's own repeats; it describes the typical draw and
+      is not the p of one test. In data/simulations/unbalanced.py, with one repeat holding 2 to 8
+      times the cells of the others, the test as provided gives 22-46% false positives where equal
+      repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control pooled from
+      repeats the condition was not imaged in, the raw test as provided gives 46% even when the
+      repeats agree, the balanced test 2%. Balancing removes the weight of the repeats holding more,
+      not the independence assumption.
     - Within a repeat the conditions are described by their effect sizes; they are tested across
       repeats (the first table).
     - The test and the effect sizes compare means: a difference confined to a subpopulation of cells

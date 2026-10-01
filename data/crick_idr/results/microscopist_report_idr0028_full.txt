@@ -1536,13 +1536,13 @@
     As provided:
     condition      raw: d (p Bonf.)  normalised      p ≤ 0.05 without an effect
     LATS1 vs MOCK  1.06 (0.0015)     1.08 (0.0015)   about 84%
-    YAP vs MOCK    -1.23 (0.0015)    -1.22 (0.0015)  about 81%
+    YAP vs MOCK    -1.23 (0.0015)    -1.22 (0.0015)  about 82%
     ARAP2 vs MOCK  0.35 (0.0015)     0.34 (0.0015)   about 5%
     Balanced over the repeats:
-    condition      raw: d (p Bonf.)  normalised     nuclei per repeat, condition / control
-    LATS1 vs MOCK  0.98 (0.003)      0.99 (0.003)   736 / 953
-    YAP vs MOCK    -1.33 (0.003)     -1.33 (0.003)  557 / 953
-    ARAP2 vs MOCK  0.32 (0.003)      0.32 (0.003)   797 / 953
+    condition      raw: d (p Bonf.)  normalised     nuclei per repeat, condition / control  p ≤ 0.05 without an effect
+    LATS1 vs MOCK  0.98 (0.003)      0.99 (0.003)   736 / 953                               about 83%
+    YAP vs MOCK    -1.33 (0.003)     -1.33 (0.003)  557 / 953                               about 79%
+    ARAP2 vs MOCK  0.32 (0.003)      0.32 (0.003)   797 / 953                               about 5%
   Within each repeat:
     contrast            fields    nuclei       tech. repeats  d nuclei  d fields  JCS, every nucleus
     LATS1 vs MOCK · 1A  56 vs 28  1365 vs 966  2 vs 1         1.32      4.94      1.42
@@ -1593,17 +1593,23 @@
       independent draws, so it asks whether these wells differ, not whether the effect repeats, and
       it responds with one or two repeats. Limitation: when the difference varies between repeats it
       gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n nuclei
-      per well, s the SD between repeats in observation SDs; data/simulations/test_choice.py), the
-      'without an effect' column; more nuclei per well raise it, and a stricter cutoff does not
-      remove it (22% at p ≤ 0.01 with 30 per well and s = 0.5).
+      per well, each repeat weighted by its share when they differ; s the SD between repeats in
+      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'without an effect'
+      column; more nuclei per well raise it, and a stricter cutoff does not remove it (22% at p ≤
+      0.01 with 30 per well and s = 0.5).
     - Normalised: each value divided by the mean of its own repeat's control, which removes a scale
       both wells of a repeat share (staining, imaging) and pairs every condition with its own
       repeat's control. It assumes a positive feature on a ratio scale (not computed when a control
       mean is 0 or below); it does not remove the part of the effect that varies between repeats, so
       the cell-level chance still applies.
     - Balanced: the median d and median p over 100 draws taking the same number of nuclei from each
-      repeat; it describes the typical draw and is not the p of one test. It removes the weight of
-      the repeats holding more, not the independence assumption of the cell-level test.
+      repeat, against the control of the condition's own repeats; it describes the typical draw and
+      is not the p of one test. In data/simulations/unbalanced.py, with one repeat holding 2 to 8
+      times the cells of the others, the test as provided gives 22-46% false positives where equal
+      repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control pooled from
+      repeats the condition was not imaged in, the raw test as provided gives 46% even when the
+      repeats agree, the balanced test 2%. Balancing removes the weight of the repeats holding more,
+      not the independence assumption.
     - No randomization test in all 6 contrasts: only one technical repeat (technical_repeat) with
       observations on one side: its fields cannot stand in for technical repeats, so there is no
       test.

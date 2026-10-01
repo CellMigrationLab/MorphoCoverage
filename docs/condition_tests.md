@@ -50,7 +50,7 @@ the draws every observation is used, each repeat weighing the same in each.
 
 **Very small repeats.** Balancing down to a repeat that holds very few
 observations would keep only that many of every other repeat in each draw. A
-repeat holding under a quarter of the largest repeat on its side, or fewer than
+repeat holding under a quarter of the median repeat on its side, or fewer than
 5 observations, is therefore named in the report, as worth checking first. It is
 kept in the test as provided and left out of the balanced one, which balances
 the other repeats. A small control repeat is left out of both sides, so each
@@ -113,9 +113,20 @@ small, nothing is balanced and only the test as provided is given.
   hierarchical bootstrap is inflated with few repeats (22%, 12%, 5% at
   *s* = 0.5 over 2, 3, 4 repeats). The exact sign-flip test cannot reach 0.05
   below 6 repeats; the full report adds it from there.
-- **The simulation is one design.** It has one well per condition and repeat,
-  normal cell noise, and equal cells per repeat. Unequal cells per repeat and
-  the balanced test were not simulated.
+- **Unbalanced repeats make the test as provided worse.** With one repeat
+  holding 2, 4 or 8 times the cells of the others, its false-positive rate at
+  *s* = 0.25 rises from 16% to 22%, 31% and 46% (normalised;
+  `data/simulations/unbalanced.py`). The label follows it within 1-2 points,
+  with the cells per well weighted by each repeat's share
+  (`sum(n²) / sum(n)`). The balanced test stays at 12-14%.
+- **A control pooled from other repeats is the worst case on raw values.** The
+  raw test as provided gives 46% false positives even when the repeats agree,
+  because batch shifts between repeats no longer cancel. Normalising cuts it
+  to 9%, and the balanced test, against the control of the condition's own
+  repeats, to 2%. Read the balanced numbers whenever the balance line says the
+  control comes from other repeats.
+- **The simulations are one design.** They have one well per condition and
+  repeat and normal cell noise.
 
 ## Reading them together
 

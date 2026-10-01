@@ -194,7 +194,7 @@ cell, randomization over cells), labelled with the chance it gives p ≤ 0.05 wi
 balance check comes first. The data count as unbalanced when one repeat holds more than 25% more
 observations than another, or when the control is pooled from repeats the condition was not
 imaged in. Unbalanced data get the test twice: as provided, and balanced (own-repeat control, the
-same count from each repeat, median over 100 draws). A repeat under a quarter of the largest is
+same count from each repeat, median over 100 draws). A repeat under a quarter of the largest (since the eighth run, the median repeat) is
 named instead of balanced to (since the eighth run, it is left out of the balanced test and the
 other repeats are balanced). All three datasets are unbalanced, and none has such a small repeat.
 
@@ -234,3 +234,8 @@ from the seventh run (CDM siCCT8#5: Bonferroni p 0.040 here, 0.028 there).
   (0.26-0.30 raw).
 - **Reading**: in these datasets, normalising does most of what balancing does, because the
   imbalance is mostly a control from other repeats. Where both run, they agree.
+- **After the unbalanced-repeats simulation** (`docs/preliminary_findings.md`, entry 12): the
+  false-positive label now weights each repeat by its share of the cells. On these datasets it
+  moves by 1-4 points (glioma CCT7 34% to 38%), since no repeat holds more than about half the
+  cells. The balanced table now carries its own label at the cells per repeat it keeps. No repeat
+  here is small enough to leave out under the median-repeat rule.

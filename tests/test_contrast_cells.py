@@ -15,6 +15,7 @@ from morphocoverage.sampling_unit.contrast_cells import (
     cell_randomization,
     cell_table,
     chance_without_effect,
+    effective_per_well,
     normalised,
     sparse,
 )
@@ -48,6 +49,9 @@ def test_a_repeat_too_small_to_balance_to_is_named():
     assert sparse({"1": 100, "2": 100, "3": 20}) == ["3"]
     assert sparse({"1": 100, "2": 30}) == []
     assert sparse({"1": 6, "2": MIN_BALANCED - 1}) == ["2"]
+    # One repeat holding many more leaves the others ordinary: against the median, not the
+    # largest (data/simulations/unbalanced.py).
+    assert sparse({"1": 240, "2": 30, "3": 30}) == []
 
 
 def _side(treated, control, other_control_repeats=0):
@@ -231,3 +235,22 @@ def test_the_report_names_a_very_small_repeat_once_for_its_conditions():
     assert joined.count("holds very few tracks") == 1
     assert "siCCT8#5 and siCCT8#8: biological repeat CCT8_3 holds very few tracks" in joined
     assert "the balanced test balances the other 2 biological repeats" in joined
+
+
+def test_a_dominant_repeat_raises_the_effective_cells_per_well():
+    """data/simulations/unbalanced.py: 120/30/30 cells give 31% false positives at s = 0.25
+    normalised, against 16% for 30/30/30; the formula at the effective 90 cells gives 32%."""
+    assert effective_per_well([30, 30, 30]) == pytest.approx(30)
+    assert effective_per_well([120, 30, 30]) == pytest.approx(90)
+    assert chance_without_effect(effective_per_well([120, 30, 30]), 0.25) == pytest.approx(
+        0.3155, abs=0.001
+    )
+
+
+def test_the_balanced_test_carries_its_own_chance():
+    uneven = _side({"1": (120, 0.5), "2": (40, 0.5), "3": (40, 0.5)}, {"1": 40, "2": 40, "3": 40})
+    row = _cells(KD=uneven).loc["KD"]
+    # As provided the dominant repeat weighs most; balanced keeps 40 of each.
+    assert row["per_well"] == pytest.approx((effective_per_well([120, 40, 40]) + 40) / 2)
+    assert row["chance_balanced_low"] < row["chance_low"]
+    assert row["chance_balanced_high"] < row["chance_high"]

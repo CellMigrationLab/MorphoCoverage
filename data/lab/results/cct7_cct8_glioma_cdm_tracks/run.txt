@@ -1,5 +1,5 @@
 dataset: cct7_cct8_glioma_cdm_tracks
-morphocoverage: unversioned at commit 3aa476a
+morphocoverage: unversioned at commit 1a67b50
 readout: Mean Speed; features: 13; control: {'condition': 'siCTRL'}
 novelty: default_novelty(features); rules: the defaults; random_state 0
 run time: 15 s

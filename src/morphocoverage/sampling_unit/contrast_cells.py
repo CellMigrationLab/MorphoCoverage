@@ -29,7 +29,7 @@ draws every observation is used.
 
 Balancing down to a repeat that holds very few observations would leave little
 of the others in each draw, so a repeat holding fewer than ``SPARSE`` (a
-quarter) of the largest repeat on its side, or fewer than ``MIN_BALANCED``
+quarter) of the median repeat on its side, or fewer than ``MIN_BALANCED``
 observations, is *sparse*: it is named in ``sparse_repeats`` (a repeat that
 small is worth looking at before any test) and left out of the balanced test
 only, which balances the other repeats (``balanced_repeats``). The test as
@@ -40,11 +40,22 @@ It treats observations as independent draws. When the difference varies
 between repeats by ``s`` observation SDs (the variation between repeats that
 ``repeat_plan`` estimates, ``between_sd``), the variance of the mean difference
 is ``k = 1 + n s^2 / 2`` times what the test assumes (``n`` observations per
-well), so without an effect it gives p <= alpha in about
+well; with repeats holding different numbers, the effective
+``n = sum(n_r^2) / sum(n_r)``, each repeat weighted by its own share, the mean
+of the two sides: ``effective_per_well``), so without an effect it gives
+p <= alpha in about
 ``2 * P(Z > z_alpha/2 / sqrt(k))`` of experiments (``chance_without_effect``).
 In ``data/simulations/test_choice.py`` this matched the simulated rate of
 the test on values normalised to each repeat's control within a few points
-(16% and 37% at s = 0.25 and 0.5 with 30 cells, against 15-17% and 32-36%);
+(16% and 37% at s = 0.25 and 0.5 with 30 cells, against 15-17% and 32-36%),
+and in ``data/simulations/unbalanced.py`` within 1-2 points with one repeat
+holding 2 to 8 times the cells of the others (it rises from 16% to 46% at
+s = 0.25 while the effective ``n`` grows). The balanced test is given the
+chance at the observations per repeat it keeps (``chance_balanced_*``); the
+median p over its draws is at or below it (12-14% against 16% at s = 0.25).
+A control pooled from repeats the condition was not imaged in adds to it
+(22% against 16%, normalised), which the balanced test, against the control
+of the condition's own repeats, removes;
 on raw values the rate is at or below it (shifts that both wells of a repeat
 share add noise that holds it down), so there it is an upper bound. With one
 repeat, ``s`` is unknown and the chance is given for ``TYPICAL_BETWEEN``
@@ -69,7 +80,7 @@ BALANCED_DRAWS = 100
 BALANCED_PERMUTATIONS = 999
 # Most over fewest observations per repeat beyond which a side is unbalanced (25% more).
 IMBALANCE = 1.25
-# A repeat holding less than this share of the largest repeat on its side, or fewer than
+# A repeat holding less than this share of the median repeat on its side, or fewer than
 # MIN_BALANCED observations, is too small to balance to.
 SPARSE = 0.25
 MIN_BALANCED = 5
@@ -104,7 +115,26 @@ CELL_COLUMNS = [
     "between_sd",
     "chance_low",
     "chance_high",
+    "chance_balanced_low",
+    "chance_balanced_high",
 ]
+
+
+def effective_per_well(sizes: list[int]) -> float:
+    """The observations per well a pooled test weighs the repeats by: ``sum(n^2) / sum(n)``
+    (``n`` when every repeat holds ``n``; near the largest when one repeat dominates)."""
+    counts = np.asarray(sizes, float)
+    return float((counts**2).sum() / counts.sum())
+
+
+def _chances(per_well: float, between_sd: float) -> tuple[float, float]:
+    """The chance at the estimated variation between repeats, or the ``TYPICAL_BETWEEN``
+    range when it is unknown."""
+    if np.isfinite(between_sd):
+        value = chance_without_effect(per_well, between_sd)
+        return value, value
+    low, high = (chance_without_effect(per_well, value) for value in TYPICAL_BETWEEN)
+    return low, high
 
 
 def chance_without_effect(per_well: float, between_sd: float, alpha: float = ALPHA) -> float:
@@ -156,9 +186,11 @@ def balanced_test(
 
 def sparse(sizes: dict[Any, int]) -> list[Any]:
     """The repeats too small to balance to (see the module): fewer than ``SPARSE`` of the
-    largest repeat's observations, or fewer than ``MIN_BALANCED``."""
-    largest = max(sizes.values())
-    return [r for r, n in sizes.items() if n < SPARSE * largest or n < MIN_BALANCED]
+    median repeat's observations, or fewer than ``MIN_BALANCED``. Against the median, not the
+    largest: one repeat holding many more observations than the others leaves them all
+    ordinary (``data/simulations/unbalanced.py``, 240/30/30 cells)."""
+    typical = float(np.median(list(sizes.values())))
+    return [r for r, n in sizes.items() if n < SPARSE * typical or n < MIN_BALANCED]
 
 
 def normalised(
@@ -237,12 +269,17 @@ def cell_table(
             )
         s = float(between.get(condition, np.nan)) if condition in between.index else np.nan
         per_well = float(
-            min(np.median(list(sizes.values())), np.median(list(control_sizes.values())))
+            np.mean(
+                [
+                    effective_per_well(list(sizes.values())),
+                    effective_per_well(list(control_sizes.values())),
+                ]
+            )
         )
-        if np.isfinite(s):
-            low = high = chance_without_effect(per_well, s)
-        else:
-            low, high = (chance_without_effect(per_well, value) for value in TYPICAL_BETWEEN)
+        low, high = _chances(per_well, s)
+        low_bal = high_bal = np.nan
+        if np.isfinite(p_bal):
+            low_bal, high_bal = _chances(float(np.mean([per_t, per_c])), s)
         rows.append(
             {
                 "condition": condition,
@@ -269,6 +306,8 @@ def cell_table(
                 "between_sd": s,
                 "chance_low": low,
                 "chance_high": high,
+                "chance_balanced_low": low_bal,
+                "chance_balanced_high": high_bal,
             }
         )
     table = pd.DataFrame(rows, columns=CELL_COLUMNS)
@@ -293,6 +332,7 @@ __all__ = [
     "cell_randomization",
     "cell_table",
     "chance_without_effect",
+    "effective_per_well",
     "normalised",
     "sparse",
 ]

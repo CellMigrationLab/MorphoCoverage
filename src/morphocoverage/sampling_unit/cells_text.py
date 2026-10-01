@@ -44,8 +44,8 @@ def _test(d: float, p: float, corrected: float) -> str:
     return f"{d:.2f}" if pd.isna(p) else f"{d:.2f} ({corrected:.2g})"
 
 
-def _chance(row: dict[str, Any]) -> str:
-    low, high = row["chance_low"], row["chance_high"]
+def _chance(row: dict[str, Any], prefix: str = "chance") -> str:
+    low, high = row[f"{prefix}_low"], row[f"{prefix}_high"]
     if pd.isna(low):
         return "–"
     if np.isclose(low, high):
@@ -107,7 +107,7 @@ def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
         )
         lines.append(
             f"{listing(conditions, 3)}: {word} {listing(list(names), 3)} holds very few {words} "
-            f"(under {percent(SPARSE)} of the largest {word}, or fewer than {MIN_BALANCED}), "
+            f"(under {percent(SPARSE)} of the median {word}, or fewer than {MIN_BALANCED}), "
             "worth checking first. Balancing down to it would leave little of the others, so it "
             f"is kept in the test as provided and left out of the balanced one: {rest}."
         )
@@ -171,9 +171,11 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
                 values.append(
                     f"{int(row['balanced_cells'])} / {int(row['balanced_control_cells'])}"
                 )
+            values.append(_chance(row, "chance_balanced"))
             rows.append(values)
         names = ["condition", "raw: d (p Bonf.)", "normalised"]
         names += [f"{words} per repeat, condition / control"] if full else []
+        names.append(f"p ≤ {ALPHA:g} without an effect")
         lines.append(table(rows, names, indent=indent + 2))
     return lines, _notes(contrast, cells, balanced)
 
@@ -188,8 +190,9 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
             f"{words} are independent draws, so it asks whether these wells differ, not whether "
             "the effect repeats, and it responds with one or two repeats. Limitation: when the "
             f"difference varies between repeats it gives p ≤ {ALPHA:g} without an effect in "
-            f"about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n {words} per well, s the SD "
-            "between repeats in observation SDs; data/simulations/test_choice.py), the "
+            f"about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n {words} per well, each repeat "
+            "weighted by its share when they differ; s the SD between repeats in observation "
+            "SDs; data/simulations/test_choice.py and unbalanced.py), the "
             "'without an effect' column"
             + (
                 f" (with one repeat s is unknown and taken as "
@@ -212,9 +215,14 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
         notes.append(
             assumption(
                 f"Balanced: the median d and median p over {BALANCED_DRAWS} draws taking the same "
-                f"number of {words} from each repeat; it describes the typical draw and is not "
-                "the p of one test. It removes the weight of the repeats holding more, not the "
-                "independence assumption of the cell-level test."
+                f"number of {words} from each repeat, against the control of the condition's own "
+                "repeats; it describes the typical draw and is not the p of one test. In "
+                "data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells "
+                "of the others, the test as provided gives 22-46% false positives where equal "
+                "repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control "
+                "pooled from repeats the condition was not imaged in, the raw test as provided "
+                "gives 46% even when the repeats agree, the balanced test 2%. Balancing removes "
+                "the weight of the repeats holding more, not the independence assumption."
             )
         )
     return notes
