@@ -130,8 +130,8 @@ def test_protocol_short_answers_per_target_and_states_few_units_once():
     result = _protocol(wells)
     short, full = result.summary(), result.summary(detail="full")
     assert "all served from" in short and "10 fields" in short
-    assert _flat(short).count("Uncertainty is large with only 2 plates") == 1
-    assert _flat(full).count("Uncertainty is large with only 2 plates") == 1
+    assert _flat(short).count("With 2 plates the field count is a guide") == 1
+    assert _flat(full).count("With 2 plates the field count is a guide") == 1
     # The full form keeps every count of samples served, per unit, at every depth.
     assert "2 of 4 samples" in full and "4 of 4 samples" in full
     assert "2 of 2, 0 of 2" in full
@@ -144,7 +144,8 @@ def test_next_time_markers_follow_their_rules():
     assert next_time_status(None, served)[0] is Status.OK
     assert "5 fields served every sample for the target" in next_time_status(None, served)[1]
     few = next_time_status(None, _protocol(_wells(("P1", "P2"), 0.95, 0.99)))
-    assert few[0] is Status.CAUTION and "only 2 plates" in few[1]
+    # Few repeats is a usual design: stated in the line, not flagged.
+    assert few[0] is Status.OK and "from 2 plates" in few[1]
     # Never served, for lack of fields (not capped by the held-back fields): a problem.
     never = next_time_status(None, _protocol(_wells(many, 0.5, 0.6)))
     assert never[0] is Status.PROBLEM and "not reached" in never[1]
@@ -233,13 +234,14 @@ def test_effort_short_is_one_table_and_full_keeps_every_sentence():
     result = _effort()
     short, full = result.summary(), result.summary(detail="full")
     assert "ctrl" in short and "condition=" not in short
-    assert "cannot tell" in short and "only 3 repeats" in _flat(short)
-    assert CAUTION in short
+    assert "only 3 repeats" in _flat(short)
+    # Few independent units is the design: a note on how to read the shares, not a caution.
+    assert CAUTION not in short and "a leaning is a reading, not a result" in _flat(short)
     assert "cannot tell from these data (only 3 repeats)" in _flat(full)
     assert "of its variance with the acquired design" in _flat(full)
     assert "Allocations compared" in full
     status, headline = effort_status(result)
-    assert status is Status.CAUTION and "cannot tell" in headline and "only 3" in headline
+    assert status is Status.OK and "not established" in headline and "with 3" in headline
 
 
 # --- The report -----------------------------------------------------------------------
@@ -255,8 +257,8 @@ def test_the_report_gives_questions_4_5_and_7_short_with_their_markers():
         assert key in report.short and report.short[key] != report.sections[key]
         assert all(line.startswith("  ") or not line for line in report.short[key].splitlines())
     short = report.summary()
-    assert f"{CAUTION} 4. How many fields next time?" in short
-    assert f"{CAUTION} 7. More fields or more samples?" in short
+    assert f"{Status.OK.marker} 4. How many fields next time?" in short
+    assert f"{Status.OK.marker} 7. More fields or more samples?" in short
     assert report.statuses["bought"] in (Status.OK, Status.CAUTION)
     full = report.summary(detail="full")
     for text in (reliability.summary(detail="full"), protocol.summary(detail="full")):
@@ -264,5 +266,5 @@ def test_the_report_gives_questions_4_5_and_7_short_with_their_markers():
     # Each caveat of question 4 once in the short form.
     section = _flat(report.short["next_time"])
     assert section.count("conservative by construction") == 1
-    assert section.count("Uncertainty is large") == 1
+    assert section.count("the field count is a guide") == 1
     assert OK not in report.short["next_time"] and PROBLEM not in report.short["next_time"]

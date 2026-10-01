@@ -15,6 +15,7 @@ from .._wording import count, fields, listing, number, percent, plural
 from ._text import column_word, sample_word
 from .adequacy import ALL_CRITERIA
 from .adequacy_text import _tail_value, _unjudged
+from .effort_text import LEANING_SHARE
 from .protocol_text import protocol_answers, served_cell
 
 # Fewer independent units than this make a protocol's field count uncertain.
@@ -101,7 +102,8 @@ def next_time_status(reliability: Any, protocol: Any) -> Answer:
     total = len(by_criterion)
     if not reached and short:
         status = Status.PROBLEM
-    elif len(reached) < total or units < FEW_UNITS:
+    elif len(reached) < total:
+        # Few biological repeats is the usual design, stated in the line, not a caution.
         status = Status.CAUTION
     else:
         status = Status.OK
@@ -121,7 +123,7 @@ def next_time_status(reliability: Any, protocol: Any) -> Answer:
         if missed:
             text += f"; {among(len(missed), total, 'target')} {what}"
     if units < FEW_UNITS:
-        text += f"; only {count(units, unit, plural(unit))}"
+        text += f"; from {count(units, unit, plural(unit))}"
     return status, text
 
 
@@ -167,7 +169,25 @@ def effort_status(effort: Any) -> Answer:
     units = sorted({int(u) for u in effort.comparisons["units"]})
     few = count(units[0], sample) if len(units) == 1 else f"{units[0]}-{count(units[-1], sample)}"
     where = "" if resolved == 0 else f" in {among(total - resolved, total, word)}"
-    return Status.CAUTION, f"cannot tell{where} with only {few} per {word}{most}"
+    if units[-1] < FEW_UNITS:
+        # Few samples is the design: answered as far as it goes, with the estimates' reading.
+        leaning_strata = _leaning_strata(effort, effort.settings.get("hierarchy", {}).get("sample"))
+        leaning = (
+            f"; the estimates lean to more {plural(sample)} in {among(leaning_strata, total, word)}"
+            if leaning_strata
+            else ""
+        )
+        return Status.OK, f"not established{where} with {few} per {word}{most}{leaning}"
+    return Status.CAUTION, f"cannot tell{where} with {few} per {word}{most}"
+
+
+def _leaning_strata(effort: Any, level: Any) -> int:
+    """The strata whose largest variance share (at least ``LEANING_SHARE``) is ``level``."""
+    shares = effort.components.dropna(subset=["share"])
+    if shares.empty:
+        return 0
+    ranked = shares.sort_values("share", ascending=False).groupby("stratum", sort=False).head(1)
+    return int(((ranked["level"] == level) & (ranked["share"] >= LEANING_SHARE)).sum())
 
 
 def _top_levels(effort: Any) -> list[str]:
