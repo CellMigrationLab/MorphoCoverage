@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import html
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,8 @@ from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
+from ._html_plotly import feature_specs
+from ._shared import check_workflow_inputs
 from .figures import plots
 from .retrospective import Report
 
@@ -71,21 +74,85 @@ def figure_block(uri: str, name: str, caption: str) -> str:
     )
 
 
-def feature_figures(result: Report, objects, fovs, folder: Path) -> list[str]:
+def condition_colours(objects: pd.DataFrame, fovs: pd.DataFrame, control: Any) -> dict:
+    """Every condition's colour, by its place among all of them (the control first), the
+    same in every interactive figure."""
+    values = [
+        v for table in (fovs, objects) if CONDITION_COLUMN in table for v in table[CONDITION_COLUMN]
+    ]
+    names = sorted_labels([v for v in values if pd.notna(v)], control)
+    return {name: COLOURS[i % len(COLOURS)] for i, name in enumerate(names)}
+
+
+PAIR_NOTE = (
+    "Every pair of conditions. Lower left: Cohen's d on the observations, the row's condition "
+    "minus the column's (blue lower, red higher, full colour at |d| ≥ 2). Upper right: the "
+    "paired t-test on the biological repeats' means, Bonferroni-corrected over the pairs "
+    "tested (✓ at p ≤ 0.05); – : fewer than 3 repeats imaged both; † : imaged in different "
+    "repeats, so d holds the batch too. Pairs without the control describe; the declared "
+    "comparisons are against the control."
+)
+
+
+def _interactive_caption(figure: Any) -> str:
+    """The static figure's title in sentences, coloured as the interactive one is: by
+    condition (the static figure colours by technical repeat)."""
+    caption = re.sub(
+        r", coloured by technical repeat \([^)]*\)", "", getattr(figure, "caption", "")
+    )
+    lines = [line.strip() for line in caption.split("\n") if line.strip()]
+    if len(lines) > 1:
+        lines[1] += ", coloured by condition; hover for its repeat, technical repeat and field"
+    return ". ".join(line[:1].upper() + line[1:] for line in lines) + "."
+
+
+def feature_figures(
+    result: Report, objects, fovs, folder: Path
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """The readout and best-ranked features: each figure's block (interactive, with its
+    static PNG and PDF) and the specs the page's script draws (``_html_plotly``)."""
     drawn = plots(objects, fovs, result.setup, ranking=result.discovery)
-    top = result.discovery.top() if result.discovery is not None else []
-    blocks = []
+    discovery = result.discovery
+    top = discovery.top(len(discovery.ranking)) if discovery is not None else []
+    blocks, names = [], {}
     for feature, parts in drawn.items():
         for index, figure in enumerate(parts, start=1):
             name = f"{feature}_{index}" if len(parts) > 1 else str(feature)
             name = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
-            role = "the readout" if feature == result.setup.readout else "best-ranked feature"
-            if feature in top:
-                role = f"best-ranked feature {top.index(feature) + 1}"
+            names[f"{feature}#{index}"] = name
+            rank = f"best-ranked feature {top.index(feature) + 1}" if feature in top else ""
+            role = rank or "a declared feature"
+            if feature == result.setup.readout:
+                role = "the readout" + (f", {rank}" if rank else "")
             if len(parts) > 1:
                 role += f", part {index} of {len(parts)}"
-            blocks.append(figure_block(_save(figure, folder, name), name, f"{feature}: {role}"))
-    return blocks
+            uri = _save(figure, folder, name)
+            label = f"{feature}: {role}"
+            pairs = getattr(figure, "pairwise", None)
+            pair = (
+                f'<div class="pair-row"><div class="pl-pair" id="pp-{html.escape(name)}"></div>'
+                f'<p class="note">{html.escape(PAIR_NOTE)}</p></div>'
+                if pairs is not None and len(pairs)
+                else ""
+            )
+            blocks.append(
+                f'<div class="feature" data-spec="{html.escape(name)}">'
+                f'<div class="feature-head"><h4>{html.escape(label)}</h4>'
+                '<button type="button" class="dl full">Enlarge</button></div>'
+                f'<div class="pl-plot" id="pl-{html.escape(name)}"></div>{pair}'
+                f'<p class="caption note">{html.escape(_interactive_caption(figure))}</p>'
+                f'<p class="note sampled"></p><p class="tools">'
+                f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
+                "</p><details><summary>The static figure (as in the PDF)</summary>"
+                f'<figure><img src="{uri}" alt="{html.escape(label)}" loading="lazy"></figure>'
+                "</details></div>"
+            )
+    checked, prepared_fovs, _ = check_workflow_inputs(objects, fovs, result.setup)
+    prepared = result.setup.prepared(checked, prepared_fovs)
+    control = (result.setup.control or {}).get(CONDITION_COLUMN)
+    colours = condition_colours(objects, fovs, control)
+    specs = feature_specs(drawn, prepared, prepared_fovs, result.setup, colours, names)
+    return blocks, specs
 
 
 def _set(embedding: Embedding, method: str, order: dict, values: str) -> dict[str, Any] | None:
@@ -176,7 +243,8 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
         else ["all"]
     )
     order = {name: i for i, name in enumerate(names)}
-    colours = [COLOURS[i % len(COLOURS)] for i in range(len(names))]
+    shared = condition_colours(objects, fovs, control_value)
+    colours = [shared.get(name, COLOURS[i % len(COLOURS)]) for i, name in enumerate(names)]
     counts = (
         [int((first[CONDITION_COLUMN] == name).sum()) for name in names]
         if CONDITION_COLUMN in first
@@ -223,9 +291,11 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
             else ""
         )
         + '<button type="button" class="dl full">Enlarge</button>'
-        '</div><div class="legend" aria-label="Conditions (click to hide)"></div>'
-        '<div class="viz-body"><div class="plot-box"><div class="svg-slot"></div>'
-        '<div class="tooltip"></div></div><div class="selection" aria-live="polite"></div></div>'
+        '<span class="note">Click a condition in the legend to hide it, double-click to show '
+        "it alone; draw around points (the lasso is on) to see which conditions they come "
+        "from; drag the axes or use the toolbar to zoom.</span></div>"
+        '<div class="viz-body"><div class="pl-embed"></div>'
+        '<div class="selection" aria-live="polite"></div></div>'
         '<p class="caption note"></p>'
         '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
@@ -238,4 +308,11 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
     return markup, static
 
 
-__all__ = ["COLOURS", "download", "embeddings", "feature_figures", "figure_block"]
+__all__ = [
+    "COLOURS",
+    "condition_colours",
+    "download",
+    "embeddings",
+    "feature_figures",
+    "figure_block",
+]

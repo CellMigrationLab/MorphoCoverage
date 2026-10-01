@@ -128,18 +128,34 @@ as tables you can sort by clicking a header.
 "Do the conditions differ?" opens with the reading per condition, then a heatmap
 of Cohen's d of every feature and condition against the control (● passes the
 cell-level gate, ✓ also confirmed across repeats; hover a cell for its
-q-values), the readout and the best-ranked features (each with its PNG and PDF),
-and with three or more features an interactive PCA and UMAP of all of them, then
-the tests behind the reading. Click a figure or the heatmap to see it large. On
-the PCA and UMAP, hover a point for its condition, repeat and field, click a
-condition to hide it, switch between PCA and UMAP and between raw values and
-values normalised to each repeat's control, enlarge the plot, and draw around
-points to see which conditions they come from: their number, their share of the
-selection, the share chance would give and the ratio of the two. Every condition,
-the control included, has a colour of its own (no grey, hard to see), in the
-interactive and the static figures. Every figure is also saved in `figures/` as
-PNG and as PDF (vector, for papers). The page follows the light or dark setting
-of the viewer, with a switch, and prints with every section open.
+q-values), then the readout and the best-ranked features, then with three or
+more features the PCA and UMAP of all of them, then the tests behind the reading.
+
+The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
+which the page carries (about 1.5 MB, MIT licence), so they work offline. A
+feature figure shows every observation in its condition's colour, the biological
+repeats side by side (each condition only as wide as the repeats it holds), and
+each repeat's median with its interval: the numbers of the static figure. Hover a
+point for its repeat, technical repeat and field, or a median for its interval;
+zoom by dragging; "Enlarge" fills the window. Beyond 4000 observations a figure
+draws a seeded sample of each cluster, and says so (the summaries and tests use
+every observation). Under it, as in Plot&Stats, the matrix of every pair of
+conditions: Cohen's d below the diagonal (the row's condition minus the column's),
+the paired t-test on the repeats' means above it, Bonferroni-corrected over the
+pairs tested; a pair imaged in fewer than 3 shared repeats is not tested, and a d
+between conditions imaged in different repeats is marked †, since the batch is in
+it (`plots_pairwise`). The static figure (PNG and PDF, for papers) is folded
+under each, with the same matrix under the plot. On the PCA and UMAP, hover a
+point for its condition, repeat and field, click a condition in the legend to
+hide it, switch between PCA and UMAP and between raw values and values
+normalised to each repeat's control, and draw around points (the lasso is on) to
+see which conditions they come from: their number, their share of the selection,
+the share chance would give and the ratio of the two. Every condition, the
+control included, has a colour of its own (no grey, hard to see). Every figure
+is also saved in `figures/` as PNG and as PDF (vector, for papers). On a wide
+screen the page uses the width, the feature figures two to a row. The page
+follows the light or dark setting of the viewer, with a switch, and prints with
+every section open.
 
 The glossary of every test, rule and term the page uses, with the papers they
 come from ([`glossary.md`](glossary.md), the same entries), is a drawer on the
@@ -364,7 +380,18 @@ figures = plots(objects, fovs, setup, features=["YAPTAZ_Ratio", "Nuclei_Area"])
 PlotsOfData-style figures (`morphocoverage.plots`), one per feature:
 within each condition the biological repeats (the `biological_repeat` column) sit side
 by side, labelled above their cluster, so that a difference between
-conditions can be read against the spread between repeats. Every object is
+conditions can be read against the spread between repeats; each condition is
+only as wide as the repeats it holds, so repeats imaged for other conditions
+take no room. Under the plot, with two or more conditions, the matrix of every
+pair of conditions, as Plot&Stats draws it (`plots(..., pairwise=False)` leaves
+it out): Cohen's d on the observations below the diagonal, the row's condition
+minus the column's (signed, blue lower, red higher), and the paired t-test on
+the biological repeats' means above it (on the log ratios when every mean is
+positive), Bonferroni-corrected over the pairs tested; a pair needs 3 repeats
+that imaged both, and a d between conditions imaged in different repeats is
+marked †, since the difference between batches is in it
+(`plots_pairwise.pairwise_contrasts` gives the table, and each figure carries it
+as `figure.pairwise`). Every object is
 a jittered point coloured by technical repeat (`technical_col`, by default
 the MorphoBricks `technical_repeat` column; another column, such as a `well`
 group column, is used only when named, `plots(..., technical_col="well")`,

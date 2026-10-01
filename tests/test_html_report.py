@@ -88,7 +88,8 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     assert path.name == "report.html"
     for anchor in ("glance", "overview", "enough", "conditions", "limits"):
         assert f'id="{anchor}"' in page
-    assert "Full detail" in page and "None" not in re.sub(r"<script.*?</script>", "", page)
+    assert "Full detail" in page
+    assert "None" not in re.sub(r"<script.*?</script>", "", page, flags=re.DOTALL)
     # Every figure is embedded and saved as PNG and PDF.
     assert page.count("data:image/png;base64,") >= 4
     for name in ("area", "pca_raw", "umap_raw", "pca_normalised", "umap_normalised"):
@@ -237,3 +238,33 @@ def test_the_heatmap_marks_the_gates():
     assert "+2.50 ✓" in svg and "+0.90 ●" in svg and "-0.40<" in svg and "–<" in svg
     assert "q cells 0.001; q paired 0.01" in svg
     assert heatmap(None, []) == ""
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_the_interactive_figures_draw_the_static_figures_numbers(tmp_path):
+    objects, fovs = _tables()
+    setup = Setup(
+        readout="area",
+        features=("area", "speed", "aspect"),
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+    )
+    result = report(objects, fovs, setup)
+    page = html_report(result, objects, fovs, tmp_path).read_text()
+    # plotly.js is inside the page, so it works offline; and only once.
+    assert page.count("plotly.js (cartesian - minified)") == 1
+    specs = json.loads(re.search(r'id="feature-data">(.*?)</script>', page).group(1))
+    readout = next(s for s in specs if s["feature"] == "area")
+    assert [c["name"] for c in readout["conditions"]] == ["ctrl", "drug"]
+    assert readout["conditions"][0]["colour"] == COLOURS[0]
+    # One cluster per condition and repeat, every observation drawn (few here).
+    assert len(readout["clusters"]) == 6
+    assert readout["points"]["shown"] == readout["points"]["total"] == len(objects)
+    assert all(c["low"] <= c["summary"] <= c["high"] for c in readout["clusters"])
+    # The matrix: d below the diagonal, the corrected p above it.
+    matrix = readout["pairwise"]
+    assert matrix["names"] == ["ctrl", "drug"] and matrix["tested"] == 1
+    assert matrix["text"][1][0].startswith("+") and matrix["text"][0][1]
+    assert 'class="pl-pair"' in page and "The static figure (as in the PDF)" in page
+    # Its caption says how the interactive figure is coloured.
+    assert "coloured by condition" in page

@@ -43,6 +43,8 @@ from ..glossary import GLOSSARY, slug
 from ..retrospective.report import LIMITS_TITLE
 from ..sampling_unit.reading_text import readings_parts
 from ._html_figures import download, embeddings, feature_figures
+from ._html_plotly import plotly_js
+from ._html_plotly_script import PLOTLY_SCRIPT
 from ._html_render import Terms, chip, text_html
 from ._html_script import SCRIPT
 from ._html_sections import (
@@ -208,7 +210,7 @@ def _condition_extras(
     if feature_blocks:
         extra += (
             "<h3>The readout and the best-ranked features</h3>"
-            f'<div class="figures">{"".join(feature_blocks)}</div>'
+            f'<div class="feature-grid">{"".join(feature_blocks)}</div>'
         )
     if viz:
         extra += f"<h3>All {len(result.setup.columns)} features at once</h3>{viz}"
@@ -259,7 +261,7 @@ def html_report(
     doc = result.document
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        feature_blocks = feature_figures(result, objects, fovs, figures)
+        feature_blocks, specs = feature_figures(result, objects, fovs, figures)
         viz, static = ("", [])
         if len(result.setup.columns) >= MIN_FEATURES:
             viz, static = embeddings(result, objects, fovs, figures)
@@ -373,11 +375,25 @@ def html_report(
         + _glossary_drawer()
         + '<script type="application/json" id="files-data">'
         + json.dumps(files, separators=(",", ":"))
-        + f"</script><script>{SCRIPT}</script></body></html>"
+        + f"</script><script>{SCRIPT}</script>"
+        + _plotly_scripts(specs, bool(viz))
+        + "</body></html>"
     )
     path = folder / REPORT_FILE
     path.write_text(page, encoding="utf-8")
     return path
+
+
+def _plotly_scripts(specs: list[dict], embedding: bool) -> str:
+    """plotly.js, the feature figures' data and the script that draws them; nothing when
+    the page has no interactive figure."""
+    if not specs and not embedding:
+        return ""
+    data = json.dumps(specs, separators=(",", ":")).replace("</", "<\\/")
+    return (
+        f'<script type="application/json" id="feature-data">{data}</script>'
+        f"<script>{plotly_js()}</script><script>{PLOTLY_SCRIPT}</script>"
+    )
 
 
 def _first_sentence(text: str) -> str:

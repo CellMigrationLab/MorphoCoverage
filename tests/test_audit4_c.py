@@ -16,7 +16,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from morphocoverage.plots import _Layout, _title
+from morphocoverage._plots_text import title as _title
+from morphocoverage.plots import _Layout
 from morphocoverage.sampling_unit import (
     condition_contrast,
     descriptor_spread_check,

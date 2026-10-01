@@ -34,7 +34,7 @@ html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--bg); color: var(--text);
   font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--link); }
-.layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); max-width: 1320px;
+.layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); max-width: 2200px;
   margin: 0 auto; gap: 28px; padding: 24px 20px 64px; }
 nav.toc { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px);
   overflow: auto; font-size: 13.5px; }
@@ -100,23 +100,7 @@ figcaption a { color: #1c5cab; }
   font: inherit; font-size: 13px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text);
   font-weight: 600; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; margin: 6px 0; }
-.legend button { display: inline-flex; gap: 6px; align-items: center; border: 0;
-  background: none; color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
-  padding: 2px 0; }
-.legend button[aria-pressed="false"] { opacity: .4; }
 .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.plot-box { position: relative; width: 100%; max-width: 720px; }
-.plot-box svg { width: 100%; height: auto; display: block; background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--grid); border-radius: 8px; }
-.plot-box .axis { fill: var(--text-3); font-size: 11px; }
-.plot-box .arrow { stroke: var(--text); stroke-width: 1.5; }
-.plot-box .arrow-label { fill: var(--text); font-size: 11px; font-weight: 600;
-  paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
-.tooltip { position: absolute; pointer-events: none; background: var(--surface);
-  color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
-  font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); display: none; white-space: nowrap; }
 .note { color: var(--text-3); font-size: 13px; }
 a.term { color: inherit; text-decoration: underline dotted var(--text-3);
   text-underline-offset: 3px; position: relative; }
@@ -154,19 +138,14 @@ figure img, svg.heatmap { cursor: zoom-in; }
 .lightbox .close { position: fixed; top: 12px; right: 18px; font-size: 28px; line-height: 1;
   border: 0; background: none; color: #ffffff; cursor: pointer; }
 .viz-body { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
-.viz-body .plot-box { flex: 1 1 480px; }
-.selection { flex: 1 1 300px; min-width: 0; font-size: 13px; }
+.viz-body .selection { flex: 1 1 380px; min-width: 0; font-size: 13px; }
 .selection th, .selection td { padding-right: 8px; }
 .selection table { min-width: 0; }
 .selection .bar { display: inline-block; height: 9px; border-radius: 2px; min-width: 1px;
   max-width: 44px; vertical-align: 0; }
 .selection td:nth-child(3) { min-width: 84px; }
-.plot-box svg { touch-action: none; cursor: crosshair; }
-.plot-box .lasso { fill: rgba(42,120,214,.10); stroke: var(--link); stroke-width: 1.5;
-  stroke-dasharray: 5 4; }
 .viz.full { position: fixed; inset: 0; z-index: 50; margin: 0; padding: 16px 24px;
   background: var(--bg); overflow: auto; }
-.viz.full .plot-box { max-width: min(100%, calc((100vh - 200px) * 760 / 560)); flex-basis: 640px; }
 body.locked { overflow: hidden; }
 .glossary-tab { position: fixed; right: 0; top: 42%; z-index: 30; writing-mode: vertical-rl;
   transform: rotate(180deg); border: 1px solid var(--border); border-right: 0;
@@ -189,6 +168,21 @@ body.locked { overflow: hidden; }
 .drawer-body h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em;
   color: var(--text-3); margin: 18px 0 4px; }
 dl.glossary dt.hit { background: var(--caution-bg); border-radius: 4px; }
+.card > p, .reading p, ul.checked li, .card > details > p { max-width: 130ch; }
+.feature-grid { display: grid; gap: 18px; margin-top: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 820px), 1fr)); }
+.feature { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; min-width: 0; }
+.feature-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.feature-head h4 { margin: 0; font-size: 16px; }
+.pl-plot { width: 100%; min-height: 460px; }
+.pair-row { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: flex-start;
+  margin-top: 4px; }
+.pair-row .note { flex: 1 1 280px; max-width: 70ch; font-size: 13.5px; }
+.feature .tools { margin: 4px 0; }
+.feature.full { position: fixed; inset: 0; z-index: 50; margin: 0; padding: 16px 28px;
+  background: var(--bg); overflow: auto; border-radius: 0; border: 0; }
+.pl-embed { flex: 3 1 620px; min-width: 0; min-height: 600px; }
 dl.glossary dt:target { background: var(--caution-bg); border-radius: 4px; }
 button.dl { border: 1px solid var(--border); background: var(--surface); color: var(--link);
   border-radius: 6px; padding: 1px 8px; font: inherit; font-size: 12px; cursor: pointer; }
