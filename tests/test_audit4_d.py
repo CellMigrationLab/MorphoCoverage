@@ -198,7 +198,8 @@ def test_p4_4_the_bootstrap_stopping_se_is_widened_for_few_fields():
     assert diagnostics["small_sample_widening"] > 1.8
     se = result.evidence.value("fov_bootstrap_centroid_max_se")
     assert diagnostics["max_component_se"] == se
-    assert diagnostics["monte_carlo_se"] == se / math.sqrt(2 * 399)
+    # The code multiplies by 1 / sqrt(2 (B - 1)): equal to the division up to the last bit.
+    assert diagnostics["monte_carlo_se"] == pytest.approx(se / math.sqrt(2 * 399), rel=1e-12)
     # The first two fields no longer stop the rule at a tolerance the raw SE met.
     two = _acquisition([[10.0, 10.2, 9.9], [10.1, 10.3, 10.0]])
     [early] = _run(*two, [FOVBootstrapStrategy("centroid", 0.1, None, 400, 0, 2)])
