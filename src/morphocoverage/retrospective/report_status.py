@@ -110,8 +110,11 @@ The rules, question by question:
   many are on one side of the control in every repeat (lower and higher), and
   how many are significant on the repeat means (paired t-test, q ≤ 0.05 with
   Benjamini-Hochberg within each sub-experiment; the sign-flip test's floor is said
-  in the section). ⚠️ "none confirmed across repeats" when no condition is
-  confirmed there: a trend at most is never a green answer. Then the
+  in the section). With several features, the features lead: how many are
+  significant across repeats (named), then the readout's own verdict; ✅ when
+  any feature is significant across repeats for a condition, whichever was
+  declared the readout (owner, 2026-10-01). ⚠️ when none is: a trend at most is
+  never a green answer. Then the
   contrasts within repeats: without the across-repeat answer, their number and
   the range of |d| on field means; how many tested contrasts differ after the
   Bonferroni correction; and how many features pass the ranking's gate. One

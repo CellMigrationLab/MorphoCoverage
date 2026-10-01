@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from .._style import Status, span
-from .._wording import column_word, count
+from .._wording import column_word, count, listing
 from ..sampling_unit._units import opposite_signs
 from ..sampling_unit.contrast_text import (
     P_ALPHA,
@@ -67,22 +67,26 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
     """9. Do the conditions differ, and how confidently? (see the module)."""
     if contrast is None and ranking is None and discovery is None:
         return Status.NOT_ASSESSED, "not assessed"
-    status, parts, limited = Status.OK, [], False
+    status, parts, limited, trend = Status.OK, [], False, False
     if contrast is not None and len(contrast.table):
         table = contrast.table
         across = getattr(contrast, "repeats", None)
         answered = across_tested(contrast)
         reading = readings_headline(contrast)
         verdicts = condition_readings(contrast)["verdict"]
-        if reading and answered and not (verdicts == CONFIRMED).any():
-            # Nothing significant across repeats: a trend at most, never a green answer.
-            status = Status.CAUTION
+        # Nothing significant across repeats for the readout: a trend at most, never a green
+        # answer, unless another feature is (below).
+        trend = bool(reading) and answered and not (verdicts == CONFIRMED).any()
+        # Several features: the report is neutral, every feature alike (below); the declared
+        # readout is what optimise and live target, not the report's answer.
+        several = discovery is not None and len(discovery.ranking) > 0
         if reading:
-            # The verdict per condition, read from every test (``reading_text``).
-            parts.append(reading)
-            agreeing = reagents_headline(contrast)
-            if agreeing:
-                parts.append(agreeing)
+            if not several:
+                # The verdict per condition, read from every test (``reading_text``).
+                parts.append(reading)
+                agreeing = reagents_headline(contrast)
+                if agreeing:
+                    parts.append(agreeing)
         elif across is not None and len(across):
             parts.append(across_headline(across, contrast.settings["repeat_col"]))
         else:
@@ -113,16 +117,24 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
     if discovery is not None and len(discovery.ranking):
         passing = int(discovery.ranking["score"].notna().sum())
         n_features = len(discovery.ranking)
-        confirmed = len(discovery.confirmed())
+        significant = discovery.confirmed()
         across = discovery.tests["p_paired"].notna().any()
-        parts.append(
-            f"every feature: {confirmed} of {n_features} significant across repeats; "
+        named = f" ({listing(significant, 4)})" if significant else ""
+        # Every feature alike: any of them significant across repeats is a difference
+        # (owner, 2026-10-01: the report is neutral; the readout is optimise's and live's).
+        parts.insert(
+            0,
+            f"{len(significant)} of {n_features} features significant across repeats{named}; "
             f"{passing} candidates in the exploratory cell-level screen"
             if across
-            else f"every feature: {passing} of {n_features} candidates in the exploratory "
-            "cell-level screen, hypotheses for another repeat (no test across repeats)"
+            else f"{passing} of {n_features} features candidates in the exploratory cell-level "
+            "screen, hypotheses for another repeat (no test across repeats)",
         )
+        if across and not significant:
+            status = Status.CAUTION
         return status, "; ".join(parts)
+    if trend:
+        status = Status.CAUTION
     if ranking is not None and len(ranking.ranking):
         passing = int(ranking.ranking["score"].notna().sum())
         n_features = count(len(ranking.ranking), "feature")

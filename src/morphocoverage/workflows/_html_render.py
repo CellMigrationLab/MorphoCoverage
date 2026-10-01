@@ -105,11 +105,7 @@ def chip(status: Status | None, key: str = "", answer: str = "") -> str:
     if key == "conditions" and "n = 1" in answer:
         word = "No conclusion (n = 1)"
     elif key == "conditions" and status is Status.CAUTION:
-        # The readout's verdict; other features may still be significant across repeats.
-        others = re.search(r"every feature: (\d+) of", answer)
         word = "Trend only" if "same direction" in answer else "No consistent difference"
-        if others and int(others.group(1)):
-            word = f"Readout: {word.lower()}"
     icon = f'<span aria-hidden="true">{status.marker}</span>'
     return f'<span class="chip {kind}">{icon} {word}</span>'
 

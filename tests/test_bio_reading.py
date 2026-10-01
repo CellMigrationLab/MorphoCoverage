@@ -85,8 +85,6 @@ def test_the_markers_say_what_was_found():
     assert "Differs" in chip(Status.OK, "conditions", "significant across repeats: a")
     trend = "Area, ...: same direction in every repeat, not significant: a (lower)"
     assert "Trend only" in chip(Status.CAUTION, "conditions", trend)
-    others = f"{trend}; every feature: 4 of 10 significant across repeats"
-    assert "Readout: trend only" in chip(Status.CAUTION, "conditions", others)
     assert "Nothing flagged" in chip(Status.OK, "inspect", "no field stands out")
 
 
@@ -96,3 +94,31 @@ def test_a_rule_that_does_not_apply_is_not_listed_as_checked():
     checked = next(line for line in lines if line.startswith("Stopping rules checked"))
     assert "per track" not in checked
     assert any(line.startswith("Not applicable to tracks: mean-precision rule") for line in lines)
+
+
+def test_any_feature_significant_across_repeats_answers_yes():
+    """CDM: Round, AR, Major and Feret are significant across repeats: the conditions differ.
+    The report is neutral: Area, the readout optimise and live target, is not singled out."""
+    from morphocoverage.retrospective.report_status import conditions_status
+    from morphocoverage.sampling_unit.discovery import feature_discovery
+
+    data = catalog.load("cct8_cdm_morphology")
+    contrast = condition_contrast(
+        *data.tables, feature="Area", control=data.control, observation_unit="cell"
+    )
+    discovery = feature_discovery(
+        *data.tables,
+        features=list(data.feature_cols),
+        control=data.control,
+        n_permutations=99,
+        observation_unit="cell",
+    )
+    status, headline = conditions_status(contrast, None, discovery)
+    assert status is Status.OK
+    assert headline.startswith(
+        "4 of 10 features significant across repeats (Round, AR, Major and Feret)"
+    )
+    # Neutral: no feature is singled out as the readout.
+    assert "Area" not in headline
+    # Without the other features, the readout alone is a trend.
+    assert conditions_status(contrast, None)[0] is Status.CAUTION
