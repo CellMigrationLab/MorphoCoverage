@@ -24,10 +24,12 @@ from typing import Any
 import numpy as np
 
 from .._style import Status, rule_label
-from .._wording import count, listing, percent
+from .._wording import count, listing, p_value, rate
 from ..retrospective.report import QUESTIONS, SHORT_QUESTIONS
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_sampling import PRACTICAL
+from ..sampling_unit.reading_text import CONFIRMED, condition_readings
+from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
 from ..sufficiency_short import rule_tallies
 
@@ -106,8 +108,11 @@ def what_checked(setup: Any) -> list[str]:
             f"Positive control: {dict(setup.positive.selector).get('condition', '')}; it checks "
             "that the features see a change."
         )
-    tolerances = " and ".join(percent(t) for t in setup.tolerances)
-    lines.append(f"Precision asked: the mean of {setup.readout} within {tolerances}.")
+    tolerances = " and ".join(rate(t) for t in setup.tolerances)
+    lines.append(
+        f"Precision asked: the standard error of the mean of {setup.readout} at most "
+        f"{tolerances} of the mean."
+    )
     if setup.fingerprint:
         named = "; ".join(c.description or c.name for c in setup.fingerprint)
         lines.append(f"Fingerprint: {named}.")
@@ -133,6 +138,35 @@ def what_checked(setup: Any) -> list[str]:
     return lines
 
 
+def _repeats_advice(contrast: Any, fields: str) -> str:
+    """What to do across repeats: the repeats the plan asks for the conditions not yet
+    confirmed (``repeat_plan``, at the report's correction)."""
+    plan = getattr(contrast, "plan", None)
+    readings = condition_readings(contrast)
+    if plan is None or plan.empty or readings.empty:
+        return ""
+    open_ = set(readings.loc[readings["verdict"] != CONFIRMED, "condition"])
+    if not open_:
+        return "What to do: every condition is confirmed across repeats; nothing more is needed."
+    rows = plan[plan["condition"].isin(open_)]
+    needed = rows["repeats_needed"].astype(float)
+    finite = needed[np.isfinite(needed)]
+    if finite.empty:
+        return ""
+    low, high = int(finite.min()), int(finite.max())
+    about = f"{low}" if low == high else f"{low} to {high}"
+    tail = (
+        f"; more {fields} per repeat help little where the repeats differ"
+        if (rows["limited_by"] == "between repeats").any()
+        else ""
+    )
+    return (
+        f"What to do: to confirm the {count(len(open_), 'condition')} not yet confirmed, plan "
+        f"about {about} biological repeats in all (the planning table in "
+        f"\u201c{TITLES['conditions']}\u201d){tail}."
+    )
+
+
 def _resolution(contrast: Any) -> list[str]:
     rows = getattr(contrast, "table", None)
     if rows is None or rows.empty or "d_low" not in rows:
@@ -140,40 +174,38 @@ def _resolution(contrast: Any) -> list[str]:
     rows = rows[rows["d_low"].notna()]
     if rows.empty:
         return []
+    _, fields = field_words(contrast)
     resolved = int(rows["resolved"].sum())
     small = int(rows["too_small"].sum())
     needing = rows[~rows["resolved"] & ~rows["too_small"]]
-    verdict = "Yes" if needing.empty else ("Partly" if resolved else "Not yet")
+    verdict = "Yes" if needing.empty and not small else ("Partly" if resolved else "Not yet")
     lines = [
         (
-            f"{verdict}: within one biological repeat at a time, the fields imaged resolve the "
+            f"{verdict}: within one biological repeat at a time, the {fields} imaged show the "
             f"difference from the control in {resolved} of {count(len(rows), 'comparison')} "
-            "(a condition in a repeat)."
+            "(a condition in one repeat; shown: its 95% interval of d excludes 0)."
         )
     ]
     if len(needing):
-        fields = needing["fields_to_resolve"].astype(float)
-        low, high = int(fields.min()), int(fields.max())
+        counts = needing["fields_to_resolve"].astype(float)
+        low, high = int(counts.min()), int(counts.max())
         about = f"{low}" if low == high else f"{low} to {high}"
         lines.append(
-            f"In {count(len(needing), 'comparison')}, the interval of the difference still "
-            f"includes no difference: about {about} fields a side in that repeat would resolve a "
-            "difference of that size."
+            f"In {count(len(needing), 'comparison')} the interval still includes 0: about "
+            f"{about} {fields} a side in that repeat would show a difference of that size."
         )
     if small:
         lines.append(
-            f"In {count(small, 'comparison')}, the difference is so small that even {PRACTICAL} "
-            "times the fields would not resolve it: if it is real, it is too small to see here."
+            f"In {count(small, 'comparison')} the difference is so small that even {PRACTICAL} "
+            f"times the {fields} would not show it within one repeat."
         )
     lines.append(
         "This is per repeat. Whether the conditions differ across the repeats is answered in "
-        f"\u201c{TITLES['conditions']}\u201d, which does not need each repeat to resolve alone."
+        f"\u201c{TITLES['conditions']}\u201d, which does not need each repeat to show it alone."
     )
-    if len(needing):
-        lines.append(
-            f"What to do: to resolve every repeat on its own next time, image about {high} "
-            "fields a side in each."
-        )
+    advice = _repeats_advice(contrast, fields)
+    if advice:
+        lines.append(advice)
     return lines
 
 
@@ -181,8 +213,17 @@ def _precision(sufficiency: Any, readout: str) -> list[str]:
     data = [t for t in rule_tallies(sufficiency) if t["data_rule"]] if sufficiency else []
     if not data:
         return []
-    first = data[0]
     word = group_word(sufficiency)
+    # A rule undefined everywhere (one per object, on tracks) says nothing about precision.
+    defined = [t for t in data if t["undefined"] < t["groups"]]
+    lines = [
+        f"The {t['label']} is not defined for these observations, so it is not read."
+        for t in data
+        if t["undefined"] == t["groups"]
+    ]
+    if not defined:
+        return lines
+    first = defined[0]
     met, groups = first["met"], first["groups"]
     line = f"Each group's own mean of {readout}: the {first['label']} was met in {met} of " + (
         count(groups, word) + "."
@@ -192,7 +233,7 @@ def _precision(sufficiency: Any, readout: str) -> list[str]:
             " Where it is not met, that mean is known less precisely than asked: it matters "
             "when the value of a mean is reported, less when conditions are compared."
         )
-    return [line]
+    return [line, *lines]
 
 
 def enough_reading(result: Any) -> list[str]:
@@ -245,7 +286,7 @@ def _colour(d: float) -> tuple[str, str]:
 
 def heatmap(discovery: Any, conditions: list[Any]) -> str:
     """Cohen's d of every feature (rows, best-ranked first) and condition (columns) against
-    the control, as an SVG; ● passes the cell-level gate, ✓ is also confirmed across
+    the control, as an SVG; ● a candidate at the cell level, ✓ also confirmed across
     repeats. Empty without tests."""
     if discovery is None or discovery.tests is None or not len(discovery.tests):
         return ""
@@ -288,9 +329,9 @@ def heatmap(discovery: Any, conditions: list[Any]) -> str:
             shown = "–" if not np.isfinite(d) else f"{d:+.2f}"
             tip = f"{feature}, {condition}: d {shown}"
             if row is not None and np.isfinite(row.q_cells):
-                tip += f"; q cells {row.q_cells:.3g}"
+                tip += f"; cell-level q {p_value(row.q_cells)}"
             if row is not None and np.isfinite(row.q_paired):
-                tip += f"; q paired {row.q_paired:.3g}"
+                tip += f"; repeat means q {p_value(row.q_paired)}"
             x = left + j * cell_w
             parts.append(
                 f'<g><title>{html.escape(tip)}</title><rect x="{x + 1}" y="{y + 1}" '
@@ -303,8 +344,9 @@ def heatmap(discovery: Any, conditions: list[Any]) -> str:
         '<p class="note">Cohen\'s d against the control, '
         '<span class="hm-key" style="background:#2a78d6"></span> lower · '
         '<span class="hm-key" style="background:#e34948"></span> higher (colour full at '
-        f"|d| ≥ {D_CAP:g}); ● passes the cell-level gate, ✓ also confirmed across repeats by "
-        "the paired test. Hover a cell for its q-values.</p>"
+        f"|d| ≥ {D_CAP:g}); ● a candidate (cell-level q ≤ 0.05), ✓ also confirmed across "
+        "repeats (the paired t-test on the repeat means, q ≤ 0.05). Hover a cell for its "
+        "q-values.</p>"
     )
     return f'<div class="table-wrap">{"".join(parts)}</div>{legend}'
 

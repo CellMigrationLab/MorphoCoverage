@@ -52,9 +52,10 @@ def test_the_field_questions_are_not_applicable_said_once_not_warned(cdm):
 
 def test_nothing_new_is_left_out_when_new_needs_several_cells_in_a_field(cdm):
     _, setup, result = cdm
-    assert "'nothing new' is left out" in one_per_field_reasons(setup)["enough"]
+    reasons = one_per_field_reasons(setup)
+    assert "whether unseen cell states remain is not asked" in reasons["enough"]
     enough = " ".join(result.summary().split("2. Did I image enough?")[2].split())
-    assert "'nothing new' is left out: the definition of new needs 3 similar cells" in enough
+    assert "a new state needs 3 similar cells in one field" in enough
     assert "nothing new (≤5%)" not in enough
 
 

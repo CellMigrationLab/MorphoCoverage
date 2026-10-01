@@ -329,8 +329,8 @@ def one_per_field_reasons(setup: Setup) -> dict[str, str]:
     needed = int(getattr(novelty, "min_novel_observations", 1)) if novelty is not None else 1
     if needed > 1:
         reasons["enough"] = (
-            f"'nothing new' is left out: the definition of new needs {needed} similar "
-            f"{words} in one field, and each field holds one"
+            f"whether unseen {unit} states remain is not asked: a new state needs {needed} "
+            f"similar {words} in one field, and each field holds one"
         )
     return reasons
 

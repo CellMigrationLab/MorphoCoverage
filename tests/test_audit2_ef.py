@@ -191,8 +191,8 @@ def test_e5_plot_interval_says_how_many_technical_repeats_and_warns_with_two_or_
             ]
     figures = plots_of_data(pd.DataFrame(rows), pd.DataFrame(fovs), features=["x"], n_boot=20)
     title = figures["x"][0].axes[0].figure.caption
-    assert "whole technical repeats with their fields as acquired (2 per cluster" in title
-    assert "with only 2-3 technical repeats a cluster's interval is not reliable" in title
+    assert "whole technical repeats with their fields (2 per condition" in title
+    assert "with 2-3 technical repeats the interval is only a guide" in title
 
 
 def test_e6_no_fields_beyond_enough_when_the_acquired_fields_are_not_enough():
@@ -599,7 +599,7 @@ def test_f15_a_single_field_group_is_skipped_with_a_reason_and_one_split_is_sing
     assert result.skipped[["condition", "fovs"]].values.tolist() == [["B", 1]]
     for detail in ("short", "full"):
         text = " ".join(result.summary(detail=detail).split())
-        assert "B · r1: skipped, only 1 field: at least two are needed" in text
+        assert "B · repeat r1: skipped, only 1 field: at least two are needed" in text
         assert "in 1 split over 1 distinct hold-out;" in text and "1 hold-outs" not in text
 
 

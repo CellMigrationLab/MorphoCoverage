@@ -10,12 +10,14 @@ the declared control, pooled over the biological repeats:
 - **The gate (discovery)**: the cell-level randomization test (``contrast_cells``) in the
   version the readings trust most, on values normalised to each repeat's control when
   every control mean is positive and balanced over the repeats when they are not; its
-  p-values are Benjamini-Hochberg corrected over every feature and condition, and a test
-  passes when ``q <= alpha``. A feature's score is the largest |d| among its passing
-  contrasts (capped at ``EFFECT_CAP``); the plots draw the best-ranked features.
+  p-values are Benjamini-Hochberg corrected over every feature and condition of a
+  sub-experiment (``_experiments``), and a test passes when ``q <= alpha`` (a candidate).
+  A feature's score is the largest |d| among its passing contrasts (capped at
+  ``EFFECT_CAP``); the plots draw the best-ranked features.
 - **The second gate (kept beside it)**: the paired t-test on the repeat means (on the log
   ratios to the control when every mean is positive, else on the differences), corrected
-  the same way over every feature and condition with three or more repeats. A passing
+  the same way, within each sub-experiment, over every feature and condition with three or
+  more repeats. A passing
   feature that also passes it is *confirmed across repeats*.
 - The direction in each repeat (lower or higher than the control), so a feature that
   passes the cell-level gate but changes direction between repeats is seen as such.
@@ -41,10 +43,10 @@ from .._checks import is_number
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
-from .._wording import count, listing
+from .._wording import count, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from ..statistics import benjamini_hochberg
 from ._common import groups, validated
+from ._experiments import corrected, experiments
 from ._units import (
     check_arguments,
     contrasts_of,
@@ -82,6 +84,7 @@ TEST_COLUMNS = [
     "q_paired",
     "confirmed",
     "status",
+    "experiment",
 ]
 
 
@@ -197,7 +200,7 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
 def _q(value: float) -> str:
     if not np.isfinite(value):
         return "–"
-    return "<0.001" if value < 0.001 else f"{value:.3f}"
+    return p_value(value)
 
 
 @dataclass(frozen=True)
@@ -214,6 +217,22 @@ class FeatureDiscovery:
         """The ``k`` best-ranked features that pass the cell-level gate, best first."""
         return self.ranking.dropna(subset=["score"])["feature"].head(k).tolist()
 
+    def _confirmed_where(self, features: list[str]) -> str:
+        """Each confirmed feature with the conditions it is confirmed for, so one siRNA's
+        result is not read as the target's."""
+        tests = self.tests
+        parts = []
+        for feature in features[:5]:
+            mine = tests[(tests["feature"] == feature) & tests["confirmed"]]
+            conditions = listing(list(mine["condition"].astype(str)), 3)
+            others = tests[(tests["feature"] == feature) & tests["passes"] & ~tests["confirmed"]]
+            tail = (
+                f"; not {listing(list(others['condition'].astype(str)), 2)}" if len(others) else ""
+            )
+            parts.append(f"{feature}, for {conditions}{tail}")
+        more = f"; and {len(features) - 5} more" if len(features) > 5 else ""
+        return "; ".join(parts) + more
+
     def confirmed(self) -> list[str]:
         """The passing features the paired test on the repeat means also passes, best first."""
         ranked = self.ranking.dropna(subset=["score"])
@@ -229,13 +248,13 @@ class FeatureDiscovery:
         label = " · ".join(str(v) for v in self.settings["control"].values())
         return (
             f"Which features separate the conditions? {passing} of {count(n, 'feature')} "
-            f"{'passes' if passing == 1 else 'pass'} the cell-level gate (q ≤ {alpha:g}, "
-            "Benjamini-Hochberg over "
-            f"{count(n_tests, 'test')}: each condition against the control ({label}), Cohen's "
-            "d on the observations and a randomization test over them, normalised to each "
-            "repeat's control and balanced over the repeats where they are not), ranked by "
-            f"|d| (capped at {EFFECT_CAP:g}); the paired t on the repeat means is the second "
-            "gate:"
+            f"{'is a candidate' if passing == 1 else 'are candidates'}: they differ at the "
+            "cell level for at least one condition (each condition against the control, "
+            f"{label}: Cohen's d on the observations normalised to each repeat's control, "
+            f"randomization test, q ≤ {alpha:g} after Benjamini-Hochberg within each "
+            f"sub-experiment, {count(n_tests, 'test')}). Ranked by the largest difference "
+            f"(|d|); a candidate is confirmed when the paired t-test on the repeat means also "
+            f"gives q ≤ {alpha:g}:"
         )
 
     def _table(self, max_rows: int, indent: int) -> list[str]:
@@ -254,7 +273,7 @@ class FeatureDiscovery:
             ]
             for rank, row in enumerate(ranked.head(max_rows).to_dict("records"), start=1)
         ]
-        columns = ["rank", "feature", "d", "condition", "q cells", "q paired", "repeats"]
+        columns = ["rank", "feature", "d", "condition", "q cell level", "q repeat means", "repeats"]
         lines = [table(rows, columns, indent=indent, align="rlrlrrl")]
         if len(ranked) > max_rows:
             lines.append(" " * indent + f"and {len(ranked) - max_rows} more ranked features")
@@ -264,7 +283,7 @@ class FeatureDiscovery:
             + (
                 f"Confirmed across repeats (paired q ≤ {self.settings['alpha']:g}): "
                 f"{count(len(confirmed), 'feature')}"
-                + (f" ({listing(confirmed, 5)})." if confirmed else ".")
+                + (f" ({self._confirmed_where(confirmed)})." if confirmed else ".")
             )
         )
         return lines
@@ -275,7 +294,7 @@ class FeatureDiscovery:
         failing = unranked.loc[unranked["tests"] > 0, "feature"].tolist()
         if failing:
             lines.append(
-                f"No contrast passes the gate for {count(len(failing), 'feature')}: "
+                f"Not a candidate for any condition ({count(len(failing), 'feature')}): "
                 f"{listing(failing, limit)}."
             )
         untested = unranked.loc[unranked["tests"] == 0, "feature"].tolist()
@@ -289,11 +308,9 @@ class FeatureDiscovery:
     def _cautions(self) -> list[str]:
         cautions = [
             assumption(
-                "The cell-level gate treats every observation as an independent draw: it finds "
-                "candidates, and when a difference varies between repeats it passes more often "
-                f"than {self.settings['alpha']:g} without an effect (question 9 gives that "
-                "chance for the readout). The paired t on the repeat means holds its rate, but "
-                f"needs {MIN_REPEATS} or more repeats and has little power with 3."
+                "Candidates come from the cell-level test, which treats every observation as "
+                "an independent draw and so finds differences that may not repeat; only the "
+                f"paired t-test on the repeat means ({MIN_REPEATS} or more repeats) confirms."
             )
         ]
         if len(self.tests) and self.tests["p_paired"].isna().all():
@@ -306,7 +323,7 @@ class FeatureDiscovery:
         if len(mixed):
             names = listing([f"{r.feature} ({r.condition})" for r in mixed.itertuples()], 4)
             cautions.append(
-                f"Passing, but lower in some repeats and higher in others: {names}; a shift "
+                f"Candidates, but lower in some repeats and higher in others: {names}; a shift "
                 "between repeats, not a consistent effect."
             )
         return cautions
@@ -385,17 +402,21 @@ def feature_discovery(
     }
     contrasts = contrasts_of(described)
     rows = []
+    held: dict[Any, set] = {}  # the repeats each condition is compared in
     for feature in features:
         pooled = _pooled(all_groups, described, contrasts, feature, technical_col)
         for condition, side in pooled.items():
+            held.setdefault(condition, set()).update(side["by_t"])
             rng = group_rng(random_state, {"feature": feature, "condition": condition})
             rows.append(_row(feature, condition, side, n_permutations, rng))
     if not rows:
         settings["reason"] = f"No condition to compare with the control {dict(control)}."
         return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), pd.DataFrame(), settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)
-    tests["q_cells"] = benjamini_hochberg(tests["p_cells"].to_numpy(dtype=float))
-    tests["q_paired"] = benjamini_hochberg(tests["p_paired"].to_numpy(dtype=float))
+    tests["experiment"] = tests["condition"].map(experiments(held))
+    # Corrected over every feature and condition of a sub-experiment (_experiments).
+    tests["q_cells"] = corrected(tests["p_cells"], tests["experiment"])
+    tests["q_paired"] = corrected(tests["p_paired"], tests["experiment"])
     tests["passes"] = (tests["q_cells"] <= alpha).fillna(False) & tests["d"].notna()
     tests["confirmed"] = tests["passes"] & (tests["q_paired"] <= alpha).fillna(False)
     return FeatureDiscovery(tests, _rank(tests, features), settings)

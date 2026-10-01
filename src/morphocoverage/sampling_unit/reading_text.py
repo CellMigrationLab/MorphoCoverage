@@ -6,9 +6,9 @@ the repeats are not, and the agreement of independent reagents); this module
 reads them together, condition by condition, so the reader does not have to.
 Each condition gets one verdict:
 
-- **confirmed**: the paired test across repeats gives Bonferroni p <= 0.05
-  (on normalised values when they exist, else raw), with the condition on one
-  side of the control in every repeat;
+- **confirmed**: the paired test across repeats gives q <= 0.05 (Benjamini-Hochberg
+  within the condition's sub-experiment, ``_experiments``; on normalised values when they
+  exist, else raw), with the condition on one side of the control in every repeat;
 - **same direction, not confirmed**: on one side of the control in every repeat
   (two or more), and the paired test does not confirm it or cannot run;
 - **no consistent direction**: lower in some repeats and higher in others;
@@ -17,8 +17,8 @@ Each condition gets one verdict:
 Then the evidence: the direction and mean per-repeat d, the paired test's p,
 the cell-level test's p in its most trustworthy version (balanced and
 normalised when the repeats are unbalanced, else normalised, else raw) with
-its false-positive chance here (how often it gives p <= 0.05 without an
-effect at the variation between repeats seen), and, with a ``target``
+how often it gives p <= 0.05 without an effect at the variation between repeats seen
+(said as such: it is not the chance that this result is false), and, with a ``target``
 column, whether the target's reagents agree. When the raw pooled test is
 significant and that version is not, the sentence says what the raw test does
 differently (pools the control of repeats the condition was not imaged in, lets
@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 
 from .._style import wrap
-from .._wording import column_word, count, listing, percent
+from .._wording import column_word, count, listing, p_value, percent
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
 
@@ -69,16 +69,17 @@ def _direction_rows(contrast: Any) -> pd.DataFrame:
                 "lower": int((difference < 0).sum()),
                 "higher": int((difference > 0).sum()),
                 "d_mean": float(block["d_objects"].mean()),
-                "p_paired_t_bonferroni": np.nan,
-                "p_paired_t_normalised_bonferroni": np.nan,
+                "q_paired_t": np.nan,
+                "q_paired_t_normalised": np.nan,
             }
         )
     return _by_condition(pd.DataFrame(rows))
 
 
-def _cell_version(row: pd.Series) -> tuple[str, float, float, float, float]:
-    """``(label, d, Bonferroni p, chance low, chance high)`` of the most trustworthy cell-level
-    test computed: balanced and normalised, balanced, normalised, raw."""
+def _cell_version(row: pd.Series) -> tuple[str, float, float, float, float, float]:
+    """``(label, d, q, chance low, chance high, p)`` of the most trustworthy cell-level test
+    computed (balanced and normalised, balanced, normalised, raw): its corrected and its
+    uncorrected p."""
     chance = (row["chance_low"], row["chance_high"])
     balanced = (row.get("chance_balanced_low", np.nan), row.get("chance_balanced_high", np.nan))
     for label, d, p, limits in (
@@ -88,16 +89,22 @@ def _cell_version(row: pd.Series) -> tuple[str, float, float, float, float]:
         ("raw", "d_cells", "p_cells", chance),
     ):
         if pd.notna(row.get(p)):
-            return label, float(row[d]), float(row[f"{p}_bonferroni"]), *map(float, limits)
-    return "", np.nan, np.nan, np.nan, np.nan
+            q = float(row[p.replace("p_", "q_", 1)])
+            return label, float(row[d]), q, *map(float, limits), float(row[p])
+    return "", np.nan, np.nan, np.nan, np.nan, np.nan
 
 
 def _chance_words(low: float, high: float) -> str:
+    """How often the cell-level test gives p <= 0.05 without an effect, in words."""
     if pd.isna(low):
         return ""
     if np.isclose(low, high):
         return f"about {percent(low)}"
     return f"{percent(low)}–{percent(high)}"
+
+
+def _chance_sentence(chance: str) -> str:
+    return f"with no real effect it gives p ≤ {ALPHA:g} in {chance} of experiments like this one"
 
 
 def _why_raw(row: pd.Series, label: str) -> str:
@@ -110,18 +117,19 @@ def _why_raw(row: pd.Series, label: str) -> str:
 
 
 def _paired(row: pd.Series, n: int, word: str) -> tuple[bool, str]:
-    """``(confirmed, words)`` of the paired test across repeats."""
-    p = row["p_paired_t_normalised_bonferroni"]
-    which = "normalised"
-    if pd.isna(p):
-        p, which = row["p_paired_t_bonferroni"], "raw"
-    if pd.isna(p):
+    """``(confirmed, words)`` of the paired test across repeats: its p and its q."""
+    q, p, which = row["q_paired_t_normalised"], row.get("p_paired_t_normalised"), "normalised"
+    if pd.isna(q):
+        q, p, which = row["q_paired_t"], row.get("p_paired_t"), "raw"
+    if pd.isna(q):
         return False, f"the paired test needs {count(MIN_REPEATS, word)}"
-    confirmed = bool(p <= ALPHA)
-    words = f"paired test p {p:.2g}" + ("" if which == "normalised" else " (raw)")
-    raw = row["p_paired_t_bonferroni"]
+    confirmed = bool(q <= ALPHA)
+    uncorrected = f"p {p_value(p)}, " if pd.notna(p) else ""
+    words = f"paired t-test on the repeat means {uncorrected}q {p_value(q)}"
+    words += "" if which == "normalised" else " (raw values)"
+    raw = row["q_paired_t"]
     if which == "normalised" and pd.notna(raw) and (raw <= ALPHA) != confirmed:
-        words += f", raw values p {raw:.2g}"
+        words += f"; on raw values q {p_value(raw)}"
     return confirmed, words
 
 
@@ -129,16 +137,16 @@ def _cells(row: pd.Series | None) -> str:
     """The cell-level test in words, with its chance of p <= alpha without an effect."""
     if row is None:
         return ""
-    label, _, p, low, high = _cell_version(row)
-    if pd.isna(p):
+    label, _, q, low, high, _p_value = _cell_version(row)
+    if pd.isna(q):
         return ""
     chance = _chance_words(low, high)
-    text = f"cell-level p {p:.2g} ({label}" + (
-        f"; false-positive chance {chance} here)" if chance else ")"
+    text = f"cell-level test q {p_value(q)} ({label}" + (
+        f"; {_chance_sentence(chance)})" if chance else ")"
     )
-    raw = row["p_cells_bonferroni"]
-    if label != "raw" and p > ALPHA and pd.notna(raw) and raw <= ALPHA:
-        text += f"; the raw pooled test gives p {raw:.2g}, but {_why_raw(row, label)}"
+    raw = row["q_cells"]
+    if label != "raw" and q > ALPHA and pd.notna(raw) and raw <= ALPHA:
+        text += f"; the raw pooled test gives q {p_value(raw)}, but {_why_raw(row, label)}"
     return text
 
 
@@ -170,7 +178,7 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
     for condition, row in rows.iterrows():
         n, lower, higher = int(row["repeats"]), int(row["lower"]), int(row["higher"])
         direction = "lower" if lower == n else "higher" if higher == n else "mixed"
-        d = f"d {row['d_mean']:.2f}" if pd.notna(row["d_mean"]) else ""
+        d = f"mean d per repeat {row['d_mean']:+.2f}" if pd.notna(row["d_mean"]) else ""
         if n == 1:
             verdict, confirmed = ONE_REPEAT, False
             parts = [f"{direction} than the control in its one {word}" + (f" ({d})" if d else "")]
@@ -206,13 +214,38 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
         return []
     control = listing(sorted(set(map(str, readings["control_condition"]))), 3)
     head = (
-        f"Reading, condition by condition, against {control} (paired test: Bonferroni, on "
-        "normalised values; cell-level: the version below that is least biased by the "
-        "repeats):"
+        f"Reading, condition by condition, against {control}. Confirmed: the paired t-test on "
+        "the repeat means (as SuperPlots; on values normalised to each repeat's control) gives "
+        "q ≤ 0.05, corrected (Benjamini-Hochberg) within the condition's sub-experiment, the "
+        "conditions sharing its repeats and control: report it as a difference. Not "
+        "confirmed: a trend you can describe, not a significant difference; with 3 repeats "
+        "this test confirms only large, consistent effects. The cell-level test (as "
+        f"Plot&Stats, every {contrast.settings['observation_unit']} an independent draw) is "
+        "given beside it:"
     )
-    return [wrap(head, indent, hang=indent + 2)] + [
+    design = _design(contrast, control)
+    return [wrap(design + head, indent, hang=indent + 2)] + [
         wrap(f"- {text}", indent + 2, hang=indent + 4) for text in readings["reading"]
     ]
+
+
+def _design(contrast: Any, control: str) -> str:
+    """The design in one sentence: the sub-experiments when the conditions were imaged in
+    separate biological repeats, each with its own control; empty with one."""
+    across = getattr(contrast, "repeats", None)
+    if across is None or "experiment" not in across or across["experiment"].nunique() < 2:
+        return ""
+    word = column_word(contrast.settings.get("repeat_col"))
+    groups = [
+        listing(list(block["condition"].astype(str)), 3)
+        for _, block in across.groupby("experiment", sort=False)
+    ]
+    sizes = sorted({int(n) for n in across["repeats"]})
+    held = count(sizes[0], word) if len(sizes) == 1 else f"{sizes[0]} to {sizes[-1]} {word}s"
+    return (
+        f"Design: {len(groups)} sub-experiments, each with its own {control} in its own "
+        f"{held} ({'; '.join(groups[:6])}{'; ...' if len(groups) > 6 else ''}). "
+    )
 
 
 def readings_headline(contrast: Any) -> str | None:
@@ -224,6 +257,9 @@ def readings_headline(contrast: Any) -> str | None:
         return None
     word = column_word(contrast.settings.get("repeat_col"))
     n_repeats = int(_direction_rows(contrast)["repeats"].max())
+    table = getattr(contrast, "table", pd.DataFrame())
+    repeat_col = contrast.settings.get("repeat_col")
+    total = int(table[repeat_col].nunique()) if repeat_col in table else n_repeats
     groups = []
     for verdict in VERDICTS:
         block = readings[readings["verdict"] == verdict]
@@ -234,9 +270,13 @@ def readings_headline(contrast: Any) -> str | None:
             these = list(block.loc[block["direction"] == direction, "condition"].astype(str))
             if these:
                 tail = "" if direction == "mixed" else f" ({direction})"
-                names.append(f"{listing(these, 4)}{tail}")
+                names.append(f"{listing(these, 8)}{tail}")
         groups.append(f"{verdict}: {'; '.join(names)}")
-    text = f"{count(len(readings), 'condition')} across {count(n_repeats, word)}: "
+    text = f"{count(len(readings), 'condition')} " + (
+        f"across {count(n_repeats, word)}: "
+        if total <= n_repeats
+        else f"against the control, each in {count(n_repeats, word)} ({total} in all): "
+    )
     text += "; ".join(groups)
     if n_repeats < MIN_REPEATS:
         text += _cells_headline(contrast)
@@ -255,8 +295,10 @@ def _cells_headline(contrast: Any) -> str:
     highs = [v[4] for v in tested if pd.notna(v[4])]
     chance = _chance_words(min(lows), max(highs)) if lows and highs else ""
     passing = sum(v[2] <= ALPHA for v in tested)
-    return f"; cell-level test: {passing} of {len(tested)} at Bonferroni p ≤ {ALPHA:g}" + (
-        f" (false-positive chance {chance} here)" if chance else ""
+    return f"; cell-level test: {passing} of {len(tested)} at q ≤ {ALPHA:g}" + (
+        f" (with no real effect it gives p ≤ {ALPHA:g} in {chance} of experiments like this one)"
+        if chance
+        else ""
     )
 
 

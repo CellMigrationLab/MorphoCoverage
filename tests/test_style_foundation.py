@@ -100,10 +100,12 @@ def test_headline_puts_the_marker_first():
 
 def test_group_labels_join_the_values_and_name_the_columns_once():
     group = {"condition": "MOCK", "biological_repeat": "1A", "technical_repeat": "B6"}
-    assert group_label(group) == "MOCK · 1A · B6"
-    assert group_columns(list(group)) == "condition · biological_repeat · technical_repeat"
+    assert group_label(group) == "MOCK · repeat 1A · B6"
+    assert group_columns(list(group)) == "condition · biological repeat · technical repeat"
     assert group_label({}) == "all fields (pooled)"
-    assert group_label({"condition": "MOCK", "biological_repeat": np.nan}) == "MOCK · (none)"
+    assert group_label({"condition": "MOCK", "biological_repeat": np.nan}) == "MOCK · repeat (none)"
+    # A level the folders did not have (CellPatcher's "single") is left out.
+    assert group_label({**group, "technical_repeat": "single"}) == "MOCK · repeat 1A"
 
 
 def test_among_counts_groups_in_words():

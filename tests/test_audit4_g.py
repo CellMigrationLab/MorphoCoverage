@@ -263,7 +263,7 @@ def test_p6_5_rare_state_fields_report_the_technical_repeats_holding_it():
     result = fov_clustering(objects, fovs, label_col="state", states=[True], n_permutations=9)
     assert set(result.table["technical_repeats"]) == {1}
     text = result.summary()
-    assert "drug · R1" in text and "1 of 3 technical repeats" in text
+    assert "drug · repeat R1" in text and "1 of 3 technical repeats" in text
     assert "The field counts assume fields from independent technical repeats" in text
     pooled = fov_clustering(
         objects,

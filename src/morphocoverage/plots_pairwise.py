@@ -4,8 +4,10 @@ under each plot: the effect size and the test, in one matrix.
 - ``pairwise_contrasts``: for every pair of conditions, Cohen's d on the observations
   (``statistics.cohen_d``, the row's condition minus the column's: signed, so lower and
   higher read apart) and the randomization test on it, as Plot&Stats runs it: the condition
-  labels shuffled over every observation of the two conditions, pooled over the repeats
-  (``contrast_cells.cell_randomization``, ``N_PERMUTATIONS`` shuffles). The p-values are
+  labels shuffled over the observations of the two conditions (``contrast_cells.
+  cell_randomization``, ``N_PERMUTATIONS`` shuffles), taken from the repeats that imaged
+  both, so each condition meets the control of its own repeats (as the reading does); two
+  conditions imaged in different repeats are compared as provided, and marked. The p-values are
   Benjamini-Hochberg corrected over the pairs (``q``), as the feature discovery corrects
   its gate. The paired t-test on the repeats' means is kept beside it (``p_paired``, for
   pairs imaged in ``MIN_REPEATS`` shared repeats), not drawn: on three repeats it has
@@ -48,14 +50,15 @@ ALPHA = 0.05
 D_CAP = 2.0
 N_PERMUTATIONS = 1999
 PAIR_NOTE = (
-    "Every pair of conditions. Lower left: Cohen's d on the observations, the row's "
-    "condition minus the column's (blue lower, red higher, full colour at |d| ≥ 2). Upper "
-    "right: the randomization test on d, every observation of the two conditions shuffled "
-    "(as Plot&Stats), Benjamini-Hochberg corrected over the pairs (q; green at q ≤ 0.05, "
-    "darker the smaller). It treats every observation as an independent draw, so when the repeats "
-    "differ it passes more often than 5% without an effect. † : imaged in different "
-    "repeats, so the batch is in the difference. Pairs without the control describe; the "
-    "declared comparisons are against the control."
+    "Every pair of conditions; the row and the column of the control answer the question, "
+    "the other squares describe. Lower left: Cohen's d, the row's condition minus the "
+    "column's (blue lower, red higher, full colour at |d| ≥ 2). Upper right: the "
+    "randomization test on d, as Plot&Stats runs it, on the repeats that imaged both "
+    "conditions (so each condition meets the control of its own repeats), corrected over "
+    "the pairs (Benjamini-Hochberg q; green at q ≤ 0.05, darker the smaller). It treats every "
+    "observation as an independent draw: when the repeats differ it gives q ≤ 0.05 more often than "
+    "5% of the time with no real effect. †: the two conditions were imaged in different "
+    "repeats, so the difference between the repeats is in it too."
 )
 PAIRED_NOTE = (
     "The paired t-test on the biological repeats' means: each condition's mean paired with "
@@ -144,6 +147,13 @@ def pairwise_contrasts(
         repeats_a = {r: g.to_numpy() for r, g in a.groupby("repeat", sort=False)["value"]}
         repeats_b = {r: g.to_numpy() for r, g in b.groupby("repeat", sort=False)["value"]}
         p_paired, paired_values, shared = _paired(repeats_a, repeats_b)
+        # Compared on the repeats that imaged both (each condition against the control of
+        # its own repeats): pooling repeats one side was not imaged in reads a batch as an
+        # effect. Two conditions with no repeat in common are compared as provided (†).
+        common = set(repeats_a) & set(repeats_b)
+        if common:
+            a = a[a["repeat"].isin(common)]
+            b = b[b["repeat"].isin(common)]
         rng = group_rng(random_state, {"feature": feature, "first": first, "second": second})
         d, p = cell_randomization(a["value"].to_numpy(), b["value"].to_numpy(), n_permutations, rng)
         if not np.isfinite(p):

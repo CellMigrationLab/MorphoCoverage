@@ -16,7 +16,7 @@ from ..sampling_unit.contrast_text import (
     across_tested,
     design_limited,
 )
-from ..sampling_unit.reading_text import readings_headline
+from ..sampling_unit.reading_text import CONFIRMED, condition_readings, readings_headline
 from ..sampling_unit.reagents_text import reagents_headline
 
 Answer = tuple[Status, str]
@@ -36,17 +36,17 @@ def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
         text += f" ({lower} lower, {higher} higher than the control)"
     tested = across[across["p_paired_t"].notna()]
     if len(tested):
-        differ = int((tested["p_paired_t_bonferroni"] <= 0.05).sum())
-        normalised = int((tested["p_paired_t_normalised_bonferroni"] <= 0.05).sum())
+        differ = int((tested["q_paired_t"] <= 0.05).sum())
+        normalised = int((tested["q_paired_t_normalised"] <= 0.05).sum())
         text += (
             f"; paired t on the repeat means, raw / normalised: {differ} / {normalised} of "
-            f"{len(tested)} at Bonferroni p ≤ 0.05"
+            f"{len(tested)} at q ≤ 0.05"
         )
     return text
 
 
 _UNTESTED = {
-    "only one technical repeat": "one technical repeat on a side",
+    "only one technical repeat": "one technical repeat per condition in a repeat",
     "too few technical repeats": "too few technical repeats on a side",
     "fewer than 2 fields": "too few fields on a side",
     "fields of one dish or well": "the fields' wells unknown",
@@ -73,6 +73,11 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         across = getattr(contrast, "repeats", None)
         answered = across_tested(contrast)
         reading = readings_headline(contrast)
+        verdicts = condition_readings(contrast)["verdict"]
+        if reading and answered and not (verdicts == CONFIRMED).any():
+            # Nothing confirmed across repeats: a trend at most, never a green answer.
+            status = Status.CAUTION
+            parts.append(f"{contrast.settings['feature']}: none confirmed across repeats")
         if reading:
             # The verdict per condition, read from every test (``reading_text``).
             parts.append(reading)
@@ -111,8 +116,8 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         n_features = count(len(discovery.ranking), "feature")
         confirmed = len(discovery.confirmed())
         parts.append(
-            f"{passing} of {n_features} pass the cell-level gate, {confirmed} confirmed by the "
-            "paired test"
+            f"{passing} of {n_features} are candidates at the cell level (q ≤ 0.05), "
+            f"{confirmed} confirmed across repeats"
         )
         return status, "; ".join(parts)
     if ranking is not None and len(ranking.ranking):

@@ -29,7 +29,15 @@ from typing import Any
 import pandas as pd
 
 from ._caveats import assumption, caveat_lines
-from ._style import group_label, number_pattern, rule_label, table, varying_numbers, wrap
+from ._style import (
+    group_columns,
+    group_label,
+    number_pattern,
+    rule_label,
+    table,
+    varying_numbers,
+    wrap,
+)
 from ._wording import count, number, percent, rows_of
 from .sufficiency_short import (
     _group,
@@ -213,11 +221,15 @@ def _needed_line(row: Mapping[str, Any], target: float) -> str:
         bound = f"the next-field bound is already below {goal}"
     else:
         rate = row.get("extra_fovs_at_current_rate")
-        at_rate = f"{number(rate)} at the current rate" if _present(rate) else "never at it"
+        at_rate = (
+            f"{number(rate)} at the current rate of new fields"
+            if _present(rate)
+            else "never, at the current rate of new fields"
+        )
         bound = (
             f"to bring the next-field bound below {goal}, at least "
             f"{count(int(row['extra_fovs_if_nothing_new']), 'more field')} if none shows "
-            f"anything new ({at_rate} of new fields)"
+            f"anything new ({at_rate})"
         )
     return f"Fields still needed: {'; '.join(p for p in (rule_out, bound) if p)}."
 
@@ -274,7 +286,7 @@ def full_summary(report: Any, target: float | None = None) -> str:
     target = target if target is not None else getattr(report, "novelty_target", None)
     tallies = rule_tallies(report)
     blocks = []
-    head = [f"Analysis groups: {' · '.join(keys)}."] if keys else []
+    head = [f"Analysis groups: {group_columns(keys)}."] if keys else []
     if tallies:
         head += _rules_table(report, tallies, 0)
         head.append(_rule_names(report))

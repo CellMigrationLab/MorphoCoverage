@@ -101,8 +101,12 @@ class DatasetOverview:
         declared = "" if settings["observation_unit_declared"] else " (assumed, not declared)"
         empty = f", {c['empty_fields']} without {words}" if c["empty_fields"] else ", none empty"
         objects = f"{count(c['objects'], unit, words)}{declared}"
-        key = group_columns(settings["fov_key"])
-        lines = [f"{objects} in {count(c['fields'], 'field')}{empty}; a field is {key}."]
+        one = c["objects"] == c["fields"] and c["fields"] > 0
+        # The layout's own levels need no words; another field key is said.
+        standard = set(settings["fov_key"]) <= {*MORPHOBRICKS_GROUP_COLUMNS, "position_id"}
+        key = "" if standard else f"; a field is {group_columns(settings['fov_key'])}"
+        each = f" (one {unit} per field)" if one else ""
+        lines = [f"{objects} in {count(c['fields'], 'field')}{each}{empty}{key}."]
         normalized = settings.get("normalized")
         values = f"values: {normalized}" if normalized else "values as given (not normalised)"
         lines.append(
@@ -128,12 +132,14 @@ class DatasetOverview:
             parts.append(f"{count(c['conditions'], 'condition')} ({_listed(names, 6)})")
         if repeat_col is not None:
             names = self.layout[repeat_col].drop_duplicates().tolist()
-            parts.append(f"{count(c['repeats'], 'repeat')} ({_listed(names, 6)})")
+            parts.append(f"{count(c['repeats'], 'biological repeat')} ({_listed(names, 6)})")
         if settings["technical_col"] is not None:
             parts.append(count(c["technical_repeats"], "technical repeat"))
         group_cols = settings.get("group_cols", ())
         groups = (
-            f"{count(c['groups'], 'analysis group')} ({group_columns(group_cols)}), each "
+            f"each {group_columns(group_cols[-1:])} analysed apart"
+            if group_cols and group_cols[-1] == settings["technical_col"]
+            else f"{count(c['groups'], 'analysis group')} ({group_columns(group_cols)}), each "
             "analysed apart"
             if group_cols
             else "every field in one group (pooled)"

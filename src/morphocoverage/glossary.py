@@ -71,9 +71,10 @@ GLOSSARY: tuple[Term, ...] = (
     Term(
         "Reading the report",
         "Status markers",
-        "✅ answered; ⚠️ answered, with a caution about these data; ❌ check the data first; ➖ "
-        "not applicable or not assessed. A marker says how far to trust an answer, not what it "
-        "found: ✅ can mean 'no difference'.",
+        "✅ answered; ⚠️ answered, with a caution (for 'Do the conditions differ?': none "
+        "confirmed across repeats); ❌ check the data first; ➖ not applicable or not assessed. "
+        "A marker says how far to trust an answer, not what it found: ✅ can mean 'no "
+        "difference'.",
         "At a glance, every answer",
     ),
     Term(
@@ -95,38 +96,45 @@ GLOSSARY: tuple[Term, ...] = (
         "Biological repeat",
         "An independent experiment (often its date). The replicate that a conclusion about the "
         "conditions must hold across.",
-        "Question 9, the design scan",
+        "Do the conditions differ?, the design scan",
+    ),
+    Term(
+        "The design",
+        "Sub-experiment",
+        "The conditions that share their biological repeats and their control, as when a screen "
+        "runs target by target, each with its own control: the tests are corrected within it, "
+        "not over the whole report, so one part of a screen does not dilute another.",
+        "Do the conditions differ?",
     ),
     Term(
         "The design",
         "Technical repeat",
         "A well, dish or coverslip within a biological repeat; never a biological repeat. "
         "'single' when there is one.",
-        "Question 9, the plots (colours), question 7",
+        "The data, the plots (point shapes)",
     ),
     Term(
         "The design",
         "Pilot",
         "A dataset of one or two biological repeats. It gets every answer its design supports "
         "and advice for the next experiment, not a verdict across repeats.",
-        "Question 9, the plan",
+        "Do the conditions differ?, the plan",
     ),
     Term(
         "The design",
         "Normalised values",
         "Each value divided by the mean of the control of its own biological repeat, so a "
-        "scale shared by a repeat (a staining or imaging batch) is removed. Needs a positive "
-        "control mean.",
-        "Question 9, the plots, the PCA and UMAP",
+        "scale shared by a repeat (a staining or imaging batch) is removed. Needs the control "
+        "mean to be above zero.",
+        "Do the conditions differ?, the plots, the PCA and UMAP",
     ),
     Term(
         "Did I image enough?",
         "Mean-precision rule",
-        "Stops once the mean of the readout is precise enough: its averaging CV (one standard "
-        "error as a share of the mean) at or below the target, e.g. 5%. 'Per cell' treats "
-        "cells as independent; 'per field' uses field means. A CV of 5% is one standard error "
-        "of 5%, not a ±5% bound.",
-        "Question 2, the stopping rules",
+        "Stops once the mean of the readout is precise enough: its standard error at most a "
+        "share of the mean you choose, e.g. 5% (its 95% interval is then about ±10%). 'Per "
+        "cell' treats cells as independent; 'per field' uses field means.",
+        "Did I image enough?",
         (ZWEIFACH,),
     ),
     Term(
@@ -134,7 +142,7 @@ GLOSSARY: tuple[Term, ...] = (
         "Mean-precision count check",
         "Whether the number of cells the mean-precision rule asks for still gives that "
         "precision when the cells come as whole fields, as they are acquired.",
-        "Foundation",
+        "Why count fields, and not only cells?",
         (ZWEIFACH,),
     ),
     Term(
@@ -142,7 +150,7 @@ GLOSSARY: tuple[Term, ...] = (
         "JCS spread and plateau rules",
         "Stop once the mean, median, SD and IQR of a feature stabilise as cells are added "
         "(within a tolerance you choose, in the feature's units).",
-        "Question 2, the stopping rules",
+        "Did I image enough?",
         (MARCOTTI,),
     ),
     Term(
@@ -150,14 +158,14 @@ GLOSSARY: tuple[Term, ...] = (
         "Held-back fields",
         "Fields set aside before a rule is replayed, so whether the rule stopped too early is "
         "judged on fields it never saw.",
-        "Questions 4, 5 and the rules' reliability (optimise)",
+        "The optimise workflow (planning the next experiment)",
     ),
     Term(
         "Did I image enough?",
         "Resolved",
         "The 95% interval of the difference from the control, from the fields resampled as "
-        "they were acquired, excludes zero.",
-        "Question 2",
+        "they were acquired, excludes zero: the difference shows within that repeat.",
+        "Did I image enough?",
     ),
     Term(
         "Do the conditions differ?",
@@ -165,17 +173,17 @@ GLOSSARY: tuple[Term, ...] = (
         "The difference of two means in units of their pooled standard deviation: 0.2 small, "
         "0.5 medium, 0.8 large by Cohen's convention. Sign: negative is lower than the "
         "control.",
-        "Question 9, the feature ranking",
+        "Do the conditions differ?",
         (COHEN,),
     ),
     Term(
         "Do the conditions differ?",
         "Cell-level randomization test",
         "Shuffles the condition labels over every cell of a condition and its control, as the "
-        "lab's Plot&Stats notebook does. It asks whether these wells differ, not whether the "
-        "effect repeats: when the difference varies between repeats it gives p ≤ 0.05 more "
-        "often than 5% without an effect, and the report prints that chance beside it.",
-        "Question 9, the discovery gate",
+        "Plot&Stats notebook does. It asks whether these wells differ, not whether the effect "
+        "repeats: when the difference varies between repeats it gives p ≤ 0.05 more often "
+        "than 5% with no real effect, and the report prints how often beside it.",
+        "Do the conditions differ?",
         (PLOT_AND_STATS,),
     ),
     Term(
@@ -184,14 +192,14 @@ GLOSSARY: tuple[Term, ...] = (
         "The cell-level test when the repeats hold different numbers of cells: each draw takes "
         "the same number from every repeat, so none weighs more; the median d and p over 100 "
         "draws.",
-        "Question 9",
+        "Do the conditions differ?",
     ),
     Term(
         "Do the conditions differ?",
         "Sparse repeat",
         "A repeat with under a quarter of the median repeat's cells, or fewer than 5: left out "
         "of the balanced test only, and named so it can be checked.",
-        "Question 9, the design scan",
+        "Do the conditions differ?, the design scan",
     ),
     Term(
         "Do the conditions differ?",
@@ -199,8 +207,8 @@ GLOSSARY: tuple[Term, ...] = (
         "Each biological repeat's condition mean paired with its own control mean, the repeat "
         "as the replicate (as in SuperPlots). Keeps false positives at 5%, but with 3 repeats "
         "it confirms only large, consistent effects. Given raw and on log ratios to the "
-        "control (normalised).",
-        "Question 9: the only test that confirms a difference",
+        "control (normalised), corrected within each sub-experiment.",
+        "Do the conditions differ?: the only test that confirms a difference",
         (SUPERPLOTS,),
     ),
     Term(
@@ -208,30 +216,32 @@ GLOSSARY: tuple[Term, ...] = (
         "Sign-flip test",
         "The exact test on the signs of the per-repeat differences; given only from 6 repeats, "
         "where its smallest p can reach 0.05 after the correction.",
-        "Question 9, full detail",
+        "Do the conditions differ?, full detail",
     ),
     Term(
         "Do the conditions differ?",
         "Bonferroni correction",
-        "Each p-value multiplied by the number of conditions tested, so testing several does "
-        "not raise the chance of one false positive.",
-        "Question 9",
+        "Each p-value multiplied by the number of tests, so that across all of them the chance "
+        "of even one false positive stays at 5%. Used for the tests within one repeat.",
+        "Do the conditions differ?, within repeats",
     ),
     Term(
         "Do the conditions differ?",
         "Benjamini-Hochberg q-value",
-        "A p-value corrected for the many features tested together: among the features with "
+        "A p-value corrected for the many tests made together (the conditions of one "
+        "experiment, the features ranked, or the pairs of a matrix): among the results with "
         "q ≤ 0.05, about 5% are expected to be false discoveries.",
-        "Question 9, the feature ranking",
+        "Do the conditions differ?",
         (BH,),
     ),
     Term(
         "Do the conditions differ?",
         "Discovery gate and confirmed across repeats",
-        "A feature passes the discovery gate when its cell-level test has q ≤ 0.05; it is "
-        "confirmed across repeats when the paired test on the repeat means passes too. The "
-        "first finds candidates; the second says the effect repeats.",
-        "Question 9, the feature ranking",
+        "A feature is a candidate when its cell-level test has q ≤ 0.05 for a condition; it is "
+        "confirmed across repeats when the paired t-test on the repeat means gives q ≤ 0.05 "
+        "for that condition too. The first finds candidates; the second says the mean "
+        "difference holds across the repeats.",
+        "Do the conditions differ?, the feature ranking",
     ),
     Term(
         "Do the conditions differ?",
@@ -239,7 +249,7 @@ GLOSSARY: tuple[Term, ...] = (
         "Two siRNAs (or other reagents) of one gene, named in the 'target' column: when both "
         "go the same way in every repeat, an off-target effect of one of them is less likely. "
         "Described, not tested.",
-        "Question 9",
+        "Do the conditions differ?",
         (LAB_PAPER,),
     ),
     Term(
@@ -247,16 +257,17 @@ GLOSSARY: tuple[Term, ...] = (
         "JCS effect size",
         "The treated mean minus the control mean over the control SD, from cells drawn as "
         "random cells and as whole fields.",
-        "Question 9, full detail",
+        "Do the conditions differ?, full detail",
         (MARCOTTI,),
     ),
     Term(
         "Figures",
         "PlotsOfData-style plot",
-        "Every cell a point coloured by technical repeat, the biological repeats side by side, "
-        "each repeat's median with its 95% interval from resampling whole technical repeats "
-        "and their fields as acquired (never single cells).",
-        "Question 9's figures",
+        "Every cell a point in its condition's colour, shaped by technical repeat; the "
+        "biological repeats side by side; each repeat's median with its 95% interval from "
+        "resampling whole technical repeats with their fields as acquired (never single cells), "
+        "or whole repeats when they are pooled.",
+        "The figures of 'Do the conditions differ?'",
         (PLOTSOFDATA, SUPERPLOTS, REN),
     ),
     Term(
@@ -265,7 +276,7 @@ GLOSSARY: tuple[Term, ...] = (
         "The two directions along which the standardised features vary most, each labelled "
         "with its share of the variance; an arrow shows how much a best-ranked feature weighs "
         "on each direction. Describes, does not test.",
-        "Question 9's figures",
+        "The figures of 'Do the conditions differ?'",
     ),
     Term(
         "Figures",
@@ -273,7 +284,7 @@ GLOSSARY: tuple[Term, ...] = (
         "A map that keeps each cell's nearest neighbours close, so it can show groups that PCA "
         "mixes. Its axes have no units and distances between groups are not to scale. "
         "Describes, does not test; on raw values a separation can be a batch between repeats.",
-        "Question 9's figures",
+        "The figures of 'Do the conditions differ?'",
         (UMAP,),
     ),
     Term(
@@ -282,28 +293,28 @@ GLOSSARY: tuple[Term, ...] = (
         "Exact checks for accidents of image analysis: a field exported twice, rows pasted into "
         "another field, a change of units, a summary written twice. A finding is structure to "
         "inspect, not a judgement.",
-        "The data, question 6, the design scan",
+        "The data, the fields to check, the design scan",
     ),
     Term(
         "The data",
         "Unusual cells and 'nothing new'",
         "Cells far from the control's, and whether later fields still showed states earlier "
         "fields did not (the definition of new is declared in the setup).",
-        "Questions 2 and 3",
+        "Did I image enough?, What limits the sampling?",
     ),
     Term(
         "The data",
         "Positive control (representation)",
         "A condition known to differ, used to check that the features can see the phenotype "
         "at all before 'nothing new' is trusted.",
-        "Question 1",
+        "Can these features detect what I care about?",
     ),
     Term(
         "The data",
         "Between-field share",
         "The part of a feature's variance that lies between fields rather than between cells "
         "of one field: when it is large, more fields help more than more cells per field.",
-        "Foundation, question 3",
+        "Why count fields, and not only cells?, What limits the sampling?",
     ),
 )
 
@@ -315,6 +326,7 @@ PHRASES: dict[str, tuple[str, ...]] = {
     "Technical repeat": ("technical repeat", "technical repeats"),
     "Pilot": ("pilot",),
     "Normalised values": ("normalised", "normalised values"),
+    "Sub-experiment": ("sub-experiments", "its experiment", "each experiment"),
     "Mean-precision rule": ("mean-precision rule", "mean-precision rules"),
     "Mean-precision count check": ("mean-precision count rule", "mean-precision check"),
     "JCS spread and plateau rules": ("JCS spread", "JCS plateau"),

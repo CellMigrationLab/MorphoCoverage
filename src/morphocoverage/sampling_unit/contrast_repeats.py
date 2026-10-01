@@ -22,11 +22,15 @@ condition and control, from the per-repeat contrasts:
 - **an exact sign-flip test** on the same differences, which assumes only that
   their sign is exchangeable without an effect: every one of the ``2 ** n``
   sign assignments is enumerated, so p is exact and never below ``2 / 2 ** n``.
-  It is run only when that floor, after the Bonferroni correction, can reach
-  0.05 (from 6 repeats for one condition); below, it could not help and is
-  left out (``p_sign_flip`` NaN, its floor kept).
+  It is run only when that floor, corrected over the tests of its
+  sub-experiment, can reach 0.05 (from 6 repeats for one condition); below, it
+  could not help and is left out (``p_sign_flip`` NaN, its floor kept).
 
-The p-values are Bonferroni-corrected over the conditions tested; a
+The p-values are corrected (Benjamini-Hochberg, the ``q_`` columns) within each
+sub-experiment (``_experiments``: the conditions linked by a biological repeat
+they were both compared in, numbered in ``experiment``), not over every
+condition of the report: a screen's separate sub-experiments do not dilute
+each other. A
 condition needs at least ``MIN_REPEATS`` repeats holding both sides for either
 test. A repeat's value is the mean of all its observations of the condition
 (the SuperPlots replicate mean), since within a repeat the fields are not the
@@ -44,6 +48,7 @@ from scipy import stats
 
 from .._seeds import group_rng
 from ..metadata import REPEAT_COLUMN as REPEAT
+from ._experiments import corrected, experiments
 from ._reach import reachable
 
 # The fewest biological repeats holding both sides for a test across repeats.
@@ -62,13 +67,14 @@ REPEAT_COLUMNS = [
     "d_min",
     "d_max",
     "p_sign_flip",
-    "p_sign_flip_bonferroni",
+    "q_sign_flip",
     "p_sign_flip_floor",
     "p_sign_flip_exact",
     "p_paired_t",
-    "p_paired_t_bonferroni",
+    "q_paired_t",
     "p_paired_t_normalised",
-    "p_paired_t_normalised_bonferroni",
+    "q_paired_t_normalised",
+    "experiment",
     "status",
 ]
 
@@ -139,13 +145,14 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
             "d_min": float(d.min()) if len(d) else np.nan,
             "d_max": float(d.max()) if len(d) else np.nan,
             "p_sign_flip": np.nan,
-            "p_sign_flip_bonferroni": np.nan,
+            "q_sign_flip": np.nan,
             "p_sign_flip_floor": np.nan,
             "p_sign_flip_exact": False,
             "p_paired_t": np.nan,
-            "p_paired_t_bonferroni": np.nan,
+            "q_paired_t": np.nan,
             "p_paired_t_normalised": np.nan,
-            "p_paired_t_normalised_bonferroni": np.nan,
+            "q_paired_t_normalised": np.nan,
+            "experiment": 0,
             "status": "ok",
         }
         if len(differences) < MIN_REPEATS:
@@ -167,15 +174,21 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
     result = pd.DataFrame(rows, columns=REPEAT_COLUMNS)
     if result.empty or result["repeats"].max() < 2:
         return pd.DataFrame(columns=REPEAT_COLUMNS)
-    unhelpful = result["p_sign_flip"].notna() & ~reachable(
-        result["p_sign_flip_floor"].where(result["p_sign_flip"].notna())
-    )
-    result.loc[unhelpful, "p_sign_flip"] = np.nan
+    # The repeats each condition is compared in; a table without them is one experiment.
+    named = next((c for c in (REPEAT, repeat_col) if c in paired), None)
+    held = {
+        condition: list(block[named]) if named else [0]
+        for condition, block in paired.groupby("condition", sort=False)
+    }
+    family = experiments(held)
+    result["experiment"] = result["condition"].map(family)
+    floors = result["p_sign_flip_floor"].where(result["p_sign_flip"].notna())
+    helpful = pd.Series(False, index=result.index)
+    for members in result.groupby("experiment").groups.values():
+        helpful.loc[members] = reachable(floors.loc[members])
+    result.loc[result["p_sign_flip"].notna() & ~helpful, "p_sign_flip"] = np.nan
     for column in ("p_sign_flip", "p_paired_t", "p_paired_t_normalised"):
-        tested = result[column].notna()
-        result[f"{column}_bonferroni"] = np.where(
-            tested, np.minimum(1.0, result[column] * int(tested.sum())), np.nan
-        )
+        result[column.replace("p_", "q_", 1)] = corrected(result[column], result["experiment"])
     return result
 
 

@@ -197,8 +197,8 @@ def _shift(pooled: dict[str, np.ndarray], repeat_col: str | None) -> str | None:
     if ratio <= REFERENCE_SHIFT:
         return None
     return (
-        f"the control means of the repeats differ by {ratio:.1f}x ({repeat_col}={low}: "
-        f"{levels[low]:.3g}, {repeat_col}={high}: {levels[high]:.3g}); each repeat is judged "
+        f"the control means of the repeats differ by {ratio:.1f}x (repeat {low}: "
+        f"{levels[low]:.3g}, repeat {high}: {levels[high]:.3g}); each repeat is judged "
         "against its own control, but a shift that large may be a batch effect or a change "
         "of units (a feature exported in other units in one repeat)"
     )

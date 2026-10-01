@@ -67,9 +67,9 @@ def test_integrity_short_groups_the_findings_in_a_table_and_states_caveats_once(
     _, dirty = integrity
     text = dirty.summary()
     assert "structure to inspect, not a judgment" in text
-    assert "Fields are named condition · biological_repeat · technical_repeat · image_file." in text
+    assert "Fields are named condition · biological repeat · technical repeat · image file." in text
     # One row per check and pair of groups, the groups named as group labels.
-    assert "copied field             between MOCK · 1A · B6 and" in text
+    assert "copied field             between MOCK · repeat 1A · B6 and" in text
     assert "repeated within a field  within " in text
     assert "condition=" not in text
     assert text.count(OUT_OF_REACH) == 1
@@ -195,7 +195,7 @@ def test_frontier_short_is_a_table_with_levels_merged_and_the_interval_caveat_on
         short
     )
     assert "rule at 0.1" in short and "saves 2.0 (0.5 to 3.0)" in short
-    assert short.count(RESAMPLED) == 1 and "(biological_repeat · well)" in short
+    assert short.count(RESAMPLED) == 1 and "(biological repeat · well)" in short
     full = _flat(result.summary(detail="full"))
     # Every number of the old sentences, per level, and the caveat once.
     sentence = (

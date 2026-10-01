@@ -53,7 +53,8 @@ def test_sufficiency_summary_works_without_a_novelty_definition():
         orders=[AcquisitionOrder.permuted(0)],
     )
     text = report.summary(detail="full")
-    assert "control · R1 — " in text and "Analysis groups: condition · biological_repeat." in text
+    assert "control · repeat R1 — " in text
+    assert "Analysis groups: condition · biological repeat." in text
     assert "Each rule by its own threshold" in text and "One more field" not in text
     assert "One more field" not in report.summary()
 

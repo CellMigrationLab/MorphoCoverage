@@ -203,7 +203,7 @@ def order_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]]:
         lines.append(table(rows, names, indent=indent + 2))
         if len(differ) > SHORT_GROUPS:
             more = count(len(differ) - SHORT_GROUPS, "group")
-            lines.append(" " * (indent + 2) + f"and {more} more (detail='full').")
+            lines.append(" " * (indent + 2) + f"and {more} more (report_full.txt).")
     if same:
         text = f"In {among(len(same), n)} the orders do not differ by more than one field: {_NULL}."
         lines.append(wrap(text, indent, hang=indent + 2))

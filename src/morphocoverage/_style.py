@@ -38,7 +38,8 @@ from typing import Any
 
 import pandas as pd
 
-from ._wording import count, number, percent, plural, rate
+from ._wording import column_word, count, number, percent, plural, rate
+from .metadata import MORPHOBRICKS_GROUP_COLUMNS, REPEAT_COLUMN
 
 OK = "✅"
 CAUTION = "⚠️"
@@ -49,6 +50,8 @@ DETAILS = ("short", "full")
 WIDTH = 100
 DASH = "—"
 SEPARATOR = " · "
+# CellPatcher's value for a folder level an experiment did not have.
+SINGLE_LEVEL = "single"
 _KEPT = "\u00a0·\u00a0"  # the separator while wrapping: textwrap never breaks a no-break space
 
 
@@ -105,13 +108,21 @@ def _value(value: Any) -> str:
 
 
 def group_label(group: Mapping[str, Any]) -> str:
-    """``"MOCK · 1A · B6"``: the group's values; ``"all fields (pooled)"`` for no group."""
-    return SEPARATOR.join(_value(value) for value in group.values()) or "all fields (pooled)"
+    """``"MOCK · repeat 1A · B6"``: the group's values, the biological repeat named as one;
+    a level the folders did not have (``"single"``, CellPatcher's word for it) is left out.
+    ``"all fields (pooled)"`` for no group."""
+    parts = [
+        f"repeat {_value(value)}" if column == REPEAT_COLUMN else _value(value)
+        for column, value in group.items()
+        if not (value == SINGLE_LEVEL and column in MORPHOBRICKS_GROUP_COLUMNS)
+    ]
+    return SEPARATOR.join(parts) or "all fields (pooled)"
 
 
 def group_columns(columns: Sequence[str]) -> str:
-    """``"condition · repeat · technical_repeat"``: the columns a group label stands for."""
-    return SEPARATOR.join(columns) or "all fields pooled"
+    """``"condition · biological repeat · technical repeat"``: the columns a group label
+    stands for, as words."""
+    return SEPARATOR.join(column_word(c) for c in columns) or "all fields pooled"
 
 
 def among(k: int, n: int, word: str = "group") -> str:

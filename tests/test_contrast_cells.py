@@ -97,7 +97,7 @@ def test_a_control_from_repeats_the_condition_lacks_is_unbalanced():
     others = _side({"1": (30, 0.5), "2": (30, 0.5), "3": (30, 0.5)}, {"1": 30, "2": 30, "3": 30}, 3)
     row = _cells(KD=others).loc["KD"]
     assert row["unbalanced"] and row["other_control_repeats"] == 3
-    assert row["p_balanced"] > 0 and row["p_balanced_bonferroni"] == row["p_balanced"]
+    assert row["p_balanced"] > 0 and row["q_balanced"] == row["p_balanced"]
 
 
 def test_a_sparse_repeat_is_flagged_and_the_others_are_balanced():
@@ -144,10 +144,12 @@ def test_the_screen_is_given_as_provided_and_balanced(screen):
     assert "the control is pooled from 15 biological repeats the condition was not imaged in" in (
         joined
     )
-    assert "p ≤ 0.05 without an effect" in joined and "⚠️" not in screen.summary()
+    assert "gives p ≤ 0.05 with no effect" in joined and "⚠️" not in screen.summary()
     status, headline = conditions_status(screen, None)
     assert status.name == "OK"
-    assert headline.startswith("12 conditions across 3 biological repeats: same direction")
+    assert headline.startswith(
+        "12 conditions against the control, each in 3 biological repeats (18 in all): confirmed"
+    )
     # Normalised to its own repeats' control, MAP4K4#5 is above it as in every repeat.
     assert cells.loc["siMAP4K4#5", "d_cells_normalised"] > 0
 

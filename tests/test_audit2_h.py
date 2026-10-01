@@ -315,16 +315,14 @@ def test_h10_pooled_repeats_resample_the_repeats_first():
     spec = [("ctrl", f"r{r}", "w", 3, float(r), 0.2) for r in range(10)]
     objects, fovs = _tables(spec, per_field=5)
     title = plots_of_data(objects, fovs, features=["x"], n_boot=20)["x"][0].axes[0].figure.caption
-    assert (
-        "resampling whole biological repeats (biological_repeat), each with all its fields" in title
-    )
+    assert "resampling whole biological repeats with all their fields" in title
 
 
 def test_h11_jcb_rules_on_negative_values_are_not_applicable():
     objects, fovs = _tables([("ctrl", "r1", "w1", 20, -2.0, 0.5)], per_field=30)
     result = object_rule_check(objects, fovs, feature="x", n_draws=50)
     assert result.table["status"].str.startswith("not applicable").all()
-    assert "non-negative measurements" in result.summary()
+    assert "non-negative measurements" in " ".join(result.summary().split())
     # A positive group normalized by a control with negative values: also not applicable.
     treated, t_fovs = _tables([("drug", "r1", "w2", 10, 20.0, 0.5)], per_field=30)
     control, c_fovs = _tables([("ctrl", "r1", "w1", 10, 0.5, 0.5)], per_field=30)
@@ -346,7 +344,7 @@ def test_h12_the_legend_counts_wells_within_each_repeat():
     ax = plots_of_data(objects, fovs, features=["x"], n_boot=10)["x"][0].axes[0]
     assert not ax.texts
     labels = [t.get_text() for t in ax.get_legend().get_texts()]
-    assert labels == ["1st technical_repeat", "2nd technical_repeat"]
+    assert labels == ["1st", "2nd"]
 
 
 def test_h14_d5_fields_if_random_use_the_shared_detection_count():

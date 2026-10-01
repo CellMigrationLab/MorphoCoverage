@@ -173,10 +173,10 @@ _SHORT_NEEDS = {
 _NEEDS = {
     "unit": "run fov_variability (and object_rule_check or descriptor_spread_check) "
     "from morphocoverage.sampling_unit",
-    "controls": "name a condition known to change the phenotype as the positive control "
-    "(Setup(positive=PositiveControl({'condition': ...}, fovs_seen=10)), or the guided "
-    "session's positive-control question) and run the report again; it can be added after "
-    "the acquisition, whenever such a condition was imaged",
+    "controls": "name a condition known to change the phenotype as the positive control (the "
+    "guided session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the "
+    "report again; it can be added after the acquisition, whenever such a condition was "
+    "imaged",
     "enough": "run sufficiency_report, or stopping_calibration on a replay",
     "profile": "run representation_control, fov_variability, fov_clustering, "
     "effort_projection, redundancy_distance or inspect_fovs; the profile lists what they measured",

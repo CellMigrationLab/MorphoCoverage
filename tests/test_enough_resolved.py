@@ -58,11 +58,14 @@ def test_question_2_leads_with_the_resolution_when_a_control_is_declared():
     )
     status, headline = enough_status(None, None, contrast)
     assert status is Status.CAUTION
-    assert headline.startswith("the difference from the control is resolved in 2 of 6 contrasts")
-    assert "would need about" in headline and "fields a side" in headline
-    short = enough_short(None, None, None, contrast=contrast)
-    assert "Enough to resolve the difference from the control?" in short
-    assert "about 42 fields a side" in short and "resolved" in short
+    assert headline.startswith(
+        "within single repeats, the difference from the control shows in 2 of 6 comparisons"
+    )
+    # One cell per field: the advice counts cells.
+    assert "would need about" in headline and "cells a side" in headline
+    short = " ".join(enough_short(None, None, None, contrast=contrast).split())
+    assert "Within each repeat, does the difference from the control show?" in short
+    assert "about 42 cells a side" in short
 
 
 def test_every_difference_resolved_is_ok_and_the_precision_cautions_stay_in_the_full_form():
@@ -73,7 +76,9 @@ def test_every_difference_resolved_is_ok_and_the_precision_cautions_stay_in_the_
     assert contrast.table["resolved"].all()
     status, headline = enough_status(None, None, contrast)
     assert status is Status.OK
-    assert headline == "the difference from the control is resolved in 2 of 2 contrasts"
+    assert headline == (
+        "within single repeats, the difference from the control shows in 2 of 2 comparisons"
+    )
     assert CAUTION not in enough_short(None, None, None, contrast=contrast)
 
 

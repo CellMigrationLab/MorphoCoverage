@@ -14,6 +14,7 @@ from morphocoverage.sampling_unit.contrast_repeats import (
     across_repeats,
     sign_flip_test,
 )
+from morphocoverage.statistics import benjamini_hochberg
 
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
@@ -76,12 +77,22 @@ def test_fewer_than_three_repeats_get_the_direction_and_no_test():
     assert across_repeats(_table([-2.0, -3.0, -1.0]), None, 0).empty
 
 
-def test_bonferroni_is_over_the_conditions_tested():
-    table = pd.concat([_table([-2.0, -3.0, -1.0]), _table([1.0, 2.5, 2.0]).assign(condition="OE")])
-    result = across_repeats(table, "biological_repeat", 0).set_index("condition")
-    assert result.loc["OE", "higher"] == 3
-    corrected = np.minimum(1.0, result["p_paired_t"] * 2)
-    assert np.allclose(result["p_paired_t_bonferroni"], corrected)
+def _oe(repeats):
+    return _table([1.0, 2.5, 2.0]).assign(condition="OE", biological_repeat=repeats)
+
+
+def test_q_is_benjamini_hochberg_within_each_sub_experiment():
+    """Conditions imaged in the same repeats are one sub-experiment, corrected together;
+    conditions in repeats of their own are corrected apart."""
+    kd = _table([-2.0, -3.0, -1.0]).assign(biological_repeat=["a", "b", "c"])
+    shared = pd.concat([kd, _oe(["a", "b", "c"])])
+    result = across_repeats(shared, "biological_repeat", 0).set_index("condition")
+    assert result.loc["OE", "higher"] == 3 and result["experiment"].nunique() == 1
+    assert np.allclose(result["q_paired_t"], benjamini_hochberg(result["p_paired_t"].to_numpy()))
+    apart = pd.concat([kd, _oe(["d", "e", "f"])])
+    result = across_repeats(apart, "biological_repeat", 0).set_index("condition")
+    assert result["experiment"].nunique() == 2
+    assert np.allclose(result["q_paired_t"], result["p_paired_t"])
 
 
 @pytest.fixture(scope="module")
@@ -116,23 +127,22 @@ def test_question_9_leads_with_the_answer_across_repeats(screen):
     assert "lower in 3 of 3" in short and "higher in 3 of 3" in short
     # 36 per-repeat contrasts go to the full form, with the sign-flip test.
     # Nothing is tested within a repeat: the per-repeat table goes to the full form.
-    assert "Within each repeat there is no test (one technical repeat on a side)" in " ".join(
-        short.split()
-    )
+    assert "Within a single repeat there is no test: each condition has one technical" in joined
     assert "sign-flip p" not in short.split("Within each repeat")[0]
     full = screen.summary(detail="full")
-    assert "sign-flip" not in full and "siCCT8#5 vs siCTRL · siCCT8_1" in full
+    assert "sign-flip" not in full and "siCCT8#5 vs siCTRL, repeat siCCT8_1" in full
     # Three repeats and one coverslip per condition is the usual design: notes, not warnings.
     assert "⚠️" not in short
-    assert "the paired t-test on the repeat means (as in SuperPlots)" in joined
+    assert "The paired t-test on the repeat means treats each biological repeat" in joined
     assert "Within a repeat the conditions are described by their effect sizes" in joined
     status, headline = conditions_status(screen, None)
     assert status.name == "OK"
     assert headline == (
-        "12 conditions across 3 biological repeats: same direction in every repeat, not "
-        "confirmed: siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5 and 4 more (lower); "
-        "siMAP4K4#5, siMAP4K4#6, siNF2#17 and siNF2#7 (higher); reagents agree in every repeat "
-        "for 6 of 6 targets"
+        "12 conditions against the control, each in 3 biological repeats (18 in all): "
+        "confirmed across repeats: siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siSCRIB#6 "
+        "and siSCRIB#7 (lower); siMAP4K4#5 (higher); same direction in every repeat, not "
+        "confirmed: siMINK1#10 and siMINK1#3 (lower); siMAP4K4#6, siNF2#17 and siNF2#7 "
+        "(higher); reagents agree in every repeat for 6 of 6 targets"
     )
 
 
@@ -144,7 +154,7 @@ def test_two_repeats_and_one_coverslip_are_described_not_flagged(screen):
     )
     status, headline = conditions_status(two, None)
     assert status.name == "NOT_ASSESSED"
-    assert "12 conditions across 2 biological repeats: same direction in every repeat" in headline
-    assert "within repeats: not tested (one technical repeat on a side)" in headline
+    assert "each in 2 biological repeats (12 in all): same direction in every repeat" in headline
+    assert "within repeats: not tested (one technical repeat per condition in a" in headline
     assert "⚠️" not in two.summary()
     assert "the paired test across repeats needs 3" in " ".join(two.summary().split())

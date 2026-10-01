@@ -46,6 +46,18 @@ def rate(value: float) -> str:
     return f"{100 * float(value):.10g}%"
 
 
+def p_value(value: float) -> str:
+    """A p- or q-value in a sentence: ``< 0.001``, two significant digits below 0.01, three
+    decimals below 0.1 (so a value either side of 0.05 never reads 0.05), else two;
+    ``–`` for NaN. The figures' cells write it the same way (``plots_pairwise.format_p``)."""
+    value = float(value)
+    if math.isnan(value):
+        return "–"
+    if value < 0.001:
+        return "< 0.001"
+    return f"{value:.2g}" if value < 0.01 else f"{value:.3f}" if value < 0.1 else f"{value:.2f}"
+
+
 def number(value: float) -> str:
     """A count or median as a person reads it: ``7``, ``7.5``, ``1234567``; one decimal at most."""
     value = round(float(value), 1)
@@ -148,6 +160,7 @@ __all__ = [
     "listing",
     "number",
     "ordinal",
+    "p_value",
     "percent",
     "plural",
     "rate",

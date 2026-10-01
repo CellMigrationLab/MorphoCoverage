@@ -354,7 +354,7 @@ def test_the_summary_states_the_efforts_it_subtracts():
     text = " ".join(result.summary(detail="full").split())
     assert "needed 7 fields, 6.5 on average" in text
     assert "80% of the resamples" in text
-    assert "12 units (condition · biological_repeat · well)" in text
+    assert "12 units (condition · biological repeat · well)" in text
     short = " ".join(result.summary().split())
     assert "a fixed count needs 7 fields, 6.5 on average" in short
     assert "80% of the resamples" in short

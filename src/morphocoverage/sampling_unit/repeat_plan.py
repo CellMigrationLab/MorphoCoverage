@@ -16,11 +16,13 @@ fields resampled as acquired, ``contrast_sampling``):
   sampling error, which more fields cannot reduce; it needs two repeats).
   When the repeats vary more than their sampling error, more fields per repeat
   help little;
-- in the full report only, **the repeats needed**: the fewest biological
-  repeats (at most ``MAX_REPEATS``) for which a paired t-test on the repeat
-  values reaches ``power`` at ``alpha`` for this condition (not corrected
-  for the number of conditions: planning is per knockdown), with the fields
-  acquired and with twice as many.
+- **the repeats needed**: the fewest biological repeats (at most ``MAX_REPEATS``)
+  for which a paired t-test on the repeat values reaches ``power`` at the
+  correction the report uses, with the fields acquired and with twice as many.
+  The report corrects with Benjamini-Hochberg within each sub-experiment
+  (``_experiments``); the plan holds at ``alpha / m`` (``alpha_planned``), ``m`` the
+  conditions of the sub-experiment, which is what Benjamini-Hochberg asks at most of
+  one test, so the plan never promises too few.
 
 With one repeat the variation between repeats is unknown: the plan gives the
 fields a side and says so. The variation between repeats estimated from two
@@ -35,6 +37,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from ..metadata import REPEAT_COLUMN as REPEAT
+from ._experiments import experiments
 from .contrast_sampling import PRACTICAL
 
 ALPHA = 0.05
@@ -52,6 +56,8 @@ PLAN_COLUMNS = [
     "limited_by",
     "repeats_needed",
     "repeats_needed_twice_fields",
+    "alpha_planned",
+    "experiment",
     "status",
 ]
 
@@ -102,6 +108,11 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
         return pd.DataFrame(columns=PLAN_COLUMNS)
     usable = table[table["d_low"].notna() & table["d_objects"].notna()]
     groups = list(usable.groupby(["condition", "control_condition"], sort=False))
+    named = REPEAT if REPEAT in usable else None
+    family = experiments(
+        {condition: list(block[named]) if named else [0] for (condition, _), block in groups}
+    )
+    sizes = pd.Series(family).value_counts()
     rows = []
     for (condition, control), block in groups:
         d = block["d_objects"].to_numpy(float)
@@ -118,6 +129,8 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
             "limited_by": "",
             "repeats_needed": np.nan,
             "repeats_needed_twice_fields": np.nan,
+            "alpha_planned": alpha / int(sizes[family[condition]]),
+            "experiment": family[condition],
             "status": "ok",
         }
         if len(d) < 2:
@@ -128,7 +141,7 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
             row["limited_by"] = "between repeats" if between > within else "within repeats"
             for column, factor in (("repeats_needed", 1), ("repeats_needed_twice_fields", 2)):
                 sd = float(np.sqrt(between + within / factor))
-                row[column] = repeats_needed(row["d_mean"], sd, alpha, power)
+                row[column] = repeats_needed(row["d_mean"], sd, row["alpha_planned"], power)
         rows.append(row)
     return pd.DataFrame(rows, columns=PLAN_COLUMNS)
 
