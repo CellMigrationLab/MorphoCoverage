@@ -13,9 +13,10 @@ At a glance
   ⚠️ 6. Which fields should I look at? — 9 fields to reopen in 8 technical repeats (new state in 6,
      influence in 1, unusual count in 3); integrity names 12 fields
   ✅ 9. Do the conditions differ? — 4 conditions across 3 biological repeats: 2 in the same direction
-     in every repeat (2 lower, 0 higher than the control); paired t on the repeat means: 0 of 4 at
-     Bonferroni p ≤ 0.05; reagents agree in every repeat for 1 of 2 targets; cell-level test: 4 of 4
-     at Bonferroni p ≤ 0.05 (balanced over the repeats: 2 of 4); 0 of 13 features pass the gate
+     in every repeat (2 lower, 0 higher than the control); paired t on the repeat means, raw /
+     normalised: 0 / 0 of 4 at Bonferroni p ≤ 0.05; reagents agree in every repeat for 1 of 2
+     targets; cell-level test, raw / normalised: 4 / 2 of 4 at Bonferroni p ≤ 0.05 (balanced over
+     the repeats: 2 / 2); 0 of 13 features pass the gate
 
 ❌ What is in the dataset
   590 tracks in 133 fields, none empty; a field is
@@ -185,11 +186,11 @@ What this acquisition was asked to preserve
 ✅ 9. Do the conditions differ, and how confidently?
   Across the 3 biological repeats (each repeat's value is the mean of its tracks, paired with the
     control of the same repeat):
-    condition           vs control, by repeat  d tracks: mean (range)  paired t p (Bonf.)
-    siCCT7#3 vs siCTRL  1 lower, 2 higher      0.17 (-0.37 to 0.86)    0.61 (1)
-    siCCT7#6 vs siCTRL  2 lower, 1 higher      -0.17 (-0.60 to 0.55)   0.79 (1)
-    siCCT8#5 vs siCTRL  lower in 3 of 3        -1.06 (-1.58 to -0.59)  0.064 (0.25)
-    siCCT8#8 vs siCTRL  lower in 3 of 3        -1.11 (-1.71 to -0.80)  0.074 (0.3)
+    condition           vs control, by repeat  d tracks: mean (range)  paired t p (Bonf.)  normalised
+    siCCT7#3 vs siCTRL  1 lower, 2 higher      0.17 (-0.37 to 0.86)    0.61 (1)            0.65 (1)
+    siCCT7#6 vs siCTRL  2 lower, 1 higher      -0.17 (-0.60 to 0.55)   0.79 (1)            0.75 (1)
+    siCCT8#5 vs siCTRL  lower in 3 of 3        -1.06 (-1.58 to -0.59)  0.064 (0.25)        0.049 (0.2)
+    siCCT8#8 vs siCTRL  lower in 3 of 3        -1.11 (-1.71 to -0.80)  0.074 (0.3)         0.051 (0.2)
   Independent reagents for one target (target), against the control in each repeat:
     target  reagents            repeats
     CCT7    siCCT7#3, siCCT7#6  on one side in 2 of 3, lower in some and higher in others
@@ -201,11 +202,18 @@ What this acquisition was asked to preserve
       imaged in, so the test is given as provided and balanced (each condition against the control
       of its own biological repeats, the same number of tracks from each biological repeat; the
       median d and p over 100 draws).
-    condition           d as provided (p Bonf.)  d balanced (p Bonf.)  p ≤ 0.05 without an effect
-    siCCT7#3 vs siCTRL  0.68 (0.002)             0.22 (0.73)           about 34%
-    siCCT7#6 vs siCTRL  0.37 (0.018)             -0.10 (1)             about 34%
-    siCCT8#5 vs siCTRL  -1.27 (0.002)            -0.98 (0.004)         about 37%
-    siCCT8#8 vs siCTRL  -1.33 (0.002)            -1.07 (0.004)         about 35%
+    As provided:
+    condition           raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
+    siCCT7#3 vs siCTRL  0.68 (0.002)      0.25 (0.21)    about 34%
+    siCCT7#6 vs siCTRL  0.37 (0.02)       -0.11 (1)      about 34%
+    siCCT8#5 vs siCTRL  -1.27 (0.002)     -1.05 (0.002)  about 37%
+    siCCT8#8 vs siCTRL  -1.33 (0.002)     -1.07 (0.002)  about 35%
+    Balanced over the repeats:
+    condition           raw: d (p Bonf.)  normalised
+    siCCT7#3 vs siCTRL  0.21 (0.8)        0.22 (0.71)
+    siCCT7#6 vs siCTRL  -0.10 (1)         -0.10 (1)
+    siCCT8#5 vs siCTRL  -0.98 (0.004)     -1.00 (0.004)
+    siCCT8#8 vs siCTRL  -1.07 (0.004)     -1.05 (0.004)
   Within each repeat: Mean Speed, each condition against the control (siCTRL), within each
     biological repeat; the fields of a condition's analysis groups are pooled. Cohen's d with
     tracks, fields and technical repeats (tech.) as the unit:
@@ -241,20 +249,35 @@ What this acquisition was asked to preserve
     observations on one side: its fields cannot stand in for technical repeats, so there is no test)
     and 10 more.
   Assumptions: Across biological repeats, the paired t-test on the repeat means (as in SuperPlots)
-    assumes normally distributed differences; Bonferroni-corrected over the conditions. Reagents of
-    one target that go the same way in every repeat speak against an off-target effect of one of
-    them; this is described, not tested, since they share the control. The cell-level test treats
-    the tracks as independent draws: it asks whether these wells differ, and it responds with one or
-    two repeats. When the difference varies between repeats, it gives p ≤ 0.05 without an effect in
-    about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n tracks per well, s the SD between repeats in
-    observation SDs, as simulated in data/simulations/test_choice.py). Whether the effect repeats is
-    what the paired test across repeats asks. Within a repeat the conditions are described by their
-    effect sizes; they are tested across repeats (the first table). The test and the effect sizes
-    compare means: a difference confined to a subpopulation of tracks or to the shape of the
-    distribution is not tested (see the unusual tracks and the rare label). The fields a side per
-    repeat are the most any repeat needs, projected from its interval of d (narrowing as
-    1/sqrt(fields)); limited by: whether the repeats' d differ more than their sampling error, which
-    more fields cannot reduce. Both are estimated from the repeats here, so the plan is a guide.
+    treats each biological repeat as one replicate and assumes the differences (raw) or the log
+    ratios to the control (normalised) are normally distributed and independent between biological
+    repeats. It keeps false positives at 5% when the effect varies between biological repeats, which
+    the cell-level test does not; the cost is power: with 3 biological repeats and 30 cells a well,
+    d 1.5 is found in 98, 90 and 63% of experiments and d 1.0 in 85, 67 and 39% as biological
+    repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py);
+    Bonferroni-corrected over the conditions. Reagents of one target that go the same way in every
+    repeat speak against an off-target effect of one of them; this is described, not tested, since
+    they share the control. Cell-level test (Cohen's d, randomization over the tracks): it assumes
+    the tracks are independent draws, so it asks whether these wells differ, not whether the effect
+    repeats, and it responds with one or two repeats. Limitation: when the difference varies between
+    repeats it gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments
+    (n tracks per well, s the SD between repeats in observation SDs;
+    data/simulations/test_choice.py), the 'without an effect' column; more tracks per well raise it,
+    and a stricter cutoff does not remove it (22% at p ≤ 0.01 with 30 per well and s = 0.5).
+    Normalised: each value divided by the mean of its own repeat's control, which removes a scale
+    both wells of a repeat share (staining, imaging) and pairs every condition with its own repeat's
+    control. It assumes a positive feature on a ratio scale (not computed when a control mean is 0
+    or below); it does not remove the part of the effect that varies between repeats, so the
+    cell-level chance still applies. Balanced: the median d and median p over 100 draws taking the
+    same number of tracks from each repeat; it describes the typical draw and is not the p of one
+    test. It removes the weight of the repeats holding more, not the independence assumption of the
+    cell-level test. Within a repeat the conditions are described by their effect sizes; they are
+    tested across repeats (the first table). The test and the effect sizes compare means: a
+    difference confined to a subpopulation of tracks or to the shape of the distribution is not
+    tested (see the unusual tracks and the rare label). The fields a side per repeat are the most
+    any repeat needs, projected from its interval of d (narrowing as 1/sqrt(fields)); limited by:
+    whether the repeats' d differ more than their sampling error, which more fields cannot reduce.
+    Both are estimated from the repeats here, so the plan is a guide.
 
 What this dataset cannot tell me
   ➖ 1. Can the features see the phenotype? — not assessed; needs a declared positive control

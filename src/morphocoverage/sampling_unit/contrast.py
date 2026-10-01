@@ -149,7 +149,8 @@ class ConditionContrast:
       the repeats holding both sides, how many have the condition below or above
       the control (``lower``, ``higher``), the mean difference of the repeat
       means, the mean and range of the per-repeat ``d_objects``, an exact
-      sign-flip test and a paired t-test on the repeat means, each
+      sign-flip test and a paired t-test on the repeat means, raw and on the log
+      ratios to the control (``p_paired_t_normalised``), each
       Bonferroni-corrected, with the sign-flip test's smallest possible p
       (``p_sign_flip_floor``) and ``status``. Empty without repeats kept apart.
       The per-repeat ``table`` holds each side's ``mean`` of the observations.
@@ -164,7 +165,9 @@ class ConditionContrast:
     - ``cells``: the lab's Plot&Stats test, one row per condition, pooled as
       provided (``contrast_cells``): Cohen's d on every observation against
       every control observation, the randomization p over observations and its
-      Bonferroni correction over the conditions, and the chance it gives
+      Bonferroni correction over the conditions, on raw and on normalised
+      values (``*_normalised``: divided by the own repeat's control mean), and
+      the chance it gives
       p <= 0.05 without an effect given the variation between repeats
       (``chance_low``/``chance_high``, a range when one repeat cannot estimate it);
       the balance check (``unbalanced``, ``sparse_repeats``) and, when unbalanced,
@@ -430,18 +433,18 @@ def condition_contrast(
     repeats = across_repeats(table, repeat_col, random_state)
     plan = repeat_plan(table) if repeat_col is not None else pd.DataFrame(columns=PLAN_COLUMNS)
     agreement = reagent_agreement(table, _targets(fovs, condition_col, target_col))
-    every_control = np.concatenate(list(control_cells.values())) if control_cells else None
     for side in pooled.values():
-        side["control"] = every_control
-        side["control_repeats"] = len(control_cells)
+        side["control_all"] = control_cells
     cells = (
         cell_table(
             pooled,
             plan,
             n_permutations,
-            lambda condition: group_rng(random_state, {"condition": condition, "test": "cells"}),
+            lambda condition, values: group_rng(
+                random_state, {"condition": condition, "test": "cells", "values": values}
+            ),
         )
-        if pooled and every_control is not None
+        if pooled
         else pd.DataFrame(columns=CELL_COLUMNS)
     )
     settings["target_col"] = target_col if len(agreement) else None

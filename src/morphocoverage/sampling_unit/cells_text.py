@@ -2,13 +2,15 @@
 
 One sentence on the balance check (whether one repeat weighs more than the
 others, and whether the control comes from repeats a condition was not
-imaged in), one table with a row per condition: Cohen's d on the
-observations and its randomization p as provided, the same balanced over the
-repeats when the data are unbalanced, and the chance the test gives
-p <= 0.05 without an effect at the variation between repeats seen here. A
-repeat too small to balance to is named instead of balanced. The full form
-adds the observations per repeat each balanced draw takes. ``cells_headline``
-gives the "At a glance" words.
+imaged in), then a table with a row per condition: Cohen's d on the
+observations and its randomization p, on raw and on normalised values, and
+the chance the test gives p <= 0.05 without an effect at the variation
+between repeats seen here. When the data are unbalanced, a second table gives
+the same balanced over the repeats; a repeat too small to balance to is named
+instead. The full form adds the observations per repeat each balanced draw
+takes. The notes state the assumptions and limitations of the test, of the
+normalisation and of the balancing. ``cells_headline`` gives the "At a glance"
+words.
 """
 
 from __future__ import annotations
@@ -118,61 +120,108 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         ),
         *(wrap(line, indent + 2, hang=indent + 4) for line in _sparse(contrast, cells)),
     ]
-    rows = []
-    for row in cells.to_dict("records"):
-        values = [
+    as_provided = [
+        [
             f"{row['condition']} vs {row['control_condition']}",
             _test(row["d_cells"], row["p_cells"], row["p_cells_bonferroni"]),
+            _test(
+                row["d_cells_normalised"],
+                row["p_cells_normalised"],
+                row["p_cells_normalised_bonferroni"],
+            ),
+            _chance(row),
         ]
-        if balanced:
-            values.append(_test(row["d_balanced"], row["p_balanced"], row["p_balanced_bonferroni"]))
+        for row in cells.to_dict("records")
+    ]
+    columns = ["condition", "raw: d (p Bonf.)", "normalised", f"p ≤ {ALPHA:g} without an effect"]
+    if balanced:
+        lines.append(wrap("As provided:", indent + 2, hang=indent + 4))
+    lines.append(table(as_provided, columns, indent=indent + 2))
+    if balanced:
+        lines.append(wrap("Balanced over the repeats:", indent + 2, hang=indent + 4))
+        rows = []
+        for row in cells[cells["p_balanced"].notna()].to_dict("records"):
+            values = [
+                f"{row['condition']} vs {row['control_condition']}",
+                _test(row["d_balanced"], row["p_balanced"], row["p_balanced_bonferroni"]),
+                _test(
+                    row["d_balanced_normalised"],
+                    row["p_balanced_normalised"],
+                    row["p_balanced_normalised_bonferroni"],
+                ),
+            ]
             if full:
                 values.append(
-                    "–"
-                    if pd.isna(row["p_balanced"])
-                    else f"{int(row['balanced_cells'])} / {int(row['balanced_control_cells'])}"
+                    f"{int(row['balanced_cells'])} / {int(row['balanced_control_cells'])}"
                 )
-        values.append(_chance(row))
-        rows.append(values)
-    columns = ["condition", "d as provided (p Bonf.)"]
-    if balanced:
-        columns.append("d balanced (p Bonf.)")
-        if full:
-            columns.append(f"{words} per repeat a side")
-    columns.append(f"p ≤ {ALPHA:g} without an effect")
-    lines.append(table(rows, columns, indent=indent + 2))
+            rows.append(values)
+        names = ["condition", "raw: d (p Bonf.)", "normalised"]
+        names += [f"{words} per repeat, condition / control"] if full else []
+        lines.append(table(rows, names, indent=indent + 2))
+    return lines, _notes(contrast, cells, balanced)
+
+
+def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
+    """The assumptions and limitations of the cell-level test, normalisation and balancing."""
+    words = unit_plural(contrast.settings["observation_unit"])
     single = bool(cells["between_sd"].isna().any())
-    note = assumption(
-        f"The cell-level test treats the {words} as independent draws: it asks whether these "
-        f"wells differ, and it responds with one or two repeats. When the difference varies "
-        f"between repeats, it gives p ≤ {ALPHA:g} without an effect in about "
-        f"2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n {words} per well, s the SD between "
-        "repeats in observation SDs, as simulated in data/simulations/test_choice.py)"
-        + (
-            f"; with one repeat, s is taken as {TYPICAL_BETWEEN[0]:g}–{TYPICAL_BETWEEN[1]:g}"
-            if single
-            else ""
+    notes = [
+        assumption(
+            f"Cell-level test (Cohen's d, randomization over the {words}): it assumes the "
+            f"{words} are independent draws, so it asks whether these wells differ, not whether "
+            "the effect repeats, and it responds with one or two repeats. Limitation: when the "
+            f"difference varies between repeats it gives p ≤ {ALPHA:g} without an effect in "
+            f"about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n {words} per well, s the SD "
+            "between repeats in observation SDs; data/simulations/test_choice.py), the "
+            "'without an effect' column"
+            + (
+                f" (with one repeat s is unknown and taken as "
+                f"{TYPICAL_BETWEEN[0]:g}–{TYPICAL_BETWEEN[1]:g})"
+                if single
+                else ""
+            )
+            + f"; more {words} per well raise it, and a stricter cutoff does not remove it "
+            "(22% at p ≤ 0.01 with 30 per well and s = 0.5)."
+        ),
+        assumption(
+            "Normalised: each value divided by the mean of its own repeat's control, which "
+            "removes a scale both wells of a repeat share (staining, imaging) and pairs every "
+            "condition with its own repeat's control. It assumes a positive feature on a ratio "
+            "scale (not computed when a control mean is 0 or below); it does not remove the part "
+            "of the effect that varies between repeats, so the cell-level chance still applies."
+        ),
+    ]
+    if balanced:
+        notes.append(
+            assumption(
+                f"Balanced: the median d and median p over {BALANCED_DRAWS} draws taking the same "
+                f"number of {words} from each repeat; it describes the typical draw and is not "
+                "the p of one test. It removes the weight of the repeats holding more, not the "
+                "independence assumption of the cell-level test."
+            )
         )
-        + ". Whether the effect repeats is what the paired test across repeats asks."
-    )
-    return lines, [note]
+    return notes
+
+
+def _passing(cells: pd.DataFrame, column: str) -> str:
+    tested = cells[cells[column].notna()]
+    return f"{int((tested[f'{column}_bonferroni'] <= ALPHA).sum())}"
 
 
 def cells_headline(contrast: Any) -> str | None:
-    """``cell-level test: 11 of 12 at Bonferroni p ≤ 0.05 (balanced: 11 of 12)``, or ``None``."""
+    """``cell-level test, raw / normalised: 9 / 10 of 12 at Bonferroni p ≤ 0.05 (balanced
+    over the repeats: 10 / 11)``, or ``None``."""
     cells = _cells(contrast)
     if cells.empty or contrast.settings.get("repeat_col") is None:
         return None
-    tested = cells[cells["p_cells"].notna()]
     text = (
-        f"cell-level test: {int((tested['p_cells_bonferroni'] <= ALPHA).sum())} of "
-        f"{len(tested)} at Bonferroni p ≤ {ALPHA:g}"
+        f"cell-level test, raw / normalised: {_passing(cells, 'p_cells')} / "
+        f"{_passing(cells, 'p_cells_normalised')} of {len(cells)} at Bonferroni p ≤ {ALPHA:g}"
     )
-    balanced = cells[cells["p_balanced"].notna()]
-    if len(balanced):
+    if cells["p_balanced"].notna().any():
         text += (
-            f" (balanced over the repeats: "
-            f"{int((balanced['p_balanced_bonferroni'] <= ALPHA).sum())} of {len(balanced)})"
+            f" (balanced over the repeats: {_passing(cells, 'p_balanced')} / "
+            f"{_passing(cells, 'p_balanced_normalised')})"
         )
     return text
 

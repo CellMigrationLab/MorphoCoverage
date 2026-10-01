@@ -210,3 +210,26 @@ named instead of balanced to. All three datasets are unbalanced, and none has su
   direction. CCT8 stays (d about -1.0). Here the false-positive chance is about 35%.
 - Most of the change comes from using each condition's own-repeat control. Equalising cells per
   repeat changes little in these datasets, since no repeat holds more than about half the cells.
+
+## 2026-10-01 — eighth run: raw and normalised values
+
+Question 9 now gives every test on raw values and on values normalised to the mean of the
+control of the same repeat (a fold change): Cohen's d, the cell-level randomization test (as
+provided and, when unbalanced, balanced), and the paired t on the repeat averages (on log ratios
+when normalised). Their assumptions and limitations are in `docs/condition_tests.md`. The
+cell-level test's generators now depend on the values tested, so its raw p-values differ slightly
+from the seventh run (CDM siCCT8#5: Bonferroni p 0.040 here, 0.028 there).
+
+- **Filopodia screen**: normalising pairs each set's control with its own repeats, as balancing
+  did. siMAP4K4#5 goes from d -0.10 raw to +0.95 normalised, and siNF2#7 and #17 from 0.19-0.23
+  to 0.46-0.51. All 12 conditions are at Bonferroni p ≤ 0.05 normalised, against 9 raw. Balanced,
+  raw and normalised agree (d within 0.1). The paired t on repeat averages finds none of the 12,
+  raw or normalised (smallest Bonferroni p 0.06).
+- **CDM shape**: normalising changes little (d -0.44 and -0.57 raw, -0.44 and -0.51 normalised).
+  The repeats share no large scale here.
+- **Glioma tracks**: normalising removes the pooled-control artefact that balancing removed.
+  siCCT7#3 goes from d 0.68 (p 0.002) to 0.25 (p 0.21), and siCCT7#6 from 0.37 to -0.11. CCT8
+  stays at about -1.05 (p 0.002). The paired t: Bonferroni p 0.20 for both CCT8 siRNAs normalised
+  (0.26-0.30 raw).
+- **Reading**: in these datasets, normalising does most of what balancing does, because the
+  imbalance is mostly a control from other repeats. Where both run, they agree.

@@ -37,10 +37,10 @@ from ..metadata import REPEAT_COLUMN
 from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
 from .cells_text import cells_parts
-from .contrast_repeats import MIN_REPEATS
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 from .reagents_text import reagents_parts
 from .repeat_plan_text import plan_parts
+from .repeats_text import _range, _repeat_head, _repeat_rows, _repeats, repeat_cautions
 
 NO_CONTROL = "no control group in"
 # Units a side at or below which a d on unit means is not computed: from so few means a d
@@ -65,12 +65,6 @@ def _short_statistic(value: float) -> str:
     if np.isinf(value):
         return "inf" if value > 0 else "-inf"
     return "–" if np.isnan(value) else f"{value:.2f}"
-
-
-def _range(values: pd.Series) -> str:
-    """``-1.52 to 1.42``, or ``1.42`` for one value: statistics to two decimals."""
-    low, high = float(values.min()), float(values.max())
-    return f"{low:.2f}" if f"{low:.2f}" == f"{high:.2f}" else f"{low:.2f} to {high:.2f}"
 
 
 def _name(row: dict[str, Any], repeat_col: str | None) -> str:
@@ -293,103 +287,6 @@ def _draws_short(contrast: Any, indent: int) -> list[str]:
         rows.append(cells)
     columns = [words, f"random {words}", "whole fields", "whole fields took"]
     return [wrap(head, indent, hang=indent + 2), table(rows, columns, indent=indent + 2)]
-
-
-def _repeats(contrast: Any) -> pd.DataFrame:
-    """The across-repeat table, empty for a contrast made before it existed."""
-    return getattr(contrast, "repeats", pd.DataFrame())
-
-
-def _direction(row: dict[str, Any]) -> str:
-    """``lower in 3 of 3``, ``higher in 3 of 3`` or ``2 lower, 1 higher``."""
-    n, lower, higher = int(row["repeats"]), int(row["lower"]), int(row["higher"])
-    if lower == n:
-        return f"lower in {n} of {n}"
-    if higher == n:
-        return f"higher in {n} of {n}"
-    same = n - lower - higher
-    return f"{lower} lower, {higher} higher" + (f", {same} equal" if same else "")
-
-
-def _p_cell(p: float, corrected: float) -> str:
-    return "–" if pd.isna(p) else f"{p:.2g} ({corrected:.2g})"
-
-
-def _repeat_rows(contrast: Any, full: bool = False) -> tuple[list[list[str]], list[str]]:
-    """One row per condition across the biological repeats, and the columns (the sign-flip
-    test in the full form only)."""
-    words = unit_plural(contrast.settings["observation_unit"])
-    repeats = _repeats(contrast)
-    flip = full and bool(repeats["p_sign_flip"].notna().any())
-    tested = bool(repeats["p_paired_t"].notna().any())
-    rows = []
-    for row in repeats.to_dict("records"):
-        d = (
-            "–"
-            if pd.isna(row["d_mean"])
-            else f"{row['d_mean']:.2f} ({_range(pd.Series([row['d_min'], row['d_max']]))})"
-        )
-        cells = [f"{row['condition']} vs {row['control_condition']}", _direction(row), d]
-        if tested:
-            cells.append(_p_cell(row["p_paired_t"], row["p_paired_t_bonferroni"]))
-        if flip:
-            cells.append(_p_cell(row["p_sign_flip"], row["p_sign_flip_bonferroni"]))
-        rows.append(cells)
-    columns = ["condition", "vs control, by repeat", f"d {words}: mean (range)"]
-    columns += [
-        *(["paired t p (Bonf.)"] if tested else []),
-        *(["sign-flip p (Bonf.)"] if flip else []),
-    ]
-    return rows, columns
-
-
-def _repeat_head(contrast: Any) -> str:
-    repeats = _repeats(contrast)
-    word = column_word(contrast.settings["repeat_col"])
-    words = unit_plural(contrast.settings["observation_unit"])
-    n = int(repeats["repeats"].max())
-    return (
-        f"Across the {count(n, word)} (each repeat's value is the mean of its {words}, paired "
-        "with the control of the same repeat):"
-    )
-
-
-def repeat_cautions(contrast: Any) -> list[str]:
-    """The notes of the across-repeat table, once each (see ``contrast_repeats``): which
-    tests ran and what they assume. None is a caution: the tests the repeats cannot support
-    are left out, not flagged."""
-    repeats = _repeats(contrast)
-    if repeats.empty:
-        return []
-    word = column_word(contrast.settings["repeat_col"])
-    notes = []
-    untested = repeats[repeats["status"] != "ok"]
-    if len(untested):
-        n = int(untested["repeats"].max())
-        notes.append(
-            assumption(
-                f"With {count(n, word)} holding both sides, "
-                f"{listing(list(untested['condition']), 3)} "
-                f"{'is' if len(untested) == 1 else 'are'} described by direction and effect "
-                f"size; the paired test across repeats needs {MIN_REPEATS}."
-            )
-        )
-    if repeats["p_paired_t"].notna().any():
-        flip = repeats["p_sign_flip"].notna().any()
-        notes.append(
-            assumption(
-                f"Across {word}s, the paired t-test on the repeat means (as in SuperPlots) "
-                "assumes normally distributed differences"
-                + (
-                    "; the exact sign-flip test (full report) assumes only that each "
-                    "difference is as likely positive as negative"
-                    if flip
-                    else ""
-                )
-                + "; Bonferroni-corrected over the conditions."
-            )
-        )
-    return notes
 
 
 def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]]:

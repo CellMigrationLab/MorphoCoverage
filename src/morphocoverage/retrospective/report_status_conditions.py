@@ -37,7 +37,11 @@ def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
     tested = across[across["p_paired_t"].notna()]
     if len(tested):
         differ = int((tested["p_paired_t_bonferroni"] <= 0.05).sum())
-        text += f"; paired t on the repeat means: {differ} of {len(tested)} at Bonferroni p ≤ 0.05"
+        normalised = int((tested["p_paired_t_normalised_bonferroni"] <= 0.05).sum())
+        text += (
+            f"; paired t on the repeat means, raw / normalised: {differ} / {normalised} of "
+            f"{len(tested)} at Bonferroni p ≤ 0.05"
+        )
     return text
 
 

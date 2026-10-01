@@ -15,8 +15,10 @@ from morphocoverage.sampling_unit.contrast_cells import (
     cell_randomization,
     cell_table,
     chance_without_effect,
+    normalised,
     sparse,
 )
+from morphocoverage.sampling_unit.contrast_repeats import across_repeats
 
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
@@ -48,22 +50,23 @@ def test_a_repeat_too_small_to_balance_to_is_named():
     assert sparse({"1": 6, "2": MIN_BALANCED - 1}) == ["2"]
 
 
-def _side(treated, control, control_repeats=None):
+def _side(treated, control, other_control_repeats=0):
+    """A condition's side: (cells, shift) per repeat it was imaged in, and the control's cells
+    per repeat, plus control repeats it was not imaged in (30 cells each)."""
     rng = np.random.default_rng(1)
-    by_t = {r: rng.normal(shift, 1, n) for r, (n, shift) in treated.items()}
-    by_c = {r: rng.normal(0, 1, n) for r, n in control.items()}
-    every = np.concatenate(list(by_c.values()))
+    by_t = {r: 10 + rng.normal(shift, 1, n) for r, (n, shift) in treated.items()}
+    by_c = {r: 10 + rng.normal(0, 1, n) for r, n in control.items()}
+    others = {f"other{i}": 10 + rng.normal(0, 1, 30) for i in range(other_control_repeats)}
     return {
         "treated_by_repeat": by_t,
         "control_by_repeat": by_c,
-        "control": every,
-        "control_repeats": control_repeats or len(by_c),
+        "control_all": {**by_c, **others},
         "control_condition": "CTRL",
     }
 
 
 def _cells(**sides):
-    rng_for = lambda condition: np.random.default_rng(0)
+    rng_for = lambda condition, values: np.random.default_rng(0)
     return cell_table(sides, pd.DataFrame(), 199, rng_for).set_index("condition")
 
 
@@ -87,7 +90,7 @@ def test_one_repeat_holding_more_than_a_quarter_more_is_balanced():
 
 
 def test_a_control_from_repeats_the_condition_lacks_is_unbalanced():
-    others = _side({"1": (30, 0.5), "2": (30, 0.5), "3": (30, 0.5)}, {"1": 30, "2": 30, "3": 30}, 6)
+    others = _side({"1": (30, 0.5), "2": (30, 0.5), "3": (30, 0.5)}, {"1": 30, "2": 30, "3": 30}, 3)
     row = _cells(KD=others).loc["KD"]
     assert row["unbalanced"] and row["other_control_repeats"] == 3
     assert row["p_balanced"] > 0 and row["p_balanced_bonferroni"] == row["p_balanced"]
@@ -124,8 +127,11 @@ def test_the_screen_is_given_as_provided_and_balanced(screen):
     status, headline = conditions_status(screen, None)
     assert status.name == "OK"
     assert headline.endswith(
-        "cell-level test: 9 of 12 at Bonferroni p ≤ 0.05 (balanced over the repeats: 10 of 12)"
+        "cell-level test, raw / normalised: 9 / 12 of 12 at Bonferroni p ≤ 0.05 (balanced over "
+        "the repeats: 10 / 11)"
     )
+    # Normalised to its own repeats' control, MAP4K4#5 is above it as in every repeat.
+    assert cells.loc["siMAP4K4#5", "d_cells_normalised"] > 0
 
 
 def test_a_pilot_of_one_repeat_leads_with_the_cell_level_test():
@@ -141,5 +147,49 @@ def test_a_pilot_of_one_repeat_leads_with_the_cell_level_test():
     text = " ".join(one.summary().split())
     assert text.startswith("Cell-level test (as in Plot&Stats)") and "Balance" not in text
     assert (one.cells["chance_low"] < one.cells["chance_high"]).all()
-    assert "with one repeat, s is taken as 0.25–0.5" in text
+    assert "with one repeat s is unknown and taken as 0.25–0.5" in text
     assert "⚠️" not in one.summary()
+
+
+def test_normalising_divides_by_the_own_repeats_control_mean():
+    values = {"1": np.array([2.0, 4.0]), "2": np.array([30.0])}
+    controls = {"1": np.array([1.0, 3.0]), "2": np.array([10.0, 20.0])}
+    scaled = normalised(values, controls)
+    assert np.allclose(scaled["1"], [1.0, 2.0]) and np.allclose(scaled["2"], [2.0])
+    # No fold change from a control mean at or below 0.
+    assert normalised(values, {**controls, "2": np.array([-1.0, 1.0])}) is None
+
+
+def test_a_batch_scale_shared_by_both_wells_is_removed_by_normalising():
+    """Repeat 2 is imaged twice as bright and holds most cells: pooled raw values mix the
+    scales, the normalised values do not."""
+    rng = np.random.default_rng(3)
+    by_t = {"1": 10 + rng.normal(0, 1, 30), "2": 2 * (10 + rng.normal(0, 1, 30))}
+    by_c = {"1": 10 + rng.normal(0, 1, 30), "2": 2 * (10 + rng.normal(0, 1, 30))}
+    side = {
+        "treated_by_repeat": by_t,
+        "control_by_repeat": by_c,
+        "control_all": {**by_c, "3": 2 * (10 + rng.normal(0, 1, 90))},
+        "control_condition": "CTRL",
+    }
+    row = _cells(KD=side).loc["KD"]
+    assert row["d_cells"] < -0.4 and abs(row["d_cells_normalised"]) < 0.3
+
+
+def test_the_paired_t_on_normalised_means_is_on_log_ratios():
+    table = pd.DataFrame(
+        {
+            "condition": "KD",
+            "control_condition": "CTRL",
+            "mean": [5.0, 10.0, 20.0],
+            "control_mean": [10.0, 20.0, 41.0],
+            "d_objects": [-1.0, -1.0, -1.0],
+        }
+    )
+    [row] = across_repeats(table, "biological_repeat", 0).to_dict("records")
+    # Ratios of about 0.5 in every repeat: the log ratios hardly vary, so p is tiny; the raw
+    # differences (-5, -10, -21) vary a lot.
+    assert row["p_paired_t_normalised"] < 0.001 < row["p_paired_t"]
+    signed = table.assign(control_mean=[10.0, -20.0, 41.0])
+    [row] = across_repeats(signed, "biological_repeat", 0).to_dict("records")
+    assert np.isnan(row["p_paired_t_normalised"]) and row["p_paired_t"] > 0

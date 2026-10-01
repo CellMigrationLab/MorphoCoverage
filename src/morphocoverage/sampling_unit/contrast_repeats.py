@@ -14,6 +14,11 @@ condition and control, from the per-repeat contrasts:
 - **a paired t-test** on the per-repeat differences of means (treated minus
   control, paired by repeat), the usual SuperPlots test; it assumes the
   differences are normally distributed;
+- **the same paired t-test on the normalised values**: the log of each
+  repeat's ratio of the condition's mean to the control's (each value divided
+  by the mean of its repeat's control, as "normalised to the control"), which
+  tests a fold change and removes a scale both wells of a repeat share; NaN
+  when a mean is not positive;
 - **an exact sign-flip test** on the same differences, which assumes only that
   their sign is exchangeable without an effect: every one of the ``2 ** n``
   sign assignments is enumerated, so p is exact and never below ``2 / 2 ** n``.
@@ -21,7 +26,7 @@ condition and control, from the per-repeat contrasts:
   0.05 (from 6 repeats for one condition); below, it could not help and is
   left out (``p_sign_flip`` NaN, its floor kept).
 
-Both p-values are Bonferroni-corrected over the conditions tested; a
+The p-values are Bonferroni-corrected over the conditions tested; a
 condition needs at least ``MIN_REPEATS`` repeats holding both sides for either
 test. A repeat's value is the mean of all its observations of the condition
 (the SuperPlots replicate mean), since within a repeat the fields are not the
@@ -62,6 +67,8 @@ REPEAT_COLUMNS = [
     "p_sign_flip_exact",
     "p_paired_t",
     "p_paired_t_bonferroni",
+    "p_paired_t_normalised",
+    "p_paired_t_normalised_bonferroni",
     "status",
 ]
 
@@ -90,9 +97,19 @@ def sign_flip_test(
 
 def _paired_t(differences: np.ndarray) -> float:
     """The two-sided paired t-test of the differences; NaN when they do not vary."""
-    if np.ptp(differences) == 0:
+    if np.isnan(differences).any() or np.ptp(differences) == 0:
         return np.nan
     return float(stats.ttest_1samp(differences, 0.0).pvalue)
+
+
+def _log_ratios(block: pd.DataFrame) -> np.ndarray:
+    """Per repeat, log(condition mean / control mean); NaN (no test) unless every mean is
+    positive, since a ratio to a mean at or below 0 has no meaning as a fold change."""
+    means = block["mean"].to_numpy(float)
+    controls = block["control_mean"].to_numpy(float)
+    if (means <= 0).any() or (controls <= 0).any():
+        return np.full(len(means), np.nan)
+    return np.log(means / controls)
 
 
 def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: int) -> pd.DataFrame:
@@ -127,6 +144,8 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
             "p_sign_flip_exact": False,
             "p_paired_t": np.nan,
             "p_paired_t_bonferroni": np.nan,
+            "p_paired_t_normalised": np.nan,
+            "p_paired_t_normalised_bonferroni": np.nan,
             "status": "ok",
         }
         if len(differences) < MIN_REPEATS:
@@ -142,6 +161,7 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
                 p_sign_flip_floor=floor,
                 p_sign_flip_exact=exact,
                 p_paired_t=_paired_t(differences),
+                p_paired_t_normalised=_paired_t(_log_ratios(block)),
             )
         rows.append(row)
     result = pd.DataFrame(rows, columns=REPEAT_COLUMNS)
@@ -151,7 +171,7 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
         result["p_sign_flip_floor"].where(result["p_sign_flip"].notna())
     )
     result.loc[unhelpful, "p_sign_flip"] = np.nan
-    for column in ("p_sign_flip", "p_paired_t"):
+    for column in ("p_sign_flip", "p_paired_t", "p_paired_t_normalised"):
         tested = result[column].notna()
         result[f"{column}_bonferroni"] = np.where(
             tested, np.minimum(1.0, result[column] * int(tested.sum())), np.nan

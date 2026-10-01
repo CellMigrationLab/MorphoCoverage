@@ -435,19 +435,19 @@ What this acquisition was asked to preserve
     (technical_repeat) as the unit.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
-    condition               vs control, by repeat  d cells: mean (range)   paired t p (Bonf.)
-    siCCT8#5 vs siCTRL      lower in 3 of 3        -1.44 (-1.66 to -1.11)  0.069 (0.83)
-    siCCT8#8 vs siCTRL      lower in 3 of 3        -1.54 (-2.18 to -1.10)  0.036 (0.44)
-    siCSNK1A1#11 vs siCTRL  lower in 3 of 3        -1.86 (-2.17 to -1.43)  0.0072 (0.087)
-    siCSNK1A1#5 vs siCTRL   lower in 3 of 3        -1.92 (-2.40 to -1.53)  0.0048 (0.058)
-    siMAP4K4#5 vs siCTRL    higher in 3 of 3       0.82 (0.69 to 1.00)     0.01 (0.12)
-    siMAP4K4#6 vs siCTRL    higher in 3 of 3       1.39 (0.89 to 2.08)     0.065 (0.78)
-    siMINK1#10 vs siCTRL    lower in 3 of 3        -0.88 (-1.21 to -0.38)  0.073 (0.88)
-    siMINK1#3 vs siCTRL     lower in 3 of 3        -0.49 (-0.73 to -0.32)  0.022 (0.26)
-    siNF2#17 vs siCTRL      higher in 3 of 3       0.53 (0.16 to 1.08)     0.11 (1)
-    siNF2#7 vs siCTRL       higher in 3 of 3       0.55 (0.30 to 0.99)     0.046 (0.55)
-    siSCRIB#6 vs siCTRL     lower in 3 of 3        -1.62 (-1.96 to -0.95)  0.013 (0.16)
-    siSCRIB#7 vs siCTRL     lower in 3 of 3        -1.55 (-2.05 to -1.17)  0.007 (0.084)
+    condition               vs control, by repeat  d cells: mean (range)   paired t p (Bonf.)  normalised
+    siCCT8#5 vs siCTRL      lower in 3 of 3        -1.44 (-1.66 to -1.11)  0.069 (0.83)        0.037 (0.44)
+    siCCT8#8 vs siCTRL      lower in 3 of 3        -1.54 (-2.18 to -1.10)  0.036 (0.44)        0.027 (0.32)
+    siCSNK1A1#11 vs siCTRL  lower in 3 of 3        -1.86 (-2.17 to -1.43)  0.0072 (0.087)      0.012 (0.14)
+    siCSNK1A1#5 vs siCTRL   lower in 3 of 3        -1.92 (-2.40 to -1.53)  0.0048 (0.058)      0.0098 (0.12)
+    siMAP4K4#5 vs siCTRL    higher in 3 of 3       0.82 (0.69 to 1.00)     0.01 (0.12)         0.014 (0.16)
+    siMAP4K4#6 vs siCTRL    higher in 3 of 3       1.39 (0.89 to 2.08)     0.065 (0.78)        0.058 (0.69)
+    siMINK1#10 vs siCTRL    lower in 3 of 3        -0.88 (-1.21 to -0.38)  0.073 (0.88)        0.064 (0.77)
+    siMINK1#3 vs siCTRL     lower in 3 of 3        -0.49 (-0.73 to -0.32)  0.022 (0.26)        0.062 (0.74)
+    siNF2#17 vs siCTRL      higher in 3 of 3       0.53 (0.16 to 1.08)     0.11 (1)            0.15 (1)
+    siNF2#7 vs siCTRL       higher in 3 of 3       0.55 (0.30 to 0.99)     0.046 (0.55)        0.083 (0.99)
+    siSCRIB#6 vs siCTRL     lower in 3 of 3        -1.62 (-1.96 to -0.95)  0.013 (0.16)        0.013 (0.15)
+    siSCRIB#7 vs siCTRL     lower in 3 of 3        -1.55 (-2.05 to -1.17)  0.007 (0.084)       0.0088 (0.11)
   Independent reagents for one target (target), against the control in each repeat:
     target   reagents                   repeats
     CCT8     siCCT8#5, siCCT8#8         all lower in 3 of 3
@@ -463,19 +463,34 @@ What this acquisition was asked to preserve
       imaged in, so the test is given as provided and balanced (each condition against the control of
       its own biological repeats, the same number of cells from each biological repeat; the median d
       and p over 100 draws).
-    condition               d as provided (p Bonf.)  d balanced (p Bonf.)  cells per repeat a side  p ≤ 0.05 without an effect
-    siCCT8#5 vs siCTRL      -0.99 (0.006)            -1.29 (0.012)         30 / 32                  about 8%
-    siCCT8#8 vs siCTRL      -0.97 (0.006)            -1.30 (0.012)         31 / 32                  about 37%
-    siCSNK1A1#11 vs siCTRL  -1.16 (0.006)            -1.85 (0.012)         34 / 31                  about 21%
-    siCSNK1A1#5 vs siCTRL   -1.24 (0.006)            -1.89 (0.012)         34 / 31                  about 26%
-    siMAP4K4#5 vs siCTRL    -0.10 (1)                0.80 (0.012)          13 / 30                  about 5%
-    siMAP4K4#6 vs siCTRL    0.50 (0.006)             1.33 (0.012)          29 / 30                  about 41%
-    siMINK1#10 vs siCTRL    -0.75 (0.006)            -0.88 (0.012)         27 / 18                  about 21%
-    siMINK1#3 vs siCTRL     -0.51 (0.006)            -0.43 (0.31)          20 / 18                  about 5%
-    siNF2#17 vs siCTRL      0.19 (1)                 0.39 (0.14)           30 / 29                  about 28%
-    siNF2#7 vs siCTRL       0.23 (0.59)              0.44 (0.048)          30 / 29                  about 17%
-    siSCRIB#6 vs siCTRL     -1.07 (0.006)            -1.51 (0.012)         28 / 26                  about 36%
-    siSCRIB#7 vs siCTRL     -1.04 (0.006)            -1.49 (0.012)         29 / 26                  about 23%
+    As provided:
+    condition               raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
+    siCCT8#5 vs siCTRL      -0.99 (0.006)     -1.36 (0.006)  about 8%
+    siCCT8#8 vs siCTRL      -0.97 (0.006)     -1.36 (0.006)  about 37%
+    siCSNK1A1#11 vs siCTRL  -1.16 (0.006)     -1.49 (0.006)  about 21%
+    siCSNK1A1#5 vs siCTRL   -1.24 (0.006)     -1.58 (0.006)  about 26%
+    siMAP4K4#5 vs siCTRL    -0.10 (1)         0.95 (0.006)   about 5%
+    siMAP4K4#6 vs siCTRL    0.50 (0.006)      1.67 (0.006)   about 41%
+    siMINK1#10 vs siCTRL    -0.75 (0.006)     -0.81 (0.006)  about 21%
+    siMINK1#3 vs siCTRL     -0.51 (0.006)     -0.55 (0.006)  about 5%
+    siNF2#17 vs siCTRL      0.19 (1)          0.46 (0.006)   about 28%
+    siNF2#7 vs siCTRL       0.23 (0.55)       0.51 (0.006)   about 17%
+    siSCRIB#6 vs siCTRL     -1.07 (0.006)     -1.38 (0.006)  about 36%
+    siSCRIB#7 vs siCTRL     -1.04 (0.006)     -1.36 (0.006)  about 23%
+    Balanced over the repeats:
+    condition               raw: d (p Bonf.)  normalised     cells per repeat, condition / control
+    siCCT8#5 vs siCTRL      -1.30 (0.012)     -1.38 (0.012)  30 / 32
+    siCCT8#8 vs siCTRL      -1.31 (0.012)     -1.45 (0.012)  31 / 32
+    siCSNK1A1#11 vs siCTRL  -1.84 (0.012)     -1.85 (0.012)  34 / 31
+    siCSNK1A1#5 vs siCTRL   -1.89 (0.012)     -1.88 (0.012)  34 / 31
+    siMAP4K4#5 vs siCTRL    0.86 (0.012)      0.82 (0.012)   13 / 30
+    siMAP4K4#6 vs siCTRL    1.34 (0.012)      1.29 (0.012)   29 / 30
+    siMINK1#10 vs siCTRL    -0.87 (0.012)     -0.82 (0.012)  27 / 18
+    siMINK1#3 vs siCTRL     -0.43 (0.29)      -0.49 (0.15)   20 / 18
+    siNF2#17 vs siCTRL      0.40 (0.11)       0.45 (0.048)   30 / 29
+    siNF2#7 vs siCTRL       0.44 (0.048)      0.51 (0.024)   30 / 29
+    siSCRIB#6 vs siCTRL     -1.51 (0.012)     -1.46 (0.012)  28 / 26
+    siSCRIB#7 vs siCTRL     -1.49 (0.012)     -1.48 (0.012)  29 / 26
   Within each repeat:
     contrast                              fields    cells     tech. repeats  d cells  JCS, every cell
     siCCT8#5 vs siCTRL · siCCT8_1         34 vs 33  34 vs 33  1 vs 1         -1.11    -1.05
@@ -531,16 +546,31 @@ What this acquisition was asked to preserve
     siSCRIB#6 vs siCTRL     -1.62          about 7                   repeats differ (more fields help little)  4               4
     siSCRIB#7 vs siCTRL     -1.55          about 5                   repeats differ (more fields help little)  3               3
   Assumptions:
-    - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) assumes
-      normally distributed differences; Bonferroni-corrected over the conditions.
+    - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) treats
+      each biological repeat as one replicate and assumes the differences (raw) or the log ratios to
+      the control (normalised) are normally distributed and independent between biological repeats.
+      It keeps false positives at 5% when the effect varies between biological repeats, which the
+      cell-level test does not; the cost is power: with 3 biological repeats and 30 cells a well, d
+      1.5 is found in 98, 90 and 63% of experiments and d 1.0 in 85, 67 and 39% as biological
+      repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py);
+      Bonferroni-corrected over the conditions.
     - Reagents of one target that go the same way in every repeat speak against an off-target effect
       of one of them; this is described, not tested, since they share the control.
-    - The cell-level test treats the cells as independent draws: it asks whether these wells differ,
-      and it responds with one or two repeats. When the difference varies between repeats, it gives
-      p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n cells per
-      well, s the SD between repeats in observation SDs, as simulated in
-      data/simulations/test_choice.py). Whether the effect repeats is what the paired test across
-      repeats asks.
+    - Cell-level test (Cohen's d, randomization over the cells): it assumes the cells are
+      independent draws, so it asks whether these wells differ, not whether the effect repeats, and
+      it responds with one or two repeats. Limitation: when the difference varies between repeats it
+      gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n cells
+      per well, s the SD between repeats in observation SDs; data/simulations/test_choice.py), the
+      'without an effect' column; more cells per well raise it, and a stricter cutoff does not
+      remove it (22% at p ≤ 0.01 with 30 per well and s = 0.5).
+    - Normalised: each value divided by the mean of its own repeat's control, which removes a scale
+      both wells of a repeat share (staining, imaging) and pairs every condition with its own
+      repeat's control. It assumes a positive feature on a ratio scale (not computed when a control
+      mean is 0 or below); it does not remove the part of the effect that varies between repeats, so
+      the cell-level chance still applies.
+    - Balanced: the median d and median p over 100 draws taking the same number of cells from each
+      repeat; it describes the typical draw and is not the p of one test. It removes the weight of
+      the repeats holding more, not the independence assumption of the cell-level test.
     - Within a repeat the conditions are described by their effect sizes; they are tested across
       repeats (the first table).
     - The test and the effect sizes compare means: a difference confined to a subpopulation of cells
