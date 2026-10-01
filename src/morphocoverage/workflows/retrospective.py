@@ -83,6 +83,7 @@ from ._document import (
     with_reasons,
     with_settings,
 )
+from ._enough_features import enough_by_feature
 from ._shared import (
     check_workflow_inputs,
     conditions,
@@ -227,7 +228,13 @@ def report(
         results["integrity"] = integrity_checks(objects, fovs, feature_cols=setup.columns, **common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
-    results.update(conditions(setup.prepared(objects, fovs), fovs, setup, reasons))
+    prepared = setup.prepared(objects, fovs)
+    results.update(conditions(prepared, fovs, setup, reasons))
+    if "contrast" in results:
+        # Question 2 for every feature alike: the report is neutral (owner, 2026-10-01).
+        results["enough_features"] = enough_by_feature(
+            objects, fovs, prepared, setup, results.get("discovery")
+        )
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None

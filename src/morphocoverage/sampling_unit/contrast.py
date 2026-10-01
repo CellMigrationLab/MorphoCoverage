@@ -302,6 +302,7 @@ def condition_contrast(
     observation_unit: str | None = None,
     fields_independent: bool = False,
     target_col: str | None = TARGET_COLUMN,
+    cell_test: bool = True,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
@@ -323,7 +324,9 @@ def condition_contrast(
     sample sizes; counts above what a side holds are left out. ``target_col``
     names what each condition acts on (default the ``target`` column, when the
     FOV table has it): the reagents of one target are then said to agree or
-    not across the repeats.
+    not across the repeats. ``cell_test=False`` leaves out the cell-level test
+    (``cells`` empty), the slow part, when only the sampling of each feature is
+    asked ("Did I image enough?" per feature).
     """
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     if not isinstance(feature, str) or not feature:
@@ -446,7 +449,7 @@ def condition_contrast(
                 random_state, {"condition": condition, "test": "cells", "values": values}
             ),
         )
-        if pooled
+        if pooled and cell_test
         else pd.DataFrame(columns=CELL_COLUMNS)
     )
     settings["target_col"] = target_col if len(agreement) else None

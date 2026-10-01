@@ -27,6 +27,28 @@ SCRIPT = """
       });
     });
   });
+  // Tabs: one feature at a time; the arrow keys move between them.
+  document.querySelectorAll('.tabs').forEach(function (tabs) {
+    var buttons = Array.from(tabs.querySelectorAll('[role="tab"]'));
+    var panels = Array.from(tabs.parentNode.querySelectorAll('.tab-panel'));
+    function show(index) {
+      buttons.forEach(function (b, i) {
+        b.setAttribute('aria-selected', String(i === index));
+        b.tabIndex = i === index ? 0 : -1;
+      });
+      panels.forEach(function (p, i) { p.hidden = i !== index; });
+    }
+    buttons.forEach(function (button, index) {
+      button.addEventListener('click', function () { show(index); });
+      button.addEventListener('keydown', function (event) {
+        var step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        if (!step) return;
+        var next = (index + step + buttons.length) % buttons.length;
+        show(next);
+        buttons[next].focus();
+      });
+    });
+  });
   // Light and dark: the viewer's choice wins over the system's.
   var toggle = document.querySelector('.theme-toggle');
   if (toggle) toggle.addEventListener('click', function () {

@@ -194,6 +194,16 @@ button.dl { border: 1px solid var(--border); background: var(--surface); color: 
 figcaption button.dl { background: #ffffff; color: #1c5cab; border-color: #dddcd7; }
 button.dl:hover { background: var(--surface-2); }
 dl.glossary { margin: 6px 0 14px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 14px 0 0; border-bottom: 1px solid
+  var(--border); }
+.tabs [role="tab"] { border: 1px solid var(--border); border-bottom: 0;
+  background: var(--surface); color: var(--text-2); padding: 6px 12px;
+  border-radius: 8px 8px 0 0; cursor: pointer; font: inherit; }
+.tabs [role="tab"][aria-selected="true"] { background: var(--surface-2); color: var(--text);
+  font-weight: 600; }
+.tabs [role="tab"] .mark { margin-left: 6px; }
+.tab-panel { border: 1px solid var(--border); border-top: 0; border-radius: 0 0 8px 8px;
+  padding: 10px 14px; }
 .legend-box { border-left: 3px solid var(--link); background: var(--surface-2); padding: 10px 14px;
   border-radius: 6px; margin: 12px 0; }
 dl.glossary dt { font-weight: 600; margin-top: 10px; }

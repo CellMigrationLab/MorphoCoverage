@@ -42,9 +42,12 @@ from .._style import Status
 from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
+from ..retrospective.report_status import group_word
 from ..sampling_unit.legend_text import legend_box
 from ..sampling_unit.reading_text import readings_parts
+from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import rule_tallies
+from ._html_enough import enough_body
 from ._html_figures import download, embeddings, feature_figures
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
@@ -61,6 +64,7 @@ from ._html_sections import (
     what_checked,
 )
 from ._html_style import CSS
+from ._html_tabs import tests_tabs
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
@@ -263,7 +267,8 @@ def _conditions_card(
         )
         body = _html(reading) + legend + extras
         if rest.strip():
-            body += "<h3>The tests behind the reading</h3>" + _html(rest)
+            # One kind of test at a time (_html_tabs).
+            body += "<h3>The tests behind the reading</h3>" + tests_tabs(rest, _html)
     else:
         body = _html(short) + extras
     return _section("conditions", status, short, full, answer, body_extra=body)
@@ -361,8 +366,15 @@ def html_report(
             continue
         extra = ""
         extra, answer = "", headlines.get(key)
-        reading = enough_reading(result) if key == "enough" else []
-        if reading:
+        features = result.results.get("enough_features") if key == "enough" else None
+        reading = enough_reading(result) if key == "enough" and features is None else []
+        if features is not None:
+            # Every feature alike: the summary, then one feature at a time (_html_enough).
+            word = group_word(result.results.get("sufficiency"))
+            fields = field_words(next(iter(features.contrasts.values())))[1]
+            extra = enough_body(features, short, word, fields, _TERMS.annotate, unnumbered)
+            answer = None
+        elif reading:
             # The reading answers in sentences, so the headline is not repeated above it.
             lines = "".join(f"<p>{html.escape(line)}</p>" for line in reading)
             extra = _TERMS.annotate(
