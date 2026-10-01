@@ -154,6 +154,24 @@ def ask_control(ask: Ask, say: Say, scan: Any) -> dict[str, Any] | None:
     return None if choice == none else {"condition": choice}
 
 
+def ask_positive(ask: Ask, say: Say, scan: Any, control: dict[str, Any] | None) -> Any:
+    """An optional positive control: a condition known to change the phenotype, so the report
+    can check that the features see a change at all (question 1). ``None`` for none."""
+    if control is None:
+        return None
+    others = [c for c in scan.design["conditions"] if c != control.get("condition")]
+    if not others:
+        return None
+    none = "none"
+    say(
+        "A positive control is a condition known to change the phenotype (for example a "
+        "treatment or siRNA with a known effect); the report then checks that the features "
+        "can see a change. It is optional, and can be added later."
+    )
+    choice = choose(ask, say, "Is one of the conditions a positive control?", [*others, none], none)
+    return None if choice == none else {"condition": choice}
+
+
 def ask_aim(ask: Ask, say: Say) -> str:
     """``population``, ``fingerprint`` or ``both``."""
     aims = list(AIMS)
@@ -196,6 +214,7 @@ __all__ = [
     "ask_aim",
     "ask_control",
     "ask_features",
+    "ask_positive",
     "ask_readout",
     "ask_tolerance",
     "ask_unit",

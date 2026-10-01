@@ -10,8 +10,10 @@ import pandas as pd
 from matplotlib.figure import Figure
 
 from ..embedding import MIN_FEATURES, embed
+from ..metadata import CONDITION_COLUMN
 from ..plots import plots_of_data
 from ..plots_embedding import embedding_figures
+from ..plots_pairwise import add_pairwise, pairwise_contrasts
 from ..sampling_unit import FeatureDiscovery, FeatureRanking
 from ..sampling_unit.ranking import TOP_FEATURES
 from ._shared import check_workflow_inputs
@@ -27,6 +29,7 @@ def plots(
     folder: str | Path | None = None,
     ranking: FeatureDiscovery | FeatureRanking | None = None,
     top: int = TOP_FEATURES,
+    pairwise: bool = True,
     **settings: Any,
 ) -> dict[str, list[Figure]]:
     """PlotsOfData-style figures of the readout (or ``features``), on the prepared table.
@@ -40,9 +43,12 @@ def plots(
     object is a point coloured by technical repeat (a well), with each
     biological repeat's median and its interval from resampling its whole
     technical repeats with their fields as acquired, not reliable with only
-    2-3 technical repeats, which the title says (``plots.plots_of_data``, which
+    2-3 technical repeats, which the legend says (``plots.plots_of_data``, which
     also takes ``settings`` such as ``summary`` or ``max_conditions``). Normalised
-    values (``Setup.normalize``) say so on the value axis.
+    values (``Setup.normalize``) say so on the value axis. With ``pairwise`` (the default)
+    and two or more conditions, every pair of the figure's conditions is drawn under it, as
+    Plot&Stats does (``plots_pairwise``): Cohen's d and its randomization test, and
+    each figure carries the table as ``pairwise``.
     With ``folder`` each figure is also saved there as
     ``<feature>[_<part>].png``. Returns the figures by feature.
     """
@@ -60,8 +66,9 @@ def plots(
     undeclared = sorted(set(chosen) - set(setup.columns))
     if undeclared:
         raise ValueError(f"features to plot must be declared in the setup: {undeclared}")
+    prepared = setup.prepared(objects, fovs)
     figures = plots_of_data(
-        setup.prepared(objects, fovs),
+        prepared,
         fovs,
         features=chosen,
         random_state=settings.pop("random_state", setup.random_state),
@@ -72,6 +79,8 @@ def plots(
         **settings,
         **setup.common,
     )
+    if pairwise:
+        _add_pairwise(figures, prepared, fovs, setup)
     if folder is not None:
         target = Path(folder)
         target.mkdir(parents=True, exist_ok=True)
@@ -80,6 +89,30 @@ def plots(
                 suffix = f"_{index}" if len(parts) > 1 else ""
                 figure.savefig(target / f"{feature}{suffix}.png", dpi=150)
     return figures
+
+
+def _add_pairwise(
+    figures: dict[str, list[Figure]], prepared: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+) -> None:
+    """Every pair of each figure's conditions under it (see ``plots``)."""
+    control = (setup.control or {}).get(CONDITION_COLUMN)
+    for feature, parts in figures.items():
+        table = pairwise_contrasts(
+            prepared,
+            fovs,
+            feature=feature,
+            control=control,
+            random_state=setup.random_state,
+            **setup.common,
+        )
+        for figure in parts:
+            summaries = getattr(figure, "cluster_summaries", None)
+            if summaries is None or summaries.empty:
+                continue
+            conditions = list(dict.fromkeys(summaries["condition"]))
+            shown = table[table["first"].isin(conditions) & table["second"].isin(conditions)]
+            figure.pairwise = shown.reset_index(drop=True)
+            add_pairwise(figure, shown, conditions)
 
 
 def embedding_plots(

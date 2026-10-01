@@ -3,21 +3,24 @@
 ``html_report(result, objects, fovs, folder)`` writes ``folder/report.html``: a single file
 that opens in any browser, offline, and can be emailed or archived as it is. It holds:
 
-- a sidebar with every answer's status, and **At a glance** (each answer's marker, as a chip
-  with its word, and its one-line answer, linking to the section);
-- **What is in the dataset**, **what the acquisition was asked to preserve**, then every
-  question of the report in its short form, the full text folded under "Full detail", and
-  "What this dataset cannot tell me": the same words as ``Report.summary``, its aligned
-  tables as sortable tables;
-- under question 9, the **figures**: the readout and the discovery's best-ranked features
-  (``plots``, embedded, each linking to its PDF), and with ``embedding.MIN_FEATURES`` or more
-  features an **interactive PCA and UMAP** of all of them (hover a point for its condition,
-  repeat and field; click a condition to hide it; switch PCA and UMAP, and raw and
-  normalised values when a control condition is declared).
+- a sidebar with every section's status, and **At a glance** (each answer's marker, as a
+  chip with its word, and its one-line answer, linking to the section);
+- the sections in the order a user acts on them, titled in words (``_html_sections``): the
+  data, **what was checked**, the fields to check (quality control), whether the conditions
+  differ, whether enough was imaged, and the rest; a section this design cannot answer is
+  left out (its reason stays in "What this dataset cannot tell me"). Each says what it is
+  for, its answer in a line, its short text, and its full text folded under "Full detail":
+  the words of ``Report.summary``, its aligned tables as sortable tables;
+- under "Do the conditions differ?", the reading per condition, a **heatmap** of Cohen's d,
+  the **figures** (the readout and the best-ranked features) and with
+  ``embedding.MIN_FEATURES`` or more features an **interactive PCA and UMAP**
+  (``_html_figures``), then the tests behind the reading;
+- the **glossary** as a drawer on the side, with a search, and the **Files**.
 
-Every figure is also saved in ``folder/figures`` as PNG and PDF (vector, for papers). The
-page follows the viewer's light or dark setting, with a switch; it prints with every
-section open. Nothing on it is computed anew except the figures: the text is the report's.
+Every figure is also saved in ``folder/figures`` as PNG and PDF (vector, for papers);
+a click enlarges it. The page follows the viewer's light or dark setting, with a switch;
+it prints with every section open. Nothing on it is computed anew except the figures: the
+text is the report's.
 """
 
 from __future__ import annotations
@@ -32,60 +35,32 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from .._style import Status
-from .._wording import percent
-from ..embedding import MIN_FEATURES, Embedding, embed
+from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, slug
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
-from ..normalize import normalize_to_control
-from ..plots_embedding import embedding_figures
-from ..retrospective.report import (
-    DECLARATION_TITLE,
-    LIMITS_TITLE,
-    OVERVIEW_TITLE,
-    QUESTIONS,
-    SHORT_QUESTIONS,
+from ..retrospective.report import LIMITS_TITLE
+from ..sampling_unit.reading_text import readings_parts
+from ._html_figures import download, embeddings, feature_figures
+from ._html_plotly import plotly_js
+from ._html_plotly_script import PLOTLY_SCRIPT
+from ._html_render import Terms, chip, text_html
+from ._html_script import SCRIPT
+from ._html_sections import (
+    INTROS,
+    ORDER,
+    TITLES,
+    enough_reading,
+    heatmap,
+    hidden,
+    unnumbered,
+    what_checked,
 )
-from ._html_render import CSS, SCRIPT, Terms, chip, text_html
-from .figures import plots
+from ._html_style import CSS
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
-# The categorical palette of the interactive figures (validated order); the control is grey.
-COLOURS = ("#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948")
-# The control's grey (matplotlib's "0.6" of the static figures).
-GREY_HEX = "#999999"
-TITLES = dict(QUESTIONS)
-
-
-def _save(figure: Any, folder: Path, name: str) -> str:
-    """``name``.png and .pdf in ``folder``; the PNG as a data URI for the page."""
-    figure.savefig(folder / f"{name}.png", dpi=150)
-    figure.savefig(folder / f"{name}.pdf")
-    data = base64.b64encode((folder / f"{name}.png").read_bytes()).decode()
-    return f"data:image/png;base64,{data}"
-
-
-def _download(path: str, label: str) -> str:
-    """A button that saves the file the page carries at ``path`` (``_files``)."""
-    return (
-        f'<button type="button" class="dl" data-file="{html.escape(path)}">'
-        f"{html.escape(label)}</button>"
-    )
-
-
-def _figure(uri: str, name: str, caption: str) -> str:
-    return (
-        f'<figure><img src="{uri}" alt="{html.escape(caption)}" loading="lazy">'
-        f"<figcaption>{html.escape(caption)} · "
-        f"{_download(f'figures/{name}.pdf', 'PDF')} {_download(f'figures/{name}.png', 'PNG')}"
-        "</figcaption></figure>"
-    )
-
-
 _TYPES = {
     ".png": "image/png",
     ".pdf": "application/pdf",
@@ -120,7 +95,7 @@ def _files(
 def _files_card(files: dict[str, list[str]]) -> str:
     rows = "".join(
         f'<tr><td>{html.escape(name)}</td><td class="num">'
-        f"{len(base64.b64decode(data)) / 1024:.0f} kB</td><td>{_download(name, 'Save')}</td></tr>"
+        f"{len(base64.b64decode(data)) / 1024:.0f} kB</td><td>{download(name, 'Save')}</td></tr>"
         for name, (_, data) in files.items()
     )
     return (
@@ -132,8 +107,19 @@ def _files_card(files: dict[str, list[str]]) -> str:
     )
 
 
-def _glossary_card() -> str:
-    parts = ['<section class="card" id="glossary"><h2>Glossary</h2>']
+def _glossary_drawer() -> str:
+    """The glossary as a drawer on the side (opened by its tab, the sidebar and every
+    underlined term), with a search; printed at the end of the page."""
+    parts = [
+        (
+            '<button type="button" class="glossary-tab" aria-controls="glossary">Glossary'
+            '</button><aside class="drawer" id="glossary" aria-label="Glossary" '
+            'aria-hidden="true"><header><button type="button" class="close" '
+            'aria-label="Close the glossary">×</button><h2>Glossary</h2><input type="search" '
+            'placeholder="Search the terms" aria-label="Search the glossary"></header>'
+            '<div class="drawer-body">'
+        )
+    ]
     section = None
     for term in GLOSSARY:
         if term.section != section:
@@ -150,190 +136,105 @@ def _glossary_card() -> str:
         )
         parts.append(
             f'<dt id="{slug(term)}">{html.escape(term.name)}</dt><dd>{html.escape(term.meaning)}'
-            f'<span class="where">Where: {html.escape(term.where)}.</span>'
+            f'<span class="where">Where: {unnumbered(html.escape(term.where))}.</span>'
             + (f'<span class="refs">See: {refs}</span>' if refs else "")
             + "</dd>"
         )
-    parts.append("</dl></section>")
+    parts.append("</dl></div></aside>")
     return "".join(parts)
-
-
-def _feature_figures(result: Report, objects, fovs, folder: Path) -> list[str]:
-    drawn = plots(objects, fovs, result.setup, ranking=result.discovery)
-    top = result.discovery.top() if result.discovery is not None else []
-    blocks = []
-    for feature, parts in drawn.items():
-        for index, figure in enumerate(parts, start=1):
-            name = f"{feature}_{index}" if len(parts) > 1 else str(feature)
-            name = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
-            role = "the readout" if feature == result.setup.readout else "best-ranked feature"
-            if feature in top:
-                role = f"best-ranked feature {top.index(feature) + 1}"
-            if len(parts) > 1:
-                role += f", part {index} of {len(parts)}"
-            blocks.append(_figure(_save(figure, folder, name), name, f"{feature}: {role}"))
-    return blocks
-
-
-def _set(embedding: Embedding, method: str, order: dict, values: str) -> dict[str, Any] | None:
-    x, y = (f"{method}1", f"{method}2")
-    points = embedding.points.dropna(subset=[x, y])
-    if points.empty:
-        return None
-    if CONDITION_COLUMN in points:
-        # The control first, so the conditions are drawn over it.
-        points = points.assign(_rank=points[CONDITION_COLUMN].map(order)).sort_values(
-            "_rank", kind="stable"
-        )
-        cond = points["_rank"].astype(int).tolist()
-    else:
-        cond = [0] * len(points)
-    named = [c for c in (REPEAT_COLUMN, "field") if c in points]
-    labels = [" · ".join(str(v) for v in row if pd.notna(v)) for row in points[named].values]
-    settings = embedding.settings
-    n = len(settings["features"])
-    if method == "pc":
-        first, second = embedding.explained
-        loadings = embedding.loadings
-        shown = loadings[loadings["top"]]
-        if shown.empty:
-            size = np.hypot(loadings["pc1"], loadings["pc2"])
-            shown = loadings.loc[size.sort_values(ascending=False).index[:5]]
-        reach = 0.8 * float(np.nanmax(np.hypot(points[x], points[y])) or 1.0)
-        longest = float(np.hypot(shown["pc1"], shown["pc2"]).max()) or 1.0
-        arrows = [
-            [r.feature, round(r.pc1 / longest * reach, 3), round(r.pc2 / longest * reach, 3)]
-            for r in shown.itertuples()
-        ]
-        caption = (
-            f"PCA of {n} standardised features ({values} values): PC1 {percent(first)} and "
-            f"PC2 {percent(second)} of the variance; arrows: the loadings of the best-ranked "
-            "features."
-        )
-        labels_xy = (f"PC1 ({percent(first)})", f"PC2 ({percent(second)})")
-    else:
-        arrows = []
-        caption = (
-            f"UMAP of {n} standardised features ({values} values), "
-            f"{settings['umap_points']} observations (n_neighbors {settings['n_neighbors']}, "
-            f"min_dist {settings['min_dist']:g}); its axes have no units."
-        )
-        labels_xy = ("UMAP 1", "UMAP 2")
-    return {
-        "x": [round(float(v), 4) for v in points[x]],
-        "y": [round(float(v), 4) for v in points[y]],
-        "cond": cond,
-        "labels": labels,
-        "caption": caption,
-        "xlabel": labels_xy[0],
-        "ylabel": labels_xy[1],
-        "arrows": arrows,
-    }
-
-
-def _embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[str]]:
-    """The interactive PCA and UMAP (its data and its markup), and the static figures."""
-    setup = result.setup
-    top = result.discovery.top() if result.discovery is not None else ()
-    tables = {"raw": objects}
-    control = setup.control
-    if control is not None and CONDITION_COLUMN in control:
-        try:
-            tables["normalised"] = normalize_to_control(
-                objects, fovs, feature_cols=list(setup.columns), control=control, **setup.common
-            )
-        except ValueError:
-            pass  # a control mean at or below 0: the raw values only
-    embeddings = {
-        values: embed(
-            table,
-            fovs,
-            features=list(setup.columns),
-            top=top,
-            random_state=setup.random_state,
-            **setup.common,
-        )
-        for values, table in tables.items()
-    }
-    first = next(iter(embeddings.values())).points
-    control_value = (control or {}).get(CONDITION_COLUMN)
-    names = (
-        sorted_labels(first[CONDITION_COLUMN], control_value)
-        if CONDITION_COLUMN in first
-        else ["all"]
-    )
-    order = {name: i for i, name in enumerate(names)}
-    others = iter(COLOURS)
-    colours = [GREY_HEX if name == control_value else next(others, "#888888") for name in names]
-    counts = (
-        [int((first[CONDITION_COLUMN] == name).sum()) for name in names]
-        if CONDITION_COLUMN in first
-        else [len(first)]
-    )
-    sets = {
-        values: {
-            method: _set(embedding, short, order, values)
-            for method, short in (("PCA", "pc"), ("UMAP", "umap"))
-        }
-        for values, embedding in embeddings.items()
-    }
-    data = {
-        "conditions": [str(n) for n in names],
-        "colours": colours,
-        "counts": counts,
-        "methods": ["PCA", "UMAP"],
-        "values": list(sets),
-        "sets": sets,
-    }
-    static = []
-    for values, embedding in embeddings.items():
-        for method, figure in embedding_figures(embedding, control=control).items():
-            name = f"{method}_{values}"
-            static.append(_figure(_save(figure, folder, name), name, f"{method.upper()}, {values}"))
-    buttons = "".join(
-        f'<button type="button" data-key="method" data-value="{m}" '
-        f'aria-pressed="{str(i == 0).lower()}">{m}</button>'
-        for i, m in enumerate(data["methods"])
-    )
-    values_buttons = "".join(
-        f'<button type="button" data-key="values" data-value="{v}" '
-        f'aria-pressed="{str(i == 0).lower()}">{v.capitalize()}</button>'
-        for i, v in enumerate(data["values"])
-    )
-    markup = (
-        '<div class="viz" data-viz="embedding"><div class="controls">'
-        f'<span class="seg" role="group" aria-label="Method">{buttons}</span>'
-        + (
-            f'<span class="seg" role="group" aria-label="Values">{values_buttons}</span>'
-            if len(data["values"]) > 1
-            else ""
-        )
-        + '</div><div class="legend" aria-label="Conditions (click to hide)"></div>'
-        '<div class="plot-box"><div class="svg-slot"></div><div class="tooltip"></div></div>'
-        '<p class="caption note"></p>'
-        '<p class="note">Both describe, they do not test: a separation is a pattern to read with '
-        "question 9's tests. On raw values a separation can be a batch between repeats, which "
-        "the normalised values (each divided by its repeat's control mean) take out.</p></div>"
-        '<script type="application/json" id="embedding-data">'
-        + json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
-        + "</script>"
-    )
-    return markup, static
 
 
 _TERMS = Terms()
 
 
-def _section(key: str, title: str, status: Status | None, short: str, full: str | None) -> str:
-    body = _TERMS.annotate(text_html(short))
-    if full and full.strip() != short.strip():
-        body += (
-            f"<details><summary>Full detail</summary>{_TERMS.annotate(text_html(full))}</details>"
+def _html(text: str) -> str:
+    """The report's text as HTML, under this page's titles, its terms linked."""
+    return _TERMS.annotate(unnumbered(text_html(text)))
+
+
+def _section(
+    key: str,
+    status: Status | None,
+    short: str,
+    full: str | None,
+    answer: str | None,
+    *,
+    title: str | None = None,
+    body_extra: str = "",
+) -> str:
+    """A card: its title and status, what it is for, its answer in a line, its short text,
+    and its full text folded."""
+    intro = INTROS.get(key)
+    head = f'<p class="intro">{html.escape(intro)}</p>' if intro else ""
+    if answer:
+        head += (
+            '<p class="answer"><strong>In short:</strong> '
+            f"{_TERMS.annotate(html.escape(answer[:1].upper() + answer[1:]))}.</p>"
         )
+    body = body_extra or _html(short)
+    if full and full.strip() != short.strip():
+        detail = _html(full)
+        body += f"<details><summary>Full detail</summary>{detail}</details>"
+    name = title or TITLES.get(key, key)
     return (
-        f'<section class="card" id="{key}"><h2>{chip(status)} {html.escape(title)}</h2>'
-        f"{body}</section>"
+        f'<section class="card" id="{key}"><h2>{chip(status)} {html.escape(name)}</h2>'
+        f"{head}{body}</section>"
     )
+
+
+def _checked_card(result: Report, doc: Any) -> str:
+    """What the run checked, in short lines; the declaration's sentences folded."""
+    lines = "".join(
+        f"<li>{_TERMS.annotate(html.escape(line))}</li>" for line in what_checked(result.setup)
+    )
+    full = doc.short.get("declaration") or "\n".join(f"- {d}" for d in doc.declaration)
+    detail = f"<details><summary>Full detail</summary>{text_html(full)}</details>" if full else ""
+    return (
+        '<section class="card" id="declaration"><h2>What was checked</h2>'
+        f'<ul class="checked">{lines}</ul>{detail}</section>'
+    )
+
+
+def _condition_extras(
+    result: Report, feature_blocks: list[str], viz: str, static: list[str]
+) -> str:
+    """Question 9's figures: the heatmap, the plots, the PCA and UMAP."""
+    conditions = []
+    contrast = result.results.get("contrast")
+    if contrast is not None and len(contrast.table):
+        conditions = list(dict.fromkeys(contrast.table["condition"]))
+    extra = ""
+    grid = heatmap(result.discovery, conditions)
+    if grid:
+        extra += f"<h3>Every feature against the control</h3>{grid}"
+    if feature_blocks:
+        extra += (
+            "<h3>The readout and the best-ranked features</h3>"
+            f'<div class="feature-grid">{"".join(feature_blocks)}</div>'
+        )
+    if viz:
+        extra += f"<h3>All {len(result.setup.columns)} features at once</h3>{viz}"
+        extra += (
+            "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
+            f'<div class="figures">{"".join(static)}</div></details>'
+        )
+    return extra
+
+
+def _conditions_card(
+    result: Report, status: Status | None, short: str, full: str, answer: str | None, extras: str
+) -> str:
+    """Question 9: the reading per condition, then the figures, then the tests behind them."""
+    contrast = result.results.get("contrast")
+    reading = "\n".join(readings_parts(contrast, indent=2)) if contrast is not None else ""
+    if reading and short.startswith(reading):
+        rest = short[len(reading) :].lstrip("\n")
+        body = _html(reading) + extras
+        if rest.strip():
+            body += "<h3>The tests behind the reading</h3>" + _html(rest)
+    else:
+        body = _html(short) + extras
+    return _section("conditions", status, short, full, answer, body_extra=body)
 
 
 def html_report(
@@ -358,28 +259,33 @@ def html_report(
     # Allow for file systems that store modification times to the second.
     started = time.time() - 1
     doc = result.document
-    keys = [k for k in REPORT_QUESTIONS if k in doc.sections]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        feature_blocks = _feature_figures(result, objects, fovs, figures)
+        feature_blocks, specs = feature_figures(result, objects, fovs, figures)
         viz, static = ("", [])
         if len(result.setup.columns) >= MIN_FEATURES:
-            viz, static = _embeddings(result, objects, fovs, figures)
+            viz, static = embeddings(result, objects, fovs, figures)
+    statuses, headlines = doc.statuses, doc.headlines
+    keys = [k for k in ORDER if (k == "overview" and doc.overview) or k in doc.sections]
+    shown = [k for k in keys if not hidden(statuses.get(k), headlines.get(k, ""))]
     nav = ['<nav class="toc" aria-label="Sections"><h2>Report</h2>']
     glance = []
-    for key in ["overview", *keys]:
-        status = doc.statuses.get(key)
-        label = SHORT_QUESTIONS.get(key, key)
+    for key in shown:
+        status = statuses.get(key)
         icon = status.marker if status is not None else ""
         nav.append(
             f'<a href="#{key}"><span class="icon" aria-hidden="true">{icon}</span>'
-            f"<span>{html.escape(label)}</span></a>"
+            f"<span>{html.escape(TITLES[key])}</span></a>"
         )
+        if key == "overview":
+            nav.append(
+                '<a href="#declaration"><span class="icon"></span><span>What was checked</span></a>'
+            )
         if status is not None:
             glance.append(
-                f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(label)}'
+                f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(TITLES[key])}'
                 f'<br>{chip(status)}</span><span class="a">'
-                f"{html.escape(doc.headlines.get(key, ''))}</span></a>"
+                f"{html.escape(headlines.get(key, ''))}</span></a>"
             )
     for anchor, label in (
         ("limits", "What it cannot tell"),
@@ -392,45 +298,58 @@ def html_report(
     subtitle = _first_sentence(overview_short)
     cards = [
         '<section class="card" id="glance"><h2>At a glance</h2><p class="key">A marker says '
-        "how far to trust an answer, not what it found. Underlined words open their meaning "
-        "(the glossary is at the end).</p>" + _TERMS.annotate("".join(glance)) + "</section>"
+        "how far to trust an answer, not what it found. Underlined words show their meaning, "
+        "and a click opens them in the glossary, on the side.</p>"
+        + _TERMS.annotate("".join(glance))
+        + "</section>"
     ]
-    if doc.overview:
-        cards.append(
-            _section(
-                "overview",
-                OVERVIEW_TITLE,
-                doc.statuses.get("overview"),
-                overview_short,
-                doc.overview,
+    for key in shown:
+        if key == "overview":
+            cards.append(
+                _section(
+                    "overview",
+                    statuses.get("overview"),
+                    overview_short,
+                    doc.overview,
+                    headlines.get("overview"),
+                )
             )
-        )
-    if doc.declaration:
-        declared = doc.short.get("declaration") or "\n".join(f"- {d}" for d in doc.declaration)
-        cards.append(_section("declaration", DECLARATION_TITLE, None, declared, None))
-    for key in keys:
+            cards.append(_checked_card(result, doc))
+            continue
         short = doc.short.get(key, doc.sections[key])
-        card = _section(key, TITLES[key], doc.statuses.get(key), short, doc.sections[key])
-        if key == "conditions" and (feature_blocks or viz):
-            extra = ""
-            if feature_blocks:
-                extra += (
-                    "<h3>The readout and the best-ranked features</h3>"
-                    f'<div class="figures">{"".join(feature_blocks)}</div>'
+        if key == "conditions":
+            extras = _condition_extras(result, feature_blocks, viz, static)
+            cards.append(
+                _conditions_card(
+                    result, statuses.get(key), short, doc.sections[key], headlines.get(key), extras
                 )
-            if viz:
-                extra += f"<h3>All {len(result.setup.columns)} features at once</h3>{viz}"
-                extra += (
-                    "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
-                    f'<div class="figures">{"".join(static)}</div></details>'
-                )
-            card = card[: -len("</section>")] + extra + "</section>"
-        cards.append(card)
+            )
+            continue
+        extra = ""
+        extra, answer = "", headlines.get(key)
+        reading = enough_reading(result) if key == "enough" else []
+        if reading:
+            # The reading answers in sentences, so the headline is not repeated above it.
+            lines = "".join(f"<p>{html.escape(line)}</p>" for line in reading)
+            extra = _TERMS.annotate(
+                f'<div class="reading">{lines}</div><h3>The numbers</h3>'
+                + unnumbered(text_html(short))
+            )
+            answer = None
+        cards.append(
+            _section(key, statuses.get(key), short, doc.sections[key], answer, body_extra=extra)
+        )
     limits = doc.limits(list(REPORT_QUESTIONS), "short")
     cards.append(
-        _section("limits", LIMITS_TITLE, None, limits, doc.limits(list(REPORT_QUESTIONS), "full"))
+        _section(
+            "limits",
+            None,
+            limits,
+            doc.limits(list(REPORT_QUESTIONS), "full"),
+            None,
+            title=LIMITS_TITLE,
+        )
     )
-    cards.append(_glossary_card())
     texts = {
         "report_short.txt": result.summary() + "\n",
         "report_full.txt": result.summary(detail="full") + "\n",
@@ -453,13 +372,28 @@ def html_report(
         + "<footer>"
         + html.escape(_settings(result))
         + "</footer></main></div>"
+        + _glossary_drawer()
         + '<script type="application/json" id="files-data">'
         + json.dumps(files, separators=(",", ":"))
-        + f"</script><script>{SCRIPT}</script></body></html>"
+        + f"</script><script>{SCRIPT}</script>"
+        + _plotly_scripts(specs, bool(viz))
+        + "</body></html>"
     )
     path = folder / REPORT_FILE
     path.write_text(page, encoding="utf-8")
     return path
+
+
+def _plotly_scripts(specs: list[dict], embedding: bool) -> str:
+    """plotly.js, the feature figures' data and the script that draws them; nothing when
+    the page has no interactive figure."""
+    if not specs and not embedding:
+        return ""
+    data = json.dumps(specs, separators=(",", ":")).replace("</", "<\\/")
+    return (
+        f'<script type="application/json" id="feature-data">{data}</script>'
+        f"<script>{plotly_js()}</script><script>{PLOTLY_SCRIPT}</script>"
+    )
 
 
 def _first_sentence(text: str) -> str:

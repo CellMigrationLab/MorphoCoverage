@@ -382,7 +382,7 @@ def _analyses():
             **common,
         ),
         "plots_of_data": lambda o, f: [
-            ax.get_title(loc="left")
+            ax.figure.caption
             for figure in plots_of_data(o, f, features=["area"], n_boot=20)["area"]
             for ax in figure.axes
         ],

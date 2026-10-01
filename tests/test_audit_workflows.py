@@ -80,7 +80,7 @@ def test_h5_the_palette_note_and_limit_say_what_is_drawn():
         plots_of_data(*_pooled_wells(), features=["x"], n_boot=10, max_technical=9)
     figure = plots_of_data(*_pooled_wells(), features=["x"], n_boot=10, max_technical=1)["x"][0]
     texts = [t.get_text() for t in figure.axes[0].texts]
-    assert any("the first 1 coloured in order, the others grey" in t for t in texts)
+    assert any("the first 1 shaped in order, the others small dots" in t for t in texts)
 
 
 def test_h2_every_workflow_gives_the_rules_the_same_columns(monkeypatch):

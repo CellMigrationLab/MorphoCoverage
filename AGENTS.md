@@ -248,6 +248,10 @@ src/morphocoverage/
     glossary.py            # the report's glossary: every test, rule and term in plain words, with its papers
     embedding.py           # PCA and UMAP of the declared features (embed): coordinates and loadings, no figure
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
+    plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
+    _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend
+    _palette.py            # private: the colour per condition, technical-repeat shapes, axis style
+    _figure_layout.py      # private: a static figure's lettered panels and its legend at the bottom
     retrospective/         # what a completed acquisition achieved, judged on hidden FOVs
         __init__.py        # the subpackage's public names
         criteria.py        # OutcomeCriterion: outcome metric + declared tolerance
@@ -317,7 +321,13 @@ src/morphocoverage/
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
-        _html_render.py    # private: the page's style and script, the report's text as HTML, status chips
+        _html_render.py    # private: the report's text as HTML, glossary term links, status chips
+        _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
+        _html_figures.py   # private: figures as PNG/PDF, PCA/UMAP data and markup, palette
+        _html_plotly.py    # private: plotly.js (assets/) and the feature figures' data for it
+        _html_plotly_script.py  # private: the script drawing the Plotly figures
+        _html_style.py     # private: the page's style sheet (light/dark, drawer, lightbox)
+        _html_script.py    # private: the page's script (sort, downloads, lightbox, drawer)
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal

@@ -190,7 +190,7 @@ def test_e5_plot_interval_says_how_many_technical_repeats_and_warns_with_two_or_
                 for v in rng.normal(size=10)
             ]
     figures = plots_of_data(pd.DataFrame(rows), pd.DataFrame(fovs), features=["x"], n_boot=20)
-    title = figures["x"][0].axes[0].get_title(loc="left")
+    title = figures["x"][0].axes[0].figure.caption
     assert "whole technical repeats with their fields as acquired (2 per cluster" in title
     assert "with only 2-3 technical repeats a cluster's interval is not reliable" in title
 

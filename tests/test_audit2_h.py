@@ -314,11 +314,7 @@ def test_h10_pooled_repeats_resample_the_repeats_first():
     assert high - low > 9 and high - low > 2 * (f_high - f_low)
     spec = [("ctrl", f"r{r}", "w", 3, float(r), 0.2) for r in range(10)]
     objects, fovs = _tables(spec, per_field=5)
-    title = (
-        plots_of_data(objects, fovs, features=["x"], n_boot=20)["x"][0]
-        .axes[0]
-        .get_title(loc="left")
-    )
+    title = plots_of_data(objects, fovs, features=["x"], n_boot=20)["x"][0].axes[0].figure.caption
     assert (
         "resampling whole biological repeats (biological_repeat), each with all its fields" in title
     )

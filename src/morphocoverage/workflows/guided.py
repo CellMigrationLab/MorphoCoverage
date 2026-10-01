@@ -10,7 +10,8 @@
 3. **Scan** the design (``scan_design``) and print what it found; the scan is saved as
    ``scan.txt``.
 4. **Ask**: did the dataset load correctly (if not, stop and fix the tables); the control
-   to log (the scan's guess is the default); the aim (population averages, a phenotypic
+   to log (the scan's guess is the default); an optional positive control (a condition known
+   to change the phenotype, for question 1); the aim (population averages, a phenotypic
    fingerprint, or both); the features to assess (several, or all the numeric columns);
    the readout among them; what one row is, when not declared; and for a fingerprint, its
    tolerance (no default has a published meaning, so the user states it).
@@ -49,11 +50,13 @@ from . import _guided_ask as q
 from .html_report import html_report, zip_results
 from .retrospective import Report, report
 from .scan import DesignScan, scan_design
-from .setup import Setup, default_novelty
+from .setup import PositiveControl, Setup, default_novelty
 
 ANSWERS_FILE = "morphocoverage_answers.json"
 ANSWERS_VERSION = 1
 DEFAULT_FOLDER = "morphocoverage_results"
+# The reference fields seen before a positive-control field is judged (PositiveControl).
+POSITIVE_FIELDS = 10
 
 
 def table_checksum(table: pd.DataFrame) -> str:
@@ -81,6 +84,7 @@ class Answers:
     readout: str
     observation_unit: str
     fingerprint_tolerance: float | None = None
+    positive: dict[str, Any] | None = None
     dataset: dict[str, Any] = field(default_factory=dict)
     saved: str | None = None
     version: int = ANSWERS_VERSION
@@ -120,7 +124,11 @@ class Answers:
         }
         if goal == "fingerprint":
             values["fingerprint"] = self.fingerprint()
+        if goal == "fingerprint" or self.positive is not None:
+            # A positive control is judged by the definition of new.
             values["novelty"] = default_novelty(tuple(self.features))
+        if self.positive is not None:
+            values["positive"] = PositiveControl(dict(self.positive), fovs_seen=POSITIVE_FIELDS)
         values.update(fields)
         with warnings.catch_warnings():
             # A control the user chose to leave out is an answer, not a guess to warn about.
@@ -137,6 +145,8 @@ class Answers:
             f"Readout: {self.readout}.",
             f"One row is a {self.observation_unit}.",
         ]
+        if self.positive is not None:
+            lines.append(f"Positive control: {self.positive['condition']}.")
         if self.fingerprint_tolerance is not None:
             lines.append(f"Fingerprint tolerance: {percent(self.fingerprint_tolerance)}.")
         return lines
@@ -253,6 +263,7 @@ def _questions(ask, say, scan: DesignScan, dataset: dict[str, Any]) -> Answers |
         say("Fix the tables (the scan above says what it read) and start again.")
         return None
     control = q.ask_control(ask, say, scan)
+    positive = q.ask_positive(ask, say, scan, control)
     aim = q.ask_aim(ask, say)
     features = q.ask_features(ask, say, scan.settings["feature_cols"])
     readout = q.ask_readout(ask, say, features)
@@ -269,6 +280,7 @@ def _questions(ask, say, scan: DesignScan, dataset: dict[str, Any]) -> Answers |
         readout=readout,
         observation_unit=unit,
         fingerprint_tolerance=tolerance,
+        positive=positive,
         dataset=dataset,
     )
 

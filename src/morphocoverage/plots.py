@@ -4,7 +4,8 @@ Postma and Goedhart's PlotsOfData shows every value as a point beside a
 summary and its 95% confidence interval; SuperPlots keep the biological
 repeats apart. These plots do the same for one feature per figure: within
 each condition the biological repeats (the repeat column) sit side by side,
-every object is a jittered point coloured by technical repeat (the
+every object is a jittered point in its condition's colour (``_palette``, the same as the
+HTML report's), shaped by technical repeat (the
 MorphoBricks ``technical_repeat`` column, a well or a dish, or the column
 ``technical_col`` names; never a biological repeat), and each biological
 repeat's summary (median by default, or mean) carries its interval from
@@ -18,7 +19,7 @@ technical repeats as acquired (``bootstrap_nested`` with the repeats as the
 units): resampling the technical repeats again within each drawn repeat would
 count their variance twice. Acquired fields without observations take part,
 as in ``statistics.bootstrap_fields``, when the FOV table places them in the
-cluster. The title says how many units a cluster's interval resamples, and
+cluster. The legend (at the bottom) says how many units a cluster's interval resamples, and
 warns when one has only 2 or 3, which no resampling turns into a reliable
 interval, or a single technical repeat, whose interval shows field-to-field
 variation only.
@@ -27,7 +28,7 @@ Every column of FOV identity that the figure does not place (condition,
 repeat or technical repeat) is pooled within a cluster, never merged: with
 ``repeat_col=None`` on several repeats that reuse well names, well ``A`` of
 each repeat stays its own technical repeat, and the repeats are resampled as
-pooled repeats, which the title says. An analysis-group column (``group_cols``)
+pooled repeats, which the legend says. An analysis-group column (``group_cols``)
 that the figure does not place raises instead, since the figure would pool
 the groups the caller asked to keep apart: name it as ``condition_col``,
 ``repeat_col`` or ``technical_col``, or leave it out of ``group_cols``.
@@ -35,9 +36,9 @@ the groups the caller asked to keep apart: name it as ``condition_col``,
 Limits keep the figures legible and are arguments: at most ``max_conditions``
 conditions per figure (more are split evenly over several figures), at most
 ``max_repeats`` biological repeats side by side (more are pooled into one
-cluster per condition, and the title says so), at most ``max_technical``
-colours (up to 8; more technical repeats of a biological repeat share one
-grey), at most ``max_features`` features per call (more raise, so the caller
+cluster per condition, and the legend says so), at most ``max_technical``
+shapes (up to 8; more technical repeats of a biological repeat share small
+dots), at most ``max_features`` features per call (more raise, so the caller
 chooses). A column named explicitly that the tables do not hold raises; only
 the default ``condition`` and ``biological_repeat`` columns may be absent. The layout's
 columns are read from the FOV table (or, when only the observations carry
@@ -47,7 +48,12 @@ its jitter and resamples from its own generator, seeded from
 ``random_state``, the feature, the condition and the repeat, so a figure does
 not change with the other features or conditions of the call. Figures are
 ``matplotlib.figure.Figure`` objects built without pyplot, so they display in
-a notebook and save with ``savefig`` without touching global state.
+a notebook and save with ``savefig`` without touching global state. Each carries
+``cluster_summaries``: per cluster drawn, its condition, repeat (``None`` when pooled),
+x position and width, and its summary with the interval (``summary``, ``low``, ``high``),
+and ``caption``, what it shows (one clause per line), so another rendering (the HTML
+report's) draws the same numbers. The caption is the figure's legend, at its bottom
+(``_figure_layout``); its title is the feature.
 """
 
 from __future__ import annotations
@@ -62,13 +68,14 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from ._checks import is_integer
+from ._figure_layout import sentences, set_legend
 from ._former_repeat import one_warning, read_former
+from ._palette import COLOURS, FONT, INK, MARKERS, MUTED, OTHER_MARKER, style_axes
+from ._plots_text import legend, title
 from ._seeds import group_rng
-from ._wording import ordinal, rate
 from .data_check import validate_input_tables
 from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
-    REPEAT_COLUMN,
     TECHNICAL_REPEAT_COLUMN,
     empty_values,
     sorted_labels,
@@ -80,10 +87,13 @@ MAX_CONDITIONS = 12
 MAX_REPEATS = 8
 MAX_TECHNICAL = 8
 MAX_FEATURES = 24
+# The x axis: one slot per biological repeat, a gap between conditions, and the inches a
+# slot takes.
+GAP = 0.8
+INCHES_PER_SLOT = 0.62
 SUMMARIES: dict[str, Callable[[np.ndarray], float]] = {"median": np.median, "mean": np.mean}
-# No grey in the palette: grey marks the technical repeats beyond it.
-PALETTE = ("#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860", "#DA8BC3", "#64B5CD")
-GREY = "0.6"
+# One colour per condition (``_palette``); the technical repeats differ by shape.
+PALETTE = COLOURS
 
 
 @dataclass(frozen=True)
@@ -244,13 +254,15 @@ def _draw_cluster(
     values: np.ndarray,
     fields: tuple[pd.DataFrame, pd.DataFrame, list[np.ndarray], np.ndarray],
     layout: _Layout,
-    colours: Sequence[str],
+    colour: str,
     statistic: Callable[[np.ndarray], float],
     n_boot: int,
     confidence: float,
     rng: np.random.Generator,
-) -> None:
-    """One cluster (a condition and biological repeat): technical-repeat points, summary, interval.
+) -> tuple[float, float, float]:
+    """One cluster (a condition and biological repeat): its points in the condition's
+    ``colour``, each technical repeat by shape, then the summary and interval. Returns the
+    summary and its interval.
 
     ``rows`` is the boolean mask of the cluster's observations; ``fields``
     holds every acquired field's metadata, every observation's (its field's),
@@ -265,7 +277,7 @@ def _draw_cluster(
     half = 0.4 * width
     by_top: dict[tuple, list[list[np.ndarray]]] = {}
     for top, replicate in units:
-        # Colours by rank within the top-level unit (the biological repeat), as the legend says.
+        # Shapes by rank within the top-level unit (the biological repeat), as the legend says.
         rank = len(by_top.setdefault(top, []))
         unit_fields = in_cluster & _unit_mask(meta, layout, top, replicate)
         by_top[top].append([per_field[i] for i in np.flatnonzero(unit_fields)])
@@ -273,9 +285,19 @@ def _draw_cluster(
         y = y[~np.isnan(y)]
         if not len(y):
             continue
-        colour = colours[rank] if rank < len(colours) else GREY
+        marker = MARKERS[rank] if rank < len(MARKERS) else OTHER_MARKER
         jitter = rng.uniform(-half, half, size=len(y))
-        ax.scatter(x + jitter, y, s=6, alpha=0.35, color=colour, linewidths=0, rasterized=True)
+        ax.scatter(
+            x + jitter,
+            y,
+            s=16,
+            alpha=0.5,
+            color=colour,
+            marker=marker,
+            linewidths=0,
+            rasterized=True,
+            zorder=1,
+        )
     tops = [t for t in by_top.values() if any(len(f) for unit in t for f in unit)]
     if len(tops) > 1:
         # Pooled repeats: the repeats alone resampled, all their fields as acquired (Ren 2010).
@@ -286,11 +308,12 @@ def _draw_cluster(
         units_resampled, statistic, n_boot=n_boot, rng=rng, confidence=confidence
     )
     if np.isfinite(low) and np.isfinite(high):
-        # A thick bar with caps behind the summary line, so a narrow interval stays visible.
-        ax.vlines(x, low, high, color="black", lw=7, alpha=0.3, zorder=2)
-        ax.hlines([low, high], x - 0.3 * width, x + 0.3 * width, color="black", lw=1, zorder=3)
+        # The interval as an error bar with caps, so a narrow one stays visible.
+        ax.vlines(x, low, high, color=INK, lw=1.8, zorder=3)
+        ax.hlines([low, high], x - 0.13 * width, x + 0.13 * width, color=INK, lw=1.8, zorder=3)
     if np.isfinite(point):
-        ax.hlines(point, x - half, x + half, color="black", lw=2, zorder=4)
+        ax.hlines(point, x - 0.34 * width, x + 0.34 * width, color=INK, lw=3, zorder=4)
+    return float(point), float(low), float(high)
 
 
 def _cluster_units(observed: pd.DataFrame, layout: _Layout) -> list[tuple[int, list[int]]]:
@@ -308,124 +331,6 @@ def _cluster_units(observed: pd.DataFrame, layout: _Layout) -> list[tuple[int, l
         ]
         result.append((len(technical), technical))
     return result
-
-
-def _legend(ax: Axes, layout: _Layout, colours: Sequence[str], n_technical: int) -> None:
-    """Colours by technical-repeat rank, or a note when there are too many to colour."""
-    if layout.technical_col is None:
-        return
-    if n_technical <= len(colours):
-        handles = [
-            ax.scatter(
-                [],
-                [],
-                color=colours[rank],
-                s=20,
-                label=f"{ordinal(rank + 1)} {layout.technical_col}",
-            )
-            for rank in range(n_technical)
-        ]
-        ax.legend(
-            handles=handles,
-            frameon=False,
-            fontsize=8,
-            title=(
-                f"technical repeat ({layout.technical_col}), in order within each biological repeat"
-            ),
-            title_fontsize=8,
-        )
-    else:
-        ax.text(
-            0.01,
-            0.99,
-            f"up to {n_technical} technical repeats ({layout.technical_col}) per biological "
-            f"repeat: the first {len(colours)} coloured in order, the others grey",
-            transform=ax.transAxes,
-            va="top",
-            fontsize=8,
-        )
-
-
-def _span(counts: Sequence[int]) -> str:
-    """``3`` or ``2 to 5``."""
-    return f"{min(counts)}" if min(counts) == max(counts) else f"{min(counts)} to {max(counts)}"
-
-
-def _pooled_name(layout: _Layout) -> str:
-    """The pooled top-level units in words: ``biological repeats (repeat)`` or their columns."""
-    if len(layout.pooled_cols) == 1 and layout.pooled_cols[0] in (
-        layout.repeat_col,
-        REPEAT_COLUMN,
-    ):
-        return f"biological repeats ({layout.pooled_cols[0]})"
-    return f"units of {'/'.join(layout.pooled_cols)}"
-
-
-def _title(
-    feature: str,
-    part: str,
-    layout: _Layout,
-    unit: str,
-    summary: str,
-    level: float,
-    clusters: Sequence[tuple[int, list[int]]] = (),
-) -> str:
-    """Three lines: what is plotted and how it is split, what a point is, what the interval is.
-
-    ``clusters`` holds, per cluster, its top-level units and each one's
-    technical repeats (``_cluster_units``): the interval line says how many
-    units are resampled, and a fourth line warns when a cluster has only 2 or
-    3, which no resampling turns into a reliable interval, or a single
-    technical repeat, whose interval resamples its fields and so shows
-    field-to-field variation only (it covered the repeat's median about half
-    the time with a well SD above the field SD).
-    """
-    repeats = ""
-    if layout.pooled_repeats:
-        repeats = (
-            f"; biological repeats ({layout.repeat_col}) pooled, more than the "
-            f"{layout.max_repeats} shown side by side"
-        )
-    elif layout.repeat_col:
-        repeats = f"; biological repeats ({layout.repeat_col}) side by side"
-    unshown = [
-        c for c in layout.pooled_cols if not (layout.pooled_repeats and c == layout.repeat_col)
-    ]
-    if unshown:
-        repeats += f"; {'/'.join(unshown)} not shown apart, pooled within each cluster"
-    by_top = [n for n, _ in clusters if n > 1]
-    single = [technical[0] for n, technical in clusters if n == 1]
-    coloured, phrases, caveat = "", [], ""
-    if layout.technical_col:
-        coloured = f", coloured by technical repeat ({layout.technical_col})"
-    if by_top:
-        phrases.append(
-            f"whole {_pooled_name(layout)}, each with all its fields as acquired "
-            f"({_span(by_top)} per cluster)"
-        )
-        if any(n in (2, 3) for n in by_top):
-            caveat = f"\nwith only 2-3 {_pooled_name(layout)} a cluster's interval is not reliable"
-    if single or not by_top:
-        if layout.technical_col:
-            span = f"{_span(single)} per cluster; " if single else ""
-            phrases.append(
-                f"whole technical repeats with their fields as acquired ({span}whole fields "
-                "where there is one)"
-            )
-            if any(n in (2, 3) for n in single):
-                caveat = "\nwith only 2-3 technical repeats a cluster's interval is not reliable"
-            if any(n == 1 for n in single):
-                caveat += (
-                    "\none technical repeat: the interval shows field-to-field variation "
-                    "only, not well-to-well"
-                )
-        else:
-            phrases.append("whole fields")
-    resampled = " or, in a cluster of one, ".join(phrases)
-    return (
-        f"{feature}{part}{repeats}\nevery {unit} a point{coloured}\n"
-        f"{summary} with its {rate(level)} interval from resampling {resampled}{caveat}"
-    )
 
 
 @one_warning
@@ -487,9 +392,9 @@ def plots_of_data(
             raise ValueError(f"{name} must be a positive integer")
     n_boot, max_conditions = int(n_boot), int(max_conditions)
     max_repeats, max_technical = int(max_repeats), int(max_technical)
-    if max_technical > len(PALETTE):
+    if max_technical > len(MARKERS):
         raise ValueError(
-            f"max_technical can be at most {len(PALETTE)}, the colours that can be told apart"
+            f"max_technical can be at most {len(MARKERS)}, the shapes that can be told apart"
         )
     data = validate_input_tables(
         objects,
@@ -501,7 +406,8 @@ def plots_of_data(
     )
     first = dict(control or {}).get(condition_col) if condition_col is not None else None
     layout = _layout(data, condition_col, repeat_col, technical_col, max_repeats, first)
-    colours = PALETTE[:max_technical]
+    shapes = MARKERS[:max_technical]
+    colours = {c: COLOURS[i % len(COLOURS)] for i, c in enumerate(layout.conditions)}
     meta = _field_metadata(
         data,
         [layout.condition_col, layout.repeat_col, layout.technical_col, *layout.pooled_cols],
@@ -510,8 +416,6 @@ def plots_of_data(
     clusters = _cluster_units(observed, layout)
     n_technical = max((n for _, technical in clusters for n in technical), default=0)
     statistic = SUMMARIES[summary]
-    n_repeats = len(layout.repeats)
-    width = 0.8 / n_repeats
     figures: dict[str, list[Figure]] = {}
     for feature in features:
         values = data.feature_values(feature)
@@ -520,24 +424,39 @@ def plots_of_data(
         size = -(-len(layout.conditions) // -(-len(layout.conditions) // max_conditions))
         for start in range(0, len(layout.conditions), size):
             chunk = layout.conditions[start : start + size]
-            figure = Figure(figsize=(max(6.5, 0.9 * len(chunk) * n_repeats + 2.0), 4.6))
+            # Each condition is as wide as the repeats it holds: a slot of 1 per repeat, a gap
+            # of GAP between conditions, so repeats imaged for other conditions take no room.
+            present = [
+                [
+                    r
+                    for r in layout.repeats
+                    if (
+                        _mask(observed, layout.condition_col, c)
+                        & _mask(observed, layout.repeat_col, r)
+                    ).any()
+                ]
+                for c in chunk
+            ]
+            starts = np.cumsum([0.0] + [max(len(p), 1) + GAP for p in present[:-1]])
+            span = starts[-1] + max(len(present[-1]), 1)
+            figure = Figure(figsize=(max(6.5, INCHES_PER_SLOT * span + 2.0), 4.8))
             ax = figure.add_subplot(111)
             repeat_labels: list[tuple[float, str]] = []
+            summaries = []
+            width = 1.0
             for index, condition in enumerate(chunk):
                 in_condition = _mask(observed, layout.condition_col, condition)
                 fields_in_condition = _mask(meta, layout.condition_col, condition)
-                for j, repeat in enumerate(layout.repeats):
+                for j, repeat in enumerate(present[index]):
                     rows = in_condition & _mask(observed, layout.repeat_col, repeat)
-                    if not rows.any():
-                        continue
                     in_cluster = fields_in_condition & _mask(meta, layout.repeat_col, repeat)
-                    x = index - 0.4 + width * (j + 0.5)
+                    x = starts[index] + j + 0.5
                     # A generator per cluster: no figure depends on the others of the call.
                     rng = group_rng(
                         random_state,
                         {"feature": feature, "condition": condition, "repeat": repeat},
                     )
-                    _draw_cluster(
+                    point, low, high = _draw_cluster(
                         ax,
                         x,
                         width,
@@ -545,16 +464,21 @@ def plots_of_data(
                         values,
                         (meta, observed, per_field, in_cluster),
                         layout,
-                        colours,
+                        colours[condition],
                         statistic,
                         n_boot,
                         confidence,
                         rng,
                     )
+                    summaries.append(
+                        {"condition": condition, "repeat": repeat, "x": x, "width": width}
+                        | {"summary": point, "low": low, "high": high}
+                    )
                     if repeat is not None:
                         repeat_labels.append((x, str(repeat)))
             many = len(chunk) > 4
-            ax.set_xticks(range(len(chunk)))
+            ax.set_xticks([b + max(len(p), 1) / 2 for b, p in zip(starts, present, strict=True)])
+            ax.set_xlim(-0.4, span + 0.4)
             ax.set_xticklabels(
                 ["all fields" if c is None else str(c) for c in chunk],
                 rotation=30 if many else 0,
@@ -567,8 +491,8 @@ def plots_of_data(
                     xycoords=("data", "axes fraction"),
                     ha="center",
                     va="bottom",
-                    fontsize=7,
-                    color="0.35",
+                    fontsize=9.5,
+                    color=MUTED,
                 )
             ax.set_ylabel(feature if value_note is None else f"{feature} ({value_note})")
             part = (
@@ -576,16 +500,18 @@ def plots_of_data(
                 if len(layout.conditions) > max_conditions
                 else ""
             )
-            ax.set_title(
-                _title(feature, part, layout, data.observation_unit, summary, confidence, clusters),
-                fontsize=9,
-                loc="left",
-                pad=14,
+            words = title(
+                feature, part, layout, data.observation_unit, summary, confidence, clusters
             )
-            _legend(ax, layout, colours, n_technical)
-            for side in ("top", "right"):
-                ax.spines[side].set_visible(False)
+            # The feature on top; what the figure shows is its legend, at the bottom.
+            ax.set_title(f"{feature}{part}", fontsize=13, weight="bold", loc="left", pad=22)
+            legend(ax, layout, shapes, n_technical)
+            style_axes(ax)
+            ax.tick_params(axis="x", labelsize=FONT + 1)
             figure.tight_layout()
+            figure.cluster_summaries = pd.DataFrame(summaries)
+            figure.caption = words
+            set_legend(figure, [sentences(words)])
             figures[feature].append(figure)
     return figures
 

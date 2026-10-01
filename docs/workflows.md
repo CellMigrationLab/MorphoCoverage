@@ -80,7 +80,10 @@ session = guide("cells.csv", folder="results")   # paths or DataFrames; asked fo
 or, from a terminal, `python -m morphocoverage.workflows cells.csv [fovs.csv] --folder results`.
 The session loads the tables, scans them and prints the scan, then asks: did
 the dataset load correctly (if not, it stops); the control to log (the scan's
-guess is the default, "no control" is an answer); the aim (population
+guess is the default, "no control" is an answer); a positive control, a
+condition known to change the phenotype, which checks that the features can see
+a change ("none", the default, leaves that check out; it can be named later,
+whenever such a condition was imaged); the aim (population
 averages, a phenotypic fingerprint, or both); the features to assess
 (several by number, range or name, or all the numeric columns); the readout
 among them; what one row is; and, for a fingerprint, its tolerance (the
@@ -107,26 +110,69 @@ html_report(result, objects, fovs, "results")   # results/report.html, results/f
 ```
 
 `report.html` is one file that opens in any browser, offline, and can be
-emailed or archived as it is; the guided session writes it too. A sidebar
-lists every answer with its status; "At a glance" gives each status as a chip
-with its word (never colour alone) and links to the answer. Each answer shows
-its short form with the full text folded under "Full detail", in the words of
-`Report.summary`, its aligned tables as tables you can sort by clicking a
-header. Under question 9 come the figures: the readout and the best-ranked
-features (each links to its PNG and PDF), and with three or more features an
-interactive PCA and UMAP of all of them. Hover a point for its condition,
-repeat and field, click a condition to hide it, and switch between PCA and
-UMAP, and between raw values and values normalised to each repeat's control.
-Every figure is also saved in `figures/` as PNG and as PDF (vector, for
-papers). The page follows the light or dark setting of the viewer, with a
-switch, and prints with every section open. It ends with a glossary of every
-test, rule and term it uses, with the papers they come from
-([`glossary.md`](glossary.md), the same entries); in the answers, the first
-mention of a term in each section is underlined, shows its meaning on hover or
-focus, and links to its entry (`glossary.PHRASES` lists the words matched; terms
-inside tables are left plain, explained by the sentences around them), and a Files section: every
-figure (PNG and PDF), both text reports, the feature table as CSV and, from the
-guided session, the design scan and the saved answers are inside the page, each
+emailed or archived as it is; the guided session writes it too. It reads in the
+order a user acts on it, with titles instead of the text report's question
+numbers: the data, what was checked (the declaration in short lines, naming what
+was not declared and so not checked), the fields to check (quality control),
+whether the conditions differ, whether enough was imaged, and the rest. A
+section this design cannot answer ("not applicable", such as the field-versus-cell
+check when every field holds one cell) is left out; its reason stays in "What
+this dataset cannot tell me". Each section says in a sentence what it is for and
+gives its answer in a line; "Did I image enough?" answers in sentences (resolved
+within each repeat or not, how many fields would resolve the rest, what to do)
+before its numbers. A sidebar lists every section with its status; "At a glance"
+gives each status as a chip with its word (never colour alone). The full text is
+folded under "Full detail", in the words of `Report.summary`, its aligned tables
+as tables you can sort by clicking a header.
+
+"Do the conditions differ?" opens with the reading per condition, then a heatmap
+of Cohen's d of every feature and condition against the control (● passes the
+cell-level gate, ✓ also confirmed across repeats; hover a cell for its
+q-values), then the readout and the best-ranked features, then with three or
+more features the PCA and UMAP of all of them, then the tests behind the reading.
+
+The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
+which the page carries (about 1.5 MB, MIT licence), so they work offline. A
+feature figure shows every observation in its condition's colour, the biological
+repeats side by side (each condition only as wide as the repeats it holds), and
+each repeat's median with its interval: the numbers of the static figure; the
+technical repeats of a biological repeat differ by shape. With a control
+declared, "Raw" and "Normalised" switch the figure between the values as measured
+and the values divided by each repeat's control mean (it opens on the values the
+setup declares, and the caption and axis say which). Hover a point for its
+repeat, technical repeat and field, or a median for its interval; zoom by
+dragging; "Enlarge" fills the window. Beyond 4000 observations a figure
+draws a seeded sample of each cluster, and says so (the summaries and tests use
+every observation). Under it, as in Plot&Stats, the matrix of every pair of
+conditions in two panels: (B) Cohen's d below the diagonal (the row's condition
+minus the column's) and above it the randomization test on d, every observation of
+the two conditions shuffled as Plot&Stats does, Benjamini-Hochberg corrected over
+the pairs; (C) the paired t-test on the repeats' means, its uncorrected p below the
+diagonal and its Benjamini-Hochberg q above (with 3 repeats that imaged both; it
+holds its false-positive rate but has little power on three). A pair imaged in
+different repeats is marked †, since the batch is in its difference
+(`plots_pairwise`). The words are a legend under the panels, "(A)", "(B)", "(C)",
+as in a paper. The static figure (PNG and PDF, for papers) is folded
+under each, with the same matrix under the plot. On the PCA and UMAP, hover a
+point for its condition, repeat and field, click a condition in the legend to
+hide it, switch between PCA and UMAP and between raw values and values
+normalised to each repeat's control, and draw around points (the lasso is on) to
+see which conditions they come from: their number, their share of the selection,
+the share chance would give and the ratio of the two. Every condition, the
+control included, has a colour of its own (no grey, hard to see). Every figure
+is also saved in `figures/` as PNG and as PDF (vector, for papers). On a wide
+screen the page uses the width, the feature figures two to a row. The page
+follows the light or dark setting of the viewer, with a switch, and prints with
+every section open.
+
+The glossary of every test, rule and term the page uses, with the papers they
+come from ([`glossary.md`](glossary.md), the same entries), is a drawer on the
+side with a search: its tab, the sidebar and every underlined term open it. In
+the answers, the first mention of a term in each section is underlined and shows
+its meaning on hover or focus (`glossary.PHRASES` lists the words matched; terms
+inside tables are left plain, explained by the sentences around them). A Files
+section holds every figure (PNG and PDF), both text reports, the feature table
+as CSV and, from the guided session, the design scan and the saved answers, each
 saved with its button, so the page alone is the file to share. The guided
 session also zips the whole folder (`zip_results(folder)`: `<folder>.zip`) for
 archiving.
@@ -342,8 +388,27 @@ figures = plots(objects, fovs, setup, features=["YAPTAZ_Ratio", "Nuclei_Area"])
 PlotsOfData-style figures (`morphocoverage.plots`), one per feature:
 within each condition the biological repeats (the `biological_repeat` column) sit side
 by side, labelled above their cluster, so that a difference between
-conditions can be read against the spread between repeats. Every object is
-a jittered point coloured by technical repeat (`technical_col`, by default
+conditions can be read against the spread between repeats; each condition is
+only as wide as the repeats it holds, so repeats imaged for other conditions
+take no room. The figure's title is the feature; what it shows is its legend, at
+the bottom. Under the plot (panel A), with two or more conditions, the matrices of
+every pair of conditions, as Plot&Stats draws them (`plots(..., pairwise=False)`
+leaves them out), side by side when the figure is wide enough, else one under the
+other, the legend then lettered (A) to (C). Panel B: Cohen's d on the observations
+below the diagonal, the row's condition
+minus the column's (signed, blue lower, red higher), and above it the
+randomization test on d (the condition labels shuffled over every observation of
+the two conditions, pooled over the repeats, 1999 shuffles seeded from
+`random_state`), Benjamini-Hochberg corrected over the pairs (q, green and bold
+at 0.05). It treats every observation as an independent draw, so when the
+repeats differ it passes more often than 5% without an effect; the table keeps
+the paired t-test on the repeats' means beside it, drawn as panel C (`p_paired`
+below the diagonal, uncorrected, and `q_paired`, Benjamini-Hochberg over the pairs
+tested, above; with 3 repeats that imaged both), and a pair imaged in different repeats is marked †, since the
+difference between batches is in it (`plots_pairwise.pairwise_contrasts` gives
+the table, and each figure carries it as `figure.pairwise`). Every object is a
+jittered point in its condition's colour (the HTML report's colours), shaped by
+technical repeat (`technical_col`, by default
 the MorphoBricks `technical_repeat` column; another column, such as a `well`
 group column, is used only when named, `plots(..., technical_col="well")`,
 and an analysis-group column the figure does not place raises: a well is a
@@ -352,17 +417,17 @@ biological repeat's median (or `summary="mean"`) carries its 95% interval
 from resampling that repeat's whole technical repeats, each with its fields
 as acquired (Ren et al. 2010; whole fields alone when there is one technical
 repeat; with only 2 or 3 technical repeats no resampling gives a reliable
-interval, and the title says so), never objects, so
+interval, and the legend says so), never objects, so
 it reflects how the data were sampled: a well-to-well shift widens the
 interval instead of passing for field-to-field noise. More than 12 conditions
 are split over several figures, more than 8 biological repeats are pooled
-into one cluster per condition and the title says so (a pooled cluster
+into one cluster per condition and the legend says so (a pooled cluster
 resamples its repeats alone, each with all its fields, so the technical
 repeats' variance is not counted twice), more than 8
-technical repeats go uncoloured with a note, and more than 24 features
+technical repeats are drawn as small dots with a note, and more than 24 features
 raise so that you choose; all four are arguments (`max_conditions`,
 `max_repeats`, `max_technical`, `max_features`), and `max_technical` above 8,
-the colours that can be told apart, raises. The features must be
+the shapes that can be told apart, raises. The features must be
 declared in the setup, and the plots use the same normalised values as the
 report when `normalize` is set; the value axis then says "relative to
 control" (`plots_of_data(..., value_note=...)` adds any such note). With `folder`, each figure is saved as a PNG.
@@ -374,7 +439,7 @@ takes the ranking over whole technical repeats instead).
 
 With three or more features, `embedding_plots(objects, fovs, setup,
 discovery=result.discovery, folder=...)` draws two overviews of all of them,
-coloured by condition (the control grey) on the same values as the plots: a
+coloured by condition (the control in the first colour, no grey) on the same values as the plots: a
 PCA of the robustly standardised features, each axis labelled with its share
 of the variance and the best-ranked features drawn as arrows of their
 loadings, so the axes read in features; and a UMAP (`umap-learn`, seeded by

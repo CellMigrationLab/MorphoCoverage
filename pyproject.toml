@@ -27,6 +27,10 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# The plotly.js bundle the HTML report embeds (workflows/assets/README.md).
+"morphocoverage.workflows" = ["assets/*.js", "assets/PLOTLY_LICENSE", "assets/README.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
