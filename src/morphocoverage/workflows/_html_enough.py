@@ -13,9 +13,8 @@ said once, in the card's "?" (``_html_sections.enough_intro``).
 
 With one feature, the same: the answer, the comparison table once (every comparison), the
 precision line, the assumptions. The stopping rules, the repeats a new experiment would
-need and what optimise would plan are not in this card: they belong to the plan of the
-next experiment (``_html_sections._repeats_advice``, ``_enough_targets.held_back_note``,
-``_html_next.enough_next``, and the text report's stopping rules).
+need and what optimise would plan are not in this card: they are the page's last section,
+"Plan the next experiment" (``_html_plan``).
 """
 
 from __future__ import annotations

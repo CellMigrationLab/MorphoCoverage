@@ -30,8 +30,6 @@ from .._wording import count, listing, p_value, rate
 from ..retrospective.report import QUESTIONS, SHORT_QUESTIONS
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_sampling import PRACTICAL
-from ..sampling_unit.reading_text import CONFIRMED, condition_readings
-from ..sampling_unit.repeat_plan import MAX_REPEATS, POWER
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
 from ..sufficiency_short import rule_tallies
@@ -240,50 +238,6 @@ def not_declared(setup: Any) -> list[str]:
     if setup.acquisition_order_col is None and setup.stage_cols is None:
         missing.append("the acquisition order and stage positions")
     return missing
-
-
-def _repeats_advice(contrast: Any, fields: str) -> str:
-    """What to do across repeats: the repeats the plan asks for the conditions not yet
-    significant (``repeat_plan``, at the report's correction), condition by condition when
-    they need different numbers. No longer in "Did I image enough?" (owner, 2026-10-02):
-    kept for the plan of the next experiment."""
-    plan = getattr(contrast, "plan", None)
-    readings = condition_readings(contrast)
-    if plan is None or plan.empty or readings.empty:
-        return ""
-    open_ = set(readings.loc[readings["verdict"] != CONFIRMED, "condition"])
-    if not open_:
-        return "Every condition is significant across repeats."
-    rows = plan[plan["condition"].isin(open_)]
-    if rows["repeats_needed"].isna().all():
-        return ""
-    needed = rows["repeats_needed"].astype(float)
-    finite = rows[np.isfinite(needed)]
-    beyond = rows[~np.isfinite(needed) & rows["repeats_needed"].notna()]
-    parts = []
-    if len(finite):
-        values = finite["repeats_needed"].astype(int)
-        low, high = int(values.min()), int(values.max())
-        about = f"{low}" if low == high else f"{low} to {high}"
-        names = listing(list(finite["condition"].astype(str)), 4)
-        parts.append(f"{names}: about {about} biological repeats in all for {rate(POWER)} power")
-    if len(beyond):
-        names = listing(list(beyond["condition"].astype(str)), 4)
-        parts.append(
-            f"{names}: more than {MAX_REPEATS}, the difference seen is too small or too "
-            "variable between repeats to plan for"
-        )
-    between = rows[rows["limited_by"] == "between repeats"]
-    tail = (
-        f"; more {fields} per repeat help little for "
-        f"{listing(list(between['condition'].astype(str)), 4)}, whose repeats differ"
-        if len(between)
-        else ""
-    )
-    return (
-        f"For the {count(len(open_), 'condition')} not significant across repeats, a new "
-        f"experiment would need: {'; '.join(parts)}{tail}."
-    )
 
 
 def _resolution(contrast: Any, single_repeat: bool = False) -> list[str]:

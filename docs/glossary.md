@@ -57,7 +57,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 **Held-back fields.** Fields set aside before a rule is replayed, so whether the rule stopped too early is judged on fields it never saw.
 
-*Where:* The optimise workflow (planning the next experiment).
+*Where:* Plan the next experiment, the optimise workflow.
 
 **Resolved.** The 95% interval of the difference from the control, from the fields resampled as they were acquired, excludes zero: the difference shows within that repeat.
 

@@ -196,19 +196,38 @@ mean is for) is said once, in the card's "?", and the assumptions of these answe
 once, at its end. With one feature the card is the same, the comparison table given
 once, in full. The stopping rules, the repeats a new experiment would need and the
 plan `optimise` would make are not in this card: they are in the text report
-(`report_full.txt`), and are for planning the next experiment.
+(`report_full.txt`) and, on the page, in its last section, "Plan the next experiment".
 
-Each answer that calls for an analysis ends with **What to do next**: a sentence,
-and the code to run it on `result`, `objects` and `fovs`, folded under "Show the
-code". After "Fields to check", once the images confirm that a field should be
-excluded, the report again without it (the code lists every flagged field, the
-integrity checks' included: delete the line of each one to keep); after a
-population, the population labelled and declared as the rare phenotype
-(`RareTarget`, `rare_label`), so the report says whether it was seen in enough
-fields and `optimise` plans for it; after a feature significant across repeats,
-`optimise` with it as the readout; with fewer than 3 biological repeats, how many
-to plan. The field counts given to `optimise` fit the wells'
-fields once its reservoir is held back.
+An answer that calls for a look at the images ends with **What to do next**: a
+sentence, and the code to run it on `result`, `objects` and `fovs`, folded under
+"Show the code". After "Fields to check", once the images confirm that a field should
+be excluded, the report again without it (the code lists every flagged field, the
+integrity checks' included: delete the line of each one to keep); after a group, open
+the images of its fields, then label it with its rule and declare it as the rare
+phenotype (`RareTarget`, `rare_label`, its share of cells the rule's), so the report
+says whether it was seen in enough fields.
+
+The page ends with **Plan the next experiment**, two lists to pick from, each choice
+with its code filled in from these data:
+
+- *Want to optimise your imaging?* What the next experiment should get right: the mean
+  of a feature in every well (the readout first, then the features significant across
+  repeats; with the readout, how the stopping rules did on these fields), a group of
+  cells or the declared rare phenotype seen in at least 3 fields of every well (planned
+  on the condition where it is rarest), the declared fingerprint: `optimise` on these
+  data, with field counts that fit the wells once its reservoir is held back. A
+  difference from the control is planned in biological repeats, not fields: for each
+  condition not yet significant across repeats, the repeats the paired t-test would need
+  for 80% power, with the cells as now and twice as many (with fewer than 3 repeats, how
+  many to plan), and no code.
+- *Want to focus on a specific phenotype on the microscope?* Stop each well once a group
+  or the rare phenotype has been seen in 3 fields, or once enough fields without it show
+  it rarer than where it is rarest here (`RareIncidenceStrategy`, with
+  `live_session(..., objective=ObjectiveConfig("rare_discovery", rare=target))` so the
+  stop does not wait for a mean), the acquisition labelling each field's cells as it
+  writes them; or once the mean of a feature is known (the other declared targets
+  cleared, so the stop does not wait for rules it does not run). Live decides when to
+  stop imaging a well, not where to image.
 
 Every figure carries the data it draws as CSV, beside its PNG and PDF (in
 `figures/`, inside the page and in the zip), to draw it again outside: per
@@ -736,7 +755,8 @@ dataset's role: keeping the two apart is up to you.
 
 `live_session(setup)` returns an `OnlineSession` for the setup's rules
 ([`online.md`](online.md)), under the objective made of the declared targets
-(`setup.objective()`). Each update ends with one view per target: the
+(`setup.objective()`), or the narrower `objective=` passed (for example
+`ObjectiveConfig("rare_discovery", rare=target)`, to stop on a rare phenotype alone). Each update ends with one view per target: the
 population summary, the phenotypic fingerprint and the rare phenotype, each
 with the decision of the rules that decide it, then the overall decision. The
 default rules (the mean-precision rule per object and per field; per field only for

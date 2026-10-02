@@ -4,6 +4,7 @@ markers say what was found, the advice names each condition's repeats, the corre
 family is counted, and a figure-legend paragraph gives n, the test, the adjusted p and the
 change."""
 
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,8 +14,9 @@ import pytest
 from morphocoverage._style import Status
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.discovery import feature_discovery
+from morphocoverage.workflows._html_plan import _difference_goal
 from morphocoverage.workflows._html_render import chip
-from morphocoverage.workflows._html_sections import _repeats_advice, what_checked
+from morphocoverage.workflows._html_sections import what_checked
 from morphocoverage.workflows._html_tests import figure_legends
 from morphocoverage.workflows.setup import Setup
 
@@ -32,12 +34,20 @@ def glioma():
     return data, contrast
 
 
-def test_the_advice_names_the_repeats_each_condition_needs(glioma):
-    """CCT8 needs about 5 repeats, CCT7 more than 30: one number for all four was wrong."""
+def test_the_plan_names_the_repeats_each_condition_needs(glioma):
+    """CCT8 needs about 5 repeats, CCT7 more than 30: one number for all four was wrong. The
+    plan of the next experiment gives them condition by condition."""
     _, contrast = glioma
-    advice = _repeats_advice(contrast, "fields")
-    assert "siCCT8#5 and siCCT8#8: about 5 biological repeats in all" in advice
-    assert "siCCT7#3 and siCCT7#6: more than 30" in advice
+    result = SimpleNamespace(
+        setup=SimpleNamespace(readout="Mean Speed", columns=("Mean Speed",)),
+        discovery=None,
+        results={"contrast": contrast},
+    )
+    _, panel = _difference_goal(result)
+    cells = r"<tr><td>Mean Speed</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>"
+    rows = dict(re.findall(cells, panel))
+    assert rows["siCCT8#5"] == rows["siCCT8#8"] == "5"
+    assert rows["siCCT7#3"] == rows["siCCT7#6"] == "more than 30"
 
 
 def test_the_correction_family_is_counted_per_sub_experiment(glioma):
