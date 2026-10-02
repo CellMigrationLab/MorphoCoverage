@@ -60,6 +60,7 @@ from ._html_data import data_buttons, files_card, heatmap_data, json_island, pag
 from ._html_enough import enough_body, enough_help
 from ._html_figures import embeddings, feature_figures
 from ._html_next import fields_next, populations_next
+from ._html_plan import PLAN_TITLE, plan_card
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
 from ._html_render import Terms, adjusted_p, chip, text_html
@@ -387,6 +388,7 @@ def html_report(
             )
     for anchor, label in (
         ("limits", "What it cannot tell"),
+        ("plan", PLAN_TITLE),
         ("glossary", "Glossary"),
         ("files", "Files"),
     ):
@@ -469,6 +471,8 @@ def html_report(
             title=LIMITS_TITLE,
         )
     )
+    # The next experiment, planned with optimise and live (_html_plan; owner, 2026-10-02).
+    cards.append(_card("plan", PLAN_TITLE, "", plan_card(result, objects, fovs, _TERMS.annotate)))
     texts = {
         "report_short.txt": result.summary() + "\n",
         "report_full.txt": result.summary(detail="full") + "\n",

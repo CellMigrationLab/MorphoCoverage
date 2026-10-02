@@ -65,13 +65,13 @@ class Terms:
                     in_link += 1
                 elif piece.startswith("</a"):
                     in_link = max(0, in_link - 1)
-                elif re.match(r"<table[\s>]", piece):
+                elif re.match(r"<(table|pre|select)[\s>]", piece):
                     in_table += 1
-                elif piece.startswith("</table"):
+                elif re.match(r"</(table|pre|select)>", piece):
                     in_table = max(0, in_table - 1)
                 out.append(piece)
             # A table scrolls sideways, which would clip a tooltip; its words are explained
-            # around it.
+            # around it. Code and a list's options are never linked.
             elif in_link or in_table or not piece.strip():
                 out.append(piece)
             else:

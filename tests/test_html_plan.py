@@ -186,3 +186,21 @@ def test_live_session_takes_a_narrower_objective():
         objective=ObjectiveConfig("rare_discovery", rare=target),
     )
     assert session.objective.objective.value == "rare_discovery"
+
+
+def test_the_page_ends_with_the_plan_its_code_left_as_it_is(plain, tmp_path):
+    from morphocoverage.workflows import html_report
+
+    objects, fovs, result = plain
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        page = html_report(result, objects, fovs, tmp_path).read_text(encoding="utf-8")
+    order = [page.index(f'id="{key}"') for key in ("limits", "plan", "files")]
+    assert order == sorted(order) and 'href="#plan"' in page
+    plan = page[order[1] : order[2]]
+    # Neither the code nor a list's options carry the glossary's links.
+    for block in re.findall(r"<pre>.*?</pre>|<select.*?</select>", plan, re.DOTALL):
+        assert "<a " not in block and 'class="tip"' not in block
+    # The cards no longer give optimise's code: the plan does.
+    before = page[: order[1]]
+    assert "optimise(objects" not in html.unescape(before)

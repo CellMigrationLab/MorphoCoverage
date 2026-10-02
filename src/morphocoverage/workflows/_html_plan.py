@@ -25,10 +25,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import change, count, listing, percent_fine, rate
+from .._wording import change, count, listing, percent_fine, plural, rate
 from ..data_check import validate_input_tables
+from ..retrospective.report_status import group_word
 from ..sampling_unit.repeat_plan import MAX_REPEATS, POWER
 from ..sampling_unit.repeat_plan_text import field_words
+from ._enough_targets import held_back_note
 from ._html_next import (
     _GUARD,
     RESERVOIR,
@@ -40,6 +42,7 @@ from ._html_next import (
     rule_code,
     rule_labels,
 )
+from ._html_render import text_html
 from ._populations import rule_words
 
 PLAN_TITLE = "Plan the next experiment"
@@ -48,6 +51,49 @@ DETECTION = 0.95
 OCCURRENCES = 3
 # The folder the acquisition writes each field to, and the watcher reads.
 LIVE_FOLDER = "live"
+
+
+# The headings the stopping rules sit under in the text report's "Did I image enough?".
+_RULES_HEADS = (
+    "The stopping rules, as optimise and live run them (on the readout):",
+    "The precision of each group's own mean:",
+)
+
+
+def _rules_note(result: Any) -> str:
+    """How the stopping rules did on these fields, on the readout: the table the text report
+    gives in "Did I image enough?", its assumptions left there."""
+    text = result.document.short.get("enough", "")
+    head = next((h for h in _RULES_HEADS if h in text), None)
+    if head is None:
+        return ""
+    rest = text[text.index(head) + len(head) :].lstrip("\n")
+    kept = []
+    for line in rest.splitlines():
+        if line.strip().startswith("Assumptions"):
+            break
+        kept.append(line)
+    body = "\n".join(kept).strip("\n")
+    if not body:
+        return ""
+    return (
+        f"<p>How the stopping rules did on these fields, on the mean of "
+        f"{html.escape(result.setup.readout)}:</p>" + text_html(body)
+    )
+
+
+def _fingerprint_note(result: Any) -> str:
+    """What optimise's held-back fields can confirm of the fingerprint, per criterion."""
+    precision = result.results.get("fingerprint_precision")
+    if precision is None or not len(precision):
+        return ""
+    judged = precision[precision["met"].notna()]
+    word = group_word(result.results.get("sufficiency"))
+    notes = [
+        held_back_note(rows, word, plural("field"))
+        for _, rows in judged.groupby("criterion", sort=False)
+    ]
+    return "".join(f"<p>{html.escape(n)}</p>" for n in notes if n)
 
 
 def _features(result: Any) -> list[str]:
@@ -474,9 +520,13 @@ def plan_card(
     notes: dict[str, str] | None = None,
 ) -> str:
     """The section's body (see the module); ``notes`` are the report's own words to show
-    with a choice: ``"rules"`` (how the stopping rules did, with the readout's mean),
-    ``"rare"`` and ``"fingerprint"`` (how optimise judges a declared target)."""
-    notes = notes or {}
+    with a choice, by default ``"rules"`` (how the stopping rules did, with the readout's
+    mean) and ``"fingerprint"`` (what optimise's held-back fields can confirm of it)."""
+    notes = (
+        {"rules": _rules_note(result), "fingerprint": _fingerprint_note(result)}
+        if notes is None
+        else notes
+    )
     counts = fov_counts(fovs)
     readout = result.setup.readout
     means = {
