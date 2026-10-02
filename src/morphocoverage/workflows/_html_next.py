@@ -48,10 +48,16 @@ def fov_counts(fovs: pd.DataFrame) -> list[int]:
 
 
 def _block(steps: Sequence[tuple[str, str]]) -> str:
-    """The "What to do next" box: each step's sentence and, when it has one, its code."""
+    """The "What to do next" box: each step's sentence and, when it has one, its code,
+    folded (owner, 2026-10-02: the sentence says what to do, the code is there when wanted)."""
     parts = "".join(
         f"<p>{html.escape(line)}</p>"
-        + (f"<pre><code>{html.escape(code)}</code></pre>" if code else "")
+        + (
+            f"<details><summary>Show the code</summary><pre><code>{html.escape(code)}"
+            "</code></pre></details>"
+            if code
+            else ""
+        )
         for line, code in steps
     )
     return f'<div class="next"><h3>What to do next</h3>{parts}</div>'
@@ -207,28 +213,27 @@ def enough_next(result: Any, fovs: pd.DataFrame, features: Any) -> str:
 
 
 def fields_next(fields: Sequence[Sequence[Any]], key: Sequence[str]) -> str:
-    """What to do after "Fields to check": the report again without the fields whose images
-    show an artefact (``fields``: their values of ``key``, the field's identity)."""
+    """What to do after "Fields to check": once the images confirm a field is an artefact,
+    the report again without it (``fields``: every flagged field's values of ``key``, the
+    field's identity; the code lists them all, to delete the line of each one to keep)."""
     if not fields or not key:
         return ""
-    shown = [tuple(str(v) for v in field) for field in fields[:3]]
-    listed = ",\n    ".join(repr(f) for f in shown)
-    more = "    # ... the others whose images show an artefact\n" if len(fields) > 3 else ""
+    shown = list(dict.fromkeys(tuple(str(v) for v in field) for field in fields))
+    listed = "".join(f"    {f!r},\n" for f in shown)
     code = (
         "from morphocoverage.workflows import report\n\n"
         f"key = {list(key)!r}\n"
-        f"artefacts = [\n    {listed},\n{more}]\n"
+        "# Every field flagged above: delete the line of any field to keep.\n"
+        f"artefacts = [\n{listed}]\n"
         "keep = ~fovs[key].astype(str).apply(tuple, axis=1).isin(artefacts)\n"
         "result = report(objects.merge(fovs.loc[keep, key], on=key), fovs[keep], result.setup)"
     )
-    lines = [
-        (
-            "Open the images of the fields above. Keep those that show biology; run the "
-            "report again without those that show an artefact (out of focus, debris, a field "
-            "exported twice):"
-        )
-    ]
-    return _block([(lines[0], code)])
+    line = (
+        "Open the images of the fields above: keep those that show biology. If you confirm "
+        "that some should be excluded (out of focus, debris, a field exported twice), run the "
+        "report again without them."
+    )
+    return _block([(line, code)])
 
 
 __all__ = ["conditions_next", "enough_next", "fields_next", "fov_counts", "populations_next"]

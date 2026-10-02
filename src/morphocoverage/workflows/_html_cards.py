@@ -100,9 +100,11 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
     identities: list[tuple[Any, ...]] = []
     key: list[str] = []
     integrity = results.get("integrity")
+    named: list[str] = []
     if integrity is not None and len(integrity.findings):
         labels = integrity.settings.get("field_labels", {})
         for finding in integrity.findings.itertuples():
+            named += [str(finding.field), str(finding.other_field)]
             field = labels.get(finding.field, finding.field)
             other = labels.get(finding.other_field, finding.other_field)
             same = isinstance(other, str) and other and other != field
@@ -119,7 +121,19 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
             rows.append((label, "; ".join(own["detail"])))
             first = own.iloc[0]
             identities.append(tuple(first[c] for c in key))
+    columns = integrity.settings.get("field_columns", []) if integrity is not None else []
+    key = key or list(columns)
+    if named and list(columns) == key:
+        # The integrity's fields first, as in the table: "condition=a, biological_repeat=1".
+        found = [_field_values(name, key) for name in dict.fromkeys(named)]
+        identities = [f for f in found if f is not None] + identities
     return rows, identities, key
+
+
+def _field_values(name: str, key: list[str]) -> tuple[str, ...] | None:
+    """An integrity finding's field (``col=value, col=value``) as its values of ``key``."""
+    pairs = dict(part.split("=", 1) for part in re.split(r", (?=[\w ]+=)", name) if "=" in part)
+    return tuple(pairs[c] for c in key) if all(c in pairs for c in key) else None
 
 
 def fields_table(rows: list[tuple[str, str]], annotate: Callable[[str], str]) -> str:
@@ -128,7 +142,7 @@ def fields_table(rows: list[tuple[str, str]], annotate: Callable[[str], str]) ->
         for field, why in rows
     )
     return (
-        '<div class="table-wrap"><table class="sortable"><thead><tr><th>field</th><th>why'
+        '<div class="table-wrap"><table class="sortable fields"><thead><tr><th>field</th><th>why'
         f"</th></tr></thead><tbody>{body}</tbody></table></div>"
     )
 

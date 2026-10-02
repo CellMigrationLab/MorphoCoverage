@@ -170,7 +170,11 @@ def test_the_fields_next_step_runs_the_report_without_the_fields(screen, monkeyp
     monkeypatch.setattr(
         workflows, "report", lambda objects, fovs, setup: seen.update(objects=objects, fovs=fovs)
     )
-    _run(fields_next(flagged, key), {"result": result, "objects": objects, "fovs": fovs})
+    markup = fields_next(flagged, key)
+    # The sentence says what to do once the images confirm it; the code is folded.
+    assert "If you confirm that some should be excluded" in _words(markup)
+    assert "<details><summary>Show the code</summary><pre><code>" in markup
+    _run(markup, {"result": result, "objects": objects, "fovs": fovs})
     assert len(seen["fovs"]) == len(fovs) - 2
     gone = set(fovs["image_file"].head(2))
     assert not gone & set(seen["objects"]["image_file"])
@@ -197,3 +201,14 @@ def test_with_one_feature_the_summary_gives_the_conditions_by_verdict():
     assert words.strip().startswith("area, compared with siCTRL, condition by condition:")
     assert re.search(r"(Significant across repeats|Same direction|No consistent)", words)
     assert "arrest" in words and "narrow" in words
+
+
+def test_the_integrity_fields_are_listed_in_the_code_with_the_others():
+    from morphocoverage.workflows._html_cards import _field_values
+
+    key = ["condition", "biological_repeat", "technical_repeat", "position_id"]
+    name = "condition=si#5, biological_repeat=1, technical_repeat=single, position_id=si#5|1|c7"
+    assert _field_values(name, key) == ("si#5", "1", "single", "si#5|1|c7")
+    assert _field_values("condition=a", key) is None
+    code = html.unescape(fields_next([("a", "1", "w", "f1"), ("a", "1", "w", "f1")], key))
+    assert code.count("('a', '1', 'w', 'f1')") == 1 and "# ..." not in code

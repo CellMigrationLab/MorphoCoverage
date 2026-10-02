@@ -143,9 +143,11 @@ tests behind the reading: the readout's reading condition by condition, then one
 kind of test at a time as tabs (across repeats, reagents, the cell-level screen,
 within repeats, planning, every feature).
 
-Each answer that calls for an analysis ends with **What to do next**, and the
-code to run it on `result`, `objects` and `fovs`: after "Fields to check", the
-report again without the fields whose images show an artefact; after a
+Each answer that calls for an analysis ends with **What to do next**: a sentence,
+and the code to run it on `result`, `objects` and `fovs`, folded under "Show the
+code". After "Fields to check", once the images confirm that a field should be
+excluded, the report again without it (the code lists every flagged field, the
+integrity checks' included: delete the line of each one to keep); after a
 population, the population labelled and declared as the rare phenotype
 (`RareTarget`, `rare_label`), so the report says whether it was seen in enough
 fields and `optimise` plans for it; after a feature significant across repeats,
