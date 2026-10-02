@@ -144,7 +144,7 @@ def chip(status: Status | None, key: str = "", answer: str = "", word: str | Non
     few = re.search(r"\bn = ([12])\b", answer) if key in ("conditions", "populations") else None
     if few:
         word = f"No conclusion (n = {few.group(1)})"
-    elif key == "populations" and "no distinct population:" in answer:
+    elif key == "populations" and answer.startswith("no group:"):
         word = "One continuum"
     elif key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):
         word = "Differs beyond the mean"

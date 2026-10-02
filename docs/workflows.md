@@ -378,23 +378,29 @@ acquired:
   kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
   below 5/9 for the control, in at least half of its repeats), the summary says
   so and points to its figure: described, not tested.
-- **"Are there distinct populations?"** (question 10, in every report) finds
+- **"Are there populations or groups of cells?"** (question 10, in every report) finds
   groups of cells that sit together on all the declared features, from every
   condition pooled. The candidates are the clusters of HDBSCAN (scikit-learn) on a
   5-dimensional UMAP of the robustly standardised features (`min_dist` 0), a
   cluster holding at least 0.5% of the cells (and 15). UMAP evens out density, so
   each candidate is then judged on all the features (owner, 2026-10-02): it is kept
-  when 94% or more of its cells' 10 nearest neighbours are in it too, and it is a
-  **distinct population** when the density along the line from the other cells to
-  it dips to at most half of the lower peak between them (a gap), else a **group
-  on the map** (`G1`, `G2`, ...: separated from the rest by its neighbours, not by
-  a gap, so it may be the end of a continuum, the most elongated cells of a
-  gradient say). A cluster holding most cells is the main population, the rest of
-  the cells. On constructed data this finds no population in a Gaussian, a
-  separate blob as distinct, and the end of a straight line at most as a group;
-  groups overlapping strongly on every feature are not told apart. Each population
-  and group is listed with its share, the features that set it apart, and the
-  fields and repeats it is seen in; then each condition is compared with its own
+  as a **group** (`G1`, `G2`, ...) when 94% or more of its cells' 10 nearest
+  neighbours are in it too. Whether a group is a separate state or the end of a
+  continuum (the most elongated cells of a gradient, say) is left to the images:
+  no test of a gap of low density, along the line between the centres or along a
+  held-out discriminant, told the two apart reliably at the sizes of an experiment
+  (owner, 2026-10-02). Each group comes with the simplest rule on the features that
+  picks out its cells (at most two thresholds from a balanced decision tree, in the
+  features' own units), with the share of its cells it finds and the share right of
+  those it picks, on cells it was not fitted on; "What to do next" names the fields
+  that hold most of it, to validate on the images, and gives the code that labels
+  it with the rule and declares it as the rare phenotype. A cluster holding most
+  cells is the main population (`P1`), the rest of the cells. On constructed data
+  this finds no group in a Gaussian, a separate blob as a group its rule finds,
+  and the end of a straight line at most as a group; groups overlapping strongly
+  on every feature are not told apart. Each group is listed with its share, the
+  features that set it apart, its neighbours inside, its rule, and the fields and
+  repeats it is seen in; then each condition is compared with its own
   control on its share of cells in it, per biological repeat, on the log odds of
   the shares (a small share is as steady there as a large one), by the paired
   test across repeats (Benjamini-Hochberg within each sub-experiment); the main

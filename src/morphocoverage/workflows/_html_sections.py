@@ -52,7 +52,7 @@ TITLES = {
     "inspect": "Fields to check (quality control)",
     "dataset": "The whole dataset at once",
     "conditions": "Do the conditions differ?",
-    "populations": "Are there distinct populations?",
+    "populations": "Are there populations or groups of cells?",
     "enough": "Did I image enough?",
     "profile": "What limits the sampling?",
     "unit": "Why count fields, and not only cells?",

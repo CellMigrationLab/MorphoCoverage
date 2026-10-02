@@ -1,9 +1,10 @@
-"""Are there distinct populations? Groups of observations that cluster on all the features.
+"""Are there populations or groups of cells? Groups of observations that cluster on all the
+features.
 
 A rare phenotype is a group of cells that sit together when every declared feature is
-considered, whichever condition they come from (owner, 2026-10-02): the populations are
-found first, on the cells of every condition pooled, and whether a condition is enriched in
-one is asked after (``workflows/_populations``, with the paired test across repeats).
+considered, whichever condition they come from (owner, 2026-10-02): the groups are found
+first, on the cells of every condition pooled, and whether a condition is enriched in one is
+asked after (``workflows/_populations``, with the paired test across repeats).
 
 ``find_populations`` standardises the features robustly (median and MAD, as ``embed``
 does), embeds them with UMAP in ``MAP_COMPONENTS`` dimensions (``min_dist`` 0, as
@@ -14,27 +15,30 @@ at least ``min_cells`` observations (default ``MIN_SHARE`` of them, and never fe
 share of every condition, and every other observation takes the cluster of its nearest
 sampled neighbour (on the principal components holding ``VARIANCE`` of the variance).
 
-UMAP evens out density, so a cluster on it is a candidate only, judged on all the
-standardised features (owner, 2026-10-02, after HDBSCAN on the principal components split
-a Gaussian and a straight line into populations and missed two separate blobs):
+UMAP evens out density, so a cluster on it is a candidate, judged on all the standardised
+features:
 
-- the **main** population, when one cluster holds more than ``MAIN_SHARE`` of the
-  observations: the rest of the cells, listed when another kind is found;
-- a **distinct** population (``P1``, ``P2``, ..., numbered after the main population when
-  there is one, which is then ``P1``): the density along
-  the line from the rest of the observations to the cluster dips between them to at most
-  ``VALLEY`` of the lower of the two peaks (a gap of low density);
-- a **group on the map** (``G1``, ``G2``, ...): no such gap, but ``PURITY`` or more of its
-  observations' ``NEIGHBOURS`` nearest neighbours on all the features are in it too; it
-  may be the end of a continuum (the most elongated cells of a gradient, say);
+- the **main** population (``P1``), when one cluster holds more than ``MAIN_SHARE`` of the
+  observations: the rest of the cells, listed when a group is found;
+- a **group** (``G1``, ``G2``, ...): ``PURITY`` or more of its observations' ``NEIGHBOURS``
+  nearest neighbours on all the features are in it too (HDBSCAN on a Gaussian or a line
+  cuts clusters that fail this);
 - otherwise the cluster is a stretch of one continuum and is not reported.
+
+Whether a group is a separate state or the end of a continuum is not decided here: no test
+of a gap of low density told the two apart reliably at the sizes of an experiment (owner,
+2026-10-02, after one along the line between the centres and one along a held-out
+discriminant both missed groups a UMAP shows apart). It is for the user to validate on the
+images; each group comes with the simplest rule on the features that picks out its cells
+(``_population_rule``: at most two thresholds, how well it does on held-out cells), to label
+it and study it as a rare phenotype.
 
 Each is reported with its share of the observations, the fields and biological repeats it
 is seen in, the features that set it apart from the other observations (Cohen's d), its
-``valley`` and its ``purity``. Observations with a missing value are left out, counted.
+``purity`` and its rule. Observations with a missing value are left out, counted.
 
 A description, not a test: the clusters depend on the features declared and on the
-standardisation, and a population seen in one field only may be one image's artefact (its
+standardisation, and a group seen in one field only may be one image's artefact (its
 fields are listed so they can be opened).
 """
 
@@ -52,6 +56,7 @@ from ..embedding import _sample, _standardised
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import fov_positions, validate_input_tables
 from ..statistics import cohen_d
+from ._population_rule import Rule, population_rule
 
 VARIANCE = 0.9
 MAX_COMPONENTS = 10
@@ -64,12 +69,10 @@ DEFINING = 3
 MAP_COMPONENTS = 5
 # A cluster holding more than this share is the main population, the rest of the cells.
 MAIN_SHARE = 0.5
-# Distinct: the density between a cluster and the rest dips to this share of the lower peak.
-VALLEY = 0.5
-# A group on the map: this share of its observations' nearest neighbours is inside it.
+# A group: this share of its observations' nearest neighbours is inside it.
 NEIGHBOURS = 10
 PURITY = 0.94
-KINDS = ("main", "distinct", "group")
+KINDS = ("main", "group")
 _COLUMNS = [
     "population",
     "kind",
@@ -79,14 +82,17 @@ _COLUMNS = [
     "repeats",
     "defined_by",
     "defining",
-    "valley",
     "purity",
+    "rule",
+    "rule_code",
+    "rule_recall",
+    "rule_precision",
 ]
 
 
 @dataclass(frozen=True)
 class Populations:
-    """``labels``: each observation's population or group (``P1``, ``P2``, ...; ``G1``,
+    """``labels``: each observation's population or group (``P1`` the main one; ``G1``,
     ``G2``, ...; ``None`` unassigned or incomplete), indexed like the observation table;
     ``table``: one row per population and group, with its ``kind``; ``settings``."""
 
@@ -96,7 +102,7 @@ class Populations:
 
     @property
     def names(self) -> list[str]:
-        """The populations, then the groups on the map, each the largest first."""
+        """The main population, then the groups, the largest first."""
         return list(self.table["population"])
 
     def of_kind(self, *kinds: str) -> list[str]:
@@ -143,36 +149,6 @@ def _embedding(z: np.ndarray, random_state: int) -> np.ndarray:
         return reducer.fit_transform(z)
 
 
-def _valley(z: np.ndarray, member: np.ndarray) -> float:
-    """The lowest density between the rest of the observations and ``member``, along the
-    line joining their means, over the lower of their two peaks (0: a gap; 1: none)."""
-    from scipy.stats import gaussian_kde
-
-    direction = z[member].mean(axis=0) - z[~member].mean(axis=0)
-    norm = float(np.linalg.norm(direction))
-    if not norm or member.sum() < 2 or (~member).sum() < 2:
-        return 1.0
-    scores = z @ (direction / norm)
-    if np.ptp(scores) == 0:
-        return 1.0
-    density = gaussian_kde(scores)
-    grid = np.linspace(scores.min(), scores.max(), 512)
-    values = density(grid)
-
-    def peak(inside: np.ndarray) -> float:
-        low, high = np.quantile(scores[inside], [0.02, 0.98])
-        window = (grid >= low) & (grid <= high)
-        return float(grid[window][np.argmax(values[window])]) if window.any() else np.nan
-
-    own, rest = peak(member), peak(~member)
-    if not np.isfinite(own) or not np.isfinite(rest):
-        return 1.0
-    low, high = sorted((own, rest))
-    between = values[(grid >= low) & (grid <= high)]
-    lower_peak = float(min(density(own)[0], density(rest)[0]))
-    return float(between.min() / lower_peak) if lower_peak > 0 and len(between) else 1.0
-
-
 def _purity(z: np.ndarray, member: np.ndarray) -> float:
     """The share of the ``NEIGHBOURS`` nearest neighbours of ``member``'s observations, on
     all the standardised features, that are in ``member`` too."""
@@ -214,36 +190,35 @@ def traits(pairs: Sequence[tuple[str, float]]) -> str:
     return ", ".join(f"{'high' if d > 0 else 'low'} {f}" for f, d in pairs)
 
 
-def _kinds(raw: np.ndarray, z: np.ndarray) -> dict[int, tuple[str | None, float, float]]:
-    """Each cluster's kind (``KINDS``, or ``None``: a stretch of a continuum), valley and
-    purity (see the module)."""
+def _kinds(raw: np.ndarray, z: np.ndarray) -> dict[int, tuple[str | None, float]]:
+    """Each cluster's kind (``KINDS``, or ``None``: a stretch of a continuum) and purity
+    (see the module)."""
     sizes = pd.Series(raw[raw >= 0]).value_counts()
-    judged: dict[int, tuple[str | None, float, float]] = {}
+    judged: dict[int, tuple[str | None, float]] = {}
     for cluster, size in sizes.items():
         member = raw == cluster
         if size / len(raw) > MAIN_SHARE:
-            judged[int(cluster)] = ("main", np.nan, np.nan)
+            judged[int(cluster)] = ("main", np.nan)
             continue
-        valley, purity = _valley(z, member), _purity(z, member)
-        # Both need their observations' neighbours inside them; the valley says which.
-        kind = None if purity < PURITY else "distinct" if valley <= VALLEY else "group"
-        judged[int(cluster)] = (kind, valley, purity)
+        purity = _purity(z, member)
+        judged[int(cluster)] = ("group" if purity >= PURITY else None, purity)
     return judged
 
 
 def _names(raw: np.ndarray, judged: dict) -> dict[int, str]:
-    """``P1``, ``P2``, ... for the main and distinct populations, ``G1``, ... for the groups,
-    the largest first; none when nothing but a main population and continua is found."""
-    found = [c for c, (kind, _, _) in judged.items() if kind is not None]
-    if not any(judged[c][0] in ("distinct", "group") for c in found):
+    """``P1`` for the main population, ``G1``, ``G2``, ... for the groups, the largest first;
+    none when nothing but a main population and continua is found."""
+    found = [c for c, (kind, _) in judged.items() if kind is not None]
+    if not any(judged[c][0] == "group" for c in found):
         return {}
-    order = {"main": 0, "distinct": 1, "group": 2}
-    found.sort(key=lambda c: (order[judged[c][0]], -int((raw == c).sum())))
-    names, counts = {}, {"P": 0, "G": 0}
+    found.sort(key=lambda c: (judged[c][0] != "main", -int((raw == c).sum())))
+    names, groups = {}, 0
     for cluster in found:
-        prefix = "G" if judged[cluster][0] == "group" else "P"
-        counts[prefix] += 1
-        names[cluster] = f"{prefix}{counts[prefix]}"
+        if judged[cluster][0] == "main":
+            names[cluster] = "P1"
+        else:
+            groups += 1
+            names[cluster] = f"G{groups}"
     return names
 
 
@@ -259,8 +234,8 @@ def find_populations(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
 ) -> Populations:
-    """The populations and the groups on the map of ``features`` over every observation
-    (see the module)."""
+    """The main population and the groups of ``features`` over every observation (see the
+    module)."""
     features = list(dict.fromkeys(features))
     max_points = as_count(max_points, "max_points", 100)
     random_state = check_seed(random_state)
@@ -276,6 +251,7 @@ def find_populations(
     complete = ~np.isnan(matrix).any(axis=1)
     z, varies = _standardised(matrix[complete])
     kept = [f for f, v in zip(features, varies, strict=True) if v]
+    values = matrix[complete][:, np.flatnonzero(varies)]
     n = int(complete.sum())
     size = as_count(min_cells, "min_cells", 2) if min_cells is not None else None
     size = size or max(MIN_CELLS, round(MIN_SHARE * n))
@@ -305,8 +281,14 @@ def find_populations(
     rows = []
     for cluster, name in names.items():
         member = raw == cluster
-        kind, valley, purity = judged[cluster]
+        kind, purity = judged[cluster]
         pairs = _defining(z, member, kept)
+        # The rule on the features in their own units, for a group (the main one is the rest).
+        rule = (
+            population_rule(values, member, kept, random_state)
+            if kind == "group"
+            else Rule((), np.nan, np.nan)
+        )
         rows.append(
             {
                 "population": name,
@@ -319,8 +301,11 @@ def find_populations(
                 else 1,
                 "defined_by": defined_by(pairs),
                 "defining": pairs,
-                "valley": valley,
                 "purity": purity,
+                "rule": rule.words(),
+                "rule_code": rule.code(),
+                "rule_recall": rule.recall,
+                "rule_precision": rule.precision,
             }
         )
     table = pd.DataFrame(rows, columns=_COLUMNS)
@@ -330,7 +315,6 @@ def find_populations(
         "variance": VARIANCE,
         "map_components": min(MAP_COMPONENTS, max(2, len(kept))),
         "min_cells": int(size),
-        "valley": VALLEY,
         "purity": PURITY,
         "neighbours": NEIGHBOURS,
         "observations": n,
@@ -349,7 +333,6 @@ __all__ = [
     "MIN_CELLS",
     "MIN_SHARE",
     "PURITY",
-    "VALLEY",
     "Populations",
     "defined_by",
     "find_populations",

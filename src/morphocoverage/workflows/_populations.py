@@ -1,6 +1,7 @@
-"""Question 10, "Are there distinct populations?" (private; ``retrospective``, ``_document``).
+"""Question 10, "Are there populations or groups of cells?" (private; ``retrospective``,
+``_document``).
 
-The populations are found on the cells of every condition pooled, on all the declared
+The groups are found on the cells of every condition pooled, on all the declared
 features (``sampling_unit.populations``), and then each condition is asked whether it is
 enriched in one (owner, 2026-10-02): per biological repeat, the share of its cells in the
 population against the control's, on the log-odds scale (``enrichment_tests``: a small
@@ -8,7 +9,9 @@ share is as steady there as a large one, and a population reads like its complem
 tested across the repeats by the paired t-test, Benjamini-Hochberg within each
 sub-experiment over every population and condition (a family of its own); a main
 population, holding most cells, is listed but not tested, its share being all but the
-complement of the others'. A declared rare label is matched to the population that holds it.
+complement of the others'. A declared rare label is matched to the group that holds it.
+Each group is a candidate to validate on the images, given with the rule on the features
+that picks out its cells (``sampling_unit._population_rule``).
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit._experiments import corrected, experiments
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
+from ..schema import unit_plural
 from ..statistics import paired_t
 
 if TYPE_CHECKING:
@@ -90,7 +94,7 @@ def populations_in_report(
 def tested_populations(populations: Populations) -> list[str]:
     """The populations and groups whose enrichment is tested: all but the main population,
     whose share is all but the complement of the others' (its test would repeat theirs)."""
-    return populations.of_kind("distinct", "group")
+    return populations.of_kind("group")
 
 
 def _log_odds_ratio(t: Any, c: Any) -> float:
@@ -273,19 +277,36 @@ def _label_line(result: PopulationsResult, label: str) -> str | None:
     )
 
 
-_KIND_WORDS = {"main": "main", "distinct": "distinct", "group": "on the map (no gap)"}
+_KIND_WORDS = {"main": "main (the rest)", "group": "group"}
 
 
 def _found_words(pops: Populations) -> str:
-    """``1 distinct population and 1 group on the map``."""
-    distinct, groups = len(pops.of_kind("distinct")), len(pops.of_kind("group"))
-    parts = []
-    if distinct:
-        parts.append(count(distinct, "distinct population"))
-    if groups:
-        parts.append(count(groups, "group") + " on the map")
-    head = " and ".join(parts)
-    return head if distinct else f"no distinct population; {head}"
+    """``1 group of cells to validate``, in the report's words for its observations."""
+    groups = len(pops.of_kind("group"))
+    units = unit_plural(pops.settings.get("observation_unit") or "observation")
+    return f"{count(groups, 'group')} of {units} to validate on the images"
+
+
+def _rule_cell(row: Any) -> str:
+    """``AR > 3.18 and MinFeret ≤ 17.7 (91%, 97%)`` for the table; ``–`` without a rule."""
+    if not row.rule:
+        return "–"
+    if pd.isna(row.rule_recall):
+        return row.rule
+    return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)})"
+
+
+def rule_words(row: Any) -> str:
+    """``picked by AR > 3.18 and MinFeret ≤ 17.7 (91% of its cells, 97% of those picked, on
+    held-out cells)``, or empty without a rule."""
+    if not row["rule"]:
+        return ""
+    if pd.isna(row["rule_recall"]):
+        return f"picked by {row['rule']}"
+    return (
+        f"picked by {row['rule']} ({percent(row['rule_recall'])} of its cells, "
+        f"{percent(row['rule_precision'])} of those picked, on held-out cells)"
+    )
 
 
 def _shares_line(pops: Populations, units: str) -> str:
@@ -317,12 +338,11 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         return Status.NOT_ASSESSED, f"not clustered: too few {units}", text
     if not pops.names:
         text = wrap(
-            f"{method}: no distinct population and no group; the {units} form one continuum "
-            "on these features.",
+            f"{method}: no group; the {units} form one continuum on these features.",
             2,
             hang=4,
         )
-        return Status.OK, "no distinct population: one continuum on these features", text
+        return Status.OK, "no group: one continuum on these features", text
     lines = [wrap(f"{method}: {_found_words(pops)} ({_shares_line(pops, units)}).", 2, hang=4)]
     control = result.control
     heading = f"most different (vs {control})" if control is not None else "most different"
@@ -333,13 +353,25 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             _KIND_WORDS.get(r.kind, r.kind),
             f"{r.observations} ({percent_fine(r.share)})",
             defined_by(r.defining[:2]) or "–",
+            percent(r.purity) if pd.notna(r.purity) else "–",
+            _rule_cell(r),
             r.fields,
             r.repeats,
             _enriched(result, r.population) if r.population in tested else "the rest (not tested)",
         ]
         for r in pops.table.itertuples()
     ]
-    columns = ["population", "kind", units, "defined by", "fields", "repeats", heading]
+    columns = [
+        "population",
+        "kind",
+        units,
+        "defined by",
+        "neighbours inside",
+        "rule (held-out: found, right)",
+        "fields",
+        "repeats",
+        heading,
+    ]
     lines.append(table(rows, columns, indent=4))
     significant, trend = _verdict(result)
     for name in pops.names:
@@ -369,7 +401,8 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             lines.append(
                 wrap(
                     f"- {name} ({percent_fine(row['share'])} of {units}; "
-                    f"{defined_by(row['defining'][:2])}): {'; '.join(parts)}.",
+                    f"{defined_by(row['defining'][:2])}; {rule_words(row)}): "
+                    f"{'; '.join(parts)}.",
                     4,
                     hang=6,
                 )
@@ -395,15 +428,18 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             "per biological repeat (paired t-test on the log odds of the repeat shares, "
             "Benjamini-Hochberg within each sub-experiment over every population and "
             "condition); the main population, holding most of them, is the rest, listed and "
-            "not tested. A cluster on the UMAP is kept when "
+            "not tested. A cluster on the UMAP is kept as a group when "
             f"{percent(settings['purity'])} or more of its {units}' "
-            f"{settings['neighbours']} nearest neighbours on all the features are in it too: "
-            "a distinct population is also separated from the rest by a gap of low density; "
-            "a group on the map is not, so it may be the end of a continuum (the most extreme "
-            f"{units} of a gradient) rather than a separate state. Groups that overlap "
-            "strongly on every feature are not told apart. The clusters depend on the "
-            "declared features and their standardisation; a population held by few fields "
-            "may be an artefact of those images.",
+            f"{settings['neighbours']} nearest neighbours on all the features are in it too "
+            "(neighbours inside). Whether a group is a separate state or the end of a "
+            f"continuum (the most extreme {units} of a gradient) is not decided from the "
+            "numbers: no test of a gap told the two apart reliably at these sizes, so open "
+            "the images of its fields to validate it. Its rule is the simplest one on the "
+            "features (at most two thresholds, a decision tree) that picks out its "
+            f"{units}, with the share of them it finds and the share right of those it picks, "
+            f"on {units} it was not fitted on. Groups that overlap strongly on every feature "
+            "are not told apart. The clusters depend on the declared features and their "
+            "standardisation; a group held by few fields may be an artefact of those images.",
             2,
             hang=4,
         )
