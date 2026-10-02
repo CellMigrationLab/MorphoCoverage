@@ -147,24 +147,32 @@ its d. With fewer than 3 biological repeats nothing can be called significant
 exploratory cell-level screen that go the same way in both repeats, with 1 every
 candidate, said as exploratory. Then a heatmap of Cohen's d of every feature and
 condition against the control (● passes the exploratory cell-level screen, ✓ also
-significant across repeats; hover a cell for its q-values), then the best-ranked
-features (the readout only when it ranks, or alone when none does), then the
-tests behind the reading. These open with **the tests, in short**: the paired
-t-test on the biological repeat means (it decides), the cell-level screen
-(exploratory: it treats every cell as independent), and, when they are on the page,
-beyond the mean, the reagents and planning; what Cohen's d is in each table (per
-repeat or on the cells); and what p and the adjusted p are. Then one table per test
-as tabs, each with p and the adjusted p (Benjamini-Hochberg, the q-value) in their
-own columns and its data as CSV: across repeats, every feature and condition with
-its direction in the repeats, its change against the control (the condition's mean over
-the control's, a fold change; the difference of the means where a mean is not positive,
-so a significant change can be read for its size) and its verdict (raw values folded);
-the summary names the same change beside each significant feature; the cell-level
-screen in the version the report trusts, with how often it gives p ≤ 0.05 with no
-effect for the readout (its other versions folded, never one whose control comes from
-repeats the condition was not imaged in); beyond the mean; reagents; planning. The
-readout's reading, condition by condition, is folded under them. The page calls the
-q-value the adjusted p throughout.
+significant across repeats; hover a cell for its adjusted p-values), with the features
+no condition makes a candidate named under it, then the best-ranked features (the
+readout only when it ranks, or alone when none does), each with its text **for a
+figure legend** folded under it: n biological repeats, wells per condition, cells a well,
+what the points and bars show, the test and its correction family, and per condition
+the change, the mean per-repeat d, the adjusted p and p, every number the one the
+Across repeats tab gives for that feature and condition. Then the tests behind the
+reading. These open with **the tests, in short**: the paired t-test on the biological
+repeat means (it decides), the cell-level screen (exploratory: it treats every cell as
+independent), and, when they are on the page, beyond the mean and the reagents; what
+Cohen's d is in each table (per repeat or on the cells); and what p and the adjusted p
+are, with the family they allow for (the features and conditions, in each
+sub-experiment). Then one table per test as tabs, each with p and the adjusted p
+(Benjamini-Hochberg, the q-value) in their own columns and its data as CSV: across
+repeats, every feature and condition with its direction in the repeats, its change
+against the control (the condition's mean over the control's, a fold change; the
+difference of the means where a mean is not positive, so a significant change can be
+read for its size), the mean and range of the per-repeat d and its verdict (raw values
+folded); the summary names the same change beside each significant feature; the
+cell-level screen in the version the report trusts, with the balance of the repeats and
+how often it gives p ≤ 0.05 with no effect for the readout (its other versions folded,
+never one whose control comes from repeats the condition was not imaged in); beyond the
+mean; reagents. The card's "Show more" holds the section's assumptions only. The
+readings condition by condition, the feature ranking, the tables within single repeats
+and the plan for the next experiment are in the text report (`report_full.txt`), not on
+this card (owner, 2026-10-02). The page calls the q-value the adjusted p throughout.
 
 With several features, every test of "Do the conditions differ?" is corrected over
 every feature and condition of a sub-experiment: the readout's paired t-test and its

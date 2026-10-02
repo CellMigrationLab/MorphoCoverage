@@ -310,7 +310,7 @@ src/morphocoverage/
         repeat_plan.py     # planning the next experiment at the design the user ran: fields a side per repeat
         repeat_plan_text.py  # its words
         contrast_sampling.py  # question 2 with a control: do the fields acquired resolve the difference per repeat?
-        legend_text.py     # what to write in a figure legend for the readout (n, unit, test, correction family, change, q)
+        legend_text.py     # what to write in a figure legend for each plotted feature (n, unit, test, correction family, change, d, adjusted p)
         _experiments.py    # private: sub-experiments (conditions linked by shared repeats) and Benjamini-Hochberg within each
         _reach.py          # private: run a test only when the design lets its smallest p reach 0.05 after Bonferroni
         ranking.py         # which features separate the conditions: BH-gated |d| ranking over whole technical repeats

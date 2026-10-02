@@ -105,6 +105,9 @@ _ADJUSTED = (
     (re.compile(r"Benjamini-Hochberg q\b(?!-)"), "Benjamini-Hochberg adjusted p"),
     (re.compile(r"\b(normalised|raw|and) q\b(?!-)"), r"\1 adjusted p"),
     (re.compile(r"\bq(?= (?:≤|<|&lt;|=|\d))"), "adjusted p"),
+    # "q: the version ...", "p uncorrected, q corrected": a q before a colon or a verb.
+    (re.compile(r"(?<![\w-])q(?=:)"), "adjusted p"),
+    (re.compile(r"(?<![\w-])q (corrected|uncorrected)\b"), r"the adjusted p \1"),
 )
 _TEXT_NODE = re.compile(r">([^<]+)<")
 

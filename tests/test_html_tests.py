@@ -16,6 +16,10 @@ from morphocoverage.workflows._families import _CELL_VERSIONS
 from morphocoverage.workflows._html_render import adjusted_p
 from morphocoverage.workflows._html_tests import _other_versions
 
+# A q left on the page: before a number or comparison, in brackets, before a colon, or
+# corrected / uncorrected (docs/workflows.md: the adjusted p throughout).
+_Q = re.compile(r"(?<![\w-])q(?: ?[<≤=:]| \d| (?:un)?corrected\b|\))|\(q\)")
+
 
 @pytest.fixture(scope="module")
 def screen():
@@ -55,9 +59,10 @@ def test_the_tests_are_explained_before_their_tables(screen, tmp_path):
     assert "Paired t-test on the biological repeat means: decides" in tests
     assert "Cell-level screen: exploratory" in tests
     assert "<th>p</th><th>adjusted p</th>" in tests
-    # The q-value is called the adjusted p in the page's text, its tables and sentences.
+    # The q-value is called the adjusted p in the page's text, its tables and sentences:
+    # "q 0.26", "q ≤", "(q)", "q:" and "q corrected" alike.
     text = html.unescape(re.sub(r"<[^>]+>", " ", section))
-    assert not re.search(r"\bq (?:[<≤=]|\d)", text) and "(q)" not in text
+    assert not _Q.search(text), _Q.search(text)
     for name in ("tests_across_repeats", "tests_cell_level"):
         frame = pd.read_csv(tmp_path / "figures" / f"{name}.csv")
         assert {"p", "adjusted_p"} <= set(frame.columns)
@@ -92,3 +97,9 @@ def test_the_page_calls_the_q_value_the_adjusted_p():
         "the q-value</p>"
     )
     assert adjusted_p('<a data-q="q 1">x</a>') == '<a data-q="q 1">x</a>'
+    # The forms an audit found left over (2026-10-02).
+    fixed = adjusted_p("<p>q: the version the reading uses; p uncorrected, q corrected</p>")
+    assert fixed == (
+        "<p>adjusted p: the version the reading uses; p uncorrected, the adjusted p corrected</p>"
+    )
+    assert not _Q.search(fixed) and _Q.search("p uncorrected, q corrected")

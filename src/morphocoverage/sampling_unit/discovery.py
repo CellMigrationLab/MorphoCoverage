@@ -21,6 +21,8 @@ the declared control, pooled over the biological repeats:
   feature that also passes it is *significant across repeats*.
 - The direction in each repeat (lower or higher than the control), so a feature that
   passes the cell-level gate but changes direction between repeats is seen as such.
+- Cohen's d within each repeat (its mean and range) and the fewest and most observations
+  on a side of one repeat, which the page's table across repeats and figure legends give.
 
 The cell-level gate treats every observation as an independent draw: it finds candidates,
 and when the difference varies between repeats it passes more often than ``alpha`` without
@@ -45,7 +47,7 @@ from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
 from .._wording import change, count, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from ..statistics import paired_t, repeat_values
+from ..statistics import cohen_d, paired_t, repeat_values
 from ._common import groups, validated
 from ._experiments import corrected, experiments
 from ._units import (
@@ -89,6 +91,11 @@ TEST_COLUMNS = [
     "confirmed",
     "status",
     "experiment",
+    "d_repeat_mean",
+    "d_repeat_min",
+    "d_repeat_max",
+    "repeat_observations_min",
+    "repeat_observations_max",
 ]
 
 
@@ -136,6 +143,22 @@ def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int, float, float]
     return paired_t(compared), values, lower, higher, paired_t(means - controls), change
 
 
+def _per_repeat(by_t: dict, by_c: dict) -> dict[str, float]:
+    """Cohen's d of the observations in each repeat (``condition_contrast``'s ``d_objects``),
+    its mean and range, and the fewest and most observations on a side in one repeat, for
+    the page's table across repeats and each figure's legend."""
+    d = np.array([cohen_d(by_t[r], by_c[r]) for r in by_t], dtype=float)
+    d = d[np.isfinite(d)]
+    sizes = [len(by_t[r]) for r in by_t] + [len(by_c[r]) for r in by_t]
+    return {
+        "d_repeat_mean": float(d.mean()) if len(d) else np.nan,
+        "d_repeat_min": float(d.min()) if len(d) else np.nan,
+        "d_repeat_max": float(d.max()) if len(d) else np.nan,
+        "repeat_observations_min": min(sizes),
+        "repeat_observations_max": max(sizes),
+    }
+
+
 def _row(
     feature: str,
     condition: Any,
@@ -157,6 +180,7 @@ def _row(
         "change": change,
         "p_paired_raw": p_raw,
         "status": "ok",
+        **_per_repeat(by_t, by_c),
     }
     values = np.concatenate([*by_t.values(), *side["every"].values()])
     if np.ptp(values) == 0:
