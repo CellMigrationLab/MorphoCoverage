@@ -94,6 +94,34 @@ RESULT_WORDS = {
 }
 
 
+# The page calls the Benjamini-Hochberg q the adjusted p (owner, 2026-10-02): the text
+# report's wording, rewritten in the page's text (never inside its tags or scripts).
+_ADJUSTED = (
+    (re.compile(r"\bq-values\b"), "adjusted p-values"),
+    (re.compile(r"\(q\)"), "(adjusted p)"),
+    (re.compile(r"\bq cell level\b"), "adjusted p, cells"),
+    (re.compile(r"\bq repeat means\b"), "adjusted p, repeat means"),
+    (re.compile(r"\bq: Benjamini"), "adjusted p: Benjamini"),
+    (re.compile(r"Benjamini-Hochberg q\b(?!-)"), "Benjamini-Hochberg adjusted p"),
+    (re.compile(r"\b(normalised|raw|and) q\b(?!-)"), r"\1 adjusted p"),
+    (re.compile(r"\bq(?= (?:≤|<|&lt;|=|\d))"), "adjusted p"),
+)
+_TEXT_NODE = re.compile(r">([^<]+)<")
+
+
+def adjusted_p(markup: str) -> str:
+    """``markup`` with every q (a Benjamini-Hochberg q-value) in its text called the
+    adjusted p."""
+
+    def fix(match: re.Match) -> str:
+        text = match.group(1)
+        for pattern, words in _ADJUSTED:
+            text = pattern.sub(words, text)
+        return f">{text}<"
+
+    return _TEXT_NODE.sub(fix, markup)
+
+
 def chip(status: Status | None, key: str = "", answer: str = "") -> str:
     """The status as a coloured chip with its icon and the word for what the answer found
     (never colour alone): per question (``key``) and, where the ``answer`` decides it, the
@@ -212,4 +240,4 @@ def text_html(text: str) -> str:
     return "\n".join(out)
 
 
-__all__ = ["STATUS_WORDS", "Terms", "chip", "text_html"]
+__all__ = ["STATUS_WORDS", "Terms", "adjusted_p", "chip", "text_html"]

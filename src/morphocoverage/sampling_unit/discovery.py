@@ -82,6 +82,8 @@ TEST_COLUMNS = [
     "p_paired",
     "paired_values",
     "q_paired",
+    "p_paired_raw",
+    "q_paired_raw",
     "confirmed",
     "status",
     "experiment",
@@ -117,22 +119,24 @@ def _pooled(
     return pooled
 
 
-def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int]:
-    """The paired t-test on the repeat means (log ratios when every mean is positive), and
-    how many repeats are lower and higher than the control."""
+def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int, float]:
+    """The paired t-test on the repeat means (log ratios when every mean is positive), how
+    many repeats are lower and higher than the control, and the test on the raw differences
+    (as ``condition_contrast`` gives it beside, so the readout's reading shares this family)."""
     means = np.array([np.mean(by_t[r]) for r in by_t])
     controls = np.array([np.mean(by_c[r]) for r in by_t])
     lower, higher = int((means < controls).sum()), int((means > controls).sum())
     if len(means) < MIN_REPEATS:
-        return np.nan, "", lower, higher
+        return np.nan, "", lower, higher, np.nan
+    raw = _paired_t(means - controls)
     if (means > 0).all() and (controls > 0).all():
-        return _paired_t(np.log(means / controls)), "normalised", lower, higher
-    return _paired_t(means - controls), "raw", lower, higher
+        return _paired_t(np.log(means / controls)), "normalised", lower, higher, raw
+    return raw, "raw", lower, higher, raw
 
 
 def _row(feature: str, condition: Any, side: dict, n_permutations: int, rng) -> dict[str, Any]:
     by_t, by_c = side["by_t"], side["by_c"]
-    p_paired, paired_values, lower, higher = _paired(by_t, by_c)
+    p_paired, paired_values, lower, higher, p_raw = _paired(by_t, by_c)
     row: dict[str, Any] = {
         "feature": feature,
         "condition": condition,
@@ -142,6 +146,7 @@ def _row(feature: str, condition: Any, side: dict, n_permutations: int, rng) -> 
         "higher": higher,
         "p_paired": p_paired,
         "paired_values": paired_values,
+        "p_paired_raw": p_raw,
         "status": "ok",
     }
     values = np.concatenate([*by_t.values(), *side["every"].values()])
@@ -432,6 +437,7 @@ def feature_discovery(
     # Corrected over every feature and condition of a sub-experiment (_experiments).
     tests["q_cells"] = corrected(tests["p_cells"], tests["experiment"])
     tests["q_paired"] = corrected(tests["p_paired"], tests["experiment"])
+    tests["q_paired_raw"] = corrected(tests["p_paired_raw"], tests["experiment"])
     tests["passes"] = (tests["q_cells"] <= alpha).fillna(False) & tests["d"].notna()
     tests["confirmed"] = tests["passes"] & (tests["q_paired"] <= alpha).fillna(False)
     return FeatureDiscovery(tests, _rank(tests, features), settings)

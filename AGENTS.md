@@ -341,6 +341,8 @@ src/morphocoverage/
         _html_cards.py     # private: the short cards: "?" help, the data's check rows, fields to check, significant features per condition
         _html_next.py      # private: "What to do next" after each answer, with the code to run it
         _html_data.py      # private: each figure's data as CSV beside its PNG and PDF
+        _html_tests.py     # private: "The tests behind the reading": the tests explained, then one table per test (p, adjusted p)
+        _families.py       # private: one correction family: the readout's tests take the feature discovery's p and q
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal

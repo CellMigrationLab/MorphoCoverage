@@ -161,15 +161,16 @@ def _named(rows: Any, words: Callable[[Any], str]) -> str:
 
 
 def _significant(row: Any) -> str:
-    q = f"q {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
+    q = f"adjusted p {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
     return (
         f"{row.feature}: {_direction(row)} in {max(row.lower, row.higher)} of {row.repeats} "
-        f"repeats ({q}; d {row.d:+.2f})"
+        f"repeats ({q}; cell-level d {row.d:+.2f})"
     )
 
 
 def _candidate(row: Any) -> str:
-    return f"{row.feature}: {_direction(row)} (d {row.d:+.2f}; cell-level q {p_value(row.q_cells)})"
+    q = p_value(row.q_cells)
+    return f"{row.feature}: {_direction(row)} (cell-level d {row.d:+.2f}, adjusted p {q})"
 
 
 def _condition_bullet(condition: Any, rows: Any, beyond: list[str]) -> str:
@@ -225,7 +226,8 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
     if repeats >= MIN_REPEATS:
         head = (
             f"Compared with {listing(controls, 3)}, the features significant across the "
-            f"{repeats} biological repeats (the paired t-test on the repeat means, q ≤ 0.05):"
+            f"{repeats} biological repeats (the paired t-test on the repeat means, adjusted p "
+            "≤ 0.05):"
         )
     else:
         head = (

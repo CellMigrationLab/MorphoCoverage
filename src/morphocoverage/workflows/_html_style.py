@@ -235,8 +235,11 @@ ul.significant { margin: 6px 0 4px; padding-left: 1.2em; }
 ul.significant li { margin: 4px 0; max-width: 130ch; }
 .next { border-left: 3px solid var(--ok); background: var(--surface-2); padding: 8px 14px;
   border-radius: 0 8px 8px 0; margin: 14px 0 4px; }
-table.fields td { white-space: normal; }
+table.fields td, .tab-panel td:last-child { white-space: normal; }
 table.fields td:first-child { white-space: nowrap; }
+dl.tests-explained { margin: 4px 0 12px; max-width: 130ch; }
+dl.tests-explained dt { font-weight: 600; margin-top: 8px; }
+dl.tests-explained dd { margin: 2px 0 0 0; color: var(--text-2); }
 .next h3 { margin: 2px 0 6px; font-size: 15px; }
 .next pre { background: var(--surface); margin: 6px 0; }
 .legend-box { border-left: 3px solid var(--link); background: var(--surface-2); padding: 10px 14px;

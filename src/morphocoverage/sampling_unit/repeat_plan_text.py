@@ -67,13 +67,15 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         return [], []
     words = unit_plural(contrast.settings["observation_unit"])
     _, fields = field_words(contrast)
+    feature = contrast.settings.get("feature", "the readout")
     n = int(plan["repeats"].max())
     lines = [
         wrap(
-            "Planning the next experiment (for a new experiment, if the difference and the "
-            "variation seen here recur; not what the current result needs): the biological "
-            f"repeats a paired t-test on the repeat means needs for {percent(POWER)} power, at "
-            "the correction used above, with the "
+            f"Planning the next experiment on {feature} (for a new experiment, if the "
+            "difference and the variation seen here recur; not what the current result "
+            "needs): the biological repeats a paired t-test on the repeat means needs for "
+            f"{percent(POWER)} power, corrected over the conditions of its sub-experiment (a "
+            f"follow-up on {feature} alone), with the "
             f"{fields} per repeat as now and with twice as many; then the {fields} a side each of "
             f"{count(n, 'repeat')} needs to show the difference on its own, and what limits it:",
             indent,
@@ -102,7 +104,7 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         "repeats needed",
         f"with twice the {fields}",
         f"{fields} a side per repeat",
-        "limited by",
+        "within one repeat, limited by",
     ]
     lines.append(table(rows, columns, indent=indent + 2))
     single = plan[plan["status"] != "ok"]

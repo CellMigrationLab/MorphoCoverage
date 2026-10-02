@@ -139,9 +139,24 @@ candidate, said as exploratory. Then a heatmap of Cohen's d of every feature and
 condition against the control (● passes the exploratory cell-level screen, ✓ also
 significant across repeats; hover a cell for its q-values), then the best-ranked
 features (the readout only when it ranks, or alone when none does), then the
-tests behind the reading: the readout's reading condition by condition, then one
-kind of test at a time as tabs (across repeats, reagents, the cell-level screen,
-within repeats, planning, every feature).
+tests behind the reading. These open with **the tests, in short**: the paired
+t-test on the biological repeat means (it decides), the cell-level screen
+(exploratory: it treats every cell as independent), and, when they are on the page,
+beyond the mean, the reagents and planning; what Cohen's d is in each table (per
+repeat or on the cells); and what p and the adjusted p are. Then one table per test
+as tabs, each with p and the adjusted p (Benjamini-Hochberg, the q-value) in their
+own columns and its data as CSV: across repeats, every feature and condition with
+its direction in the repeats and its verdict (raw values folded); the cell-level
+screen in the version the report trusts, with how often it gives p ≤ 0.05 with no
+effect for the readout (its other versions folded, never one whose control comes from
+repeats the condition was not imaged in); beyond the mean; reagents; planning. The
+readout's reading, condition by condition, is folded under them. The page calls the
+q-value the adjusted p throughout.
+
+With several features, every test of "Do the conditions differ?" is corrected over
+every feature and condition of a sub-experiment: the readout's paired t-test and its
+cell-level screen take the feature discovery's p and q (`workflows._families`), so the
+readout reads the same in its own table, the summary and the heatmap.
 
 Each answer that calls for an analysis ends with **What to do next**: a sentence,
 and the code to run it on `result`, `objects` and `fovs`, folded under "Show the

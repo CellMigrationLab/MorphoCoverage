@@ -64,7 +64,7 @@ from ._html_figures import download, embeddings, feature_figures
 from ._html_next import conditions_next, enough_next, fields_next, populations_next
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
-from ._html_render import Terms, chip, text_html
+from ._html_render import Terms, adjusted_p, chip, text_html
 from ._html_script import SCRIPT
 from ._html_sections import (
     INTROS,
@@ -78,7 +78,7 @@ from ._html_sections import (
     what_checked,
 )
 from ._html_style import CSS
-from ._html_tabs import tests_tabs
+from ._html_tests import tests_section
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
@@ -319,6 +319,7 @@ def _conditions_card(
     answer: str | None,
     extras: str,
     next_html: str,
+    folder: Path,
 ) -> str:
     """Question 9: the significant features per condition, the figures, then the tests
     behind them (the readout's reading first), then what to do next."""
@@ -342,7 +343,7 @@ def _conditions_card(
         )
         body = (summary or _html(reading)) + extras + "<h3>The tests behind the reading</h3>"
         # One kind of test at a time (_html_tabs).
-        body += readout + (tests_tabs(rest, _html) if rest.strip() else "")
+        body += (tests_section(result, rest, _html, folder) if rest.strip() else "") + readout
     else:
         body = summary + _html(short) + extras
     # The summary answers, so the headline is not repeated above it (it stays the chip's).
@@ -450,6 +451,7 @@ def html_report(
                     headlines.get(key),
                     extras,
                     conditions_next(result, fovs),
+                    figures,
                 )
             )
             continue
@@ -506,6 +508,8 @@ def html_report(
         texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
     files = _files(folder, texts, [Path(p) for p in attach], started)
     cards.append(_files_card(files))
+    # The page names the q-value the adjusted p (owner, 2026-10-02).
+    cards = [adjusted_p(card) for card in cards]
     stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     page = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -520,7 +524,7 @@ def html_report(
         + "<footer>"
         + html.escape(_settings(result))
         + "</footer></main></div>"
-        + _glossary_drawer(subtitle + "".join(cards))
+        + adjusted_p(_glossary_drawer(subtitle + "".join(cards)))
         + '<script type="application/json" id="files-data">'
         + json.dumps(files, separators=(",", ":"))
         + f"</script><script>{SCRIPT}</script>"

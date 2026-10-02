@@ -461,6 +461,12 @@ def conditions(
         )
         # The headline counts the share apart from the features (report_status_conditions).
         results["discovery"].settings["share"] = share_column(setup)
+        # One correction family on the page: the readout's tests take the discovery's.
+        from ._families import shared_family
+
+        results["contrast"] = shared_family(
+            results["contrast"], results["discovery"], setup.readout
+        )
         results["ranking"] = feature_ranking(
             shared,
             fovs,

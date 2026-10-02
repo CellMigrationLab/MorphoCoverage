@@ -69,7 +69,7 @@ def test_the_summary_names_the_significant_features_per_condition():
     words = _words(significant_summary(_Result(_tests(3, 3, 0, confirmed=True)), str))
     assert "features significant across the 3 biological repeats" in words
     assert "drug : 1 feature" in words
-    assert "area: lower in 3 of 3 repeats (q 0.010; d -1.20)" in words
+    assert "area: lower in 3 of 3 repeats (adjusted p 0.010; cell-level d -1.20)" in words
 
 
 def test_without_a_significant_feature_the_trends_are_named_once():

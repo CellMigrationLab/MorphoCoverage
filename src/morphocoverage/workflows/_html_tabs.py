@@ -84,9 +84,9 @@ def _kind(line: str) -> str | None:
     return next((name for name, starts in TEST_KINDS if text.startswith(starts)), None)
 
 
-def tests_tabs(text: str, render: Callable[[str], str]) -> str:
-    """The tests behind the reading as tabs (see the module); ``render`` turns text into
-    markup. One kind or none found: the text as it is."""
+def test_blocks(text: str) -> tuple[list[str], dict[str, list[str]], list[str]]:
+    """The text of the tests behind the reading cut by kind of test (``TEST_KINDS``): the
+    paragraphs before the first kind, each kind's, and the closing cautions and assumptions."""
     paragraphs = re.split(r"\n(?=  \S)", text)
     head, blocks, tail = [], {}, []
     current = None
@@ -104,6 +104,13 @@ def tests_tabs(text: str, render: Callable[[str], str]) -> str:
             else blocks.setdefault(current, [])
         )
         target.append(paragraph)
+    return head, blocks, tail
+
+
+def tests_tabs(text: str, render: Callable[[str], str]) -> str:
+    """The tests behind the reading as tabs (see the module); ``render`` turns text into
+    markup. One kind or none found: the text as it is."""
+    head, blocks, tail = test_blocks(text)
     if len(blocks) < 2:
         return render(text)
     items = [
@@ -114,4 +121,4 @@ def tests_tabs(text: str, render: Callable[[str], str]) -> str:
     return markup + (render("\n".join(tail)) if tail else "")
 
 
-__all__ = ["TABS_AT_MOST", "TEST_KINDS", "tabs_html", "tests_tabs"]
+__all__ = ["TABS_AT_MOST", "TEST_KINDS", "tabs_html", "test_blocks", "tests_tabs"]

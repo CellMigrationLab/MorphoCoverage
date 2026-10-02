@@ -65,4 +65,15 @@ def family_sizes(p_values: pd.Series, family: pd.Series) -> np.ndarray:
     return np.array([sizes[label] for label in labels])
 
 
-__all__ = ["ALPHA", "corrected", "experiments", "family_sizes"]
+def family_words(settings: Mapping[str, Any], own: bool = False) -> str:
+    """Where a q-value was corrected, in words: within each sub-experiment (``own``: the
+    condition's), over every feature and condition of it when the report shares one family
+    across its features (``settings["family_features"]``, ``workflows._families``)."""
+    where = "the condition's sub-experiment" if own else "each sub-experiment"
+    features = settings.get("family_features")
+    if features and features > 1:
+        return f"within {where}, over its {features} features and their conditions"
+    return f"within {where}"
+
+
+__all__ = ["ALPHA", "corrected", "experiments", "family_sizes", "family_words"]

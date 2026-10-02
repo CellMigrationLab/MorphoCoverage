@@ -18,6 +18,7 @@ import pandas as pd
 from .._caveats import assumption
 from .._wording import column_word, count, listing, p_value
 from ..schema import unit_plural
+from ._experiments import family_words
 from .contrast_repeats import MIN_REPEATS
 
 
@@ -113,7 +114,7 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
             assumption(
                 f"The paired t-test on the repeat means treats each {word} as one replicate: "
                 f"it keeps false positives at 5%, but with 3 {word}s only large, consistent "
-                "effects reach q ≤ 0.05. q: Benjamini-Hochberg within each sub-experiment; "
+                f"effects reach q ≤ 0.05. q: Benjamini-Hochberg {family_words(contrast.settings)}; "
                 "'significant across repeats' uses the normalised q."
             )
         )
