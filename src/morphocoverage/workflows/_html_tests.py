@@ -31,25 +31,26 @@ import pandas as pd
 from .._wording import count, listing, p_value, percent
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
-from ._html_data import data_buttons
+from ._families import _CELL_VERSIONS
+from ._html_data import data_buttons, write_csv
 from ._html_tabs import tabs_html, test_blocks
 
 ALPHA = 0.05
 # Above this many rows a table shows its first ones and a button for the rest.
 FIRST_ROWS = 20
-# The readout's cell-level versions: (label, d, p, chance columns, pools other repeats).
-_VERSIONS = (
+# The readout's cell-level versions: (label, column suffix, chance columns), the suffixes
+# those of the shared family (``_families``).
+_VERSIONS = tuple(
     (
-        "balanced, normalised",
-        "balanced_normalised",
-        ("chance_balanced_low", "chance_balanced_high"),
-    ),
-    ("balanced, raw", "balanced", ("chance_balanced_low", "chance_balanced_high")),
-    ("as provided, normalised", "cells_normalised", ("chance_low", "chance_high")),
-    ("as provided, raw", "cells", ("chance_low", "chance_high")),
+        f"{'balanced' if balanced else 'as provided'}, {'normalised' if normalised else 'raw'}",
+        _CELL_VERSIONS[(normalised, balanced)],
+        ("chance_balanced_low", "chance_balanced_high")
+        if balanced
+        else ("chance_low", "chance_high"),
+    )
+    for balanced in (True, False)
+    for normalised in (True, False)
 )
-
-
 # The reading's names of the screen's versions (reading_text._cell_version), as here.
 _LABELS = {
     "balanced, normalised": "balanced, normalised",
@@ -169,7 +170,7 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
     columns = (["feature"] if many else []) + ["condition", "in the repeats"]
     columns += ["d per repeat: mean (range)"] if single_d else []
     columns += ["p", "adjusted p", "verdict"]
-    files = [(_write(frame, folder, "tests_across_repeats.csv"), "Data (CSV)")]
+    files = [(write_csv(frame, folder, "tests_across_repeats.csv"), "Data (CSV)")]
     raw_rows = [
         ([r.feature] if many else []) + [r.condition, p_value(r.p_raw), p_value(r.adjusted_p_raw)]
         for r in frame.itertuples()
@@ -192,11 +193,6 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
     return caption + _table(
         columns, rows, "rows"
     ) + f'<p class="tools">{data_buttons(files)}</p>' + raw, len(rows)
-
-
-def _write(frame: pd.DataFrame, folder: Path, name: str) -> str:
-    frame.to_csv(folder / name, index=False, float_format="%.6g")
-    return f"figures/{name}"
 
 
 def _chance(row: Any, columns: tuple[str, str]) -> str:
@@ -308,7 +304,7 @@ def _cells(result: Any, folder: Path) -> str:
             f"for the readout ({html.escape(readout)}): {html.escape(rates)}. With independent "
             f"{result.setup.unit_words} it would be 5%; above it, its p is too small.</p>"
         )
-    files = [(_write(frame, folder, "tests_cell_level.csv"), "Data (CSV)")]
+    files = [(write_csv(frame, folder, "tests_cell_level.csv"), "Data (CSV)")]
     body = caption + _table(columns, rows, "rows") + f'<p class="tools">{data_buttons(files)}</p>'
     return body + _other_versions(by_condition, frame, readout, result.setup.unit_words)
 
@@ -385,7 +381,7 @@ def _beyond(result: Any, folder: Path) -> str:
             ]
         )
     frame = tests.drop(columns=["values"]).rename(columns={"q": "adjusted_p"})
-    files = [(_write(frame, folder, "tests_beyond_the_mean.csv"), "Data (CSV)")]
+    files = [(write_csv(frame, folder, "tests_beyond_the_mean.csv"), "Data (CSV)")]
     caption = (
         "<p>Per biological repeat against its own control: the spread (the condition's SD "
         "over the control's) and the 10%, 50% and 90% quantiles (their shift in control SDs), "

@@ -71,12 +71,6 @@ def _span(values: Sequence[float], format_one: Any = number) -> str:
     return span(values, "percent" if format_one is percent else "number")
 
 
-def _more(values: Sequence[float]) -> str:
-    """``1 more field``, ``31-96 more fields``."""
-    text = _span(values)
-    return f"{text} more field" if text == "1" else f"{text} more fields"
-
-
 def _warning_list(row: Mapping[str, Any]) -> list[str]:
     """A rule's cautions one by one (tables written before ``warning_list`` join them)."""
     listed = row.get("warning_list")

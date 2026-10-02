@@ -58,9 +58,9 @@ from ._html_cards import (
     readout_summary,
     significant_summary,
 )
-from ._html_data import data_buttons, heatmap_data
+from ._html_data import data_buttons, download, heatmap_data
 from ._html_enough import enough_body
-from ._html_figures import download, embeddings, feature_figures
+from ._html_figures import embeddings, feature_figures
 from ._html_next import conditions_next, enough_next, fields_next, populations_next
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
