@@ -199,6 +199,7 @@ MorphoCoverage currently produces in-memory result objects (`StrategyResult`, `S
 src/morphocoverage/
     __init__.py            # public API (__all__); changes need approval (section 15)
     metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings (the one resolver)
+    _spelling.py           # private: typing errors of a name (edits), for metadata's near-miss spellings
     schema.py              # ValidatedInput and linked-table validation
     _plane_rules.py        # private: the plane rule (z/c/t planes are not fields, never features)
     planes.py              # planes_as_features: one feature per plane, objects matched by label_id

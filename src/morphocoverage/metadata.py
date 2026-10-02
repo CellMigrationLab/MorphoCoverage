@@ -17,6 +17,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._spelling import typing_error_of
+
 MORPHOBRICKS_SHARED_COLUMNS = (
     "condition",
     "biological_repeat",
@@ -342,7 +344,7 @@ def canonical_spelling(column: object) -> str | None:
     if meant is None:
         meant = _PLANE_SYNONYMS.get(_squashed(unprefixed))
     if meant is None:
-        meant = _typo_of(_squashed(unprefixed))
+        meant = typing_error_of(_squashed(unprefixed), _TYPO_TARGETS)
     return meant if meant is not None and meant != column else None
 
 
@@ -353,31 +355,6 @@ _TYPO_TARGETS = {
     for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
     if len(_squashed(name)) >= 8
 }
-
-
-def _edits(first: str, second: str) -> int:
-    """The edits between two names: insertions, deletions, substitutions and swaps of two
-    neighbouring letters (the optimal string alignment distance)."""
-    rows = [list(range(len(second) + 1))]
-    for i, a in enumerate(first, 1):
-        row = [i]
-        for j, b in enumerate(second, 1):
-            row.append(min(rows[-1][j] + 1, row[j - 1] + 1, rows[-1][j - 1] + (a != b)))
-            if i > 1 and j > 1 and a == second[j - 2] and first[i - 2] == b:
-                row[j] = min(row[j], rows[-2][j - 2] + 1)
-        rows.append(row)
-    return rows[-1][-1]
-
-
-def _typo_of(squashed: str) -> str | None:
-    """The shared column ``squashed`` is a typing error of: one edit for a name of up to 11
-    letters, two for a longer one when the lengths differ by at most one, so a longer
-    column (``technical_repeat_id``) is not taken for the shorter name."""
-    for target, name in _TYPO_TARGETS.items():
-        allowed = 2 if len(target) >= 12 and abs(len(squashed) - len(target)) <= 1 else 1
-        if 0 < _edits(squashed, target) <= allowed:
-            return name
-    return None
 
 
 # Names of a stage-position index inside a multi-position file (an .nd2 or .czi
