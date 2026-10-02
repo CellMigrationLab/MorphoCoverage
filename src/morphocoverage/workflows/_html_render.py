@@ -87,6 +87,8 @@ RESULT_WORDS = {
     ("inspect", Status.CAUTION): "Fields to inspect",
     ("conditions", Status.OK): "Differs",
     ("conditions", Status.CAUTION): "Trend only",
+    ("populations", Status.OK): "Enriched",
+    ("populations", Status.CAUTION): "Trend only",
     ("enough", Status.OK): "Enough",
     ("enough", Status.CAUTION): "Partly",
 }
@@ -102,10 +104,12 @@ def chip(status: Status | None, key: str = "", answer: str = "") -> str:
     word = RESULT_WORDS.get((key, status), word)
     if key == "enough" and status is Status.CAUTION and "shown in 0 of" in answer:
         word = "Not yet"
-    few = re.search(r"\bn = ([12])\b", answer) if key == "conditions" else None
+    few = re.search(r"\bn = ([12])\b", answer) if key in ("conditions", "populations") else None
     if few:
         word = f"No conclusion (n = {few.group(1)})"
-    elif key == "conditions" and status is Status.CAUTION:
+    elif key == "populations" and "no distinct population" in answer:
+        word = "None distinct"
+    elif key in ("conditions", "populations") and status is Status.CAUTION:
         word = "Trend only" if "same direction" in answer else "No consistent difference"
     icon = f'<span aria-hidden="true">{status.marker}</span>'
     return f'<span class="chip {kind}">{icon} {word}</span>'

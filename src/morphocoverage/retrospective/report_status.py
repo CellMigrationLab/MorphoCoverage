@@ -193,7 +193,7 @@ _BOTH_RUN = "report(..., integrity=True) runs both)"
 # The question whose marker says what the answer found (owner, 2026-10-01): a caution in its
 # section is read there, it does not turn "Differs" into a caution. "Did I image enough?"
 # keeps the cautions of its rules (an unchecked order, say): they are part of its answer.
-RESULT_QUESTIONS = ("conditions",)
+RESULT_QUESTIONS = ("conditions", "populations")
 
 
 def caveat_status(status: Status, text: str, key: str = "") -> Status:
@@ -543,6 +543,8 @@ def question_statuses(
         "effort": effort_status(get("effort")),
         "order": order_status(get("efficiency")),
         "conditions": conditions_status(get("contrast"), get("ranking"), get("discovery")),
+        # Filled by the workflows (workflows/_populations), which find the populations.
+        "populations": (Status.NOT_ASSESSED, "not assessed"),
     }
 
 
