@@ -160,3 +160,8 @@ def test_the_heatmap_names_its_axes(card):
     _, _, section = card
     heatmap = section[section.index('class="heatmap"') : section.index("</svg>")]
     assert "condition, against siCTRL" in heatmap and "feature, best-ranked first" in heatmap
+    # Its key comes first and names the test behind each value and mark.
+    key = section[section.index('class="note hm-legend"') : section.index('class="heatmap"')]
+    assert "randomization test" in key and "paired t-test on the repeat means" in key
+    # Each pairwise panel says what its two triangles hold.
+    assert section.count('class="panel-key"') >= 2 and "◣ lower left: Cohen" in section

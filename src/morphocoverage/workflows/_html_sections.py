@@ -436,15 +436,17 @@ def heatmap(discovery: Any, conditions: list[Any]) -> str:
                 f'fill="{ink}" class="hm-cell">{shown}{mark}</text></g>'
             )
     parts.append("</svg>")
+    # The key first: which test each value and mark comes from (owner, 2026-10-02).
     legend = (
-        '<p class="note">Cohen\'s d against the control, '
-        '<span class="hm-key" style="background:#2a78d6"></span> lower · '
-        '<span class="hm-key" style="background:#e34948"></span> higher (colour full at '
-        f"|d| ≥ {D_CAP:g}); ● a candidate (exploratory cell-level q ≤ 0.05), ✓ also "
-        "significant across repeats (the paired t-test on the repeat means, q ≤ 0.05). "
-        "Hover a cell for its q-values.</p>"
+        '<p class="note hm-legend">Each cell: Cohen\'s d of the condition against the '
+        "control on every cell, as the cell-level screen computes it "
+        '(<span class="hm-key" style="background:#2a78d6"></span> lower · '
+        '<span class="hm-key" style="background:#e34948"></span> higher, colour full at '
+        f"|d| ≥ {D_CAP:g}). ● a candidate: the cell-level screen's randomization test, "
+        "q ≤ 0.05, exploratory. ✓ also significant across repeats: the paired t-test on "
+        "the repeat means, q ≤ 0.05. Hover a cell for its q-values.</p>"
     )
-    return f'<div class="table-wrap">{"".join(parts)}</div>{legend}'
+    return f'{legend}<div class="table-wrap">{"".join(parts)}</div>'
 
 
 __all__ = [

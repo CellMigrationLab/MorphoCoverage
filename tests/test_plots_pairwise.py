@@ -89,6 +89,8 @@ def test_the_panel_is_drawn_under_each_figure_with_its_table():
     # panels' titles stay within their width.
     assert panel.get_xlabel() == "against" and panel.get_ylabel() == "condition"
     assert paired.get_xlabel() == "against"
+    assert "◣ lower left: Cohen's d" in panel.get_title(loc="left")
+    assert "◥ upper right: adjusted p" in paired.get_title(loc="left")
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
     renderer = FigureCanvasAgg(figure).get_renderer()

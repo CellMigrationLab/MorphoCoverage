@@ -59,6 +59,12 @@ PANEL_TITLES = {
     "B": "d · randomization test: discovery, false positives when repeats differ",
     "C": "paired t-test, repeat means: decides, conservative with few repeats",
 }
+# Which test each triangle of a panel shows (owner, 2026-10-02): the lower left below the
+# diagonal, the upper right above it.
+PANEL_KEYS = {
+    "B": "◣ lower left: Cohen's d · ◥ upper right: adjusted p",
+    "C": "◣ lower left: p · ◥ upper right: adjusted p",
+}
 # What each panel is good for, in a line (owner, 2026-10-02).
 PAIR_READING = (
     "Good for discovery, but prone to false positives when the repeats differ: every "
@@ -267,12 +273,12 @@ def _cells_p(value: float) -> tuple[str, tuple, str]:
 
 
 def _title(panel: str, side: float) -> str:
-    """A panel's title wrapped to its width (``side`` inches at 9.5 pt), so it never runs
-    into the panel beside it."""
+    """A panel's title and the key of its triangles, wrapped to its width (``side`` inches at
+    9.5 pt), so it never runs into the panel beside it."""
     width = max(16, int(side / 0.075))
-    return "\n".join(
-        line for part in PANEL_TITLES[panel].split(": ", 1) for line in textwrap.wrap(part, width)
-    )
+    # One line per triangle, so a glyph never parts from its words.
+    parts = [*PANEL_TITLES[panel].split(": ", 1), *PANEL_KEYS[panel].split(" · ")]
+    return "\n".join(line for part in parts for line in textwrap.wrap(part, width))
 
 
 def _matrix(
@@ -387,6 +393,7 @@ __all__ = [
     "PAIRED_NOTE",
     "PAIR_COLUMNS",
     "PAIR_NOTE",
+    "PANEL_KEYS",
     "add_pairwise",
     "d_colour",
     "format_p",

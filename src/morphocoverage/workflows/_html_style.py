@@ -182,6 +182,7 @@ dl.glossary dt.hit { background: var(--caution-bg); border-radius: 4px; }
 .pair-row .panel { min-width: 0; }
 .panel-title { margin: 6px 0 0; color: var(--text-2); font-size: 14px; }
 .panel-title b { font-size: 18px; color: var(--text); margin-right: 6px; }
+.panel-title .panel-key { display: block; margin-top: 2px; font-size: 13px; }
 .figure-legend { color: var(--text-2); font-size: 13.5px; margin-top: 8px; max-width: 130ch; }
 .figure-legend p { margin: 4px 0; }
 .feature .tools { margin: 4px 0; }
