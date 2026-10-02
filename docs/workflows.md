@@ -319,6 +319,19 @@ acquired:
   tested across the repeats (Benjamini-Hochberg within each sub-experiment,
   a family of its own). A condition whose distribution differs answers the
   question like a feature significant across repeats.
+- **"Are there distinct populations?"** (question 10, in every report) finds
+  groups of cells that sit together on all the declared features, from every
+  condition pooled: HDBSCAN (scikit-learn) on the principal components holding
+  90% of their robustly standardised variance, a population holding at least
+  0.5% of the cells (and 15). Each population is listed with its share, the
+  features that set it apart, and the fields and repeats it is seen in; then
+  each condition is compared with the control on its share of cells in it,
+  per biological repeat, by the paired test across repeats (Benjamini-Hochberg
+  within each sub-experiment). A declared label is matched to the population
+  that holds it. The PCA and UMAP ring each population (click its legend entry
+  to hide it), can be coloured by condition, population or any feature, and,
+  around points drawn with the lasso, list the conditions and populations they
+  come from and the features that set them apart (Cohen's d).
 - **"Can these features detect what I care about?"**, with a label and no
   positive control, is answered by the label: for each labelled cell, whether
   the nearest cell of another field (on the declared features, robustly
