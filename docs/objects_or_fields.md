@@ -113,7 +113,10 @@ and changed only that one thing.
 - **"Unusual" is not a named state.** It means "unlike the controls", which
   can include debris or imaging errors as well as rare biology. The flags
   also changed between repeat runs in the JCS data, so its clustering results
-  are uncertain.
+  are uncertain. A state the controls already hold is never unusual, whatever
+  its share: the populations question compares such shares instead. In a screen
+  of sub-experiments, each condition is judged against the controls of its own
+  sub-experiment (`unusual_objects(within_experiment=True)`, the default).
 - **Some measures shift between runs.** The JCS stability measure varies from
   run to run, so only its direction is reliable: pictures are less stable
   than random objects.

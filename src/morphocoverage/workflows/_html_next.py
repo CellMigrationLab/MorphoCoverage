@@ -26,11 +26,15 @@ import pandas as pd
 from .._wording import count, percent_fine
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
+from ..sampling_unit.contrast_sampling import PRACTICAL
+from ..sampling_unit.populations import traits
 from ..sampling_unit.repeat_plan_text import field_words
+from ._enough_targets import HELD_BACK
 from ._populations import tested_populations
 
-# The reservoir optimise holds back to judge each stop, as in docs/workflows.md.
-RESERVOIR = 0.35
+# The reservoir optimise holds back to judge each stop, as in docs/workflows.md (one
+# value with the fingerprint's answer, ``_enough_targets.HELD_BACK``).
+RESERVOIR = HELD_BACK
 # A population this labelled is the declared rare label's: not declared again.
 LABELLED = 0.9
 _COUNTS = (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96)
@@ -157,7 +161,7 @@ def _chosen_population(populations: Any) -> tuple[str, float, str, str] | None:
         if len(rows) and np.isfinite(float(rows["q_paired"].iloc[0])):
             name = str(rows["feature"].iloc[0])
     row = table.set_index("population").loc[name]
-    return name, float(row["share"]), str(row["defined_by"]), str(row["kind"])
+    return name, float(row["share"]), traits(row["defining"][:1]), str(row["kind"])
 
 
 def _labelled(populations: Any, name: str, label: str | None) -> bool:
@@ -185,7 +189,7 @@ def populations_next(result: Any, fovs: pd.DataFrame) -> str:
         )
         return _block([(line, "")])
     counts = fov_counts(fovs)
-    phenotype = f"{name}: {defined.split(' (d ')[0]}" if defined else name
+    phenotype = f"{name}: {defined}" if defined else name
     what = (
         f"{name}, a group on the map ({percent_fine(share)} of the cells; it may be the end "
         "of a continuum)"
@@ -242,7 +246,8 @@ def enough_next(result: Any, fovs: pd.DataFrame, features: Any) -> str:
             # Only the comparisons more fields can show (audit, 2026-10-02).
             small = int(row["too_small"])
             beyond = (
-                f"; {count(small, 'comparison')} would not show even with 4 times the {unit}"
+                f"; {count(small, 'comparison')} would not show even with {PRACTICAL} times "
+                f"the {unit}"
                 if small
                 else ""
             )

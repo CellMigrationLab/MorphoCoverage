@@ -10,19 +10,26 @@ fields resampled as acquired, ``contrast_sampling``):
   difference within it, projected from its interval (fewer than acquired
   where it is resolved, more where it is not); ``inf`` when some repeat's
   difference is too small to settle;
-- **what limits it**: the sampling error within a repeat (the standard error
-  of each repeat's d, from its interval, which shrinks as ``1 / sqrt(fields)``)
-  against the variation between repeats (the per-repeat d's spread beyond that
-  sampling error, which more fields cannot reduce; it needs two repeats).
-  When the repeats vary more than their sampling error, more fields per repeat
-  help little;
+- **what limits it**: the sampling error within a repeat against the variation between
+  repeats (the repeat values' spread beyond that sampling error, which more fields cannot
+  reduce; it needs two repeats), on the values the paired t-test compares (below). When the
+  repeats vary more than their sampling error, more fields per repeat help little;
 - **the repeats needed**: the fewest biological repeats (at most ``MAX_REPEATS``)
   for which a paired t-test on the repeat values reaches ``power`` at the
   correction the report uses, with the fields acquired and with twice as many.
+  The values are the test's (``contrast_repeats``): the log of each repeat's ratio of the
+  condition's mean to the control's when every mean is positive (``planned_on``
+  ``"log ratio"``, the change a fold change ``change``), else the difference of the means
+  (``"difference"``). Their sampling error within a repeat is the bootstrap's
+  (``contrast_sampling``), which shrinks as ``1 / sqrt(fields)``; a table without it (an
+  older one) is planned on the per-repeat Cohen's d (``"d"``).
   The report corrects with Benjamini-Hochberg within each sub-experiment
   (``_experiments``); the plan holds at ``alpha / m`` (``alpha_planned``), ``m`` the
   conditions of the sub-experiment, which is what Benjamini-Hochberg asks at most of
   one test, so the plan never promises too few.
+
+``d_mean``, ``between_sd`` and ``within_se`` stay on Cohen's d (the cell-level screen's
+chance of p <= 0.05 without an effect uses ``between_sd``, ``contrast_cells``).
 
 With one repeat the variation between repeats is unknown: the plan gives the
 fields a side and says so. The variation between repeats estimated from two
@@ -38,6 +45,7 @@ import pandas as pd
 from scipy import stats
 
 from ..metadata import REPEAT_COLUMN as REPEAT
+from ..statistics import repeat_values
 from ._experiments import experiments
 from .contrast_sampling import PRACTICAL
 
@@ -52,6 +60,8 @@ PLAN_COLUMNS = [
     "d_mean",
     "between_sd",
     "within_se",
+    "planned_on",
+    "change",
     "fields_per_repeat",
     "limited_by",
     "repeats_needed",
@@ -70,11 +80,11 @@ def paired_power(delta: float, sd: float, repeats: int, alpha: float) -> float:
     df = repeats - 1
     critical = float(stats.t.ppf(1 - alpha / 2, df))
     shift = delta * np.sqrt(repeats) / sd
-    power = float(stats.nct.sf(critical, df, shift) + stats.nct.cdf(-critical, df, shift))
-    if np.isnan(power):
-        # scipy's noncentral t can fail far in its tail: the shifted central t is close there.
-        power = float(stats.t.sf(critical - shift, df) + stats.t.cdf(-critical - shift, df))
-    return power
+    # The lower tail as the upper tail of the mirrored shift: scipy's noncentral t cdf
+    # returns NaN far in its tail (scipy 1.17), while its sf stays exact there.
+    upper = float(stats.nct.sf(critical, df, shift))
+    lower = float(stats.nct.sf(critical, df, -shift))
+    return upper + (lower if np.isfinite(lower) else 0.0)
 
 
 def repeats_needed(delta: float, sd: float, alpha: float, power: float = POWER) -> float:
@@ -99,10 +109,36 @@ def _fields_per_repeat(block: pd.DataFrame) -> float:
     return max(needed) if needed else np.nan
 
 
+def _test_values(block: pd.DataFrame) -> tuple[str, np.ndarray, np.ndarray]:
+    """The values the paired t-test compares, per repeat, and their sampling errors: the log
+    ratios when every mean is positive, else the differences (``statistics.repeat_values``,
+    as the test chooses); Cohen's d when the table has no sampling error of them."""
+    d_errors = ((block["d_high"] - block["d_low"]) / (2 * _Z)).to_numpy(float)
+    if not {"mean", "control_mean", "log_ratio_se", "difference_se"} <= set(block.columns):
+        return "d", block["d_objects"].to_numpy(float), d_errors
+    values, compared, _ = repeat_values(block["mean"], block["control_mean"])
+    column = "log_ratio_se" if values == "normalised" else "difference_se"
+    errors = block[column].to_numpy(float)
+    if not (np.isfinite(compared).all() and np.isfinite(errors).all()):
+        return "d", block["d_objects"].to_numpy(float), d_errors
+    return ("log ratio" if values == "normalised" else "difference"), compared, errors
+
+
+def _change(table: pd.DataFrame, condition: Any, control: Any) -> float:
+    """The change against the control over every repeat holding both means, as the verdict
+    gives it (``statistics.repeat_values``), whether or not a repeat has an interval of d."""
+    rows = table[(table["condition"] == condition) & (table["control_condition"] == control)]
+    if "mean" not in rows:
+        return np.nan
+    rows = rows[rows["mean"].notna() & rows["control_mean"].notna()]
+    return repeat_values(rows["mean"], rows["control_mean"])[2] if len(rows) else np.nan
+
+
 def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER) -> pd.DataFrame:
     """One row per condition and control: the plan for the next experiment (see the module).
 
-    ``table`` is ``condition_contrast``'s per-repeat table (with ``d_low``/``d_high``).
+    ``table`` is ``condition_contrast``'s per-repeat table (with ``d_low``/``d_high``, and
+    ``mean``, ``control_mean``, ``difference_se`` and ``log_ratio_se``).
     """
     if table.empty or "d_low" not in table:
         return pd.DataFrame(columns=PLAN_COLUMNS)
@@ -116,15 +152,19 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
     rows = []
     for (condition, control), block in groups:
         d = block["d_objects"].to_numpy(float)
-        se = ((block["d_high"] - block["d_low"]) / (2 * _Z)).to_numpy(float)
-        within = float(np.mean(se**2))
+        d_within = float(np.mean(((block["d_high"] - block["d_low"]) / (2 * _Z)) ** 2))
+        planned_on, values, errors = _test_values(block)
+        within = float(np.mean(errors**2))
+        mean = float(values.mean())
         row: dict[str, Any] = {
             "condition": condition,
             "control_condition": control,
             "repeats": len(d),
             "d_mean": float(d.mean()),
             "between_sd": np.nan,
-            "within_se": float(np.sqrt(within)),
+            "within_se": float(np.sqrt(d_within)),
+            "planned_on": planned_on,
+            "change": _change(table, condition, control) if planned_on != "d" else np.nan,
             "fields_per_repeat": _fields_per_repeat(block),
             "limited_by": "",
             "repeats_needed": np.nan,
@@ -136,12 +176,12 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
         if len(d) < 2:
             row["status"] = "one biological repeat: the variation between repeats is unknown"
         else:
-            between = max(0.0, float(np.var(d, ddof=1)) - within)
-            row["between_sd"] = float(np.sqrt(between))
+            row["between_sd"] = float(np.sqrt(max(0.0, float(np.var(d, ddof=1)) - d_within)))
+            between = max(0.0, float(np.var(values, ddof=1)) - within)
             row["limited_by"] = "between repeats" if between > within else "within repeats"
             for column, factor in (("repeats_needed", 1), ("repeats_needed_twice_fields", 2)):
                 sd = float(np.sqrt(between + within / factor))
-                row[column] = repeats_needed(row["d_mean"], sd, row["alpha_planned"], power)
+                row[column] = repeats_needed(mean, sd, row["alpha_planned"], power)
         rows.append(row)
     return pd.DataFrame(rows, columns=PLAN_COLUMNS)
 

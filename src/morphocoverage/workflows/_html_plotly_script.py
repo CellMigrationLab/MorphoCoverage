@@ -91,7 +91,7 @@ PLOTLY_SCRIPT = r"""
         var x = [], y = [], text = [], symbol = [];
         points.cluster.forEach(function (k, i) {
           if (spec.clusters[k].condition !== ci) return;
-          x.push(points.x[i]); y.push(points.y[i]); text.push(points.label[i]);
+          x.push(points.x[i]); y.push(points.y[i]); text.push(escape(points.label[i]));
           symbol.push(SHAPES[points.shape[i]] || 'circle-dot');
         });
         traces.push({ type: 'scatter', mode: 'markers', x: x, y: y, text: text,
@@ -169,8 +169,11 @@ PLOTLY_SCRIPT = r"""
         return row.map(function (v, j) { return (below ? i > j : i < j) ? v : ''; });
       });
     }
-    var common = { type: 'heatmap', x: pw.names, y: pw.names, showscale: false, xgap: 4,
-      ygap: 4, hoverongaps: false, customdata: panel.hover, texttemplate: '%{text}',
+    // Plotly reads names and hovers as HTML: the conditions' names are escaped.
+    var names = pw.names.map(escape);
+    var hovers = panel.hover.map(function (row) { return row.map(escape); });
+    var common = { type: 'heatmap', x: names, y: names, showscale: false, xgap: 4,
+      ygap: 4, hoverongaps: false, customdata: hovers, texttemplate: '%{text}',
       textfont: { size: n > 8 ? 12 : 14 }, hovertemplate: '%{customdata}<extra></extra>' };
     function scale(stops) { return stops.map(function (stop) { return stop.slice(); }); }
     var lowerScale = panel.lower_scale === 'd' ?
@@ -314,7 +317,7 @@ PLOTLY_SCRIPT = r"""
       var set = current();
       return { x: index.map(function (i) { return set.x[i]; }),
         y: index.map(function (i) { return set.y[i]; }),
-        text: index.map(function (i) { return set.labels[i]; }), customdata: index };
+        text: index.map(function (i) { return escape(set.labels[i]); }), customdata: index };
     }
     function scatter(name, index, marker, extra) {
       return Object.assign({ type: 'scatter', mode: 'markers', name: name, marker: marker,

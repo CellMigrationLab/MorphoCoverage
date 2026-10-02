@@ -15,7 +15,9 @@ button that saves a file the page carries, ``data_buttons`` one per file.
 
 from __future__ import annotations
 
+import base64
 import html
+import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,66 @@ def write_csv(frame: pd.DataFrame, folder: Path, name: str) -> str:
     path as the page carries it."""
     frame.to_csv(folder / name, index=False, float_format="%.6g")
     return f"figures/{name}"
+
+
+def _decoded_size(data: str) -> int:
+    """The bytes a base64 string holds, from its length (no decoding)."""
+    return len(data) * 3 // 4 - data[-2:].count("=")
+
+
+_TYPES = {
+    ".png": "image/png",
+    ".pdf": "application/pdf",
+    ".txt": "text/plain",
+    ".csv": "text/csv",
+    ".json": "application/json",
+}
+
+
+def page_files(
+    folder: Path, texts: dict[str, str], attach: Sequence[Path], since: float
+) -> dict[str, list[str]]:
+    """Every file the page carries, by the path it is saved under: the figures this run wrote
+    in ``folder/figures`` (modified at or after ``since``, so an older run's are left out), the
+    ``texts`` written here, and the ``attach`` files."""
+    files: dict[str, list[str]] = {}
+    for path in sorted((folder / "figures").glob("*")):
+        if path.suffix in _TYPES and path.stat().st_mtime >= since:
+            data = base64.b64encode(path.read_bytes()).decode()
+            files[f"figures/{path.name}"] = [_TYPES[path.suffix], data]
+    for name, text in texts.items():
+        mime = _TYPES.get(Path(name).suffix, "text/plain")
+        files[name] = [mime, base64.b64encode(text.encode("utf-8")).decode()]
+    for path in attach:
+        path = Path(path)
+        if path.exists():
+            mime = _TYPES.get(path.suffix, "application/octet-stream")
+            files[path.name] = [mime, base64.b64encode(path.read_bytes()).decode()]
+    return files
+
+
+def files_card(files: dict[str, list[str]]) -> str:
+    """The card listing every file the page carries, each with its size and save button."""
+    rows = "".join(
+        f'<tr><td>{html.escape(name)}</td><td class="num">'
+        f"{_decoded_size(data) / 1024:.0f} kB</td><td>{download(name, 'Save')}</td></tr>"
+        for name, (_, data) in files.items()
+    )
+    return (
+        '<section class="card" id="files"><h2>Files</h2><p class="note">Everything this report '
+        "was made with and from is inside this page: save any file with its button, no folder "
+        "needed. The same files are in the results folder and its zip.</p>"
+        '<div class="table-wrap"><table class="sortable"><thead><tr><th>file</th><th>size</th>'
+        f"<th></th></tr></thead><tbody>{rows}</tbody></table></div></section>"
+    )
+
+
+def json_island(data: Any) -> str:
+    """``data`` as JSON to sit inside a ``<script type="application/json">``: ``<``, ``>``
+    and ``&`` written as JSON escapes, so no name (a feature called ``x<!--<script>``) can
+    end or confuse the script element."""
+    text = json.dumps(data, separators=(",", ":"), default=str)
+    return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
 def download(path: str, label: str) -> str:
@@ -139,5 +201,6 @@ __all__ = [
     "embedding_data",
     "feature_data",
     "heatmap_data",
+    "json_island",
     "write_csv",
 ]

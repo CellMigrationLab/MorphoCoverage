@@ -66,7 +66,7 @@ def test_a_consistent_difference_passes_both_gates_and_noise_neither():
     assert "1 of 4 features is a candidate in the exploratory cell-level screen" in text
     assert (
         "Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 1 feature "
-        "(area, for drug)." in text
+        "(area, for drug ×1.096)." in text
     )
     assert "Not tested (1 feature, one value everywhere): flat." in text
     assert (

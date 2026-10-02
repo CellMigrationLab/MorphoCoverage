@@ -352,7 +352,7 @@ def test_cell_stabilization_rules_are_not_applicable_to_slice_observations(strat
     )
     for quantity in result.evidence.quantities.values():
         assert quantity.availability == "not_applicable"
-        assert "'slice'" in quantity.reason
+        assert "(slice)" in quantity.reason
     assert result.rule_decision is None
 
 

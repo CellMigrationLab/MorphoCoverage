@@ -33,11 +33,13 @@ from .._style import Status, table, wrap
 from .._wording import count, listing
 from ..retrospective.report_resolved import has_resolution, resolved_full
 from ..sampling_unit.contrast import condition_contrast
+from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency import sufficiency_report
 from ..sufficiency_short import rule_tallies
 
 if TYPE_CHECKING:
+    from ..retrospective import MicroscopistReport
     from .setup import Setup
 
 ENOUGH, PARTLY, NOT_YET = "enough", "partly", "not yet"
@@ -107,7 +109,9 @@ def _replay(
     return tallies
 
 
-def _precision(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, features: list[str]):
+def _precision(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, features: list[str]
+) -> dict[str, dict[str, Any]]:
     """The mean-precision tally of every feature. With many features and several workers,
     one replay per worker over its share of the features (the orders are drawn per group, the
     same in every share): about three times faster than one replay over them all."""
@@ -244,10 +248,11 @@ def features_status(features: FeatureEnough, word: str = "well") -> tuple[Status
     small = rows[rows["too_small"] > 0]
     open_ = rows[rows["needing"] > 0]
     if len(small):
-        # Beyond 4 times the fields: these need the most, said before any projection.
+        # Beyond PRACTICAL times the fields: these need the most, said before any projection.
         text += (
             f"; {listing(list(small['feature'].astype(str)), 3)}: too small to show in "
-            f"{count(int(small['too_small'].sum()), 'comparison')} even with 4 times the {fields}"
+            f"{count(int(small['too_small'].sum()), 'comparison')} even with {PRACTICAL} times the "
+            f"{fields}"
         )
     if len(open_):
         worst = open_.loc[open_["fields_high"].idxmax()]
@@ -269,7 +274,9 @@ def _indent(text: str) -> str:
     return "\n".join(f"  {line}" if line else line for line in text.splitlines())
 
 
-def with_features(document: Any, features: FeatureEnough | None, contrast: Any, word: str):
+def with_features(
+    document: MicroscopistReport, features: FeatureEnough | None, contrast: Any, word: str
+) -> MicroscopistReport:
     """The report with question 2 answered over the features (see the module): its status and
     headline, the table across the features first in the short form (the readout's own
     resolution, now one row of it, left out), and every feature's resolution in the full

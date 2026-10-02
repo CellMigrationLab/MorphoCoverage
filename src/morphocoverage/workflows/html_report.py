@@ -27,9 +27,7 @@ it is computed anew except the figures: the text is the report's.
 
 from __future__ import annotations
 
-import base64
 import html
-import json
 import re
 import time
 import warnings
@@ -52,13 +50,14 @@ from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import rule_tallies
 from ._html_cards import (
     check_rows,
+    chip_words,
     fields_table,
     flagged_fields,
     help_icon,
     readout_summary,
     significant_summary,
 )
-from ._html_data import data_buttons, download, heatmap_data
+from ._html_data import data_buttons, files_card, heatmap_data, json_island, page_files
 from ._html_enough import enough_body
 from ._html_figures import embeddings, feature_figures
 from ._html_next import conditions_next, enough_next, fields_next, populations_next
@@ -83,50 +82,6 @@ from ._html_tests import tests_section
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
-_TYPES = {
-    ".png": "image/png",
-    ".pdf": "application/pdf",
-    ".txt": "text/plain",
-    ".csv": "text/csv",
-    ".json": "application/json",
-}
-
-
-def _files(
-    folder: Path, texts: dict[str, str], attach: Sequence[Path], since: float
-) -> dict[str, list[str]]:
-    """Every file the page carries, by the path it is saved under: the figures this run wrote
-    in ``folder/figures`` (modified at or after ``since``, so an older run's are left out), the
-    ``texts`` written here, and the ``attach`` files."""
-    files: dict[str, list[str]] = {}
-    for path in sorted((folder / "figures").glob("*")):
-        if path.suffix in _TYPES and path.stat().st_mtime >= since:
-            data = base64.b64encode(path.read_bytes()).decode()
-            files[f"figures/{path.name}"] = [_TYPES[path.suffix], data]
-    for name, text in texts.items():
-        mime = _TYPES.get(Path(name).suffix, "text/plain")
-        files[name] = [mime, base64.b64encode(text.encode("utf-8")).decode()]
-    for path in attach:
-        path = Path(path)
-        if path.exists():
-            mime = _TYPES.get(path.suffix, "application/octet-stream")
-            files[path.name] = [mime, base64.b64encode(path.read_bytes()).decode()]
-    return files
-
-
-def _files_card(files: dict[str, list[str]]) -> str:
-    rows = "".join(
-        f'<tr><td>{html.escape(name)}</td><td class="num">'
-        f"{len(base64.b64decode(data)) / 1024:.0f} kB</td><td>{download(name, 'Save')}</td></tr>"
-        for name, (_, data) in files.items()
-    )
-    return (
-        '<section class="card" id="files"><h2>Files</h2><p class="note">Everything this report '
-        "was made with and from is inside this page: save any file with its button, no folder "
-        "needed. The same files are in the results folder and its zip.</p>"
-        '<div class="table-wrap"><table class="sortable"><thead><tr><th>file</th><th>size</th>'
-        f"<th></th></tr></thead><tbody>{rows}</tbody></table></div></section>"
-    )
 
 
 def _on_page(term: Any, text: str) -> bool:
@@ -170,7 +125,7 @@ def _glossary_drawer(page: str) -> str:
         )
         parts.append(
             f'<dt id="{slug(term)}">{html.escape(term.name)}</dt><dd>{html.escape(term.meaning)}'
-            f'<span class="where">Where: {unnumbered(html.escape(term.where))}.</span>'
+            f'<span class="where">Where: {_unnumbered(html.escape(term.where))}.</span>'
             + (f'<span class="refs">See: {refs}</span>' if refs else "")
             + "</dd>"
         )
@@ -180,11 +135,20 @@ def _glossary_drawer(page: str) -> str:
 
 _TERMS = Terms()
 _INTROS: dict[str, str] = dict(INTROS)
+# The chip words the results decide (``chip_words``) and the report's observations, set
+# per page like the intros.
+_WORDS: dict[str, str] = {}
+_UNITS = {"words": "cells"}
+
+
+def _unnumbered(markup: str) -> str:
+    """``unnumbered`` in this page's words for its observations."""
+    return unnumbered(markup, _UNITS["words"])
 
 
 def _html(text: str) -> str:
     """The report's text as HTML, under this page's titles, its terms linked."""
-    return _TERMS.annotate(unnumbered(text_html(text)))
+    return _TERMS.annotate(_unnumbered(text_html(text)))
 
 
 def _section(
@@ -214,7 +178,7 @@ def _section(
     return _card(
         key,
         title or TITLES.get(key, key),
-        chip(status, key, found or answer or ""),
+        chip(status, key, found or answer or "", _WORDS.get(key)),
         head + body + next_steps,
     )
 
@@ -382,6 +346,9 @@ def html_report(
     # The "?" help in the report's words for its observations (tracks, patches).
     _INTROS.clear()
     _INTROS.update(intros_for(result.setup.unit_words, result.setup.observation_unit or "object"))
+    _WORDS.clear()
+    _WORDS.update(chip_words(result))
+    _UNITS["words"] = result.setup.unit_words
     figures = folder / "figures"
     figures.mkdir(parents=True, exist_ok=True)
     # Allow for file systems that store modification times to the second.
@@ -414,7 +381,8 @@ def html_report(
         if status is not None:
             glance.append(
                 f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(titles[key])}'
-                f'<br>{chip(status, key, headlines.get(key, ""))}</span><span class="a">'
+                f"<br>{chip(status, key, headlines.get(key, ''), _WORDS.get(key))}</span>"
+                '<span class="a">'
                 f"{html.escape(headlines.get(key, ''))}</span></a>"
             )
     for anchor, label in (
@@ -467,14 +435,14 @@ def html_report(
             # Every feature alike: the summary, then one feature at a time (_html_enough).
             word = group_word(result.results.get("sufficiency"))
             fields = field_words(next(iter(features.contrasts.values())))[1]
-            extra = enough_body(features, short, word, fields, _TERMS.annotate, unnumbered)
+            extra = enough_body(features, short, word, fields, _TERMS.annotate, _unnumbered)
             answer = None
         elif reading:
             # The reading answers in sentences, so the headline is not repeated above it.
             lines = "".join(f"<p>{html.escape(line)}</p>" for line in reading)
             extra = _TERMS.annotate(
                 f'<div class="reading">{lines}</div><h3>The numbers</h3>'
-                + unnumbered(text_html(short))
+                + _unnumbered(text_html(short))
             )
             answer = None
         if key == "enough":
@@ -512,8 +480,8 @@ def html_report(
     }
     if result.discovery is not None and len(result.discovery.tests):
         texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
-    files = _files(folder, texts, [Path(p) for p in attach], started)
-    cards.append(_files_card(files))
+    files = page_files(folder, texts, [Path(p) for p in attach], started)
+    cards.append(files_card(files))
     # The page names the q-value the adjusted p (owner, 2026-10-02).
     cards = [adjusted_p(card) for card in cards]
     stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
@@ -532,7 +500,7 @@ def html_report(
         + "</footer></main></div>"
         + adjusted_p(_glossary_drawer(subtitle + "".join(cards)))
         + '<script type="application/json" id="files-data">'
-        + json.dumps(files, separators=(",", ":"))
+        + json_island(files)
         + f"</script><script>{SCRIPT}</script>"
         + _plotly_scripts(specs, bool(viz))
         + "</body></html>"
@@ -547,7 +515,7 @@ def _plotly_scripts(specs: list[dict], embedding: bool) -> str:
     the page has no interactive figure."""
     if not specs and not embedding:
         return ""
-    data = json.dumps(specs, separators=(",", ":")).replace("</", "<\\/")
+    data = json_island(specs)
     return (
         f'<script type="application/json" id="feature-data">{data}</script>'
         f"<script>{plotly_js()}</script><script>{PLOTLY_SCRIPT}</script>"

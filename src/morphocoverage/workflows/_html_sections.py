@@ -31,7 +31,7 @@ from ..retrospective.report import QUESTIONS, SHORT_QUESTIONS
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.reading_text import CONFIRMED, condition_readings
-from ..sampling_unit.repeat_plan import MAX_REPEATS
+from ..sampling_unit.repeat_plan import MAX_REPEATS, POWER
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
 from ..sufficiency_short import rule_tallies
@@ -101,7 +101,6 @@ INTROS = {
 
 def intros_for(units: str, one: str) -> dict[str, str]:
     """``INTROS`` in the report's own words for its observations (tracks, patches)."""
-    import re
 
     def words(text: str) -> str:
         text = re.sub(r"\bcells\b", units, text)
@@ -213,7 +212,7 @@ def _repeats_advice(contrast: Any, fields: str) -> str:
         low, high = int(values.min()), int(values.max())
         about = f"{low}" if low == high else f"{low} to {high}"
         names = listing(list(finite["condition"].astype(str)), 4)
-        parts.append(f"{names}: about {about} biological repeats in all for 80% power")
+        parts.append(f"{names}: about {about} biological repeats in all for {rate(POWER)} power")
     if len(beyond):
         names = listing(list(beyond["condition"].astype(str)), 4)
         parts.append(
@@ -336,9 +335,9 @@ _QUESTION = re.compile(r"\b[Qq]uestion (\d)\b")
 _FOUNDATION = re.compile(r"\b(?:the )?Foundation\b")
 
 
-def unnumbered(markup: str) -> str:
+def unnumbered(markup: str, units: str = "cells") -> str:
     """``markup`` with the text report's numbered titles and "question N" given the titles of
-    this page, which has no numbers."""
+    this page, which has no numbers (the Foundation's in the report's ``units``)."""
     markup = _TITLE.sub(lambda m: html.escape(_NUMBERED[m.group(0)]), markup)
 
     def title(match: re.Match) -> str:
@@ -346,7 +345,8 @@ def unnumbered(markup: str) -> str:
         name = TITLES.get(key) or _NUMBERED.get(dict(QUESTIONS).get(key, ""), "")
         return f"\u201c{html.escape(name)}\u201d" if name else match.group(0)
 
-    markup = _FOUNDATION.sub(f"\u201c{html.escape(TITLES['unit'])}\u201d", markup)
+    unit = f"Why count fields, and not only {units}?"
+    markup = _FOUNDATION.sub(f"\u201c{html.escape(unit)}\u201d", markup)
     return _QUESTION.sub(title, markup)
 
 

@@ -16,7 +16,7 @@ from ..plots_embedding import embedding_figures
 from ..plots_pairwise import add_pairwise, pairwise_contrasts
 from ..sampling_unit import FeatureDiscovery, FeatureRanking
 from ..sampling_unit.ranking import TOP_FEATURES
-from ._rare_share import compared_columns, with_share
+from ._rare_share import compared_columns, plotted_values, share_column, with_share
 from ._shared import check_workflow_inputs
 from .setup import Setup
 
@@ -68,18 +68,36 @@ def plots(
     if undeclared:
         raise ValueError(f"features to plot must be declared in the setup: {undeclared}")
     prepared = with_share(setup.prepared(objects, fovs), setup)
-    figures = plots_of_data(
-        prepared,
-        fovs,
-        features=chosen,
-        random_state=settings.pop("random_state", setup.random_state),
-        value_note=settings.pop(
+    options = {
+        "random_state": settings.pop("random_state", setup.random_state),
+        "value_note": settings.pop(
             "value_note", None if setup.normalize is None else "relative to control"
         ),
-        control=settings.pop("control", setup.control),
+        "control": settings.pop("control", setup.control),
         **settings,
-        **setup.common,
+    }
+    share = share_column(setup)
+    figures = (
+        plots_of_data(
+            prepared,
+            fovs,
+            features=[f for f in chosen if f != share],
+            **options,
+            **setup.common,
+        )
+        if any(f != share for f in chosen)
+        else {}
     )
+    if share in chosen:
+        # The labelled share, one point per field: the field's share of its cells.
+        figures[share] = plots_of_data(
+            plotted_values(prepared, fovs, setup, share),
+            fovs,
+            features=[share],
+            **options,
+            **{**setup.common, "observation_unit": "field"},
+        )[share]
+        figures = {f: figures[f] for f in chosen}
     if pairwise:
         _add_pairwise(figures, prepared, fovs, setup)
     if folder is not None:

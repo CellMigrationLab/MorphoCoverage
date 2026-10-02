@@ -24,7 +24,7 @@ import pandas as pd
 
 from .._data_rules import _loose
 from .._former_repeat import one_warning, read_former
-from .._style import check_detail, group_columns, wrap
+from .._style import Status, check_detail, group_columns, wrap
 from .._style import table as style_table
 from .._wording import column_word, count
 from ..data_check import DataCheck, Problem, validate_input_tables
@@ -35,6 +35,7 @@ from ..metadata import (
     sorted_labels,
 )
 from ..schema import fov_positions, unit_plural
+from ._value_checks import value_checks
 from .report_status import data_check_status
 
 MAX_FEATURES_LISTED = 12
@@ -71,6 +72,8 @@ class DatasetOverview:
       the values each within-field coordinate takes per field, and the
       normalisation applied.
     - ``warnings``: the data check's warnings (``check_tables``), when one was given.
+    - ``value_checks``: the checks of the values that found something (``_value_checks``:
+      fields more alike than chance, features with few distinct values), as sentences.
     """
 
     counts: dict[str, int]
@@ -78,6 +81,7 @@ class DatasetOverview:
     features: tuple[str, ...]
     settings: dict[str, Any]
     warnings: tuple[Problem, ...] = ()
+    value_checks: tuple[str, ...] = ()
 
     def summary(self, max_features_listed: int = MAX_FEATURES_LISTED, detail: str = "short") -> str:
         """``"short"``: what the tables hold in a few lines, with the data checks' marker;
@@ -120,6 +124,7 @@ class DatasetOverview:
             lines.append(f"{axis!r}: {low} to {high} planes per field, one field each.")
         status, text = data_check_status(self)
         lines.append(f"{status.marker} {text[:1].upper()}{text[1:]}.")
+        lines += [f"{Status.CAUTION.marker} {check}" for check in self.value_checks]
         return lines
 
     def _design_line(self) -> str | None:
@@ -268,6 +273,7 @@ class DatasetOverview:
             lines += [f"  - {problem.title}" for problem in self.warnings]
         else:
             lines.append(f"{status.marker} {text[:1].upper()}{text[1:]}.")
+        lines += [f"{Status.CAUTION.marker} {check}" for check in self.value_checks]
         return "\n".join(lines)
 
 
@@ -375,7 +381,8 @@ def dataset_overview(
         "data_checked": data_check is not None,
     }
     warnings = tuple(data_check.warnings) if data_check is not None else ()
-    return DatasetOverview(counts, layout, tuple(data.feature_cols), settings, warnings)
+    checks = value_checks(data)
+    return DatasetOverview(counts, layout, tuple(data.feature_cols), settings, warnings, checks)
 
 
 def normalized_sentence(control: Mapping[str, Any], repeat_col: str | None) -> str:

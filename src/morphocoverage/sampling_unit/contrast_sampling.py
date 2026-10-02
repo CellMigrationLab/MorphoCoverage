@@ -13,6 +13,9 @@ each draw. From the draws:
   percentile interval);
 - **resolved**: the interval excludes 0, so the fields acquired give the
   difference's sign, whatever field-to-field variation they carry;
+- **the sampling error of the repeat's value**: the draws' standard deviation of the
+  difference of means and of the log of their ratio, the values the paired t-test across
+  repeats compares (``repeat_plan`` plans on them);
 - **fields to resolve it**: when not resolved, the fields per side at which
   the interval's half-width, shrinking as ``1 / sqrt(fields)``, would fall
   below |d| (a projection from these fields, not a promise). Beyond
@@ -45,6 +48,8 @@ SAMPLING_COLUMNS = [
     "resolved",
     "fields_to_resolve",
     "too_small",
+    "difference_se",
+    "log_ratio_se",
 ]
 
 
@@ -74,20 +79,40 @@ def sampling_row(
         "resolved": False,
         "fields_to_resolve": np.nan,
         "too_small": False,
+        "difference_se": np.nan,
+        "log_ratio_se": np.nan,
     }
     n_fields = min(
         sum(1 for u in t_units for f in u if len(f)), sum(1 for u in c_units for f in u if len(f))
     )
     if not np.isfinite(d) or n_fields < 2:
         return empty
-    draws = np.array([cohen_d(_draw(t_units, rng), _draw(c_units, rng)) for _ in range(n_boot)])
-    draws = draws[np.isfinite(draws)]
+    sampled = []
+    for _ in range(n_boot):
+        treated, control = _draw(t_units, rng), _draw(c_units, rng)
+        sampled.append((cohen_d(treated, control), treated.mean(), control.mean()))
+    values = np.array(sampled, dtype=float)
+    values = values[np.isfinite(values[:, 0])]
+    draws = values[:, 0]
     if len(draws) < n_boot / 2:
         return empty
     tail = (1 - level) / 2
     low, high = np.quantile(draws, [tail, 1 - tail])
     resolved = bool(low > 0 or high < 0)
-    row = {**empty, "d_low": float(low), "d_high": float(high), "resolved": resolved}
+    row = {
+        **empty,
+        "d_low": float(low),
+        "d_high": float(high),
+        "resolved": resolved,
+        "difference_se": float(np.std(values[:, 1] - values[:, 2], ddof=1)),
+    }
+    # The log ratio from the draws whose means are both positive (a draw of only the lowest
+    # fields can reach 0), when most are: the test takes the log ratios when the acquired
+    # means are positive, whatever a few draws give.
+    positive = (values[:, 1] > 0) & (values[:, 2] > 0)
+    if positive.sum() >= n_boot / 2:
+        ratios = np.log(values[positive, 1] / values[positive, 2])
+        row["log_ratio_se"] = float(np.std(ratios, ddof=1))
     if not resolved:
         half = (high - low) / 2
         needed = n_fields * (half / abs(d)) ** 2 if d else np.inf

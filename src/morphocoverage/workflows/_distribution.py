@@ -23,8 +23,10 @@ from ..sampling_unit.distribution import (
     distribution_contrast,
     tests_words,
 )
+from ..schema import unit_plural
 
 if TYPE_CHECKING:
+    from ..retrospective import MicroscopistReport
     from .setup import Setup
 
 HEAD = "Beyond the mean"
@@ -58,11 +60,34 @@ def _named(rows: pd.DataFrame) -> list[str]:
     return [f"{r.feature} ({_NAMES[r.statistic]}, q {p_value(r.q)})" for r in best.itertuples()]
 
 
-def _condition_line(condition: Any, rows: pd.DataFrame) -> str:
+def split_words(result: DistributionContrast | None, condition: Any) -> str:
+    """``its cells may split into two groups on area (bimodality 0.62, the control 0.41, in 3 of
+    3 repeats; see its figure)``, or empty when the condition splits no feature."""
+    splits = result.splits() if result is not None else pd.DataFrame()
+    mine = splits[splits["condition"] == condition] if len(splits) else splits
+    if mine.empty:
+        return ""
+    unit = result.settings.get("observation_unit") or "observation"
+    named = [
+        f"{r.feature} (bimodality coefficient {r.bimodality:.2f}, the control "
+        f"{r.control_bimodality:.2f}, in {r.split_repeats} of {r.repeats} repeats)"
+        for r in mine.itertuples()
+    ]
+    figures = "its figure" if len(mine) == 1 else "their figures"
+    return (
+        f"its {unit_plural(unit)} may split into two groups on {listing(named, 4)}, where "
+        f"the control's do not (see {figures})"
+    )
+
+
+def _condition_line(condition: Any, rows: pd.DataFrame, result: DistributionContrast) -> str:
     significant = rows[rows["q"] <= 0.05]
     trend = _consistent(rows)
     trend = trend[~trend["feature"].isin(significant["feature"])]
     parts = []
+    split = split_words(result, condition)
+    if split:
+        parts.append(split)
     if len(significant):
         parts.append("differs beyond the mean: " + listing(_named(significant), 6))
     if len(trend):
@@ -93,7 +118,7 @@ def distribution_text(result: DistributionContrast, unit: str = "cells") -> str:
     )
     lines = [intro]
     for condition, rows in tests.groupby("condition", sort=False):
-        lines.append(wrap(_condition_line(condition, rows), 4, hang=6))
+        lines.append(wrap(_condition_line(condition, rows, result), 4, hang=6))
     grid = tests.pivot_table(
         index=["condition", "feature"], columns="statistic", values="p", aggfunc="first", sort=False
     )
@@ -143,7 +168,9 @@ def _insert(text: str, paragraph: str) -> str:
     return f"{text[:at]}\n{paragraph}{text[at:]}"
 
 
-def with_distribution(document: Any, result: DistributionContrast | None, unit: str = "cells"):
+def with_distribution(
+    document: MicroscopistReport, result: DistributionContrast | None, unit: str = "cells"
+) -> MicroscopistReport:
     """The report with the distributions compared in question 9: the paragraph in the short
     and full forms, the headline extended, and a difference answering the question."""
     if result is None:
@@ -167,4 +194,10 @@ def with_distribution(document: Any, result: DistributionContrast | None, unit: 
     return replace(document, short=short, sections=sections, headlines=headlines, statuses=statuses)
 
 
-__all__ = ["HEAD", "distribution_by_feature", "distribution_headline", "with_distribution"]
+__all__ = [
+    "HEAD",
+    "distribution_by_feature",
+    "distribution_headline",
+    "split_words",
+    "with_distribution",
+]

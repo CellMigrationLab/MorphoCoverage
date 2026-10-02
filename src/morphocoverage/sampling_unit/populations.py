@@ -20,7 +20,8 @@ a Gaussian and a straight line into populations and missed two separate blobs):
 
 - the **main** population, when one cluster holds more than ``MAIN_SHARE`` of the
   observations: the rest of the cells, listed when another kind is found;
-- a **distinct** population (``P2``, ``P3``, ... after the main ``P1``): the density along
+- a **distinct** population (``P1``, ``P2``, ..., numbered after the main population when
+  there is one, which is then ``P1``): the density along
   the line from the rest of the observations to the cluster dips between them to at most
   ``VALLEY`` of the lower of the two peaks (a gap of low density);
 - a **group on the map** (``G1``, ``G2``, ...): no such gap, but ``PURITY`` or more of its
@@ -50,6 +51,7 @@ from .._checks import as_count, check_seed
 from ..embedding import _sample, _standardised
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import fov_positions, validate_input_tables
+from ..statistics import cohen_d
 
 VARIANCE = 0.9
 MAX_COMPONENTS = 10
@@ -119,8 +121,6 @@ def _cluster(points: np.ndarray, min_cells: int) -> np.ndarray:
     """HDBSCAN labels (-1 unassigned); imported here, as umap-learn brings scikit-learn."""
     from sklearn.cluster import HDBSCAN
 
-    if len(points) < 2 * min_cells:
-        return np.full(len(points), -1)
     return HDBSCAN(min_cluster_size=min_cells, copy=True).fit_predict(points)
 
 
@@ -181,8 +181,15 @@ def _purity(z: np.ndarray, member: np.ndarray) -> float:
     k = min(NEIGHBOURS, len(z) - 1)
     if k < 1 or not member.any():
         return 0.0
-    _, nearest = cKDTree(z).query(z[member], k=k + 1)
-    return float(member[nearest[:, 1:]].mean())
+    rows = np.flatnonzero(member)
+    _, nearest = cKDTree(z).query(z[rows], k=k + 1)
+    # Each observation's own row out, wherever the tree put it (an exact duplicate can come
+    # first); without it among the k + 1, the farthest.
+    own = nearest == rows[:, None]
+    drop = np.where(own.any(axis=1), own.argmax(axis=1), k)
+    keep = np.ones_like(nearest, dtype=bool)
+    keep[np.arange(len(rows)), drop] = False
+    return float(member[nearest[keep].reshape(len(rows), k)].mean())
 
 
 def _defining(
@@ -192,16 +199,19 @@ def _defining(
     inside, outside = z[member], z[~member]
     if len(inside) < 2 or len(outside) < 2:
         return []
-    pooled = np.sqrt((inside.var(axis=0, ddof=1) + outside.var(axis=0, ddof=1)) / 2)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        d = (inside.mean(axis=0) - outside.mean(axis=0)) / pooled
+    d = np.array([cohen_d(inside[:, j], outside[:, j]) for j in range(z.shape[1])])
     order = np.argsort(-np.abs(np.nan_to_num(d)))
     return [(features[i], float(d[i])) for i in order[:DEFINING] if np.isfinite(d[i])]
 
 
 def defined_by(pairs: Sequence[tuple[str, float]]) -> str:
     """``high dna_intensity (d +4.1), low area (d -2.3)``."""
-    return ", ".join(f"{'high' if d > 0 else 'low'} {f} (d {d:+.1f})" for f, d in pairs)
+    return ", ".join(f"{traits([(f, d)])} (d {d:+.1f})" for f, d in pairs)
+
+
+def traits(pairs: Sequence[tuple[str, float]]) -> str:
+    """``high dna_intensity, low area``: the defining features without their d."""
+    return ", ".join(f"{'high' if d > 0 else 'low'} {f}" for f, d in pairs)
 
 
 def _kinds(raw: np.ndarray, z: np.ndarray) -> dict[int, tuple[str | None, float, float]]:
@@ -274,7 +284,10 @@ def find_populations(
     conditions = meta[CONDITION_COLUMN].to_numpy() if CONDITION_COLUMN in meta else np.zeros(n)
     sample = _sample(conditions, max_points, np.random.default_rng(random_state))
     raw = np.full(n, -1)
-    if len(kept) and len(sample) >= 2 * size + 2:
+    # Too few observations (or no feature that varies) for two clusters of ``size``: not
+    # clustered, which is not a continuum.
+    clustered = bool(len(kept)) and len(sample) >= 2 * size + 2
+    if clustered:
         raw[sample] = _cluster(_embedding(z[sample], random_state), size)
     if len(sample) < n:
         from scipy.spatial import cKDTree
@@ -324,6 +337,7 @@ def find_populations(
         "incomplete_observations": int((~complete).sum()),
         "assigned": float(np.isin(raw, list(names)).mean()) if n else 0.0,
         "sampled": len(sample),
+        "clustered": clustered,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
     }

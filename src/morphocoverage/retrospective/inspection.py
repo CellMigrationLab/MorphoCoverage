@@ -365,6 +365,36 @@ def _check(
     return summaries
 
 
+def field_rows(
+    group: dict[str, Any], group_data: ValidatedInput, found: list[dict], trace: Sequence[str]
+) -> list[dict[str, Any]]:
+    """The inspection's rows for ``found`` (each a reason with the field's ``position`` in
+    ``group_data.fovs``): the group, the field's key and trace columns, the reason and its
+    numbers, and the field's observation count beside the group's median."""
+    if not found:
+        return []
+    positions = fov_positions(group_data, group_data.fovs)
+    counts = np.bincount(positions[positions >= 0], minlength=len(group_data.fovs))
+    median = float(np.median(counts))
+    key_cols = [c for c in group_data.fov_key if c not in group]
+    rows = []
+    for item in found:
+        fov = group_data.fovs.iloc[item["position"]]
+        rows.append(
+            {
+                **group,
+                **{c: fov[c] for c in key_cols},
+                **{c: fov[c] for c in trace if c not in key_cols},
+                "reason": item["reason"],
+                "detail": item["detail"],
+                "value": item["value"],
+                "observations": int(counts[item["position"]]),
+                "median_observations": median,
+            }
+        )
+    return rows
+
+
 def inspect_fovs(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -464,26 +494,7 @@ def inspect_fovs(
             )
         for entry in (*skipped, *neighbours_skipped, *novelty_skipped):
             entry.setdefault("label", group_label(group))  # the group as the summaries name it
-        if not found:
-            continue
-        positions = fov_positions(group_data, group_data.fovs)
-        counts = np.bincount(positions, minlength=len(group_data.fovs))
-        median = float(np.median(counts))
-        key_cols = [c for c in group_data.fov_key if c not in group]
-        for item in found:
-            fov = group_data.fovs.iloc[item["position"]]
-            rows.append(
-                {
-                    **group,
-                    **{c: fov[c] for c in key_cols},
-                    **{c: fov[c] for c in trace if c not in key_cols},
-                    "reason": item["reason"],
-                    "detail": item["detail"],
-                    "value": item["value"],
-                    "observations": int(counts[item["position"]]),
-                    "median_observations": median,
-                }
-            )
+        rows += field_rows(group, group_data, found, trace)
     settings = {
         "summaries": [{"feature": s.feature, "statistic": s.statistic} for s in summaries],
         "novelty": None if novelty is None else dict(novelty.parameters),

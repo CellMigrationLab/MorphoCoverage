@@ -32,9 +32,9 @@ from __future__ import annotations
 
 import re
 import warnings
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeVar
 
 import pandas as pd
 
@@ -55,6 +55,8 @@ from ..metadata import (
 )
 from ..sampling_unit.contrast_cells import IMBALANCE, sparse
 from .setup import Setup
+
+T = TypeVar("T")
 
 # The image identifier the scan adds when the tables have none: one image per row.
 ADDED_FOV_COLUMN = "position_id"
@@ -260,7 +262,9 @@ def reagent_groups(conditions: Sequence[Any], control: Any = None) -> dict[str, 
     return {t: members for t, members in groups.items() if len(members) > 1}
 
 
-def _fov_column(objects: pd.DataFrame, fovs: pd.DataFrame | None, fov_col: str | None):
+def _fov_column(
+    objects: pd.DataFrame, fovs: pd.DataFrame | None, fov_col: str | None
+) -> str | None:
     """The field identifier: ``fov_col``, else the first MorphoBricks candidate with values."""
     if fov_col is not None:
         return fov_col
@@ -392,7 +396,7 @@ def _constant(objects: pd.DataFrame, features: Sequence[str]) -> list[str]:
     return found
 
 
-def _quiet(function, *args, **kwargs):
+def _quiet(function: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """``function`` with its ``UserWarning`` s caught: the scan reports what they say."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)

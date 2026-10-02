@@ -541,6 +541,8 @@ _NO_TEST = {
     "resolved": False,
     "fields_to_resolve": np.nan,
     "too_small": False,
+    "difference_se": np.nan,
+    "log_ratio_se": np.nan,
 }
 
 

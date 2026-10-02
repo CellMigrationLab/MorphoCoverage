@@ -32,12 +32,14 @@ from ..evaluator import FovSubsets, iter_analysis_groups
 from ..schema import validate_input_tables
 
 if TYPE_CHECKING:
+    from ..retrospective import MicroscopistReport
     from .setup import Setup
 
 SPLITS = 20
 MIN_FIELDS = 4
-# The share of a group's fields optimise holds back in the lab runs (reservoir_fraction).
-HELD_BACK = 0.5
+# The share of a group's fields optimise holds back (reservoir_fraction), as the page's
+# "What to do next" runs it (``_html_next``) and docs/workflows.md shows it.
+HELD_BACK = 0.35
 
 
 def fingerprint_precision(
@@ -128,7 +130,8 @@ def fingerprint_lines(table: pd.DataFrame, word: str, fields: str) -> list[str]:
             )
         if (judged["held_back_error"] > judged["tolerance"]).all():
             text += (
-                f" Optimise judges it on held-back {fields}: holding back half of a {word}'s "
+                f" Optimise judges it on held-back {fields}: holding back {rate(HELD_BACK)} of a "
+                f"{word}'s "
                 f"{fields}, their own error (about {_number(judged['held_back_error'].median())}) "
                 "exceeds the tolerance, so it cannot confirm this target; this estimate is the "
                 "guide."
@@ -159,7 +162,9 @@ def rare_lines(clustering: Any, setup: Setup, word: str, field: str) -> list[str
     return [wrap(text, 2, hang=4)]
 
 
-def targets_status(clustering: Any, precision: pd.DataFrame | None, setup: Setup):
+def targets_status(
+    clustering: Any, precision: pd.DataFrame | None, setup: Setup
+) -> tuple[list[Status], list[str]]:
     """The status and headline parts of the targets: every group meets them, or not."""
     statuses, parts = [], []
     if clustering is not None and setup.rare is not None:
@@ -179,7 +184,9 @@ def targets_status(clustering: Any, precision: pd.DataFrame | None, setup: Setup
     return statuses, parts
 
 
-def with_targets(document: Any, results: dict[str, Any], setup: Setup, word: str, field: str):
+def with_targets(
+    document: MicroscopistReport, results: dict[str, Any], setup: Setup, word: str, field: str
+) -> MicroscopistReport:
     """The report with the rare and fingerprint targets answered in question 2."""
     clustering = results.get("rare_clustering") if setup.rare is not None else None
     precision = results.get("fingerprint_precision")

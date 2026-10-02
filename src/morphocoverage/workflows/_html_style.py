@@ -110,7 +110,6 @@ a.term .tip { display: none; position: absolute; left: 0; top: 1.5em; z-index: 1
   border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px;
   font-weight: 400; line-height: 1.45; box-shadow: 0 4px 14px rgba(0,0,0,.18); text-align: left; }
 a.term:hover .tip, a.term:focus .tip { display: block; }
-p.intro { color: var(--text-2); margin: 0 0 8px; }
 p.answer { background: var(--surface-2); border-radius: 8px; padding: 8px 12px;
   margin: 8px 0 12px; }
 .reading { border-left: 3px solid var(--link); padding: 2px 0 2px 12px; margin: 10px 0 14px; }

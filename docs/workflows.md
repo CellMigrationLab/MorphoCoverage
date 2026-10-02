@@ -123,12 +123,22 @@ folded under "Show more", in the words of `Report.summary`, its aligned tables a
 tables you can sort by clicking a header.
 
 "The data" gives one row per check with its chip (the data checks; the integrity
-checks, whose fields are listed under "Fields to check") and a line naming what
+checks, whose fields are listed under "Fields to check"; and two checks of the values:
+**fields more alike than chance**, a feature whose field means agree more closely than
+cells drawn at random would let them in at least half of the groups, a lower-tail
+analysis of variance at p < 0.001, as values normalised per image, rounded or copied
+make them; and **few distinct values**, a feature whose most common value holds 90% of
+its observations, or that takes at most 25 values with the most common holding a third,
+kept in the analysis but named) and a line naming what
 was not declared and so not checked; the tables, what was checked (the
 declaration in short lines) and the declaration in full are under "Show more".
 "Fields to check" lists each field to open and why: the fields the integrity
-checks name, then those that sway a declared summary, have an unusual count or
-show a state no other field shows.
+checks name, then those that sway the result, have an unusual count or show a
+state no other field shows. A field sways the result when leaving it out moves its
+condition's mean in its repeat, every cell weighing one as in the paired t-test, by
+10% or more; the reason gives the condition's change against the control and the
+paired t-test's p with the field and without it (a control field: the condition it
+moves most). Without a control, it is the field-weighted mean of its group.
 
 "Do the conditions differ?" opens with the features significant across repeats,
 condition by condition, each with its direction, how many repeats agree, its q and
@@ -146,7 +156,10 @@ beyond the mean, the reagents and planning; what Cohen's d is in each table (per
 repeat or on the cells); and what p and the adjusted p are. Then one table per test
 as tabs, each with p and the adjusted p (Benjamini-Hochberg, the q-value) in their
 own columns and its data as CSV: across repeats, every feature and condition with
-its direction in the repeats and its verdict (raw values folded); the cell-level
+its direction in the repeats, its change against the control (the condition's mean over
+the control's, a fold change; the difference of the means where a mean is not positive,
+so a significant change can be read for its size) and its verdict (raw values folded);
+the summary names the same change beside each significant feature; the cell-level
 screen in the version the report trusts, with how often it gives p ≤ 0.05 with no
 effect for the readout (its other versions folded, never one whose control comes from
 repeats the condition was not imaged in); beyond the mean; reagents; planning. The
@@ -353,12 +366,18 @@ acquired:
   guide.
 - **"Do the conditions differ?"** compares the label's share between the
   conditions like a feature (`"<label> share"`: the ranking, the heatmap, the
-  figures), and, with a fingerprint, each feature's distribution beyond the
+  figures, which plot one point per field, its share of labelled cells, while the
+  tests keep the cells), and, with a fingerprint, each feature's distribution beyond the
   mean: per biological repeat against its own control, the spread (the SD
   ratio) and the 10%, 50% and 90% quantiles (their shift in control SDs), each
   tested across the repeats (Benjamini-Hochberg within each sub-experiment,
   a family of its own). A condition whose distribution differs answers the
-  question like a feature significant across repeats.
+  question like a feature significant across repeats. When a condition's cells
+  may split into two groups on a feature where the control's do not (Sarle's
+  bimodality coefficient above 5/9 for the condition without a heavy tail, excess
+  kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
+  below 5/9 for the control, in at least half of its repeats), the summary says
+  so and points to its figure: described, not tested.
 - **"Are there distinct populations?"** (question 10, in every report) finds
   groups of cells that sit together on all the declared features, from every
   condition pooled. The candidates are the clusters of HDBSCAN (scikit-learn) on a
@@ -687,7 +706,8 @@ dataset's role: keeping the two apart is up to you.
 (`setup.objective()`). Each update ends with one view per target: the
 population summary, the phenotypic fingerprint and the rare phenotype, each
 with the decision of the rules that decide it, then the overall decision. The
-default rules (the mean-precision rule per object and per field) decide the population
+default rules (the mean-precision rule per object and per field; per field only for
+observations that are not objects, such as patches or tracks) decide the population
 summary only; declare a fingerprint or a rare target and the view says that
 no rule decides it until you pass `rules=(...)` with one that does (for
 example a `FOVBootstrapStrategy` on the covariance), and the overall decision

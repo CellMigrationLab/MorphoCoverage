@@ -69,7 +69,7 @@ from .._former_repeat import one_warning, read_former
 from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
 from .._wording import column_word, where
-from ..metadata import REPEAT_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_values, unit_plural
 from ..statistics import (
     describe,
@@ -80,6 +80,7 @@ from ..statistics import (
     spread_is_zero,
 )
 from ._common import canonical_fields, groups, matching_groups, validated
+from ._experiments import repeat_experiments
 from ._unit_text import (
     descriptor_spread_full,
     descriptor_spread_parts,
@@ -184,11 +185,28 @@ def _reference_means(
     within = f" of the same {column_word(repeat_col)}" if repeat_col else ""
     label = f"mean of all objects of the control groups {dict(control)}{within}"
     names = {repr(r): str(r) for _, d in all_groups for r in repeats_of(d)}
-    return means, label, negative, _shift({names[r]: v for r, v in pooled.items()}, repeat_col)
+    # Control means are compared within a sub-experiment only: two sets of a screen, each
+    # with its own control and repeats, are not one control drifting (owner, 2026-10-02).
+    block = (
+        repeat_experiments([g for g, _ in all_groups], chosen, CONDITION_COLUMN, repeat_col)
+        if repeat_col
+        else {}
+    )
+    of_name = {repr(r): block.get(r) for _, d in all_groups for r in repeats_of(d)}
+    # A repeat holding only the control belongs to no sub-experiment: compared with all.
+    blocks: dict[int | None, dict[str, np.ndarray]] = {b: {} for b in set(block.values())}
+    blocks = blocks or {None: {}}
+    for r, values in pooled.items():
+        for b in blocks if of_name.get(r) is None else [of_name[r]]:
+            blocks[b][names[r]] = values
+    shifts = [shift for shift in map(_shift, blocks.values()) if shift is not None]
+    caution = max(shifts)[1] if shifts else None
+    return means, label, negative, caution
 
 
-def _shift(pooled: dict[str, np.ndarray], repeat_col: str | None) -> str | None:
-    """A caution when the repeats' control means differ by more than ``REFERENCE_SHIFT``."""
+def _shift(pooled: dict[str, np.ndarray]) -> tuple[float, str] | None:
+    """The ratio and a caution when the repeats' control means differ by more than
+    ``REFERENCE_SHIFT``; ``None`` below it."""
     levels = {r: float(v.mean()) for r, v in pooled.items() if len(v)}
     if len(levels) < 2 or min(levels.values()) <= 0:
         return None
@@ -196,7 +214,7 @@ def _shift(pooled: dict[str, np.ndarray], repeat_col: str | None) -> str | None:
     ratio = levels[high] / levels[low]
     if ratio <= REFERENCE_SHIFT:
         return None
-    return (
+    return ratio, (
         f"the control means of the repeats differ by {ratio:.1f}x (repeat {low}: "
         f"{levels[low]:.3g}, repeat {high}: {levels[high]:.3g}); each repeat is judged "
         "against its own control, but a shift that large may be a batch effect or a change "

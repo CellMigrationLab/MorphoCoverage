@@ -19,12 +19,15 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from .._style import Status, group_label
-from .._wording import count, listing, p_value
+from .._wording import change, count, listing, p_value
 from ..retrospective.inspection_text import _fields, _keys
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.reading_text import VERDICTS, condition_readings
+from ._distribution import split_words
+from ._enough_features import NOT_YET
 
 _MARKERS = {status.marker: status for status in Status}
 _MARKER_LINE = re.compile(r"^\s*(✅|⚠️|❌|➖)\s+(.*)$")
@@ -51,6 +54,8 @@ def help_icon(text: str | None) -> str:
 
 
 def check_chip(status: Status) -> str:
+    """The chip of one check of "The data": its marker and word ("OK", "Please check",
+    "Partly checked")."""
     kind, word = _CHECK_WORDS[status]
     icon = f'<span aria-hidden="true">{status.marker}</span>'
     return f'<span class="chip {kind}">{icon} {word}</span>'
@@ -141,6 +146,7 @@ def _field_values(name: str, key: list[str]) -> tuple[str, ...] | None:
 
 
 def fields_table(rows: list[tuple[str, str]], annotate: Callable[[str], str]) -> str:
+    """The fields to check, one row per field with why, sortable."""
     body = "".join(
         f"<tr><td>{html.escape(field)}</td><td>{annotate(html.escape(why))}</td></tr>"
         for field, why in rows
@@ -164,20 +170,30 @@ def _named(rows: Any, words: Callable[[Any], str]) -> str:
     return f"<ul>{''.join(shown)}</ul>"
 
 
+def _change(row: Any) -> str:
+    """The change against the control, as the paired test compares it (``×1.25``)."""
+    value = getattr(row, "change", np.nan)
+    return change(value, getattr(row, "paired_values", "")) if pd.notna(value) else ""
+
+
 def _significant(row: Any) -> str:
     q = f"adjusted p {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
+    size = ", ".join(x for x in (_change(row), q) if x)
+    # The direction and its count from the repeats, as the test across repeats reads them.
+    word = "higher" if row.higher >= row.lower else "lower"
     return (
-        f"{row.feature}: {_direction(row)} in {max(row.lower, row.higher)} of {row.repeats} "
-        f"repeats ({q}; cell-level d {row.d:+.2f})"
+        f"{row.feature}: {word} in {max(row.lower, row.higher)} of {row.repeats} "
+        f"repeats ({size}; cell-level d {row.d:+.2f})"
     )
 
 
 def _candidate(row: Any) -> str:
     q = p_value(row.q_cells)
-    return f"{row.feature}: {_direction(row)} (cell-level d {row.d:+.2f}, adjusted p {q})"
+    size = f"{_change(row)}, " if _change(row) else ""
+    return f"{row.feature}: {_direction(row)} ({size}cell-level d {row.d:+.2f}, adjusted p {q})"
 
 
-def _condition_bullet(condition: Any, rows: Any, beyond: list[str]) -> str:
+def _condition_bullet(condition: Any, rows: Any, beyond: list[str], split: str = "") -> str:
     rows = rows.assign(_size=rows["d"].abs()).sort_values("_size", ascending=False)
     repeats = int(rows["repeats"].max())
     name = f"<strong>{html.escape(str(condition))}</strong>"
@@ -213,6 +229,8 @@ def _condition_bullet(condition: Any, rows: Any, beyond: list[str]) -> str:
         listed = _named(kept, _candidate) if len(kept) else ""
     if beyond:
         words += f"; beyond the mean, the distribution differs for {listing(beyond, 4)}"
+    if split:
+        words += f"; {split}"
     return f"<li>{name}: {html.escape(words)}{listed}</li>"
 
 
@@ -247,7 +265,8 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
         if differing is not None and len(differing):
             mine = differing[differing["condition"] == condition]
             beyond = [str(f) for f in mine["feature"]]
-        bullets.append(_condition_bullet(condition, rows, beyond))
+        split = split_words(distribution, condition)
+        bullets.append(_condition_bullet(condition, rows, beyond, split))
     return (
         f'<div class="summary"><p>{annotate(html.escape(head))}</p>'
         f'<ul class="significant">{annotate("".join(bullets))}</ul></div>'
@@ -283,9 +302,21 @@ def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
     )
 
 
+def chip_words(result: Any) -> dict[str, str]:
+    """The chip words the results decide, by question, where the headline's words could
+    mislead: "Not yet" when no feature has enough fields to compare with the control."""
+    words = {}
+    features = (getattr(result, "results", {}) or {}).get("enough_features")
+    table = getattr(features, "table", None)
+    if table is not None and len(table) and (table["verdict"] == NOT_YET).all():
+        words["enough"] = "Not yet"
+    return words
+
+
 __all__ = [
     "check_chip",
     "check_rows",
+    "chip_words",
     "fields_table",
     "flagged_fields",
     "help_icon",

@@ -17,6 +17,13 @@ import numpy as np
 from scipy import stats
 
 from ._checks import is_integer, is_number
+from ._repeat_statistics import (
+    BIMODAL,
+    bimodality_coefficient,
+    excess_kurtosis,
+    paired_t,
+    repeat_values,
+)
 
 # Relative size below which a mean, a spread or a variance is rounding noise
 # of a zero one: a constant such as 0.1 leaves an SD of about 1e-17, not 0.
@@ -137,18 +144,15 @@ def benjamini_hochberg(p_values: np.ndarray) -> np.ndarray:
     """Benjamini-Hochberg adjusted p-values (q-values); NaN entries are ignored and kept NaN.
 
     ``q_i = min over j >= i of (m p_(j) / j)`` over the ``m`` finite p-values in
-    increasing order, capped at 1, as fiberfeatures corrects its per-feature
-    randomization tests before gating them.
+    increasing order, capped at 1 (``scipy.stats.false_discovery_control``), as
+    fiberfeatures corrects its per-feature randomization tests before gating them.
     """
     p = np.asarray(p_values, dtype=float)
     q = np.full(p.shape, np.nan)
-    finite = np.flatnonzero(np.isfinite(p))
-    if not len(finite):
-        return q
-    order = finite[np.argsort(p[finite], kind="stable")]
-    m = len(order)
-    ranked = p[order] * m / np.arange(1, m + 1)
-    q[order] = np.minimum(1.0, np.minimum.accumulate(ranked[::-1])[::-1])
+    finite = np.isfinite(p)
+    if finite.any():
+        # scipy's implementation (it refuses NaN, so the finite p-values only).
+        q[finite] = stats.false_discovery_control(p[finite], method="bh")
     return q
 
 
@@ -544,9 +548,11 @@ def median_standard_error(values: np.ndarray) -> float | None:
 
 
 __all__ = [
+    "BIMODAL",
     "PAPER_DESCRIPTORS",
     "RELATIVE_TOLERANCE",
     "benjamini_hochberg",
+    "bimodality_coefficient",
     "bootstrap_fields",
     "bootstrap_nested",
     "cluster_size",
@@ -554,6 +560,7 @@ __all__ = [
     "describe",
     "design_effect",
     "effective_sd_upper_bound_factor",
+    "excess_kurtosis",
     "field_sample",
     "field_weighted_mean_se",
     "fields_holding",
@@ -566,6 +573,8 @@ __all__ = [
     "median_standard_error",
     "nested_variance_components",
     "object_weighted_mean_se",
+    "paired_t",
+    "repeat_values",
     "sd_upper_bound_factor",
     "small_sample_widening",
     "spread_is_zero",

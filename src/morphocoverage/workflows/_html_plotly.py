@@ -6,7 +6,7 @@ plotly.js in the page from the numbers of the static figures.
 - ``feature_specs``: per static figure of ``workflows.plots`` (one feature, one part of its
   conditions), the data the page's script draws: every observation as a point at its
   cluster (a condition and biological repeat, side by side as in the static figure), in
-  its condition's colour (``_html_figures.COLOURS``, as the PCA and UMAP), with its repeat,
+  its condition's colour (``_palette.COLOURS``, as the PCA and UMAP), with its repeat,
   technical repeat and field on hover; each cluster's summary and interval, the very
   numbers of the static figure (``Figure.cluster_summaries``); and every pair of conditions
   (``Figure.pairwise``) for the matrix under it. Beyond ``MAX_POINTS`` observations a
@@ -23,10 +23,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._palette import COLOURS
 from ..data_check import validate_input_tables
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..plots_pairwise import ALPHA, D_CAP, format_p, p_shade
+from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..schema import fov_positions
+from ._rare_share import plotted_values
 
 ASSET = Path(__file__).with_name("assets") / "plotly-cartesian.min.js"
 MAX_POINTS = 4000
@@ -44,8 +47,12 @@ def _number(value: Any, digits: int = 4) -> float | None:
     return round(value, digits) if np.isfinite(value) else None
 
 
-def _observations(prepared: pd.DataFrame, fovs: pd.DataFrame, feature: str, setup: Any):
-    """Every observation's value and labels, on the values the static figures plot."""
+def _observations(
+    prepared: pd.DataFrame, fovs: pd.DataFrame, feature: str, setup: Any
+) -> pd.DataFrame:
+    """Every observation's value and labels, on the values the static figures plot (the
+    labelled share per field, ``_rare_share.plotted_values``)."""
+    prepared = plotted_values(prepared, fovs, setup, feature)
     data = validate_input_tables(prepared, fovs=fovs, feature_cols=[feature], **setup.common)
     meta = data.fovs.iloc[fov_positions(data, data.fovs)].reset_index(drop=True)
     frame = pd.DataFrame({"value": data.feature_values(feature)})
@@ -144,7 +151,7 @@ def _paired_panel(lookup: dict, names: list[Any]) -> dict[str, Any]:
                 f"({pair.paired_values}), {what} {text[i][j]}"
                 if np.isfinite(value)
                 else f"{row} and {column}: not tested ({pair.shared_repeats} repeats imaged "
-                "both, fewer than 3)"
+                f"both, fewer than {MIN_REPEATS})"
             )
     return {"lower": lower, "upper": upper, "text": text, "hover": hover, "lower_scale": "p"}
 
@@ -225,7 +232,7 @@ def feature_specs(
                     {
                         "name": "all fields" if c is None else str(c),
                         "centre": round(float(centres.loc[c].mean()), 3),
-                        "colour": colours.get(c, "#2a78d6"),
+                        "colour": colours.get(c, COLOURS[0]),
                     }
                     for c in conditions
                 ],

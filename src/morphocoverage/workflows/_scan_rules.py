@@ -326,6 +326,7 @@ def fields_line(scan: DesignScan) -> str:
 
 
 def technical_line(scan: DesignScan) -> str | None:
+    """What the scan found about technical repeats (wells), or ``None`` without repeats."""
     technical = scan.design["technical"]
     if not scan.design["repeats"]:
         return None

@@ -92,16 +92,17 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
     # A pooled control mixes these levels: the raw test as provided then compares a condition
     # with other repeats' level.
     shifted = (
-        f" The control means differ up to {shift:.1f}x between {word}s, so the raw test as "
-        "provided compares each condition with other repeats' level: read the normalised or "
+        f" The control means differ up to {shift:.1f}x between {word}s, so a raw test pooling "
+        "them would compare each condition with other repeats' level: read the normalised or "
         "balanced columns."
         if pd.notna(shift) and shift > IMBALANCE
         else ""
     )
     return (
-        f"Balance: {'; and '.join(reasons)}; so the test is given as provided and "
-        f"balanced (each condition against the control of its own {word}s, the same number of "
-        f"{words} from each {word}; the median d and p over {BALANCED_DRAWS} draws)." + shifted
+        f"Balance: {'; and '.join(reasons)}; so the test is also given balanced (each "
+        f"condition against the control of its own {word}s, the same number of {words} from "
+        f"each {word}; the median d and p over {BALANCED_DRAWS} draws), and as provided only "
+        f"where the control comes from the condition's own {word}s." + shifted
     )
 
 
@@ -186,7 +187,8 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         word = column_word(contrast.settings["repeat_col"])
         lines.append(
             wrap(
-                f"Not given as provided for {listing(pooled, 3)}: its control would include "
+                f"Not given as provided for {listing(pooled, 3)}: "
+                f"{'its' if len(pooled) == 1 else 'their'} control would include "
                 f"{word}s the condition was not imaged in.",
                 indent + 2,
                 hang=indent + 4,

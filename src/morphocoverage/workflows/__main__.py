@@ -15,6 +15,7 @@ from .guided import guide
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Run the guided session on the tables named in ``argv`` (asked for when absent)."""
     parser = argparse.ArgumentParser(
         prog="python -m morphocoverage.workflows",
         description="Scan a dataset, answer a few questions, and get the report.",

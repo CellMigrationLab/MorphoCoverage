@@ -15,7 +15,7 @@
 | Lint | `python -m ruff check src tests data` and `python -m ruff format --check src tests data` (ruff pinned in `pyproject.toml`; run it as `python -m ruff`, since a `ruff` on the PATH may be another version and format differently; lines at most 100 characters) |
 | Install / environment | `python -m pip install -e ".[dev]"` |
 
-Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; imported only by `morphocoverage.plots`, `plots_embedding` and `workflows/figures.py`, so importing `morphocoverage.workflows` loads it while the core, `retrospective` and `sampling_unit` do not; added 2026-09-26 at the project owner's request for the PlotsOfData-style figures), `umap-learn` (runtime, required; imported only inside `embedding._umap`, since loading it takes seconds; added 2026-10-01 at the project owner's request for the UMAP beside the PCA, which brings scikit-learn and numba in as its own dependencies), `scikit-learn` (runtime, required, 1.3 or later for HDBSCAN; imported only inside `sampling_unit.populations._cluster`, with umap-learn inside `populations._embedding`; declared 2026-10-02 at the project owner's request to find the populations of question 10); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics. The package imports scikit-learn in one place only (HDBSCAN for the populations), and there is deliberately no Torch dependency: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
+Key dependencies: `numpy`, `pandas`, `scipy`, `matplotlib` (runtime; imported only by `morphocoverage.plots`, `plots_embedding` and `workflows/figures.py`, so importing `morphocoverage.workflows` loads it while the core, `retrospective` and `sampling_unit` do not; added 2026-09-26 at the project owner's request for the PlotsOfData-style figures), `umap-learn` (runtime, required; imported only inside `embedding._umap`, since loading it takes seconds; added 2026-10-01 at the project owner's request for the UMAP beside the PCA, which brings scikit-learn and numba in as its own dependencies), `scikit-learn` (runtime, required, 1.3 or later for HDBSCAN; imported only inside `sampling_unit.populations._cluster`, with umap-learn inside `populations._embedding`; declared 2026-10-02 at the project owner's request to find the populations of question 10); `pytest`, `ruff` (development, with `pytest-xdist` to run the suite on every CPU). Prefer a well-established implementation from these libraries over hand-written numerics (Benjamini-Hochberg is scipy's `false_discovery_control`; a 2026-10-02 survey kept the rest hand-written for a stated reason: field-nested resampling, incremental moments, exact enumeration, a U-statistic, or speed). The package imports scikit-learn in one place only (HDBSCAN for the populations), and there is deliberately no Torch dependency: Torch is held back until an estimator demonstrably needs GPU acceleration, and would then be an optional backend with an explicit `device` that raises when unavailable, never a silent CPU fallback.
 
 MorphoCoverage is deliberately independent of CellPatcher, fiberfeatures, Nyxus, CellProfiler, DINO, Torch, microscopy file formats, segmentation tools, and microscope-control software.
 
@@ -246,6 +246,7 @@ src/morphocoverage/
     sufficiency_full.py    # its full summary: every number, group by group, each caveat once
     sufficiency_tables.py  # its criteria tables: each rule on the full acquisition and its stops
     statistics.py          # shared statistics, written once: effect sizes, tolerances, whole-field sampling and bootstrap, variance components, design effect, JCB counts, detection counts, field-level JCB estimands
+    _repeat_statistics.py  # private, re-exported by statistics: the paired test across repeats, the values it compares (log ratios or differences), Sarle's bimodality and kurtosis
     normalize.py           # features divided by the control condition's mean, biological repeat by biological repeat
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     glossary.py            # the report's glossary: every test, rule and term in plain words, with its papers
@@ -292,6 +293,7 @@ src/morphocoverage/
         report_answers.py  # questions 6, 8 and 9 in short, caveats pooled; the closing "cannot tell me"
         report_sampling.py  # the Foundation and questions 1 and 3, short and full, and the counts their headlines read
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
+        _value_checks.py   # private: checks of the values: fields more alike than chance, features with few distinct values
         _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         __init__.py        # the subpackage's public names
@@ -356,6 +358,7 @@ src/morphocoverage/
         _rare_share.py     # private: the labelled rare state's share, compared like a feature
         _label_control.py  # private: the rare label as a positive control of the features (question 1)
         _populations.py    # private: question 10, the populations and each condition's enrichment across repeats
+        _result_influence.py  # private: the fields whose removal moves the result (the repeat means the paired test compares)
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
         _manifest.py       # private: the live folder's files (write_fov, the manifest reader), re-exported by live
