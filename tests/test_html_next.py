@@ -150,16 +150,20 @@ def test_the_populations_next_step_declares_the_population_as_the_rare_phenotype
 
     monkeypatch.setattr(workflows, "report", fake_report)
     monkeypatch.setattr(workflows, "optimise", lambda *a, **kw: None)
-    markup = populations_next(result, fovs)
+    markup = populations_next(result, fovs, objects)
     table = result.results["populations"].populations.table
     small = table.sort_values("share").iloc[0]
-    assert f"To study {small['population']}" in _words(markup)
+    words = _words(markup)
+    # Validate on the images first, its fields named; then label it with its rule.
+    assert f"First validate {small['population']}" in words and "open the images" in words
+    assert "label its cells with its rule, picked by" in words
     _run(markup, {"result": result, "objects": objects.copy(), "fovs": fovs})
     setup = seen["setup"]
     assert setup.rare_label == small["population"]
     assert setup.rare.object_prevalence == pytest.approx(small["share"], abs=1e-3)
     labelled = seen["objects"][small["population"]]
-    assert labelled.dtype == bool and labelled.mean() == pytest.approx(small["share"], abs=0.01)
+    # The rule labels about the group's share of the cells (it is checked on held-out cells).
+    assert labelled.dtype == bool and labelled.mean() == pytest.approx(small["share"], abs=0.03)
 
 
 def test_the_fields_next_step_runs_the_report_without_the_fields(screen, monkeypatch):

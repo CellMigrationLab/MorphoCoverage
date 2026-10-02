@@ -448,7 +448,7 @@ def html_report(
         if key == "enough":
             after = enough_next(result, fovs, features)
         elif key == "populations":
-            after = populations_next(result, fovs)
+            after = populations_next(result, fovs, objects)
         cards.append(
             _section(
                 key,

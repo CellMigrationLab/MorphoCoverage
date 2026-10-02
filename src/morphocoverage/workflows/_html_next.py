@@ -24,19 +24,22 @@ import numpy as np
 import pandas as pd
 
 from .._wording import count, percent_fine
+from ..data_check import validate_input_tables
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.populations import traits
 from ..sampling_unit.repeat_plan_text import field_words
 from ._enough_targets import HELD_BACK
-from ._populations import tested_populations
+from ._populations import rule_words, tested_populations
 
 # The reservoir optimise holds back to judge each stop, as in docs/workflows.md (one
 # value with the fingerprint's answer, ``_enough_targets.HELD_BACK``).
 RESERVOIR = HELD_BACK
 # A population this labelled is the declared rare label's: not declared again.
 LABELLED = 0.9
+# The fields named to open for a group.
+FIELDS_SHOWN = 3
 _COUNTS = (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96)
 
 
@@ -147,9 +150,9 @@ def conditions_next(result: Any, fovs: pd.DataFrame) -> str:
     return _block(steps) if steps else ""
 
 
-def _chosen_population(populations: Any) -> tuple[str, float, str, str] | None:
-    """The population to follow: the most consistently enriched, else the largest of those
-    tested (never the main one); its name, share, definition and kind."""
+def _chosen_population(populations: Any) -> Any | None:
+    """The group to follow: the most consistently enriched, else the largest (never the
+    main population); its row of the populations table."""
     table = populations.populations.table
     tested = tested_populations(populations.populations)
     if not tested:
@@ -160,8 +163,7 @@ def _chosen_population(populations: Any) -> tuple[str, float, str, str] | None:
         rows = enrichment[enrichment["feature"].isin(tested)].sort_values("q_paired")
         if len(rows) and np.isfinite(float(rows["q_paired"].iloc[0])):
             name = str(rows["feature"].iloc[0])
-    row = table.set_index("population").loc[name]
-    return name, float(row["share"]), traits(row["defining"][:1]), str(row["kind"])
+    return table.set_index("population").loc[name].rename(name)
 
 
 def _labelled(populations: Any, name: str, label: str | None) -> bool:
@@ -173,13 +175,33 @@ def _labelled(populations: Any, name: str, label: str | None) -> bool:
     return bool(len(row)) and float(row["purity"].iloc[0]) >= LABELLED
 
 
-def populations_next(result: Any, fovs: pd.DataFrame) -> str:
-    """What to do after "Are there distinct populations?"; empty without one to follow."""
+def _group_fields(
+    result: Any, populations: Any, objects: pd.DataFrame | None, fovs: pd.DataFrame, name: str
+) -> list[str]:
+    """The fields holding most of the group's cells (at most ``FIELDS_SHOWN``), named by
+    their FOV key, to open."""
+    features = populations.populations.settings.get("features") or []
+    if objects is None or not features:
+        return []
+    data = validate_input_tables(
+        objects, fovs=fovs, feature_cols=features[:1], **result.setup.common
+    )
+    key = [c for c in data.fov_key if c in data.objects]
+    labels = populations.populations.labels.reindex(data.objects.index)
+    mine = data.objects.loc[labels.eq(name).to_numpy(), key].astype(str)
+    named = mine.agg(" · ".join, axis=1).value_counts()
+    return [str(f) for f in named.index[:FIELDS_SHOWN]]
+
+
+def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | None = None) -> str:
+    """What to do after "Are there populations or groups of cells?": validate the group on
+    its images, then label it with its rule and study it as the rare phenotype; empty
+    without a group."""
     populations = (getattr(result, "results", {}) or {}).get("populations")
-    chosen = _chosen_population(populations) if populations is not None else None
-    if chosen is None:
+    row = _chosen_population(populations) if populations is not None else None
+    if row is None:
         return ""
-    name, share, defined, kind = chosen
+    name, share = str(row.name), float(row["share"])
     label = result.setup.rare_label
     if _labelled(populations, name, label):
         line = (
@@ -188,28 +210,39 @@ def populations_next(result: Any, fovs: pd.DataFrame) -> str:
             "itself; nothing to declare again."
         )
         return _block([(line, "")])
-    counts = fov_counts(fovs)
-    phenotype = f"{name}: {defined}" if defined else name
-    what = (
-        f"{name}, a group on the map ({percent_fine(share)} of the cells; it may be the end "
-        "of a continuum)"
-        if kind == "group"
-        else f"{name} ({percent_fine(share)} of the cells)"
+    fields = _group_fields(result, populations, objects, fovs, name)
+    where = f" (most of its cells are in {', '.join(fields)})" if fields else ""
+    validate = (
+        f"First validate {name} ({percent_fine(share)} of the cells; "
+        f"{traits(row['defining'][:2])}): open the images of its fields{where} and check "
+        "that its cells are one state, not the end of a gradient or an artefact."
     )
-    lines = [
-        (
-            f"To study {what} further, label its cells and declare it as the rare phenotype: "
-            "the report then says in “Did I image enough?” whether it was seen in "
-            "enough fields of every well, and optimise plans the fields to find it."
-        )
-    ]
+    rule = rule_words(row)
+    study = (
+        f"If it is, label its cells with its rule, {rule}, and declare it as the rare "
+        "phenotype: the report then says in “Did I image enough?” whether it was seen in "
+        "enough fields of every well, and optimise plans the fields to find it. The rule "
+        "labels new acquisitions the same way; adjust its thresholds after looking at the "
+        "images."
+        if rule
+        else "If it is, label its cells (the clustering's labels) and declare it as the rare "
+        "phenotype: the report then says in “Did I image enough?” whether it was seen in "
+        "enough fields of every well, and optimise plans the fields to find it."
+    )
+    counts = fov_counts(fovs)
+    phenotype = f"{name}: {traits(row['defining'][:2])}"
+    labelled = (
+        f"objects[{name!r}] = {row['rule_code']}\n"
+        if row["rule"]
+        else 'found = result.results["populations"].populations.labels\n'
+        f"objects[{name!r}] = found.reindex(objects.index).eq({name!r})\n"
+    )
     code = (
         _GUARD + "from dataclasses import replace\n"
         "from morphocoverage import RareTarget\n"
         "from morphocoverage.workflows import optimise, report\n\n"
-        'found = result.results["populations"].populations.labels\n'
-        f"objects[{name!r}] = found.reindex(objects.index).eq({name!r})\n"
-        "setup = replace(\n"
+        + labelled
+        + "setup = replace(\n"
         "    result.setup,\n"
         f"    rare=RareTarget(object_prevalence={round(share, 4)}, detection_probability=0.95,\n"
         f"                    min_fov_occurrences=3, phenotype={phenotype!r}),\n"
@@ -223,7 +256,7 @@ def populations_next(result: Any, fovs: pd.DataFrame) -> str:
             else ""
         )
     )
-    return _block([(lines[0], code.rstrip("\n"))])
+    return _block([(validate, ""), (study, code.rstrip("\n"))])
 
 
 def enough_next(result: Any, fovs: pd.DataFrame, features: Any) -> str:

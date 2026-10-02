@@ -213,7 +213,7 @@ PLOTLY_SCRIPT = r"""
   }
   function popName(k) {
     var p = data.populations[k];
-    return p.name + (p.kind === 'group' ? ', a group on the map' : '') + ' (' +
+    return p.name + (p.kind === 'group' ? ', a group to validate' : '') + ' (' +
       Math.round(p.share * 1000) / 10 + '%' + (p.defined ? ': ' +
       p.defined.split(' (d')[0] : '') + ')';
   }

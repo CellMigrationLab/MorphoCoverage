@@ -140,7 +140,7 @@ QUESTIONS = (
     ("effort", "7. More fields or more samples?"),
     ("order", "8. Could I have sampled more efficiently?"),
     ("conditions", "9. Do the conditions differ, and how confidently?"),
-    ("populations", "10. Are there distinct populations, and is a condition enriched in one?"),
+    ("populations", "10. Are there groups of cells, and is a condition enriched in one?"),
 )
 
 # The questions as the "At a glance" block names them.
@@ -156,7 +156,7 @@ SHORT_QUESTIONS = {
     "effort": "7. More fields or more samples?",
     "order": "8. A better order?",
     "conditions": "9. Do the conditions differ?",
-    "populations": "10. Distinct populations?",
+    "populations": "10. Groups of cells?",
 }
 
 

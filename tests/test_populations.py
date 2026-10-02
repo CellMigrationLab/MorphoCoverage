@@ -56,12 +56,15 @@ def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen)
     status = result.document.statuses["populations"]
     headline = result.document.headlines["populations"]
     found = (
-        r"P\d \(\d+(\.\d)?% of cells; high dna\): more common in arrest \(\d+(\.\d)?% vs \d\.\d%"
+        r"G\d \(\d+(\.\d)?% of cells; high dna\): more common in arrest \(\d+(\.\d)?% vs \d\.\d%"
     )
     assert re.search(found, headline)
     short = result.document.short["populations"]
     assert "of every condition pooled, clustered on the 3 declared features (HDBSCAN" in short
-    assert "the rest (not tested)" in short and "distinct" in short
+    assert "the rest (not tested)" in short and "to validate on the images" in short
+    # Each group comes with the rule that picks out its cells, checked on held-out cells.
+    flat = " ".join(short.split()).lower()
+    assert "picked by dna >" in flat and "on held-out cells" in flat
     assert "arrest higher" in short
     word = "Enriched" if status is Status.OK else "Trend only"
     assert chip(status, "populations", headline).endswith(f"{word}</span>")
@@ -109,7 +112,7 @@ def test_one_continuum_is_no_population():
     result = populations_in_report(objects, fovs, setup)
     status, headline, _text = populations_text(result, setup)
     if not result.populations.names:
-        assert status is Status.OK and "no distinct population" in headline
+        assert status is Status.OK and headline.startswith("no group:")
         assert chip(status, "populations", headline).endswith("One continuum</span>")
     else:  # one blob found as one population: nothing enriched
         assert status is not Status.OK
@@ -142,7 +145,7 @@ def test_the_points_carry_their_population_and_feature_values():
 def test_the_maps_ring_populations_colour_by_feature_and_describe_a_selection(screen, tmp_path):
     objects, fovs, _, result = screen
     page = html_report(result, objects, fovs, tmp_path).read_text()
-    assert 'id="populations"' in page and "Are there distinct populations?" in page
+    assert 'id="populations"' in page and "Are there populations or groups of cells?" in page
     data = json.loads(
         re.search(r'id="embedding-data">(.*?)</script>', page, re.DOTALL)
         .group(1)

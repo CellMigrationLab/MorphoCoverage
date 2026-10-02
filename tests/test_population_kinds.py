@@ -1,14 +1,16 @@
-"""Populations are candidates on a UMAP, judged on all the features (owner, 2026-10-02, after
+"""Groups are candidates on a UMAP, judged on all the features (owner, 2026-10-02, after
 HDBSCAN on the principal components split a Gaussian and a straight line into populations
-and missed a separate blob): a distinct population has a gap of low density, a group on the
-map has its neighbours inside it and no gap, and a continuum gives neither."""
+and missed a separate blob): a group has its cells' neighbours inside it, a continuum has
+none; whether a group is a separate state is for the images (no gap test was reliable), and
+each comes with the simplest rule on the features that picks out its cells."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from morphocoverage.sampling_unit import find_populations
-from morphocoverage.sampling_unit.populations import _purity, _valley
+from morphocoverage.sampling_unit._population_rule import population_rule
+from morphocoverage.sampling_unit.populations import _purity
 
 
 def _tables(values: np.ndarray, seed: int = 0):
@@ -37,28 +39,33 @@ def test_a_gaussian_has_no_population():
     assert _found(rng.normal(size=(2400, 4))).empty
 
 
-def test_a_line_has_no_distinct_population():
+def test_a_line_is_at_most_a_group_to_validate():
     rng = np.random.default_rng(1)
     t = rng.normal(size=(2400, 1))
     table = _found(np.hstack([t, 2 * t, -t]) + 0.3 * rng.normal(size=(2400, 3)))
-    # Its end may read as a group on the map (said as possibly the end of a continuum).
-    assert "distinct" not in set(table["kind"])
+    # Its end may read as a group: validated on the images, as the text says.
+    assert set(table["kind"]) <= {"main", "group"}
 
 
-def test_a_separate_blob_is_a_distinct_population():
+def test_a_separate_blob_is_a_group_with_a_rule_that_finds_it():
     rng = np.random.default_rng(1)
     values = np.vstack([rng.normal(size=(2160, 4)), rng.normal(size=(240, 4)) + [5, 0, 0, 0]])
     table = _found(values).set_index("population")
-    assert list(table["kind"]) == ["main", "distinct"]
-    assert table.loc["P2", "observations"] == pytest.approx(240, abs=12)
-    assert table.loc["P2", "valley"] <= 0.5 and table.loc["P2", "purity"] >= 0.94
+    assert list(table["kind"]) == ["main", "group"]
+    assert table.loc["G1", "observations"] == pytest.approx(240, abs=12)
+    assert table.loc["G1", "purity"] >= 0.94
+    # One threshold on the feature that sets it apart, right on held-out cells.
+    assert table.loc["G1", "rule"].startswith("f0 >")
+    assert table.loc["G1", "rule_recall"] > 0.95 and table.loc["G1", "rule_precision"] > 0.95
 
 
-def test_the_valley_and_the_purity_tell_a_gap_from_a_tail():
+def test_the_purity_tells_a_group_from_a_tail_and_the_rule_reads_in_its_units():
     rng = np.random.default_rng(2)
     blob = np.vstack([rng.normal(size=(900, 2)), rng.normal(size=(100, 2)) + [6, 0]])
     member = np.arange(1000) >= 900
-    assert _valley(blob, member) <= 0.5 and _purity(blob, member) > 0.95
-    tail = rng.exponential(size=(1000, 2))
-    end = tail[:, 0] > np.quantile(tail[:, 0], 0.9)
-    assert _valley(tail, end) > 0.5
+    assert _purity(blob, member) > 0.95
+    rule = population_rule(blob * 10 + 100, member, ["area", "speed"])
+    [(feature, op, threshold)] = rule.terms[:1]
+    assert feature == "area" and op == ">" and 120 < threshold < 160
+    assert rule.code().startswith('(objects["area"] > ')
+    assert rule.recall > 0.95

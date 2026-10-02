@@ -77,7 +77,7 @@ def _unusual_head(result: Any, words: str) -> str:
 # What the reference cannot show: a state the control already holds.
 _BLIND_SPOT = assumption(
     "A state the reference already holds, at any share, is not unusual: only its share can "
-    "change, and the populations (“Are there distinct populations?”) compare each "
+    "change, and the populations (“Are there populations or groups of cells?”) compare each "
     "condition's share of such a state with its control's."
 )
 
