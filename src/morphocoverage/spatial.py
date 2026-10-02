@@ -27,6 +27,7 @@ import pandas as pd
 from scipy.spatial import distance
 
 from .schema import ValidatedInput, fov_positions
+from .transforms import missing_values_reason
 
 
 def empirical_semivariogram(
@@ -96,8 +97,9 @@ def fov_means(data: ValidatedInput) -> tuple[np.ndarray, np.ndarray]:
     """
     _require_one_group(data)
     matrix = data.feature_matrix()
-    if np.isnan(matrix).any():
-        raise ValueError("missing feature values; FOV means are undefined")
+    missing = missing_values_reason(matrix, data.feature_cols)
+    if missing:
+        raise ValueError(f"{missing}; FOV means are undefined")
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions, minlength=len(data.fovs))
     sums = np.zeros((len(data.fovs), matrix.shape[1]))

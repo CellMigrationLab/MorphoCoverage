@@ -325,8 +325,11 @@ def canonical_spelling(column: object) -> str | None:
     whitespace (``Z``, ``T ``), or is one of its other names (``plane``,
     ``slice``, ``channel``, ``frame``, ``timepoint``, ...). Either may carry
     CellProfiler's ``Metadata_`` prefix (``Metadata_Z``, ``Metadata_condition``).
-    Such a column would otherwise be ignored: its groups pooled, or its planes
-    counted as fields, without a word. The exact name is not a near miss.
+    A typing error of a shared column (``biological_repat``, ``techincal_repeat``,
+    ``conditon``, ``image_flie``) is a near miss too: one edit (a letter added, missing,
+    changed, or two swapped), or two for the repeats' longer names. Such a column would
+    otherwise be ignored: its groups pooled, or its planes counted as fields, without a word.
+    The exact name is not a near miss.
     """
     if not isinstance(column, str):
         return None
@@ -338,7 +341,43 @@ def canonical_spelling(column: object) -> str | None:
         meant = _plain_spelling(unprefixed)
     if meant is None:
         meant = _PLANE_SYNONYMS.get(_squashed(unprefixed))
+    if meant is None:
+        meant = _typo_of(_squashed(unprefixed))
     return meant if meant is not None and meant != column else None
+
+
+# The shared columns whose typing errors are caught (``biological_repat``, ``conditon``),
+# by their squashed form; ``fov_id`` is too short to tell a typo from another name.
+_TYPO_TARGETS = {
+    _squashed(name): name
+    for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
+    if len(_squashed(name)) >= 8
+}
+
+
+def _edits(first: str, second: str) -> int:
+    """The edits between two names: insertions, deletions, substitutions and swaps of two
+    neighbouring letters (the optimal string alignment distance)."""
+    rows = [list(range(len(second) + 1))]
+    for i, a in enumerate(first, 1):
+        row = [i]
+        for j, b in enumerate(second, 1):
+            row.append(min(rows[-1][j] + 1, row[j - 1] + 1, rows[-1][j - 1] + (a != b)))
+            if i > 1 and j > 1 and a == second[j - 2] and first[i - 2] == b:
+                row[j] = min(row[j], rows[-2][j - 2] + 1)
+        rows.append(row)
+    return rows[-1][-1]
+
+
+def _typo_of(squashed: str) -> str | None:
+    """The shared column ``squashed`` is a typing error of: one edit for a name of up to 11
+    letters, two for a longer one when the lengths differ by at most one, so a longer
+    column (``technical_repeat_id``) is not taken for the shorter name."""
+    for target, name in _TYPO_TARGETS.items():
+        allowed = 2 if len(target) >= 12 and abs(len(squashed) - len(target)) <= 1 else 1
+        if 0 < _edits(squashed, target) <= allowed:
+            return name
+    return None
 
 
 # Names of a stage-position index inside a multi-position file (an .nd2 or .czi

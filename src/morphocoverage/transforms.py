@@ -40,6 +40,7 @@ from typing import Any
 import numpy as np
 
 from ._checks import is_integer
+from ._wording import listing
 from .provenance import class_identity, config_hash
 from .schema import ValidatedInput
 
@@ -191,8 +192,9 @@ class Standardize(FeatureTransform):
         self, matrix: np.ndarray, names: tuple[str, ...]
     ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
         """Visible mean and SD per feature."""
-        if np.isnan(matrix).any():
-            return "missing feature values; choose or implement an explicit missing-data policy"
+        missing = missing_values_reason(matrix, names)
+        if missing:
+            return f"{missing}; choose or implement an explicit missing-data policy"
         if len(matrix) < 2:
             return "fewer than 2 observations"
         mean = matrix.mean(axis=0)
@@ -221,6 +223,19 @@ def constant_columns(matrix: np.ndarray) -> np.ndarray:
     sd = matrix.std(axis=0, ddof=1) if len(matrix) > 1 else np.zeros(matrix.shape[1])
     scale = np.abs(matrix.mean(axis=0))
     return (spread == 0) | (sd <= CONSTANT_RELATIVE_SPREAD * scale)
+
+
+def missing_values_reason(matrix: np.ndarray, names: Sequence[str]) -> str | None:
+    """Which features hold missing values, and in how many observations, or None:
+    ``missing values in linearity_mean (1 observation) and entropy_mean (3)``."""
+    counts = np.isnan(matrix).sum(axis=0)
+    missing = [(name, int(n)) for name, n in zip(names, counts, strict=True) if n]
+    if not missing:
+        return None
+    first, *others = missing
+    named = [f"{first[0]} ({first[1]} observation{'' if first[1] == 1 else 's'})"]
+    named += [f"{name} ({n})" for name, n in others]
+    return "missing values in " + listing(named)
 
 
 def _constant_reason(matrix: np.ndarray, names: tuple[str, ...]) -> str | None:
@@ -262,8 +277,9 @@ class RobustStandardize(FeatureTransform):
         self, matrix: np.ndarray, names: tuple[str, ...]
     ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
         """Visible median and MAD-based scale per feature (the SD where the MAD is 0)."""
-        if np.isnan(matrix).any():
-            return "missing feature values; choose or implement an explicit missing-data policy"
+        missing = missing_values_reason(matrix, names)
+        if missing:
+            return f"{missing}; choose or implement an explicit missing-data policy"
         if len(matrix) < 2:
             return "fewer than 2 observations"
         constant = _constant_reason(matrix, names)
@@ -334,8 +350,9 @@ class PCA(FeatureTransform):
         self, matrix: np.ndarray, names: tuple[str, ...]
     ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
         """Visible mean, leading components and their explained-variance ratios."""
-        if np.isnan(matrix).any():
-            return "missing feature values; choose or implement an explicit missing-data policy"
+        missing = missing_values_reason(matrix, names)
+        if missing:
+            return f"{missing}; choose or implement an explicit missing-data policy"
         n_observations, n_features = matrix.shape
         if n_features < self.n_components:
             return f"{n_features} features cannot give {self.n_components} components"
@@ -438,4 +455,5 @@ __all__ = [
     "RobustStandardize",
     "Standardize",
     "constant_columns",
+    "missing_values_reason",
 ]

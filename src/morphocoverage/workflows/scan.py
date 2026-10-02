@@ -78,6 +78,15 @@ _METADATA = {
     "index",
 }
 _STAGE = re.compile(r"stage", re.IGNORECASE)
+# Where a patch sits in its image and how it was cut, not what it shows: CellPatcher's
+# coordinates (y0, center_x, output_height) and fiberfeatures' copies of them (patch_y0,
+# patch_raw_x1, patch_center_y, patch_was_clipped).
+_PATCH_GEOMETRY = re.compile(
+    r"^(?:patch_(?:raw_)?)?(?:[yxz][01]|center_[yxz]|output_(?:height|width))$"
+    r"|^patch_(?:height|width|coverage|original_coverage|touches_border|(?:original_|measured_)?"
+    r"area_px|clipped_fraction|was_clipped)$",
+    re.IGNORECASE,
+)
 # A control named as labs name it: siCTRL, Control, MOCK, DMSO, NT, scramble, vehicle.
 _CONTROL_WORDS = re.compile(
     r"^(ctrl|control|mock|dmso|untreated|scr|scramble|scrambled|nt|nontargeting|non_targeting|"
@@ -195,15 +204,17 @@ class DesignScan:
 
 
 def _feature_candidates(objects: pd.DataFrame, taken: set[str]) -> list[str]:
-    """Numeric columns that may be features: not metadata, not stage coordinates, not a row
-    number (an integer column with a different value in every row), not one value in every
-    row."""
+    """Numeric columns that may be features: not metadata, not stage coordinates, not where a
+    patch was cut (``patch_y0``, ``center_x``), not a row number (an integer column with a
+    different value in every row), not one value in every row."""
     found = []
     for column in objects.columns:
         name = str(column)
         if column in taken or name.lower() in _METADATA or name.lower().endswith("_id"):
             continue
-        if _STAGE.search(name) or name.startswith(("Unnamed", "source")):
+        if _STAGE.search(name) or _PATCH_GEOMETRY.match(name):
+            continue
+        if name.startswith(("Unnamed", "source")):
             continue
         values = objects[column]
         if values.dtype == bool or not pd.api.types.is_numeric_dtype(values):

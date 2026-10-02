@@ -41,6 +41,7 @@ from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..schema import ValidatedInput
 from ..spatial import fov_means, fov_semivariogram
+from ..transforms import missing_values_reason
 from ._text import fields as fields_text
 from ._text import median_beyond
 from .adequacy import ALL_CRITERIA, AdequacyResult, _unjudged, adequacy_points
@@ -339,9 +340,10 @@ def redundancy_distance(
             "reason": None,
         }
         rows.append(row)
-        if np.isnan(group_data.feature_matrix()).any():
+        missing = missing_values_reason(group_data.feature_matrix(), group_data.feature_cols)
+        if missing:
             row["reason"] = (
-                "missing feature values in this group: its FOV means are undefined "
+                f"{missing} in this group: its FOV means are undefined "
                 "(missing values are never imputed)"
             )
             continue

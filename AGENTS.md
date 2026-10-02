@@ -376,6 +376,7 @@ tests/
     test_audit*.py, test_microscopist_audit.py  # regression tests of the audits' findings (docs/audit/README.md)
     test_human_errors.py   # the mistakes people make with the tables, and the message each gives
     test_crick_idr.py      # real-data integrity and end-to-end tests
+    test_morphobricks_tables.py  # a fiberfeatures table as written: read as it is, geometry not offered, typos refused
     test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
     test_docs.py           # the documentation's examples run and print what they say
     test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
@@ -386,6 +387,7 @@ data/
     lab/                   # the lab's datasets as MorphoBricks tables: card.toml, DATASET.md, convert.py, NOTICE per
                            # dataset; run_lab.py runs the report, FINDINGS.md logs each run (rules in data/lab/README.md:
                            # only pinned public or owner-released sources, never a manuscript)
+    morphobricks/          # small tables as the other MorphoBricks tools write them (fiberfeatures_patches.csv), with provenance
     simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py) and results
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
 

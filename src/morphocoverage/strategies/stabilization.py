@@ -316,7 +316,7 @@ class DescriptorPlateauEstimator(Estimator):
             data, OBJECT_LIKE_UNITS, method="the descriptor-plateau rule"
         )
         if reason is None and np.isnan(values).any():
-            reason = "missing values in the selected feature"
+            reason = f"missing values in {self.feature}"
         if reason is not None:
             return _not_applicable("range", self.feature, self.descriptors, reason)
         check_order_col(data.fovs, self.order_col, "the descriptor-plateau rule")
@@ -454,7 +454,7 @@ class DescriptorSpreadEstimator(Estimator):
                 data, OBJECT_LIKE_UNITS, method="the object-unit descriptor-spread rule"
             )
         if reason is None and np.isnan(values).any():
-            reason = "missing values in the selected feature"
+            reason = f"missing values in {self.feature}"
         if reason is not None:
             return _not_applicable("spread", self.feature, self.descriptors, reason)
         diagnostics: dict[str, Any] = {

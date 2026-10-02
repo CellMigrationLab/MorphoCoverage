@@ -111,4 +111,4 @@ def test_transforms_refuse_missing_values_explicitly(transform):
     data = _data([[1.0, 2.0], [float("nan"), 3.0], [4.0, 5.0]])
     fitted = transform.fit(data)
     assert not fitted.fitted
-    assert "missing feature values" in fitted.reason
+    assert "missing values in a (1 observation)" in fitted.reason

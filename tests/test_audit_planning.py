@@ -126,7 +126,7 @@ def test_f5_f11_f13_inspection_says_what_it_could_not_look_for():
         group_cols=["condition", "biological_repeat"],
     )
     assert "New states were not looked for in" in result.summary()
-    assert "missing values in the selected features" in result.summary()
+    assert "missing values in feature_b (1 observation)" in result.summary()
     labels = [Summary("area", q).label for q in (0.01, 0.02, 0.03, 0.11, 0.22, 0.025)]
     assert labels[:5] == [f"{n} percentile of area" for n in ("1st", "2nd", "3rd", "11th", "22nd")]
     assert labels[5] == "2.5th percentile of area"
