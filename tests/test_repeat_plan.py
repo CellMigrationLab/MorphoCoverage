@@ -24,8 +24,11 @@ def test_power_grows_with_repeats_and_with_a_smaller_spread():
     low = [paired_power(1.0, 1.0, r, 0.05) for r in range(2, 12)]
     assert all(b >= a for a, b in pairwise(low))
     assert paired_power(1.0, 0.5, 6, 0.05) > paired_power(1.0, 1.0, 6, 0.05)
-    # Far in the tail scipy's noncentral t can fail: the power stays a number.
-    assert paired_power(1.54, 0.538, 7, 0.05 / 12) == pytest.approx(0.99, abs=0.01)
+    # Far in the tail scipy's noncentral t cdf fails: the power stays a number, and right
+    # (a simulation of 400 000 pilots gives 0.975; the shifted central t gave 0.99).
+    assert paired_power(1.54, 0.538, 7, 0.05 / 12) == pytest.approx(0.975, abs=0.003)
+    # Two repeats, a shift of one SD: 0.092 by simulation (the fallback gave 0.20).
+    assert paired_power(1.0, 1.0, 2, 0.05) == pytest.approx(0.092, abs=0.003)
 
 
 def test_the_repeats_needed_follow_the_effect_and_are_bounded():

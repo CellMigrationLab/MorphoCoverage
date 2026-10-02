@@ -181,8 +181,15 @@ def _purity(z: np.ndarray, member: np.ndarray) -> float:
     k = min(NEIGHBOURS, len(z) - 1)
     if k < 1 or not member.any():
         return 0.0
-    _, nearest = cKDTree(z).query(z[member], k=k + 1)
-    return float(member[nearest[:, 1:]].mean())
+    rows = np.flatnonzero(member)
+    _, nearest = cKDTree(z).query(z[rows], k=k + 1)
+    # Each observation's own row out, wherever the tree put it (an exact duplicate can come
+    # first); without it among the k + 1, the farthest.
+    own = nearest == rows[:, None]
+    drop = np.where(own.any(axis=1), own.argmax(axis=1), k)
+    keep = np.ones_like(nearest, dtype=bool)
+    keep[np.arange(len(rows)), drop] = False
+    return float(member[nearest[keep].reshape(len(rows), k)].mean())
 
 
 def _defining(

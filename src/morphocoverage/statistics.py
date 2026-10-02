@@ -144,18 +144,15 @@ def benjamini_hochberg(p_values: np.ndarray) -> np.ndarray:
     """Benjamini-Hochberg adjusted p-values (q-values); NaN entries are ignored and kept NaN.
 
     ``q_i = min over j >= i of (m p_(j) / j)`` over the ``m`` finite p-values in
-    increasing order, capped at 1, as fiberfeatures corrects its per-feature
-    randomization tests before gating them.
+    increasing order, capped at 1 (``scipy.stats.false_discovery_control``), as
+    fiberfeatures corrects its per-feature randomization tests before gating them.
     """
     p = np.asarray(p_values, dtype=float)
     q = np.full(p.shape, np.nan)
-    finite = np.flatnonzero(np.isfinite(p))
-    if not len(finite):
-        return q
-    order = finite[np.argsort(p[finite], kind="stable")]
-    m = len(order)
-    ranked = p[order] * m / np.arange(1, m + 1)
-    q[order] = np.minimum(1.0, np.minimum.accumulate(ranked[::-1])[::-1])
+    finite = np.isfinite(p)
+    if finite.any():
+        # scipy's implementation (it refuses NaN, so the finite p-values only).
+        q[finite] = stats.false_discovery_control(p[finite], method="bh")
     return q
 
 

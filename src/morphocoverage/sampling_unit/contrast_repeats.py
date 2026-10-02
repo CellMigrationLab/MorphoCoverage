@@ -94,7 +94,9 @@ def sign_flip_test(
     """
     n = len(differences)
     observed = abs(differences.mean())
-    tolerance = 1e-12 * max(1.0, float(np.abs(differences).max(initial=0.0)))
+    # Ties in floating point, relative to the differences' own scale (an absolute floor
+    # made every flip a tie for differences near 1e-12, areas in square metres).
+    tolerance = 1e-12 * float(np.abs(differences).max(initial=0.0))
     if n <= _EXACT_REPEATS:
         signs = np.array(list(product((1.0, -1.0), repeat=n)))
         flipped = np.abs((signs * differences).mean(axis=1))

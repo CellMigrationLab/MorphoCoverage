@@ -55,6 +55,12 @@ def bimodality_coefficient(values: np.ndarray) -> float:
         return float("nan")
     skew = float(stats.skew(values, bias=False))
     kurtosis = float(stats.kurtosis(values, bias=False))
+    return sarle(skew, kurtosis, n)
+
+
+def sarle(skew: float, kurtosis: float, n: int) -> float:
+    """Sarle's bimodality coefficient from the bias-corrected skewness and excess kurtosis
+    of ``n`` values (the one formula, shared with the averaging CV's incremental path)."""
     return (skew**2 + 1) / (kurtosis + 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)))
 
 
@@ -68,4 +74,11 @@ def excess_kurtosis(values: np.ndarray) -> float:
     return float(stats.kurtosis(values, bias=False))
 
 
-__all__ = ["BIMODAL", "bimodality_coefficient", "excess_kurtosis", "paired_t", "repeat_values"]
+__all__ = [
+    "BIMODAL",
+    "bimodality_coefficient",
+    "excess_kurtosis",
+    "paired_t",
+    "repeat_values",
+    "sarle",
+]

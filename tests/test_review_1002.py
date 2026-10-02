@@ -154,3 +154,20 @@ def test_the_adjusted_p_wording_leaves_the_figures_data_alone():
     assert adjusted_p(markup) == (
         '<p>adjusted p 0.04</p><script type="application/json">{"name":"raw q 1"}</script>'
     )
+
+
+def test_a_sign_flip_test_reads_the_same_at_any_scale():
+    from morphocoverage.sampling_unit.contrast_repeats import sign_flip_test
+
+    for scale in (1.0, 1e-12, 1e-13):
+        p, floor, exact = sign_flip_test(scale * np.arange(1.0, 8.0), np.random.default_rng(0))
+        assert exact and p == pytest.approx(2 / 2**7) and floor == pytest.approx(2 / 2**7)
+
+
+def test_benjamini_hochberg_keeps_nan_and_matches_the_definition():
+    from morphocoverage.statistics import benjamini_hochberg
+
+    p = np.array([0.01, np.nan, 0.04, 0.03, 1.0])
+    q = benjamini_hochberg(p)
+    assert np.isnan(q[1])
+    assert np.allclose(q[[0, 2, 3, 4]], [0.04, 0.04 * 4 / 3, 0.04 * 4 / 3, 1.0])

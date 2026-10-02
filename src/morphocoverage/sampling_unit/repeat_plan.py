@@ -80,11 +80,11 @@ def paired_power(delta: float, sd: float, repeats: int, alpha: float) -> float:
     df = repeats - 1
     critical = float(stats.t.ppf(1 - alpha / 2, df))
     shift = delta * np.sqrt(repeats) / sd
-    power = float(stats.nct.sf(critical, df, shift) + stats.nct.cdf(-critical, df, shift))
-    if np.isnan(power):
-        # scipy's noncentral t can fail far in its tail: the shifted central t is close there.
-        power = float(stats.t.sf(critical - shift, df) + stats.t.cdf(-critical - shift, df))
-    return power
+    # The lower tail as the upper tail of the mirrored shift: scipy's noncentral t cdf
+    # returns NaN far in its tail (scipy 1.17), while its sf stays exact there.
+    upper = float(stats.nct.sf(critical, df, shift))
+    lower = float(stats.nct.sf(critical, df, -shift))
+    return upper + (lower if np.isfinite(lower) else 0.0)
 
 
 def repeats_needed(delta: float, sd: float, alpha: float, power: float = POWER) -> float:

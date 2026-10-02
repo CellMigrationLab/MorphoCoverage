@@ -24,6 +24,7 @@ from typing import Any
 import numpy as np
 from scipy import stats
 
+from .._repeat_statistics import sarle
 from ..statistics import (
     effective_sd_upper_bound_factor,
     jcb_required_objects,
@@ -228,7 +229,7 @@ def _shape_warning(n: int, m2: float, m3: float, m4: float, rows: str) -> str | 
         return None
     skew = math.sqrt(n * (n - 1)) / (n - 2) * math.sqrt(n) * m3 / m2**1.5
     kurtosis = ((n + 1) * (n * m4 / m2**2 - 3) + 6) * (n - 1) / ((n - 2) * (n - 3))
-    bimodality = (skew**2 + 1) / (kurtosis + 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)))
+    bimodality = sarle(skew, kurtosis, n)
     if kurtosis <= _MAX_EXCESS_KURTOSIS and bimodality <= _MAX_BIMODALITY:
         return None
     # Only the value that crosses its threshold is named, to three decimals near it.
