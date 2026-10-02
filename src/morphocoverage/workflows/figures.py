@@ -35,10 +35,10 @@ def plots(
 ) -> dict[str, list[Figure]]:
     """PlotsOfData-style figures of the readout (or ``features``), on the prepared table.
 
-    Without ``features``, the readout is plotted and, given a ranking from the report
+    Without ``features``, the readout is plotted or, given a ranking from the report
     (``Report.discovery``, the cell-level gate, or ``Report.ranking``, the test over whole
-    technical repeats), the ``top`` best-ranked other features: those that pass its gate,
-    largest |d| first.
+    technical repeats), the ``top`` best-ranked features: those that pass its gate, largest
+    |d| first, the readout among them only when it ranks (and alone when none does).
 
     Within each condition the biological repeats sit side by side; every
     object is a point coloured by technical repeat (a well), with each
@@ -59,9 +59,9 @@ def plots(
         if ranking is not None:
             if not isinstance(ranking, (FeatureDiscovery, FeatureRanking)):
                 raise TypeError("ranking must be the report's discovery or ranking")
-            # The readout is always plotted, so it never takes one of the ``top`` places.
-            others = [f for f in ranking.top(len(ranking.ranking)) if f != setup.readout]
-            chosen += others[:top]
+            # The report is neutral (owner, 2026-10-02): the readout is plotted only when it
+            # ranks, or when no feature does.
+            chosen = list(ranking.top(len(ranking.ranking)))[:top] or chosen
     else:
         chosen = list(features)
     undeclared = sorted(set(chosen) - set(compared_columns(setup)))

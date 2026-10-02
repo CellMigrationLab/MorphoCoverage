@@ -16,11 +16,11 @@
    the readout among them; what one row is, when not declared; and for a fingerprint, its
    tolerance (no default has a published meaning, so the user states it).
 5. **Save** the answers to ``ANSWERS_FILE`` in the folder, then run the **report** with the
-   ``Setup`` they make, and save it: ``report.html`` (``html_report``: every answer, the
-   readout and the best-ranked features, the interactive PCA and UMAP, the glossary, and
-   every file inside it for download, so the page alone can be shared), the figures in
-   ``figures/`` as PNG and PDF, ``report_short.txt``, ``report_full.txt``, and the whole
-   folder as ``<folder>.zip`` (``zip_results``).
+   ``Setup`` they make, and save it: ``report.html`` (``html_report``: every answer and
+   what to do next, the best-ranked features, the interactive PCA and UMAP, the glossary,
+   and every file inside it for download, so the page alone can be shared), the figures in
+   ``figures/`` as PNG, PDF and their data as CSV, ``report_short.txt``,
+   ``report_full.txt``, and the whole folder as ``<folder>.zip`` (``zip_results``).
 
 Every question has a default the user takes with Enter. ``ask`` and ``say`` are the
 input and output functions (``input`` and ``print`` by default; a notebook cell works the

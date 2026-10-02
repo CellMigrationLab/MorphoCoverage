@@ -6,21 +6,23 @@ that opens in any browser, offline, and can be emailed or archived as it is. It 
 - a sidebar with every section's status, and **At a glance** (each answer's marker, as a
   chip with its word, and its one-line answer, linking to the section);
 - the sections in the order a user acts on them, titled in words (``_html_sections``): the
-  data, **what was checked**, the fields to check (quality control), whether the conditions
-  differ, whether enough was imaged, and the rest; a section this design cannot answer is
-  left out (its reason stays in "What this dataset cannot tell me"). Each says what it is
-  for, its answer in a line, its short text, and its full text folded under "Full detail":
-  the words of ``Report.summary``, its aligned tables as sortable tables;
-- under "Do the conditions differ?", the reading per condition, a **heatmap** of Cohen's d,
-  the **figures** (the readout and the best-ranked features) and with
-  ``embedding.MIN_FEATURES`` or more features an **interactive PCA and UMAP**
-  (``_html_figures``), then the tests behind the reading;
+  data (one row per check, ``_html_cards``), the fields to check and why, with
+  ``embedding.MIN_FEATURES`` or more features the whole dataset at once (an **interactive
+  PCA and UMAP**, ``_html_figures``), the populations, whether the conditions differ,
+  whether enough was imaged, and the rest; a section this design cannot answer is left out
+  (its reason stays in "What this dataset cannot tell me"). Each gives what it is for under
+  a "?", its answer first and the rest under "Show more" (the words of ``Report.summary``,
+  its aligned tables as sortable tables), and, where an analysis follows, **what to do
+  next** with its code (``_html_next``);
+- under "Do the conditions differ?", the features significant across repeats per
+  condition, a **heatmap** of Cohen's d, the **figures** of the best-ranked features, then
+  the tests behind the reading;
 - the **glossary** as a drawer on the side, with a search, and the **Files**.
 
-Every figure is also saved in ``folder/figures`` as PNG and PDF (vector, for papers);
-a click enlarges it. The page follows the viewer's light or dark setting, with a switch;
-it prints with every section open. Nothing on it is computed anew except the figures: the
-text is the report's.
+Every figure is also saved in ``folder/figures`` as PNG and PDF (vector, for papers), with
+the data it draws as CSV (``_html_data``); a click enlarges it. The page follows the
+viewer's light or dark setting, with a switch; it prints with every section open. Nothing on
+it is computed anew except the figures: the text is the report's.
 """
 
 from __future__ import annotations
@@ -39,6 +41,7 @@ from typing import Any
 import pandas as pd
 
 from .._style import Status
+from .._wording import listing
 from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
@@ -47,8 +50,18 @@ from ..sampling_unit.legend_text import legend_box
 from ..sampling_unit.reading_text import readings_parts
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import rule_tallies
+from ._html_cards import (
+    check_rows,
+    fields_table,
+    flagged_fields,
+    help_icon,
+    readout_summary,
+    significant_summary,
+)
+from ._html_data import data_buttons, heatmap_data
 from ._html_enough import enough_body
 from ._html_figures import download, embeddings, feature_figures
+from ._html_next import conditions_next, enough_next, fields_next, populations_next
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
 from ._html_render import Terms, chip, text_html
@@ -60,6 +73,7 @@ from ._html_sections import (
     enough_reading,
     heatmap,
     hidden,
+    not_declared,
     unnumbered,
     what_checked,
 )
@@ -181,11 +195,11 @@ def _section(
     title: str | None = None,
     body_extra: str = "",
     found: str | None = None,
+    next_steps: str = "",
 ) -> str:
-    """A card: its title and status, what it is for, its answer in a line, its short text,
-    and its full text folded."""
-    intro = INTROS.get(key)
-    head = f'<p class="intro">{html.escape(intro)}</p>' if intro else ""
+    """A card: its title and status (what it is for under its "?"), its answer in a line,
+    its short text, its full text folded, and what to do next."""
+    head = ""
     if answer:
         head += (
             '<p class="answer"><strong>In short:</strong> '
@@ -194,12 +208,20 @@ def _section(
     body = body_extra or _html(short)
     if full and full.strip() != short.strip():
         detail = _html(full)
-        body += f"<details><summary>Full detail</summary>{detail}</details>"
-    name = title or TITLES.get(key, key)
+        body += f"<details><summary>Show more</summary>{detail}</details>"
+    return _card(
+        key,
+        title or TITLES.get(key, key),
+        chip(status, key, found or answer or ""),
+        head + body + next_steps,
+    )
+
+
+def _card(key: str, title: str, chip_html: str, body: str) -> str:
+    """A section: its chip, its title with its "?" help, and its body."""
     return (
-        f'<section class="card" id="{key}"><h2>{chip(status, key, found or answer or "")} '
-        f"{html.escape(name)}</h2>"
-        f"{head}{body}</section>"
+        f'<section class="card" id="{key}"><h2>{chip_html} {html.escape(title)}'
+        f"{help_icon(INTROS.get(key))}</h2>{body}</section>"
     )
 
 
@@ -210,24 +232,64 @@ def _undefined_rules(result: Report) -> list[str]:
     return [t["label"] for t in tallies if t["groups"] and t["undefined"] == t["groups"]]
 
 
-def _checked_card(result: Report, doc: Any) -> str:
-    """What the run checked, in short lines; the declaration's sentences folded."""
+def _data_card(result: Report, doc: Any, status: Status | None, fields_named: bool) -> str:
+    """The data: one row per check with its chip, what was not declared in a line; the
+    tables, what was checked and the declaration under "Show more"."""
+    short = doc.short.get("overview") or doc.overview or ""
+    missing = not_declared(result.setup)
+    note = (
+        f'<p class="note">Not declared, so not checked: {html.escape(listing(missing, 6))}.</p>'
+        if missing
+        else ""
+    )
     lines = "".join(
         f"<li>{_TERMS.annotate(html.escape(line))}</li>"
         for line in what_checked(result.setup, _undefined_rules(result))
     )
-    full = doc.short.get("declaration") or "\n".join(f"- {d}" for d in doc.declaration)
-    detail = f"<details><summary>Full detail</summary>{text_html(full)}</details>" if full else ""
-    return (
-        '<section class="card" id="declaration"><h2>What was checked</h2>'
-        f'<ul class="checked">{lines}</ul>{detail}</section>'
+    declaration = doc.short.get("declaration") or "\n".join(f"- {d}" for d in doc.declaration)
+    more = (
+        f"<details><summary>Show more</summary>{_html(short)}<h3>What was checked</h3>"
+        f'<ul class="checked">{lines}</ul>'
+        + (
+            f"<details><summary>The declaration in full</summary>{text_html(declaration)}</details>"
+            if declaration
+            else ""
+        )
+        + "</details>"
     )
+    rows = check_rows(short, _TERMS.annotate, fields_named)
+    return _card("overview", TITLES["overview"], chip(status, "overview", ""), rows + note + more)
 
 
-def _condition_extras(
-    result: Report, feature_blocks: list[str], viz: str, static: list[str]
-) -> str:
-    """Question 9's figures: the heatmap, the plots, the PCA and UMAP."""
+def _fields_card(result: Report, status: Status | None, short: str, full: str) -> str:
+    """The fields to check, and why; the report's text under "Show more"."""
+    rows, identities, key = flagged_fields(result)
+    if rows:
+        body = (
+            "<p>Please check these fields of view, and why:</p>"
+            + fields_table(rows, _TERMS.annotate)
+            + '<p class="note">None of these is called an error: look at the images to see '
+            "whether it is biology, technique or simply a large field.</p>"
+        )
+    else:
+        body = _html(short)
+    body += f"<details><summary>Show more</summary>{_html(full)}</details>"
+    body += fields_next(identities, key)
+    return _card("inspect", TITLES["inspect"], chip(status, "inspect", short), body)
+
+
+def _dataset_card(result: Report, viz: str, static: list[str]) -> str:
+    """Every feature at once: the interactive PCA and UMAP, the static figures folded."""
+    body = (
+        f"<p>All {len(result.setup.columns)} features at once, every cell a point.</p>{viz}"
+        "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
+        f'<div class="figures">{"".join(static)}</div></details>'
+    )
+    return _card("dataset", TITLES["dataset"], "", body)
+
+
+def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -> str:
+    """Question 9's figures: the heatmap (its numbers as CSV), the best-ranked features."""
     conditions = []
     contrast = result.results.get("contrast")
     if contrast is not None and len(contrast.table):
@@ -235,27 +297,36 @@ def _condition_extras(
     extra = ""
     grid = heatmap(result.discovery, conditions)
     if grid:
-        extra += f"<h3>Every feature against the control</h3>{grid}"
-    if feature_blocks:
+        files = heatmap_data(result.discovery, folder)
         extra += (
-            "<h3>The readout and the best-ranked features</h3>"
-            f'<div class="feature-grid">{"".join(feature_blocks)}</div>'
+            f"<h3>Every feature against the control</h3>{grid}"
+            f'<p class="tools">{data_buttons(files)}</p>'
         )
-    if viz:
-        extra += f"<h3>All {len(result.setup.columns)} features at once</h3>{viz}"
+    if feature_blocks:
+        ranked = result.discovery is not None and len(result.discovery.top())
         extra += (
-            "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
-            f'<div class="figures">{"".join(static)}</div></details>'
+            f"<h3>{'The best-ranked features' if ranked else 'The readout'}</h3>"
+            f'<div class="feature-grid">{"".join(feature_blocks)}</div>'
         )
     return extra
 
 
 def _conditions_card(
-    result: Report, status: Status | None, short: str, full: str, answer: str | None, extras: str
+    result: Report,
+    status: Status | None,
+    short: str,
+    full: str,
+    answer: str | None,
+    extras: str,
+    next_html: str,
 ) -> str:
-    """Question 9: the reading per condition, then the figures, then the tests behind them."""
+    """Question 9: the significant features per condition, the figures, then the tests
+    behind them (the readout's reading first), then what to do next."""
     contrast = result.results.get("contrast")
     reading = "\n".join(readings_parts(contrast, indent=2)) if contrast is not None else ""
+    summary = significant_summary(result, _TERMS.annotate) or readout_summary(
+        result, _TERMS.annotate
+    )
     if reading and short.startswith(reading):
         rest = short[len(reading) :].lstrip("\n")
         box = legend_box(contrast, result.setup.unit_words)
@@ -265,13 +336,27 @@ def _conditions_card(
             if box
             else ""
         )
-        body = _html(reading) + legend + extras
-        if rest.strip():
-            # One kind of test at a time (_html_tabs).
-            body += "<h3>The tests behind the reading</h3>" + tests_tabs(rest, _html)
+        readout = (
+            f"<details><summary>The readout, {html.escape(result.setup.readout)}, condition by "
+            f"condition</summary>{_html(reading)}{legend}</details>"
+        )
+        body = (summary or _html(reading)) + extras + "<h3>The tests behind the reading</h3>"
+        # One kind of test at a time (_html_tabs).
+        body += readout + (tests_tabs(rest, _html) if rest.strip() else "")
     else:
-        body = _html(short) + extras
-    return _section("conditions", status, short, full, answer, body_extra=body)
+        body = summary + _html(short) + extras
+    # The summary answers, so the headline is not repeated above it (it stays the chip's).
+    shown = None if summary else answer
+    return _section(
+        "conditions",
+        status,
+        short,
+        full,
+        shown,
+        body_extra=body,
+        found=answer,
+        next_steps=next_html,
+    )
 
 
 def html_report(
@@ -305,7 +390,11 @@ def html_report(
     statuses, headlines = doc.statuses, doc.headlines
     # The Foundation's title names the report's own observations (tracks, patches).
     titles = {**TITLES, "unit": f"Why count fields, and not only {result.setup.unit_words}?"}
-    keys = [k for k in ORDER if (k == "overview" and doc.overview) or k in doc.sections]
+    keys = [
+        k
+        for k in ORDER
+        if (k == "overview" and doc.overview) or k in doc.sections or (k == "dataset" and viz)
+    ]
     shown = [k for k in keys if not hidden(statuses.get(k), headlines.get(k, ""))]
     nav = ['<nav class="toc" aria-label="Sections"><h2>Report</h2>']
     glance = []
@@ -316,10 +405,6 @@ def html_report(
             f'<a href="#{key}"><span class="icon" aria-hidden="true">{icon}</span>'
             f"<span>{html.escape(titles[key])}</span></a>"
         )
-        if key == "overview":
-            nav.append(
-                '<a href="#declaration"><span class="icon"></span><span>What was checked</span></a>'
-            )
         if status is not None:
             glance.append(
                 f'<a class="glance-row" href="#{key}"><span class="q">{html.escape(titles[key])}'
@@ -344,28 +429,31 @@ def html_report(
     ]
     for key in shown:
         if key == "overview":
-            cards.append(
-                _section(
-                    "overview",
-                    statuses.get("overview"),
-                    overview_short,
-                    doc.overview,
-                    headlines.get("overview"),
-                )
-            )
-            cards.append(_checked_card(result, doc))
+            named = "inspect" in shown
+            cards.append(_data_card(result, doc, statuses.get("overview"), named))
+            continue
+        if key == "dataset":
+            cards.append(_dataset_card(result, viz, static))
             continue
         short = doc.short.get(key, doc.sections[key])
+        if key == "inspect":
+            cards.append(_fields_card(result, statuses.get(key), short, doc.sections[key]))
+            continue
         if key == "conditions":
-            extras = _condition_extras(result, feature_blocks, viz, static)
+            extras = _condition_extras(result, feature_blocks, figures)
             cards.append(
                 _conditions_card(
-                    result, statuses.get(key), short, doc.sections[key], headlines.get(key), extras
+                    result,
+                    statuses.get(key),
+                    short,
+                    doc.sections[key],
+                    headlines.get(key),
+                    extras,
+                    conditions_next(result, fovs),
                 )
             )
             continue
-        extra = ""
-        extra, answer = "", headlines.get(key)
+        extra, answer, after = "", headlines.get(key), ""
         features = result.results.get("enough_features") if key == "enough" else None
         reading = enough_reading(result) if key == "enough" and features is None else []
         if features is not None:
@@ -382,6 +470,10 @@ def html_report(
                 + unnumbered(text_html(short))
             )
             answer = None
+        if key == "enough":
+            after = enough_next(result, fovs, features)
+        elif key == "populations":
+            after = populations_next(result, fovs)
         cards.append(
             _section(
                 key,
@@ -392,6 +484,7 @@ def html_report(
                 body_extra=extra,
                 found=headlines.get(key),
                 title=titles[key],
+                next_steps=after,
             )
         )
     limits = doc.limits(list(REPORT_QUESTIONS), "short")

@@ -83,7 +83,9 @@ EFFECT_CAP = 20.0
 GATE_ALPHA = 0.05
 TOP_FEATURES = 5
 MAX_ROWS_LISTED = 24
-_PLOTTED = f"Plotted by default: the readout and up to {TOP_FEATURES} best-ranked other features."
+_PLOTTED = (
+    f"Plotted by default: up to {TOP_FEATURES} best-ranked features (the readout when none ranks)."
+)
 
 
 @dataclass(frozen=True)

@@ -354,8 +354,10 @@ class FeatureDiscovery:
         lines += [wrap(line, indent, hang=indent + 2) for line in self._unranked(limit)]
         if self.top():
             lines.append(
-                " " * indent
-                + f"Plotted by default: the readout and up to {TOP_FEATURES} best-ranked features."
+                " "
+                * indent
+                + f"Plotted by default: up to {TOP_FEATURES} best-ranked features (the readout "
+                "when none ranks)."
             )
         return lines, self._cautions()
 

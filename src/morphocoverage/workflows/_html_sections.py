@@ -1,14 +1,15 @@
 """The HTML report's reading order and its plain-language pieces (private; ``html_report``).
 
 - ``ORDER`` and ``TITLES``: the sections in the order a user acts on them, the data and the
-  fields to check first, then the result, then how far the sampling supports it; titled in
+  fields to check first, then the whole dataset, its populations and whether the conditions
+  differ, then how far the sampling supports it (owner, 2026-10-02); titled in
   words, without the question numbers of the text report (whose 4, 5, 7 and 8 are the
   planning questions of ``optimise``).
-- ``INTROS``: what each section is for, in one sentence, printed under its title.
+- ``INTROS``: what each section is for, shown by the "?" beside its title.
 - ``hidden``: a section whose answer is "not applicable" for this design is left out of the
   page (its reason stays in "What this dataset cannot tell me").
 - ``what_checked``: what the run checked, in short lines, instead of the declaration's
-  sentences (kept under "Full detail").
+  sentences (kept under "Full detail"); ``not_declared``: what it could not check.
 - ``enough_reading``: "Did I image enough?" answered in plain sentences, with what to do.
 - ``unnumbered``: the text report's question numbers replaced by these titles.
 - ``heatmap``: Cohen's d of every feature and condition against the control, as an SVG, with
@@ -38,8 +39,9 @@ from ..sufficiency_short import rule_tallies
 ORDER = (
     "overview",
     "inspect",
-    "conditions",
+    "dataset",
     "populations",
+    "conditions",
     "enough",
     "profile",
     "unit",
@@ -48,6 +50,7 @@ ORDER = (
 TITLES = {
     "overview": "The data",
     "inspect": "Fields to check (quality control)",
+    "dataset": "The whole dataset at once",
     "conditions": "Do the conditions differ?",
     "populations": "Are there distinct populations?",
     "enough": "Did I image enough?",
@@ -63,9 +66,14 @@ INTROS = {
         "images before trusting the answers below. Focus and segmentation are not checked, so "
         "a field not flagged is not thereby a good image."
     ),
+    "dataset": (
+        "Every cell on all the features at once, as a PCA and a UMAP: where the conditions "
+        "and the populations sit, and which features set a group of cells apart. They "
+        "describe, they do not test."
+    ),
     "conditions": (
-        "Each condition against the control: the reading per condition first, then the "
-        "figures, then the tests behind them."
+        "Each condition against the control: the features significant across repeats first, "
+        "then every feature at once, the best-ranked plotted, then the tests behind them."
     ),
     "populations": (
         "Groups of cells that sit together on all the features, from whichever condition, "
@@ -147,6 +155,14 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
             f"Not applicable to {unit}: {listing(list(undefined), 3)} (it counts objects such "
             "as cells), so it was not used."
         )
+    missing = not_declared(setup)
+    if missing:
+        lines.append(f"Not declared, so not checked: {listing(missing, 6)}.")
+    return lines
+
+
+def not_declared(setup: Any) -> list[str]:
+    """What the setup does not declare, so the report does not check."""
     missing = []
     if setup.positive is None:
         missing.append("a positive control")
@@ -156,9 +172,7 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
         missing.append("a rare population")
     if setup.acquisition_order_col is None and setup.stage_cols is None:
         missing.append("the acquisition order and stage positions")
-    if missing:
-        lines.append(f"Not declared, so not checked: {listing(missing, 6)}.")
-    return lines
+    return missing
 
 
 def _repeats_advice(contrast: Any, fields: str) -> str:
@@ -407,6 +421,7 @@ __all__ = [
     "enough_reading",
     "heatmap",
     "hidden",
+    "not_declared",
     "unnumbered",
     "what_checked",
 ]
