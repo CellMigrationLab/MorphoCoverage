@@ -15,12 +15,7 @@ from test_rare_fingerprint import _screen, _setup
 from morphocoverage import workflows
 from morphocoverage.workflows import report
 from morphocoverage.workflows._html_cards import significant_summary
-from morphocoverage.workflows._html_next import (
-    conditions_next,
-    fields_next,
-    fov_counts,
-    populations_next,
-)
+from morphocoverage.workflows._html_next import fields_next, fov_counts, populations_next
 from morphocoverage.workflows._shared import check_workflow_inputs
 from morphocoverage.workflows.figures import plots
 
@@ -115,27 +110,6 @@ def _run(markup, namespace):
     exec(html.unescape(code), namespace)  # noqa: S102 - the page's own code, as a user runs it
 
 
-def test_the_conditions_next_step_plans_for_the_top_significant_feature(screen, monkeypatch):
-    objects, fovs, result = screen
-    seen = {}
-
-    class Plan:
-        def summary(self):
-            return "the plan"
-
-    def fake_optimise(objects, fovs, setup, **settings):
-        seen.update(setup=setup, **settings)
-        return Plan()
-
-    monkeypatch.setattr(workflows, "optimise", fake_optimise)
-    markup = conditions_next(result, fovs)
-    assert "What to do next" in markup
-    _run(markup, {"result": result, "objects": objects, "fovs": fovs, "print": lambda *a: None})
-    significant = result.discovery.tests.query("confirmed")
-    first = next(f for f in result.discovery.ranking["feature"] if f in set(significant["feature"]))
-    assert seen["setup"].readout == first and seen["fov_counts"] == fov_counts(fovs)
-
-
 def test_the_populations_next_step_declares_the_population_as_the_rare_phenotype(
     screen, monkeypatch
 ):
@@ -149,7 +123,6 @@ def test_the_populations_next_step_declares_the_population_as_the_rare_phenotype
         return result
 
     monkeypatch.setattr(workflows, "report", fake_report)
-    monkeypatch.setattr(workflows, "optimise", lambda *a, **kw: None)
     markup = populations_next(result, fovs, objects)
     table = result.results["populations"].populations.table
     small = table.sort_values("share").iloc[0]
@@ -160,10 +133,13 @@ def test_the_populations_next_step_declares_the_population_as_the_rare_phenotype
     _run(markup, {"result": result, "objects": objects.copy(), "fovs": fovs})
     setup = seen["setup"]
     assert setup.rare_label == small["population"]
-    assert setup.rare.object_prevalence == pytest.approx(small["share"], abs=1e-3)
     labelled = seen["objects"][small["population"]]
-    # The rule labels about the group's share of the cells (it is checked on held-out cells).
+    # The rule labels about the group's share of the cells (it is checked on held-out cells),
+    # and the code declares the share it labels.
     assert labelled.dtype == bool and labelled.mean() == pytest.approx(small["share"], abs=0.03)
+    assert setup.rare.object_prevalence == pytest.approx(labelled.mean(), abs=1e-4)
+    # Planning its fields is the plan section's (_html_plan), not this step's.
+    assert "optimise" not in markup
 
 
 def test_the_fields_next_step_runs_the_report_without_the_fields(screen, monkeypatch):

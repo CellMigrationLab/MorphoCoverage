@@ -37,6 +37,8 @@ from ._html_next import (
     _optimise_code,
     _repeats_line,
     fov_counts,
+    rule_code,
+    rule_labels,
 )
 from ._populations import rule_words
 
@@ -69,20 +71,6 @@ def _significant(result: Any) -> set[str]:
         return set()
     tests = discovery.tests
     return set(tests.loc[tests["confirmed"].fillna(False).astype(bool), "feature"])
-
-
-def _labels(table: pd.DataFrame, terms: Sequence[Sequence[Any]]) -> pd.Series:
-    """Which rows of ``table`` a rule's terms pick (a missing value is not picked)."""
-    picked = pd.Series(True, index=table.index)
-    for feature, op, threshold in terms:
-        column = pd.to_numeric(table[feature], errors="coerce")
-        picked &= column > threshold if op == ">" else column <= threshold
-    return picked
-
-
-def _code_of(terms: Sequence[Sequence[Any]], table: str) -> str:
-    """A rule's terms as pandas code on ``table`` (as ``_population_rule.Rule.code``)."""
-    return " & ".join(f'({table}["{f}"] {op} {t:.6g})' for f, op, t in terms)
 
 
 def _incidence(
@@ -176,6 +164,22 @@ def _plans(result: Any) -> list[tuple[str, Any]]:
     return [(f, contrasts[f]) for f in _features(result) if f in contrasts]
 
 
+def _confirmed_pairs(result: Any) -> set[tuple[str, str]]:
+    """The (feature, condition) pairs significant across repeats."""
+    discovery = result.discovery
+    if discovery is None or discovery.tests is None or not len(discovery.tests):
+        return set()
+    tests = discovery.tests
+    confirmed = tests[tests["confirmed"].fillna(False).astype(bool)]
+    return {(str(f), str(c)) for f, c in zip(confirmed["feature"], confirmed["condition"])}
+
+
+def _plan_words(value: Any) -> str:
+    if pd.isna(value):
+        return "–"
+    return f"more than {MAX_REPEATS}" if not np.isfinite(float(value)) else str(int(value))
+
+
 def _difference_goal(result: Any) -> tuple[str, str] | None:
     """The repeats each condition not yet significant across repeats would need, per
     feature; with too few repeats, how many to plan."""
@@ -191,33 +195,39 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
     plans = _plans(result)
     if not plans:
         return None
-    rows = []
+    done = _confirmed_pairs(result)
+    rows, shown = [], []
     for feature, contrast in plans:
         plan = getattr(contrast, "plan", None)
         if plan is None or plan.empty:
             continue
         unit = field_words(contrast)[1]
         for _, row in plan.iterrows():
-            needed = row["repeats_needed"]
-            if pd.isna(needed):
+            if (feature, str(row["condition"])) in done:
+                shown.append(feature)
                 continue
-            twice = row["repeats_needed_twice_fields"]
-            words = (
-                f"more than {MAX_REPEATS}" if not np.isfinite(float(needed)) else str(int(needed))
-            )
-            twice_words = (
-                f"more than {MAX_REPEATS}"
-                if pd.isna(twice) or not np.isfinite(float(twice))
-                else str(int(twice))
-            )
+            if pd.isna(row["repeats_needed"]):
+                continue
+            planned = str(row["planned_on"])
             moved = (
-                change(float(row["change"]), str(row["planned_on"]))
-                if pd.notna(row["change"])
-                else ""
+                change(float(row["change"]), "normalised" if planned == "log ratio" else "raw")
+                if planned in ("log ratio", "difference") and pd.notna(row["change"])
+                else "–"
             )
-            rows.append((feature, str(row["condition"]), moved, words, twice_words, unit))
+            rows.append(
+                (
+                    feature,
+                    str(row["condition"]),
+                    moved,
+                    _plan_words(row["repeats_needed"]),
+                    _plan_words(row["repeats_needed_twice_fields"]),
+                    unit,
+                )
+            )
+    already = list(dict.fromkeys(shown))
+    known = f" Significant across repeats already: {listing(already, 6)}." if already else ""
     if not rows:
-        return None
+        return option, _panel(f"Every condition is significant across repeats.{known}".strip())
     unit = rows[0][5]
     head = (
         "<tr><th>feature</th><th>condition</th><th>change seen</th><th>repeats needed</th>"
@@ -232,9 +242,10 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
     )
     sentence = (
         "optimise plans each well's own measurements, not a comparison: a difference from "
-        "the control is planned in biological repeats. The repeats a paired t-test on the "
-        f"repeat means needs for {rate(POWER)} power, if the change and the variation seen "
-        "here recur, each repeat with its own control:"
+        "the control is planned in biological repeats. For each condition not yet "
+        "significant across repeats, the repeats a paired t-test on the repeat means needs "
+        f"for {rate(POWER)} power, if the change and the variation seen here recur, each "
+        f"repeat with its own control.{known}"
     )
     return option, _panel(sentence, extra=table)
 
@@ -279,7 +290,7 @@ def _group_goals(
     if row is None or objects is None:
         return [], []
     name, terms = str(row.name), list(row["rule_terms"])
-    labelled = _labels(objects, terms)
+    labelled = rule_labels(objects, terms)
     found = _incidence(result, objects, fovs, labelled)
     if found is None:
         return [], []
@@ -291,7 +302,7 @@ def _group_goals(
         f"{percent_fine(incidence)} of its fields hold it."
     )
     seen = f"{name} seen in at least {count(OCCURRENCES, 'field')} of every well"
-    labels = f"objects[{name!r}] = {_code_of(terms, 'objects')}\n"
+    labels = f"objects[{name!r}] = {rule_code(terms, 'objects')}\n"
     plan_code = (
         _GUARD + "from dataclasses import replace\n"
         "from morphocoverage import RareTarget\n"
@@ -329,7 +340,7 @@ def _live_rare(
     setup = result.setup
     risk = round(1 - DETECTION, 4)
     label = (
-        f"#   field_objects[{name!r}] = {_code_of(terms, 'field_objects')}\n"
+        f"#   field_objects[{name!r}] = {rule_code(terms, 'field_objects')}\n"
         if terms
         else f"#   field_objects[{name!r}]: each cell's label, True or False\n"
     )
@@ -468,16 +479,23 @@ def plan_card(
     notes = notes or {}
     counts = fov_counts(fovs)
     readout = result.setup.readout
-    optimise = [
-        _mean_goal(result, f, counts, notes.get("rules", "") if f == readout else "")
+    means = {
+        f: _mean_goal(result, f, counts, notes.get("rules", "") if f == readout else "")
         for f in _features(result)
-    ]
+    }
+    first = [f for f in means if f == readout or f in _significant(result)]
     group_plan, group_live = _group_goals(result, objects, fovs, counts)
     declared_plan, declared_live = _declared_goals(result, objects, fovs, counts, notes)
-    optimise += group_plan + declared_plan
     difference = _difference_goal(result)
-    if difference is not None:
-        optimise.append(difference)
+    # The readout and the features significant across repeats, the groups and declared
+    # targets, the difference from the control, then the other features.
+    optimise = [
+        *(means[f] for f in first),
+        *group_plan,
+        *declared_plan,
+        *([difference] if difference is not None else []),
+        *(means[f] for f in means if f not in first),
+    ]
     live = [*group_live, *declared_live, *(_live_mean(result, f, fovs) for f in _features(result))]
     body = (
         "<p>Pick what the next experiment should get right, or what the microscope should "

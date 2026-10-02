@@ -53,6 +53,20 @@ def fov_counts(fovs: pd.DataFrame) -> list[int]:
     return counts
 
 
+def rule_labels(table: pd.DataFrame, terms: Sequence[Sequence[Any]]) -> pd.Series:
+    """Which rows of ``table`` a rule's terms pick (a missing value is not picked)."""
+    picked = pd.Series(True, index=table.index)
+    for feature, op, threshold in terms:
+        column = pd.to_numeric(table[feature], errors="coerce")
+        picked &= column > threshold if op == ">" else column <= threshold
+    return picked
+
+
+def rule_code(terms: Sequence[Sequence[Any]], table: str) -> str:
+    """A rule's terms as pandas code on ``table`` (as ``_population_rule.Rule.code``)."""
+    return " & ".join(f'({table}["{f}"] {op} {t:.6g})' for f, op, t in terms)
+
+
 def _block(steps: Sequence[tuple[str, str]]) -> str:
     """The "What to do next" box: each step's sentence and, when it has one, its code,
     folded (owner, 2026-10-02: the sentence says what to do, the code is there when wanted)."""
@@ -188,6 +202,10 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         "enough fields of every well."
     )
     phenotype = f"{name}: {traits(row['defining'][:2])}"
+    # The share of cells the rule labels, which the code declares (the cluster's share
+    # without a rule).
+    if row["rule"] and objects is not None:
+        share = float(rule_labels(objects, row["rule_terms"]).mean())
     labelled = (
         f"objects[{name!r}] = {row['rule_code']}\n"
         if row["rule"]
@@ -234,4 +252,4 @@ def fields_next(fields: Sequence[Sequence[Any]], key: Sequence[str]) -> str:
     return _block([(line, code)])
 
 
-__all__ = ["fields_next", "fov_counts", "populations_next"]
+__all__ = ["fields_next", "fov_counts", "populations_next", "rule_code", "rule_labels"]
