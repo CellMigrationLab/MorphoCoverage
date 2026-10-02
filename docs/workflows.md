@@ -326,8 +326,11 @@ acquired:
   0.5% of the cells (and 15). Each population is listed with its share, the
   features that set it apart, and the fields and repeats it is seen in; then
   each condition is compared with the control on its share of cells in it,
-  per biological repeat, by the paired test across repeats (Benjamini-Hochberg
-  within each sub-experiment). A declared label is matched to the population
+  per biological repeat, on the log odds of the shares (a small share is as
+  steady there as a large one), by the paired test across repeats
+  (Benjamini-Hochberg within each sub-experiment); a main population holding
+  most cells is listed but not tested, its share being all but the complement
+  of the others'. A declared label is matched to the population
   that holds it. The PCA and UMAP ring each population (click its legend entry
   to hide it), can be coloured by condition, population or any feature, and,
   around points drawn with the lasso, list the conditions and populations they
