@@ -131,6 +131,21 @@ def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
     return lines
 
 
+def balance_lines(contrast: Any) -> list[str]:
+    """The balance check in a sentence and the repeats too small to balance to, unwrapped
+    (the text report's and the page's cell-level screen); empty for one repeat compared with
+    its own control, which has no balance to check, or without the cell-level test."""
+    cells = _cells(contrast)
+    if cells.empty or contrast.settings.get("repeat_col") is None:
+        return []
+    balance = (
+        [_balance(contrast, cells)]
+        if cells["repeats"].max() > 1 or cells["unbalanced"].any()
+        else []
+    )
+    return balance + _sparse(contrast, cells)
+
+
 def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list[str], list[str]]:
     """The balance check, the table of the cell-level test and its note (empty without it)."""
     cells = _cells(contrast)
@@ -146,13 +161,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
             indent,
             hang=indent + 2,
         ),
-        # One repeat compared with its own control has no balance to check.
-        *(
-            [wrap(_balance(contrast, cells), indent + 2, hang=indent + 4)]
-            if cells["repeats"].max() > 1 or cells["unbalanced"].any()
-            else []
-        ),
-        *(wrap(line, indent + 2, hang=indent + 4) for line in _sparse(contrast, cells)),
+        *(wrap(line, indent + 2, hang=indent + 4) for line in balance_lines(contrast)),
     ]
     # A test that pools the control of repeats the condition was not imaged in gets no
     # number (the page leaves it out too): its d reads the batch between repeats.
@@ -321,4 +330,4 @@ def cells_headline(contrast: Any) -> str | None:
     return text
 
 
-__all__ = ["cells_headline", "cells_parts"]
+__all__ = ["balance_lines", "cells_headline", "cells_parts"]

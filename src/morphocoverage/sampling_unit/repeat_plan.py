@@ -13,7 +13,10 @@ fields resampled as acquired, ``contrast_sampling``):
 - **what limits it**: the sampling error within a repeat against the variation between
   repeats (the repeat values' spread beyond that sampling error, which more fields cannot
   reduce; it needs two repeats), on the values the paired t-test compares (below). When the
-  repeats vary more than their sampling error, more fields per repeat help little;
+  repeats vary more than their sampling error, more fields per repeat help little. The
+  report no longer prints it as a verdict (owner, 2026-10-02: from 3 repeats it
+  contradicted the readings, and docs/questions.md, P10, needs 5 or more units); the
+  column stays for the advice of "Did I image enough?" (``_html_sections``);
 - **the repeats needed**: the fewest biological repeats (at most ``MAX_REPEATS``)
   for which a paired t-test on the repeat values reaches ``power`` at the
   correction the report uses, with the fields acquired and with twice as many.

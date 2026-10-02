@@ -7,7 +7,10 @@ the arrow keys moving between them (``_html_script``).
 - ``test_blocks``: the text of "The tests behind the reading" cut by kind of test (across
   the repeats, the reagents of a target, the cell-level screen, within single repeats,
   planning, every feature, beyond the mean), for ``_html_tests``: the text before the first
-  kind, each kind's, and the closing cautions and assumptions.
+  kind, each kind's, and the closing cautions and assumptions. The page builds its tabs
+  from the results and takes only the reagents' paragraph from the text; the kinds in
+  ``OFF_PAGE`` are cut out so they never reach it (owner, 2026-10-02: the plan for the
+  next experiment, the ranking and the within-repeat tables stay in the text report).
 """
 
 from __future__ import annotations
@@ -26,6 +29,9 @@ TEST_KINDS = (
     ("Every feature", ("Which features separate the conditions?",)),
     ("Beyond the mean", ("Beyond the mean",)),
 )
+# Kinds the page never shows from the text: the plan (for its own section), the ranking (the
+# heatmap and the Across repeats tab give it) and the tests within single repeats.
+OFF_PAGE = ("Planning", "Every feature", "Within repeats")
 _CLOSING = ("⚠️", "Assumptions")
 # More tabs than this do not fit a row or two: a list to search and pick from instead.
 TABS_AT_MOST = 12
@@ -107,4 +113,4 @@ def test_blocks(text: str) -> tuple[list[str], dict[str, list[str]], list[str]]:
     return head, blocks, tail
 
 
-__all__ = ["TABS_AT_MOST", "TEST_KINDS", "tabs_html", "test_blocks"]
+__all__ = ["OFF_PAGE", "TABS_AT_MOST", "TEST_KINDS", "tabs_html", "test_blocks"]

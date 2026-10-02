@@ -16,8 +16,11 @@ that opens in any browser, offline, and can be emailed or archived as it is. It 
   words of ``Report.summary``, its aligned tables as sortable tables), and, where an
   analysis follows, **what to do next** with its code (``_html_next``);
 - under "Do the conditions differ?", the features significant across repeats per
-  condition, a **heatmap** of Cohen's d, the **figures** of the best-ranked features, then
-  the tests behind the reading;
+  condition, a **heatmap** of Cohen's d (the features no condition makes a candidate named
+  under it), the **figures** of the best-ranked features, each with its text for a figure
+  legend folded, then the tests behind the reading, one kind a tab, and under "Show more"
+  the section's assumptions only (the readings, the ranking, the plan and the tables within
+  single repeats stay in the text report);
 - the **glossary** as a drawer on the side, with a search, and the **Files**.
 
 Every figure is also saved in ``folder/figures`` as PNG and PDF (vector, for papers), with
@@ -44,7 +47,6 @@ from .._wording import listing
 from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
-from ..sampling_unit.legend_text import legend_box
 from ..sampling_unit.reading_text import readings_parts
 from ..sufficiency_short import rule_tallies
 from ._html_cards import (
@@ -78,7 +80,7 @@ from ._html_sections import (
     what_checked,
 )
 from ._html_style import CSS
-from ._html_tests import tests_section
+from ._html_tests import figure_legends, page_assumptions, tests_section
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
@@ -264,8 +266,12 @@ def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -
     grid = heatmap(result.discovery, conditions)
     if grid:
         files = heatmap_data(result.discovery, folder)
+        # The features no condition makes a candidate, under the heatmap (owner, 2026-10-02).
+        unranked = "".join(
+            f'<p class="note">{html.escape(line)}</p>' for line in result.discovery._unranked(8)
+        )
         extra += (
-            f"<h3>Every feature against the control</h3>{grid}"
+            f"<h3>Every feature against the control</h3>{grid}{unranked}"
             f'<p class="tools">{data_buttons(files)}</p>'
         )
     if feature_blocks:
@@ -284,45 +290,34 @@ def _conditions_card(
     full: str,
     answer: str | None,
     extras: str,
-    next_html: str,
     folder: Path,
 ) -> str:
-    """Question 9: the significant features per condition, the figures, then the tests
-    behind them (the readout's reading first), then what to do next."""
+    """Question 9: the significant features per condition, the figures (each with its
+    legend), then the tests behind them, the assumptions under "Show more"; planning the
+    next experiment is the page's last section (_html_plan). The readings, the ranking and
+    the plan are not repeated here (owner, 2026-10-02): the tabs and the figures hold their
+    numbers, and the text report every one."""
     contrast = result.results.get("contrast")
     reading = "\n".join(readings_parts(contrast, indent=2)) if contrast is not None else ""
     summary = significant_summary(result, _TERMS.annotate) or readout_summary(
         result, _TERMS.annotate
     )
-    if reading and short.startswith(reading):
-        rest = short[len(reading) :].lstrip("\n")
-        box = legend_box(contrast, result.setup.unit_words)
-        legend = (
-            f'<p class="legend-box"><strong>For a figure legend.</strong> '
-            f"{_TERMS.annotate(html.escape(box.split(': ', 1)[1]))}</p>"
-            if box
-            else ""
-        )
-        readout = (
-            f"<details><summary>The readout, {html.escape(result.setup.readout)}, condition by "
-            f"condition</summary>{_html(reading)}{legend}</details>"
-        )
-        body = (summary or _html(reading)) + extras + "<h3>The tests behind the reading</h3>"
+    rest = short[len(reading) :].lstrip("\n") if reading and short.startswith(reading) else short
+    # Without a summary (no reading by verdict), the readings answer.
+    body = (summary or _html(reading)) + extras
+    if rest.strip():
         # One kind of test at a time (_html_tabs).
-        body += (tests_section(result, rest, _html, folder) if rest.strip() else "") + readout
-    else:
-        body = summary + _html(short) + extras
+        body += "<h3>The tests behind the reading</h3>" + tests_section(result, rest, _html, folder)
     # The summary answers, so the headline is not repeated above it (it stays the chip's).
     shown = None if summary else answer
     return _section(
         "conditions",
         status,
-        short,
-        full,
+        "",
+        page_assumptions(full, contrast),
         shown,
         body_extra=body,
         found=answer,
-        next_steps=next_html,
     )
 
 
@@ -357,7 +352,8 @@ def html_report(
     doc = result.document
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        feature_blocks, specs = feature_figures(result, objects, fovs, figures)
+        legends = {f: _TERMS.annotate(html.escape(t)) for f, t in figure_legends(result).items()}
+        feature_blocks, specs = feature_figures(result, objects, fovs, figures, legends)
         viz, static = ("", [])
         if len(result.setup.columns) >= MIN_FEATURES:
             viz, static = embeddings(result, objects, fovs, figures)
@@ -425,7 +421,6 @@ def html_report(
                     doc.sections[key],
                     headlines.get(key),
                     extras,
-                    "",
                     figures,
                 )
             )
