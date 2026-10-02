@@ -136,7 +136,7 @@ from ..evidence import Component, Direction, Evidence, Quantity
 from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
-from ..transforms import FeatureTransform, constant_columns
+from ..transforms import FeatureTransform, constant_columns, missing_values_reason
 from .base import Estimator, SamplingStrategy
 from .support_geometry import new_state_members, novel_against, novel_observations
 
@@ -273,8 +273,9 @@ class SupportNoveltyEstimator(Estimator):
     def estimate(self, data: ValidatedInput, *, objective: ObjectiveConfig) -> Evidence:
         """The leave-one-FOV-out novel fractions of observations and of FOVs."""
         matrix = data.feature_matrix()
-        if np.isnan(matrix).any():
-            return _unavailable("not_applicable", "missing values in the selected features", {})
+        missing = missing_values_reason(matrix, data.feature_cols)
+        if missing:
+            return _unavailable("not_applicable", missing, {})
         positions = fov_positions(data, data.fovs)
         diagnostics: dict[str, Any] = {"fovs_with_observations": len(np.unique(positions))}
         reason = None

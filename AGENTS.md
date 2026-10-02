@@ -199,6 +199,7 @@ MorphoCoverage currently produces in-memory result objects (`StrategyResult`, `S
 src/morphocoverage/
     __init__.py            # public API (__all__); changes need approval (section 15)
     metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings (the one resolver)
+    _spelling.py           # private: typing errors of a name (edits), for metadata's near-miss spellings
     schema.py              # ValidatedInput and linked-table validation
     _plane_rules.py        # private: the plane rule (z/c/t planes are not fields, never features)
     planes.py              # planes_as_features: one feature per plane, objects matched by label_id
@@ -376,6 +377,7 @@ tests/
     test_audit*.py, test_microscopist_audit.py  # regression tests of the audits' findings (docs/audit/README.md)
     test_human_errors.py   # the mistakes people make with the tables, and the message each gives
     test_crick_idr.py      # real-data integrity and end-to-end tests
+    test_morphobricks_tables.py  # a fiberfeatures table as written: read as it is, geometry not offered, typos refused
     test_parallel.py       # n_jobs > 1 gives the results of n_jobs = 1
     test_docs.py           # the documentation's examples run and print what they say
     test_notebooks.py      # example notebooks compile, import existing names, carry no outputs
@@ -386,6 +388,7 @@ data/
     lab/                   # the lab's datasets as MorphoBricks tables: card.toml, DATASET.md, convert.py, NOTICE per
                            # dataset; run_lab.py runs the report, FINDINGS.md logs each run (rules in data/lab/README.md:
                            # only pinned public or owner-released sources, never a manuscript)
+    morphobricks/          # small tables as the other MorphoBricks tools write them (fiberfeatures_patches.csv), with provenance
     simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py) and results
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
 

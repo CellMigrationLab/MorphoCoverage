@@ -17,6 +17,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._spelling import typing_error_of
+
 MORPHOBRICKS_SHARED_COLUMNS = (
     "condition",
     "biological_repeat",
@@ -325,8 +327,11 @@ def canonical_spelling(column: object) -> str | None:
     whitespace (``Z``, ``T ``), or is one of its other names (``plane``,
     ``slice``, ``channel``, ``frame``, ``timepoint``, ...). Either may carry
     CellProfiler's ``Metadata_`` prefix (``Metadata_Z``, ``Metadata_condition``).
-    Such a column would otherwise be ignored: its groups pooled, or its planes
-    counted as fields, without a word. The exact name is not a near miss.
+    A typing error of a shared column (``biological_repat``, ``techincal_repeat``,
+    ``conditon``, ``image_flie``) is a near miss too: one edit (a letter added, missing,
+    changed, or two swapped), or two for the repeats' longer names. Such a column would
+    otherwise be ignored: its groups pooled, or its planes counted as fields, without a word.
+    The exact name is not a near miss.
     """
     if not isinstance(column, str):
         return None
@@ -338,7 +343,18 @@ def canonical_spelling(column: object) -> str | None:
         meant = _plain_spelling(unprefixed)
     if meant is None:
         meant = _PLANE_SYNONYMS.get(_squashed(unprefixed))
+    if meant is None:
+        meant = typing_error_of(_squashed(unprefixed), _TYPO_TARGETS)
     return meant if meant is not None and meant != column else None
+
+
+# The shared columns whose typing errors are caught (``biological_repat``, ``conditon``),
+# by their squashed form; ``fov_id`` is too short to tell a typo from another name.
+_TYPO_TARGETS = {
+    _squashed(name): name
+    for name in (*MORPHOBRICKS_GROUP_COLUMNS, *MORPHOBRICKS_FOV_CANDIDATES)
+    if len(_squashed(name)) >= 8
+}
 
 
 # Names of a stage-position index inside a multi-position file (an .nd2 or .czi

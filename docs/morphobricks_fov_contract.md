@@ -2,7 +2,7 @@
 
 MorphoCoverage treats the field of view (FOV) as the acquisition unit. It can only do that correctly if upstream MorphoBricks tools emit FOV identity consistently. This document states the contract MorphoCoverage relies on and lists the changes needed in sibling repositories. It is a proposal: the other repositories are not changed by this document.
 
-Evidence was first gathered from CellPatcher, fiberfeatures and NucleiSky at their default branches on 2026-09-23, and the CellPatcher and fiberfeatures items were checked again on 2026-09-28 against CellPatcher `b704a8d` and fiberfeatures `10879b6` (both of 2026-09-26). References name files and functions rather than line numbers, which move; NucleiSky was not rechecked.
+Evidence was first gathered from CellPatcher, fiberfeatures and NucleiSky at their default branches on 2026-09-23. The CellPatcher and fiberfeatures items were last checked on 2026-10-02 against CellPatcher `783d8a1` and fiberfeatures `6651566` (both of 2026-10-01, their `main`). Work on an open branch is named as such, not counted as done. References name files and functions rather than line numbers, which move; NucleiSky was not rechecked.
 
 ## 1. Proposed shared contract
 
@@ -37,9 +37,9 @@ Sequential replay reveals an entire spatial position atomically. It must never r
 The shared MorphoBricks columns are `position_id`, `image_file`, `z` or `z0`/`z1`, `c`, `t` (all 0-based), `condition`, `biological_repeat` and `technical_repeat`, with `mask_file` and `patch_file` as provenance where used.
 
 - `condition` and `biological_repeat` are lowercase, exact, string-valued, and present in every table that leaves a tool, including per-image tables. `biological_repeat` was formerly named `repeat`; MorphoCoverage still reads `repeat` as `biological_repeat`, with a `DeprecationWarning`, and refuses a table holding both unless they are identical (`docs/data_format.md`).
-- **A missing hierarchy level is written as the value `single`** (CellPatcher's convention: the level exists and has one member). A condition without repeats uses `biological_repeat="single"` (CellPatcher's `SINGLE_REPEAT_LABEL`), and a repeat without wells `technical_repeat="single"`. An empty cell keeps meaning "not recorded": an optional column (`technical_repeat`, `position_id`) empty in every row is read as absent, and an empty group value otherwise raises.
+- **A missing hierarchy level is written as the value `single`** (CellPatcher's convention: the level exists and has one member). A condition without repeats uses `biological_repeat="single"` (CellPatcher's `SINGLE_BIOLOGICAL_REPEAT_LABEL`, formerly `SINGLE_REPEAT_LABEL`, a name it keeps), a root folder without condition folders `condition="single"` (`SINGLE_CONDITION_LABEL`), and a repeat without wells `technical_repeat="single"`. An empty cell keeps meaning "not recorded": an optional column (`technical_repeat`, `position_id`) empty in every row is read as absent, and an empty group value otherwise raises.
 - `technical_repeat` (optional) names the technical repeat within a biological repeat: a well, a dish, a coverslip. It is never a biological repeat, which stays in `biological_repeat`. Every row of one technical repeat carries the same value, and the value is identified together with `condition` and `biological_repeat` (well `J23` of two plates is two technical repeats). MorphoCoverage uses it as a default analysis group, as part of FOV identity, and as the level it resamples or shuffles before fields.
-- Other spellings (`Biological_Repeat`, `bio_repeat`, `biological repeat`, `tec_repeat`, `tech_repeat`, `technical repeat`, `Repeat`, `Condition`) are not accepted by MorphoCoverage's defaults. They raise with the column meant ("did you mean 'biological_repeat'?"), so they cannot silently bypass repeat separation.
+- Other spellings (`Biological_Repeat`, `bio_repeat`, `biological repeat`, `tec_repeat`, `tech_repeat`, `technical repeat`, `Repeat`, `Condition`) are not accepted by MorphoCoverage's defaults. Nor are typing errors of the shared names (`biological_repat`, `techincal_repeat`, `conditon`, `image_flie`: one edit, or two for the repeats' longer names). They raise with the column meant ("did you mean 'biological_repeat'?"), so they cannot silently bypass repeat separation.
 - `label_id` identifies an object within an image, as both CellPatcher and fiberfeatures already use.
 
 ### A per-image table (the FOV table)
@@ -72,28 +72,30 @@ Feature columns should be listed explicitly in the run's provenance (for example
 Already compatible:
 
 - `image_file` is the basename (`orchestration.py`, the per-image metadata of folder runs).
-- `condition`/`repeat` are real fields, and `"single"` is used for conditions without repeats (`SINGLE_REPEAT_LABEL`, `io.py`). MorphoCoverage reads CellPatcher's `repeat` as `biological_repeat` for now, with a `DeprecationWarning`.
-- `technical_repeat` and `position_id` are real `PatchRegion` fields (`types.py`) and columns of `patches.csv`: `technical_repeat` from a `<condition>/<repeat>/<well>/` folder level (`"single"` without one) or per image from `image_metadata`, and `position_id` per image from `image_metadata`.
+- `condition` and `biological_repeat` are real `PatchRegion` fields (`types.py`) and columns of `patches.csv`; `repeat` is read and written only as a deprecated alias (`_deprecation.py`). A condition folder without repeat folders is labelled `"single"` (`SINGLE_BIOLOGICAL_REPEAT_LABEL`, `io.py`), and so is a root without condition folders (`SINGLE_CONDITION_LABEL`).
+- `position_id` is a real `PatchRegion` field and column, set per image from `image_metadata` (`_stamp_image_metadata`, `pipeline.py`), and the `t`/`z0`/`z1`/`c` of each plane are columns beside it. Planes of one position share it when the caller gives them the same value; nothing derives it from the files.
 - `label_id` exists.
 
 Needed:
 
-0. **Rename `repeat` to `biological_repeat`** in `PatchRegion` and `patches.csv`, the shared name of the biological repeat (a deliberate, versioned change of a shared column under CellPatcher's own AGENTS.md).
-1. **Emit a per-image table** (e.g. `images.csv` next to `patches.csv`). It should include images that produced zero patches and give the reason (no labels, all objects filtered by border or size). Today `patches.csv` has one row per accepted patch only, so these images disappear.
-2. **Do not present `image_id` as an FOV identifier.** It is positional within a run (`image_{idx:04d}` in `pipeline.py`), so it changes if the input list changes. The stable `position_id` for the spatial acquisition position is now available (see above); what remains is to fill it wherever one file is not one position, since nothing derives it from the files.
-3. **Keep plane metadata as columns.** Multi-plane images already carry `t/z/c` metadata. These must remain nested within one spatial position. If CellPatcher emits one row per plane, all rows from the same position should share `position_id`. For time-lapse, the same cell can appear in many frames; downstream tools need `t` (and ideally a track id) to avoid counting it as independent objects.
-4. **Warn or refuse when `condition`/`biological_repeat` are unset.** Direct `run_patching()` calls leave them `None` (the `PatchRegion` docstring in `types.py`). MorphoCoverage rejects missing group values, so this surfaces late rather than at the source.
+1. **Emit a per-image table** (e.g. `images.csv` next to `patches.csv`). It should include images that produced zero patches and give the reason (no labels, all objects filtered by border or size). Today `patches.csv` has one row per accepted patch only (`_build_result`, `pipeline.py`), so these images disappear.
+2. **Do not present `image_id` as an FOV identifier.** It is positional within a run (`image_{idx:04d}` in `pipeline.py` and `cell_scan.py`), so it changes if the input list changes; `docs/configuration_reference.md` calls it the "identifier of the source image". The stable identifier is `position_id`, or `image_file` when one file is one position.
+3. **Populate `technical_repeat`.** It is not a `PatchRegion` field on `main`. The `<condition>/<biological_repeat>/<technical_repeat>/` folder level, with `"single"` without one, is on an open branch (CellPatcher#9), not merged.
+4. **Warn or refuse when `condition`/`biological_repeat` are unset.** Direct `run_patching()` calls leave them `None` (`CommonConfig`, `config.py`), so CellPatcher's own "Always" holds only for `run_patching_condition_repeat_tree`. MorphoCoverage rejects missing group values, so this surfaces late rather than at the source.
 
 ### fiberfeatures
 
+Already compatible:
+
+- `image_file` is the basename and the path is in `image_path` (`build_metadata_from_condition_folders`, `batch.py`).
+- `condition`, `biological_repeat` and `technical_repeat` come from the `<condition>/<biological_repeat>/<technical_repeat>/` folder levels, a missing level being `"single"` (`_FOLDER_LEVELS`, `SINGLE_LABEL`, `batch.py`). Only `biological_repeat` is written; `Repeat` and `repeat` stay in `_COMMON_METADATA_COLUMNS` (`features.py`) so that an older input table's column is never scored as a feature.
+- The patch table (`data/experiment_001/reference/patches.csv`) passes MorphoCoverage's data check as written, with `image_file` as the field; a cut of it is MorphoCoverage's fixture `data/morphobricks/fiberfeatures_patches.csv`. Its `patch_*` columns (where a patch was cut) are not offered as features by `scan_design`.
+
 Needed:
 
-1. **Store the basename in `image_file`.** `build_metadata_from_condition_folders` writes `str(path)` (`batch.py`). Move the path to `image_path`. This change alters an existing shared column, so it needs a deliberate, versioned change, as fiberfeatures' own AGENTS.md requires.
-2. **Emit only `biological_repeat`.** `_COMMON_METADATA_COLUMNS` contains both `Repeat` and `repeat` (`features.py`); fiberfeatures' AGENTS.md already lists this as a known inconsistency. MorphoCoverage refuses `Repeat` as a near miss and reads `repeat` as the former name of `biological_repeat`.
-3. **Populate `biological_repeat`.** Folder metadata builds `condition` but no repeat (`build_metadata_from_condition_folders`, `batch.py`). Use `<condition>/<repeat>/` folders as CellPatcher does, or `"single"`.
-4. **Emit a per-image table.** Cell rows exist only for regions above `min_region_size` (`extract_cell_features`, `features.py`), and metadata is broadcast onto the per-image frame (`batch.py`). An image with no qualifying cells therefore contributes no rows, and its acquisition is lost.
-5. **Clarify `sample_id`.** It defaults to the filename stem (`sample_id_from="stem"`, `batch.py`) and is described as "one image". Either rename it to reflect that it is an image/FOV identifier, or reserve `sample_id` for a biological sample. As it stands, "sample" means an FOV.
-6. **Export the explicit feature list.** Features are chosen as numeric columns minus an exclusion set (`get_numeric_feature_columns`, `features.py`). Writing the resulting list into run provenance lets MorphoCoverage use it explicitly, without re-implementing that inference.
+1. **Emit a per-image table.** In cellular mode, cells below `min_region_size` are skipped (`extract_cell_features`, `features.py`), so an image with no qualifying cells contributes no rows and its acquisition is lost; patch skips are counted for the whole run (`patch_skip_counts`), not per image.
+2. **Clarify `sample_id`.** It is still the filename stem by default (`sample_id_from="stem"`, with `"name"` and `"path"` as options and a duplicate check, `batch.py`), and the glossary still calls a sample "one image". Either rename it to say it is an image identifier, or reserve `sample_id` for a biological sample.
+3. **Export the explicit feature list.** Features are chosen as numeric columns minus an exclusion set (`get_numeric_feature_columns`, `features.py`), and no run file records the resulting list. Writing it into run provenance lets MorphoCoverage use it explicitly, without re-implementing that inference.
 
 fiberfeatures should prefer `position_id` for FOV-level blocking when it is present and fall back to `image_file` only when one file equals one spatial position. Plane/channel/time metadata remain nested within that position.
 
@@ -103,7 +105,7 @@ NucleiSky does not produce per-object phenotype feature tables, so it needs no c
 
 ### Ecosystem-level
 
-- **Keep the shared column contract in one place.** CellPatcher's and fiberfeatures' AGENTS.md copies already disagree: `repeat` (now `biological_repeat`) is "Always" in one and "If used" in the other. A single spec (e.g. in the organization `.github` or `docs-hub` repository), copied by reference into each AGENTS.md, would stop further drift.
+- **Keep the shared column contract in one place.** CellPatcher's and fiberfeatures' AGENTS.md copies agree today (`biological_repeat` "Always", `technical_repeat` "Optional", `position_id` "If needed"), after disagreeing on 2026-09-28. A single spec (e.g. in the organization `.github` or `docs-hub` repository), copied by reference into each AGENTS.md, would keep them from drifting again.
 - **Add a contract test to each producer:** a fixture with a zero-object image and duplicate basenames across two repeats, asserting the per-position table has every acquired spatial position and that `(condition, biological_repeat, position_id)` is unique when `position_id` is used (otherwise use the documented one-file/one-position `image_file` fallback).
 
 ## 3. What MorphoCoverage does today with non-conforming input
@@ -113,7 +115,8 @@ NucleiSky does not produce per-object phenotype feature tables, so it needs no c
 | `condition`/`biological_repeat` in the observations but not in the FOV table | raises |
 | `condition`/`biological_repeat` in the FOV table only | attached to the observations when the FOV identifier (with the biological repeat, when names restart per repeat) maps to one value; raises otherwise |
 | `repeat`, the former name of `biological_repeat` | read as `biological_repeat` with a `DeprecationWarning` (the caller's tables are not changed); a table holding both raises unless they are identical |
-| `Biological_Repeat`/`bio_repeat`/`tec_repeat`/`Repeat`/`Condition` spelling | raises with "did you mean ...?" unless named explicitly in `group_cols` |
+| `Biological_Repeat`/`bio_repeat`/`tec_repeat`/`Repeat`/`Condition` spelling, or a typing error (`biological_repat`, `conditon`) | raises with "did you mean ...?" unless named explicitly in `group_cols` |
+| A patch table's geometry (`patch_y0`, `patch_center_x`, `y0`, `center_x`) | never offered as features by `scan_design`; declared features are used as given |
 | A level recorded as `single` | one member of that level (one biological or technical repeat), like any other label |
 | Same `image_file` in different repeats, pooled | kept as distinct FOVs |
 | Several objects/planes from one `position_id` | one FOV, regardless of file layout |

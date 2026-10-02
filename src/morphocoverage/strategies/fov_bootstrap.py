@@ -129,7 +129,7 @@ from ..objectives import ObjectiveConfig
 from ..policies import ThresholdPolicy
 from ..schema import ValidatedInput, fov_positions
 from ..statistics import small_sample_widening
-from ..transforms import FeatureTransform
+from ..transforms import FeatureTransform, missing_values_reason
 from ._fov_bootstrap_checks import (
     SUMMARIES,
     _check,
@@ -337,8 +337,8 @@ class FOVBootstrapEstimator(Estimator):
         """Bootstrap standard error of the summary under whole-FOV resampling."""
         data = self._selected(data)
         name = self.quantity
-        if np.isnan(data.feature_matrix()).any():
-            reason = "missing values in the selected features"
+        reason = missing_values_reason(data.feature_matrix(), data.feature_cols)
+        if reason:
             quantity = Quantity.not_applicable(
                 reason, **_meta("units of the selected features", self.summary)
             )

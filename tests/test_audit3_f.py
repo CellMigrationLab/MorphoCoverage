@@ -557,7 +557,7 @@ def test_f23_a_missing_value_in_one_group_leaves_the_others_measured():
     objects.loc[objects.index[objects["biological_repeat"] == "R2"][0], "f"] = np.nan
     table = _redundancy(objects, fovs)
     assert pd.notna(table.loc["R1", "smallest_lag"]) and pd.isna(table.loc["R1", "reason"])
-    assert "missing feature values" in table.loc["R2", "reason"]
+    assert "missing values in f (1 observation)" in table.loc["R2", "reason"]
 
 
 def test_f24_one_order_phrase_one_median_rule_one_skip_rule():
