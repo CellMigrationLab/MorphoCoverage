@@ -40,6 +40,7 @@ from ._html_next import (
     _optimise_code,
     _repeats_line,
     fov_counts,
+    pilot_conditions,
     rule_code,
     rule_labels,
 )
@@ -237,9 +238,12 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         else ""
     )
     option = "A difference from the control"
-    if few:
-        return option, _panel(few)
+    pilots = pilot_conditions(discovery)
     plans = _plans(result)
+    # Every condition a pilot: only how many repeats to plan. Some: the others' plan, then
+    # the pilots named (stress test, 2026-10-02).
+    if few and (not plans or len(pilots) == len(_repeat_conditions(discovery))):
+        return option, _panel(few)
     if not plans:
         return None
     done = _confirmed_pairs(result)
@@ -257,6 +261,8 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
             continue
         unit = field_words(contrast)[1]
         for _, row in plan.iterrows():
+            if str(row["condition"]) in pilots:
+                continue
             if (feature, str(row["condition"])) in done:
                 shown.append(feature)
                 continue
@@ -280,8 +286,14 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
             )
     already = list(dict.fromkeys(shown))
     known = f" Significant across repeats already: {listing(already, 6)}." if already else ""
+    pilot = f"<p>{html.escape(few)}</p>" if few else ""
     if not rows:
-        return option, _panel(f"Every condition is significant across repeats.{known}".strip())
+        done_words = (
+            "Every condition with 3 or more repeats is significant across repeats."
+            if few
+            else "Every condition is significant across repeats."
+        )
+        return option, _panel(f"{done_words}{known}".strip(), extra=pilot)
     unit = rows[0][5]
     head = (
         "<tr><th>feature</th><th>condition</th><th>change seen</th><th>repeats needed</th>"
@@ -301,7 +313,11 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         f"for {rate(POWER)} power, if the change and the variation seen here recur, each "
         f"repeat with its own control.{known}"
     )
-    return option, _panel(sentence, extra=table)
+    return option, _panel(sentence, extra=table + pilot)
+
+
+def _repeat_conditions(discovery: Any) -> set[str]:
+    return {str(c) for c in discovery.tests["condition"]} if discovery is not None else set()
 
 
 def _group(result: Any) -> Any | None:

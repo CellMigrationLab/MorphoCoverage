@@ -224,3 +224,27 @@ def test_with_one_feature_the_readouts_own_verdicts_say_what_is_significant(plai
     _, panel = _difference_goal(one)
     listed = {c for _, c in re.findall(r"<tr><td>(.*?)</td><td>(.*?)</td>", panel)}
     assert not listed & confirmed
+
+
+def test_a_pilot_condition_is_named_and_the_others_still_planned(plain):
+    """A condition with 2 repeats beside conditions with 3: the pilot sentence names it, and
+    the others keep their plan (stress test, 2026-10-02)."""
+    objects, fovs, _ = plain
+    last = max(set(fovs["biological_repeat"]))
+
+    def drop(table):
+        return table[~((table["condition"] == "narrow") & (table["biological_repeat"] == last))]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(
+            drop(objects), drop(fovs), _setup(fingerprint=(), rare=None, rare_label=None)
+        )
+    panel = _choices(plan_card(result, drop(objects), drop(fovs), str), "plan-optimise")[
+        "A difference from the control"
+    ]
+    words = html.unescape(re.sub(r"<[^>]+>", " ", panel))
+    assert "With 2 biological repeats for narrow" in words
+    listed = {c for _, c in re.findall(r"<tr><td>(.*?)</td><td>(.*?)</td>", panel)}
+    assert "narrow" not in listed
+    assert listed or "Every condition with 3 or more repeats is significant" in words

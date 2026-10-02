@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import percent_fine
+from .._wording import listing, percent_fine
 from ..data_check import validate_input_tables
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
@@ -110,17 +110,29 @@ def _repeat_counts(discovery: Any) -> dict[Any, int]:
 
 
 def _repeats_line(discovery: Any) -> str:
-    """With fewer than MIN_REPEATS biological repeats: how many to plan."""
-    few = sorted({n for n in _repeat_counts(discovery).values() if n < MIN_REPEATS})
-    if not few:
+    """With fewer than MIN_REPEATS biological repeats: how many to plan. When only some
+    conditions have so few, those are named (the others are planned in repeats)."""
+    counts = _repeat_counts(discovery)
+    pilots = {c: n for c, n in counts.items() if n < MIN_REPEATS}
+    if not pilots:
         return ""
+    few = sorted(set(pilots.values()))
     have = " or ".join(str(n) for n in few)
+    plural = "s" if few != [1] else ""
+    named = "" if len(pilots) == len(counts) else f" for {listing([str(c) for c in pilots], 6)}"
     return (
-        f"With {have} biological repeat{'s' if few != [1] else ''}, no difference can be called "
+        f"With {have} biological repeat{plural}{named}, no difference can be called "
         f"significant: the test across repeats needs at least {MIN_REPEATS}. Plan at least "
         f"{MIN_REPEATS} (more for small effects), each with its own control; the candidates "
         "of the cell-level screen, in “Do the conditions differ?”, say which features to watch."
     )
+
+
+def pilot_conditions(discovery: Any) -> set[str]:
+    """The conditions with fewer than MIN_REPEATS biological repeats holding the control."""
+    if discovery is None or discovery.tests is None or not len(discovery.tests):
+        return set()
+    return {str(c) for c, n in _repeat_counts(discovery).items() if n < MIN_REPEATS}
 
 
 def _chosen_population(populations: Any) -> Any | None:
