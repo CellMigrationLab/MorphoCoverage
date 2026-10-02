@@ -197,9 +197,7 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
     code = (
         _GUARD + "from dataclasses import replace\n"
         "from morphocoverage import RareTarget\n"
-        "from morphocoverage.workflows import report\n\n"
-        + labelled
-        + "setup = replace(\n"
+        "from morphocoverage.workflows import report\n\n" + labelled + "setup = replace(\n"
         "    result.setup,\n"
         f"    rare=RareTarget(object_prevalence={round(share, 4)}, detection_probability=0.95,\n"
         f"                    min_fov_occurrences=3, phenotype={phenotype!r}),\n"
