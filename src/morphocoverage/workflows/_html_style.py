@@ -118,6 +118,7 @@ ul.checked li { margin: 3px 0; }
 svg.heatmap { display: block; max-width: 100%; height: auto; }
 svg.heatmap text { font: 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 svg.heatmap .hm-col, svg.heatmap .hm-row { fill: var(--text); }
+svg.heatmap .hm-axis { fill: var(--text-2); font-weight: 600; font-size: 13px; }
 svg.heatmap .hm-cell { font-size: 11px; font-variant-numeric: tabular-nums; }
 .hm-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px;
   vertical-align: -1px; }

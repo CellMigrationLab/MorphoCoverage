@@ -374,17 +374,33 @@ def heatmap(discovery: Any, conditions: list[Any]) -> str:
     features = list(discovery.ranking["feature"])
     present = set(tests["condition"])
     columns = [c for c in conditions if c in present] or sorted(present, key=str)
-    # The column labels slant up to the right: room above and beside for the longest.
+    # The column labels slant up to the right: room above and beside for the longest, and
+    # for each axis's title (the rows' turned up its left side).
     longest = max(len(str(c)) for c in columns)
-    cell_w, cell_h, left = 72, 24, 10 + 7 * max(len(str(f)) for f in features)
-    top = 24 + round(4.2 * longest)
+    title = 22
+    cell_w, cell_h = 72, 24
+    left = title + 10 + 7 * max(len(str(f)) for f in features)
+    top = title + 24 + round(4.2 * longest)
     width = left + cell_w * len(columns) + 10 + round(5.8 * longest)
     height = top + cell_h * len(features) + 10
+    named = tests["control_condition"].dropna() if "control_condition" in tests else []
+    controls = sorted({str(c) for c in named})
+    against = controls[0] if len(controls) == 1 else "its control"
+    middle_x = left + cell_w * len(columns) / 2
+    middle_y = top + cell_h * len(features) / 2
     parts = [
         (
             f'<svg class="heatmap" viewBox="0 0 {width} {height}" width="{width}" '
             'role="img" aria-label="Cohen\'s d of every feature against the control">'
-        )
+        ),
+        (
+            f'<text class="hm-axis" x="{middle_x}" y="16" text-anchor="middle">'
+            f"condition, against {html.escape(against)}</text>"
+        ),
+        (
+            f'<text class="hm-axis" x="16" y="{middle_y}" text-anchor="middle" '
+            f'transform="rotate(-90 16 {middle_y})">feature, best-ranked first</text>'
+        ),
     ]
     for j, condition in enumerate(columns):
         x = left + j * cell_w + cell_w / 2

@@ -28,6 +28,7 @@ for the readout); the paired test holds its rate but needs the repeats.
 
 from __future__ import annotations
 
+import textwrap
 from collections.abc import Sequence
 from itertools import combinations
 from typing import TYPE_CHECKING, Any
@@ -265,8 +266,23 @@ def _cells_p(value: float) -> tuple[str, tuple, str]:
     return format_p(value), p_colour(value), "bold" if value <= ALPHA else "normal"
 
 
+def _title(panel: str, side: float) -> str:
+    """A panel's title wrapped to its width (``side`` inches at 9.5 pt), so it never runs
+    into the panel beside it."""
+    width = max(16, int(side / 0.075))
+    return "\n".join(
+        line for part in PANEL_TITLES[panel].split(": ", 1) for line in textwrap.wrap(part, width)
+    )
+
+
 def _matrix(
-    ax: Axes, conditions: list[Any], table: pd.DataFrame, panel: str, *, ylabels: bool
+    ax: Axes,
+    conditions: list[Any],
+    table: pd.DataFrame,
+    panel: str,
+    *,
+    ylabels: bool,
+    side: float,
 ) -> None:
     """Draw panel ``"B"`` (d and the randomization q) or ``"C"`` (the paired p and q)."""
     n = len(conditions)
@@ -304,10 +320,13 @@ def _matrix(
     ax.set_yticks(np.arange(n) + 0.5)
     ax.set_yticklabels(labels if ylabels else [], fontsize=font + 0.5)
     ax.tick_params(length=0)
-    for side in ax.spines.values():
-        side.set_visible(False)
-    title = PANEL_TITLES[panel]
-    ax.set_title(title.replace(": ", "\n", 1), fontsize=9.5, loc="left", color=MUTED, pad=8)
+    # Each cell reads its row's condition against its column's.
+    ax.set_xlabel("against", fontsize=font, color=MUTED, labelpad=4)
+    if ylabels:
+        ax.set_ylabel("condition", fontsize=font, color=MUTED, labelpad=4)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.set_title(_title(panel, side), fontsize=9.5, loc="left", color=MUTED, pad=8)
 
 
 def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any]) -> None:
@@ -322,11 +341,14 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
     caption = getattr(figure, "caption", "")
     remove_legend(figure)  # written again under the new panels
     cell = 0.72 if n <= 8 else max(0.4, 5.6 / n)
-    label_w = min(2.8, 0.11 * max(len(str(c)) for c in conditions) + 0.3)
+    # The labels and, beside them, the axis title ("condition", "against").
+    label_w = min(2.8, 0.11 * max(len(str(c)) for c in conditions) + 0.3) + 0.25
     side = cell * n
     width = figure.get_size_inches()[0]
     beside = label_w + 0.3 + 2 * side + 0.7 <= width - 0.2
-    row_h = side + label_w * 0.6 + 0.75  # the cells, the slanted labels, the panel title
+    # The cells, the slanted labels and the panel title (two lines, more when it wraps).
+    lines = max(_title(p, side).count("\n") + 1 for p in ("B", "C"))
+    row_h = side + label_w * 0.6 + 0.75 + 0.16 * max(0, lines - 2)
     extra = row_h if beside else 2 * row_h
     grow_bottom(figure, extra)
     total = figure.get_size_inches()[1]
@@ -337,8 +359,8 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
         ax_c = figure.add_axes([(left + side + 0.7) / width, bottom_b, side / width, side / total])
     else:
         ax_c = figure.add_axes([left / width, bottom_b - row_h / total, side / width, side / total])
-    _matrix(ax_b, conditions, table, "B", ylabels=True)
-    _matrix(ax_c, conditions, table, "C", ylabels=not beside)
+    _matrix(ax_b, conditions, table, "B", ylabels=True, side=side)
+    _matrix(ax_c, conditions, table, "C", ylabels=not beside, side=side)
     panel_letter(figure.axes[0], "A", pad=22)
     panel_letter(ax_b, "B", pad=8)
     panel_letter(ax_c, "C", pad=8)

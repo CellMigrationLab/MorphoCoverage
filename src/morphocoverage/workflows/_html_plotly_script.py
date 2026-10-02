@@ -184,16 +184,19 @@ PLOTLY_SCRIPT = r"""
       merge(merge({}, common), { z: panel.upper, text: half(false), zmin: 0, zmax: 1,
         colorscale: scale(GREENS) })
     ];
-    var cell = n > 8 ? 58 : 80, left = labels ? 24 + 8.5 * longest : 20;
-    var side = cell * n;
+    // Each cell reads its row's condition against its column's: the axes say so.
+    var cell = n > 8 ? 58 : 80, left = labels ? 48 + 8.5 * longest : 20;
+    var side = cell * n, below = 54 + 8.5 * longest * 0.7;
+    var title = { font: { size: 13 }, standoff: 10 };
     var layout = merge(base(t), {
-      width: left + side + 20, height: side + 20 + 8.5 * longest * 0.7 + 30,
-      margin: { l: left, r: 20, t: 20, b: 30 + 8.5 * longest * 0.7 },
+      width: left + side + 20, height: side + 20 + below,
+      margin: { l: left, r: 20, t: 20, b: below },
       xaxis: { tickangle: -35, showgrid: false, zeroline: false, tickfont: { size: 14 },
-        constrain: 'domain', ticks: '', showline: false },
+        constrain: 'domain', ticks: '', showline: false,
+        title: merge({ text: 'against' }, title) },
       yaxis: { autorange: 'reversed', showgrid: false, zeroline: false, tickfont: { size: 14 },
         scaleanchor: 'x', constrain: 'domain', ticks: '', showline: false,
-        showticklabels: labels }
+        showticklabels: labels, title: merge({ text: labels ? 'condition' : '' }, title) }
     });
     Plotly.react(node, traces, layout, merge(merge({}, config), { responsive: false }));
   }

@@ -154,3 +154,9 @@ def test_wells_and_the_correction_family_are_said_as_the_legend_says_them():
     )
     result = SimpleNamespace(discovery=None, results={"contrast": SimpleNamespace(repeats=repeats)})
     assert _family(result) == "2 conditions at once in each of 6 sub-experiments"
+
+
+def test_the_heatmap_names_its_axes(card):
+    _, _, section = card
+    heatmap = section[section.index('class="heatmap"') : section.index("</svg>")]
+    assert "condition, against siCTRL" in heatmap and "feature, best-ranked first" in heatmap
