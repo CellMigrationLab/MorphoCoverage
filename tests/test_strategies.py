@@ -193,7 +193,7 @@ def test_undefined_object_count_says_why():
         observation_unit="patch",
     )
     assert result.decision is None
-    assert "'patch'" in result.diagnostics["undefined_reason"]
+    assert "(patch)" in result.diagnostics["undefined_reason"]
 
 
 @pytest.mark.parametrize(("unit", "declared"), [(None, False), ("object", True), ("cells", True)])

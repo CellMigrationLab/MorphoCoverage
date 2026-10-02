@@ -9,6 +9,12 @@ pooled over each side's technical repeats (as ``feature_discovery`` pools them):
 - **the spread**: the condition's SD over the control's (its log is tested);
 - **the quantiles**: the shift of the 10%, 50% and 90% quantiles, in control SDs.
 
+- **a split into two groups**: Sarle's bimodality coefficient of each side, per repeat
+  (``statistics.bimodality_coefficient``); a condition splits its cells (``splits``) when
+  its coefficient is above 5/9 and its control's is not, in at least half of its repeats. A
+  skewed feature reaches 5/9 too, so the control's own shape is the reference; this is
+  described, not tested.
+
 Each statistic is tested across the biological repeats like a mean (a one-sample t-test
 on its per-repeat values, ``MIN_REPEATS`` repeats or more), its p-values Benjamini-Hochberg
 corrected within each sub-experiment over every feature, condition and statistic of this
@@ -20,7 +26,7 @@ a control is not compared.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -28,6 +34,7 @@ import pandas as pd
 
 from .._wording import count
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..statistics import BIMODAL, bimodality_coefficient
 from ._common import groups, validated
 from ._experiments import corrected, experiments
 from ._units import contrasts_of, describe_groups, resolve_columns
@@ -38,6 +45,15 @@ QUANTILES = (0.1, 0.5, 0.9)
 # The statistics compared, in the order the report gives them.
 STATISTICS = ("spread", "q10", "q50", "q90")
 ALPHA = 0.05
+SHAPE_COLUMNS = ["feature", "condition", "repeat", "bimodality", "control_bimodality"]
+SPLIT_COLUMNS = [
+    "feature",
+    "condition",
+    "repeats",
+    "split_repeats",
+    "bimodality",
+    "control_bimodality",
+]
 
 
 @dataclass(frozen=True)
@@ -46,6 +62,33 @@ class DistributionContrast:
 
     tests: pd.DataFrame
     settings: dict[str, Any]
+    shapes: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=SHAPE_COLUMNS))
+
+    def splits(self) -> pd.DataFrame:
+        """The feature and condition pairs whose cells split into two groups where the
+        control's do not (see the module): the repeats that show it, of how many, and the
+        median coefficient of each side over those repeats."""
+        shapes = self.shapes
+        if shapes.empty:
+            return pd.DataFrame(columns=SPLIT_COLUMNS)
+        shows = (shapes["bimodality"] > BIMODAL) & ~(shapes["control_bimodality"] > BIMODAL)
+        rows = []
+        for (feature, condition), block in shapes.assign(shows=shows).groupby(
+            ["feature", "condition"], sort=False
+        ):
+            showing = block[block["shows"]]
+            if len(showing) and 2 * len(showing) >= len(block):
+                rows.append(
+                    {
+                        "feature": feature,
+                        "condition": condition,
+                        "repeats": len(block),
+                        "split_repeats": len(showing),
+                        "bimodality": float(showing["bimodality"].median()),
+                        "control_bimodality": float(showing["control_bimodality"].median()),
+                    }
+                )
+        return pd.DataFrame(rows, columns=SPLIT_COLUMNS)
 
     def differing(self) -> pd.DataFrame:
         """The feature and condition pairs whose distribution differs (some ``q <= alpha``),
@@ -129,13 +172,23 @@ def distribution_contrast(
     all_groups = groups(data)
     described = describe_groups(all_groups, condition_col, repeat_col, control)
     contrasts = contrasts_of(described)
-    rows, held = [], {}
+    rows, held, shapes = [], {}, []
     for feature in features:
         for condition, side in _pooled(
             all_groups, described, contrasts, feature, technical_col
         ).items():
             held.setdefault(condition, set()).update(side["by_t"])
             rows.extend(_rows(feature, condition, side))
+            shapes += [
+                {
+                    "feature": feature,
+                    "condition": condition,
+                    "repeat": repeat,
+                    "bimodality": bimodality_coefficient(treated),
+                    "control_bimodality": bimodality_coefficient(side["by_c"][repeat]),
+                }
+                for repeat, treated in side["by_t"].items()
+            ]
     columns = ["feature", "condition", "control_condition", "statistic", "repeats", "values"]
     columns += ["mean", "low", "high", "lower", "higher", "p", "q", "experiment"]
     tests = pd.DataFrame(rows).reindex(columns=columns)
@@ -150,7 +203,7 @@ def distribution_contrast(
         "repeat_col": repeat_col,
         "families": int(tests["experiment"].nunique()) if len(tests) else 0,
     }
-    return DistributionContrast(tests, settings)
+    return DistributionContrast(tests, settings, pd.DataFrame(shapes, columns=SHAPE_COLUMNS))
 
 
 def spread_words(row: Mapping[str, Any]) -> str:
@@ -176,6 +229,8 @@ def tests_words(result: DistributionContrast) -> str:
 
 __all__ = [
     "QUANTILES",
+    "SHAPE_COLUMNS",
+    "SPLIT_COLUMNS",
     "STATISTICS",
     "DistributionContrast",
     "distribution_contrast",

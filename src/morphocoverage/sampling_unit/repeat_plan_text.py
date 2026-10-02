@@ -60,6 +60,15 @@ def _fields_cell(value: float, fields: str = "fields") -> str:
     return f"more than {PRACTICAL} times the {fields}" if np.isinf(value) else f"about {int(value)}"
 
 
+def change_cell(row: Any) -> str:
+    """The change the plan powers, as the paired t-test sees it: a fold change of the means
+    (``×1.25``), else the difference of the means; ``–`` for a plan on Cohen's d."""
+    value = row.get("change", np.nan)
+    if pd.isna(value) or row.get("planned_on") not in ("log ratio", "difference"):
+        return "–"
+    return f"×{value:.3g}" if row["planned_on"] == "log ratio" else f"{value:+.3g}"
+
+
 def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list[str], list[str]]:
     """The plan in a sentence and a table, and its notes (none of them a caution)."""
     plan = _plan(contrast)
@@ -91,6 +100,7 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         rows.append(
             [
                 f"{row['condition']} vs {row['control_condition']}",
+                change_cell(row),
                 f"{row['d_mean']:+.2f}",
                 _repeats_cell(row["repeats_needed"]),
                 _repeats_cell(row["repeats_needed_twice_fields"]),
@@ -100,6 +110,7 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         )
     columns = [
         "condition",
+        "change per repeat",
         f"mean d per repeat ({words})",
         "repeats needed",
         f"with twice the {fields}",
@@ -121,7 +132,10 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
     notes = [
         assumption(
             f"Repeats needed: for a paired t-test at p ≤ {ALPHA:g}/m, m the conditions of the "
-            "sub-experiment (what Benjamini-Hochberg asks at most). All projected from the "
+            "sub-experiment (what Benjamini-Hochberg asks at most), on the values that test "
+            "compares: the change per repeat (each repeat's mean over its control's, a fold "
+            "change; the difference of the means where a mean is not positive), its spread "
+            "between the repeats and its sampling error within one. All projected from the "
             "repeats here, so the plan is a guide."
         )
     ]
@@ -130,7 +144,7 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
             assumption(
                 f"The {fields} a side per repeat are the most any repeat needs, projected from "
                 "its interval of d (narrowing as 1/sqrt of the number); limited by: whether the "
-                "repeats' d differ more than their sampling error, which more "
+                "repeats' changes differ more than their sampling error, which more "
                 f"{fields} cannot reduce."
             )
         )
@@ -142,4 +156,4 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
     return lines, notes
 
 
-__all__ = ["field_words", "plan_parts"]
+__all__ = ["change_cell", "field_words", "plan_parts"]

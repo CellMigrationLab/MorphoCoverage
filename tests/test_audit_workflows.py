@@ -139,7 +139,13 @@ def test_h4_the_report_inspection_keeps_every_reason_with_novelty():
     result = report(objects, fovs, _setup(novelty=default_novelty(FEATURE_COLS)))
     settings = result.results["inspection"].settings
     assert settings["novelty"] is not None and settings["novelty_cols"] == list(FEATURE_COLS)
-    assert settings["summaries"] == [{"feature": READOUT, "statistic": "mean"}]
+    # With a contrast, a field's influence is on the result, not on a declared summary.
+    on_result = "contrast" in result.results
+    summaries = [] if on_result else [{"feature": READOUT, "statistic": "mean"}]
+    assert settings["summaries"] == summaries
+    assert ("influence" in settings["checked"]) and (
+        settings.get("influence_on") == ("result" if on_result else None)
+    )
     assert settings["count_ratio"] == 3.0 and settings["stage_cols"] == ["stage_x", "stage_y"]
 
 

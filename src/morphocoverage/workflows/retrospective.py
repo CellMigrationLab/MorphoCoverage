@@ -88,6 +88,7 @@ from ._enough_features import enough_by_feature
 from ._enough_targets import fingerprint_precision
 from ._label_control import label_control
 from ._populations import populations_in_report
+from ._result_influence import with_result_influence
 from ._shared import (
     check_workflow_inputs,
     conditions,
@@ -285,17 +286,24 @@ def report(
     # Every reason at once: new states on the declared features, influence, empty
     # or crowded fields and stage neighbours on the readout.
     novel = novelty is not None and bool(setup.features)
+    # With a contrast, a field's influence is on the result (the repeat means the paired
+    # test compares, _result_influence); without one, on the field-weighted mean.
+    on_result = "contrast" in results
     results["inspection"] = inspect_fovs(
         objects,
         fovs,
         feature_cols=[readout],
-        summaries=[Summary(readout, "mean")],
+        summaries=[] if on_result else [Summary(readout, "mean")],
         novelty=novelty if novel else None,
         novelty_cols=list(setup.features) if novel else None,
         stage_cols=setup.stage_cols,
         label_col=setup.rare_label,
         **common,
     )
+    if on_result:
+        results["inspection"] = with_result_influence(
+            results["inspection"], prepared, fovs, results["contrast"], setup
+        )
     settings = {
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": REPORT_ORDERS,

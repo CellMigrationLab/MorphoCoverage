@@ -35,7 +35,10 @@ single reference group (no other group to leave in), the threshold comes from
 reference objects scored against reference objects of other fields of that
 group, and the result says so (``calibration``): a shift between that group
 and the tested one then raises the share flagged. A control group with no
-other control group to compare with is not scored.
+other control group to compare with is not scored. In a screen of sub-experiments (the
+conditions sharing their repeats and control, ``_experiments``), a group is scored against
+the reference groups of its own sub-experiment (``within_experiment``, owner 2026-10-02), so
+one set's control never stands for another's.
 Observations with a missing feature value are not scored, and a group none of
 whose observations has every feature is reported as not assessed.
 
@@ -57,9 +60,11 @@ from .._checks import as_count, check_seed
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_key, group_rng
 from .._style import check_detail
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..schema import unit_plural
 from ..transforms import Standardize
 from ._common import groups, matching_groups, validated
+from ._experiments import repeat_experiments, same_experiment
 from ._outliers import reference_sample, score
 from ._state_text import SEED_AGREEMENT_WARNING, unusual_full, unusual_parts
 
@@ -105,6 +110,7 @@ def unusual_objects(
     per_fov: int = 100,
     random_state: int = 0,
     seed_checks: int = 2,
+    within_experiment: bool = True,
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
@@ -118,7 +124,9 @@ def unusual_objects(
     ``per_fov`` caps the observations each reference FOV contributes, so
     every reference FOV weighs the same. Labels are aligned with the rows of
     ``objects`` (its index is kept). ``seed_checks`` refits with the
-    next seeds and reports how much the labels agree.
+    next seeds and reports how much the labels agree. ``within_experiment`` scores each
+    group against the reference groups of its own sub-experiment only (the biological
+    repeats its conditions share, ``_experiments.repeat_experiments``).
     """
     (reference,) = read_former(reference=reference)
     if not 0 < quantile < 1:
@@ -149,12 +157,33 @@ def unusual_objects(
         fov_group[members] = g_index
     observation_group = fov_group[observation_fov]
     rows = []
+    block = (
+        repeat_experiments(
+            [g for g, _ in all_groups],
+            {group_key(g) for g in reference_groups},
+            CONDITION_COLUMN,
+            REPEAT_COLUMN,
+        )
+        if within_experiment
+        else {}
+    )
     for g_index, (group, _) in enumerate(all_groups):
-        others = [g for g in reference_groups if group_key(g) != group_key(group)]
+        others = [
+            g
+            for g in reference_groups
+            if group_key(g) != group_key(group)
+            and same_experiment(block, g.get(REPEAT_COLUMN), group.get(REPEAT_COLUMN))
+        ]
         row: dict[str, Any] = {**group, "reference_groups": [dict(g) for g in others]}
         mine = positions_all[observation_group == g_index]
         if not others:
-            rows.append({**row, "status": "no other reference group to score against"})
+            elsewhere = any(group_key(g) != group_key(group) for g in reference_groups)
+            status = (
+                "no reference group in the repeats of its sub-experiment"
+                if elsewhere and block
+                else "no other reference group to score against"
+            )
+            rows.append({**row, "status": status})
             continue
         refs = [by_key[group_key(g)] for g in others]
         results = []
@@ -222,6 +251,7 @@ def unusual_objects(
         "per_fov": per_fov,
         "random_state": random_state,
         "seed_checks": seed_checks,
+        "within_experiment": bool(within_experiment and len(set(block.values())) > 1),
         "transform": Standardize().describe(),
         "distance": "mean Euclidean distance to the n_neighbors nearest reference observations",
         "observation_unit": data.observation_unit,

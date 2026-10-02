@@ -292,6 +292,7 @@ src/morphocoverage/
         report_answers.py  # questions 6, 8 and 9 in short, caveats pooled; the closing "cannot tell me"
         report_sampling.py  # the Foundation and questions 1 and 3, short and full, and the counts their headlines read
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
+        _value_checks.py   # private: checks of the values: fields more alike than chance, features with few distinct values
         _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
     sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
         __init__.py        # the subpackage's public names
@@ -356,6 +357,7 @@ src/morphocoverage/
         _rare_share.py     # private: the labelled rare state's share, compared like a feature
         _label_control.py  # private: the rare label as a positive control of the features (question 1)
         _populations.py    # private: question 10, the populations and each condition's enrichment across repeats
+        _result_influence.py  # private: the fields whose removal moves the result (the repeat means the paired test compares)
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
         _manifest.py       # private: the live folder's files (write_fov, the manifest reader), re-exported by live

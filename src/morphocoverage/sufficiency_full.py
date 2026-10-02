@@ -101,8 +101,14 @@ def _group_table(report: Any, group: Mapping[str, Any], indent: int) -> list[str
     return [table(rows, header, indent=indent)]
 
 
-def _group_notes(report: Any, group: Mapping[str, Any], varying: Mapping[tuple, str]) -> list[str]:
-    """One group's cautions by their numbers, its reasons, and its flagged order check."""
+def _group_notes(
+    report: Any,
+    group: Mapping[str, Any],
+    varying: Mapping[tuple, str],
+    shared: Mapping[str, str],
+) -> list[str]:
+    """One group's cautions by their numbers, its reasons (those ``shared`` by every group,
+    said once above the groups, left out), and its flagged order check."""
     if report.final.empty:
         return []
     final = rows_of(report.final, group) if len(group) else report.final
@@ -116,8 +122,9 @@ def _group_notes(report: Any, group: Mapping[str, Any], varying: Mapping[tuple, 
         numbers = [n for n in numbers if n]
         if numbers:
             notes.append(f"{label}: {'; '.join(numbers)}")
-        if pd.isna(row["verdict"]) and isinstance(row.get("undefined_reason"), str):
-            notes.append(f"{label}: undefined ({row['undefined_reason']})")
+        reason = row.get("undefined_reason")
+        if pd.isna(row["verdict"]) and isinstance(reason, str) and shared.get(label) != reason:
+            notes.append(f"{label}: undefined ({reason})")
         reason = row.get("insufficient_reason")
         if row["verdict"] == "continue" and isinstance(reason, str) and reason:
             notes.append(f"{label}: cannot be judged yet ({reason})")
@@ -132,6 +139,22 @@ def _group_notes(report: Any, group: Mapping[str, Any], varying: Mapping[tuple, 
     for caution, labels in orders.items():
         notes.append(f"the order check, for {listing(labels, 4)}: {caution}")
     return notes
+
+
+def _shared_undefined(report: Any) -> dict[str, str]:
+    """Per rule label, the reason it is undefined when that reason is the same in every
+    group: said once, not in each group."""
+    final = report.final
+    if final.empty or "undefined_reason" not in final:
+        return {}
+    unit = getattr(report, "observation_unit", None)
+    labels = final.apply(lambda row: rule_label(row, unit), axis=1)
+    shared = {}
+    for label, rows in final.groupby(labels, sort=False):
+        reasons = rows["undefined_reason"]
+        if rows["verdict"].isna().all() and reasons.notna().all() and reasons.nunique() == 1:
+            shared[str(label)] = str(reasons.iloc[0])
+    return shared
 
 
 def _varying(report: Any) -> dict[tuple, str]:
@@ -297,6 +320,11 @@ def full_summary(report: Any, target: float | None = None) -> str:
     if tallies:
         head += _rules_table(report, tallies, 0)
         head.append(_rule_names(report))
+        shared = _shared_undefined(report)
+        head += [
+            wrap(f"{label} is undefined in every group: {reason}.", 0, hang=2)
+            for label, reason in shared.items()
+        ]
         head.append(
             wrap(
                 "Per group below: whether each rule was met by its own threshold, where it was "
@@ -313,13 +341,14 @@ def full_summary(report: Any, target: float | None = None) -> str:
     groups = pd.concat(tables).drop_duplicates() if tables and keys else None
     rows = [()] * bool(tables) if groups is None else groups.itertuples(index=False, name=None)
     varying = _varying(report) if len(report.final) else {}
+    shared = _shared_undefined(report) if tallies else {}
     for values in rows:
         group = dict(zip(keys, values, strict=True))
         acquired = rows_of(report.enough, group) if len(report.enough) and keys else report.enough
         fields = int(acquired["fovs_acquired"].iloc[0]) if len(acquired) else None
         title = group_label(group) + (f" — {count(fields, 'field')} acquired" if fields else "")
         lines = [f"{title}:", *_group_table(report, group, 2)]
-        notes = _group_notes(report, group, varying)
+        notes = _group_notes(report, group, varying, shared)
         if notes:
             lines.append(wrap(f"Cautions here: {'; '.join(notes)}.", 2, hang=4))
         outlook = rows_of(report.next_fov, group) if len(report.next_fov) and keys else None

@@ -64,8 +64,22 @@ def _unusual_head(result: Any, words: str) -> str:
         f"Unusual {words}: farther from the reference ({_selector(settings['reference'])}) "
         f"than all but {percent(settings['quantile'])} of reference {words} are from the other "
         f"reference groups ({len(settings['feature_cols'])} standardized features, "
-        f"{settings['n_neighbors']} nearest neighbours)."
+        f"{settings['n_neighbors']} nearest neighbours)"
+        + (
+            ", each group against the reference of its own sub-experiment (the conditions "
+            "that share its repeats and control)."
+            if settings.get("within_experiment")
+            else "."
+        )
     )
+
+
+# What the reference cannot show: a state the control already holds.
+_BLIND_SPOT = assumption(
+    "A state the reference already holds, at any share, is not unusual: only its share can "
+    "change, and the populations (“Are there distinct populations?”) compare each "
+    "condition's share of such a state with its control's."
+)
 
 
 def _unusual_cautions(result: Any, words: str) -> list[str]:
@@ -130,7 +144,7 @@ def unusual_parts(
                 hang=indent + 2,
             )
         )
-    return lines, _unusual_cautions(result, words)
+    return lines, [*_unusual_cautions(result, words), _BLIND_SPOT]
 
 
 def unusual_full(result: Any, indent: int = 0) -> str:

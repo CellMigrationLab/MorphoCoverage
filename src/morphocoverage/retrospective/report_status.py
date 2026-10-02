@@ -249,6 +249,11 @@ def overview_status(overview: Any, integrity: Any = None) -> Answer:
     parts = [data_check_status(overview), integrity_status(integrity)]
     if all(status is Status.NOT_ASSESSED for status, _ in parts) and integrity is None:
         return Status.NOT_ASSESSED, "data checks and copy checks not run (" + _BOTH_RUN
+    # The checks of the values themselves (fields more alike than chance, one value).
+    checks = getattr(overview, "value_checks", ())
+    if checks:
+        names = listing([check.partition(":")[0].lower() for check in checks], 2)
+        parts.append((Status.CAUTION, f"values: {names}"))
     return worst(s for s, _ in parts), "; ".join(text for _, text in parts)
 
 

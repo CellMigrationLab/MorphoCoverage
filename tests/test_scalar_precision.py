@@ -450,7 +450,7 @@ def test_object_unit_criterion_is_not_applicable_to_non_object_rows():
     evidence = estimator.estimate(data, objective=POPULATION)
     for quantity in evidence.quantities.values():
         assert quantity.availability == "not_applicable"
-        assert "'slice'" in quantity.reason
+        assert "(slice)" in quantity.reason
     # Incremental replay falls back to full recomputation, with the same evidence.
     assert estimator.start(data, objective=POPULATION) is None
 

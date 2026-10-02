@@ -71,6 +71,20 @@ def p_value(value: float) -> str:
     return f"{value:.2g}" if value < 0.01 else f"{value:.3f}" if value < 0.1 else f"{value:.2f}"
 
 
+def change(value: float, values: str = "normalised") -> str:
+    """The change against the control the paired t-test compares: a fold change of the means
+    (``×1.25``; three decimals within 10% of no change and five digits within 1%, so a tiny
+    change never reads ``×1.00``), or with raw ``values`` the difference of the means (``+3.2``);
+    ``–`` for NaN."""
+    value = float(value)
+    if math.isnan(value):
+        return "–"
+    if values != "normalised":
+        return f"{value:+.3g}"
+    off = abs(value - 1)
+    return f"×{value:.2f}" if off >= 0.1 else f"×{value:.3f}" if off >= 0.01 else f"×{value:.5g}"
+
+
 def number(value: float) -> str:
     """A count or median as a person reads it: ``7``, ``7.5``, ``1234567``; one decimal at most."""
     value = round(float(value), 1)
@@ -166,6 +180,7 @@ def rows_of(frame: pd.DataFrame, group: Mapping[str, Any]) -> pd.DataFrame:
 
 
 __all__ = [
+    "change",
     "column_word",
     "count",
     "duration",

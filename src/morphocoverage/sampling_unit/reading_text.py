@@ -40,7 +40,7 @@ import numpy as np
 import pandas as pd
 
 from .._style import wrap
-from .._wording import column_word, count, listing, p_value, percent
+from .._wording import column_word, count, listing, p_value, percent, percent_fine
 from ._experiments import family_words
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
@@ -175,7 +175,7 @@ def change_words(contrast: Any, condition: Any) -> str:
         return ""
     fold = float(np.exp(np.mean(np.log(ratio))))
     side = "lower" if fold < 1 else "higher"
-    return f"mean {percent(abs(fold - 1))} {side} than the control"
+    return f"mean {percent_fine(abs(fold - 1))} {side} than the control"
 
 
 def _reagents(contrast: Any, condition: Any, word: str) -> str:

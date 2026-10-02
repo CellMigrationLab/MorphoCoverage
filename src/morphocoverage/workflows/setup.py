@@ -52,7 +52,7 @@ from ..outcomes import RareStateDetected, RelativeMeanError
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
 from ..retrospective.overview import normalized_sentence
-from ..schema import resolve_observation_unit, unit_plural
+from ..schema import OBJECT_LIKE_UNITS, resolve_observation_unit, unit_plural
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator, SupportNoveltyStrategy
 from ..strategies.base import SamplingStrategy
 from ..strategies.support_novelty import UPPER_QUANTITY
@@ -196,7 +196,8 @@ class Setup:
       ``validate_input_tables`` (MorphoBricks defaults when ``None``).
     - ``rules``: the stopping rules to assess, calibrate and run live; by
       default the mean-precision rule (upper-95 SD, first tolerance) per observation and
-      per FOV (the declaration names them and marks the default).
+      per FOV, per FOV only for observations other than objects such as patches or tracks
+      (the declaration names them and marks the default).
     - ``random_state``: the seed of every random procedure the workflows run
       (subset draws, hold-outs, replay orders, the report's random orders,
       the default benchmark families' resampling, bootstraps and randomization
@@ -583,14 +584,17 @@ class Setup:
 
     def stopping_rules(self) -> tuple[SamplingStrategy, ...]:
         """``rules``, or the mean-precision rule per observation and per FOV at the first
-        tolerance."""
+        tolerance. The rule per observation averages objects (cells, nuclei): for any other
+        unit (patches, tracks) the default is the rule per FOV only, since the patches cut
+        from one image are far from independent draws and the rule per object is not
+        defined for them (owner, 2026-10-02)."""
         if self.rules is not None:
             return self.rules
         target = self.tolerances[0]
-        return (
-            ScalarPrecisionStrategy(self.readout, target, "object", "upper_95"),
-            ScalarPrecisionStrategy(self.readout, target, "fov", "upper_95"),
-        )
+        per_fov = ScalarPrecisionStrategy(self.readout, target, "fov", "upper_95")
+        if resolve_observation_unit(self.observation_unit)[0] not in OBJECT_LIKE_UNITS:
+            return (per_fov,)
+        return (ScalarPrecisionStrategy(self.readout, target, "object", "upper_95"), per_fov)
 
 
 __all__ = ["PositiveControl", "Setup", "default_novelty"]

@@ -127,6 +127,13 @@ def reason_counts(result: Any) -> list[tuple[str, int]]:
     return [(reason, int(counts[reason])) for reason in order]
 
 
+def _reason_words(result: Any, reason: str) -> str:
+    """A reason in a few words; the report's influence is on the result, not a summary."""
+    if reason == "influence" and result.settings.get("influence_on") == "result":
+        return "sways the result"
+    return _REASON_WORDS.get(reason, reason)
+
+
 def tally(result: Any) -> tuple[int, int]:
     """How many fields are listed, and in how many groups."""
     listed = _fields(result) if not result.fovs.empty else []
@@ -142,7 +149,7 @@ def inspection_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]
     listed = _fields(result)
     _, group_count = tally(result)
     reasons = "; ".join(
-        f"{_REASON_WORDS.get(reason, reason)} ({count(n, 'field')})"
+        f"{_reason_words(result, reason)} ({count(n, 'field')})"
         for reason, n in reason_counts(result)
     )
     wells = bool(groups) and groups[-1] == TECHNICAL_REPEAT_COLUMN

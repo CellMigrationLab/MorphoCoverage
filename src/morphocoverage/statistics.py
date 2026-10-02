@@ -79,6 +79,26 @@ def cohen_d(first: np.ndarray, second: np.ndarray) -> float:
     return float((first.mean() - second.mean()) / np.sqrt(pooled))
 
 
+# Sarle's bimodality coefficient above this suggests two groups of values (5/9, its value
+# for a uniform distribution).
+BIMODAL = 5 / 9
+
+
+def bimodality_coefficient(values: np.ndarray) -> float:
+    """Sarle's bimodality coefficient ``(g1**2 + 1) / (G2 + 3 (n-1)**2 / ((n-2)(n-3)))`` with
+    the bias-corrected skewness and excess kurtosis (``scipy.stats``, ``bias=False``); NaN
+    below 4 values or without spread. Above ``BIMODAL`` the values may form two groups (a
+    strongly skewed distribution can also reach it)."""
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    n = len(values)
+    if n < 4 or np.ptp(values) == 0:
+        return float("nan")
+    skew = float(stats.skew(values, bias=False))
+    kurtosis = float(stats.kurtosis(values, bias=False))
+    return (skew**2 + 1) / (kurtosis + 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)))
+
+
 def jcs_effect_size(treated: np.ndarray, control: np.ndarray) -> float:
     """The JCS effect size (Marcotti et al. 2026, Eqn 2): treated mean minus control mean,
     over the control standard deviation; NaN when the control SD is undefined or zero
@@ -544,9 +564,11 @@ def median_standard_error(values: np.ndarray) -> float | None:
 
 
 __all__ = [
+    "BIMODAL",
     "PAPER_DESCRIPTORS",
     "RELATIVE_TOLERANCE",
     "benjamini_hochberg",
+    "bimodality_coefficient",
     "bootstrap_fields",
     "bootstrap_nested",
     "cluster_size",

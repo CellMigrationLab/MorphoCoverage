@@ -43,7 +43,7 @@ from .._checks import is_number
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
-from .._wording import count, listing, p_value
+from .._wording import change, count, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ._common import groups, validated
 from ._experiments import corrected, experiments
@@ -81,6 +81,7 @@ TEST_COLUMNS = [
     "passes",
     "p_paired",
     "paired_values",
+    "change",
     "q_paired",
     "p_paired_raw",
     "q_paired_raw",
@@ -119,24 +120,32 @@ def _pooled(
     return pooled
 
 
-def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int, float]:
+def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int, float, float]:
     """The paired t-test on the repeat means (log ratios when every mean is positive), how
-    many repeats are lower and higher than the control, and the test on the raw differences
-    (as ``condition_contrast`` gives it beside, so the readout's reading shares this family)."""
+    many repeats are lower and higher than the control, the test on the raw differences
+    (as ``condition_contrast`` gives it beside, so the readout's reading shares this family)
+    and the change it tests: the geometric mean of the ratios (a fold change), else the mean
+    difference."""
     means = np.array([np.mean(by_t[r]) for r in by_t])
     controls = np.array([np.mean(by_c[r]) for r in by_t])
     lower, higher = int((means < controls).sum()), int((means > controls).sum())
+    positive = bool((means > 0).all() and (controls > 0).all())
+    change = (
+        float(np.exp(np.mean(np.log(means / controls))))
+        if positive
+        else float(np.mean(means - controls))
+    )
     if len(means) < MIN_REPEATS:
-        return np.nan, "", lower, higher, np.nan
+        return np.nan, "normalised" if positive else "raw", lower, higher, np.nan, change
     raw = _paired_t(means - controls)
-    if (means > 0).all() and (controls > 0).all():
-        return _paired_t(np.log(means / controls)), "normalised", lower, higher, raw
-    return raw, "raw", lower, higher, raw
+    if positive:
+        return _paired_t(np.log(means / controls)), "normalised", lower, higher, raw, change
+    return raw, "raw", lower, higher, raw, change
 
 
 def _row(feature: str, condition: Any, side: dict, n_permutations: int, rng) -> dict[str, Any]:
     by_t, by_c = side["by_t"], side["by_c"]
-    p_paired, paired_values, lower, higher, p_raw = _paired(by_t, by_c)
+    p_paired, paired_values, lower, higher, p_raw, change = _paired(by_t, by_c)
     row: dict[str, Any] = {
         "feature": feature,
         "condition": condition,
@@ -146,6 +155,7 @@ def _row(feature: str, condition: Any, side: dict, n_permutations: int, rng) -> 
         "higher": higher,
         "p_paired": p_paired,
         "paired_values": paired_values,
+        "change": change,
         "p_paired_raw": p_raw,
         "status": "ok",
     }
@@ -177,6 +187,8 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
             "condition": None,
             "q_cells": np.nan,
             "q_paired": np.nan,
+            "change": np.nan,
+            "paired_values": "",
             "confirmed": False,
             "direction": "",
             "passing": len(passing),
@@ -193,6 +205,8 @@ def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
                 condition=best["condition"],
                 q_cells=float(best["q_cells"]),
                 q_paired=float(best["q_paired"]),
+                change=float(best["change"]),
+                paired_values=best["paired_values"],
                 confirmed=bool(passing["confirmed"].any()),
                 direction=f"{same} of {int(best['repeats'])} {word}",
             )
@@ -229,7 +243,10 @@ class FeatureDiscovery:
         parts = []
         for feature in features[:5]:
             mine = tests[(tests["feature"] == feature) & tests["confirmed"]]
-            conditions = listing(list(mine["condition"].astype(str)), 3)
+            conditions = listing(
+                [f"{r.condition} {change(r.change, r.paired_values)}" for r in mine.itertuples()],
+                3,
+            )
             others = tests[(tests["feature"] == feature) & tests["passes"] & ~tests["confirmed"]]
             tail = (
                 f"; not {listing(list(others['condition'].astype(str)), 2)}" if len(others) else ""
@@ -269,7 +286,9 @@ class FeatureDiscovery:
             f"{label}: Cohen's d on the observations normalised to each repeat's control, "
             f"randomization test, q ≤ {alpha:g} after Benjamini-Hochberg within each "
             f"sub-experiment: {family}). Ranked by the largest difference "
-            "(|d|); a candidate is significant across repeats when the paired t-test on the "
+            "(|d|); change: the condition's mean over the control's, the fold change the "
+            "paired t-test compares (the difference of the means where a mean is not "
+            "positive); a candidate is significant across repeats when the paired t-test on the "
             f"repeat means also gives q ≤ {alpha:g}:"
         )
 
@@ -283,14 +302,24 @@ class FeatureDiscovery:
                 row["feature"],
                 f"{row['d']:+.2f}",
                 f"{row['condition']}",
+                change(row["change"], row["paired_values"]),
                 _q(row["q_cells"]),
                 _q(row["q_paired"]),
                 row["direction"],
             ]
             for rank, row in enumerate(ranked.head(max_rows).to_dict("records"), start=1)
         ]
-        columns = ["rank", "feature", "d", "condition", "q cell level", "q repeat means", "repeats"]
-        lines = [table(rows, columns, indent=indent, align="rlrlrrl")]
+        columns = [
+            "rank",
+            "feature",
+            "d",
+            "condition",
+            "change",
+            "q cell level",
+            "q repeat means",
+            "repeats",
+        ]
+        lines = [table(rows, columns, indent=indent, align="rlrlrrrl")]
         if len(ranked) > max_rows:
             lines.append(" " * indent + f"and {len(ranked) - max_rows} more ranked features")
         confirmed = self.confirmed()

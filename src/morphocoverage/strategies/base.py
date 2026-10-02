@@ -180,8 +180,8 @@ def unsupported_observation_unit(
     if data.observation_unit in allowed_units:
         return None
     return (
-        f"{method} assumes observation rows are individual objects "
-        f"(observation_unit in {allowed_units}), got {data.observation_unit!r}"
+        f"{method} is defined for individual objects ({', '.join(allowed_units)}), and these "
+        f"rows are of another unit ({data.observation_unit})"
     )
 
 

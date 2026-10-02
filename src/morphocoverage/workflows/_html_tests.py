@@ -28,7 +28,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import count, listing, p_value, percent
+from .._wording import change, count, listing, p_value, percent
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
 from ._families import _CELL_VERSIONS
@@ -123,6 +123,7 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
                 "lower": tests["lower"],
                 "higher": tests["higher"],
                 "values": tests["paired_values"],
+                "change": tests["change"],
                 "p": tests["p_paired"],
                 "adjusted_p": tests["q_paired"],
                 "p_raw": tests["p_paired_raw"],
@@ -140,7 +141,10 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
                 "repeats": rep["repeats"],
                 "lower": rep["lower"],
                 "higher": rep["higher"],
-                "values": np.where(normalised, "normalised", "raw"),
+                "values": np.where(rep["fold_change"].notna(), "normalised", "raw"),
+                "change": rep["fold_change"].where(
+                    rep["fold_change"].notna(), rep["mean_difference"]
+                ),
                 "p": rep["p_paired_t_normalised"].where(normalised, rep["p_paired_t"]),
                 "adjusted_p": rep["q_paired_t_normalised"].where(normalised, rep["q_paired_t"]),
                 "p_raw": rep["p_paired_t"],
@@ -160,14 +164,14 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
     rows = []
     for r in frame.itertuples():
         row = [r.feature] if many else []
-        row += [r.condition, _direction(r.lower, r.higher, r.repeats)]
+        row += [r.condition, _direction(r.lower, r.higher, r.repeats), change(r.change, r.values)]
         if single_d:
             low, high = r.d_per_repeat_min, r.d_per_repeat_max
             mean = r.d_per_repeat_mean
             row.append(f"{mean:+.2f} ({low:+.2f} to {high:+.2f})" if pd.notna(mean) else "–")
         row += [p_value(r.p), p_value(r.adjusted_p), r.verdict]
         rows.append(row)
-    columns = (["feature"] if many else []) + ["condition", "in the repeats"]
+    columns = (["feature"] if many else []) + ["condition", "in the repeats", "change"]
     columns += ["d per repeat: mean (range)"] if single_d else []
     columns += ["p", "adjusted p", "verdict"]
     files = [(write_csv(frame, folder, "tests_across_repeats.csv"), "Data (CSV)")]
@@ -188,7 +192,10 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
     )
     caption = (
         "<p>Each condition against the control of the same biological repeats, on the "
-        "repeat means divided by that control's mean. Significant: adjusted p ≤ 0.05.</p>"
+        "repeat means divided by that control's mean. Change: the condition's mean over the "
+        "control's, a fold change (the geometric mean over the repeats; the difference of the "
+        "means where a mean is not positive), so a significant change can be read for its "
+        "size. Significant: adjusted p ≤ 0.05.</p>"
     )
     return caption + _table(
         columns, rows, "rows"

@@ -11,6 +11,9 @@ condition and control, from the per-repeat contrasts:
 - **the direction in each repeat**: how many repeats have the condition's
   mean below the control's of the same repeat, and how many above;
 - **the per-repeat Cohen's d** on the observations: their mean and range;
+- **the fold change** the normalised test compares: the geometric mean of the repeats'
+  ratios of the condition's mean to the control's (``fold_change``; NaN when a mean is not
+  positive, the raw change being ``mean_difference``);
 - **a paired t-test** on the per-repeat differences of means (treated minus
   control, paired by repeat), the usual SuperPlots test; it assumes the
   differences are normally distributed;
@@ -63,6 +66,7 @@ REPEAT_COLUMNS = [
     "lower",
     "higher",
     "mean_difference",
+    "fold_change",
     "d_mean",
     "d_min",
     "d_max",
@@ -141,6 +145,7 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
             "lower": int((differences < 0).sum()),
             "higher": int((differences > 0).sum()),
             "mean_difference": float(differences.mean()),
+            "fold_change": float(np.exp(np.mean(_log_ratios(block)))),
             "d_mean": float(d.mean()) if len(d) else np.nan,
             "d_min": float(d.min()) if len(d) else np.nan,
             "d_max": float(d.max()) if len(d) else np.nan,

@@ -27,6 +27,7 @@ from ..data_check import validate_input_tables
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..plots_pairwise import ALPHA, D_CAP, format_p, p_shade
 from ..schema import fov_positions
+from ._rare_share import plotted_values
 
 ASSET = Path(__file__).with_name("assets") / "plotly-cartesian.min.js"
 MAX_POINTS = 4000
@@ -44,8 +45,12 @@ def _number(value: Any, digits: int = 4) -> float | None:
     return round(value, digits) if np.isfinite(value) else None
 
 
-def _observations(prepared: pd.DataFrame, fovs: pd.DataFrame, feature: str, setup: Any):
-    """Every observation's value and labels, on the values the static figures plot."""
+def _observations(
+    prepared: pd.DataFrame, fovs: pd.DataFrame, feature: str, setup: Any
+) -> pd.DataFrame:
+    """Every observation's value and labels, on the values the static figures plot (the
+    labelled share per field, ``_rare_share.plotted_values``)."""
+    prepared = plotted_values(prepared, fovs, setup, feature)
     data = validate_input_tables(prepared, fovs=fovs, feature_cols=[feature], **setup.common)
     meta = data.fovs.iloc[fov_positions(data, data.fovs)].reset_index(drop=True)
     frame = pd.DataFrame({"value": data.feature_values(feature)})
