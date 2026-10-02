@@ -71,12 +71,6 @@ def _span(values: Sequence[float], format_one: Any = number) -> str:
     return span(values, "percent" if format_one is percent else "number")
 
 
-def _more(values: Sequence[float]) -> str:
-    """``1 more field``, ``31-96 more fields``."""
-    text = _span(values)
-    return f"{text} more field" if text == "1" else f"{text} more fields"
-
-
 def _warning_list(row: Mapping[str, Any]) -> list[str]:
     """A rule's cautions one by one (tables written before ``warning_list`` join them)."""
     listed = row.get("warning_list")
@@ -165,8 +159,12 @@ def _stops_cell(stops: pd.DataFrame, config: str, kind: str, groups: int) -> str
         f"{number(median)} ({number(reached['stop_fov_p10'].min())}-"
         f"{number(reached['stop_fov_p90'].max())})"
     )
-    total = int(rows["orders"].sum())
-    return text if int(met.sum()) == total else f"{text}; {int(met.sum())} of {total} orders"
+    total, stopped = int(rows["orders"].sum()), int(met.sum())
+    if stopped == total:
+        return text
+    # Most orders never met it: said first, the fields only for those that did (audit).
+    that = "the order" if stopped == 1 else f"the {stopped}"
+    return f"never in {total - stopped} of {total} orders; {text} in {that} that met it"
 
 
 def _rules_table(report: Any, tallies: list[dict[str, Any]], indent: int) -> list[str]:
@@ -207,9 +205,12 @@ def _rules_table(report: Any, tallies: list[dict[str, Any]], indent: int) -> lis
                 "random: the median of the groups' medians, 10-90% from the lowest to the "
                 "highest group"
             )
-        text = "; ".join(
-            ["Fields when first met: in the order acquired, when it first said enough", *spreads]
+        first = (
+            ["Fields when first met: in the order acquired, when it first said enough"]
+            if "recorded" in kinds
+            else ["Fields when first met in random orders"]
         )
+        text = "; ".join([*first, *spreads])
         lines.append(wrap(f"{text}.", indent, hang=indent + 2))
     return lines
 

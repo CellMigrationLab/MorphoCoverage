@@ -58,13 +58,13 @@ from ._html_cards import (
     readout_summary,
     significant_summary,
 )
-from ._html_data import data_buttons, heatmap_data
+from ._html_data import data_buttons, download, heatmap_data
 from ._html_enough import enough_body
-from ._html_figures import download, embeddings, feature_figures
+from ._html_figures import embeddings, feature_figures
 from ._html_next import conditions_next, enough_next, fields_next, populations_next
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
-from ._html_render import Terms, chip, text_html
+from ._html_render import Terms, adjusted_p, chip, text_html
 from ._html_script import SCRIPT
 from ._html_sections import (
     INTROS,
@@ -73,12 +73,13 @@ from ._html_sections import (
     enough_reading,
     heatmap,
     hidden,
+    intros_for,
     not_declared,
     unnumbered,
     what_checked,
 )
 from ._html_style import CSS
-from ._html_tabs import tests_tabs
+from ._html_tests import tests_section
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
@@ -178,6 +179,7 @@ def _glossary_drawer(page: str) -> str:
 
 
 _TERMS = Terms()
+_INTROS: dict[str, str] = dict(INTROS)
 
 
 def _html(text: str) -> str:
@@ -221,7 +223,7 @@ def _card(key: str, title: str, chip_html: str, body: str) -> str:
     """A section: its chip, its title with its "?" help, and its body."""
     return (
         f'<section class="card" id="{key}"><h2>{chip_html} {html.escape(title)}'
-        f"{help_icon(INTROS.get(key))}</h2>{body}</section>"
+        f"{help_icon(_INTROS.get(key))}</h2>{body}</section>"
     )
 
 
@@ -319,6 +321,7 @@ def _conditions_card(
     answer: str | None,
     extras: str,
     next_html: str,
+    folder: Path,
 ) -> str:
     """Question 9: the significant features per condition, the figures, then the tests
     behind them (the readout's reading first), then what to do next."""
@@ -342,7 +345,7 @@ def _conditions_card(
         )
         body = (summary or _html(reading)) + extras + "<h3>The tests behind the reading</h3>"
         # One kind of test at a time (_html_tabs).
-        body += readout + (tests_tabs(rest, _html) if rest.strip() else "")
+        body += (tests_section(result, rest, _html, folder) if rest.strip() else "") + readout
     else:
         body = summary + _html(short) + extras
     # The summary answers, so the headline is not repeated above it (it stays the chip's).
@@ -376,6 +379,9 @@ def html_report(
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
     folder = Path(folder)
+    # The "?" help in the report's words for its observations (tracks, patches).
+    _INTROS.clear()
+    _INTROS.update(intros_for(result.setup.unit_words, result.setup.observation_unit or "object"))
     figures = folder / "figures"
     figures.mkdir(parents=True, exist_ok=True)
     # Allow for file systems that store modification times to the second.
@@ -450,6 +456,7 @@ def html_report(
                     headlines.get(key),
                     extras,
                     conditions_next(result, fovs),
+                    figures,
                 )
             )
             continue
@@ -479,7 +486,8 @@ def html_report(
                 key,
                 statuses.get(key),
                 short,
-                doc.sections[key],
+                # Every feature's text is in the tabs already: the full text is in the files.
+                None if features is not None else doc.sections[key],
                 answer,
                 body_extra=extra,
                 found=headlines.get(key),
@@ -506,6 +514,8 @@ def html_report(
         texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
     files = _files(folder, texts, [Path(p) for p in attach], started)
     cards.append(_files_card(files))
+    # The page names the q-value the adjusted p (owner, 2026-10-02).
+    cards = [adjusted_p(card) for card in cards]
     stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     page = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -520,7 +530,7 @@ def html_report(
         + "<footer>"
         + html.escape(_settings(result))
         + "</footer></main></div>"
-        + _glossary_drawer(subtitle + "".join(cards))
+        + adjusted_p(_glossary_drawer(subtitle + "".join(cards)))
         + '<script type="application/json" id="files-data">'
         + json.dumps(files, separators=(",", ":"))
         + f"</script><script>{SCRIPT}</script>"

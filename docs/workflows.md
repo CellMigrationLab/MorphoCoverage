@@ -139,9 +139,24 @@ candidate, said as exploratory. Then a heatmap of Cohen's d of every feature and
 condition against the control (● passes the exploratory cell-level screen, ✓ also
 significant across repeats; hover a cell for its q-values), then the best-ranked
 features (the readout only when it ranks, or alone when none does), then the
-tests behind the reading: the readout's reading condition by condition, then one
-kind of test at a time as tabs (across repeats, reagents, the cell-level screen,
-within repeats, planning, every feature).
+tests behind the reading. These open with **the tests, in short**: the paired
+t-test on the biological repeat means (it decides), the cell-level screen
+(exploratory: it treats every cell as independent), and, when they are on the page,
+beyond the mean, the reagents and planning; what Cohen's d is in each table (per
+repeat or on the cells); and what p and the adjusted p are. Then one table per test
+as tabs, each with p and the adjusted p (Benjamini-Hochberg, the q-value) in their
+own columns and its data as CSV: across repeats, every feature and condition with
+its direction in the repeats and its verdict (raw values folded); the cell-level
+screen in the version the report trusts, with how often it gives p ≤ 0.05 with no
+effect for the readout (its other versions folded, never one whose control comes from
+repeats the condition was not imaged in); beyond the mean; reagents; planning. The
+readout's reading, condition by condition, is folded under them. The page calls the
+q-value the adjusted p throughout.
+
+With several features, every test of "Do the conditions differ?" is corrected over
+every feature and condition of a sub-experiment: the readout's paired t-test and its
+cell-level screen take the feature discovery's p and q (`workflows._families`), so the
+readout reads the same in its own table, the summary and the heatmap.
 
 Each answer that calls for an analysis ends with **What to do next**: a sentence,
 and the code to run it on `result`, `objects` and `fovs`, folded under "Show the
@@ -346,18 +361,28 @@ acquired:
   question like a feature significant across repeats.
 - **"Are there distinct populations?"** (question 10, in every report) finds
   groups of cells that sit together on all the declared features, from every
-  condition pooled: HDBSCAN (scikit-learn) on the principal components holding
-  90% of their robustly standardised variance, a population holding at least
-  0.5% of the cells (and 15). Each population is listed with its share, the
-  features that set it apart, and the fields and repeats it is seen in; then
-  each condition is compared with the control on its share of cells in it,
-  per biological repeat, on the log odds of the shares (a small share is as
-  steady there as a large one), by the paired test across repeats
-  (Benjamini-Hochberg within each sub-experiment); a main population holding
-  most cells is listed but not tested, its share being all but the complement
-  of the others'. A declared label is matched to the population
-  that holds it. The PCA and UMAP ring each population (click its legend entry
-  to hide it), can be coloured by condition, population or any feature, and,
+  condition pooled. The candidates are the clusters of HDBSCAN (scikit-learn) on a
+  5-dimensional UMAP of the robustly standardised features (`min_dist` 0), a
+  cluster holding at least 0.5% of the cells (and 15). UMAP evens out density, so
+  each candidate is then judged on all the features (owner, 2026-10-02): it is kept
+  when 94% or more of its cells' 10 nearest neighbours are in it too, and it is a
+  **distinct population** when the density along the line from the other cells to
+  it dips to at most half of the lower peak between them (a gap), else a **group
+  on the map** (`G1`, `G2`, ...: separated from the rest by its neighbours, not by
+  a gap, so it may be the end of a continuum, the most elongated cells of a
+  gradient say). A cluster holding most cells is the main population, the rest of
+  the cells. On constructed data this finds no population in a Gaussian, a
+  separate blob as distinct, and the end of a straight line at most as a group;
+  groups overlapping strongly on every feature are not told apart. Each population
+  and group is listed with its share, the features that set it apart, and the
+  fields and repeats it is seen in; then each condition is compared with its own
+  control on its share of cells in it, per biological repeat, on the log odds of
+  the shares (a small share is as steady there as a large one), by the paired
+  test across repeats (Benjamini-Hochberg within each sub-experiment); the main
+  population is listed but not tested, and a population absent from a condition
+  and its control is not compared. A declared label is matched to the population
+  that holds it. The PCA and UMAP ring each population and group (click its legend
+  entry to hide it), can be coloured by condition, population or any feature, and,
   around points drawn with the lasso, list the conditions and populations they
   come from and the features that set them apart (Cohen's d).
 - **"Can these features detect what I care about?"**, with a label and no

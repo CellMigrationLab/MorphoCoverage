@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from morphocoverage._style import CAUTION, Status, width
-from morphocoverage._wording import percent
+from morphocoverage._wording import percent, percent_fine
 from morphocoverage.retrospective import (
     RepresentationControl,
     microscopist_report,
@@ -196,8 +196,8 @@ def test_the_jcb_check_full_keeps_every_number_and_the_short_names_misses(unit):
         for value in (
             str(int(row["rule_objects"])),
             f"{row['fovs_used']:.1f}",
-            percent(row["predicted_error"]),
-            percent(row["real_error"]),
+            percent_fine(row["predicted_error"]),
+            percent_fine(row["real_error"]),
             f"{row['error_ratio']:.1f}x",
             f"{int(row['fov_rule_fovs'])} ({int(row['fov_rule_fovs_upper95'])})",
         ):

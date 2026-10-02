@@ -55,11 +55,13 @@ def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen)
     result = screen[3]
     status = result.document.statuses["populations"]
     headline = result.document.headlines["populations"]
-    found = r"P\d \(\d+% of cells; high dna\): more common in arrest \(\d+(\.\d)?% vs \d\.\d%"
+    found = (
+        r"P\d \(\d+(\.\d)?% of cells; high dna\): more common in arrest \(\d+(\.\d)?% vs \d\.\d%"
+    )
     assert re.search(found, headline)
     short = result.document.short["populations"]
     assert "of every condition pooled, clustered on the 3 declared features (HDBSCAN" in short
-    assert "main population (not tested)" in short
+    assert "the rest (not tested)" in short and "distinct" in short
     assert "arrest higher" in short
     word = "Enriched" if status is Status.OK else "Trend only"
     assert chip(status, "populations", headline).endswith(f"{word}</span>")

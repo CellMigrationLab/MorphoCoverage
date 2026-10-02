@@ -61,7 +61,8 @@ TITLES = {
 INTROS = {
     "overview": "What the tables hold, and whether they read cleanly (missing values, copies).",
     "inspect": (
-        "Fields that move a summary strongly, or that the copy checks name. Each may be an "
+        "Fields that move a summary strongly, hold an unusual count or a state no other field "
+        "shows, or that the copy checks name. Each may be an "
         "artefact (out of focus, debris, a field exported twice) or real biology: open their "
         "images before trusting the answers below. Focus and segmentation are not checked, so "
         "a field not flagged is not thereby a good image."
@@ -96,6 +97,19 @@ INTROS = {
         "to change the phenotype) against the negative control."
     ),
 }
+
+
+def intros_for(units: str, one: str) -> dict[str, str]:
+    """``INTROS`` in the report's own words for its observations (tracks, patches)."""
+    import re
+
+    def words(text: str) -> str:
+        text = re.sub(r"\bcells\b", units, text)
+        return re.sub(r"\bcell\b(?!-)", one, text)
+
+    return {key: words(text) for key, text in INTROS.items()}
+
+
 # The heatmap's diverging colours (lower than the control, higher), and its neutral middle.
 LOWER, HIGHER, MIDDLE = (42, 120, 214), (227, 73, 72), (240, 239, 236)
 D_CAP = 2.0
@@ -136,8 +150,9 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
         )
     tolerances = " and ".join(rate(t) for t in setup.tolerances)
     lines.append(
-        f"Precision asked: the standard error of the mean of {setup.readout} at most "
-        f"{tolerances} of the mean."
+        f"Precision asked: the mean of {setup.readout} within {tolerances} of its value "
+        "(judged on held-back fields by optimise; the stopping rules stop when its standard "
+        "error is a set share of the mean)."
     )
     if setup.fingerprint:
         named = "; ".join(c.description or c.name for c in setup.fingerprint)
@@ -185,10 +200,7 @@ def _repeats_advice(contrast: Any, fields: str) -> str:
         return ""
     open_ = set(readings.loc[readings["verdict"] != CONFIRMED, "condition"])
     if not open_:
-        return (
-            "What to do: every condition is significant across repeats; the planning table "
-            "says how many repeats a new experiment would need for 80% power."
-        )
+        return "Every condition is significant across repeats."
     rows = plan[plan["condition"].isin(open_)]
     if rows["repeats_needed"].isna().all():
         return ""
@@ -208,14 +220,16 @@ def _repeats_advice(contrast: Any, fields: str) -> str:
             f"{names}: more than {MAX_REPEATS}, the difference seen is too small or too "
             "variable between repeats to plan for"
         )
+    between = rows[rows["limited_by"] == "between repeats"]
     tail = (
-        f"; more {fields} per repeat help little where the repeats differ"
-        if (rows["limited_by"] == "between repeats").any()
+        f"; more {fields} per repeat help little for "
+        f"{listing(list(between['condition'].astype(str)), 4)}, whose repeats differ"
+        if len(between)
         else ""
     )
     return (
-        f"What to do for the {count(len(open_), 'condition')} not significant across repeats "
-        f"(the planning table in \u201c{TITLES['conditions']}\u201d): {'; '.join(parts)}{tail}."
+        f"For the {count(len(open_), 'condition')} not significant across repeats, a new "
+        f"experiment would need: {'; '.join(parts)}{tail}."
     )
 
 
@@ -282,7 +296,7 @@ def _precision(sufficiency: Any, readout: str, fields: str) -> list[str]:
         )
         if met < groups:
             line += (
-                " A stricter goal than the comparison: it matters when the value of a mean is "
+                " A different goal from the comparison: it matters when the value of a mean is "
                 f"reported, not for comparing conditions; more {fields} per {word} is the lever."
             )
         lines.append(line)
@@ -421,6 +435,7 @@ __all__ = [
     "enough_reading",
     "heatmap",
     "hidden",
+    "intros_for",
     "not_declared",
     "unnumbered",
     "what_checked",

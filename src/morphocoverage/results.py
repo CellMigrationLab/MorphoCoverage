@@ -327,7 +327,7 @@ def stop_caution_parts(order_check: OrderCheck | None, *, rare: bool = False) ->
 def _averaging_cv_note(thresholds: Sequence[float]) -> str:
     """An averaging CV is a standard error as a fraction of the mean, not a tolerance."""
     notes = [
-        f"an averaging CV of {rate(t)} is one standard error of {rate(t)} of the mean, "
+        f"an averaging CV of {rate(t)}: the standard error is {rate(t)} of the mean, "
         f"not a ±{rate(t)} bound"
         for t in sorted(set(thresholds))
     ]

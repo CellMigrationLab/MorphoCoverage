@@ -228,13 +228,14 @@ def test_p2_3_view_names_the_criterion_and_the_standard_error():
     view = decision_view(stop.results)
     assert "met: scalar_precision_object_upper95 averaging_cv <= 0.05" in view
     assert "scalar_precision_fov_upper95 averaging_cv <= 0.05" in view
-    assert "an averaging CV of 5% is one standard error of 5% of the mean, not a ±5% bound" in view
+    assert "an averaging CV of 5%: the standard error is 5% of the mean, not a ±5% bound" in view
     before = next(u for u in updates if not _overall_stop(u))
     assert "not yet met: scalar_precision_fov_upper95 averaging_cv <= 0.05" in decision_view(
         before.results
     )
     rules = [s for s in Setup(readout=READOUT).declaration() if s.startswith("Stopping rules")]
-    assert "one standard error of 5% of the mean, not a bound of ±5%" in rules[0]
+    stop = "the standard error of the mean is 5% of the mean (its averaging CV), not on a bound"
+    assert f"{stop} of ±5%" in rules[0]
 
 
 def test_p2_4_object_rule_line_states_its_assumption():

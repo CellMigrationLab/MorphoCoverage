@@ -6,8 +6,7 @@ embedded, and the data and markup of the interactive PCA and UMAP.
 - embeddings: the PCA and UMAP of every feature, raw and normalised to the control, as
   data for the page's script (with the static figures beside): every condition, the control
   included, in a colour of COLOURS.
-- figure_block and download: a figure with its download buttons; a button that saves
-  a file the page carries.
+- figure_block: a figure with its download buttons (``_html_data.download``).
 """
 
 from __future__ import annotations
@@ -27,8 +26,8 @@ from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
-from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE
-from ._html_data import data_buttons, embedding_data, feature_data
+from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_TITLES
+from ._html_data import data_buttons, download, embedding_data, feature_data
 from ._html_plotly import feature_specs, interactive_caption
 from ._populations import population_of
 from ._rare_share import with_share
@@ -60,14 +59,6 @@ def _save(figure: Any, folder: Path, name: str) -> str:
     figure.savefig(folder / f"{name}.pdf")
     data = base64.b64encode((folder / f"{name}.png").read_bytes()).decode()
     return f"data:image/png;base64,{data}"
-
-
-def download(path: str, label: str) -> str:
-    """A button that saves the file the page carries at ``path`` (``_files``)."""
-    return (
-        f'<button type="button" class="dl" data-file="{html.escape(path)}">'
-        f"{html.escape(label)}</button>"
-    )
 
 
 def figure_block(uri: str, name: str, caption: str) -> str:
@@ -139,10 +130,7 @@ def feature_figures(
                 + "".join(
                     f'<div class="panel"><p class="panel-title"><b>{letter}</b> {title}</p>'
                     f'<div class="pl-pair" data-panel="{letter.lower()}"></div></div>'
-                    for letter, title in (
-                        ("B", "d · randomization test"),
-                        ("C", "paired t-test, repeat means"),
-                    )
+                    for letter, title in PANEL_TITLES.items()
                 )
                 + "</div>"
                 if paired
@@ -379,7 +367,12 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
         "methods": ["PCA", "UMAP"],
         "features": features,
         "populations": [
-            {"name": r.population, "share": round(float(r.share), 4), "defined": r.defined_by}
+            {
+                "name": r.population,
+                "share": round(float(r.share), 4),
+                "defined": r.defined_by,
+                "kind": r.kind,
+            }
             for r in result.results["populations"].populations.table.itertuples()
         ]
         if found is not None
@@ -438,7 +431,6 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
 __all__ = [
     "COLOURS",
     "condition_colours",
-    "download",
     "embeddings",
     "feature_figures",
     "figure_block",

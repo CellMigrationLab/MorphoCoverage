@@ -4,17 +4,17 @@ the arrow keys moving between them (``_html_script``).
 - ``tabs_html``: tabs from ``(label, mark, markup)`` items, the first one shown; above
   ``TABS_AT_MOST`` items (hundreds of features), a list to search and pick from instead,
   one panel shown at a time all the same.
-- ``tests_tabs``: "The tests behind the reading" one kind of test at a time: across the
-  repeats, the reagents of a target, the cell-level screen, within single repeats, planning
-  the next experiment, every feature. Text before the first kind stays above the tabs, and
-  the section's cautions and assumptions below them, for every tab.
+- ``test_blocks``: the text of "The tests behind the reading" cut by kind of test (across
+  the repeats, the reagents of a target, the cell-level screen, within single repeats,
+  planning, every feature, beyond the mean), for ``_html_tests``: the text before the first
+  kind, each kind's, and the closing cautions and assumptions.
 """
 
 from __future__ import annotations
 
 import html
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 
 # Each kind of test by the words its paragraph starts with in the text report.
 TEST_KINDS = (
@@ -84,9 +84,9 @@ def _kind(line: str) -> str | None:
     return next((name for name, starts in TEST_KINDS if text.startswith(starts)), None)
 
 
-def tests_tabs(text: str, render: Callable[[str], str]) -> str:
-    """The tests behind the reading as tabs (see the module); ``render`` turns text into
-    markup. One kind or none found: the text as it is."""
+def test_blocks(text: str) -> tuple[list[str], dict[str, list[str]], list[str]]:
+    """The text of the tests behind the reading cut by kind of test (``TEST_KINDS``): the
+    paragraphs before the first kind, each kind's, and the closing cautions and assumptions."""
     paragraphs = re.split(r"\n(?=  \S)", text)
     head, blocks, tail = [], {}, []
     current = None
@@ -104,14 +104,7 @@ def tests_tabs(text: str, render: Callable[[str], str]) -> str:
             else blocks.setdefault(current, [])
         )
         target.append(paragraph)
-    if len(blocks) < 2:
-        return render(text)
-    items = [
-        (name, "", render("\n".join(blocks[name]))) for name, _ in TEST_KINDS if name in blocks
-    ]
-    markup = render("\n".join(head)) if head else ""
-    markup += tabs_html("tests", items, "Tests")
-    return markup + (render("\n".join(tail)) if tail else "")
+    return head, blocks, tail
 
 
-__all__ = ["TABS_AT_MOST", "TEST_KINDS", "tabs_html", "tests_tabs"]
+__all__ = ["TABS_AT_MOST", "TEST_KINDS", "tabs_html", "test_blocks"]

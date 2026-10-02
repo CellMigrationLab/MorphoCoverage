@@ -159,8 +159,8 @@ def test_c2_the_sufficiency_sentence_carries_the_rules_own_warnings():
     rng = np.random.default_rng(1)
     wide = _acquisition([list(rng.exponential(10.0, 20)) for _ in range(6)])
     text = _summary(*wide, [ScalarPrecisionStrategy("area", 0.05, "object", "point")])
-    assert "Caution: the SD between objects exceeds 50% CV" in text
-    assert "point SD, in the group: the SD between objects exceeds 50% CV" in text
+    assert "Caution: the SD between objects exceeds 50% of their mean" in text
+    assert "point SD, in the group: the SD between objects exceeds 50% of their mean" in text
 
 
 def test_c3_the_object_unit_jcs_rule_states_its_random_object_assumption():
@@ -370,7 +370,7 @@ def test_c11_the_fov_unit_rule_names_the_rows_it_averages():
     )
     diagnostics = result.evidence.diagnostics
     assert diagnostics["scalar_parameter"] == "mean of 'area' over patches"
-    assert diagnostics["warning"].startswith("the SD between patches exceeds 50% CV")
+    assert diagnostics["warning"].startswith("the SD between patches exceeds 50% of their mean")
     assert "cell" not in diagnostics["warning"]
 
 

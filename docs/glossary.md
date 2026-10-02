@@ -4,7 +4,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 ## Reading the report
 
-**Status markers.** What each answer found: ✅ yes (a condition differs across repeats, enough was imaged, the data are clean); ⚠️ partly, a trend only, or something to look at; ❌ check the data first; ➖ no conclusion possible here (not assessed, or one biological repeat). The word beside the marker says which.
+**Status markers.** What each answer found: ✅ yes or a clear answer (a condition differs across repeats, enough was imaged, the data are clean, the cells form one continuum); ⚠️ partly, a trend only, or something to look at; ❌ check the data first; ➖ no conclusion possible here (not assessed, or one biological repeat). The word beside the marker says which.
 
 *Where:* At a glance, every answer.
 
@@ -96,7 +96,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 *Where:* Do the conditions differ?, within repeats.
 
-**Benjamini-Hochberg q-value.** A p-value corrected for the many tests made together (the conditions of one experiment, the features ranked, or the pairs of a matrix): among the results with q ≤ 0.05, about 5% are expected to be false discoveries.
+**Benjamini-Hochberg q-value.** A p-value corrected for the many tests made together (the conditions of one experiment, the features ranked, or the pairs of a matrix): among the results with q ≤ 0.05, at most 5% are expected to be false discoveries, on average and when each p-value is valid (the cell-level screen's are not when the repeats differ).
 
 *Where:* Do the conditions differ?.
 *See:* [Benjamini Y, Hochberg Y. Controlling the false discovery rate: a practical and powerful approach to multiple testing. J R Stat Soc B. 1995;57(1):289-300.](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x)
@@ -124,11 +124,11 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 **PCA and loadings.** The two directions along which the standardised features vary most, each labelled with its share of the variance; an arrow shows how much a best-ranked feature weighs on each direction. Describes, does not test.
 
-*Where:* The figures of 'Do the conditions differ?'.
+*Where:* The whole dataset at once.
 
 **UMAP.** A map that keeps each cell's nearest neighbours close, so it can show groups that PCA mixes. Its axes have no units and distances between groups are not to scale. Describes, does not test; on raw values a separation can be a batch between repeats.
 
-*Where:* The figures of 'Do the conditions differ?'.
+*Where:* The whole dataset at once.
 *See:* [McInnes L, Healy J, Melville J. UMAP: Uniform Manifold Approximation and Projection for dimension reduction. arXiv:1802.03426. 2018.](https://arxiv.org/abs/1802.03426)
 
 ## The data

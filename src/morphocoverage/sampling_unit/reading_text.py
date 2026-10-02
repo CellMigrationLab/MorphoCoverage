@@ -41,6 +41,7 @@ import pandas as pd
 
 from .._style import wrap
 from .._wording import column_word, count, listing, p_value, percent
+from ._experiments import family_words
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
 
@@ -246,8 +247,9 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
     head = (
         f"Reading, condition by condition, against {control}. Significant across repeats: the "
         "paired t-test on the biological repeat means (as SuperPlots; values normalised to "
-        "each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg within the "
-        "condition's sub-experiment: this is the result to report. Same direction, not "
+        f"each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg "
+        f"{family_words(contrast.settings, own=True)}: this is the result to report. Same "
+        "direction, not "
         "significant: on one side of the control in every repeat without reaching q ≤ 0.05, "
         "a consistent trend and not evidence of no effect (with 3 repeats only large, "
         "consistent effects reach it). Beside it, the cell-level screen (as Plot&Stats, every "

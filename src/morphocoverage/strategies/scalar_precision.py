@@ -351,8 +351,8 @@ class ScalarPrecisionEstimator(Estimator):
         cautions = []
         if object_cvs is not None and object_cvs["cv_objects"] > _MAX_TRUSTED_CV:
             cautions.append(
-                f"the SD between {plural(unit)} exceeds 50% CV; the paper advises acquiring "
-                "more data and repeating the estimate"
+                f"the SD between {plural(unit)} exceeds 50% of their mean; Zweifach (JCB 2024) "
+                "advises acquiring more data and repeating the estimate"
             )
         if moments and self.resampling_unit == "object" and self.sd_estimate == "upper_95":
             cautions.append(_shape_warning(*moments(), plural(unit)))

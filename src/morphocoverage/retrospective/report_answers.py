@@ -91,7 +91,11 @@ def limits_text(
     ]
     lines = []
     for key, title in missing:
-        if full and report.inputs.get(key) == "not assessed":
+        answer = report.headlines.get(key, "")
+        if full and answer.startswith("not applicable"):
+            # This design cannot answer it: its reason, never what to run (audit, 2026-10-02).
+            line = f"{NOT_ASSESSED} {title}: {answer}."
+        elif full and report.inputs.get(key) == "not assessed":
             line = f"{NOT_ASSESSED} {title}: not assessed; needs: {needs[key]}."
         elif full:
             # Run, but no conclusion possible (one repeat): its own answer says why.

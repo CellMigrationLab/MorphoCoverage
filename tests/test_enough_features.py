@@ -141,21 +141,17 @@ def test_a_long_summary_table_shows_its_first_rows_and_a_button(result):
     assert 'class="feature-tabs picker"' in body and "Each feature alike" not in body
 
 
-def test_the_tests_behind_the_reading_are_one_kind_at_a_time():
+def test_the_tests_behind_the_reading_are_cut_by_kind():
     text = (
         "  Analysis: per field.\n  Across the repeats: paired t.\n    a row\n"
         "  Cell-level screen: 3 candidates.\n  ⚠️ one caution.\n"
         "  Assumptions: fields independent."
     )
-    markup = _html_tabs.tests_tabs(text, lambda t: f"<pre>{t}</pre>")
-    assert markup.startswith("<pre>  Analysis: per field.</pre>")
-    kinds = re.findall(r'role="tab"[^>]*>([^<]+)<', markup)
-    assert kinds == ["Across repeats", "Cell-level screen"]
-    first = markup[markup.index('id="tests-panel-0"') : markup.index('id="tests-panel-1"')]
-    assert "a row" in first
-    assert markup.endswith("<pre>  ⚠️ one caution.\n  Assumptions: fields independent.</pre>")
-    one = "  Across the repeats: paired t."
-    assert _html_tabs.tests_tabs(one, lambda t: f"<pre>{t}</pre>") == f"<pre>{one}</pre>"
+    head, blocks, tail = _html_tabs.test_blocks(text)
+    assert head == ["  Analysis: per field."]
+    assert list(blocks) == ["Across repeats", "Cell-level screen"]
+    assert "a row" in blocks["Across repeats"][0]
+    assert tail == ["  ⚠️ one caution.", "  Assumptions: fields independent."]
 
 
 def test_the_precision_split_over_workers_is_the_one_replay():

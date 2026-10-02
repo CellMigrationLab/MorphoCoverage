@@ -8,12 +8,14 @@
   repeat, field, population and standardised features, and the PCA loadings.
 - ``heatmap_data``: Cohen's d and the q-values of every feature and condition.
 
-Each is written in ``folder`` (the report's ``figures``), so the page carries it (``_files``)
-and the results folder and its zip hold it; ``data_buttons`` are the buttons that save them.
+Each is written in ``folder`` (the report's ``figures``) by ``write_csv``, so the page
+carries it (``_files``) and the results folder and its zip hold it; ``download`` is the
+button that saves a file the page carries, ``data_buttons`` one per file.
 """
 
 from __future__ import annotations
 
+import html
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -26,17 +28,23 @@ from ._html_plotly import _observations
 _NAMES = {"repeat": "biological_repeat", "technical": "technical_repeat"}
 
 
-def _write(frame: pd.DataFrame, folder: Path, name: str) -> str:
+def write_csv(frame: pd.DataFrame, folder: Path, name: str) -> str:
     """``frame`` as ``folder/name`` (6 significant digits, enough to draw it again); its
     path as the page carries it."""
     frame.to_csv(folder / name, index=False, float_format="%.6g")
     return f"figures/{name}"
 
 
+def download(path: str, label: str) -> str:
+    """A button that saves the file the page carries at ``path`` (``html_report._files``)."""
+    return (
+        f'<button type="button" class="dl" data-file="{html.escape(path)}">'
+        f"{html.escape(label)}</button>"
+    )
+
+
 def data_buttons(files: Sequence[tuple[str, str]]) -> str:
     """A save button per ``(path, label)``."""
-    from ._html_figures import download
-
     return " ".join(download(path, label) for path, label in files)
 
 
@@ -66,15 +74,15 @@ def feature_data(
     if points:
         frame = pd.concat(points, ignore_index=True)
         order = ["values", *[c for c in frame.columns if c != "values"]]
-        files.append((_write(frame[order], folder, f"{name}_data.csv"), "Data (CSV)"))
+        files.append((write_csv(frame[order], folder, f"{name}_data.csv"), "Data (CSV)"))
     if repeats:
         frame = pd.concat(repeats, ignore_index=True).drop_duplicates(
             ["values", "condition", "biological_repeat"]
         )
-        files.append((_write(frame, folder, f"{name}_repeats.csv"), "Repeat summaries (CSV)"))
+        files.append((write_csv(frame, folder, f"{name}_repeats.csv"), "Repeat summaries (CSV)"))
     if pairs:
         frame = pd.concat(pairs, ignore_index=True).drop_duplicates(["values", "first", "second"])
-        files.append((_write(frame, folder, f"{name}_pairs.csv"), "Pairs (CSV)"))
+        files.append((write_csv(frame, folder, f"{name}_pairs.csv"), "Pairs (CSV)"))
     return files
 
 
@@ -88,11 +96,11 @@ def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[st
         first = [c for c in ("PC1", "PC2", "UMAP1", "UMAP2") if c in points]
         points = points[first + [c for c in points.columns if c not in first]]
         label = f"Points, {values} (CSV)" if len(embeddings) > 1 else "Points (CSV)"
-        files.append((_write(points, folder, f"embedding_{values}.csv"), label))
+        files.append((write_csv(points, folder, f"embedding_{values}.csv"), label))
     for values, embedding in embeddings.items():
         loadings = embedding.loadings.rename(columns={"pc1": "PC1", "pc2": "PC2", "top": "arrow"})
         label = f"Loadings, {values} (CSV)" if len(embeddings) > 1 else "Loadings (CSV)"
-        files.append((_write(loadings, folder, f"pca_loadings_{values}.csv"), label))
+        files.append((write_csv(loadings, folder, f"pca_loadings_{values}.csv"), label))
     return files
 
 
@@ -122,7 +130,14 @@ def heatmap_data(discovery: Any, folder: Path) -> list[tuple[str, str]]:
     frame = frame.drop(columns="_rank").rename(
         columns={"passes": "candidate", "confirmed": "significant_across_repeats"}
     )
-    return [(_write(frame, folder, "heatmap_d.csv"), "Data (CSV)")]
+    return [(write_csv(frame, folder, "heatmap_d.csv"), "Data (CSV)")]
 
 
-__all__ = ["data_buttons", "embedding_data", "feature_data", "heatmap_data"]
+__all__ = [
+    "data_buttons",
+    "download",
+    "embedding_data",
+    "feature_data",
+    "heatmap_data",
+    "write_csv",
+]

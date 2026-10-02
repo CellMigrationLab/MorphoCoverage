@@ -33,7 +33,7 @@ _CHECK_WORDS = {
     Status.OK: ("ok", "OK"),
     Status.CAUTION: ("caution", "Please check"),
     Status.PROBLEM: ("problem", "Please check"),
-    Status.NOT_ASSESSED: ("na", "Not checked"),
+    Status.NOT_ASSESSED: ("na", "Partly checked"),
 }
 # The features named per condition in the summary; the rest are counted.
 NAMED = 6
@@ -104,7 +104,8 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
     if integrity is not None and len(integrity.findings):
         labels = integrity.settings.get("field_labels", {})
         for finding in integrity.findings.itertuples():
-            named += [str(finding.field), str(finding.other_field)]
+            # Of a pair of copies one is the original: the code lists the other (the copy).
+            named.append(str(finding.other_field))
             field = labels.get(finding.field, finding.field)
             other = labels.get(finding.other_field, finding.other_field)
             same = isinstance(other, str) and other and other != field
@@ -119,6 +120,9 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
         for group, name, own in _fields(inspection):
             label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
             rows.append((label, "; ".join(own["detail"])))
+            # Flagged only for cells of the declared rare label: biology, never an artefact.
+            if own["detail"].astype(str).str.contains("(all labelled", regex=False).all():
+                continue
             first = own.iloc[0]
             identities.append(tuple(first[c] for c in key))
     columns = integrity.settings.get("field_columns", []) if integrity is not None else []
@@ -161,15 +165,16 @@ def _named(rows: Any, words: Callable[[Any], str]) -> str:
 
 
 def _significant(row: Any) -> str:
-    q = f"q {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
+    q = f"adjusted p {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
     return (
         f"{row.feature}: {_direction(row)} in {max(row.lower, row.higher)} of {row.repeats} "
-        f"repeats ({q}; d {row.d:+.2f})"
+        f"repeats ({q}; cell-level d {row.d:+.2f})"
     )
 
 
 def _candidate(row: Any) -> str:
-    return f"{row.feature}: {_direction(row)} (d {row.d:+.2f}; cell-level q {p_value(row.q_cells)})"
+    q = p_value(row.q_cells)
+    return f"{row.feature}: {_direction(row)} (cell-level d {row.d:+.2f}, adjusted p {q})"
 
 
 def _condition_bullet(condition: Any, rows: Any, beyond: list[str]) -> str:
@@ -225,7 +230,8 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
     if repeats >= MIN_REPEATS:
         head = (
             f"Compared with {listing(controls, 3)}, the features significant across the "
-            f"{repeats} biological repeats (the paired t-test on the repeat means, q ≤ 0.05):"
+            f"{repeats} biological repeats (the paired t-test on the repeat means, adjusted p "
+            "≤ 0.05):"
         )
     else:
         head = (

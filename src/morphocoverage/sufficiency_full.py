@@ -38,7 +38,7 @@ from ._style import (
     varying_numbers,
     wrap,
 )
-from ._wording import count, number, percent, rows_of
+from ._wording import count, listing, number, percent, rows_of
 from .sufficiency_short import (
     _group,
     _novelty_lines,
@@ -107,7 +107,7 @@ def _group_notes(report: Any, group: Mapping[str, Any], varying: Mapping[tuple, 
         return []
     final = rows_of(report.final, group) if len(group) else report.final
     unit = getattr(report, "observation_unit", None)
-    notes = []
+    notes, orders = [], {}
     for _, row in final.iterrows():
         label = rule_label(row, unit)
         numbers = [
@@ -122,8 +122,15 @@ def _group_notes(report: Any, group: Mapping[str, Any], varying: Mapping[tuple, 
         if row["verdict"] == "continue" and isinstance(reason, str) and reason:
             notes.append(f"{label}: cannot be judged yet ({reason})")
         caution = row.get("order_caution")
-        if isinstance(caution, str) and caution.startswith("caution: "):
-            notes.append(f"{label}: order check {caution.removeprefix('caution: ')}")
+        # The order check speaks of a stop: only for rules that stopped, said once for all.
+        if (
+            isinstance(caution, str)
+            and caution.startswith("caution: ")
+            and row["verdict"] == "stop"
+        ):
+            orders.setdefault(caution.removeprefix("caution: "), []).append(label)
+    for caution, labels in orders.items():
+        notes.append(f"the order check, for {listing(labels, 4)}: {caution}")
     return notes
 
 

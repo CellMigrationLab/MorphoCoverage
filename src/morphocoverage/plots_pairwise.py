@@ -49,24 +49,39 @@ from .statistics import benjamini_hochberg
 ALPHA = 0.05
 D_CAP = 2.0
 N_PERMUTATIONS = 1999
+# The panels' titles, with what each is good for (owner, 2026-10-02).
+PANEL_TITLES = {
+    "B": "d · randomization test: discovery, false positives when repeats differ",
+    "C": "paired t-test, repeat means: decides, conservative with few repeats",
+}
+# What each panel is good for, in a line (owner, 2026-10-02).
+PAIR_READING = (
+    "Good for discovery, but prone to false positives when the repeats differ: every "
+    "observation counts as an independent draw."
+)
+PAIRED_READING = (
+    "The test that decides: it holds its false-positive rate when the repeats differ, but "
+    "it is conservative, more so with few repeats (with 3, only large, consistent effects "
+    "reach 0.05)."
+)
 PAIR_NOTE = (
-    "Every pair of conditions; the row and the column of the control answer the question, "
-    "the other squares describe. Lower left: Cohen's d, the row's condition minus the "
-    "column's (blue lower, red higher, full colour at |d| ≥ 2). Upper right: the "
+    f"{PAIR_READING} Every pair of conditions; the row and the column of the control answer "
+    "the question, the other squares describe. Lower left: Cohen's d, the row's condition "
+    "minus the column's (blue lower, red higher, full colour at |d| ≥ 2). Upper right: the "
     "randomization test on d, as Plot&Stats runs it, on the repeats that imaged both "
-    "conditions (so each condition meets the control of its own repeats), corrected over "
-    "the pairs (Benjamini-Hochberg q; green at q ≤ 0.05, darker the smaller). It treats every "
-    "observation as an independent draw: when the repeats differ it gives q ≤ 0.05 more often than "
-    "5% of the time with no real effect. †: the two conditions were imaged in different "
-    "repeats, so the difference between the repeats is in it too."
+    "conditions (so each condition meets the control of its own repeats), adjusted over the "
+    "pairs of this figure (Benjamini-Hochberg; green at ≤ 0.05, darker the smaller); the "
+    "tables adjust over every feature and condition, so their values differ. †: the two "
+    "conditions were imaged in different repeats (two sub-experiments): d describes, and "
+    "they are not tested, since the difference between their repeats would be in it."
 )
 PAIRED_NOTE = (
-    "The paired t-test on the biological repeats' means: each condition's mean paired with "
-    "the other's in every repeat that imaged both (on the log ratios when every mean is "
-    "positive). Lower left: its p-value, uncorrected; upper right: Benjamini-Hochberg "
-    "corrected over the pairs tested (q). Green at ≤ 0.05, darker the smaller. It holds "
-    "its false-positive rate when the repeats differ, but has little power on three "
-    "repeats; – : fewer than 3 repeats imaged both."
+    f"{PAIRED_READING} The paired t-test on the biological repeats' means: each condition's "
+    "mean paired with the other's in every repeat that imaged both (on the log ratios when "
+    "every mean is positive). Lower left: its p-value, unadjusted; upper right: adjusted "
+    "over the pairs of this figure (Benjamini-Hochberg; the tables adjust over every feature "
+    "and condition). Green at ≤ 0.05, darker the smaller; – : fewer than 3 repeats imaged "
+    "both."
 )
 PAIR_COLUMNS = [
     "feature",
@@ -149,17 +164,20 @@ def pairwise_contrasts(
         p_paired, paired_values, shared = _paired(repeats_a, repeats_b)
         # Compared on the repeats that imaged both (each condition against the control of
         # its own repeats): pooling repeats one side was not imaged in reads a batch as an
-        # effect. Two conditions with no repeat in common are compared as provided (†).
+        # effect. Two conditions with no repeat in common (two sub-experiments) get their d,
+        # described (†), and no test: the batch between their repeats would be in it.
         common = set(repeats_a) & set(repeats_b)
         if common:
             a = a[a["repeat"].isin(common)]
             b = b[b["repeat"].isin(common)]
         rng = group_rng(random_state, {"feature": feature, "first": first, "second": second})
         d, p = cell_randomization(a["value"].to_numpy(), b["value"].to_numpy(), n_permutations, rng)
-        if not np.isfinite(p):
-            status = "one value everywhere"
-        elif not shared:
+        if not common:
+            p = np.nan
+        if not common:
             status = "imaged in different repeats"
+        elif not np.isfinite(p):
+            status = "one value everywhere"
         else:
             status = "ok"
         rows.append(
@@ -210,10 +228,12 @@ def p_colour(p: float) -> tuple[float, float, float]:
 
 
 def format_p(p: float) -> str:
-    """A p-value in a cell: ``<0.001``, two significant digits below 0.01, three decimals
-    below 0.1 (so a p either side of 0.05 never reads as 0.05), else two."""
+    """A p-value in a cell: ``<0.001``, two significant digits below 0.01, four decimals
+    near 0.05 (so a p either side of it never reads as 0.050), three below 0.1, else two."""
     if p < 0.001:
         return "<0.001"
+    if 0.045 <= p < 0.055:
+        return f"{p:.4f}"
     return f"{p:.2g}" if p < 0.01 else f"{p:.3f}" if p < 0.1 else f"{p:.2f}"
 
 
@@ -281,8 +301,8 @@ def _matrix(ax: Any, conditions: list, table: pd.DataFrame, panel: str, *, ylabe
     ax.tick_params(length=0)
     for side in ax.spines.values():
         side.set_visible(False)
-    title = "d · randomization test" if panel == "B" else "paired t-test, repeat means"
-    ax.set_title(title, fontsize=10.5, loc="left", color=MUTED, pad=8)
+    title = PANEL_TITLES[panel]
+    ax.set_title(title.replace(": ", "\n", 1), fontsize=9.5, loc="left", color=MUTED, pad=8)
 
 
 def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any]) -> None:

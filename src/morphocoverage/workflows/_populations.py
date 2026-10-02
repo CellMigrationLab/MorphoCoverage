@@ -92,15 +92,10 @@ def populations_in_report(
     return PopulationsResult(populations, enrichment, shares, label, control)
 
 
-# A population holding more than this share of the cells is the main one: listed, not tested,
-# since its share is all but the complement of the others' and its test would repeat theirs.
-MAIN_SHARE = 0.5
-
-
 def tested_populations(populations: Populations) -> list[str]:
-    """The populations whose enrichment is tested: all but a main one (``MAIN_SHARE``)."""
-    table = populations.table
-    return list(table.loc[table["share"] <= MAIN_SHARE, "population"])
+    """The populations and groups whose enrichment is tested: all but the main population,
+    whose share is all but the complement of the others' (its test would repeat theirs)."""
+    return populations.of_kind("distinct", "group")
 
 
 def _logit(k: float, n: float) -> float:
@@ -135,6 +130,7 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
         held[condition] = set(repeats)
         for name in names:
             ratios, higher, lower = [], 0, 0
+            sides = {"t": [0.0, 0.0], "c": [0.0, 0.0]}  # cells in it, cells, on each side
             for r in repeats:
                 t = counts.loc[(condition, r) if repeat else condition, name]
                 c = counts.loc[(control, r) if repeat else control, name]
@@ -142,6 +138,11 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
                 share_t, share_c = t["sum"] / t["count"], c["sum"] / c["count"]
                 higher += int(share_t > share_c)
                 lower += int(share_t < share_c)
+                sides["t"] = [sides["t"][0] + t["sum"], sides["t"][1] + t["count"]]
+                sides["c"] = [sides["c"][0] + c["sum"], sides["c"][1] + c["count"]]
+            # Absent from the condition and from its own control: nothing to compare.
+            if not sides["t"][0] and not sides["c"][0]:
+                continue
             ratios = np.array(ratios)
             tested = len(ratios) >= MIN_REPEATS and np.ptp(ratios) > 0
             rows.append(
@@ -153,11 +154,13 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
                     "lower": lower,
                     "d": float(ratios.mean()) if len(ratios) else np.nan,
                     "p_paired": float(stats.ttest_1samp(ratios, 0.0).pvalue) if tested else np.nan,
+                    # Over the condition's repeats: its share and its own control's.
+                    "share": sides["t"][0] / sides["t"][1] if sides["t"][1] else np.nan,
+                    "control_share": sides["c"][0] / sides["c"][1] if sides["c"][1] else np.nan,
                 }
             )
-    tests = pd.DataFrame(
-        rows, columns=["feature", "condition", "repeats", "higher", "lower", "d", "p_paired"]
-    )
+    columns = ["feature", "condition", "repeats", "higher", "lower", "d", "p_paired"]
+    tests = pd.DataFrame(rows, columns=[*columns, "share", "control_share"])
     if len(tests):
         tests["experiment"] = tests["condition"].map(experiments(held))
         tests["q_paired"] = corrected(tests["p_paired"], tests["experiment"])
@@ -173,22 +176,31 @@ def _tests(result: PopulationsResult, name: str) -> pd.DataFrame:
     return tests[tests["feature"] == name]
 
 
+def _side(row: Any) -> str:
+    """``higher in 3 of 3``, ``lower in 2 of 3``, or ``no change in 3 of 3``."""
+    if row["higher"] == row["lower"]:
+        return f"no change in {int(row['repeats'])} of {int(row['repeats'])}"
+    side = "higher" if row["higher"] > row["lower"] else "lower"
+    return f"{side} in {max(row['higher'], row['lower'])} of {int(row['repeats'])}"
+
+
+def _versus(row: Any) -> str:
+    """``6.6% vs 1.6%``: the condition's share and its own control's, over its repeats."""
+    if pd.isna(row["share"]) or pd.isna(row["control_share"]):
+        return ""
+    return f"{percent_fine(row['share'])} vs {percent_fine(row['control_share'])}"
+
+
 def _enriched(result: PopulationsResult, name: str) -> str:
-    """``drugB: higher in 3 of 3 repeats, 7.1% vs 1.8%, q 0.040`` for its strongest
-    condition, or ``–``."""
+    """``drugB: higher in 3 of 3, 7.1% vs 1.8%, q 0.040`` for its most different condition
+    (the smallest q), or ``–``."""
     tests = _tests(result, name)
     if not len(tests):
         return "–"
     best = tests.sort_values(["q_paired", "p_paired"], na_position="last").iloc[0]
-    condition = best["condition"]
-    share = result.shares.loc[name] if name in result.shares.index else pd.Series(dtype=float)
-    shares = ""
-    if condition in share and result.control in share:
-        shares = f", {percent_fine(share[condition])} vs {percent_fine(share[result.control])}"
-    side = "higher" if best["higher"] >= best["lower"] else "lower"
-    repeats = int(best["repeats"])
+    versus = _versus(best)
     q = f", q {p_value(best['q_paired'])}" if pd.notna(best["q_paired"]) else ""
-    return f"{condition}: {side} in {max(best['higher'], best['lower'])} of {repeats}{shares}{q}"
+    return f"{best['condition']}: {_side(best)}{', ' + versus if versus else ''}{q}"
 
 
 def _verdict(result: PopulationsResult) -> tuple[list[str], list[str]]:
@@ -200,7 +212,10 @@ def _verdict(result: PopulationsResult) -> tuple[list[str], list[str]]:
             continue
         if (tests["q_paired"] <= ALPHA).any():
             significant.append(name)
-        elif ((tests["higher"] == tests["repeats"]) | (tests["lower"] == tests["repeats"])).any():
+        elif (
+            ((tests["higher"] == tests["repeats"]) | (tests["lower"] == tests["repeats"]))
+            & (tests["higher"] != tests["lower"])
+        ).any():
             trend.append(name)
     return significant, trend
 
@@ -217,22 +232,20 @@ def _finding(result: PopulationsResult, name: str, units: str, trend: bool = Fal
     row = result.populations.table.set_index("population").loc[name]
     tests = _tests(result, name)
     if trend:
-        tests = tests[(tests["higher"] == tests["repeats"]) | (tests["lower"] == tests["repeats"])]
+        one_side = (tests["higher"] == tests["repeats"]) | (tests["lower"] == tests["repeats"])
+        tests = tests[one_side & (tests["higher"] != tests["lower"])]
     else:
         tests = tests[tests["q_paired"] <= ALPHA]
-    share = result.shares.loc[name]
     parts = []
-    for t in tests.itertuples():
-        more = "more" if t.higher >= t.lower else "less"
-        versus = ""
-        if t.condition in share and result.control in share:
-            versus = (
-                f"{percent_fine(share[t.condition])} vs {percent_fine(share[result.control])}, "
-            )
-        parts.append(f"{more} common in {t.condition} ({versus}q {p_value(t.q_paired)})")
+    for _, t in tests.iterrows():
+        more = "more" if t["higher"] >= t["lower"] else "less"
+        versus = _versus(t)
+        versus = f"{versus}, " if versus else ""
+        parts.append(f"{more} common in {t['condition']} ({versus}q {p_value(t['q_paired'])})")
     feature = defined_by(row["defining"][:1]).split(" (d")[0]
     where = "in every repeat, not significant" if trend else "across repeats"
-    return f"{name} ({percent(row['share'])} of {units}; {feature}): {listing(parts, 3)} {where}"
+    share = percent_fine(row["share"])
+    return f"{name} ({share} of {units}; {feature}): {listing(parts, 3)} {where}"
 
 
 def _label_line(result: PopulationsResult, label: str) -> str | None:
@@ -245,6 +258,28 @@ def _label_line(result: PopulationsResult, label: str) -> str | None:
     )
 
 
+_KIND_WORDS = {"main": "main", "distinct": "distinct", "group": "on the map (no gap)"}
+
+
+def _found_words(pops: Populations) -> str:
+    """``1 distinct population and 1 group on the map``."""
+    distinct, groups = len(pops.of_kind("distinct")), len(pops.of_kind("group"))
+    parts = []
+    if distinct:
+        parts.append(count(distinct, "distinct population"))
+    if groups:
+        parts.append(count(groups, "group") + " on the map")
+    head = " and ".join(parts)
+    return head if distinct else f"no distinct population; {head}"
+
+
+def _shares_line(pops: Populations, units: str) -> str:
+    """``P1 91%, P2 3.4%, G1 20%; 6% in none``: each one's share and the unassigned."""
+    shares = ", ".join(f"{r.population} {percent_fine(r.share)}" for r in pops.table.itertuples())
+    none = 1 - float(pops.table["share"].sum())
+    return f"{shares}; {percent_fine(max(none, 0.0))} of the {units} in none"
+
+
 def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, str, str]:
     """Question 10's status, headline and text (indented for the report)."""
     pops = result.populations
@@ -253,41 +288,35 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
     method = (
         f"{count(settings['observations'], setup.observation_unit or 'observation')} of every "
         f"condition pooled, clustered on the {count(len(settings['features']), 'declared feature')}"
-        f" (HDBSCAN on the {count(settings['components'], 'principal component')} holding "
-        f"{percent(settings['variance'])} of their robustly standardised variance; a "
-        f"population holds at least {settings['min_cells']} {units})"
+        f" (HDBSCAN on a {settings['map_components']}-dimensional UMAP of their robust "
+        f"standardisation; a cluster holds at least {settings['min_cells']} {units}), each "
+        "cluster then judged on all the features"
     )
     if not pops.names:
         text = wrap(
-            f"{method}: no distinct population; the {units} form one continuum on these features.",
+            f"{method}: no distinct population and no group; the {units} form one continuum "
+            "on these features.",
             2,
             hang=4,
         )
         return Status.OK, "no distinct population: one continuum on these features", text
-    lines = [
-        wrap(
-            f"{method}: {count(len(pops.names), 'population')}, {percent(settings['assigned'])} "
-            f"of the {units} in one of them, the rest between them.",
-            2,
-            hang=4,
-        )
-    ]
+    lines = [wrap(f"{method}: {_found_words(pops)} ({_shares_line(pops, units)}).", 2, hang=4)]
     control = result.control
-    heading = f"enriched in (vs {control})" if control is not None else "enriched in"
+    heading = f"most different (vs {control})" if control is not None else "most different"
+    tested = set(tested_populations(pops))
     rows = [
         [
             r.population,
-            f"{r.observations} ({percent(r.share)})",
+            _KIND_WORDS.get(r.kind, r.kind),
+            f"{r.observations} ({percent_fine(r.share)})",
             defined_by(r.defining[:2]) or "–",
             r.fields,
             r.repeats,
-            _enriched(result, r.population)
-            if r.population in tested_populations(pops)
-            else "main population (not tested)",
+            _enriched(result, r.population) if r.population in tested else "the rest (not tested)",
         ]
         for r in pops.table.itertuples()
     ]
-    columns = ["population", units, "defined by", "fields", "repeats", heading]
+    columns = ["population", "kind", units, "defined by", "fields", "repeats", heading]
     lines.append(table(rows, columns, indent=4))
     significant, trend = _verdict(result)
     for name in pops.names:
@@ -296,21 +325,27 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         if not len(tests):
             continue
         parts = []
-        for t in tests.itertuples():
-            enriched = pd.notna(t.q_paired) and t.q_paired <= ALPHA
-            side = "higher" if t.higher >= t.lower else "lower"
-            consistent = max(t.higher, t.lower) == t.repeats and t.repeats > 1
+        for _, t in tests.iterrows():
+            enriched = pd.notna(t["q_paired"]) and t["q_paired"] <= ALPHA
+            consistent = max(t["higher"], t["lower"]) == t["repeats"] and t["repeats"] > 1
+            consistent = consistent and t["higher"] != t["lower"]
+            side = "higher" if t["higher"] > t["lower"] else "lower"
+            versus = _versus(t)
+            versus = f"{versus}, " if versus else ""
             if enriched:
                 parts.append(
-                    f"{t.condition} {side}, significant across repeats (q {p_value(t.q_paired)})"
+                    f"{t['condition']} {side}, significant across repeats ({versus}q "
+                    f"{p_value(t['q_paired'])})"
                 )
             elif consistent:
-                q = f", q {p_value(t.q_paired)}" if pd.notna(t.q_paired) else ""
-                parts.append(f"{t.condition} {side} in every repeat, not significant{q}")
+                q = f"q {p_value(t['q_paired'])}" if pd.notna(t["q_paired"]) else ""
+                inside = ", ".join(x for x in (versus.rstrip(", "), q) if x)
+                inside = f" ({inside})" if inside else ""
+                parts.append(f"{t['condition']} {side} in every repeat, not significant{inside}")
         if parts:
             lines.append(
                 wrap(
-                    f"- {name} ({percent(row['share'])} of {units}; "
+                    f"- {name} ({percent_fine(row['share'])} of {units}; "
                     f"{defined_by(row['defining'][:2])}): {'; '.join(parts)}.",
                     4,
                     hang=6,
@@ -322,33 +357,40 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             lines.append(wrap(line, 4, hang=6))
     lines.append(
         wrap(
-            "Assumptions: The populations are found on every condition pooled, then each "
-            "condition is compared with the control on its share of cells in each, per "
-            "biological repeat (paired t-test on the log odds of the repeat shares, "
+            f"Assumptions: The {units} of every condition are clustered together, then each "
+            f"condition is compared with its own control on its share of {units} in each, "
+            "per biological repeat (paired t-test on the log odds of the repeat shares, "
             "Benjamini-Hochberg within each sub-experiment over every population and "
-            "condition); a population holding most cells is the main one, listed and not "
-            "tested, its share being all but the complement of the others'. The clusters depend on "
-            "the declared features and their standardisation; a population held by few fields "
-            "may be an artefact of those images (Fields to check lists them).",
+            "condition); the main population, holding most of them, is the rest, listed and "
+            "not tested. A cluster on the UMAP is kept when "
+            f"{percent(settings['purity'])} or more of its {units}' "
+            f"{settings['neighbours']} nearest neighbours on all the features are in it too: "
+            "a distinct population is also separated from the rest by a gap of low density; "
+            "a group on the map is not, so it may be the end of a continuum (the most extreme "
+            f"{units} of a gradient) rather than a separate state. Groups that overlap "
+            "strongly on every feature are not told apart. The clusters depend on the "
+            "declared features and their standardisation; a population held by few fields "
+            "may be an artefact of those images.",
             2,
             hang=4,
         )
     )
+    found = _found_words(pops)
     if significant:
-        headline = f"{count(len(pops.names), 'population')}; " + "; ".join(
+        headline = f"{found}; " + "; ".join(
             _finding(result, name, units) for name in _rarest(result, significant)[:3]
         )
         status = Status.OK
     elif result.enrichment is None:
-        headline = f"{count(len(pops.names), 'population')}; no control to compare their shares"
+        headline = f"{found}; no control to compare their shares"
         status = Status.NOT_ASSESSED
     elif trend:
-        headline = f"{count(len(pops.names), 'population')}; " + "; ".join(
+        headline = f"{found}; " + "; ".join(
             _finding(result, name, units, trend=True) for name in _rarest(result, trend)[:3]
         )
         status = Status.CAUTION
     else:
-        headline = f"{count(len(pops.names), 'population')}; no condition consistently enriched"
+        headline = f"{found}; no condition consistently enriched"
         status = Status.CAUTION
     held = (
         int(result.enrichment["repeats"].max())

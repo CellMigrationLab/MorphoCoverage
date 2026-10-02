@@ -210,7 +210,8 @@ PLOTLY_SCRIPT = r"""
   }
   function popName(k) {
     var p = data.populations[k];
-    return p.name + ' (' + Math.round(p.share * 1000) / 10 + '%' + (p.defined ? ': ' +
+    return p.name + (p.kind === 'group' ? ', a group on the map' : '') + ' (' +
+      Math.round(p.share * 1000) / 10 + '%' + (p.defined ? ': ' +
       p.defined.split(' (d')[0] : '') + ')';
   }
   document.querySelectorAll('.viz[data-viz]').forEach(function (viz) {

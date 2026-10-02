@@ -139,7 +139,8 @@ def test_the_contrasts_are_one_table_each_caveat_once_and_every_number_in_full()
         objects, fovs, feature="x", control=CONTROL, n_permutations=400, n_draws=5
     )
     short = result.summary()
-    assert re.search(r"contrast\s+fields\s+objects\s+tech\.\s+d objects\s+d fields", short)
+    header = r"contrast\s+fields\s+objects\s+tech\.\s+d on objects\s+d on field means"
+    assert re.search(header, short)
     assert _flat(short).count("compare means") == 1
     assert _flat(short).count("drawn with replacement") == 1
     full = result.summary(detail="full")
@@ -235,7 +236,7 @@ def test_the_declaration_short_form_names_the_rules_and_states_each_caveat_once(
         "Stopping rules: mean-precision rule, per object, 5% and mean-precision rule, per "
         "field, 5% (the default)" in _flat(text)
     )
-    assert _flat(text).count("one standard error of 5%") == 1
+    assert _flat(text).count("the standard error of the mean is 5% of the mean") == 1
     assert "the binomial plan asks for 14 representative fields" in _flat(text)
     assert all(width <= 101 for width in _widths(text))
     plain = declaration_short(_setup(acquisition_order_col=None, stage_cols=None))

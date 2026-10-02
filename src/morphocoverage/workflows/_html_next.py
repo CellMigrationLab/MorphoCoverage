@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import percent_fine
+from .._wording import count, percent_fine
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.repeat_plan_text import field_words
@@ -31,6 +31,8 @@ from ._populations import tested_populations
 
 # The reservoir optimise holds back to judge each stop, as in docs/workflows.md.
 RESERVOIR = 0.35
+# A population this labelled is the declared rare label's: not declared again.
+LABELLED = 0.9
 _COUNTS = (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96)
 
 
@@ -63,26 +65,37 @@ def _block(steps: Sequence[tuple[str, str]]) -> str:
     return f'<div class="next"><h3>What to do next</h3>{parts}</div>'
 
 
-def _optimise_code(feature: str, counts: list[int]) -> str:
+# The code runs in a notebook as it is; a script needs the guard, as it uses several processes.
+_GUARD = '# In a script, run this under: if __name__ == "__main__":\n'
+
+
+def _optimise_code(feature: str, counts: list[int], readout: str | None = None) -> str:
+    setup = (
+        "setup = result.setup\n"
+        if feature == readout
+        else f"setup = replace(result.setup, readout={feature!r})\n"
+    )
     return (
-        "from dataclasses import replace\n"
-        "from morphocoverage.workflows import optimise\n\n"
-        f"setup = replace(result.setup, readout={feature!r})\n"
-        f"plan = optimise(objects, fovs, setup, fov_counts={counts}, "
+        _GUARD
+        + ("" if feature == readout else "from dataclasses import replace\n")
+        + "from morphocoverage.workflows import optimise\n\n"
+        + setup
+        + f"plan = optimise(objects, fovs, setup, fov_counts={counts}, "
         f"reservoir_fraction={RESERVOIR})\n"
         "print(plan.summary())"
     )
 
 
-def _optimise_line(feature: str, counts: list[int]) -> str:
+def _optimise_line(feature: str, counts: list[int], readout: str | None = None) -> str:
     if not counts:
         return (
             f"To plan the imaging for {feature}, image more fields per well: these wells are "
             "too small for optimise to replay."
         )
+    which = "(the readout)" if feature == readout else "with it as the readout"
     return (
-        f"To plan the imaging for {feature} (how many fields each well needs, and which "
-        "stopping rule to run live), make it the readout and run optimise on these data:"
+        f"To plan the fields per well for {feature} (how many hold its mean to the precision "
+        f"asked, and which stopping rule to run live), run optimise on these data {which}:"
     )
 
 
@@ -119,7 +132,10 @@ def conditions_next(result: Any, fovs: pd.DataFrame) -> str:
     feature = next((f for f in ranked if f in columns), None)
     if feature is not None:
         steps.append(
-            (_optimise_line(feature, counts), _optimise_code(feature, counts) if counts else "")
+            (
+                _optimise_line(feature, counts, result.setup.readout),
+                _optimise_code(feature, counts, result.setup.readout) if counts else "",
+            )
         )
     repeats = _repeats_line(discovery)
     if repeats:
@@ -127,9 +143,9 @@ def conditions_next(result: Any, fovs: pd.DataFrame) -> str:
     return _block(steps) if steps else ""
 
 
-def _chosen_population(populations: Any) -> tuple[str, float, str] | None:
+def _chosen_population(populations: Any) -> tuple[str, float, str, str] | None:
     """The population to follow: the most consistently enriched, else the largest of those
-    tested (never the main one); its name, share and definition."""
+    tested (never the main one); its name, share, definition and kind."""
     table = populations.populations.table
     tested = tested_populations(populations.populations)
     if not tested:
@@ -141,7 +157,16 @@ def _chosen_population(populations: Any) -> tuple[str, float, str] | None:
         if len(rows) and np.isfinite(float(rows["q_paired"].iloc[0])):
             name = str(rows["feature"].iloc[0])
     row = table.set_index("population").loc[name]
-    return name, float(row["share"]), str(row["defined_by"])
+    return name, float(row["share"]), str(row["defined_by"]), str(row["kind"])
+
+
+def _labelled(populations: Any, name: str, label: str | None) -> bool:
+    """Whether ``name`` is the declared rare label's population (most of it labelled)."""
+    overlap = getattr(populations, "label", None)
+    if not label or overlap is None or not len(overlap):
+        return False
+    row = overlap[overlap["population"] == name]
+    return bool(len(row)) and float(row["purity"].iloc[0]) >= LABELLED
 
 
 def populations_next(result: Any, fovs: pd.DataFrame) -> str:
@@ -150,19 +175,32 @@ def populations_next(result: Any, fovs: pd.DataFrame) -> str:
     chosen = _chosen_population(populations) if populations is not None else None
     if chosen is None:
         return ""
-    name, share, defined = chosen
+    name, share, defined, kind = chosen
+    label = result.setup.rare_label
+    if _labelled(populations, name, label):
+        line = (
+            f"{name} is the declared rare phenotype, {label}: most of its cells carry the "
+            "label. Its sampling is answered in “Did I image enough?”, with the label "
+            "itself; nothing to declare again."
+        )
+        return _block([(line, "")])
     counts = fov_counts(fovs)
     phenotype = f"{name}: {defined.split(' (d ')[0]}" if defined else name
+    what = (
+        f"{name}, a group on the map ({percent_fine(share)} of the cells; it may be the end "
+        "of a continuum)"
+        if kind == "group"
+        else f"{name} ({percent_fine(share)} of the cells)"
+    )
     lines = [
         (
-            f"To study {name} ({percent_fine(share)} of the cells) further, label its cells "
-            "and declare it as the rare phenotype: the report then says in “Did I image "
-            "enough?” whether it was seen in enough fields of every well, and optimise plans "
-            "the fields to find it."
+            f"To study {what} further, label its cells and declare it as the rare phenotype: "
+            "the report then says in “Did I image enough?” whether it was seen in "
+            "enough fields of every well, and optimise plans the fields to find it."
         )
     ]
     code = (
-        "from dataclasses import replace\n"
+        _GUARD + "from dataclasses import replace\n"
         "from morphocoverage import RareTarget\n"
         "from morphocoverage.workflows import optimise, report\n\n"
         'found = result.results["populations"].populations.labels\n'
@@ -200,11 +238,21 @@ def enough_next(result: Any, fovs: pd.DataFrame, features: Any) -> str:
             low, high = int(row["fields_low"]), int(row["fields_high"])
             about = f"{low}" if low == high else f"{low}-{high}"
             unit = field_words(next(iter(features.contrasts.values())))[1]
-            line = (
-                f"{row['feature']} would be shown in every repeat with about {about} {unit} a "
-                "side. " + _optimise_line(row["feature"], counts)
+            needing = int(row["needing"])
+            # Only the comparisons more fields can show (audit, 2026-10-02).
+            small = int(row["too_small"])
+            beyond = (
+                f"; {count(small, 'comparison')} would not show even with 4 times the {unit}"
+                if small
+                else ""
             )
-            steps.append((line, _optimise_code(row["feature"], counts) if counts else ""))
+            line = (
+                f"{row['feature']}: the {count(needing, 'comparison')} not yet shown would need "
+                f"about {about} {unit} a side in its repeat{beyond}. "
+                + _optimise_line(row["feature"], counts, result.setup.readout)
+            )
+            code = _optimise_code(row["feature"], counts, result.setup.readout) if counts else ""
+            steps.append((line, code))
     if result.discovery is not None and len(result.discovery.tests):
         repeats = _repeats_line(result.discovery)
         if repeats:
@@ -214,19 +262,21 @@ def enough_next(result: Any, fovs: pd.DataFrame, features: Any) -> str:
 
 def fields_next(fields: Sequence[Sequence[Any]], key: Sequence[str]) -> str:
     """What to do after "Fields to check": once the images confirm a field is an artefact,
-    the report again without it (``fields``: every flagged field's values of ``key``, the
-    field's identity; the code lists them all, to delete the line of each one to keep)."""
+    the report again without it (``fields``: the flagged fields' values of ``key``, the
+    field's identity, one copy of each pair the integrity checks name; the code lists them
+    all, to delete the line of each one to keep)."""
     if not fields or not key:
         return ""
     shown = list(dict.fromkeys(tuple(str(v) for v in field) for field in fields))
     listed = "".join(f"    {f!r},\n" for f in shown)
     code = (
-        "from morphocoverage.workflows import report\n\n"
+        _GUARD + "from morphocoverage.workflows import report\n\n"
         f"key = {list(key)!r}\n"
-        "# Every field flagged above: delete the line of any field to keep.\n"
+        "# Every field flagged above (one copy of each pair): delete the line of any to keep.\n"
         f"artefacts = [\n{listed}]\n"
         "keep = ~fovs[key].astype(str).apply(tuple, axis=1).isin(artefacts)\n"
-        "result = report(objects.merge(fovs.loc[keep, key], on=key), fovs[keep], result.setup)"
+        "inside = objects[key].astype(str).apply(tuple, axis=1).isin(artefacts)\n"
+        "result = report(objects[~inside], fovs[keep], result.setup, integrity=True)"
     )
     line = (
         "Open the images of the fields above: keep those that show biology. If you confirm "

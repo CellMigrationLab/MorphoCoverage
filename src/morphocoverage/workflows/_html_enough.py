@@ -56,11 +56,18 @@ def summary_lines(features: FeatureEnough, word: str, fields: str) -> list[str]:
             precise.loc[precise["precision_met"] == precise["precision_groups"], "feature"]
         )
         rule = precise["precision_rule"].iloc[0]
-        met = f"met in every {word} for {listing(every, 6)}" if every else f"met in no {word}"
+        best = precise.sort_values("precision_met", ascending=False).iloc[0]
+        met = (
+            f"met in every {word} for {listing(every, 6)}, of {count(len(precise), 'feature')}"
+            if every
+            else f"met in every {word} for none of {count(len(precise), 'feature')} (at most "
+            f"in {int(best['precision_met'])} of {int(best['precision_groups'])}, "
+            f"{best['feature']})"
+        )
         lines.append(
-            f"Each {word}'s own mean to the precision asked ({rule}): {met}, of "
-            f"{count(len(precise), 'feature')}. A stricter goal than the comparison: it "
-            f"matters when the value of a mean is reported, not for comparing conditions."
+            f"Each {word}'s own mean to the precision asked ({rule}): {met}. A different goal "
+            "from the comparison: it matters when the value of a mean is reported, not for "
+            "comparing conditions."
         )
     lines.append(
         "One feature at a time below, in the order of “Do the conditions differ?” "
@@ -80,7 +87,9 @@ def _precision_line(features: FeatureEnough, feature: str, word: str, fields: st
     )
     if met == groups:
         return line + ": enough."
-    return line + (f". A stricter goal than the comparison; more {fields} per {word} is the lever.")
+    return line + (
+        f". A different goal from the comparison; more {fields} per {word} is the lever."
+    )
 
 
 def _panel(features: FeatureEnough, feature: str, word: str, fields: str) -> str:

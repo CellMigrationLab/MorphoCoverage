@@ -102,7 +102,7 @@ def _pairwise(table: pd.DataFrame, names: list[Any]) -> dict[str, Any] | None:
                 )
                 hover[i][j] = (
                     f"{row} and {column}: randomization test on d, p {format_p(float(pair.p))},"
-                    f" q {format_p(q)} (Benjamini-Hochberg over the pairs){paired}"
+                    f" adjusted p {format_p(q)} (Benjamini-Hochberg over the pairs){paired}"
                     + ("; imaged in different repeats, so the batch is in it" if apart else "")
                     if np.isfinite(q)
                     else f"{row} and {column}: not tested ({pair.status})"
@@ -134,7 +134,11 @@ def _paired_panel(lookup: dict, names: list[Any]) -> dict[str, Any]:
             target = lower if i > j else upper
             target[i][j] = round(p_shade(value), 3) if np.isfinite(value) else 0.0
             text[i][j] = format_p(value) if np.isfinite(value) else "–"
-            what = "p, uncorrected" if i > j else "q, Benjamini-Hochberg over the pairs tested"
+            what = (
+                "p, uncorrected"
+                if i > j
+                else "adjusted p, Benjamini-Hochberg over the pairs tested"
+            )
             hover[i][j] = (
                 f"{row} and {column}: paired t-test on {pair.shared_repeats} repeats' means "
                 f"({pair.paired_values}), {what} {text[i][j]}"

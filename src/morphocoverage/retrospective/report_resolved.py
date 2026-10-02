@@ -175,7 +175,7 @@ def precision_words(tallies: list[dict[str, Any]], word: str) -> str | None:
     first = data[0]
     return (
         f"each {word}'s own mean to the precision asked ({first['label']}): met in "
-        f"{first['met']} of {first['groups']}, a stricter goal than the comparison"
+        f"{first['met']} of {first['groups']}, a different goal from the comparison"
     )
 
 

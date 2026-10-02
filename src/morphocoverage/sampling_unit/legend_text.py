@@ -44,10 +44,12 @@ def _design(contrast: Any) -> str:
     return f"{n}, {per} ({spread} {units} {each})"
 
 
-def _families(across: pd.DataFrame) -> str:
+def _families(across: pd.DataFrame, features: int | None = None) -> str:
     """The correction family, counted: ``2 tests (siCCT8#5 and siCCT8#8 against siCTRL)``
     per sub-experiment."""
     tested = across[across["p_paired_t_normalised"].notna() | across["p_paired_t"].notna()]
+    if features and features > 1:
+        return f"over {features} features and their conditions"
     groups = list(tested.groupby("experiment", sort=False))
     sizes = sorted({len(block) for _, block in groups})
     if len(groups) == 1:
@@ -93,10 +95,11 @@ def legend_box(contrast: Any, unit_words: str) -> str | None:
             "repeat it before testing; the cell-level screen is exploratory."
         )
     rows = "; ".join(_condition(row, contrast) for _, row in across.iterrows())
+    families = _families(across, contrast.settings.get("family_features"))
     return (
         f"For a figure legend ({feature}): {_design(contrast)}. {drawn} Statistics: paired "
         "t-test on the repeat means (values normalised to each repeat's control, as log "
-        f"ratios), Benjamini-Hochberg within each sub-experiment ({_families(across)}); "
+        f"ratios), Benjamini-Hochberg within each sub-experiment ({families}); "
         f"significant at q ≤ {ALPHA:g}; d: Cohen's d, the mean of the per-repeat values. "
         f"{rows}. Report the change and q; the cell-level screen is exploratory."
     )

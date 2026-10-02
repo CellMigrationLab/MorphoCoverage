@@ -153,10 +153,16 @@ def with_distribution(document: Any, result: DistributionContrast | None, unit: 
     short["conditions"] = _insert(short.get("conditions", ""), paragraph)
     sections["conditions"] = _insert(sections.get("conditions", ""), paragraph)
     headline = document.headlines.get("conditions", "")
-    headlines = {**document.headlines, "conditions": f"{headline}; {distribution_headline(result)}"}
     status = document.statuses.get("conditions")
+    beyond = distribution_headline(result)
     if len(result.differing()) and status is not Status.PROBLEM:
+        if status is not Status.OK:
+            # Only the distribution differs: said first, so the ✅ reads with its reason.
+            headline = f"{beyond}; {headline}"
+            beyond = ""
         status = Status.OK
+    joined = f"{headline}; {beyond}" if beyond else headline
+    headlines = {**document.headlines, "conditions": joined}
     statuses = {**document.statuses, "conditions": status}
     return replace(document, short=short, sections=sections, headlines=headlines, statuses=statuses)
 
