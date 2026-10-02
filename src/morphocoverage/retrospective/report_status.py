@@ -375,13 +375,13 @@ def calibration_status(calibration: Any) -> Answer:
     kind = kinds.get(worst_row["order"], f"{worst_row['order']} orders")
     if premature > PREMATURE_CAUTION:
         text = (
-            f"{rule}: in some group up to {percent(premature)} of its stops did not preserve "
-            f"a criterion in held-back fields ({kind})"
+            f"{rule}: in some group up to {percent(premature)} of its stops came before the "
+            f"held-back fields confirmed every target ({kind})"
         )
         return Status.CAUTION, text
     text = (
-        f"at most {percent(premature)} of any rule's stops did not preserve a criterion in "
-        "held-back fields"
+        f"at most {percent(premature)} of any rule's stops came before the held-back fields "
+        "confirmed every target"
     )
     return Status.OK, text
 

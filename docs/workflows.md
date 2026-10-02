@@ -299,6 +299,32 @@ that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
   stated and planned for (the binomial field count at the declared incidence)
   but not judged. Object prevalence is never converted to field incidence.
 
+The report answers the declared targets beside the mean, from the fields
+acquired:
+
+- **"Did I image enough?"** says, per well, whether the labelled state was
+  seen in at least `k` fields and how many fields would see it there with the
+  declared probability, at the share of fields holding it in the data; and
+  the fingerprint's error with the fields acquired (estimated from random
+  halves of each well's fields) against its tolerance, with the fields that
+  would bring it there. When half of a well's fields, held back by `optimise`,
+  would themselves err by more than the tolerance, it says so once: the
+  held-back judgement cannot confirm that target, and the estimate is the
+  guide.
+- **"Do the conditions differ?"** compares the label's share between the
+  conditions like a feature (`"<label> share"`: the ranking, the heatmap, the
+  figures), and, with a fingerprint, each feature's distribution beyond the
+  mean: per biological repeat against its own control, the spread (the SD
+  ratio) and the 10%, 50% and 90% quantiles (their shift in control SDs), each
+  tested across the repeats (Benjamini-Hochberg within each sub-experiment,
+  a family of its own). A condition whose distribution differs answers the
+  question like a feature significant across repeats.
+- **"Can these features detect what I care about?"**, with a label and no
+  positive control, is answered by the label: for each labelled cell, whether
+  the nearest cell of another field (on the declared features, robustly
+  standardized) is labelled too, against the share labelled overall, with
+  `minimum_detection` as for a positive control.
+
 Every document opens with the declaration (`setup.declaration()`), one
 sentence per target, and a target that is not declared says so, so that an
 answer about the mean is never read as an answer about the distribution or

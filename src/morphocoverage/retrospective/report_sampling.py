@@ -375,6 +375,17 @@ def _unit(*results: Any) -> str:
     return "object"
 
 
+def _seen_states(clustering: Sequence[Any], words: str) -> str:
+    """The states seen, in words: ``unusual cells``, ``mitotic cells and unusual cells``."""
+    names = [
+        state_words(result, state, words)
+        for result in clustering
+        if result is not None
+        for state in result.table.loc[result.table["state_objects"] > 0, "state"].unique()
+    ]
+    return listing(list(dict.fromkeys(names)), 3) or "labelled states"
+
+
 def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: Any) -> list[str]:
     """The parts of question 3's headline (``report_status.profile_status``)."""
     names, clustered, seen = clustered_states(clustering)
@@ -388,7 +399,7 @@ def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: An
     if seen and not clustered:
         words = unit_plural(_unit(clustering, unusual))
         where = "the one group seen" if seen == 1 else f"all {seen} groups seen"
-        parts.append(f"labelled states spread like random {words} in {where}")
+        parts.append(f"{_seen_states(clustering, words)} spread like random {words} in {where}")
     # The main answer only: whether the largest share is established and whether the
     # unusual labels are stable are cautions of the section (and raise its status).
     largest, _ = largest_sources(profile)

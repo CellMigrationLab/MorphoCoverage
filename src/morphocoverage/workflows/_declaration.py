@@ -78,9 +78,9 @@ def declaration(setup: Setup) -> tuple[str, ...]:
         COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components
     )
     lines.append(
-        f"Live decision: the {objective.objective.value} objective ({targets}); a rule "
-        "decides only the targets it has evidence about, and a target no rule decides "
-        "stays unsupported rather than assumed adequate."
+        f"Live decision: a stop needs every declared target ({targets}); a rule decides "
+        "only the targets it has evidence about, and a target no rule decides stays "
+        "unsupported rather than assumed adequate."
     )
     return tuple(lines)
 
@@ -104,13 +104,20 @@ def _representation(setup: Setup) -> str:
         )
     if setup.control is None:
         return (
-            f"{columns} for new phenotypes (definition of new: {setup.novelty.name}); "
+            f"{columns} for new phenotypes (new: {_new_words(setup)}); "
             f"unusual {units} are not assessed without a control"
         )
     return (
         f"{columns} for unusual {units} (against the control {units}, their repeats pooled) "
-        f"and new phenotypes; definition of new: {setup.novelty.name}"
+        f"and new phenotypes (new: {_new_words(setup)})"
     )
+
+
+def _new_words(setup: Setup) -> str:
+    """What counts as new, plainly: ``at least 3 similar cells that no other field shows``."""
+    least = getattr(setup.novelty, "min_novel_observations", None)
+    similar = f"at least {least} similar {setup.unit_words}" if least else "similar observations"
+    return f"{similar} that no other field shows"
 
 
 def _novelty(setup: Setup) -> str:
@@ -247,16 +254,22 @@ def _rare(setup: Setup) -> str:
             f" At that field incidence the binomial plan asks for {needed} independent "
             "representative fields; fields that cluster the state need more."
         )
+    elif setup.rare_label is not None:
+        line += (
+            " The fields to see it are counted from the share of fields holding it in the "
+            "data (“Did I image enough?”); object prevalence is never converted to "
+            "field incidence."
+        )
     else:
         line += (
-            " No field incidence was declared, so no field count is planned: object "
+            " Without a field incidence or a label, no field count is planned: object "
             "prevalence is never converted to field incidence."
         )
     if setup.rare_label is not None:
         line += (
-            f" Judged on held-back fields with the label column {setup.rare_label!r} by "
-            "optimise and benchmark; the report shows its clustering in few fields with the "
-            "sampling profile."
+            f" Judged with the label column {setup.rare_label!r}: in the report from the "
+            "fields acquired (“Did I image enough?”), on held-back fields by optimise "
+            "and benchmark; the report also shows its clustering in few fields."
         )
     else:
         line += " No label column: stated and planned for, not judged on held-back fields."
@@ -290,11 +303,8 @@ def _rare_short(setup: Setup) -> tuple[str | None, list[str]]:
             target.fov_incidence, target.detection_probability, target.min_fov_occurrences
         )
         line += f"; the binomial plan asks for {needed} representative fields"
-    else:
-        cautions.append(
-            "no field incidence of the rare phenotype declared, so no field count is planned "
-            "(object prevalence is never converted to field incidence)"
-        )
+    elif setup.rare_label is not None:
+        line += "; the fields to see it are counted from the data"
     if setup.rare_label is not None:
         line += f"; judged on held-back fields with the label {setup.rare_label!r}"
     else:
@@ -417,8 +427,8 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         [COMPONENT_WORDS[c].lower() for c in Component if c in objective.required_components]
     )
     lines.append(
-        f"Live decision: the {objective.objective.value} objective ({targets}); a target no "
-        "rule decides stays unsupported, never assumed adequate."
+        f"Live decision: a stop needs every declared target ({targets}); a target no rule "
+        "decides stays unsupported, never assumed adequate."
     )
     text = [wrap(line, indent, hang=indent + 2) for line in lines]
     return "\n".join([*text, *caveat_lines(cautions, indent=indent)])

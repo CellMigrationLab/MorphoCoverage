@@ -116,13 +116,19 @@ def test_setup_declares_what_to_preserve_and_refuses_undeclared_targets():
         object_prevalence=0.01, detection_probability=0.95, min_fov_occurrences=1, phenotype="x"
     )
     line = _setup(rare=prevalence_only).declaration()[2]
-    assert "No field incidence was declared" in line and "not judged" in line
+    assert "Without a field incidence or a label, no field count is planned" in line
+    assert "not judged" in line
+    # With a label, the fields to see it are counted from the data, not warned about.
+    labelled = _setup(rare=prevalence_only, rare_label="state").declaration()[2]
+    assert "counted from the share of fields holding it in the data" in labelled
 
     assert plain.objective().objective.value == "population"
     assert _setup(fingerprint=(_fingerprint(),)).objective().objective.value == "phenotype"
     assert _setup(rare=_rare()).objective().objective.value == "balanced"
     assert full.objective().objective.value == "all"
-    assert declared[-1].startswith("Live decision: the all objective (population summary and")
+    assert declared[-1].startswith(
+        "Live decision: a stop needs every declared target (population summary and"
+    )
     with pytest.raises(ValueError, match="normalize must be"):
         Setup(readout=READOUT, control={"condition": "control"}, normalize="z-score")
     with pytest.raises(ValueError, match="name the condition column"):
@@ -174,7 +180,7 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     text = plan.summary(detail="full")
     assert text.startswith(DECLARATION_TITLE)
     assert "how many fields do you need for the covariance of the features within 50%?" in text
-    assert "the rare phenotype (planted) seen in at least 1 field" in text
+    assert "state seen in at least 1 field" in text
     merged = document(result, plan).summary(detail="full")
     assert merged.startswith(opening) and DECLARATION_TITLE in merged
     with pytest.raises(ValueError, match="rare_label"):

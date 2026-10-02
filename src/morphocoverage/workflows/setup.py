@@ -35,7 +35,7 @@ import pandas as pd
 from .._checks import check_seed, is_integer, is_number
 from .._former_repeat import read_fields
 from .._parallel import check_n_jobs
-from .._wording import rate
+from .._wording import count, rate
 from ..metadata import (
     CONDITION_COLUMN,
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -524,8 +524,7 @@ class Setup:
                     RareStateDetected(self.rare_label, fields),
                     1.0,
                     "higher_is_better",
-                    f"the rare phenotype ({self.rare.phenotype}) seen in at least "
-                    f"{fields} field{'s' if fields != 1 else ''}",
+                    f"{self.rare_label} seen in at least {count(fields, 'field')}",
                 )
             )
         return criteria

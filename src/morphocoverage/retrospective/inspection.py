@@ -298,9 +298,14 @@ def _neighbours(
 
 
 def _novel(
-    data: ValidatedInput, novelty: SupportNoveltyEstimator, group: str, skipped: list[dict]
+    data: ValidatedInput,
+    novelty: SupportNoveltyEstimator,
+    group: str,
+    skipped: list[dict],
+    label_col: str | None = None,
 ) -> list[dict]:
-    """FOVs holding a new state; when novelty is not estimable, the reason goes in ``skipped``."""
+    """FOVs holding a new state, with how many of its observations carry ``label_col``; when
+    novelty is not estimable, the reason goes in ``skipped``."""
     flags = novelty.novel_observation_flags(data, new_states_only=True)
     if flags is None:
         quantity = novelty.estimate(data, objective=_POPULATION).quantities[FOV_QUANTITY]
@@ -310,13 +315,25 @@ def _novel(
         return []
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions[flags], minlength=len(data.fovs))
+    labelled = None
+    if label_col is not None and label_col in data.objects.columns:
+        marked = flags & data.objects[label_col].fillna(False).to_numpy(dtype=bool)
+        labelled = np.bincount(positions[marked], minlength=len(data.fovs))
     unit, words = data.observation_unit, unit_plural(data.observation_unit)
+
+    def detail(fov: int, held: int) -> str:
+        text = f"{count(held, unit, words)} of a state no other field shows"
+        if labelled is not None and labelled[fov]:
+            # The new state is the declared label: say so, it is what the user looks for.
+            text += f" ({'all' if labelled[fov] == held else labelled[fov]} labelled {label_col})"
+        return text
+
     return [
         {
             "position": fov,
             "reason": "new state",
             "value": float(held),
-            "detail": f"{count(int(held), unit, words)} of a state no other field shows",
+            "detail": detail(fov, int(held)),
         }
         for fov, held in enumerate(counts)
         if held
@@ -365,6 +382,7 @@ def inspect_fovs(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     novelty_cols: Sequence[str] | None = None,
+    label_col: str | None = None,
 ) -> InspectionResult:
     """The fields worth reopening, one row per FOV and reason, per analysis group.
 
@@ -376,7 +394,9 @@ def inspect_fovs(
     change, a count 3 times the median (or a third of it), 3 SD from the 4
     nearest fields. ``novelty_cols`` are the columns new states are judged on
     (default ``feature_cols``), so novelty can read the declared
-    representation while the other reasons read the readout.
+    representation while the other reasons read the readout. ``label_col`` (a column of
+    booleans or 0/1, such as the rare phenotype's label) says how many cells of each new
+    state carry the label.
     """
     summaries = _check(
         summaries,
@@ -415,7 +435,7 @@ def inspect_fovs(
         if novelty is not None:
             judged = replace(both, feature_cols=tuple(novelty_cols))
             before = len(novelty_skipped)
-            found += _novel(judged, novelty, where(group), novelty_skipped)
+            found += _novel(judged, novelty, where(group), novelty_skipped, label_col)
             if len(novelty_skipped) == before:
                 checked.add("new state")
                 n_judged += len(both.fovs)

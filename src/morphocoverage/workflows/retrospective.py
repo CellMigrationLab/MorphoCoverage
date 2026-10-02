@@ -74,6 +74,7 @@ from ..sampling_unit import (
 )
 from ..schema import resolve_observation_unit
 from ..sufficiency import sufficiency_report
+from ._distribution import distribution_by_feature
 from ._document import (
     assemble,
     no_hierarchy_reasons,
@@ -84,6 +85,8 @@ from ._document import (
     with_settings,
 )
 from ._enough_features import enough_by_feature
+from ._enough_targets import fingerprint_precision
+from ._label_control import label_control
 from ._shared import (
     check_workflow_inputs,
     conditions,
@@ -102,7 +105,7 @@ from .setup import Setup
 
 PLAN_TITLE = "Plan for the next experiment"
 CALIBRATION_TITLE = (
-    "Would a simple rule have been sufficient, and how reliable is each stopping rule? (P5, P6)"
+    "Would a simple rule have been sufficient, and how reliable is each stopping rule?"
 )
 # The rule check as the "At a glance" block names it.
 CALIBRATION_SHORT = "Rules. How reliable was each stopping rule?"
@@ -198,6 +201,9 @@ def report(
         results["variability"] = fov_variability(objects, fovs, feature=readout, **common)
     if setup.control is not None:
         results.update(control_checks(objects, fovs, setup, reasons, per_field))
+    if setup.positive is None and setup.rare_label is not None:
+        # The labelled rare state is a positive control of its own (owner, 2026-10-02).
+        results["label_control"] = label_control(objects, fovs, setup)
     if setup.positive is not None:  # Setup guarantees features and novelty with it
         positive = setup.positive
         results["controls"] = representation_control(
@@ -235,6 +241,9 @@ def report(
         results["enough_features"] = enough_by_feature(
             objects, fovs, prepared, setup, results.get("discovery")
         )
+        results["distribution"] = distribution_by_feature(objects, fovs, setup)
+    if setup.fingerprint:
+        results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None
@@ -273,6 +282,7 @@ def report(
         novelty=novelty if novel else None,
         novelty_cols=list(setup.features) if novel else None,
         stage_cols=setup.stage_cols,
+        label_col=setup.rare_label,
         **common,
     )
     settings = {

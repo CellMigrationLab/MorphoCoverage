@@ -471,7 +471,9 @@ def test_f8_a_low_ceiling_is_not_called_unjudgeable():
     short = " ".join(result.summary().split())
     assert "could not judge" not in text and "could not judge" not in short
     assert "even every available field together was enough in fewer than 90%" in text
-    assert "even every available field together was enough in fewer than 90%" in short
+    assert "every available field together was enough in fewer than 90%" in short
+    # Why it is not counted as needing more fields: said once, under the table.
+    assert short.count("cap what can be shown") == 1
 
 
 def test_f9_a_left_out_unit_with_too_few_fields_is_named_not_counted_as_zero_of_zero():

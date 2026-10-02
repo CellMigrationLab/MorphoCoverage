@@ -16,6 +16,7 @@ from ..plots_embedding import embedding_figures
 from ..plots_pairwise import add_pairwise, pairwise_contrasts
 from ..sampling_unit import FeatureDiscovery, FeatureRanking
 from ..sampling_unit.ranking import TOP_FEATURES
+from ._rare_share import compared_columns, with_share
 from ._shared import check_workflow_inputs
 from .setup import Setup
 
@@ -63,10 +64,10 @@ def plots(
             chosen += others[:top]
     else:
         chosen = list(features)
-    undeclared = sorted(set(chosen) - set(setup.columns))
+    undeclared = sorted(set(chosen) - set(compared_columns(setup)))
     if undeclared:
         raise ValueError(f"features to plot must be declared in the setup: {undeclared}")
-    prepared = setup.prepared(objects, fovs)
+    prepared = with_share(setup.prepared(objects, fovs), setup)
     figures = plots_of_data(
         prepared,
         fovs,

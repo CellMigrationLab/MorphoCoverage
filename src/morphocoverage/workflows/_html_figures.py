@@ -28,6 +28,7 @@ from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE
 from ._html_plotly import feature_specs, interactive_caption
+from ._rare_share import with_share
 from ._shared import check_workflow_inputs
 from .figures import plots
 from .retrospective import Report
@@ -173,7 +174,7 @@ def feature_figures(
     colours = condition_colours(objects, fovs, control)
     by_view = {}
     for key, view in views:
-        prepared = view.prepared(checked, checked_fovs)
+        prepared = with_share(view.prepared(checked, checked_fovs), view)
         by_view[key] = feature_specs(
             figures_by_view[key], prepared, checked_fovs, view, colours, names
         )
