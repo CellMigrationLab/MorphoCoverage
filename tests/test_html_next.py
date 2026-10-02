@@ -168,7 +168,9 @@ def test_the_fields_next_step_runs_the_report_without_the_fields(screen, monkeyp
     flagged = [tuple(row) for row in fovs[key].head(2).itertuples(index=False)]
     seen = {}
     monkeypatch.setattr(
-        workflows, "report", lambda objects, fovs, setup: seen.update(objects=objects, fovs=fovs)
+        workflows,
+        "report",
+        lambda objects, fovs, setup, **kw: seen.update(objects=objects, fovs=fovs, **kw),
     )
     markup = fields_next(flagged, key)
     # The sentence says what to do once the images confirm it; the code is folded.

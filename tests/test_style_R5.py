@@ -115,7 +115,7 @@ def test_caveats_are_stated_once_at_a_stop_and_wait_while_the_objective_continue
     flat = _flat(stop)
     assert flat.count(RANDOM_SAMPLE_ASSUMPTION) == 1
     assert flat.count(INDEPENDENT) == 1 and "Mean-precision rule, per nucleus, 5% treats" in flat
-    assert flat.count("one standard error of 5% of the mean, not a ±5% bound") == 1
+    assert flat.count("the standard error of the mean is 5% of the mean (its averaging CV)") == 1
     # No order check ran here: that is a caution about these fields (⚠️); the rules'
     # independent draws and what an averaging CV is are standing assumptions.
     assert stop.count("⚠️") == 1

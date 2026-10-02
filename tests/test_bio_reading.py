@@ -57,7 +57,7 @@ def test_the_legend_box_gives_n_the_test_the_family_and_the_change(glioma):
     assert box.startswith("For a figure legend (Mean Speed): n = 3 independent biological")
     assert "per sub-experiment (6 in all), one well per condition in each" in box
     assert "2 tests in each of 2 sub-experiments, each with its own control" in box
-    assert "siCCT8#5: mean 35% lower than the control, d -1.06, q 0.051 (p 0.049)" in box
+    assert "siCCT8#5: mean 35% lower than the control, d -1.06, q 0.0506 (p 0.0494)" in box
 
 
 def test_one_repeat_gets_a_descriptive_legend_and_no_test():

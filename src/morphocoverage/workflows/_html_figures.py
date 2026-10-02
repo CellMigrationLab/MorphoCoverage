@@ -27,7 +27,7 @@ from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
-from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE
+from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_TITLES
 from ._html_data import data_buttons, embedding_data, feature_data
 from ._html_plotly import feature_specs, interactive_caption
 from ._populations import population_of
@@ -139,10 +139,7 @@ def feature_figures(
                 + "".join(
                     f'<div class="panel"><p class="panel-title"><b>{letter}</b> {title}</p>'
                     f'<div class="pl-pair" data-panel="{letter.lower()}"></div></div>'
-                    for letter, title in (
-                        ("B", "d · randomization test"),
-                        ("C", "paired t-test, repeat means"),
-                    )
+                    for letter, title in PANEL_TITLES.items()
                 )
                 + "</div>"
                 if paired

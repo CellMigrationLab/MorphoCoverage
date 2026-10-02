@@ -49,18 +49,22 @@ def test_every_pair_gets_a_signed_d_and_its_randomization_test():
     # Every pair is tested on the observations, a shift of 3 SD found at once.
     assert rows.loc[("ctrl", "drug"), "p"] == pytest.approx(1 / 500)
     # Benjamini-Hochberg over the three pairs.
-    assert table["q"].tolist() == pytest.approx(benjamini_hochberg(table["p"].to_numpy()))
+    assert table["q"].tolist() == pytest.approx(
+        benjamini_hochberg(table["p"].to_numpy()), nan_ok=True
+    )
     # The paired test on the repeats' means is kept beside it, where 3 repeats imaged both.
     assert rows.loc[("ctrl", "drug"), "shared_repeats"] == 3
     assert rows.loc[("ctrl", "drug"), "paired_values"] == "log ratios"
     assert np.isfinite(rows.loc[("ctrl", "drug"), "p_paired"])
-    # Imaged in different repeats: tested on the cells, and said so (the batch is in it).
+    # Imaged in different repeats (two sub-experiments): d describes, nothing is tested,
+    # since the batch between their repeats would be in it (audit, 2026-10-02).
     apart = rows.loc[("drug", "other")]
     assert apart["shared_repeats"] == 0 and np.isnan(apart["p_paired"])
+    assert np.isnan(apart["p"]) and np.isnan(apart["q"]) and np.isfinite(apart["d"])
     assert apart["status"] == "imaged in different repeats"
     # Seeded: the same table again.
     again = pairwise_contrasts(objects, fovs, feature="area", control="ctrl", n_permutations=499)
-    assert again["p"].tolist() == table["p"].tolist()
+    assert again["p"].equals(table["p"])
 
 
 def test_the_panel_is_drawn_under_each_figure_with_its_table():
@@ -79,7 +83,7 @@ def test_the_panel_is_drawn_under_each_figure_with_its_table():
     legend = figure.legend_artist.get_text()
     assert legend.startswith("Legend:\n(A) ") and "\n\n(B) " in legend and "\n\n(C) " in legend
     assert any(t.endswith("†") for t in texts)  # drug and other: different repeats
-    assert sum(t.endswith("†") for t in texts) == 2  # d and q of that pair
+    assert sum(t.endswith("†") for t in texts) == 1  # its d; it is not tested
     assert len(figure.pairwise) == 3
     summaries = figure.cluster_summaries
     assert set(summaries["condition"]) == {"ctrl", "drug", "other"}

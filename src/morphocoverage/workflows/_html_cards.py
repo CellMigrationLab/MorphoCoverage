@@ -33,7 +33,7 @@ _CHECK_WORDS = {
     Status.OK: ("ok", "OK"),
     Status.CAUTION: ("caution", "Please check"),
     Status.PROBLEM: ("problem", "Please check"),
-    Status.NOT_ASSESSED: ("na", "Not checked"),
+    Status.NOT_ASSESSED: ("na", "Partly checked"),
 }
 # The features named per condition in the summary; the rest are counted.
 NAMED = 6
@@ -104,7 +104,8 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
     if integrity is not None and len(integrity.findings):
         labels = integrity.settings.get("field_labels", {})
         for finding in integrity.findings.itertuples():
-            named += [str(finding.field), str(finding.other_field)]
+            # Of a pair of copies one is the original: the code lists the other (the copy).
+            named.append(str(finding.other_field))
             field = labels.get(finding.field, finding.field)
             other = labels.get(finding.other_field, finding.other_field)
             same = isinstance(other, str) and other and other != field
@@ -119,6 +120,9 @@ def flagged_fields(result: Any) -> tuple[list[tuple[str, str]], list[tuple[Any, 
         for group, name, own in _fields(inspection):
             label = " · ".join(p for p in (group_label(group) if groups else "", name) if p)
             rows.append((label, "; ".join(own["detail"])))
+            # Flagged only for cells of the declared rare label: biology, never an artefact.
+            if own["detail"].astype(str).str.contains("(all labelled", regex=False).all():
+                continue
             first = own.iloc[0]
             identities.append(tuple(first[c] for c in key))
     columns = integrity.settings.get("field_columns", []) if integrity is not None else []

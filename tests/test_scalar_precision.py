@@ -143,7 +143,7 @@ def test_upper_bound_is_more_conservative_and_converges_with_more_cells():
 def test_large_between_cell_sd_carries_the_papers_warning():
     objects, fovs = _tables([_cells_with_cv(4, 0.6)])
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "object", "point"))
-    assert "50% CV" in result.diagnostics["warning"]
+    assert "50% of their mean" in result.diagnostics["warning"]
     objects, fovs = _tables([_cells_with_cv(4, 0.3)])
     result = _evaluate(objects, fovs, ScalarPrecisionStrategy("area", 0.05, "object", "point"))
     assert "warning" not in result.diagnostics

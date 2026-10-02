@@ -56,14 +56,18 @@ def rate(value: float) -> str:
 
 
 def p_value(value: float) -> str:
-    """A p- or q-value in a sentence: ``< 0.001``, two significant digits below 0.01, three
-    decimals below 0.1 (so a value either side of 0.05 never reads 0.05), else two;
+    """A p- or q-value in a sentence: ``< 0.001``, two significant digits below 0.01, four
+    decimals from 0.045 to 0.055 (so a value either side of 0.05 never reads 0.050), three
+    below 0.1, else two;
     ``–`` for NaN. The figures' cells write it the same way (``plots_pairwise.format_p``)."""
     value = float(value)
     if math.isnan(value):
         return "–"
     if value < 0.001:
         return "< 0.001"
+    if 0.045 <= value < 0.055:
+        # Either side of 0.05 at four decimals, so a value that misses never reads 0.050.
+        return f"{value:.4f}"
     return f"{value:.2g}" if value < 0.01 else f"{value:.3f}" if value < 0.1 else f"{value:.2f}"
 
 

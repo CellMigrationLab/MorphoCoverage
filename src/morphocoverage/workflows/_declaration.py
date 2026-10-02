@@ -199,12 +199,12 @@ def _rules(setup: Setup) -> str:
     )
     if targets:
         # The JCB criterion is the paper's: a CV of the mean, not a tolerance on it.
-        cvs = " and ".join(f"{rate(t)} is one standard error of {rate(t)}" for t in targets)
+        cvs = " and ".join(rate(t) for t in targets)
         line += (
-            f" The mean-precision rules stop on the averaging CV: a CV of {cvs} of the mean, not a "
-            f"bound of ±{rate(targets[0])} on its error; whether the mean is within "
-            f"{' and '.join(rate(t) for t in setup.tolerances)} is judged on held-back "
-            "fields (report, optimise), never by the rules."
+            f" The mean-precision rules stop when the standard error of the mean is {cvs} of "
+            f"the mean (its averaging CV), not on a bound of ±{rate(targets[0])} on its error; "
+            f"whether the mean is within {' and '.join(rate(t) for t in setup.tolerances)} is "
+            "judged on held-back fields by optimise, never by the rules or this report."
         )
     return line
 
@@ -364,13 +364,13 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     lines = [
         (
             f"Population summary: the mean of {setup.readout} over all {setup.unit_words}, within "
-            f"{tolerances} (judged on held-back fields)."
+            f"{tolerances} (judged on held-back fields by optimise)."
         )
     ]
     cautions = []
     if setup.fingerprint:
         named = "; ".join(c.description or c.name for c in setup.fingerprint)
-        lines.append(f"Phenotypic fingerprint: {named} (judged on held-back fields).")
+        lines.append(f"Phenotypic fingerprint: {named} (judged on held-back fields by optimise).")
     else:
         cautions.append(
             assumption(
@@ -405,12 +405,13 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         {r.target_cv for r in setup.stopping_rules() if isinstance(r, ScalarPrecisionStrategy)}
     )
     if targets:
-        cvs = " and ".join(f"{rate(t)} is one standard error of {rate(t)}" for t in targets)
+        cvs = " and ".join(rate(t) for t in targets)
         cautions.append(
             assumption(
-                f"the mean-precision rules stop on the averaging CV ({cvs} of the mean), not on a "
-                f"±{rate(targets[0])} bound on its error; whether the mean is within {tolerances} "
-                "is judged on held-back fields"
+                f"the mean-precision rules stop when the standard error of the mean is {cvs} of "
+                f"the mean (its averaging CV), not on a ±{rate(targets[0])} bound on its error; "
+                f"whether the mean is within {tolerances} is judged on held-back fields by "
+                "optimise"
             )
         )
     order, order_cautions = _order_short(setup)

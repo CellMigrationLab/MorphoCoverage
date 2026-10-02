@@ -141,9 +141,8 @@ def test_the_screen_is_given_as_provided_and_balanced(screen):
     assert (screen.repeats.set_index("condition").loc["siMAP4K4#5", "higher"]) == 3
     joined = " ".join(screen.summary().split())
     assert "Cell-level screen (exploratory, as in Plot&Stats)" in joined
-    assert "the control is pooled from 15 biological repeats the condition was not imaged in" in (
-        joined
-    )
+    pooled = "the control as provided is pooled from 15 biological repeats the condition was"
+    assert f"{pooled} not imaged in" in joined
     assert "gives p ≤ 0.05 with no effect" in joined and "⚠️" not in screen.summary()
     status, headline = conditions_status(screen, None)
     assert status.name == "OK"

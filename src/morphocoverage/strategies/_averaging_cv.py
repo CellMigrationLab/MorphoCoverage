@@ -231,10 +231,18 @@ def _shape_warning(n: int, m2: float, m3: float, m4: float, rows: str) -> str | 
     bimodality = (skew**2 + 1) / (kurtosis + 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)))
     if kurtosis <= _MAX_EXCESS_KURTOSIS and bimodality <= _MAX_BIMODALITY:
         return None
+    # Only the value that crosses its threshold is named, to three decimals near it.
+    tripped = []
+    if kurtosis > _MAX_EXCESS_KURTOSIS:
+        limit = f"{_MAX_EXCESS_KURTOSIS:g}"
+        tripped.append(f"excess kurtosis {kurtosis:.1f} (above {limit}: a heavy tail)")
+    if bimodality > _MAX_BIMODALITY:
+        tripped.append(
+            f"bimodality coefficient {bimodality:.3f} (above 5/9 = 0.556: two groups of values)"
+        )
     return (
-        f"the upper-95 SD bound assumes normal values, and these {rows} have excess kurtosis "
-        f"{kurtosis:.1f} and bimodality coefficient {bimodality:.2f} (above 2 or 0.56: a heavy "
-        "tail or a minority state), so the bound can be optimistic (with 10% of "
+        f"the upper-95 SD bound assumes normal values, and these {rows} have "
+        f"{' and '.join(tripped)}, so the bound can be optimistic (with 10% of "
         f"{rows} at four times the level of the rest it covered the true SD 68-88% of the "
         "time, not 97.5%)"
     )

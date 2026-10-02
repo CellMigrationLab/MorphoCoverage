@@ -65,7 +65,7 @@ def _short_statistic(value: float) -> str:
     """As ``statistic``, in a table cell: ``inf`` for a perfect separation."""
     if np.isinf(value):
         return "inf" if value > 0 else "-inf"
-    return "–" if np.isnan(value) else f"{value:.2f}"
+    return "–" if np.isnan(value) else f"{value:+.2f}"
 
 
 def _name(row: dict[str, Any], repeat_col: str | None) -> str:
@@ -96,11 +96,12 @@ def _head(contrast: Any, short: bool) -> str:
             f"fields of a condition's analysis groups are pooled. Cohen's d with {units} as "
             "the unit:"
         )
+    label = " · ".join(str(v) for v in control.values())
     return (
-        f"Feature {settings['feature']}, each condition against the control {control}{within}. "
-        "The fields of a condition's analysis groups are pooled for this comparison. Objects "
-        "are compared as Plot&Stats does and, since a microscope acquires them through fields, "
-        "with the field as the unit"
+        f"Feature {settings['feature']}, each condition against the control ({label})"
+        f"{within}. The fields of a condition's analysis groups are pooled for this comparison. "
+        f"{unit_plural(unit).capitalize()} are compared as Plot&Stats does and, since a "
+        "microscope acquires them through fields, with the field as the unit"
         + (
             f" and, where each side has at least two, with the technical repeat ({shared}) as "
             "the unit."
@@ -140,10 +141,11 @@ def _contrast_rows(contrast: Any, full: bool) -> tuple[list[list[str]], list[str
     by_field = not _one_per_field(contrast)
     technical = "tech. repeats" if full else "tech."
     columns = ["contrast", "fields", words, *([technical] if shared else [])]
-    columns += [f"d {words}", *(["d fields"] if by_field else [])]
-    columns += [f"d {technical}"] if with_technical else []
+    columns += [f"d on {words}", *(["d on field means"] if by_field else [])]
+    columns += [f"d on {technical} means"] if with_technical else []
     unit = settings["observation_unit"]
-    columns += [f"JCS, every {unit}"] if full else ["p (Bonferroni)"]
+    # The JCS effect size: the difference over the control's SD (Glass's delta).
+    columns += [f"over control SD, every {unit}"] if full else ["p (Bonferroni)"]
     rows = []
     for row in contrast.table.to_dict("records"):
         cells = [

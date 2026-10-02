@@ -73,6 +73,7 @@ from ._html_sections import (
     enough_reading,
     heatmap,
     hidden,
+    intros_for,
     not_declared,
     unnumbered,
     what_checked,
@@ -178,6 +179,7 @@ def _glossary_drawer(page: str) -> str:
 
 
 _TERMS = Terms()
+_INTROS: dict[str, str] = dict(INTROS)
 
 
 def _html(text: str) -> str:
@@ -221,7 +223,7 @@ def _card(key: str, title: str, chip_html: str, body: str) -> str:
     """A section: its chip, its title with its "?" help, and its body."""
     return (
         f'<section class="card" id="{key}"><h2>{chip_html} {html.escape(title)}'
-        f"{help_icon(INTROS.get(key))}</h2>{body}</section>"
+        f"{help_icon(_INTROS.get(key))}</h2>{body}</section>"
     )
 
 
@@ -377,6 +379,9 @@ def html_report(
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
     folder = Path(folder)
+    # The "?" help in the report's words for its observations (tracks, patches).
+    _INTROS.clear()
+    _INTROS.update(intros_for(result.setup.unit_words, result.setup.observation_unit or "object"))
     figures = folder / "figures"
     figures.mkdir(parents=True, exist_ok=True)
     # Allow for file systems that store modification times to the second.
@@ -481,7 +486,8 @@ def html_report(
                 key,
                 statuses.get(key),
                 short,
-                doc.sections[key],
+                # Every feature's text is in the tabs already: the full text is in the files.
+                None if features is not None else doc.sections[key],
                 answer,
                 body_extra=extra,
                 found=headlines.get(key),

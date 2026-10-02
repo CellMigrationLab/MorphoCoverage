@@ -124,8 +124,9 @@ GLANCE_TITLE = "At a glance"
 _PLANNING = ("next_time", "bought", "effort", "order")
 # What the markers mean: what each answer found (owner, 2026-10-01).
 GLANCE_KEY = (
-    "Key: ✅ yes · ⚠️ partly, a trend only, or something to look at · ❌ check the data "
-    "first · ➖ no conclusion possible here. The word beside each marker says which."
+    "Key: ✅ yes, or a clear answer · ⚠️ partly, a trend only, or something to look at · ❌ "
+    "check the data first · ➖ no conclusion possible here. The word beside each marker says "
+    "which."
 )
 
 QUESTIONS = (

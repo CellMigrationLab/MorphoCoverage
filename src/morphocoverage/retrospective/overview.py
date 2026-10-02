@@ -251,7 +251,8 @@ class DatasetOverview:
                 lines.append(style_table(rows, [*header, *columns], indent=2, align=align))
             else:
                 lines.append(
-                    f"  ({len(table)} condition-and-repeat combinations; see the layout table)"
+                    f"  ({len(table)} condition-and-repeat combinations: too many to list; "
+                    "DatasetOverview.layout holds them)"
                 )
         normalized = self.settings.get("normalized")
         if normalized:

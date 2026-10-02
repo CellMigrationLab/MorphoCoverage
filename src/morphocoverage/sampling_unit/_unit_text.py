@@ -25,7 +25,7 @@ import pandas as pd
 
 from .._caveats import caveat_lines
 from .._style import among, group_columns, group_label, span, table, wrap
-from .._wording import column_word, count, listing, number, percent, rate
+from .._wording import column_word, count, listing, number, percent, percent_fine, rate
 from ..schema import unit_plural
 
 
@@ -310,7 +310,8 @@ def object_rule_full(result: Any, indent: int = 0) -> str:
         verdict = "met" if r["meets_target"] else "missed"
         cell = [_group(r, keys), f"{rate(r['target'])} {verdict}", int(r["rule_objects"])]
         cell += [_one(r["fovs_used"])]
-        cell += [f"{percent(r['predicted_error'])} → {percent(r['real_error'])}{times}"]
+        # One decimal below 10%, so a missed 5% never reads 5% → 5% (audit, 2026-10-02).
+        cell += [f"{percent_fine(r['predicted_error'])} → {percent_fine(r['real_error'])}{times}"]
         cell += [f"{int(r['fov_rule_fovs'])} ({int(r['fov_rule_fovs_upper95'])})"]
         if partial:
             cell += [f"{int(r['fovs_with_observations'])} of {int(r['fovs'])}"]

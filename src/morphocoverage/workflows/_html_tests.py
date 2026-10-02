@@ -287,7 +287,7 @@ def _cells(result: Any, folder: Path) -> str:
     ]
     columns = (["feature"] if many else []) + [
         "condition",
-        "cells (vs control)",
+        f"{result.setup.unit_words} (vs control)",
         "d (cells)",
         "p",
         "adjusted p",
@@ -296,7 +296,8 @@ def _cells(result: Any, folder: Path) -> str:
     columns += [] if many else ["p ≤ 0.05 with no effect"]
     versions = list(dict.fromkeys(frame["version"]))
     caption = (
-        f"<p>Every cell against the control's cells, {listing(versions, 3)}. A candidate: "
+        f"<p>Every {result.setup.observation_unit or 'observation'} against the control's, "
+        f"{listing(versions, 3)}. A candidate: "
         "adjusted p ≤ 0.05.</p>"
     )
     known = [(r.condition, c) for r, c in zip(frame.itertuples(), chance, strict=True) if c != "–"]
@@ -309,10 +310,12 @@ def _cells(result: Any, folder: Path) -> str:
         )
     files = [(_write(frame, folder, "tests_cell_level.csv"), "Data (CSV)")]
     body = caption + _table(columns, rows, "rows") + f'<p class="tools">{data_buttons(files)}</p>'
-    return body + _other_versions(by_condition, frame, readout)
+    return body + _other_versions(by_condition, frame, readout, result.setup.unit_words)
 
 
-def _other_versions(by_condition: dict, frame: pd.DataFrame, readout: str) -> str:
+def _other_versions(
+    by_condition: dict, frame: pd.DataFrame, readout: str, unit: str = "observations"
+) -> str:
     """The readout's other versions of the screen, its own conditions as the family."""
     shown = set(
         zip(
@@ -350,7 +353,7 @@ def _other_versions(by_condition: dict, frame: pd.DataFrame, readout: str) -> st
     columns = ["condition", "version", "d (cells)", "p", "adjusted p", "p ≤ 0.05 with no effect"]
     return (
         f"<details><summary>The other versions, for the readout ({html.escape(readout)})</summary>"
-        "<p>As provided: the cells pooled as imaged, so the repeat with most cells weighs most. "
+        f"<p>As provided: the {unit} pooled as imaged, so the repeat with most weighs most. "
         "Raw: not divided by each repeat's control mean. Adjusted over the readout's conditions "
         "only.</p>" + note + (_table(columns, rows, "rows") if rows else "") + "</details>"
     )
@@ -403,7 +406,7 @@ def _beyond(result: Any, folder: Path) -> str:
 def _explainer(result: Any, kinds: Sequence[str], family: str) -> str:
     """The tests, in short: one paragraph per test on the page, then p and adjusted p."""
     unit = result.setup.unit_words
-    one = unit.removesuffix("s")
+    one = result.setup.observation_unit or "observation"
     paired = (
         f"In each biological repeat, the mean of the condition's {unit} is divided by the "
         "mean of the control of the same repeat; the repeats' ratios are tested against no "

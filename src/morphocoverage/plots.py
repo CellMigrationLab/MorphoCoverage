@@ -421,9 +421,15 @@ def plots_of_data(
         values = data.feature_values(feature)
         per_field = fov_values(data, values)  # every acquired field, empty ones included
         figures[feature] = []
-        size = -(-len(layout.conditions) // -(-len(layout.conditions) // max_conditions))
-        for start in range(0, len(layout.conditions), size):
-            chunk = layout.conditions[start : start + size]
+        # Every part of a split figure starts with the control, so each condition is drawn
+        # beside the one it is compared with.
+        conditions = list(layout.conditions)
+        lead = conditions[:1] if len(conditions) > 1 and conditions[0] == first else []
+        rest = conditions[len(lead) :]
+        room = max(max_conditions - len(lead), 1)
+        size = -(-len(rest) // -(-len(rest) // room))
+        for start in range(0, len(rest), size):
+            chunk = lead + rest[start : start + size]
             # Each condition is as wide as the repeats it holds: a slot of 1 per repeat, a gap
             # of GAP between conditions, so repeats imaged for other conditions take no room.
             present = [
@@ -496,9 +502,11 @@ def plots_of_data(
                     color=MUTED,
                 )
             ax.set_ylabel(feature if value_note is None else f"{feature} ({value_note})")
+            shown = len(chunk) - len(lead)
             part = (
-                f" (conditions {start + 1} to {start + len(chunk)} of {len(layout.conditions)})"
-                if len(layout.conditions) > max_conditions
+                f" (conditions {start + 1} to {start + shown} of {len(rest)}"
+                + (", with the control)" if lead else ")")
+                if len(rest) > size
                 else ""
             )
             words = title(

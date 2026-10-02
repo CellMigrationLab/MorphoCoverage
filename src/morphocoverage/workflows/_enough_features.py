@@ -179,6 +179,11 @@ def enough_by_feature(
     contrasts = {f: c for f, c in contrasts.items() if has_resolution(c)}
     if not contrasts:
         return None
+    # One correction family on the page: each feature's verdicts are the discovery's
+    # (corrected over every feature and condition), never their own conditions' alone.
+    from ._families import shared_family
+
+    contrasts = {f: shared_family(c, discovery, f) for f, c in contrasts.items()}
     precision = _precision(objects, fovs, setup, list(contrasts))
     rows = [_row(f, c, precision.get(f)) for f, c in contrasts.items()]
     return FeatureEnough(pd.DataFrame(rows), contrasts, precision)
@@ -236,17 +241,25 @@ def features_status(features: FeatureEnough, word: str = "well") -> tuple[Status
             parts.append(f"{verdict} for {len(names)} ({listing(names, 3)})")
     head = "to compare with the control, within single repeats, of " + count(len(rows), "feature")
     text = f"{head}: {'; '.join(parts)}"
+    small = rows[rows["too_small"] > 0]
     open_ = rows[rows["needing"] > 0]
+    if len(small):
+        # Beyond 4 times the fields: these need the most, said before any projection.
+        text += (
+            f"; {listing(list(small['feature'].astype(str)), 3)}: too small to show in "
+            f"{count(int(small['too_small'].sum()), 'comparison')} even with 4 times the {fields}"
+        )
     if len(open_):
         worst = open_.loc[open_["fields_high"].idxmax()]
         most = int(worst["fields_high"])
-        text += f"; {worst['feature']} needs the most (about {most} {fields} a side)"
+        which = "of the rest, " if len(small) else ""
+        text += f"; {which}{worst['feature']} needs the most (about {most} {fields} a side)"
     precise = rows[rows["precision_met"].notna()]
     if len(precise):
         every = int((precise["precision_met"] == precise["precision_groups"]).sum())
         text += (
             f"; each {word}'s own mean to the precision asked in every {word} for {every} of "
-            f"{len(precise)} features, a stricter goal than the comparison"
+            f"{len(precise)} features, a different goal from the comparison"
         )
     status = Status.OK if (rows["verdict"] == ENOUGH).all() else Status.CAUTION
     return status, text

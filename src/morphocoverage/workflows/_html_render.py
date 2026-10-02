@@ -137,6 +137,8 @@ def chip(status: Status | None, key: str = "", answer: str = "") -> str:
         word = f"No conclusion (n = {few.group(1)})"
     elif key == "populations" and "no distinct population:" in answer:
         word = "One continuum"
+    elif key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):
+        word = "Differs beyond the mean"
     elif key in ("conditions", "populations") and status is Status.CAUTION:
         consistent = "same direction" in answer or "in every repeat" in answer
         word = "Trend only" if consistent else "No consistent difference"
