@@ -1,7 +1,8 @@
 """The HTML report's figures (private; html_report): each saved as PNG and PDF and
 embedded, and the data and markup of the interactive PCA and UMAP.
 
-- feature_figures: the readout and the discovery's best-ranked features (plots).
+- feature_figures: the discovery's best-ranked features, the readout when none ranks
+  (plots), each with the CSV of what it draws (``_html_data``).
 - embeddings: the PCA and UMAP of every feature, raw and normalised to the control, as
   data for the page's script (with the static figures beside): every condition, the control
   included, in a colour of COLOURS.
@@ -27,6 +28,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE
+from ._html_data import data_buttons, embedding_data, feature_data
 from ._html_plotly import feature_specs, interactive_caption
 from ._populations import population_of
 from ._rare_share import with_share
@@ -90,8 +92,8 @@ def condition_colours(objects: pd.DataFrame, fovs: pd.DataFrame, control: Any) -
 def feature_figures(
     result: Report, objects, fovs, folder: Path
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    """The readout and best-ranked features: each figure's block (interactive, with its
-    static PNG and PDF) and the specs the page's script draws (``_html_plotly``)."""
+    """The best-ranked features: each figure's block (interactive, with its static PNG and
+    PDF and its data as CSV) and the specs the page's script draws (``_html_plotly``)."""
     setup = result.setup
     drawn = plots(objects, fovs, setup, ranking=result.discovery)
     views = _views(setup)
@@ -103,8 +105,21 @@ def feature_figures(
             views = views[:1]  # a control mean at or below 0: the declared values only
     discovery = result.discovery
     top = discovery.top(len(discovery.ranking)) if discovery is not None else []
+    checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    prepared = {key: with_share(view.prepared(checked, checked_fovs), view) for key, view in views}
     blocks, names, explained = [], {}, False
     for feature, parts in drawn.items():
+        stem = "".join(c if c.isalnum() or c in "-_." else "_" for c in str(feature))
+        # The data each figure draws, to draw it again outside (owner, 2026-10-02).
+        data = feature_data(
+            stem,
+            feature,
+            prepared,
+            {key: figures_by_view[key][feature] for key in prepared if key in figures_by_view},
+            checked_fovs,
+            dict(views),
+            folder,
+        )
         for index, figure in enumerate(parts, start=1):
             name = f"{feature}_{index}" if len(parts) > 1 else str(feature)
             name = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
@@ -112,7 +127,7 @@ def feature_figures(
             rank = f"best-ranked feature {top.index(feature) + 1}" if feature in top else ""
             role = rank or "a declared feature"
             if feature == result.setup.readout:
-                role = "the readout"
+                role = f"{rank}, the readout" if rank else "the readout"
             if len(parts) > 1:
                 role += f", part {index} of {len(parts)}"
             uri = _save(figure, folder, name)
@@ -166,18 +181,17 @@ def feature_figures(
                 f'<div class="figure-legend"><p><strong>Legend:</strong></p>{legend}</div>'
                 f'<p class="note sampled"></p><p class="tools">'
                 f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
+                f" {data_buttons(data)}"
                 "</p><details><summary>The static figure (as in the PDF)</summary>"
                 f'<figure><img src="{uri}" alt="{html.escape(label)}" loading="lazy"></figure>'
                 "</details></div>"
             )
-    checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
     control = (setup.control or {}).get(CONDITION_COLUMN)
     colours = condition_colours(objects, fovs, control)
     by_view = {}
     for key, view in views:
-        prepared = with_share(view.prepared(checked, checked_fovs), view)
         by_view[key] = feature_specs(
-            figures_by_view[key], prepared, checked_fovs, view, colours, names
+            figures_by_view[key], prepared[key], checked_fovs, view, colours, names
         )
     first = views[0][0]
     specs = [
@@ -374,6 +388,7 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
         "values": list(sets),
         "sets": sets,
     }
+    data_files = embedding_data(embeddings, folder)
     static = []
     for values, embedding in embeddings.items():
         for method, figure in embedding_figures(embedding, control=control).items():
@@ -408,6 +423,7 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
         '<div class="viz-body"><div class="pl-embed"></div>'
         '<div class="selection" aria-live="polite"></div></div>'
         '<p class="caption note"></p>'
+        f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
         "repeats, which the normalised values (each divided by its repeat's control mean) take "

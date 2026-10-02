@@ -200,7 +200,8 @@ def test_contrast_summary_without_any_object_count_that_fits():
     assert "JCS, every object" in result.summary(detail="full")
 
 
-def test_h10_df2_plots_give_the_top_places_to_other_features(monkeypatch):
+def test_h10_df2_plots_give_the_top_places_to_the_best_ranked(monkeypatch):
+    """The readout is plotted only when it ranks (owner, 2026-10-02: the report is neutral)."""
     seen = {}
 
     def spy(objects, fovs, *, features, value_note=None, **kwargs):
@@ -215,7 +216,14 @@ def test_h10_df2_plots_give_the_top_places_to_other_features(monkeypatch):
     )
     objects, fovs = _acquisition(n_fovs=8, n_objects=6)
     plots(objects, fovs, _setup(), ranking=ranking, top=1)
-    assert seen["features"] == [READOUT, FEATURE_COLS[1]] and seen["note"] is None
+    assert seen["features"] == [READOUT] and seen["note"] is None
+    other_first = FeatureRanking(
+        pd.DataFrame(),
+        pd.DataFrame({"feature": [FEATURE_COLS[1], READOUT], "score": [3.0, 2.0]}),
+        {},
+    )
+    plots(objects, fovs, _setup(), ranking=other_first, top=1)
+    assert seen["features"] == [FEATURE_COLS[1]]
     plots(objects, fovs, _setup(normalize="control_mean"), ranking=ranking, top=1)
     assert seen["note"] == "relative to control"
 

@@ -88,7 +88,7 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     assert path.name == "report.html"
     for anchor in ("glance", "overview", "enough", "conditions", "limits"):
         assert f'id="{anchor}"' in page
-    assert "Full detail" in page
+    assert "Show more" in page
     # Embedded images are base64, which can spell anything: left out with the scripts.
     text = re.sub(r"<script.*?</script>|data:[\w/+.-]+;base64,[\w+/=]+", "", page, flags=re.DOTALL)
     assert "None" not in text
@@ -108,6 +108,17 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     assert base64.b64decode(files["figures/area.pdf"][1]).startswith(b"%PDF")
     assert 'data-file="figures/area.pdf"' in page and 'href="figures/' not in page
     assert 'id="glossary"' in page and "Benjamini-Hochberg q-value" in page
+    # Every figure carries the data it draws, to draw it again outside (owner, 2026-10-02).
+    figures = tmp_path / "figures"
+    for name in ("area_data", "area_repeats", "heatmap_d", "embedding_raw", "pca_loadings_raw"):
+        assert f"figures/{name}.csv" in files and f'data-file="figures/{name}.csv"' in page
+    drawn = pd.read_csv(figures / "area_data.csv")
+    assert set(drawn["values"]) == {"raw", "normalised"}
+    assert (drawn["values"] == "raw").sum() == objects["area"].notna().sum()
+    assert {"condition", "biological_repeat", "field", "area"} <= set(drawn.columns)
+    points = pd.read_csv(figures / "embedding_raw.csv")
+    assert len(points) == len(objects) and {"PC1", "PC2", "condition"} <= set(points.columns)
+    assert set(pd.read_csv(figures / "heatmap_d.csv")["feature"]) <= set(setup.columns)
     # Terms in the answers open their meaning, and link to their entry.
     assert 'class="term"' in page and 'id="g-mean-precision-rule"' in page
     with pytest.raises(TypeError, match="Report"):
@@ -198,20 +209,31 @@ def test_the_page_reads_in_order_with_a_heatmap_a_drawer_and_no_grey(tmp_path):
     result = report(objects, fovs, setup)
     page = html_report(result, objects, fovs, tmp_path).read_text()
     body = re.sub(r"<script.*?</script>", "", page, flags=re.DOTALL)
-    # QC before the result, the result before how far the sampling supports it.
-    where = [body.index(f'id="{key}"') for key in ("overview", "inspect", "conditions", "enough")]
+    # QC first, then the whole dataset, its populations, the conditions, and how far the
+    # sampling supports them (owner, 2026-10-02).
+    order = ("overview", "inspect", "dataset", "populations", "conditions", "enough")
+    where = [body.index(f'id="{key}"') for key in order]
     assert where == sorted(where)
     assert not re.search(r"<h2>[^<]*\d\. ", body) and "Foundation" not in body
-    assert "What was checked" in body and "Negative control: ctrl" in body
+    # The data: one row per check; what was checked under "Show more"; each "?" its help.
+    data = body[body.index('id="overview"') : body.index('id="inspect"')]
+    assert '<ul class="check-rows">' in data and "Data checks" in data
+    assert data.index("Show more") < data.index("What was checked")
+    assert "Negative control: ctrl" in data and 'class="help"' in data
+    assert '<p class="intro">' not in body
     # Did I image enough? answers in sentences, then one feature at a time, as tabs.
     enough = body[body.index('id="enough"') :]
     assert enough.index('class="reading"') < enough.index("One feature at a time")
     assert enough.count('role="tab"') == 3 and 'id="enough-panel-2"' in enough
-    # Question 9: the reading, then the heatmap and figures, then the tests.
+    # Question 9: the significant features per condition, the heatmap, the best-ranked
+    # features (not the readout first), then the tests, the readout's reading among them.
     conditions = body[body.index('id="conditions"') : body.index('id="enough"')]
-    assert conditions.index("Reading, condition by condition") < conditions.index('class="heatmap"')
+    assert conditions.index('class="significant"') < conditions.index('class="heatmap"')
     assert conditions.index('class="heatmap"') < conditions.index("The tests behind")
-    assert 'aria-label="Cohen' in conditions and 'class="selection"' in conditions
+    tests = conditions.index("The tests behind")
+    assert conditions.index("Reading, condition by condition") > tests
+    assert 'aria-label="Cohen' in conditions and 'class="selection"' not in conditions
+    assert 'class="selection"' in body[body.index('id="dataset"') : body.index('id="populations"')]
     # The glossary is a drawer with a search.
     assert '<aside class="drawer" id="glossary"' in body and 'type="search"' in body
     data = json.loads(re.search(r'id="embedding-data">(.*?)</script>', page).group(1))

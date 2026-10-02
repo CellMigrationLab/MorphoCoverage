@@ -709,7 +709,7 @@ def test_feature_ranking_gates_by_q_value_and_ranks_by_effect_size():
     assert "Which features separate the conditions? Each of the 2 declared features" in text
     assert re.search(r"^ +1 +x +\d+\.\d\d .* 2 of 2$", text, re.MULTILINE)
     assert "No contrast passes the gate for 1 feature: y." in text
-    assert "Plotted by default: the readout and up to 5 best-ranked other features" in text
+    assert "Plotted by default: up to 5 best-ranked features (the readout when none ranks)" in text
     short = result.summary()
     assert "1 of 2 features pass the gate" in short and "Plotted by default" in short
     # Deterministic, and the same numbers as the contrast for the readout.

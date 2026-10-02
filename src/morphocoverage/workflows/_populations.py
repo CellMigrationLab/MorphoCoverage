@@ -267,7 +267,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
     lines = [
         wrap(
             f"{method}: {count(len(pops.names), 'population')}, {percent(settings['assigned'])} "
-            f"of the {units} in one, the rest between them.",
+            f"of the {units} in one of them, the rest between them.",
             2,
             hang=4,
         )

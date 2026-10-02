@@ -112,33 +112,58 @@ html_report(result, objects, fovs, "results")   # results/report.html, results/f
 `report.html` is one file that opens in any browser, offline, and can be
 emailed or archived as it is; the guided session writes it too. It reads in the
 order a user acts on it, with titles instead of the text report's question
-numbers: the data, what was checked (the declaration in short lines, naming what
-was not declared and so not checked), the fields to check (quality control),
-whether the conditions differ, whether enough was imaged, and the rest. A
-section this design cannot answer ("not applicable", such as the field-versus-cell
-check when every field holds one cell) is left out; its reason stays in "What
-this dataset cannot tell me". Each section says in a sentence what it is for and
-gives its answer in a line; "Did I image enough?" answers in sentences (resolved
-within each repeat or not, how many fields would resolve the rest, what to do)
-before its numbers. With several features it asks each of them alike: a table
-across the features (enough, partly or not yet to compare with the control, the
-fields still needed, how many wells meet the precision asked for their own mean;
-the first 20 rows, sortable, and a button for the rest), then one feature at a
-time as tabs, or above 12 features a list to search; the stopping rules follow,
-on the readout, as optimise and live run them. The per-feature contrasts skip
-the cell-level test (`condition_contrast(cell_test=False)`) and run in parallel
-with `Setup(n_jobs=...)`. A sidebar lists every section with its status; "At a glance"
-gives each status as a chip with its word (never colour alone). The full text is
-folded under "Full detail", in the words of `Report.summary`, its aligned tables
-as tables you can sort by clicking a header.
+numbers: the data, the fields to check (quality control), with three or more
+features the whole dataset at once (the PCA and UMAP), whether there are distinct
+populations, whether the conditions differ, whether enough was imaged, and the
+rest. A section this design cannot answer ("not applicable", such as the
+field-versus-cell check when every field holds one cell) is left out; its reason
+stays in "What this dataset cannot tell me". What a section is for is under the
+"?" beside its title (on hover or a tap); its answer comes first and the rest is
+folded under "Show more", in the words of `Report.summary`, its aligned tables as
+tables you can sort by clicking a header.
 
-"Do the conditions differ?" opens with the reading per condition, then a heatmap
-of Cohen's d of every feature and condition against the control (● passes the
-exploratory cell-level screen, ✓ also significant across repeats; hover a cell for its
-q-values), then the readout and the best-ranked features, then with three or
-more features the PCA and UMAP of all of them, then the tests behind the reading,
-one kind of test at a time as tabs (across repeats, reagents, the cell-level
-screen, within repeats, planning, every feature).
+"The data" gives one row per check with its chip (the data checks; the integrity
+checks, whose fields are listed under "Fields to check") and a line naming what
+was not declared and so not checked; the tables, what was checked (the
+declaration in short lines) and the declaration in full are under "Show more".
+"Fields to check" lists each field to open and why: the fields the integrity
+checks name, then those that sway a declared summary, have an unusual count or
+show a state no other field shows.
+
+"Do the conditions differ?" opens with the features significant across repeats,
+condition by condition, each with its direction, how many repeats agree, its q and
+its d. With fewer than 3 biological repeats nothing can be called significant
+(the paired test needs 3), and it says so: with 2 it gives the candidates of the
+exploratory cell-level screen that go the same way in both repeats, with 1 every
+candidate, said as exploratory. Then a heatmap of Cohen's d of every feature and
+condition against the control (● passes the exploratory cell-level screen, ✓ also
+significant across repeats; hover a cell for its q-values), then the best-ranked
+features (the readout only when it ranks, or alone when none does), then the
+tests behind the reading: the readout's reading condition by condition, then one
+kind of test at a time as tabs (across repeats, reagents, the cell-level screen,
+within repeats, planning, every feature).
+
+Each answer that calls for an analysis ends with **What to do next**: a sentence,
+and the code to run it on `result`, `objects` and `fovs`, folded under "Show the
+code". After "Fields to check", once the images confirm that a field should be
+excluded, the report again without it (the code lists every flagged field, the
+integrity checks' included: delete the line of each one to keep); after a
+population, the population labelled and declared as the rare phenotype
+(`RareTarget`, `rare_label`), so the report says whether it was seen in enough
+fields and `optimise` plans for it; after a feature significant across repeats,
+`optimise` with it as the readout; after "Did I image enough?", the same for the
+first feature not yet shown in every repeat; with fewer than 3 biological
+repeats, how many to plan. The field counts given to `optimise` fit the wells'
+fields once its reservoir is held back.
+
+Every figure carries the data it draws as CSV, beside its PNG and PDF (in
+`figures/`, inside the page and in the zip), to draw it again outside: per
+feature figure `<feature>_data.csv` (every observation, raw and normalised, with
+its condition, repeats and field), `<feature>_repeats.csv` (each biological
+repeat's median and interval) and `<feature>_pairs.csv` (every pair of
+conditions); for the maps `embedding_<values>.csv` (the PCA and UMAP coordinates
+of every point, with its condition, repeat, field, population and standardised
+features) and `pca_loadings_<values>.csv`; for the heatmap `heatmap_d.csv`.
 
 The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
 which the page carries (about 1.5 MB, MIT licence), so they work offline. A
@@ -482,10 +507,11 @@ the shapes that can be told apart, raises. The features must be
 declared in the setup, and the plots use the same normalised values as the
 report when `normalize` is set; the value axis then says "relative to
 control" (`plots_of_data(..., value_note=...)` adds any such note). With `folder`, each figure is saved as a PNG.
-Without `features`, the readout is plotted and, given the report's
+Without `features`, the readout is plotted; given the report's
 discovery (`plots(objects, fovs, setup, ranking=result.discovery)`), the five
-best-ranked other features (`top=`): those that pass the cell-level gate,
-largest |d| first, as question 9 describes below (`ranking=result.ranking`
+best-ranked features are plotted instead (`top=`): those that pass the cell-level
+gate, largest |d| first, as question 9 describes below, the readout among them
+only when it ranks (and alone when none does: the report is neutral) (`ranking=result.ranking`
 takes the ranking over whole technical repeats instead).
 
 With three or more features, `embedding_plots(objects, fovs, setup,
