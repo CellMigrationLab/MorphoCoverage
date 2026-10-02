@@ -24,6 +24,7 @@ TEST_KINDS = (
     ("Within repeats", ("No test within a single repeat", "Within each repeat")),
     ("Planning", ("Planning the next experiment",)),
     ("Every feature", ("Which features separate the conditions?",)),
+    ("Beyond the mean", ("Beyond the mean",)),
 )
 _CLOSING = ("⚠️", "Assumptions")
 # More tabs than this do not fit a row or two: a list to search and pick from instead.

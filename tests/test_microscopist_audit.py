@@ -167,7 +167,8 @@ def test_protocol_names_samples_capped_by_their_reference_instead_of_needing_mor
     assert "1 fields" not in text
     short = " ".join(result.summary().split())
     assert "1 sample needed more fields than could be judged (B1 · P1 (more than 18))" in short
-    assert "for 2 of 3 samples even every available field together" in short
+    assert "for 2 of 3 samples every available field together" in short
+    assert short.count("cap what can be shown") == 1
     assert "A1 · P1 (more than 18)" not in short
 
 

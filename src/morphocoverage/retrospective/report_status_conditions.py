@@ -121,14 +121,21 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         across = discovery.tests["p_paired"].notna().any()
         held = int(discovery.tests["repeats"].max()) if "repeats" in discovery.tests else 1
         named = f" ({listing(significant, 4)})" if significant else ""
+        share = discovery.settings.get("share")
+        # A labelled state's share is compared like a feature, and named apart from them.
+        what = (
+            f"{n_features} ({n_features - 1} features and the {share})"
+            if share in set(discovery.ranking["feature"])
+            else f"{n_features} features"
+        )
         # Every feature alike: any of them significant across repeats is a difference
         # (owner, 2026-10-01: the report is neutral; the readout is optimise's and live's).
         parts.insert(
             0,
-            f"{len(significant)} of {n_features} features significant across repeats{named}; "
+            f"{len(significant)} of {what} significant across repeats{named}; "
             f"{passing} candidates in the exploratory cell-level screen"
             if across
-            else f"{passing} of {n_features} features candidates in the exploratory cell-level "
+            else f"{passing} of {what} candidates in the exploratory cell-level "
             f"screen, hypotheses for another repeat (no test across repeats: n = {held})",
         )
         if across and not significant:

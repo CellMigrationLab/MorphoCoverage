@@ -336,11 +336,23 @@ def _short_cautions(curves: Sequence[Mapping[str, Any]], total: int) -> list[str
             f"not every hold-out or draw could be judged {_groups_named(partial, total)}"
             ": the shares are over those that could (the full form says how many)"
         )
+    unjudged: dict[str, list[Mapping[str, Any]]] = {}
     for curve in curves:
         if not curve["basis"].startswith("Judged"):
-            where_text = group_label(curve["group"]) if curve["group"] else ""
-            prefix = f"{where_text}, {curve['label']}: " if where_text else f"{curve['label']}: "
-            cautions.append(prefix + curve["basis"].strip())
+            unjudged.setdefault(curve["label"], []).append(curve)
+    for label, missed in unjudged.items():
+        # One line per target, the groups named, not one line per group.
+        if len(missed) == 1 or not all(c["group"] for c in missed):
+            for curve in missed:
+                where_text = group_label(curve["group"]) if curve["group"] else ""
+                prefix = f"{where_text}, {label}: " if where_text else f"{label}: "
+                cautions.append(prefix + curve["basis"].strip())
+            continue
+        named = _groups_named([c["group"] for c in missed], total)
+        cautions.append(
+            f"{label}: could not be judged against any of the held-back fields {named}, so "
+            "nothing is said there at any field count"
+        )
     if judged:
         cautions += [RANDOM_DRAWS, CONSERVATIVE]
     return cautions

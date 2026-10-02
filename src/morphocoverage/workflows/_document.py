@@ -40,15 +40,26 @@ from ..retrospective.report_status import (
     profile_status,
 )
 from ..sampling_unit._state_text import clustering_parts
+from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import unit_plural
 from ._declaration import declaration_short
+from ._distribution import with_distribution
 from ._enough_features import with_features
+from ._enough_targets import with_targets
+from ._label_control import label_answer
 
 if TYPE_CHECKING:
     from .setup import Setup
 
 # Results of the report that ``microscopist_report`` does not take; ``assemble`` adds them.
-_EXTRA_RESULTS = ("rare_clustering", "integrity", "enough_features")
+_EXTRA_RESULTS = (
+    "rare_clustering",
+    "integrity",
+    "enough_features",
+    "distribution",
+    "fingerprint_precision",
+    "label_control",
+)
 
 
 def pooling_reason(analyses: str, setup: Setup, pooled: Sequence[str]) -> str:
@@ -163,7 +174,20 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     # Question 2 over every feature alike (the report is neutral).
     features = results.get("enough_features")
     word = group_word(results.get("sufficiency"))
-    return with_features(document, features, results.get("contrast"), word)
+    document = with_features(document, features, results.get("contrast"), word)
+    # The rare and fingerprint targets, answered from the fields acquired.
+    contrast = results.get("contrast")
+    field = field_words(contrast)[0] if contrast is not None else "field"
+    document = with_targets(document, results, setup, word, field)
+    check = results.get("label_control")
+    if check is not None and results.get("controls") is None:
+        status, headline, text = label_answer(check)
+        brief = wrap(text, 2, hang=4)
+        document = with_text(
+            document, "controls", text, status=status, headline=headline, short_text=brief
+        )
+    # Beyond the mean, with a fingerprint declared (question 9).
+    return with_distribution(document, results.get("distribution"), setup.unit_words)
 
 
 def _with_integrity(document: MicroscopistReport, integrity: Any) -> MicroscopistReport:
@@ -370,7 +394,8 @@ def with_text(
     A question not assessed so far is assessed by it: the text replaces the
     generic need, ``headline`` (or the text's first sentence) becomes its
     one-line answer and ``status`` its status. Added to an assessed answer,
-    the text follows it in the full and in the short form, and ``status``
+    the text follows it in the full and in the short form, ``headline`` joins its
+    one-line answer, and ``status``
     (``report_status``: a caution the text states) can only raise its
     status, never lower it. ``short_text``, already indented as the report
     prints it, stands for ``text`` in the short form (a ⚠️ line for a caveat).
@@ -393,6 +418,11 @@ def with_text(
         if key in short:
             merged = _merged(short[key], brief) if short_text else f"{short[key]}\n\n{brief}"
             short[key] = pool_assumptions(merged)
+        if headline:
+            # The added answer joins the one-line answer (its parts not already in it).
+            known = headlines.get(key, "")
+            new = [p for p in headline.split("; ") if p and p not in known]
+            headlines[key] = "; ".join([known, *new]) if known else headline
         current = statuses.get(key, Status.NOT_ASSESSED)
         if key in RESULT_QUESTIONS and status is not Status.PROBLEM:
             # Its marker says what was found; a caution added here is read in the section.

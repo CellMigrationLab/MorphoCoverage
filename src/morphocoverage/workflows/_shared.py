@@ -57,6 +57,7 @@ from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._document import pooling_reason
+from ._rare_share import compared_columns, share_column, with_share
 from .setup import Setup, default_novelty
 
 
@@ -447,19 +448,23 @@ def conditions(
             **setup.common,
         )
     }
-    if len(setup.columns) > 1:
+    compared = compared_columns(setup)
+    if len(compared) > 1:
+        shared = with_share(objects, setup)
         results["discovery"] = feature_discovery(
-            objects,
+            shared,
             fovs,
-            features=setup.columns,
+            features=compared,
             control=setup.control,
             random_state=setup.random_state,
             **setup.common,
         )
+        # The headline counts the share apart from the features (report_status_conditions).
+        results["discovery"].settings["share"] = share_column(setup)
         results["ranking"] = feature_ranking(
-            objects,
+            shared,
             fovs,
-            features=setup.columns,
+            features=compared,
             control=setup.control,
             random_state=setup.random_state,
             fields_independent=setup.fields_independent,

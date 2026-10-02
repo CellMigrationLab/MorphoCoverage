@@ -191,9 +191,10 @@ def _difficulty(
             f"For {len(reference_capped)} of {len(hard)} {w['samples']} {why}: {named}."
         )
         reached = span(ceilings, "percent")
+        # The reason is said once under the table (protocol_short_parts).
         block["short_notes"].append(
-            f"for {len(reference_capped)} of {len(hard)} {w['samples']} "
-            + why.replace("of hold-outs:", f"of hold-outs ({reached}):")
+            f"for {len(reference_capped)} of {len(hard)} {w['samples']} every available field "
+            f"together was enough in fewer than {w['threshold']} of hold-outs ({reached})"
         )
         block["capped"] = len(reference_capped)
     if len(never):
@@ -252,7 +253,9 @@ def _validation(
             f"that served enough {w['samples']}, so nothing was checked there."
         )
         block["notes"].append(text)
-        block["short_notes"].append(text[:1].lower() + text[1:-1])
+        # The reason is said once under the table (protocol_short_parts).
+        block["short_notes"].append(f"not checked on {count(unchosen, w['unit'], w['units'])}")
+        block["unchosen"] = unchosen
         if len(chosen):
             cell.append(f"{count(unchosen, w['unit'], w['units'])} not checked")
     block["check"] = "; ".join(cell) or "not checked"
@@ -357,6 +360,19 @@ def protocol_short_parts(result: ProtocolResult, indent: int = 2) -> tuple[list[
         where = group_label(block["stratum"]) + ", " if strata else ""
         text = f"{where}{block['label']}: {'; '.join(block['short_notes'])}."
         lines.append(wrap(text[:1].upper() + text[1:], indent, hang=indent + 2))
+    reasons = []
+    if any(block.get("capped") for block in blocks):
+        reasons.append(
+            f"Every available field enough in fewer than {w['threshold']} of hold-outs: the "
+            f"held-back fields are themselves a sample and cap what can be shown, so those "
+            f"{w['samples']} are not counted as needing more fields."
+        )
+    if any(block.get("unchosen") for block in blocks):
+        reasons.append(
+            f"Not checked: on the other {w['units']} no number of fields served enough "
+            f"{w['samples']} to be tried on the one left out."
+        )
+    lines += [wrap(text, indent, hang=indent + 2) for text in reasons]
     return lines, _few(blocks, w)
 
 
