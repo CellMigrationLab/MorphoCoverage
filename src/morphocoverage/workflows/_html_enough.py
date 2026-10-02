@@ -1,23 +1,43 @@
-""" "Did I image enough?" on the HTML page over every feature (private; ``html_report``).
+""" "Did I image enough?" on the HTML page (private; ``html_report``).
 
-A summary first, in sentences and in the table across the features (``_enough_features``):
-for which features the fields imaged are enough to compare with the control, partly or not
-yet, and for which each well's own mean meets the precision asked. Then one feature at a
-time, as tabs in the order of "Do the conditions differ?" (significant across repeats
-first): its comparisons within single repeats, what more would show the others, what to do
-across repeats, and its precision. The stopping rules on the readout follow, as optimise and
-live run them. Each tab says when it is enough, not only when it is not.
+The owner's layout (2026-10-02, "one sentence + table"): the answer in one sentence (with
+fewer than 3 biological repeats, first that no difference can be called significant), the
+declared rare phenotype and fingerprint in a line each, then a compact table, one row per
+feature: the comparisons shown within single repeats and what would show the rest. Then one
+feature at a time, as tabs in the order of "Do the conditions differ?" (significant across
+repeats first): its comparisons, its table within each repeat and the precision of each
+well's own mean; the rare phenotype and the fingerprint have their own tabs after the
+features. The card ends with the assumptions of these answers, once. What every tab would
+repeat (what a comparison is, that it is per repeat, what each well's own mean is for) is
+said once, in the card's "?" (``_html_sections.enough_intro``).
+
+With one feature, the same: the answer, the comparison table once (every comparison), the
+precision line, the assumptions. The stopping rules, the repeats a new experiment would
+need and what optimise would plan are not in this card: they belong to the plan of the
+next experiment (``_html_sections._repeats_advice``, ``_enough_targets.held_back_note``,
+``_html_next.enough_next``, and the text report's stopping rules).
 """
 
 from __future__ import annotations
 
 import html
-import re
+from collections import Counter
 from typing import Any
 
-from .._wording import count, listing
-from ..retrospective.report_resolved import resolved_parts
+import pandas as pd
+
+from .._caveats import caveat_lines
+from .._style import table
+from .._wording import count, listing, plural
+from ..metadata import REPEAT_COLUMN
+from ..retrospective.report_resolved import SHORT_ROWS, has_resolution, resolved_parts
+from ..retrospective.report_status import group_word
+from ..sampling_unit.contrast_repeats import MIN_REPEATS
+from ..sampling_unit.contrast_sampling import PRACTICAL
+from ..sampling_unit.repeat_plan_text import field_words
+from ..sufficiency_short import rule_tallies, uniformity_assumption
 from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
+from ._enough_targets import fingerprint_lines, rare_lines
 from ._html_render import text_html
 from ._html_sections import _resolution
 from ._html_tabs import tabs_html
@@ -25,59 +45,156 @@ from ._html_tabs import tabs_html
 _MARKS = {ENOUGH: "✅", PARTLY: "⚠️", NOT_YET: "⚠️"}
 # The summary table's rows shown before "Show all" (the style hides the others).
 _FIRST_ROWS = 20
-_STOPPING = "  The stopping rules, as optimise and live run them (on the readout):"
+# Named in full up to this many; beyond, the first few and how many more.
+_NAMED = 7
 
 
-def _names(rows: Any, verdict: str) -> list[str]:
-    return list(rows.loc[rows["verdict"] == verdict, "feature"].astype(str))
+def _rows(contrast: Any) -> pd.DataFrame:
+    """The comparisons with an answer (an interval was computed)."""
+    rows = contrast.table
+    return rows[rows["d_low"].notna()]
 
 
-def summary_lines(features: FeatureEnough, word: str, fields: str) -> list[str]:
-    """The answer over the features in sentences: enough, partly, not yet; each well's mean."""
-    rows = features.table
-    parts = []
-    for verdict, said in (
-        (ENOUGH, "enough for {} (every comparison shown)"),
-        (PARTLY, "partly for {}"),
-        (NOT_YET, "not yet for {}"),
-    ):
-        names = _names(rows, verdict)
-        if names:
-            parts.append(said.format(listing(names, 6)))
-    lines = [
-        f"Enough {fields} to compare with the control, within single repeats? "
-        + "; ".join(parts)[:1].upper()
-        + "; ".join(parts)[1:]
-        + "."
-    ]
-    precise = rows[rows["precision_met"].notna()]
-    if len(precise):
-        every = list(
-            precise.loc[precise["precision_met"] == precise["precision_groups"], "feature"]
-        )
-        rule = precise["precision_rule"].iloc[0]
-        best = precise.sort_values("precision_met", ascending=False).iloc[0]
-        met = (
-            f"met in every {word} for {listing(every, 6)}, of {count(len(precise), 'feature')}"
-            if every
-            else f"met in every {word} for none of {count(len(precise), 'feature')} (at most "
-            f"in {int(best['precision_met'])} of {int(best['precision_groups'])}, "
-            f"{best['feature']})"
-        )
-        lines.append(
-            f"Each {word}'s own mean to the precision asked ({rule}): {met}. A different goal "
-            "from the comparison: it matters when the value of a mean is reported, not for "
-            "comparing conditions."
-        )
-    lines.append(
-        "One feature at a time below, in the order of “Do the conditions differ?” "
-        "(significant across repeats first)."
+def repeats_seen(contrast: Any) -> int:
+    """The most biological repeats any condition is compared with the control in."""
+    rows = getattr(contrast, "table", None)
+    if rows is None or rows.empty or REPEAT_COLUMN not in rows:
+        return 0
+    return int(rows.groupby("condition")[REPEAT_COLUMN].nunique().max())
+
+
+def few_repeats(repeats: int) -> str:
+    """With fewer than ``MIN_REPEATS`` biological repeats: that none can be significant."""
+    if not 0 < repeats < MIN_REPEATS:
+        return ""
+    return (
+        f"With {count(repeats, 'biological repeat')}, no difference can be called significant: "
+        f"the test across repeats needs at least {MIN_REPEATS}."
     )
-    return lines
 
 
-def _precision_line(features: FeatureEnough, feature: str, word: str, fields: str) -> str:
-    tally = features.precision.get(feature)
+def _where(repeats: int) -> str:
+    return "Within the biological repeat" if repeats == 1 else "Within each biological repeat"
+
+
+def _named(names: list[str], others: bool) -> str:
+    if others:
+        return f"the other {count(len(names), 'feature')}"
+    return listing(names, len(names) if len(names) <= _NAMED else 5)
+
+
+def _joined(clauses: list[str]) -> str:
+    if len(clauses) == 1:
+        return clauses[0]
+    return f"{', '.join(clauses[:-1])}, and {clauses[-1]}"
+
+
+def _rest(rows: pd.DataFrame, fields: str) -> str:
+    """What the comparisons not shown are: ``most of the others are too small ...``."""
+    unshown = int((rows["comparisons"] - rows["shown"]).sum())
+    small, need = int(rows["too_small"].sum()), int(rows["needing"].sum())
+    beyond = f"too small to show even with {PRACTICAL} times the {fields}"
+    if not unshown:
+        return ""
+    for part, said in ((small, f"are {beyond}"), (need, f"would show with more {fields}")):
+        if part == unshown:
+            return f"; the others {said}"
+        if 2 * part > unshown:
+            return f"; most of the others {said}"
+    return ""
+
+
+def answer_lines(features: FeatureEnough, fields: str, repeats: int) -> list[str]:
+    """The answer over the features: with fewer than 3 repeats that none can be significant,
+    then one sentence (see the module)."""
+    rows = features.table
+    total = len(rows)
+    every = list(rows.loc[rows["shown"] == rows["comparisons"], "feature"].astype(str))
+    some = list(rows.loc[(rows["shown"] > 0) & (rows["shown"] < rows["comparisons"]), "feature"])
+    none = list(rows.loc[rows["shown"] == 0, "feature"].astype(str))
+    head = f"{_where(repeats)}, the {fields} imaged show the difference from the control"
+    one = bool((rows["comparisons"] == 1).all())
+    if len(every) == total:
+        everyone = (
+            str(every[0])
+            if total == 1
+            else "both features"
+            if total == 2
+            else f"all {total} features"
+        )
+        body = f" for {everyone}" if one else f" in every comparison, for {everyone}"
+    elif every:
+        groups = [
+            ("for" if one else "in every comparison for", every),
+            ("in some for", [str(f) for f in some]),
+            ("not for" if one else "in none for", none),
+        ]
+        groups = [(words, names) for words, names in groups if names]
+        last = len(groups) - 1
+        body = " " + _joined(
+            [f"{words} {_named(names, i == last)}" for i, (words, names) in enumerate(groups)]
+        )
+    else:
+        comparisons = rows["comparisons"].astype(int)
+        of = (
+            str(comparisons.iloc[0])
+            if comparisons.nunique() == 1
+            else f"{comparisons.min()}-{comparisons.max()}"
+        )
+        low, high = int(rows["shown"].min()), int(rows["shown"].max())
+        if not high:
+            body = " in no comparison, for any feature"
+        elif not low:
+            body = f" in at most {high} of {of} comparisons for any feature"
+        elif low == high:
+            body = f" in {high} of {of} comparisons for every feature"
+        else:
+            body = f" in {low} to {high} of {of} comparisons for each feature"
+        body += _rest(rows, fields)
+    return [line for line in (few_repeats(repeats), f"{head}{body}.") if line]
+
+
+def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
+    """``1 needs about 31 cells a side in its repeat; 1 too small even with 4 times the
+    cells``, how many comparisons each count covers (with one biological repeat, no repeat
+    to name); ``–`` when every one is shown."""
+    rows = _rows(contrast)
+    needing = rows[~rows["resolved"] & ~rows["too_small"]]
+    parts = []
+    if len(needing):
+        counts = sorted(Counter(int(v) for v in needing["fields_to_resolve"]).items())
+        (first, n), more = counts[0], counts[1:]
+        verb = "needs" if n == 1 else "need"
+        items = [f"{n} {verb} about {first}", *(f"{k} about {v}" for v, k in more)]
+        their = "its" if len(needing) == 1 else "their"
+        where = "" if repeats == 1 else f" in {their} repeat"
+        parts.append(f"{listing(items, len(items))} {fields} a side{where}")
+    small = int(rows["too_small"].sum())
+    if small:
+        parts.append(f"{small} too small even with {PRACTICAL} times the {fields}")
+    return "; ".join(parts) or "–"
+
+
+def compact_table(features: FeatureEnough, fields: str, repeats: int = 0) -> str:
+    """One row per feature: the comparisons shown, and what would show the rest."""
+    rows = features.table
+    same = rows["comparisons"].nunique() == 1
+    shown = (
+        f"shown, of {count(int(rows['comparisons'].iloc[0]), 'comparison')}" if same else "shown"
+    )
+    cells = [
+        [
+            r["feature"],
+            str(r["shown"]) if same else f"{r['shown']} of {r['comparisons']}",
+            _needs(features.contrasts[r["feature"]], fields, repeats),
+        ]
+        for r in rows.to_dict("records")
+    ]
+    return table(cells, ["feature", shown, "to show the rest"], indent=0)
+
+
+def own_mean_line(feature: str, tally: dict[str, Any] | None, word: str) -> str:
+    """Whether each well's own mean of ``feature`` meets the mean-precision rule."""
     if not tally:
         return ""
     met, groups = tally["met"], tally["groups"]
@@ -85,39 +202,113 @@ def _precision_line(features: FeatureEnough, feature: str, word: str, fields: st
         f"Enough to pin down each {word}'s own mean of {feature}? The {tally['label']} was met "
         f"in {met} of {count(groups, word)}"
     )
-    if met == groups:
-        return line + ": enough."
-    return line + (
-        f". A different goal from the comparison; more {fields} per {word} is the lever."
-    )
+    return line + (": enough." if met == groups else ".")
 
 
-def _panel(features: FeatureEnough, feature: str, word: str, fields: str) -> str:
-    contrast = features.contrasts[feature]
-    lines = [*_resolution(contrast), _precision_line(features, feature, word, fields)]
-    reading = "".join(f"<p>{html.escape(line)}</p>" for line in lines if line)
-    table, _ = resolved_parts(contrast, indent=0)
-    return f'<div class="reading">{reading}</div>' + text_html("\n".join(table))
+def _paragraphs(lines: list[str]) -> str:
+    return "".join(f"<p>{html.escape(line)}</p>" for line in lines if line)
 
 
-def enough_body(
-    features: FeatureEnough, short: str, word: str, fields: str, annotate: Any, unnumbered: Any
-) -> str:
-    """The card's body (see the module); ``short`` is the section's short text, its table
-    across the features first and the stopping rules after; ``annotate`` links the
-    glossary's words, ``unnumbered`` gives question numbers this page's titles."""
-    head, _, rest = short.partition(f"\n\n{_STOPPING}")
-    # The sentences above say what the table's intro line says.
-    head = re.sub(r"^\s*Each feature alike.*?:\n(?=\s*feature\s)", "", head, flags=re.DOTALL)
-    summary = "".join(
-        f"<p>{html.escape(line)}</p>" for line in summary_lines(features, word, fields)
-    )
+def _panel(contrast: Any, feature: str, tally: Any, word: str, repeats: int) -> str:
+    """One feature's tab: its comparisons, its own mean, its table within each repeat."""
+    lines = [*_resolution(contrast, repeats == 1), own_mean_line(feature, tally, word)]
+    rows, _ = resolved_parts(contrast, indent=0, where=False)
+    return f'<div class="reading">{_paragraphs(lines)}</div>' + text_html("\n".join(rows))
+
+
+def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[str, str, str]]]:
+    """The declared rare phenotype and fingerprint: a line each for the top, a tab each."""
+    setup, results = result.setup, result.results
+    clustering = results.get("rare_clustering") if setup.rare is not None else None
+    precision = results.get("fingerprint_precision")
+    lines, tabs = [], []
+    if clustering is not None and len(clustering.table):
+        rows = clustering.table
+        k = setup.rare.min_fov_occurrences
+        seen = rows["fovs_with_state"] >= k
+        parts = []
+        for condition, block in seen.groupby(rows["condition"], sort=False):
+            if block.all():
+                parts.append(("every", str(condition)))
+            elif block.any():
+                parts.append((f"{int(block.sum())} of {len(block)}", str(condition)))
+        full = [c for kind, c in parts if kind == "every"]
+        said = [f"every {listing(full, len(full))} {word}"] if full else []
+        said += [f"{kind} {c} {plural(word)}" for kind, c in parts if kind != "every"]
+        name = setup.rare_label or setup.rare.phenotype
+        where = (
+            f"in every {word}"
+            if seen.all()
+            else f"in {int(seen.sum())} of {count(len(rows), word)}"
+            + (f": {_joined(said)}" if said else "")
+        )
+        lines.append(f"The rare phenotype, {name}, was seen in at least {count(k, field)} {where}.")
+        text = "\n".join(rare_lines(clustering, setup, word, field))
+        tabs.append(("rare phenotype", "✅" if seen.all() else "⚠️", text_html(text)))
+    if precision is not None:
+        judged = precision[precision["met"].notna()]
+        criteria = list(dict.fromkeys(judged["criterion"]))
+        for criterion in criteria:
+            own = judged[judged["criterion"] == criterion]
+            met = int(own["met"].sum())
+            within = (
+                f"in every {word}" if met == len(own) else f"in {met} of {count(len(own), word)}"
+            )
+            named = "" if len(criteria) == 1 else f", {criterion},"
+            lines.append(f"The fingerprint{named} is within its tolerance {within}.")
+        text = "\n".join(fingerprint_lines(precision, word, plural(field), held_back=False))
+        if text:
+            mark = "✅" if judged["met"].astype(bool).all() else "⚠️"
+            tabs.append(("fingerprint", mark, text_html(text)))
+    return lines, tabs
+
+
+def _assumptions(contrast: Any, sufficiency: Any, labels: set[str]) -> str:
+    """The assumptions of this card's answers, once: the comparison and its projection, and
+    the mean-precision rules' (those of the stopping rules and of novelty are theirs)."""
+    notes = list(resolved_parts(contrast)[1])
+    if sufficiency is not None and not sufficiency.final.empty:
+        final = sufficiency.final
+        unit = getattr(sufficiency, "observation_unit", None) or "object"
+        for tally in rule_tallies(sufficiency):
+            own = final[final["config_id"].eq(tally["config_id"])]
+            if tally["label"] in labels and own["assumes_spatial_uniformity"].astype(bool).any():
+                notes.append(uniformity_assumption(tally["label"], unit))
+    return text_html("\n".join(caveat_lines(notes, indent=0)))
+
+
+def _precision_tally(sufficiency: Any) -> dict[str, Any] | None:
+    """The readout's first mean-precision rule defined for these observations."""
+    tallies = rule_tallies(sufficiency) if sufficiency is not None else []
+    return next((t for t in tallies if t["data_rule"] and t["undefined"] < t["groups"]), None)
+
+
+def _features_body(result: Any, features: FeatureEnough, annotate: Any) -> str:
+    contrast = next(iter(features.contrasts.values()))
+    field, fields = field_words(contrast)
+    word = group_word(result.results.get("sufficiency"))
+    repeats = repeats_seen(contrast)
+    targets, target_tabs = _targets(result, word, field)
+    top = _paragraphs([*answer_lines(features, fields, repeats), *targets])
     rows = features.table.to_dict("records")
     items = [
-        (r["feature"], _MARKS[r["verdict"]], annotate(_panel(features, r["feature"], word, fields)))
+        (
+            r["feature"],
+            _MARKS[r["verdict"]],
+            annotate(
+                _panel(
+                    features.contrasts[r["feature"]],
+                    r["feature"],
+                    features.precision.get(r["feature"]),
+                    word,
+                    repeats,
+                )
+            ),
+        )
         for r in rows
     ]
-    shown = text_html(head)
+    # Its last column wraps (the style), so the table fits the card.
+    shown = f'<div class="compact">{text_html(compact_table(features, fields, repeats))}</div>'
     if len(rows) > _FIRST_ROWS:
         # Hundreds of features: the first rows, sortable over them all, and a button.
         shown = (
@@ -125,14 +316,99 @@ def enough_body(
             f'data-rows="{_FIRST_ROWS}" aria-expanded="false">Show all {len(rows)} features'
             "</button></div>"
         )
-    body = (
-        f'<div class="reading">{annotate(summary)}</div>{shown}'
-        "<h3>One feature at a time</h3>" + tabs_html("enough", items, "Features")
+    tabs = [*items, *((n, m, annotate(t)) for n, m, t in target_tabs)]
+    pointer = f"Each tab gives the comparisons and how precise each {word}'s own mean is."
+    labels = {r for r in features.table["precision_rule"] if r}
+    return (
+        f'<div class="reading">{annotate(top)}</div>{shown}<h3>One feature at a time</h3>'
+        f'<p class="note">{html.escape(pointer)}</p>'
+        + tabs_html("enough", tabs, "Features")
+        + annotate(_assumptions(contrast, result.results.get("sufficiency"), labels))
     )
-    if rest.strip():
-        body += "<h3>The stopping rules, as optimise and live run them (on the readout)</h3>"
-        body += annotate(unnumbered(text_html(rest)))
-    return body
 
 
-__all__ = ["enough_body", "summary_lines"]
+def _single_answer(contrast: Any, fields: str, repeats: int) -> str:
+    rows = _rows(contrast)
+    n, resolved = len(rows), int(rows["resolved"].sum())
+    head = f"{_where(repeats)}, the {fields} imaged show the difference from the control"
+    if resolved == n:
+        return f"{head} in every comparison, all {n}." if n > 1 else f"{head}."
+    parts = [f"{head} in {resolved} of {count(n, 'comparison')}"]
+    needing = rows[~rows["resolved"] & ~rows["too_small"]]
+    if len(needing):
+        values = needing["fields_to_resolve"].astype(float)
+        low, high = int(values.min()), int(values.max())
+        about = f"{low}" if low == high else f"{low} to {high}"
+        their = "its" if len(needing) == 1 else "their"
+        parts.append(
+            f"{len(needing)} would show with about {about} {fields} a side in {their} repeat"
+        )
+    small = int(rows["too_small"].sum())
+    if small:
+        verb = "is" if small == 1 else "are"
+        parts.append(
+            f"{small} {verb} too small to show even with {PRACTICAL} times the {fields}, which "
+            "is not evidence of no effect"
+        )
+    return "; ".join(parts) + "."
+
+
+def _single_body(result: Any, annotate: Any) -> str:
+    contrast = result.results["contrast"]
+    sufficiency = result.results.get("sufficiency")
+    fields = field_words(contrast)[1]
+    repeats = repeats_seen(contrast)
+    word = group_word(sufficiency)
+    top = [few_repeats(repeats), _single_answer(contrast, fields, repeats)]
+    tally = _precision_tally(sufficiency)
+    rows, _ = resolved_parts(contrast, indent=0, every=True)
+    labels = {tally["label"]} if tally else set()
+    return annotate(
+        f'<div class="reading">{_paragraphs(top)}</div>'
+        + text_html("\n".join(rows))
+        + f'<div class="reading">'
+        f"{_paragraphs([own_mean_line(result.setup.readout, tally, word)])}</div>"
+        + _assumptions(contrast, sufficiency, labels)
+    )
+
+
+def enough_body(result: Any, annotate: Any) -> str | None:
+    """The card's body (see the module); ``annotate`` links the glossary's words. ``None``
+    without a comparison with the control to answer from (the text report's answer, the
+    stopping rules, is then shown as it is)."""
+    results = getattr(result, "results", {}) or {}
+    features = results.get("enough_features")
+    if features is not None:
+        return _features_body(result, features, annotate)
+    if has_resolution(results.get("contrast")):
+        return _single_body(result, annotate)
+    return None
+
+
+def enough_help(result: Any) -> dict[str, Any]:
+    """The design the card's "?" is written for (``intros_for``'s keywords)."""
+    results = getattr(result, "results", {}) or {}
+    features = results.get("enough_features")
+    contrast = results.get("contrast")
+    if features is not None:
+        contrast = next(iter(features.contrasts.values()))
+    listed = features is not None and any(
+        len(_rows(c)) > SHORT_ROWS for c in features.contrasts.values()
+    )
+    return {
+        "single_repeat": repeats_seen(contrast) == 1 if contrast is not None else False,
+        "group": group_word(results.get("sufficiency")),
+        "listed": listed,
+        "compared": features is not None or has_resolution(contrast),
+    }
+
+
+__all__ = [
+    "answer_lines",
+    "compact_table",
+    "enough_body",
+    "enough_help",
+    "few_repeats",
+    "own_mean_line",
+    "repeats_seen",
+]

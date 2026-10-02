@@ -171,6 +171,25 @@ every feature and condition of a sub-experiment: the readout's paired t-test and
 cell-level screen take the feature discovery's p and q (`workflows._families`), so the
 readout reads the same in its own table, the summary and the heatmap.
 
+"Did I image enough?" answers in one sentence (owner, 2026-10-02): within each
+biological repeat, for which features the fields imaged show the difference from
+the control in every comparison (a condition against the control in one repeat), in
+some or in none; with fewer than 3 biological repeats it first says that no
+difference can be called significant. With a rare phenotype or a fingerprint
+declared, a line each says in how many wells it was seen in enough fields, or is
+within its tolerance. A compact table follows, one row per feature: the comparisons
+shown and what would show the rest (how many comparisons would need about how many
+fields a side, or cells, tracks, patches when the comparison counts those, and how
+many are too small to show even with 4 times as many). Then one feature at a time,
+as tabs: its comparisons, the precision of each well's own mean and its table within
+each repeat; the rare phenotype and the fingerprint have their own tabs after the
+features. What every tab would repeat (that this is per repeat, what each well's own
+mean is for) is said once, in the card's "?", and the assumptions of these answers
+once, at its end. With one feature the card is the same, the comparison table given
+once, in full. The stopping rules, the repeats a new experiment would need and the
+plan `optimise` would make are not in this card: they are in the text report
+(`report_full.txt`), and are for planning the next experiment.
+
 Each answer that calls for an analysis ends with **What to do next**: a sentence,
 and the code to run it on `result`, `objects` and `fovs`, folded under "Show the
 code". After "Fields to check", once the images confirm that a field should be
@@ -179,9 +198,8 @@ integrity checks' included: delete the line of each one to keep); after a
 population, the population labelled and declared as the rare phenotype
 (`RareTarget`, `rare_label`), so the report says whether it was seen in enough
 fields and `optimise` plans for it; after a feature significant across repeats,
-`optimise` with it as the readout; after "Did I image enough?", the same for the
-first feature not yet shown in every repeat; with fewer than 3 biological
-repeats, how many to plan. The field counts given to `optimise` fit the wells'
+`optimise` with it as the readout; with fewer than 3 biological repeats, how many
+to plan. The field counts given to `optimise` fit the wells'
 fields once its reservoir is held back.
 
 Every figure carries the data it draws as CSV, beside its PNG and PDF (in
@@ -360,10 +378,11 @@ acquired:
   declared probability, at the share of fields holding it in the data; and
   the fingerprint's error with the fields acquired (estimated from random
   halves of each well's fields) against its tolerance, with the fields that
-  would bring it there. When half of a well's fields, held back by `optimise`,
-  would themselves err by more than the tolerance, it says so once: the
-  held-back judgement cannot confirm that target, and the estimate is the
-  guide.
+  would bring it there. When the fields `optimise` holds back (35% of a well's)
+  would themselves err by more than the tolerance, the text report says so
+  once: the held-back judgement cannot confirm that target, and the estimate is
+  the guide. On the page each target has its own tab, after the features, and a
+  line at the top of the card.
 - **"Do the conditions differ?"** compares the label's share between the
   conditions like a feature (`"<label> share"`: the ranking, the heatmap, the
   figures, which plot one point per field, its share of labelled cells, while the

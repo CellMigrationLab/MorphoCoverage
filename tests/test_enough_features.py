@@ -5,6 +5,7 @@ at a time, and says when it is enough as well as when it is not."""
 import html
 import re
 import warnings
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -21,7 +22,7 @@ from morphocoverage.workflows._enough_features import (
     features_status,
     features_table,
 )
-from morphocoverage.workflows._html_enough import enough_body, summary_lines
+from morphocoverage.workflows._html_enough import answer_lines, enough_body
 from morphocoverage.workflows._html_tabs import TABS_AT_MOST, tabs_html
 from morphocoverage.workflows.setup import Setup
 
@@ -76,9 +77,13 @@ def test_every_feature_enough_is_said_and_marked_enough(result):
     status, headline = features_status(only, "group")
     assert status is Status.OK
     assert "of 1 feature: enough for 1 (area)" in headline and "needs the most" not in headline
-    lines = summary_lines(only, "group", "fields")
-    assert lines[0].startswith("Enough fields to compare with the control, within single")
-    assert "Enough for area (every comparison shown)" in lines[0]
+    lines = answer_lines(only, "fields", 3)
+    assert lines == [
+        (
+            "Within each biological repeat, the fields imaged show the difference from the "
+            "control in every comparison, for area."
+        )
+    ]
 
 
 def test_the_short_form_has_the_table_and_the_rules_the_full_form_every_feature(result):
@@ -133,10 +138,8 @@ def test_a_long_summary_table_shows_its_first_rows_and_a_button(result):
     rows["feature"] = [f"f{i:02d}" for i in range(len(rows))]
     contrasts = {f: features.contrasts["area"] for f in rows["feature"]}
     many = FeatureEnough(rows, contrasts, {})
-    short = "  Each feature alike, 24 features, ordered as in x (significant across\n"
-    short += "    repeats first):\n"
-    short += features_table(many, "group", indent=4)
-    body = enough_body(many, short, "group", "fields", lambda m: m, lambda m: m)
+    page = SimpleNamespace(setup=SETUP, results={**result.results, "enough_features": many})
+    body = enough_body(page, lambda m: m)
     assert '<div class="long-table">' in body and "Show all 24 features</button>" in body
     assert 'class="feature-tabs picker"' in body and "Each feature alike" not in body
 
@@ -189,3 +192,122 @@ def test_the_rule_is_named_once_above_the_table(result):
     own = "first); own mean: the groups whose mean meets the mean-precision rule, per cell"
     assert own in short
     assert "own mean (" not in short
+
+
+def _card(page: str) -> str:
+    """The markup of "Did I image enough?"."""
+    start = page.index('<section class="card" id="enough"')
+    return page[start : page.index("</section>", start)]
+
+
+def _words(markup: str) -> str:
+    """The text a reader sees: no tags, no glossary tooltips, no "?" help."""
+    text = re.sub(r'<span class="tip".*?</span>|<[^>]+>', "", markup, flags=re.DOTALL)
+    return " ".join(html.unescape(text).split())
+
+
+def _help(card: str) -> str:
+    return html.unescape(re.search(r'data-help="([^"]*)"', card).group(1))
+
+
+@pytest.fixture(scope="module")
+def card(result, tmp_path_factory):
+    objects, fovs = _tables()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        path = html_report(result, objects, fovs, tmp_path_factory.mktemp("enough"))
+    return _card(path.read_text())
+
+
+def test_the_top_is_one_sentence_then_a_compact_table(card):
+    # The owner's layout (2026-10-02): one answer sentence, then a table, one row per
+    # feature: the comparisons shown and what would show the rest; no own-mean column.
+    top = card[: card.index("One feature at a time")]
+    readings = re.findall(r'<div class="reading">(.*?)</div>', top, flags=re.DOTALL)
+    assert len(readings) == 1 and readings[0].count("<p>") == 1
+    assert _words(readings[0]) == (
+        "Within each biological repeat, the fields imaged show the difference from the control "
+        "in every comparison for area, and in none for the other 2 features."
+    )
+    assert re.findall(r"<th>([^<]+)</th>", top) == [
+        "feature",
+        "shown, of 3 comparisons",
+        "to show the rest",
+    ]
+    words = _words(top)
+    assert "own mean" not in words and "still needed" not in words
+    cells = [html.unescape(c) for c in re.findall(r"<td[^>]*>([^<]*)</td>", top)]
+    assert cells[:3] == ["area", "3", "–"]
+    assert cells[6:] == [
+        "aspect",
+        "0",
+        "1 needs about 10 fields a side in its repeat; 2 too small even with 4 times the fields",
+    ]
+
+
+def test_what_every_tab_would_repeat_is_said_once_in_the_help(card):
+    words, help_ = _words(card), _help(card)
+    for repeated in (
+        "This is per repeat",
+        "answered in “Do the conditions differ?”",
+        "A different goal from the comparison",
+        "is the lever",
+        "every one in the full report",
+        "a condition in one repeat; shown",
+    ):
+        assert repeated not in words
+    assert help_.count("This is per repeat: whether the conditions differ across") == 1
+    assert help_.count("a different goal from the comparison") == 1
+    assert help_.count("more fields per group is the lever") == 1
+    # Each tab keeps its comparisons, its own mean and its table.
+    panel = card[card.index('id="enough-panel-1"') : card.index('id="enough-panel-2"')]
+    assert "Enough to pin down each group's own mean of speed?" in _words(panel)
+    assert "<table" in panel
+    # The assumptions of these answers, once, at the end of the card.
+    assert words.count("Assumptions") == 1
+    assert words.index("Assumptions") > words.index("Within each repeat, does the difference")
+    assert "treats cells as independent draws" in words
+
+
+def test_the_card_has_no_stopping_rules_and_no_code(card):
+    # The stopping rules, the repeats needed and optimise belong to the plan of the next
+    # experiment (owner, 2026-10-02).
+    words = _words(card)
+    assert "stopping rules" not in words.lower() and "as optimise and live run them" not in words
+    assert "What to do next" not in words and "optimise(" not in card and "<pre>" not in card
+    assert "biological repeats in all for" not in words
+    assert "Whether unseen cell states remain" not in words and "Show more" not in words
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_with_one_repeat_it_says_first_and_once_that_none_can_be_significant(tmp_path):
+    objects, fovs = _tables()
+    objects = objects[objects["biological_repeat"] == "r1"]
+    fovs = fovs[fovs["biological_repeat"] == "r1"]
+    result = report(objects, fovs, SETUP)
+    card = _card(html_report(result, objects, fovs, tmp_path).read_text())
+    words = _words(card)
+    said = "With 1 biological repeat, no difference can be called significant"
+    assert words.count(said) == 1
+    first = re.search(r'<div class="reading"><p>(.*?)</p>', card, flags=re.DOTALL).group(1)
+    assert _words(first).startswith(said)
+    assert "Within the biological repeat, the fields imaged" in words
+    # Nothing across repeats to point to.
+    assert "answered in" not in _help(card) and "This is per repeat" not in _help(card)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_with_one_feature_the_card_has_the_same_layout_and_one_table(tmp_path):
+    objects, fovs = _tables()
+    setup = Setup(readout="area", control={"condition": "ctrl"}, observation_unit="cell")
+    result = report(objects, fovs, setup)
+    card = _card(html_report(result, objects, fovs, tmp_path).read_text())
+    words = _words(card)
+    assert words.index("Within each biological repeat, the fields imaged show") < words.index(
+        "Within each repeat, does the difference from the control show? area"
+    )
+    # Every comparison once, then the precision of each group's own mean, the assumptions.
+    assert card.count("<table") == 1 and "Show more" not in words
+    assert "Enough to pin down each group's own mean of area?" in words
+    assert words.count("Assumptions") == 1 and "stopping rules" not in words.lower()
+    assert "What to do next" not in words

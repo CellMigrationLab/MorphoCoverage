@@ -15,13 +15,17 @@ questions and says, for each, when it is enough as well as when it is not:
 ``enough_by_feature`` returns a ``FeatureEnough``: one row per feature (``table``, the order
 of the feature discovery: significant across repeats first), the contrast of each feature
 (for its detail, one feature at a time) and the precision tally of each. ``with_features``
-puts it at the head of question 2: its answer and status, a table across the features, and
-in the full report every feature's resolution. The stopping rules on the readout stay below
-it, as optimise and live run them.
+puts it at the head of question 2 of the text report: its answer and status, a table across
+the features, and in the full report every feature's resolution. The stopping rules on the
+readout stay below it, as optimise and live run them. The HTML page reads the same results
+its own way (``_html_enough``: one sentence and a table, then a tab per feature, the
+stopping rules left to the plan of the next experiment); ``features_status`` is the headline
+of both, and of "At a glance".
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
@@ -233,26 +237,52 @@ def features_table(features: FeatureEnough, word: str = "well", indent: int = 2)
     return table(rows, columns if rule else columns[:3], indent=indent)
 
 
-def features_status(features: FeatureEnough, word: str = "well") -> tuple[Status, str]:
+def default_precision(setup: Setup) -> bool:
+    """Whether the mean-precision rules are the workflows' default: no ``rules`` and the
+    default first tolerance (``Setup.stopping_rules``)."""
+    from dataclasses import fields
+
+    from .setup import Setup
+
+    tolerance = next(f.default for f in fields(Setup) if f.name == "tolerances")[0]
+    return setup.rules is None and setup.tolerances[0] == tolerance
+
+
+def _for(names: list[str], total: int) -> str:
+    """``for all 13``, ``for both``, or ``for 2 (a and b)``: the features of one verdict."""
+    if len(names) == total and total > 2:
+        return f"for all {total}"
+    if len(names) == total == 2:
+        return "for both"
+    return f"for {len(names)} ({listing(names, 3)})"
+
+
+def features_status(
+    features: FeatureEnough, word: str = "well", default: bool = False
+) -> tuple[Status, str]:
     """Question 2's status and headline over the features: for which it is enough, partly
-    or not yet, the feature needing the most, and the precision of each well's mean."""
+    or not yet, the feature needing the most, and the precision of each well's mean (by the
+    rule named; ``default``: the workflows' default rule, said so)."""
     rows = features.table
     fields = _fields(features)
     parts = []
     for verdict in (ENOUGH, PARTLY, NOT_YET):
         names = list(rows.loc[rows["verdict"] == verdict, "feature"].astype(str))
         if names:
-            parts.append(f"{verdict} for {len(names)} ({listing(names, 3)})")
+            parts.append(f"{verdict} {_for(names, len(rows))}")
     head = "to compare with the control, within single repeats, of " + count(len(rows), "feature")
     text = f"{head}: {'; '.join(parts)}"
     small = rows[rows["too_small"] > 0]
     open_ = rows[rows["needing"] > 0]
     if len(small):
         # Beyond PRACTICAL times the fields: these need the most, said before any projection.
+        many = count(int(small["too_small"].sum()), "comparison")
+        beyond = f"even with {PRACTICAL} times the {fields}"
         text += (
-            f"; {listing(list(small['feature'].astype(str)), 3)}: too small to show in "
-            f"{count(int(small['too_small'].sum()), 'comparison')} even with {PRACTICAL} times the "
-            f"{fields}"
+            f"; {many} too small to show {beyond}, over all {len(rows)} features"
+            if len(small) == len(rows) and len(rows) > 2
+            else f"; {listing(list(small['feature'].astype(str)), 3)}: too small to show in "
+            f"{many} {beyond}"
         )
     if len(open_):
         worst = open_.loc[open_["fields_high"].idxmax()]
@@ -262,9 +292,17 @@ def features_status(features: FeatureEnough, word: str = "well") -> tuple[Status
     precise = rows[rows["precision_met"].notna()]
     if len(precise):
         every = int((precise["precision_met"] == precise["precision_groups"]).sum())
+        rule = precise["precision_rule"].iloc[0]
+        share = (
+            f"all {len(precise)}"
+            if every == len(precise)
+            else f"none of the {len(precise)}"
+            if not every
+            else f"{every} of {len(precise)}"
+        )
         text += (
-            f"; each {word}'s own mean to the precision asked in every {word} for {every} of "
-            f"{len(precise)} features, a different goal from the comparison"
+            f"; each {word}'s own mean meets {'the default' if default else 'the'} {rule} in "
+            f"every {word} for {share} features, a different goal from the comparison"
         )
     status = Status.OK if (rows["verdict"] == ENOUGH).all() else Status.CAUTION
     return status, text
@@ -275,15 +313,20 @@ def _indent(text: str) -> str:
 
 
 def with_features(
-    document: MicroscopistReport, features: FeatureEnough | None, contrast: Any, word: str
+    document: MicroscopistReport,
+    features: FeatureEnough | None,
+    contrast: Any,
+    word: str,
+    default: bool = False,
 ) -> MicroscopistReport:
     """The report with question 2 answered over the features (see the module): its status and
     headline, the table across the features first in the short form (the readout's own
     resolution, now one row of it, left out), and every feature's resolution in the full
-    form."""
+    form. ``default``: the mean-precision rules are the default ones, and the headline says
+    so (with one feature, in its precision words)."""
     if features is None:
-        return document
-    status, headline = features_status(features, word)
+        return _default_named(document, default)
+    status, headline = features_status(features, word, default)
     rule = next((r for r in features.table["precision_rule"] if r), None)
     own = f"; own mean: the {word}s whose mean meets the {rule}" if rule else ""
     intro = wrap(
@@ -312,8 +355,19 @@ def with_features(
     return replace(document, short=short, sections=sections, statuses=statuses, headlines=headlines)
 
 
+def _default_named(document: MicroscopistReport, default: bool) -> MicroscopistReport:
+    """The one-feature headline with its precision rule named the default one."""
+    headline = document.headlines.get("enough", "")
+    match = re.search(r"own mean by the (?=\S)", headline)
+    if not default or match is None:
+        return document
+    named = headline[: match.end()] + "default " + headline[match.end() :]
+    return replace(document, headlines={**document.headlines, "enough": named})
+
+
 __all__ = [
     "FeatureEnough",
+    "default_precision",
     "enough_by_feature",
     "features_status",
     "features_table",
