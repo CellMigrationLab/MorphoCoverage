@@ -204,3 +204,23 @@ def test_the_page_ends_with_the_plan_its_code_left_as_it_is(plain, tmp_path):
     # The cards no longer give optimise's code: the plan does.
     before = page[: order[1]]
     assert "optimise(objects" not in html.unescape(before)
+
+
+def test_with_one_feature_the_readouts_own_verdicts_say_what_is_significant(plain):
+    from types import SimpleNamespace
+
+    from morphocoverage.sampling_unit.reading_text import CONFIRMED, condition_readings
+    from morphocoverage.workflows._html_plan import _difference_goal
+
+    _, _, result = plain
+    contrast = result.results["contrast"]
+    one = SimpleNamespace(
+        setup=SimpleNamespace(readout=result.setup.readout, columns=(result.setup.readout,)),
+        discovery=None,
+        results={"contrast": contrast},
+    )
+    readings = condition_readings(contrast)
+    confirmed = set(readings.loc[readings["verdict"] == CONFIRMED, "condition"])
+    _, panel = _difference_goal(one)
+    listed = {c for _, c in re.findall(r"<tr><td>(.*?)</td><td>(.*?)</td>", panel)}
+    assert not listed & confirmed

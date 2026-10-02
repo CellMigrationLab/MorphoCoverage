@@ -28,6 +28,7 @@ import pandas as pd
 from .._wording import change, count, listing, percent_fine, plural, rate
 from ..data_check import validate_input_tables
 from ..retrospective.report_status import group_word
+from ..sampling_unit.reading_text import CONFIRMED, condition_readings
 from ..sampling_unit.repeat_plan import MAX_REPEATS, POWER
 from ..sampling_unit.repeat_plan_text import field_words
 from ._enough_targets import held_back_note
@@ -192,7 +193,7 @@ def _mean_goal(result: Any, feature: str, counts: list[int], extra: str) -> tupl
         )
         return option, _panel(sentence, extra=extra)
     sentence = (
-        f"optimise replays each well's fields against fields held back from it: how many "
+        f"Optimise replays each well's fields against fields held back from it: how many "
         f"fields hold the mean of {feature} within {_tolerances(result)}, in “How many "
         "fields next time?”, and how reliable each stopping rule was, which says the rule "
         "to run live."
@@ -242,6 +243,13 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
     if not plans:
         return None
     done = _confirmed_pairs(result)
+    # Without a feature discovery (one feature), the readout's own verdicts.
+    contrast = result.results.get("contrast")
+    if not done and contrast is not None:
+        readings = condition_readings(contrast)
+        if len(readings):
+            confirmed = readings.loc[readings["verdict"] == CONFIRMED, "condition"]
+            done = {(result.setup.readout, str(c)) for c in confirmed}
     rows, shown = [], []
     for feature, contrast in plans:
         plan = getattr(contrast, "plan", None)
@@ -287,7 +295,7 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         f"<tbody>{body}</tbody></table></div>"
     )
     sentence = (
-        "optimise plans each well's own measurements, not a comparison: a difference from "
+        "Optimise plans each well's own measurements, not a comparison: a difference from "
         "the control is planned in biological repeats. For each condition not yet "
         "significant across repeats, the repeats a paired t-test on the repeat means needs "
         f"for {rate(POWER)} power, if the change and the variation seen here recur, each "
@@ -506,7 +514,7 @@ def _live_mean(result: Any, feature: str, fovs: pd.DataFrame) -> tuple[str, str]
     )
     sentence = (
         f"Each well stops once its stopping rules say the mean of {feature} is known within "
-        f"{rate(setup.tolerances[0])}. optimise, above, says how reliable each rule was on "
+        f"{rate(setup.tolerances[0])}. Optimise, above, says how reliable each rule was on "
         "these data."
     )
     return f"…the mean of {feature} is known", _panel(sentence, code)
