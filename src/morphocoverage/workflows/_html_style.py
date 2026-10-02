@@ -215,6 +215,9 @@ dl.glossary { margin: 6px 0 14px; }
 .long-table button.show-all { border: 1px solid var(--border); background: var(--surface);
   color: var(--link); border-radius: 6px; padding: 3px 10px; font: inherit; font-size: 13px;
   cursor: pointer; margin: 6px 0; }
+.colour-by-label { font-size: 14px; color: var(--text-2); }
+.colour-by-label select { margin-left: 4px; padding: 3px 8px; border-radius: 6px; font: inherit;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); }
 .legend-box { border-left: 3px solid var(--link); background: var(--surface-2); padding: 10px 14px;
   border-radius: 6px; margin: 12px 0; }
 dl.glossary dt { font-weight: 600; margin-top: 10px; }

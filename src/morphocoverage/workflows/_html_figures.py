@@ -28,6 +28,7 @@ from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE
 from ._html_plotly import feature_specs, interactive_caption
+from ._populations import population_of
 from ._rare_share import with_share
 from ._shared import check_workflow_inputs
 from .figures import plots
@@ -202,7 +203,32 @@ def _views(setup: Any) -> list[tuple[str, Any]]:
     return [*views, ("raw" if declared == "normalised" else "normalised", other)]
 
 
-def _set(embedding: Embedding, method: str, order: dict, values: str) -> dict[str, Any] | None:
+# The most features a map can be coloured by and a selection described with.
+MAP_FEATURES = 60
+
+
+def _extras(points: pd.DataFrame, features: list[str], populations: list[str], label: str | None):
+    """Per point: its population (an index into ``populations``, -1 none), whether it carries
+    the label, and its standardised value of each feature (2 decimals)."""
+    extra: dict[str, Any] = {}
+    if populations and "population" in points:
+        index = {name: i for i, name in enumerate(populations)}
+        extra["pop"] = [index.get(v, -1) for v in points["population"]]
+    if label and label in points:
+        extra["lab"] = [int(bool(v)) if pd.notna(v) else 0 for v in points[label]]
+    extra["z"] = {
+        f: [round(float(v), 2) for v in points[f"z:{f}"]] for f in features if f"z:{f}" in points
+    }
+    return extra
+
+
+def _set(
+    embedding: Embedding,
+    method: str,
+    order: dict,
+    values: str,
+    extras: tuple[list[str], list[str], str | None] = ([], [], None),
+) -> dict[str, Any] | None:
     x, y = (f"{method}1", f"{method}2")
     points = embedding.points.dropna(subset=[x, y])
     if points.empty:
@@ -255,13 +281,36 @@ def _set(embedding: Embedding, method: str, order: dict, values: str) -> dict[st
         "xlabel": labels_xy[0],
         "ylabel": labels_xy[1],
         "arrows": arrows,
+        **_extras(points, *extras),
     }
+
+
+def _colour_menu(data: dict[str, Any]) -> str:
+    """The "Colour by" menu: condition, population (when found) or a feature."""
+    options = ['<option value="condition">condition</option>']
+    if data["populations"]:
+        options.append('<option value="population">population</option>')
+    options += [
+        f'<option value="{html.escape(f)}">{html.escape(f)}</option>' for f in data["features"]
+    ]
+    return (
+        '<label class="colour-by-label">Colour by <select class="colour-by">'
+        + "".join(options)
+        + "</select></label>"
+    )
 
 
 def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[str]]:
     """The interactive PCA and UMAP (its data and its markup), and the static figures."""
     setup = result.setup
     top = result.discovery.top() if result.discovery is not None else ()
+    # The populations of question 10 and the rare label ride on the points (owner, 2026-10-02).
+    found = population_of(result.results.get("populations"), objects)
+    if found is not None:
+        objects = objects.assign(population=found)
+    populations = list(result.results["populations"].populations.names) if found is not None else []
+    label = setup.rare_label if setup.rare_label in objects else None
+    carry = [c for c in ("population", label) if c]
     tables = {"raw": objects}
     control = setup.control
     if control is not None and CONDITION_COLUMN in control:
@@ -277,11 +326,16 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
             fovs,
             features=list(setup.columns),
             top=top,
+            carry=carry,
             random_state=setup.random_state,
             **setup.common,
         )
         for values, table in tables.items()
     }
+    ranked = list(top) + [f for f in setup.columns if f not in set(top)]
+    features = [f for f in ranked if f in next(iter(embeddings.values())).settings["features"]][
+        :MAP_FEATURES
+    ]
     first = next(iter(embeddings.values())).points
     control_value = (control or {}).get(CONDITION_COLUMN)
     names = (
@@ -299,7 +353,7 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
     )
     sets = {
         values: {
-            method: _set(embedding, short, order, values)
+            method: _set(embedding, short, order, values, (features, populations, label))
             for method, short in (("PCA", "pc"), ("UMAP", "umap"))
         }
         for values, embedding in embeddings.items()
@@ -309,6 +363,14 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
         "colours": colours,
         "counts": counts,
         "methods": ["PCA", "UMAP"],
+        "features": features,
+        "populations": [
+            {"name": r.population, "share": round(float(r.share), 4), "defined": r.defined_by}
+            for r in result.results["populations"].populations.table.itertuples()
+        ]
+        if found is not None
+        else [],
+        "label": label,
         "values": list(sets),
         "sets": sets,
     }
@@ -337,10 +399,12 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
             if len(data["values"]) > 1
             else ""
         )
+        + _colour_menu(data)
         + '<button type="button" class="dl full">Enlarge</button>'
-        '<span class="note">Click a condition in the legend to hide it, double-click to show '
-        "it alone; draw around points (the lasso is on) to see which conditions they come "
-        "from; drag the axes or use the toolbar to zoom.</span></div>"
+        '<span class="note">Click an entry in the legend to hide it, double-click to show '
+        "it alone; draw around points (the lasso is on) to see which conditions and "
+        "populations they come from and which features set them apart; colour the map by a "
+        "feature to see where its high and low values sit; ◯ rings a population.</span></div>"
         '<div class="viz-body"><div class="pl-embed"></div>'
         '<div class="selection" aria-live="polite"></div></div>'
         '<p class="caption note"></p>'

@@ -200,7 +200,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         [
             r.population,
             f"{r.observations} ({percent(r.share)})",
-            r.defined_by or "–",
+            defined_by(r.defining[:2]) or "–",
             r.fields,
             r.repeats,
             _enriched(result, r.population),

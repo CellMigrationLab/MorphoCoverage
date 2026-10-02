@@ -100,6 +100,7 @@ def embed(
     *,
     features: Sequence[str],
     top: Sequence[str] = (),
+    carry: Sequence[str] = (),
     umap: bool = True,
     max_points: int = MAX_POINTS,
     n_neighbors: int = N_NEIGHBORS,
@@ -110,7 +111,9 @@ def embed(
     observation_unit: str | None = None,
 ) -> Embedding:
     """PCA (and, with ``umap``, UMAP) of ``features`` (see the module); needs at least
-    ``MIN_FEATURES`` features that vary."""
+    ``MIN_FEATURES`` features that vary. ``carry`` are observation columns copied onto the
+    points (a population, a label); the points also hold each feature's standardised value
+    (``z:<feature>``), for colouring the maps and describing a selection."""
     features = list(dict.fromkeys(features))
     max_points = as_count(max_points, "max_points", 10)
     n_neighbors = as_count(n_neighbors, "n_neighbors", 2)
@@ -139,6 +142,12 @@ def embed(
     points = pd.DataFrame({c: meta[c].to_numpy() for c in columns})
     if data.fov_col in meta and data.fov_col not in columns:
         points["field"] = meta[data.fov_col].to_numpy()
+    kept_rows = data.objects.loc[complete]
+    for column in carry:
+        if column in kept_rows:
+            points[column] = kept_rows[column].to_numpy()
+    for i, feature in enumerate(kept_features):
+        points[f"z:{feature}"] = z[:, i]
     points["pc1"], points["pc2"] = scores[:, 0], scores[:, 1]
     points["umap1"] = points["umap2"] = np.nan
     sampled = 0
