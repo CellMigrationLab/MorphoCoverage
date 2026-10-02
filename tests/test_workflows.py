@@ -180,7 +180,7 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     text = plan.summary(detail="full")
     assert text.startswith(DECLARATION_TITLE)
     assert "how many fields do you need for the covariance of the features within 50%?" in text
-    assert "the rare phenotype (planted) seen in at least 1 field" in text
+    assert "state seen in at least 1 field" in text
     merged = document(result, plan).summary(detail="full")
     assert merged.startswith(opening) and DECLARATION_TITLE in merged
     with pytest.raises(ValueError, match="rare_label"):
