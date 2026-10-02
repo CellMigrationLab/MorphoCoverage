@@ -47,10 +47,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 from .._seeds import group_rng
 from ..metadata import REPEAT_COLUMN as REPEAT
+from ..statistics import paired_t, repeat_values
 from ._experiments import corrected, experiments
 from ._reach import reachable
 
@@ -105,21 +105,11 @@ def sign_flip_test(
     return (extreme + 1) / (n_draws + 1), 1.0 / (n_draws + 1), False
 
 
-def _paired_t(differences: np.ndarray) -> float:
-    """The two-sided paired t-test of the differences; NaN when they do not vary."""
-    if np.isnan(differences).any() or np.ptp(differences) == 0:
-        return np.nan
-    return float(stats.ttest_1samp(differences, 0.0).pvalue)
-
-
 def _log_ratios(block: pd.DataFrame) -> np.ndarray:
     """Per repeat, log(condition mean / control mean); NaN (no test) unless every mean is
     positive, since a ratio to a mean at or below 0 has no meaning as a fold change."""
-    means = block["mean"].to_numpy(float)
-    controls = block["control_mean"].to_numpy(float)
-    if (means <= 0).any() or (controls <= 0).any():
-        return np.full(len(means), np.nan)
-    return np.log(means / controls)
+    values, ratios, _ = repeat_values(block["mean"], block["control_mean"])
+    return ratios if values == "normalised" else np.full(len(block), np.nan)
 
 
 def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: int) -> pd.DataFrame:
@@ -172,8 +162,8 @@ def across_repeats(table: pd.DataFrame, repeat_col: str | None, random_state: in
                 p_sign_flip=p,
                 p_sign_flip_floor=floor,
                 p_sign_flip_exact=exact,
-                p_paired_t=_paired_t(differences),
-                p_paired_t_normalised=_paired_t(_log_ratios(block)),
+                p_paired_t=paired_t(differences),
+                p_paired_t_normalised=paired_t(_log_ratios(block)),
             )
         rows.append(row)
     result = pd.DataFrame(rows, columns=REPEAT_COLUMNS)

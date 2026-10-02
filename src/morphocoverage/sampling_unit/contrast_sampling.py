@@ -106,8 +106,13 @@ def sampling_row(
         "resolved": resolved,
         "difference_se": float(np.std(values[:, 1] - values[:, 2], ddof=1)),
     }
-    if (values[:, 1:] > 0).all():
-        row["log_ratio_se"] = float(np.std(np.log(values[:, 1] / values[:, 2]), ddof=1))
+    # The log ratio from the draws whose means are both positive (a draw of only the lowest
+    # fields can reach 0), when most are: the test takes the log ratios when the acquired
+    # means are positive, whatever a few draws give.
+    positive = (values[:, 1] > 0) & (values[:, 2] > 0)
+    if positive.sum() >= n_boot / 2:
+        ratios = np.log(values[positive, 1] / values[positive, 2])
+        row["log_ratio_se"] = float(np.std(ratios, ddof=1))
     if not resolved:
         half = (high - low) / 2
         needed = n_fields * (half / abs(d)) ** 2 if d else np.inf

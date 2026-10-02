@@ -193,9 +193,12 @@ def _reference_means(
         else {}
     )
     of_name = {repr(r): block.get(r) for _, d in all_groups for r in repeats_of(d)}
-    blocks: dict[int | None, dict[str, np.ndarray]] = {}
+    # A repeat holding only the control belongs to no sub-experiment: compared with all.
+    blocks: dict[int | None, dict[str, np.ndarray]] = {b: {} for b in set(block.values())}
+    blocks = blocks or {None: {}}
     for r, values in pooled.items():
-        blocks.setdefault(of_name.get(r), {})[names[r]] = values
+        for b in blocks if of_name.get(r) is None else [of_name[r]]:
+            blocks[b][names[r]] = values
     shifts = [shift for shift in map(_shift, blocks.values()) if shift is not None]
     caution = max(shifts)[1] if shifts else None
     return means, label, negative, caution

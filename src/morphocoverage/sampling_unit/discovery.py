@@ -45,6 +45,7 @@ from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
 from .._wording import change, count, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..statistics import paired_t, repeat_values
 from ._common import groups, validated
 from ._experiments import corrected, experiments
 from ._units import (
@@ -57,7 +58,7 @@ from ._units import (
     sides,
 )
 from .contrast_cells import trusted_test
-from .contrast_repeats import MIN_REPEATS, _paired_t
+from .contrast_repeats import MIN_REPEATS
 
 EFFECT_CAP = 20.0
 GATE_ALPHA = 0.05
@@ -121,26 +122,18 @@ def _pooled(
 
 
 def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int, float, float]:
-    """The paired t-test on the repeat means (log ratios when every mean is positive), how
-    many repeats are lower and higher than the control, the test on the raw differences
-    (as ``condition_contrast`` gives it beside, so the readout's reading shares this family)
-    and the change it tests: the geometric mean of the ratios (a fold change), else the mean
-    difference."""
+    """The paired t-test on the repeat means (``statistics.repeat_values``: log ratios when
+    every mean is positive), how many repeats are lower and higher than the control, the
+    test on the raw differences (as ``condition_contrast`` gives it beside, so the readout's
+    reading shares this family) and the change it tests (a fold change, else the mean
+    difference)."""
     means = np.array([np.mean(by_t[r]) for r in by_t])
     controls = np.array([np.mean(by_c[r]) for r in by_t])
     lower, higher = int((means < controls).sum()), int((means > controls).sum())
-    positive = bool((means > 0).all() and (controls > 0).all())
-    change = (
-        float(np.exp(np.mean(np.log(means / controls))))
-        if positive
-        else float(np.mean(means - controls))
-    )
+    values, compared, change = repeat_values(means, controls)
     if len(means) < MIN_REPEATS:
-        return np.nan, "normalised" if positive else "raw", lower, higher, np.nan, change
-    raw = _paired_t(means - controls)
-    if positive:
-        return _paired_t(np.log(means / controls)), "normalised", lower, higher, raw, change
-    return raw, "raw", lower, higher, raw, change
+        return np.nan, values, lower, higher, np.nan, change
+    return paired_t(compared), values, lower, higher, paired_t(means - controls), change
 
 
 def _row(

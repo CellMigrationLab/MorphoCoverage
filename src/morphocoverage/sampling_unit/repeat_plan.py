@@ -45,6 +45,7 @@ import pandas as pd
 from scipy import stats
 
 from ..metadata import REPEAT_COLUMN as REPEAT
+from ..statistics import repeat_values
 from ._experiments import experiments
 from .contrast_sampling import PRACTICAL
 
@@ -110,17 +111,27 @@ def _fields_per_repeat(block: pd.DataFrame) -> float:
 
 def _test_values(block: pd.DataFrame) -> tuple[str, np.ndarray, np.ndarray]:
     """The values the paired t-test compares, per repeat, and their sampling errors: the log
-    ratios when every mean is positive, else the differences; Cohen's d without the errors."""
-    means = block["mean"].to_numpy(float) if "mean" in block else np.array([np.nan])
-    controls = block["control_mean"].to_numpy(float) if "control_mean" in block else means
-    ratio_se = block["log_ratio_se"].to_numpy(float) if "log_ratio_se" in block else means
-    if (means > 0).all() and (controls > 0).all() and np.isfinite(ratio_se).all():
-        return "log ratio", np.log(means / controls), ratio_se
-    difference_se = block["difference_se"].to_numpy(float) if "difference_se" in block else means
-    if np.isfinite(means).all() and np.isfinite(difference_se).all():
-        return "difference", means - controls, difference_se
-    d = block["d_objects"].to_numpy(float)
-    return "d", d, ((block["d_high"] - block["d_low"]) / (2 * _Z)).to_numpy(float)
+    ratios when every mean is positive, else the differences (``statistics.repeat_values``,
+    as the test chooses); Cohen's d when the table has no sampling error of them."""
+    d_errors = ((block["d_high"] - block["d_low"]) / (2 * _Z)).to_numpy(float)
+    if not {"mean", "control_mean", "log_ratio_se", "difference_se"} <= set(block.columns):
+        return "d", block["d_objects"].to_numpy(float), d_errors
+    values, compared, _ = repeat_values(block["mean"], block["control_mean"])
+    column = "log_ratio_se" if values == "normalised" else "difference_se"
+    errors = block[column].to_numpy(float)
+    if not (np.isfinite(compared).all() and np.isfinite(errors).all()):
+        return "d", block["d_objects"].to_numpy(float), d_errors
+    return ("log ratio" if values == "normalised" else "difference"), compared, errors
+
+
+def _change(table: pd.DataFrame, condition: Any, control: Any) -> float:
+    """The change against the control over every repeat holding both means, as the verdict
+    gives it (``statistics.repeat_values``), whether or not a repeat has an interval of d."""
+    rows = table[(table["condition"] == condition) & (table["control_condition"] == control)]
+    if "mean" not in rows:
+        return np.nan
+    rows = rows[rows["mean"].notna() & rows["control_mean"].notna()]
+    return repeat_values(rows["mean"], rows["control_mean"])[2] if len(rows) else np.nan
 
 
 def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER) -> pd.DataFrame:
@@ -153,7 +164,7 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
             "between_sd": np.nan,
             "within_se": float(np.sqrt(d_within)),
             "planned_on": planned_on,
-            "change": float(np.exp(mean)) if planned_on == "log ratio" else mean,
+            "change": _change(table, condition, control) if planned_on != "d" else np.nan,
             "fields_per_repeat": _fields_per_repeat(block),
             "limited_by": "",
             "repeats_needed": np.nan,

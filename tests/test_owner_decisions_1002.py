@@ -173,7 +173,7 @@ def test_a_condition_that_splits_its_cells_is_said_to():
     )
     [row] = result.splits().to_dict("records")
     assert row["condition"] == "drug" and row["split_repeats"] == 3
-    assert split_words(result, "drug").startswith("its cells split into two groups on x")
+    assert split_words(result, "drug").startswith("its cells may split into two groups on x")
     assert split_words(result, "ctrl") == ""
 
 

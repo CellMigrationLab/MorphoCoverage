@@ -27,6 +27,7 @@ from ..retrospective.inspection_text import _fields, _keys
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.reading_text import VERDICTS, condition_readings
 from ._distribution import split_words
+from ._enough_features import NOT_YET
 
 _MARKERS = {status.marker: status for status in Status}
 _MARKER_LINE = re.compile(r"^\s*(✅|⚠️|❌|➖)\s+(.*)$")
@@ -178,8 +179,10 @@ def _change(row: Any) -> str:
 def _significant(row: Any) -> str:
     q = f"adjusted p {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
     size = ", ".join(x for x in (_change(row), q) if x)
+    # The direction and its count from the repeats, as the test across repeats reads them.
+    word = "higher" if row.higher >= row.lower else "lower"
     return (
-        f"{row.feature}: {_direction(row)} in {max(row.lower, row.higher)} of {row.repeats} "
+        f"{row.feature}: {word} in {max(row.lower, row.higher)} of {row.repeats} "
         f"repeats ({size}; cell-level d {row.d:+.2f})"
     )
 
@@ -299,9 +302,21 @@ def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
     )
 
 
+def chip_words(result: Any) -> dict[str, str]:
+    """The chip words the results decide, by question, where the headline's words could
+    mislead: "Not yet" when no feature has enough fields to compare with the control."""
+    words = {}
+    features = (getattr(result, "results", {}) or {}).get("enough_features")
+    table = getattr(features, "table", None)
+    if table is not None and len(table) and (table["verdict"] == NOT_YET).all():
+        words["enough"] = "Not yet"
+    return words
+
+
 __all__ = [
     "check_chip",
     "check_rows",
+    "chip_words",
     "fields_table",
     "flagged_fields",
     "help_icon",

@@ -33,6 +33,7 @@ from .._style import Status, table, wrap
 from .._wording import count, listing
 from ..retrospective.report_resolved import has_resolution, resolved_full
 from ..sampling_unit.contrast import condition_contrast
+from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency import sufficiency_report
 from ..sufficiency_short import rule_tallies
@@ -247,10 +248,11 @@ def features_status(features: FeatureEnough, word: str = "well") -> tuple[Status
     small = rows[rows["too_small"] > 0]
     open_ = rows[rows["needing"] > 0]
     if len(small):
-        # Beyond 4 times the fields: these need the most, said before any projection.
+        # Beyond PRACTICAL times the fields: these need the most, said before any projection.
         text += (
             f"; {listing(list(small['feature'].astype(str)), 3)}: too small to show in "
-            f"{count(int(small['too_small'].sum()), 'comparison')} even with 4 times the {fields}"
+            f"{count(int(small['too_small'].sum()), 'comparison')} even with {PRACTICAL} times the "
+            f"{fields}"
         )
     if len(open_):
         worst = open_.loc[open_["fields_high"].idxmax()]

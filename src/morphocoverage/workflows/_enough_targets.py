@@ -37,8 +37,9 @@ if TYPE_CHECKING:
 
 SPLITS = 20
 MIN_FIELDS = 4
-# The share of a group's fields optimise holds back in the lab runs (reservoir_fraction).
-HELD_BACK = 0.5
+# The share of a group's fields optimise holds back (reservoir_fraction), as the page's
+# "What to do next" runs it (``_html_next``) and docs/workflows.md shows it.
+HELD_BACK = 0.35
 
 
 def fingerprint_precision(
@@ -129,7 +130,8 @@ def fingerprint_lines(table: pd.DataFrame, word: str, fields: str) -> list[str]:
             )
         if (judged["held_back_error"] > judged["tolerance"]).all():
             text += (
-                f" Optimise judges it on held-back {fields}: holding back half of a {word}'s "
+                f" Optimise judges it on held-back {fields}: holding back {rate(HELD_BACK)} of a "
+                f"{word}'s "
                 f"{fields}, their own error (about {_number(judged['held_back_error'].median())}) "
                 "exceeds the tolerance, so it cannot confirm this target; this estimate is the "
                 "guide."

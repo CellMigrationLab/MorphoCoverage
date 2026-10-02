@@ -166,5 +166,5 @@ The plan powers the test that decides: the paired t-test on each repeat's log ra
 the condition's mean to the control's (the difference of the means where a mean is not
 positive), with the spread of those values between the repeats and their sampling error
 within one (a bootstrap of the fields as acquired, which also gives each repeat's
-interval of d). The table gives the change per repeat it plans on (a fold change) beside
+interval of d). The table gives the change it plans on (the geometric mean of the repeats' fold changes) beside
 the mean d.

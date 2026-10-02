@@ -10,10 +10,10 @@ pooled over each side's technical repeats (as ``feature_discovery`` pools them):
 - **the quantiles**: the shift of the 10%, 50% and 90% quantiles, in control SDs.
 
 - **a split into two groups**: Sarle's bimodality coefficient of each side, per repeat
-  (``statistics.bimodality_coefficient``); a condition splits its cells (``splits``) when
-  its coefficient is above 5/9 and its control's is not, in at least half of its repeats. A
-  skewed feature reaches 5/9 too, so the control's own shape is the reference; this is
-  described, not tested.
+  (``statistics.bimodality_coefficient``); a condition's cells may split in two
+  (``splits``) when its coefficient is above 5/9 without a heavy tail (excess kurtosis at
+  most ``HEAVY_TAIL``: a skewed single-peaked feature reaches 5/9 too) and its control's
+  is below 5/9, in at least half of its repeats. Described, not tested.
 
 Each statistic is tested across the biological repeats like a mean (a one-sample t-test
 on its per-repeat values, ``MIN_REPEATS`` repeats or more), its p-values Benjamini-Hochberg
@@ -34,18 +34,20 @@ import pandas as pd
 
 from .._wording import count
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
-from ..statistics import BIMODAL, bimodality_coefficient
+from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, paired_t
 from ._common import groups, validated
 from ._experiments import corrected, experiments
 from ._units import contrasts_of, describe_groups, resolve_columns
-from .contrast_repeats import MIN_REPEATS, _paired_t
+from .contrast_repeats import MIN_REPEATS
 from .discovery import _pooled
 
 QUANTILES = (0.1, 0.5, 0.9)
 # The statistics compared, in the order the report gives them.
 STATISTICS = ("spread", "q10", "q50", "q90")
 ALPHA = 0.05
-SHAPE_COLUMNS = ["feature", "condition", "repeat", "bimodality", "control_bimodality"]
+SHAPE_COLUMNS = ["feature", "condition", "repeat", "bimodality", "kurtosis", "control_bimodality"]
+# The excess kurtosis above which a sample has a heavy tail rather than two groups.
+HEAVY_TAIL = 2.0
 SPLIT_COLUMNS = [
     "feature",
     "condition",
@@ -71,7 +73,15 @@ class DistributionContrast:
         shapes = self.shapes
         if shapes.empty:
             return pd.DataFrame(columns=SPLIT_COLUMNS)
-        shows = (shapes["bimodality"] > BIMODAL) & ~(shapes["control_bimodality"] > BIMODAL)
+        # Two groups, not a long tail: a skewed single-peaked feature (an exponential, a
+        # lognormal) also passes 5/9, but with a heavy tail (excess kurtosis above 2, the
+        # package's heavy-tail threshold, ``strategies._averaging_cv``); the control's
+        # coefficient must be known and below 5/9.
+        shows = (
+            (shapes["bimodality"] > BIMODAL)
+            & (shapes["kurtosis"] <= HEAVY_TAIL)
+            & (shapes["control_bimodality"] <= BIMODAL)
+        )
         rows = []
         for (feature, condition), block in shapes.assign(shows=shows).groupby(
             ["feature", "condition"], sort=False
@@ -142,7 +152,7 @@ def _rows(feature: str, condition: Any, side: dict[str, Any]) -> list[dict[str, 
                 "high": float(np.max(values)) if len(values) else np.nan,
                 "lower": int((values < 0).sum()),
                 "higher": int((values > 0).sum()),
-                "p": _paired_t(values) if tested else np.nan,
+                "p": paired_t(values) if tested else np.nan,
             }
         )
     return rows
@@ -185,6 +195,7 @@ def distribution_contrast(
                     "condition": condition,
                     "repeat": repeat,
                     "bimodality": bimodality_coefficient(treated),
+                    "kurtosis": excess_kurtosis(treated),
                     "control_bimodality": bimodality_coefficient(side["by_c"][repeat]),
                 }
                 for repeat, treated in side["by_t"].items()

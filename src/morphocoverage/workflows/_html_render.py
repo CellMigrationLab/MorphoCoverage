@@ -109,9 +109,12 @@ _ADJUSTED = (
 _TEXT_NODE = re.compile(r">([^<]+)<")
 
 
+_SCRIPT = re.compile(r"(<script\b.*?</script>)", re.DOTALL)
+
+
 def adjusted_p(markup: str) -> str:
     """``markup`` with every q (a Benjamini-Hochberg q-value) in its text called the
-    adjusted p."""
+    adjusted p; its scripts (the figures' data) left as they are."""
 
     def fix(match: re.Match) -> str:
         text = match.group(1)
@@ -119,17 +122,23 @@ def adjusted_p(markup: str) -> str:
             text = pattern.sub(words, text)
         return f">{text}<"
 
-    return _TEXT_NODE.sub(fix, markup)
+    parts = _SCRIPT.split(markup)
+    return "".join(
+        part if part.startswith("<script") else _TEXT_NODE.sub(fix, part) for part in parts
+    )
 
 
-def chip(status: Status | None, key: str = "", answer: str = "") -> str:
+def chip(status: Status | None, key: str = "", answer: str = "", word: str | None = None) -> str:
     """The status as a coloured chip with its icon and the word for what the answer found
-    (never colour alone): per question (``key``) and, where the ``answer`` decides it, the
-    answer."""
+    (never colour alone): ``word`` when the results give it (``_html_cards.chip_words``),
+    else per question (``key``) and, where the ``answer`` decides it, the answer."""
     if status is None:
         return ""
-    kind, word = STATUS_WORDS[status]
-    word = RESULT_WORDS.get((key, status), word)
+    kind, default = STATUS_WORDS[status]
+    if word is not None:
+        icon = f'<span aria-hidden="true">{status.marker}</span>'
+        return f'<span class="chip {kind}">{icon} {word}</span>'
+    word = RESULT_WORDS.get((key, status), default)
     if key == "enough" and status is Status.CAUTION and "shown in 0 of" in answer:
         word = "Not yet"
     few = re.search(r"\bn = ([12])\b", answer) if key in ("conditions", "populations") else None

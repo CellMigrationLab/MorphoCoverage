@@ -61,7 +61,7 @@ def _named(rows: pd.DataFrame) -> list[str]:
 
 
 def split_words(result: DistributionContrast | None, condition: Any) -> str:
-    """``its cells split into two groups on area (bimodality 0.62, the control 0.41, in 3 of
+    """``its cells may split into two groups on area (bimodality 0.62, the control 0.41, in 3 of
     3 repeats; see its figure)``, or empty when the condition splits no feature."""
     splits = result.splits() if result is not None else pd.DataFrame()
     mine = splits[splits["condition"] == condition] if len(splits) else splits
@@ -75,8 +75,8 @@ def split_words(result: DistributionContrast | None, condition: Any) -> str:
     ]
     figures = "its figure" if len(mine) == 1 else "their figures"
     return (
-        f"its {unit_plural(unit)} split into two groups on {listing(named, 4)}, where the "
-        f"control's do not (see {figures})"
+        f"its {unit_plural(unit)} may split into two groups on {listing(named, 4)}, where "
+        f"the control's do not (see {figures})"
     )
 
 

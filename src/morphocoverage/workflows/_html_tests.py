@@ -28,9 +28,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import change, count, listing, p_value, percent
+from .._wording import change, count, listing, p_value, percent, rate
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
+from ..sampling_unit.reading_text import CONFIRMED, CONSISTENT, MIXED
+from ..sampling_unit.repeat_plan import POWER
 from ._families import _CELL_VERSIONS
 from ._html_data import data_buttons, write_csv
 from ._html_tabs import tabs_html, test_blocks
@@ -88,14 +90,20 @@ def _direction(lower: int, higher: int, n: int) -> str:
     return f"lower in {lower}, higher in {higher} of {n}"
 
 
-def _verdict(q: float, lower: int, higher: int, n: int) -> str:
+def _verdict(q: float, lower: int, higher: int, n: int, confirmed: bool | None = None) -> str:
+    """The verdict in the reading's words (``reading_text.VERDICTS``): a direction that
+    changes between repeats first, then significant across repeats (the discovery's
+    ``confirmed``, which also needs the cell-level screen, when given; else q <= 0.05)."""
     if n < MIN_REPEATS:
         return f"not tested (needs {MIN_REPEATS} repeats)"
-    if pd.notna(q) and q <= ALPHA:
-        return "significant"
-    if n and (lower == n or higher == n):
-        return "same direction, not significant"
-    return "no consistent direction"
+    if not (lower == n or higher == n):
+        return MIXED
+    significant = pd.notna(q) and q <= ALPHA
+    if confirmed if confirmed is not None else significant:
+        return CONFIRMED
+    if significant:
+        return "adjusted p ≤ 0.05, but not a candidate of the cell-level screen"
+    return CONSISTENT
 
 
 def _order(tests: pd.DataFrame, discovery: Any) -> pd.DataFrame:
@@ -128,11 +136,13 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
                 "adjusted_p": tests["q_paired"],
                 "p_raw": tests["p_paired_raw"],
                 "adjusted_p_raw": tests["q_paired_raw"],
+                "confirmed": tests["confirmed"].fillna(False).astype(bool),
             }
         )
     elif contrast is not None and len(contrast.repeats):
         rep = contrast.repeats
-        normalised = rep["p_paired_t_normalised"].notna()
+        # One mask for the values, the change and p: normalised when every mean is positive.
+        normalised = rep["fold_change"].notna()
         frame = pd.DataFrame(
             {
                 "feature": result.setup.readout,
@@ -141,10 +151,8 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
                 "repeats": rep["repeats"],
                 "lower": rep["lower"],
                 "higher": rep["higher"],
-                "values": np.where(rep["fold_change"].notna(), "normalised", "raw"),
-                "change": rep["fold_change"].where(
-                    rep["fold_change"].notna(), rep["mean_difference"]
-                ),
+                "values": np.where(normalised, "normalised", "raw"),
+                "change": rep["fold_change"].where(normalised, rep["mean_difference"]),
                 "p": rep["p_paired_t_normalised"].where(normalised, rep["p_paired_t"]),
                 "adjusted_p": rep["q_paired_t_normalised"].where(normalised, rep["q_paired_t"]),
                 "p_raw": rep["p_paired_t"],
@@ -157,7 +165,8 @@ def _across(result: Any, folder: Path) -> tuple[str, int]:
     else:
         return "", 0
     frame["verdict"] = [
-        _verdict(r.adjusted_p, r.lower, r.higher, r.repeats) for r in frame.itertuples()
+        _verdict(r.adjusted_p, r.lower, r.higher, r.repeats, getattr(r, "confirmed", None))
+        for r in frame.itertuples()
     ]
     many = frame["feature"].nunique() > 1
     single_d = "d_per_repeat_mean" in frame
@@ -444,7 +453,7 @@ def _explainer(result: Any, kinds: Sequence[str], family: str) -> str:
     if "Planning" in kinds:
         planning = (
             "For a new experiment: the biological repeats the paired t-test would need for "
-            "80% power if the difference and the variation seen here recur, and the "
+            f"{rate(POWER)} power if the difference and the variation seen here recur, and the "
             f"{unit} a side that would show the difference within one repeat."
         )
         parts.append(("Planning", planning))

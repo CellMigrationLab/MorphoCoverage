@@ -6,13 +6,13 @@ under each plot: the effect size and the test, in one matrix.
   higher read apart) and the randomization test on it, as Plot&Stats runs it: the condition
   labels shuffled over the observations of the two conditions (``contrast_cells.
   cell_randomization``, ``N_PERMUTATIONS`` shuffles), taken from the repeats that imaged
-  both, so each condition meets the control of its own repeats (as the reading does); two
-  conditions imaged in different repeats are compared as provided, and marked. The p-values are
-  Benjamini-Hochberg corrected over the pairs (``q``), as the feature discovery corrects
-  its gate. The paired t-test on the repeats' means is kept beside it (``p_paired``, for
-  pairs imaged in ``MIN_REPEATS`` shared repeats), not drawn: on three repeats it has
-  little power. A pair imaged in different repeats is tested too, but its difference holds
-  the batch between them: it is marked. Pairs without the control are not the declared
+  both, so each condition meets the control of its own repeats (as the reading does). Two
+  conditions imaged in different repeats (two sub-experiments) get their d, marked †, and
+  no test: the batch between their repeats would be in it. The p-values are
+  Benjamini-Hochberg corrected over the pairs of the figure (``q``); the report's tables
+  correct over every feature and condition, and the figure's note says so. The paired
+  t-test on the repeats' means is kept beside it (``p_paired``, for pairs imaged in
+  ``MIN_REPEATS`` shared repeats). Pairs without the control are not the declared
   comparisons: they describe, as the notebook's do.
 - ``add_pairwise``: the matrix drawn under a ``plots.plots_of_data`` figure, the figure made
   taller for it: the lower-left triangle holds d (blue lower, red higher, full colour at
@@ -42,9 +42,9 @@ from ._seeds import group_rng
 from .data_check import validate_input_tables
 from .metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from .sampling_unit.contrast_cells import cell_randomization
-from .sampling_unit.contrast_repeats import MIN_REPEATS, _paired_t
+from .sampling_unit.contrast_repeats import MIN_REPEATS
 from .schema import fov_positions
-from .statistics import benjamini_hochberg
+from .statistics import benjamini_hochberg, cohen_d, paired_t, repeat_values
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -107,15 +107,20 @@ LOWER, HIGHER, MIDDLE = (42, 120, 214), (227, 73, 72), (240, 239, 236)
 P_STRONG, P_WEAK = (46, 125, 50), (240, 239, 236)
 
 
+# The values the paired test compares, as the figure's notes name them.
+_VALUE_WORDS = {"normalised": "log ratios", "raw": "differences"}
+
+
 def _paired(first: dict, second: dict) -> tuple[float, str, int]:
+    """The paired t-test of two conditions on the repeats they share, the values it
+    compares, and how many repeats they share (no test below ``MIN_REPEATS``)."""
     shared = [r for r in first if r in second]
     if len(shared) < MIN_REPEATS:
         return np.nan, "", len(shared)
     a = np.array([np.mean(first[r]) for r in shared])
     b = np.array([np.mean(second[r]) for r in shared])
-    if (a > 0).all() and (b > 0).all():
-        return _paired_t(np.log(a / b)), "log ratios", len(shared)
-    return _paired_t(a - b), "differences", len(shared)
+    values, compared, _ = repeat_values(a, b)
+    return paired_t(compared), _VALUE_WORDS[values], len(shared)
 
 
 def pairwise_contrasts(
@@ -174,16 +179,14 @@ def pairwise_contrasts(
         if common:
             a = a[a["repeat"].isin(common)]
             b = b[b["repeat"].isin(common)]
-        rng = group_rng(random_state, {"feature": feature, "first": first, "second": second})
-        d, p = cell_randomization(a["value"].to_numpy(), b["value"].to_numpy(), n_permutations, rng)
-        if not common:
-            p = np.nan
-        if not common:
-            status = "imaged in different repeats"
-        elif not np.isfinite(p):
-            status = "one value everywhere"
+            rng = group_rng(random_state, {"feature": feature, "first": first, "second": second})
+            d, p = cell_randomization(
+                a["value"].to_numpy(), b["value"].to_numpy(), n_permutations, rng
+            )
+            status = "ok" if np.isfinite(p) else "one value everywhere"
         else:
-            status = "ok"
+            d, p = cohen_d(a["value"].to_numpy(), b["value"].to_numpy()), np.nan
+            status = "imaged in different repeats"
         rows.append(
             {
                 "feature": feature,
@@ -254,12 +257,12 @@ def _cells_d(pair: Any, row: Any) -> tuple[str, tuple, str]:
     return text, d_colour(d), "normal"
 
 
-def _cells_p(value: float, apart: bool = False) -> tuple[str, tuple, str]:
-    """A p- or q-value cell: green at or below ``ALPHA``, "–" when there is none."""
+def _cells_p(value: float) -> tuple[str, tuple, str]:
+    """A p- or q-value cell: green at or below ``ALPHA``, "–" when there is none (a pair
+    imaged in different repeats is not tested: its † is on its d)."""
     if not np.isfinite(value):
         return "–", p_colour(np.nan), "normal"
-    text = format_p(value) + ("†" if apart else "")
-    return text, p_colour(value), "bold" if value <= ALPHA else "normal"
+    return format_p(value), p_colour(value), "bold" if value <= ALPHA else "normal"
 
 
 def _matrix(
@@ -278,11 +281,7 @@ def _matrix(
             if pair is None:
                 continue
             if panel == "B":
-                cell = (
-                    _cells_d(pair, row)
-                    if i > j
-                    else _cells_p(float(pair.q), pair.shared_repeats == 0)
-                )
+                cell = _cells_d(pair, row) if i > j else _cells_p(float(pair.q))
             else:
                 cell = _cells_p(float(pair.p_paired if i > j else pair.q_paired))
             text, colour, weight = cell

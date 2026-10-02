@@ -162,7 +162,7 @@ def _stops_cell(stops: pd.DataFrame, config: str, kind: str, groups: int) -> str
     total, stopped = int(rows["orders"].sum()), int(met.sum())
     if stopped == total:
         return text
-    # Most orders never met it: said first, the fields only for those that did (audit).
+    # Some orders never met it: said first, the fields only for those that did (audit).
     that = "the order" if stopped == 1 else f"the {stopped}"
     return f"never in {total - stopped} of {total} orders; {text} in {that} that met it"
 

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import base64
 import html
-import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -21,13 +20,14 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._palette import COLOURS
 from .._wording import percent
 from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_TITLES
-from ._html_data import data_buttons, download, embedding_data, feature_data
+from ._html_data import data_buttons, download, embedding_data, feature_data, json_island
 from ._html_plotly import feature_specs, interactive_caption
 from ._populations import population_of
 from ._rare_share import with_share
@@ -35,22 +35,9 @@ from ._shared import check_workflow_inputs
 from .figures import plots
 from .retrospective import Report
 
-# The categorical palette of the interactive figures, the control included (no grey: it is
-# hard to see); beyond its 12 colours they repeat, and the legend and hover name each point.
-COLOURS = (
-    "#2a78d6",
-    "#eb6834",
-    "#1baf7a",
-    "#eda100",
-    "#e87ba4",
-    "#008300",
-    "#4a3aa7",
-    "#e34948",
-    "#00a3b4",
-    "#8c564b",
-    "#b0469c",
-    "#6b7f00",
-)
+# The interactive figures use the static figures' palette (``_palette.COLOURS``, the
+# control included, no grey); beyond its 12 colours they repeat, and the legend and hover
+# name each point.
 
 
 def _save(figure: Any, folder: Path, name: str) -> str:
@@ -81,6 +68,19 @@ def condition_colours(objects: pd.DataFrame, fovs: pd.DataFrame, control: Any) -
     return {name: COLOURS[i % len(COLOURS)] for i, name in enumerate(names)}
 
 
+def file_stem(name: Any, taken: set[str]) -> str:
+    """``name`` as a file name and page id (letters, digits, ``-_.``), made unique among
+    ``taken`` with a counter (``a b`` and ``a_b`` are two features, two files); added to
+    ``taken``."""
+    stem = "".join(c if c.isalnum() or c in "-_." else "_" for c in str(name)) or "feature"
+    unique, n = stem, 1
+    while unique in taken:
+        n += 1
+        unique = f"{stem}_{n}"
+    taken.add(unique)
+    return unique
+
+
 def feature_figures(
     result: Report, objects: pd.DataFrame, fovs: pd.DataFrame, folder: Path
 ) -> tuple[list[str], list[dict[str, Any]]]:
@@ -100,8 +100,9 @@ def feature_figures(
     checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
     prepared = {key: with_share(view.prepared(checked, checked_fovs), view) for key, view in views}
     blocks, names, explained = [], {}, False
+    taken: set[str] = set()
     for feature, parts in drawn.items():
-        stem = "".join(c if c.isalnum() or c in "-_." else "_" for c in str(feature))
+        stem = file_stem(feature, taken)
         # The data each figure draws, to draw it again outside (owner, 2026-10-02).
         data = feature_data(
             stem,
@@ -113,8 +114,7 @@ def feature_figures(
             folder,
         )
         for index, figure in enumerate(parts, start=1):
-            name = f"{feature}_{index}" if len(parts) > 1 else str(feature)
-            name = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
+            name = file_stem(f"{stem}_{index}", taken) if len(parts) > 1 else stem
             names[f"{feature}#{index}"] = name
             rank = f"best-ranked feature {top.index(feature) + 1}" if feature in top else ""
             role = rank or "a declared feature"
@@ -426,9 +426,7 @@ def embeddings(
         "with the tests between conditions. On raw values a separation can be a batch between "
         "repeats, which the normalised values (each divided by its repeat's control mean) take "
         "out.</p></div>"
-        '<script type="application/json" id="embedding-data">'
-        + json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
-        + "</script>"
+        '<script type="application/json" id="embedding-data">' + json_island(data) + "</script>"
     )
     return markup, static
 

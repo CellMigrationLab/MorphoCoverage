@@ -88,7 +88,7 @@ from ._enough_features import enough_by_feature
 from ._enough_targets import fingerprint_precision
 from ._label_control import label_control
 from ._populations import populations_in_report
-from ._result_influence import with_result_influence
+from ._result_influence import influence_on_result, with_result_influence
 from ._shared import (
     check_workflow_inputs,
     conditions,
@@ -288,7 +288,7 @@ def report(
     novel = novelty is not None and bool(setup.features)
     # With a contrast, a field's influence is on the result (the repeat means the paired
     # test compares, _result_influence); without one, on the field-weighted mean.
-    on_result = "contrast" in results
+    on_result = influence_on_result(results.get("contrast"))
     results["inspection"] = inspect_fovs(
         objects,
         fovs,

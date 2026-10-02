@@ -18,14 +18,14 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 from .._style import Status, table, wrap
 from .._wording import count, listing, p_value, percent, percent_fine
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit._experiments import corrected, experiments
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
-from ..sampling_unit.populations import Populations, defined_by, find_populations
+from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
+from ..statistics import paired_t
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -37,11 +37,10 @@ ALPHA = 0.05
 @dataclass(frozen=True)
 class PopulationsResult:
     """The populations, the enrichment tests (``None`` without a control or a second
-    condition), each population's share per condition, and the label's overlap."""
+    condition) and the label's overlap."""
 
     populations: Populations
     enrichment: pd.DataFrame | None  # one row per population and condition (enrichment_tests)
-    shares: pd.DataFrame  # population x condition: share of that condition's cells
     label: pd.DataFrame | None  # population, held (of the labelled), purity
     control: Any
 
@@ -58,15 +57,10 @@ def populations_in_report(
         objects, fovs, features=features, random_state=setup.random_state, **setup.common
     )
     if not populations.names:
-        return PopulationsResult(populations, None, pd.DataFrame(), None, None)
+        return PopulationsResult(populations, None, None, None)
     complete = objects.loc[~objects[features].isna().any(axis=1)]
     labels = populations.labels.reindex(complete.index)
     marked = complete.assign(**{name: (labels == name).astype(float) for name in populations.names})
-    shares = (
-        marked.groupby(CONDITION_COLUMN)[populations.names].mean().T
-        if CONDITION_COLUMN in marked
-        else pd.DataFrame()
-    )
     control = (setup.control or {}).get(CONDITION_COLUMN)
     enrichment = None
     several = CONDITION_COLUMN in marked and marked[CONDITION_COLUMN].nunique() > 1
@@ -90,7 +84,7 @@ def populations_in_report(
                     }
                 )
         label = pd.DataFrame(rows, columns=["population", "held", "purity"])
-    return PopulationsResult(populations, enrichment, shares, label, control)
+    return PopulationsResult(populations, enrichment, label, control)
 
 
 def tested_populations(populations: Populations) -> list[str]:
@@ -99,10 +93,27 @@ def tested_populations(populations: Populations) -> list[str]:
     return populations.of_kind("distinct", "group")
 
 
-def _logit(k: float, n: float) -> float:
-    """The log odds of a share of ``k`` in ``n``, half a cell added to each side so a share
-    of 0 or 1 has one."""
-    return float(np.log((k + 0.5) / (n - k + 0.5)))
+def _log_odds_ratio(t: Any, c: Any) -> float:
+    """The log odds ratio of the condition's share against its control's in one repeat
+    (``t`` and ``c`` the cells in the population, ``sum``, and the cells, ``count``). One
+    pseudo-cell is added to each side, split by the population's pooled share of that repeat,
+    so a share of 0 has log odds and uneven numbers of cells do not tip the ratio (a fixed
+    half cell would make 1 of 5000 read lower than 0 of 300); NaN when the population is
+    absent from both sides."""
+    pooled = (t["sum"] + c["sum"]) / (t["count"] + c["count"])
+    if not pooled > 0:
+        return np.nan
+
+    def odds(k: float, n: float) -> float:
+        return float(np.log((k + pooled) / (n - k + 1 - pooled)))
+
+    return odds(t["sum"], t["count"]) - odds(c["sum"], c["count"])
+
+
+def one_sided(tests: pd.DataFrame) -> pd.Series:
+    """The tests on one side of the control in every repeat, over two or more repeats."""
+    every = (tests["higher"] == tests["repeats"]) | (tests["lower"] == tests["repeats"])
+    return every & (tests["repeats"] >= 2) & (tests["higher"] != tests["lower"])
 
 
 def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd.DataFrame:
@@ -115,7 +126,7 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
     keys = [CONDITION_COLUMN, *([repeat] if repeat else [])]
     counts = marked.groupby(keys, dropna=False)[names].agg(["sum", "count"])
     conditions = [c for c in pd.unique(marked[CONDITION_COLUMN]) if c != control]
-    rows, held = [], {}
+    rows, held, unpaired = [], {}, []
     for condition in conditions:
         repeats = (
             [
@@ -128,33 +139,34 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
         )
         if not repeat and not ((condition,) in counts.index or condition in counts.index):
             continue
+        if not repeats:
+            unpaired.append(condition)
+            continue
         held[condition] = set(repeats)
         for name in names:
-            ratios, higher, lower = [], 0, 0
+            ratios = []
             sides = {"t": [0.0, 0.0], "c": [0.0, 0.0]}  # cells in it, cells, on each side
             for r in repeats:
                 t = counts.loc[(condition, r) if repeat else condition, name]
                 c = counts.loc[(control, r) if repeat else control, name]
-                ratios.append(_logit(t["sum"], t["count"]) - _logit(c["sum"], c["count"]))
-                share_t, share_c = t["sum"] / t["count"], c["sum"] / c["count"]
-                higher += int(share_t > share_c)
-                lower += int(share_t < share_c)
+                ratios.append(_log_odds_ratio(t, c))
                 sides["t"] = [sides["t"][0] + t["sum"], sides["t"][1] + t["count"]]
                 sides["c"] = [sides["c"][0] + c["sum"], sides["c"][1] + c["count"]]
             # Absent from the condition and from its own control: nothing to compare.
-            if not sides["t"][0] and not sides["c"][0]:
+            ratios = np.array([r for r in ratios if np.isfinite(r)])
+            if not len(ratios):
                 continue
-            ratios = np.array(ratios)
-            tested = len(ratios) >= MIN_REPEATS and np.ptp(ratios) > 0
+            tested = len(ratios) >= MIN_REPEATS
             rows.append(
                 {
                     "feature": name,
                     "condition": condition,
                     "repeats": len(ratios),
-                    "higher": higher,
-                    "lower": lower,
-                    "d": float(ratios.mean()) if len(ratios) else np.nan,
-                    "p_paired": float(stats.ttest_1samp(ratios, 0.0).pvalue) if tested else np.nan,
+                    # The sides as the test reads them (the sign of each repeat's ratio).
+                    "higher": int((ratios > 0).sum()),
+                    "lower": int((ratios < 0).sum()),
+                    "d": float(ratios.mean()),
+                    "p_paired": paired_t(ratios) if tested else np.nan,
                     # Over the condition's repeats: its share and its own control's.
                     "share": sides["t"][0] / sides["t"][1] if sides["t"][1] else np.nan,
                     "control_share": sides["c"][0] / sides["c"][1] if sides["c"][1] else np.nan,
@@ -167,6 +179,8 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
         tests["q_paired"] = corrected(tests["p_paired"], tests["experiment"])
     else:
         tests["q_paired"] = pd.Series(dtype=float)
+    # The conditions imaged in no biological repeat of the control: not compared, and said.
+    tests.attrs["unpaired"] = unpaired
     return tests
 
 
@@ -178,9 +192,13 @@ def _tests(result: PopulationsResult, name: str) -> pd.DataFrame:
 
 
 def _side(row: Any) -> str:
-    """``higher in 3 of 3``, ``lower in 2 of 3``, or ``no change in 3 of 3``."""
-    if row["higher"] == row["lower"]:
-        return f"no change in {int(row['repeats'])} of {int(row['repeats'])}"
+    """``higher in 3 of 3``, ``lower in 2 of 3``, ``no change in 3 of 3``, or ``mixed (1
+    higher, 1 lower, of 3)``."""
+    n, higher, lower = int(row["repeats"]), int(row["higher"]), int(row["lower"])
+    if higher == lower:
+        if not higher:
+            return f"no change in {n} of {n}"
+        return f"mixed ({higher} higher, {lower} lower, of {n})"
     side = "higher" if row["higher"] > row["lower"] else "lower"
     return f"{side} in {max(row['higher'], row['lower'])} of {int(row['repeats'])}"
 
@@ -213,10 +231,7 @@ def _verdict(result: PopulationsResult) -> tuple[list[str], list[str]]:
             continue
         if (tests["q_paired"] <= ALPHA).any():
             significant.append(name)
-        elif (
-            ((tests["higher"] == tests["repeats"]) | (tests["lower"] == tests["repeats"]))
-            & (tests["higher"] != tests["lower"])
-        ).any():
+        elif one_sided(tests).any():
             trend.append(name)
     return significant, trend
 
@@ -233,17 +248,16 @@ def _finding(result: PopulationsResult, name: str, units: str, trend: bool = Fal
     row = result.populations.table.set_index("population").loc[name]
     tests = _tests(result, name)
     if trend:
-        one_side = (tests["higher"] == tests["repeats"]) | (tests["lower"] == tests["repeats"])
-        tests = tests[one_side & (tests["higher"] != tests["lower"])]
+        tests = tests[one_sided(tests)]
     else:
         tests = tests[tests["q_paired"] <= ALPHA]
     parts = []
     for _, t in tests.iterrows():
-        more = "more" if t["higher"] >= t["lower"] else "less"
+        more = "more" if t["d"] > 0 else "less"
         versus = _versus(t)
         versus = f"{versus}, " if versus else ""
         parts.append(f"{more} common in {t['condition']} ({versus}q {p_value(t['q_paired'])})")
-    feature = defined_by(row["defining"][:1]).split(" (d")[0]
+    feature = traits(row["defining"][:1])
     where = "in every repeat, not significant" if trend else "across repeats"
     share = percent_fine(row["share"])
     return f"{name} ({share} of {units}; {feature}): {listing(parts, 3)} {where}"
@@ -293,6 +307,14 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         f"standardisation; a cluster holds at least {settings['min_cells']} {units}), each "
         "cluster then judged on all the features"
     )
+    if not settings.get("clustered", True):
+        text = wrap(
+            f"{method}: not clustered: too few {units} (or no feature that varies) for two "
+            f"clusters of {settings['min_cells']}.",
+            2,
+            hang=4,
+        )
+        return Status.NOT_ASSESSED, f"not clustered: too few {units}", text
     if not pops.names:
         text = wrap(
             f"{method}: no distinct population and no group; the {units} form one continuum "
@@ -326,11 +348,11 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         if not len(tests):
             continue
         parts = []
-        for _, t in tests.iterrows():
+        sided = one_sided(tests)
+        for index, t in tests.iterrows():
             enriched = pd.notna(t["q_paired"]) and t["q_paired"] <= ALPHA
-            consistent = max(t["higher"], t["lower"]) == t["repeats"] and t["repeats"] > 1
-            consistent = consistent and t["higher"] != t["lower"]
-            side = "higher" if t["higher"] > t["lower"] else "lower"
+            consistent = bool(sided.loc[index])
+            side = "higher" if t["d"] > 0 else "lower"
             versus = _versus(t)
             versus = f"{versus}, " if versus else ""
             if enriched:
@@ -352,6 +374,16 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
                     hang=6,
                 )
             )
+    unpaired = result.enrichment.attrs.get("unpaired", []) if result.enrichment is not None else []
+    if unpaired:
+        lines.append(
+            wrap(
+                f"Not compared: {listing([str(c) for c in unpaired], 4)} (no biological repeat "
+                "shared with the control).",
+                4,
+                hang=6,
+            )
+        )
     if setup.rare_label is not None:
         line = _label_line(result, setup.rare_label)
         if line:
@@ -398,7 +430,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         if result.enrichment is not None and len(result.enrichment)
         else 0
     )
-    if result.enrichment is not None and held < 3:
+    if result.enrichment is not None and held < MIN_REPEATS:
         headline += f" (n = {held}: no test across repeats)"
         status = Status.NOT_ASSESSED
     return status, headline, "\n".join(lines)

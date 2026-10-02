@@ -18,7 +18,7 @@ import pandas as pd
 
 from .._caveats import assumption
 from .._style import table, wrap
-from .._wording import count, listing, percent
+from .._wording import change, count, listing, percent
 from ..schema import unit_plural
 from .contrast_sampling import PRACTICAL
 from .repeat_plan import ALPHA, MAX_REPEATS, POWER
@@ -61,12 +61,13 @@ def _fields_cell(value: float, fields: str = "fields") -> str:
 
 
 def change_cell(row: Any) -> str:
-    """The change the plan powers, as the paired t-test sees it: a fold change of the means
-    (``×1.25``), else the difference of the means; ``–`` for a plan on Cohen's d."""
-    value = row.get("change", np.nan)
-    if pd.isna(value) or row.get("planned_on") not in ("log ratio", "difference"):
+    """The change the plan powers, as the paired t-test sees it (``_wording.change``): a fold
+    change of the means, else the difference of the means; ``–`` for a plan on Cohen's d."""
+    if row.get("planned_on") not in ("log ratio", "difference"):
         return "–"
-    return f"×{value:.3g}" if row["planned_on"] == "log ratio" else f"{value:+.3g}"
+    return change(
+        row.get("change", np.nan), "normalised" if row["planned_on"] == "log ratio" else "raw"
+    )
 
 
 def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list[str], list[str]]:
@@ -110,7 +111,7 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         )
     columns = [
         "condition",
-        "change per repeat",
+        "change across repeats",
         f"mean d per repeat ({words})",
         "repeats needed",
         f"with twice the {fields}",
@@ -133,8 +134,9 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         assumption(
             f"Repeats needed: for a paired t-test at p ≤ {ALPHA:g}/m, m the conditions of the "
             "sub-experiment (what Benjamini-Hochberg asks at most), on the values that test "
-            "compares: the change per repeat (each repeat's mean over its control's, a fold "
-            "change; the difference of the means where a mean is not positive), its spread "
+            "compares: each repeat's change (its mean over its control's, a fold change; the "
+            "difference of the means where a mean is not positive; the table gives their "
+            "geometric mean, as the verdict does), its spread "
             "between the repeats and its sampling error within one. All projected from the "
             "repeats here, so the plan is a guide."
         )

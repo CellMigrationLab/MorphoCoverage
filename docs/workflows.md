@@ -373,10 +373,11 @@ acquired:
   tested across the repeats (Benjamini-Hochberg within each sub-experiment,
   a family of its own). A condition whose distribution differs answers the
   question like a feature significant across repeats. When a condition's cells
-  split into two groups on a feature where the control's do not (Sarle's
-  bimodality coefficient above 5/9 for the condition and not for the control, in
-  at least half of its repeats), the summary says so and points to its figure:
-  described, not tested, since a skewed feature reaches 5/9 too.
+  may split into two groups on a feature where the control's do not (Sarle's
+  bimodality coefficient above 5/9 for the condition without a heavy tail, excess
+  kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
+  below 5/9 for the control, in at least half of its repeats), the summary says
+  so and points to its figure: described, not tested.
 - **"Are there distinct populations?"** (question 10, in every report) finds
   groups of cells that sit together on all the declared features, from every
   condition pooled. The candidates are the clusters of HDBSCAN (scikit-learn) on a

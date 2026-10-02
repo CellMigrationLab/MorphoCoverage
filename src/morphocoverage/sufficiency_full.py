@@ -315,12 +315,12 @@ def full_summary(report: Any, target: float | None = None) -> str:
     keys = list(report.group_cols)
     target = target if target is not None else getattr(report, "novelty_target", None)
     tallies = rule_tallies(report)
+    shared = _shared_undefined(report) if tallies else {}
     blocks = []
     head = [f"Analysis groups: {group_columns(keys)}."] if keys else []
     if tallies:
         head += _rules_table(report, tallies, 0)
         head.append(_rule_names(report))
-        shared = _shared_undefined(report)
         head += [
             wrap(f"{label} is undefined in every group: {reason}.", 0, hang=2)
             for label, reason in shared.items()
@@ -341,7 +341,6 @@ def full_summary(report: Any, target: float | None = None) -> str:
     groups = pd.concat(tables).drop_duplicates() if tables and keys else None
     rows = [()] * bool(tables) if groups is None else groups.itertuples(index=False, name=None)
     varying = _varying(report) if len(report.final) else {}
-    shared = _shared_undefined(report) if tallies else {}
     for values in rows:
         group = dict(zip(keys, values, strict=True))
         acquired = rows_of(report.enough, group) if len(report.enough) and keys else report.enough

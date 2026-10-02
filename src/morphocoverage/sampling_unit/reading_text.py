@@ -41,6 +41,7 @@ import pandas as pd
 
 from .._style import wrap
 from .._wording import column_word, count, listing, p_value, percent, percent_fine
+from ..statistics import repeat_values
 from ._experiments import family_words
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
@@ -170,10 +171,10 @@ def change_words(contrast: Any, condition: Any) -> str:
     if table is None or "mean" not in table:
         return ""
     rows = table[table["condition"] == condition]
-    ratio = (rows["mean"] / rows["control_mean"]).to_numpy(dtype=float)
-    if not len(ratio) or not (np.isfinite(ratio).all() and (ratio > 0).all()):
+    rows = rows[rows["mean"].notna() & rows["control_mean"].notna()]
+    values, _, fold = repeat_values(rows["mean"], rows["control_mean"])
+    if not len(rows) or values != "normalised":
         return ""
-    fold = float(np.exp(np.mean(np.log(ratio))))
     side = "lower" if fold < 1 else "higher"
     return f"mean {percent_fine(abs(fold - 1))} {side} than the control"
 

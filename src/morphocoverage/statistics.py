@@ -17,6 +17,13 @@ import numpy as np
 from scipy import stats
 
 from ._checks import is_integer, is_number
+from ._repeat_statistics import (
+    BIMODAL,
+    bimodality_coefficient,
+    excess_kurtosis,
+    paired_t,
+    repeat_values,
+)
 
 # Relative size below which a mean, a spread or a variance is rounding noise
 # of a zero one: a constant such as 0.1 leaves an SD of about 1e-17, not 0.
@@ -77,26 +84,6 @@ def cohen_d(first: np.ndarray, second: np.ndarray) -> float:
     if spread_is_zero(math.sqrt(max(pooled, 0.0)), np.concatenate([first, second])):
         return float("nan")
     return float((first.mean() - second.mean()) / np.sqrt(pooled))
-
-
-# Sarle's bimodality coefficient above this suggests two groups of values (5/9, its value
-# for a uniform distribution).
-BIMODAL = 5 / 9
-
-
-def bimodality_coefficient(values: np.ndarray) -> float:
-    """Sarle's bimodality coefficient ``(g1**2 + 1) / (G2 + 3 (n-1)**2 / ((n-2)(n-3)))`` with
-    the bias-corrected skewness and excess kurtosis (``scipy.stats``, ``bias=False``); NaN
-    below 4 values or without spread. Above ``BIMODAL`` the values may form two groups (a
-    strongly skewed distribution can also reach it)."""
-    values = np.asarray(values, dtype=float)
-    values = values[np.isfinite(values)]
-    n = len(values)
-    if n < 4 or np.ptp(values) == 0:
-        return float("nan")
-    skew = float(stats.skew(values, bias=False))
-    kurtosis = float(stats.kurtosis(values, bias=False))
-    return (skew**2 + 1) / (kurtosis + 3 * (n - 1) ** 2 / ((n - 2) * (n - 3)))
 
 
 def jcs_effect_size(treated: np.ndarray, control: np.ndarray) -> float:
@@ -576,6 +563,7 @@ __all__ = [
     "describe",
     "design_effect",
     "effective_sd_upper_bound_factor",
+    "excess_kurtosis",
     "field_sample",
     "field_weighted_mean_se",
     "fields_holding",
@@ -588,6 +576,8 @@ __all__ = [
     "median_standard_error",
     "nested_variance_components",
     "object_weighted_mean_se",
+    "paired_t",
+    "repeat_values",
     "sd_upper_bound_factor",
     "small_sample_widening",
     "spread_is_zero",

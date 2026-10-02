@@ -47,9 +47,9 @@ def _design(contrast: Any) -> str:
 def _families(across: pd.DataFrame, features: int | None = None) -> str:
     """The correction family, counted: ``2 tests (siCCT8#5 and siCCT8#8 against siCTRL)``
     per sub-experiment."""
-    tested = across[across["p_paired_t_normalised"].notna() | across["p_paired_t"].notna()]
     if features and features > 1:
         return f"over {features} features and their conditions"
+    tested = across[across["p_paired_t_normalised"].notna() | across["p_paired_t"].notna()]
     groups = list(tested.groupby("experiment", sort=False))
     sizes = sorted({len(block) for _, block in groups})
     if len(groups) == 1:
