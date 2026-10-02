@@ -26,6 +26,7 @@ from ..sampling_unit.distribution import (
 from ..schema import unit_plural
 
 if TYPE_CHECKING:
+    from ..retrospective import MicroscopistReport
     from .setup import Setup
 
 HEAD = "Beyond the mean"
@@ -167,7 +168,9 @@ def _insert(text: str, paragraph: str) -> str:
     return f"{text[:at]}\n{paragraph}{text[at:]}"
 
 
-def with_distribution(document: Any, result: DistributionContrast | None, unit: str = "cells"):
+def with_distribution(
+    document: MicroscopistReport, result: DistributionContrast | None, unit: str = "cells"
+) -> MicroscopistReport:
     """The report with the distributions compared in question 9: the paragraph in the short
     and full forms, the headline extended, and a difference answering the question."""
     if result is None:

@@ -76,10 +76,13 @@ class Rows:
     recurrence: np.ndarray
 
     def of(self, i: int) -> slice:
+        """The rows of field ``i``, as a slice of the sorted rows."""
         return slice(int(self.starts[i]), int(self.starts[i] + self.sizes[i]))
 
     @classmethod
     def build(cls, matrix: np.ndarray, positions: np.ndarray, n_fields: int) -> Rows:
+        """The rows of ``matrix`` sorted by field (``positions``), their ids at the stated
+        precision, and for each field the first field holding the same rows."""
         order = np.argsort(positions, kind="stable")
         values, field = matrix[order], positions[order]
         sizes = np.bincount(field, minlength=n_fields)

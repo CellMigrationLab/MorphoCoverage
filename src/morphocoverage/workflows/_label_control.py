@@ -26,6 +26,7 @@ from .._wording import count, listing, percent, plural
 from ..schema import fov_positions, validate_input_tables
 
 if TYPE_CHECKING:
+    from ..retrospective import MicroscopistReport
     from .setup import Setup
 
 # Neighbours looked up per labelled cell before the first one of another field is taken.
@@ -133,7 +134,9 @@ def label_answer(check: LabelControl) -> tuple[Status, str, str]:
 __all__ = ["LabelControl", "label_answer", "label_control", "with_label_check"]
 
 
-def with_label_check(document: Any, check: LabelControl | None, results: dict[str, Any]):
+def with_label_check(
+    document: MicroscopistReport, check: LabelControl | None, results: dict[str, Any]
+) -> MicroscopistReport:
     """The report with question 1 answered by the label when no positive control ran."""
     if check is None or results.get("controls") is not None:
         return document

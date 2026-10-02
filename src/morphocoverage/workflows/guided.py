@@ -203,7 +203,12 @@ def _read(source: Any, name: str) -> tuple[pd.DataFrame | None, str | None]:
     return pd.read_csv(path), str(path)
 
 
-def _load(ask, say, objects, fovs):
+def _load(
+    ask: q.Ask,
+    say: q.Say,
+    objects: pd.DataFrame | str | Path | None,
+    fovs: pd.DataFrame | str | Path | None,
+) -> tuple[pd.DataFrame, pd.DataFrame | None, dict[str, Any]]:
     if objects is None:
         path = q.text(ask, "Path to the observation table (one row per cell, track, ...):")
         objects = path
@@ -221,7 +226,9 @@ def _load(ask, say, objects, fovs):
     return objects, fovs, dataset
 
 
-def _saved(ask, say, folder: Path, dataset: dict[str, Any]) -> tuple[Answers | None, str | None]:
+def _saved(
+    ask: q.Ask, say: q.Say, folder: Path, dataset: dict[str, Any]
+) -> tuple[Answers | None, str | None]:
     """Saved answers to continue with (or ``None`` after starting over), and the reason to
     stop when the user keeps a file that cannot be used."""
     path = folder / ANSWERS_FILE
@@ -255,7 +262,7 @@ def _saved(ask, say, folder: Path, dataset: dict[str, Any]) -> tuple[Answers | N
     return None, None
 
 
-def _questions(ask, say, scan: DesignScan, dataset: dict[str, Any]) -> Answers | None:
+def _questions(ask: q.Ask, say: q.Say, scan: DesignScan, dataset: dict[str, Any]) -> Answers | None:
     if not scan.data_check.ok:
         say("The tables cannot be analysed until the errors above are fixed.")
         return None

@@ -143,7 +143,13 @@ def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int, float, float]
     return raw, "raw", lower, higher, raw, change
 
 
-def _row(feature: str, condition: Any, side: dict, n_permutations: int, rng) -> dict[str, Any]:
+def _row(
+    feature: str,
+    condition: Any,
+    side: dict[str, Any],
+    n_permutations: int,
+    rng: np.random.Generator,
+) -> dict[str, Any]:
     by_t, by_c = side["by_t"], side["by_c"]
     p_paired, paired_values, lower, higher, p_raw, change = _paired(by_t, by_c)
     row: dict[str, Any] = {

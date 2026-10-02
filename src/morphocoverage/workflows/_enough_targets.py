@@ -32,6 +32,7 @@ from ..evaluator import FovSubsets, iter_analysis_groups
 from ..schema import validate_input_tables
 
 if TYPE_CHECKING:
+    from ..retrospective import MicroscopistReport
     from .setup import Setup
 
 SPLITS = 20
@@ -159,7 +160,9 @@ def rare_lines(clustering: Any, setup: Setup, word: str, field: str) -> list[str
     return [wrap(text, 2, hang=4)]
 
 
-def targets_status(clustering: Any, precision: pd.DataFrame | None, setup: Setup):
+def targets_status(
+    clustering: Any, precision: pd.DataFrame | None, setup: Setup
+) -> tuple[list[Status], list[str]]:
     """The status and headline parts of the targets: every group meets them, or not."""
     statuses, parts = [], []
     if clustering is not None and setup.rare is not None:
@@ -179,7 +182,9 @@ def targets_status(clustering: Any, precision: pd.DataFrame | None, setup: Setup
     return statuses, parts
 
 
-def with_targets(document: Any, results: dict[str, Any], setup: Setup, word: str, field: str):
+def with_targets(
+    document: MicroscopistReport, results: dict[str, Any], setup: Setup, word: str, field: str
+) -> MicroscopistReport:
     """The report with the rare and fingerprint targets answered in question 2."""
     clustering = results.get("rare_clustering") if setup.rare is not None else None
     precision = results.get("fingerprint_precision")

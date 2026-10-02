@@ -15,7 +15,7 @@ Figures are ``matplotlib.figure.Figure`` objects built without pyplot, as in ``p
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -26,6 +26,9 @@ from ._palette import COLOURS, FONT, INK, style_axes
 from ._wording import count, percent
 from .embedding import Embedding
 from .metadata import CONDITION_COLUMN, sorted_labels
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 ARROWS = 5
 MAX_CONDITIONS = len(COLOURS)
@@ -40,7 +43,7 @@ def _colours(points: pd.DataFrame, control: Any) -> dict[Any, str]:
     return {c: COLOURS[i % len(COLOURS)] for i, c in enumerate(conditions)}
 
 
-def _scatter(ax, points: pd.DataFrame, x: str, y: str, colours: dict[Any, str]) -> None:
+def _scatter(ax: Axes, points: pd.DataFrame, x: str, y: str, colours: dict[Any, str]) -> None:
     for condition, colour in colours.items():
         mine = points if condition is None else points[points[CONDITION_COLUMN] == condition]
         mine = mine.dropna(subset=[x, y])
@@ -65,7 +68,7 @@ def _scatter(ax, points: pd.DataFrame, x: str, y: str, colours: dict[Any, str]) 
         )
 
 
-def _arrows(ax, embedding: Embedding) -> None:
+def _arrows(ax: Axes, embedding: Embedding) -> None:
     loadings = embedding.loadings
     shown = loadings[loadings["top"]]
     if shown.empty:

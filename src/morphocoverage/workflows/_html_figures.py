@@ -62,6 +62,7 @@ def _save(figure: Any, folder: Path, name: str) -> str:
 
 
 def figure_block(uri: str, name: str, caption: str) -> str:
+    """A static figure with its caption and its PDF and PNG download links."""
     return (
         f'<figure><img src="{uri}" alt="{html.escape(caption)}" loading="lazy">'
         f"<figcaption>{html.escape(caption)} · "
@@ -81,7 +82,7 @@ def condition_colours(objects: pd.DataFrame, fovs: pd.DataFrame, control: Any) -
 
 
 def feature_figures(
-    result: Report, objects, fovs, folder: Path
+    result: Report, objects: pd.DataFrame, fovs: pd.DataFrame, folder: Path
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """The best-ranked features: each figure's block (interactive, with its static PNG and
     PDF and its data as CSV) and the specs the page's script draws (``_html_plotly``)."""
@@ -209,7 +210,9 @@ def _views(setup: Any) -> list[tuple[str, Any]]:
 MAP_FEATURES = 60
 
 
-def _extras(points: pd.DataFrame, features: list[str], populations: list[str], label: str | None):
+def _extras(
+    points: pd.DataFrame, features: list[str], populations: list[str], label: str | None
+) -> dict[str, Any]:
     """Per point: its population (an index into ``populations``, -1 none), whether it carries
     the label, and its standardised value of each feature (2 decimals)."""
     extra: dict[str, Any] = {}
@@ -302,7 +305,9 @@ def _colour_menu(data: dict[str, Any]) -> str:
     )
 
 
-def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[str]]:
+def embeddings(
+    result: Report, objects: pd.DataFrame, fovs: pd.DataFrame, folder: Path
+) -> tuple[str, list[str]]:
     """The interactive PCA and UMAP (its data and its markup), and the static figures."""
     setup = result.setup
     top = result.discovery.top() if result.discovery is not None else ()

@@ -24,6 +24,8 @@ from ._style import NOT_ASSESSED, Status, check_detail, group_columns, headline,
 from ._wording import count, listing
 
 if TYPE_CHECKING:
+    from pandas.core.groupby import DataFrameGroupBy
+
     from .integrity import IntegrityResult
 
 # Lines (full) or rows (short) of findings printed before "and N more".
@@ -119,7 +121,7 @@ def _label(settings: dict[str, Any], name: str, key: str = "field_labels") -> st
     return settings.get(key, {}).get(name, name)
 
 
-def _groups(findings: pd.DataFrame):
+def _groups(findings: pd.DataFrame) -> DataFrameGroupBy:
     """The findings by check and pair of groups, in the order found."""
     return findings.groupby(["check", "group", "other_group"], sort=False)
 

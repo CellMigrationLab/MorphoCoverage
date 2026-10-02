@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import combinations
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -45,6 +45,10 @@ from .sampling_unit.contrast_cells import cell_randomization
 from .sampling_unit.contrast_repeats import MIN_REPEATS, _paired_t
 from .schema import fov_positions
 from .statistics import benjamini_hochberg
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.patches import FancyBboxPatch
 
 ALPHA = 0.05
 D_CAP = 2.0
@@ -258,7 +262,9 @@ def _cells_p(value: float, apart: bool = False) -> tuple[str, tuple, str]:
     return text, p_colour(value), "bold" if value <= ALPHA else "normal"
 
 
-def _matrix(ax: Any, conditions: list, table: pd.DataFrame, panel: str, *, ylabels: bool):
+def _matrix(
+    ax: Axes, conditions: list[Any], table: pd.DataFrame, panel: str, *, ylabels: bool
+) -> None:
     """Draw panel ``"B"`` (d and the randomization q) or ``"C"`` (the paired p and q)."""
     n = len(conditions)
     lookup = {(r.first, r.second): r for r in table.itertuples()}
@@ -340,7 +346,7 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
     set_legend(figure, [sentences(caption), PAIR_NOTE, PAIRED_NOTE])
 
 
-def _square(x: float, y: float, colour: tuple[float, float, float]):
+def _square(x: float, y: float, colour: tuple[float, float, float]) -> FancyBboxPatch:
     from matplotlib.patches import FancyBboxPatch
 
     return FancyBboxPatch(

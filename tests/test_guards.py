@@ -184,6 +184,23 @@ def test_every_module_stays_under_600_lines():
     assert not long, f"split these modules (AGENTS.md): {long}"
 
 
+def test_every_function_is_annotated():
+    # AGENTS.md section 12 (2026-09-26): type hints on every function, private helpers
+    # included; a 2026-10-02 cleanup found 21 that had slipped.
+    missing = []
+    for path in MODULES:
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            args = node.args
+            named = [*args.posonlyargs, *args.args, *args.kwonlyargs]
+            params = [a for a in named if a.arg not in ("self", "cls")]
+            params += [a for a in (args.vararg, args.kwarg) if a is not None]
+            if node.returns is None or any(a.annotation is None for a in params):
+                missing.append(f"{_relative(path)}:{node.lineno} {node.name}")
+    assert not missing, missing
+
+
 def test_field_identity_is_resolved_only_by_metadata():
     # The live session, LiveTables and the validator each once resolved the field
     # their own way; only metadata may define how a FOV column is chosen. The one

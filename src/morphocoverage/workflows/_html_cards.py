@@ -53,6 +53,8 @@ def help_icon(text: str | None) -> str:
 
 
 def check_chip(status: Status) -> str:
+    """The chip of one check of "The data": its marker and word ("OK", "Please check",
+    "Partly checked")."""
     kind, word = _CHECK_WORDS[status]
     icon = f'<span aria-hidden="true">{status.marker}</span>'
     return f'<span class="chip {kind}">{icon} {word}</span>'
@@ -143,6 +145,7 @@ def _field_values(name: str, key: list[str]) -> tuple[str, ...] | None:
 
 
 def fields_table(rows: list[tuple[str, str]], annotate: Callable[[str], str]) -> str:
+    """The fields to check, one row per field with why, sortable."""
     body = "".join(
         f"<tr><td>{html.escape(field)}</td><td>{annotate(html.escape(why))}</td></tr>"
         for field, why in rows

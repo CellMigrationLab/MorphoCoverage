@@ -28,6 +28,7 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, find_populations
 
 if TYPE_CHECKING:
+    from ..retrospective import MicroscopistReport
     from .setup import Setup
 
 ALPHA = 0.05
@@ -419,7 +420,9 @@ __all__ = [
 ]
 
 
-def with_populations(document: Any, result: PopulationsResult | None, setup: Setup):
+def with_populations(
+    document: MicroscopistReport, result: PopulationsResult | None, setup: Setup
+) -> MicroscopistReport:
     """The report with question 10 answered (``populations_text``)."""
     if result is None:
         return document
