@@ -36,6 +36,15 @@ def percent(value: float) -> str:
     return f"{math.floor(share + 0.5):.0f}%"
 
 
+def percent_fine(value: float) -> str:
+    """A share with one decimal below 10% (``6.8%``, ``1.8%``), else as ``percent``: for small
+    shares set side by side, which whole percentages would read alike."""
+    value = float(value)
+    if not math.isnan(value) and 0.01 <= value < 0.1:
+        return f"{100 * value:.1f}%"
+    return percent(value)
+
+
 def rate(value: float) -> str:
     """A declared rate as it was set: ``2.5%``, ``5%``, ``95%``, ``0.1%`` (never rounded).
 
@@ -162,6 +171,7 @@ __all__ = [
     "ordinal",
     "p_value",
     "percent",
+    "percent_fine",
     "plural",
     "rate",
     "rows_of",

@@ -108,9 +108,10 @@ def chip(status: Status | None, key: str = "", answer: str = "") -> str:
     if few:
         word = f"No conclusion (n = {few.group(1)})"
     elif key == "populations" and "no distinct population" in answer:
-        word = "None distinct"
+        word = "One continuum"
     elif key in ("conditions", "populations") and status is Status.CAUTION:
-        word = "Trend only" if "same direction" in answer else "No consistent difference"
+        consistent = "same direction" in answer or "in every repeat" in answer
+        word = "Trend only" if consistent else "No consistent difference"
     icon = f'<span aria-hidden="true">{status.marker}</span>'
     return f'<span class="chip {kind}">{icon} {word}</span>'
 
