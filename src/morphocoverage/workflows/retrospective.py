@@ -87,6 +87,7 @@ from ._document import (
 from ._enough_features import enough_by_feature
 from ._enough_targets import fingerprint_precision
 from ._label_control import label_control
+from ._populations import populations_in_report
 from ._shared import (
     check_workflow_inputs,
     conditions,
@@ -109,7 +110,15 @@ CALIBRATION_TITLE = (
 )
 # The rule check as the "At a glance" block names it.
 CALIBRATION_SHORT = "Rules. How reliable was each stopping rule?"
-REPORT_QUESTIONS = ("unit", "controls", "enough", "profile", "inspect", "conditions")
+REPORT_QUESTIONS = (
+    "unit",
+    "controls",
+    "enough",
+    "profile",
+    "inspect",
+    "conditions",
+    "populations",
+)
 PLAN_QUESTIONS = ("next_time", "bought", "effort", "order")
 # The random orders in which the report replays each rule for "Did I image enough?".
 REPORT_ORDERS = 5
@@ -244,6 +253,8 @@ def report(
         results["distribution"] = distribution_by_feature(objects, fovs, setup)
     if setup.fingerprint:
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
+    # Question 10: populations on every condition pooled, then their enrichment.
+    results["populations"] = populations_in_report(prepared, fovs, setup)
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None

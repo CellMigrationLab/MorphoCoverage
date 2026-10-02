@@ -15,13 +15,13 @@ state most are given with their Cohen's d (labelled against the other cells).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 
-from .._style import Status
+from .._style import Status, wrap
 from .._wording import count, listing, percent, plural
 from ..schema import fov_positions, validate_input_tables
 
@@ -130,4 +130,21 @@ def label_answer(check: LabelControl) -> tuple[Status, str, str]:
     return status, headline, text
 
 
-__all__ = ["LabelControl", "label_answer", "label_control"]
+__all__ = ["LabelControl", "label_answer", "label_control", "with_label_check"]
+
+
+def with_label_check(document: Any, check: LabelControl | None, results: dict[str, Any]):
+    """The report with question 1 answered by the label when no positive control ran."""
+    if check is None or results.get("controls") is not None:
+        return document
+    from ._document import with_text  # the assembly imports this module
+
+    status, headline, text = label_answer(check)
+    return with_text(
+        document,
+        "controls",
+        text,
+        status=status,
+        headline=headline,
+        short_text=wrap(text, 2, hang=4),
+    )

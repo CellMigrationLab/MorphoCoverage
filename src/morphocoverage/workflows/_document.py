@@ -46,7 +46,8 @@ from ._declaration import declaration_short
 from ._distribution import with_distribution
 from ._enough_features import with_features
 from ._enough_targets import with_targets
-from ._label_control import label_answer
+from ._label_control import with_label_check
+from ._populations import with_populations
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -59,6 +60,7 @@ _EXTRA_RESULTS = (
     "distribution",
     "fingerprint_precision",
     "label_control",
+    "populations",
 )
 
 
@@ -179,13 +181,8 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     contrast = results.get("contrast")
     field = field_words(contrast)[0] if contrast is not None else "field"
     document = with_targets(document, results, setup, word, field)
-    check = results.get("label_control")
-    if check is not None and results.get("controls") is None:
-        status, headline, text = label_answer(check)
-        brief = wrap(text, 2, hang=4)
-        document = with_text(
-            document, "controls", text, status=status, headline=headline, short_text=brief
-        )
+    document = with_populations(document, results.get("populations"), setup)
+    document = with_label_check(document, results.get("label_control"), results)
     # Beyond the mean, with a fingerprint declared (question 9).
     return with_distribution(document, results.get("distribution"), setup.unit_words)
 

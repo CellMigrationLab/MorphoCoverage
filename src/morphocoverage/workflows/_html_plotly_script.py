@@ -195,63 +195,185 @@ PLOTLY_SCRIPT = r"""
     Plotly.react(node, traces, layout, merge(merge({}, config), { responsive: false }));
   }
 
-  // The PCA and UMAP: a trace per condition, the loadings as arrows, and the lasso.
+  // The PCA and UMAP: coloured by condition, population or a feature; the populations and
+  // the labelled cells ringed; the lasso says which conditions, populations and features the
+  // points drawn around come from.
   var source = document.getElementById('embedding-data');
   var data = source ? JSON.parse(source.textContent) : null;
+  var RINGS = ['#111111', '#7a1fa2', '#b8860b', '#00695c', '#ad1457', '#37474f'];
+  var GROUPS = ['#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e', '#e6ab02', '#a6761d'];
+  function ringColour(k) { return RINGS[k % RINGS.length]; }
+  function quantile(sorted, q) {
+    if (!sorted.length) return 0;
+    var i = Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))));
+    return sorted[i];
+  }
+  function popName(k) {
+    var p = data.populations[k];
+    return p.name + ' (' + Math.round(p.share * 1000) / 10 + '%' + (p.defined ? ': ' +
+      p.defined.split(' (d')[0] : '') + ')';
+  }
   document.querySelectorAll('.viz[data-viz]').forEach(function (viz) {
     if (!data) return;
-    var state = { method: data.methods[0], values: data.values[0] };
+    var state = { method: data.methods[0], values: data.values[0], colour: 'condition' };
     var node = viz.querySelector('.pl-embed'), panel = viz.querySelector('.selection');
+    var menu = viz.querySelector('select.colour-by');
     var height = 600;
     function current() { return data.sets[state.values][state.method]; }
+    function hiddenConditions() {
+      var hidden = {};
+      if (state.colour !== 'condition') return hidden;
+      (node.data || []).forEach(function (trace) {
+        if (trace.meta && trace.meta.condition !== undefined && trace.visible === 'legendonly')
+          hidden[trace.meta.condition] = true;
+      });
+      return hidden;
+    }
+    function featureRows(set, picked) {
+      if (!set.z || !data.features.length) return '';
+      var mine = {}, rows = [];
+      picked.forEach(function (i) { mine[i] = true; });
+      data.features.forEach(function (f) {
+        var z = set.z[f]; if (!z) return;
+        var a = 0, b = 0, na = 0, nb = 0, va = 0, vb = 0;
+        z.forEach(function (v, i) { if (mine[i]) { a += v; na++; } else { b += v; nb++; } });
+        if (na < 2 || nb < 2) return;
+        a /= na; b /= nb;
+        z.forEach(function (v, i) {
+          if (mine[i]) va += (v - a) * (v - a); else vb += (v - b) * (v - b);
+        });
+        var sd = Math.sqrt((va / (na - 1) + vb / (nb - 1)) / 2);
+        if (sd > 0) rows.push([f, (a - b) / sd]);
+      });
+      rows.sort(function (x, y) { return Math.abs(y[1]) - Math.abs(x[1]); });
+      rows = rows.slice(0, 6);
+      if (!rows.length) return '';
+      var widest = Math.max.apply(null, rows.map(function (r) { return Math.abs(r[1]); })) || 1;
+      return '<p><strong>Features that set them apart</strong> (Cohen\'s d, the points drawn ' +
+        'around against the other points shown):</p><div class="table-wrap"><table><thead>' +
+        '<tr><th>feature</th><th>d</th><th></th></tr></thead><tbody>' + rows.map(function (r) {
+          return '<tr><td>' + escape(r[0]) + '</td><td class="num">' + (r[1] > 0 ? '+' : '') +
+            r[1].toFixed(2) + '</td><td><span class="bar" style="width:' +
+            (Math.abs(r[1]) / widest * 100).toFixed(0) + '%;background:' +
+            (r[1] > 0 ? '#c2185b' : '#1565c0') + '"></span> ' +
+            (r[1] > 0 ? 'higher' : 'lower') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
     function describe(selected) {
       if (!selected) {
         panel.innerHTML = '<p class="note">Draw around points with the mouse (or a finger) ' +
-          'to see which conditions they come from; double-click the plot to clear.</p>';
+          'to see which conditions and populations they come from and which features set ' +
+          'them apart; double-click the plot to clear.</p>';
         return;
       }
-      var set = current(), shown = 0, total = {}, picked = {}, fields = {};
-      node.data.forEach(function (trace, c) {
-        if (trace.visible === 'legendonly') return;
-        total[c] = trace.x.length; shown += trace.x.length;
-      });
+      var set = current(), hidden = hiddenConditions(), seen = {}, picked = [];
       selected.forEach(function (p) {
-        picked[p.curveNumber] = (picked[p.curveNumber] || 0) + 1;
-        fields[p.curveNumber + '|' + set.labels[p.customdata]] = true;
+        var i = p.customdata;
+        if (i === undefined || seen[i]) return;
+        seen[i] = true; picked.push(i);
       });
-      var n = selected.length, nf = Object.keys(fields).length;
+      var total = {}, shown = 0, mine = {}, fields = {};
+      set.cond.forEach(function (c) {
+        if (!hidden[c]) { total[c] = (total[c] || 0) + 1; shown++; }
+      });
+      picked.forEach(function (i) {
+        mine[set.cond[i]] = (mine[set.cond[i]] || 0) + 1;
+        fields[set.cond[i] + '|' + set.labels[i]] = true;
+      });
+      var n = picked.length, nf = Object.keys(fields).length;
       var rows = data.conditions.map(function (name, c) {
         if (!total[c]) return '';
-        var mine = picked[c] || 0, share = n ? mine / n : 0, chance = total[c] / shown;
+        var k = mine[c] || 0, share = n ? k / n : 0, chance = total[c] / shown;
         return '<tr><td><span class="swatch" style="background:' + data.colours[c] +
-          '"></span> ' + escape(name) + '</td><td class="num">' + mine + '</td><td>' +
+          '"></span> ' + escape(name) + '</td><td class="num">' + k + '</td><td>' +
           '<span class="bar" style="width:' + (share * 100).toFixed(1) + '%;background:' +
           data.colours[c] + '"></span> ' + Math.round(share * 100) + '%</td><td class="num">' +
           Math.round(chance * 100) + '%</td><td class="num">' +
-          (mine ? '×' + (share / chance).toFixed(1) : '–') + '</td></tr>';
+          (k ? '×' + (share / chance).toFixed(1) : '–') + '</td></tr>';
       }).join('');
+      var pops = '';
+      if (set.pop && data.populations.length) {
+        var count = {};
+        picked.forEach(function (i) { count[set.pop[i]] = (count[set.pop[i]] || 0) + 1; });
+        pops = '<p>Populations: ' + data.populations.map(function (p, k) {
+          return count[k] ? escape(p.name) + ' ' + Math.round(count[k] / n * 100) + '%' : '';
+        }).filter(Boolean).concat(count[-1] ? ['between them ' +
+          Math.round(count[-1] / n * 100) + '%'] : []).join(' · ') + '.</p>';
+      }
       panel.innerHTML = '<p><strong>' + n + ' point' + (n === 1 ? '' : 's') +
         '</strong> drawn around, from ' + nf + ' field' + (nf === 1 ? '' : 's') + '.</p>' +
         '<div class="table-wrap"><table><thead><tr><th>condition</th><th>points</th>' +
         '<th>share</th><th>by chance</th><th>ratio</th></tr></thead><tbody>' + rows +
-        '</tbody></table></div><p class="note">Share: of the points drawn around. By ' +
-        'chance: the condition\'s share of every point shown, what the selection would hold ' +
-        'by chance. A ratio above 1: the condition is more common here than in the whole ' +
-        'plot. A pattern to read with the tests, not a test.</p>';
+        '</tbody></table></div>' + pops + featureRows(set, picked) + '<p class="note">' +
+        'Share: of the points drawn around. By chance: the condition\'s share of every point ' +
+        'shown. A ratio above 1: the condition is more common here than in the whole plot. ' +
+        'A pattern to read with the tests, not a test.</p>';
+    }
+    function points(index) {
+      var set = current();
+      return { x: index.map(function (i) { return set.x[i]; }),
+        y: index.map(function (i) { return set.y[i]; }),
+        text: index.map(function (i) { return set.labels[i]; }), customdata: index };
+    }
+    function scatter(name, index, marker, extra) {
+      return Object.assign({ type: 'scatter', mode: 'markers', name: name, marker: marker,
+        selected: { marker: { opacity: 1 } }, unselected: { marker: { opacity: 0.12 } },
+        hovertemplate: '<b>' + name + '</b><br>%{text}<extra></extra>' }, points(index),
+        extra || {});
+    }
+    function rings(set) {
+      var traces = [];
+      // In population colours the populations are the colours: no rings over them.
+      if (set.pop && state.colour !== 'population') {
+        data.populations.forEach(function (p, k) {
+          var index = [];
+          set.pop.forEach(function (v, i) { if (v === k) index.push(i); });
+          if (!index.length) return;
+          traces.push(scatter(escape(popName(k)), index, { symbol: 'circle-open',
+            size: 10, color: ringColour(k), line: { width: 1.6 } },
+            { visible: p.share < 0.5 ? true : 'legendonly' }));
+        });
+      }
+      if (set.lab && data.label) {
+        var marked = [];
+        set.lab.forEach(function (v, i) { if (v) marked.push(i); });
+        if (marked.length) traces.push(scatter('labelled ' + escape(data.label), marked,
+          { symbol: 'x-thin-open', size: 8, color: '#000000', line: { width: 1.2 } }));
+      }
+      return traces;
+    }
+    function base_traces(set) {
+      if (state.colour === 'population' && set.pop) {
+        var groups = data.populations.map(function (p, k) {
+          var index = [];
+          set.pop.forEach(function (v, i) { if (v === k) index.push(i); });
+          return scatter(escape(popName(k)), index,
+            { color: GROUPS[k % GROUPS.length], size: 7, opacity: 0.75 });
+        });
+        var between = [];
+        set.pop.forEach(function (v, i) { if (v < 0) between.push(i); });
+        return [scatter('between populations (' + between.length + ')', between,
+          { color: '#9e9e9e', size: 6, opacity: 0.35 })].concat(groups);
+      }
+      if (state.colour !== 'condition' && set.z && set.z[state.colour]) {
+        var all = set.x.map(function (_, i) { return i; }), z = set.z[state.colour];
+        var sorted = z.slice().sort(function (a, b) { return a - b; });
+        return [scatter(escape(state.colour), all, { color: z, colorscale: 'Viridis',
+          cmin: quantile(sorted, 0.02), cmax: quantile(sorted, 0.98), size: 7, opacity: 0.8,
+          colorbar: { title: { text: escape(state.colour) + ' (SD)' }, thickness: 14 } },
+          { showlegend: false, hovertemplate: '%{text}<br>' + escape(state.colour) +
+            ' %{marker.color:.2f} SD<extra></extra>' })];
+      }
+      return data.conditions.map(function (name, c) {
+        var index = [];
+        set.cond.forEach(function (k, i) { if (k === c) index.push(i); });
+        return scatter(escape(name) + ' (' + index.length + ')', index,
+          { color: data.colours[c], size: 7, opacity: 0.7 }, { meta: { condition: c } });
+      });
     }
     function draw() {
       var t = theme(), set = current();
-      var traces = data.conditions.map(function (name, c) {
-        var index = [];
-        set.cond.forEach(function (k, i) { if (k === c) index.push(i); });
-        return { type: 'scatter', mode: 'markers', name: escape(name) + ' (' + index.length +
-          ')', x: index.map(function (i) { return set.x[i]; }),
-          y: index.map(function (i) { return set.y[i]; }),
-          text: index.map(function (i) { return set.labels[i]; }), customdata: index,
-          marker: { color: data.colours[c], size: 7, opacity: 0.7 },
-          selected: { marker: { opacity: 1 } }, unselected: { marker: { opacity: 0.12 } },
-          hovertemplate: '<b>' + escape(name) + '</b><br>%{text}<extra></extra>' };
-      });
+      var traces = base_traces(set).concat(rings(set));
       var annotations = [];
       (set.arrows || []).forEach(function (a) {
         annotations.push({ x: a[1], y: a[2], ax: 0, ay: 0, axref: 'x', ayref: 'y', text: '',
@@ -280,6 +402,7 @@ PLOTLY_SCRIPT = r"""
         draw();
       });
     });
+    if (menu) menu.addEventListener('change', function () { state.colour = menu.value; draw(); });
     draw();
     node.on('plotly_selected', function (event) {
       describe(event && event.points && event.points.length ? event.points : null);

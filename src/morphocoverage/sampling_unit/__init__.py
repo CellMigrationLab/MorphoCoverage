@@ -47,6 +47,7 @@ from .object_rules import (
     descriptor_spread_check,
     object_rule_check,
 )
+from .populations import Populations, find_populations
 from .ranking import FeatureRanking, feature_ranking
 from .variability import FOVVariability, fov_variability
 
@@ -61,11 +62,13 @@ __all__ = [
     "FeatureDiscovery",
     "FeatureRanking",
     "ObjectRuleCheck",
+    "Populations",
     "UnusualObjects",
     "condition_contrast",
     "descriptor_spread_check",
     "feature_discovery",
     "feature_ranking",
+    "find_populations",
     "fov_clustering",
     "fov_variability",
     "object_rule_check",

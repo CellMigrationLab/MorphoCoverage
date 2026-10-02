@@ -35,11 +35,21 @@ from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
 from ..sufficiency_short import rule_tallies
 
-ORDER = ("overview", "inspect", "conditions", "enough", "profile", "unit", "controls")
+ORDER = (
+    "overview",
+    "inspect",
+    "conditions",
+    "populations",
+    "enough",
+    "profile",
+    "unit",
+    "controls",
+)
 TITLES = {
     "overview": "The data",
     "inspect": "Fields to check (quality control)",
     "conditions": "Do the conditions differ?",
+    "populations": "Are there distinct populations?",
     "enough": "Did I image enough?",
     "profile": "What limits the sampling?",
     "unit": "Why count fields, and not only cells?",
@@ -56,6 +66,10 @@ INTROS = {
     "conditions": (
         "Each condition against the control: the reading per condition first, then the "
         "figures, then the tests behind them."
+    ),
+    "populations": (
+        "Groups of cells that sit together on all the features, from whichever condition, "
+        "and whether a condition holds more or fewer of its cells in one than the control."
     ),
     "enough": (
         "Whether the fields imaged are enough: to tell each condition from the control within "
