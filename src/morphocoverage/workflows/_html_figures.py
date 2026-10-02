@@ -379,7 +379,12 @@ def embeddings(result: Report, objects, fovs, folder: Path) -> tuple[str, list[s
         "methods": ["PCA", "UMAP"],
         "features": features,
         "populations": [
-            {"name": r.population, "share": round(float(r.share), 4), "defined": r.defined_by}
+            {
+                "name": r.population,
+                "share": round(float(r.share), 4),
+                "defined": r.defined_by,
+                "kind": r.kind,
+            }
             for r in result.results["populations"].populations.table.itertuples()
         ]
         if found is not None

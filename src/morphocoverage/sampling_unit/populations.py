@@ -6,16 +6,31 @@ found first, on the cells of every condition pooled, and whether a condition is 
 one is asked after (``workflows/_populations``, with the paired test across repeats).
 
 ``find_populations`` standardises the features robustly (median and MAD, as ``embed``
-does), keeps the principal components that hold ``VARIANCE`` of their variance (at most
-``MAX_COMPONENTS``), and clusters them with HDBSCAN (scikit-learn): dense groups of any
-shape and size, the observations between them left unassigned. A population needs at least
-``min_cells`` observations (default ``MIN_SHARE`` of them, and never fewer than
-``MIN_CELLS``). Above ``max_points`` observations, HDBSCAN runs on a seeded sample of the
-same share of every condition and every other observation takes the population of its
-nearest sampled neighbour. Every population is reported, the largest first, with its share
-of the observations, the fields and biological repeats it is seen in, and the features
-that set it apart from the other observations (Cohen's d). Observations with a missing
-value are left out, counted.
+does), embeds them with UMAP in ``MAP_COMPONENTS`` dimensions (``min_dist`` 0, as
+umap-learn advises for clustering) and clusters the embedding with HDBSCAN (scikit-learn):
+dense groups of any shape, the observations between them left unassigned. A cluster needs
+at least ``min_cells`` observations (default ``MIN_SHARE`` of them, and never fewer than
+``MIN_CELLS``). Above ``max_points`` observations, both run on a seeded sample of the same
+share of every condition, and every other observation takes the cluster of its nearest
+sampled neighbour (on the principal components holding ``VARIANCE`` of the variance).
+
+UMAP evens out density, so a cluster on it is a candidate only, judged on all the
+standardised features (owner, 2026-10-02, after HDBSCAN on the principal components split
+a Gaussian and a straight line into populations and missed two separate blobs):
+
+- the **main** population, when one cluster holds more than ``MAIN_SHARE`` of the
+  observations: the rest of the cells, listed when another kind is found;
+- a **distinct** population (``P2``, ``P3``, ... after the main ``P1``): the density along
+  the line from the rest of the observations to the cluster dips between them to at most
+  ``VALLEY`` of the lower of the two peaks (a gap of low density);
+- a **group on the map** (``G1``, ``G2``, ...): no such gap, but ``PURITY`` or more of its
+  observations' ``NEIGHBOURS`` nearest neighbours on all the features are in it too; it
+  may be the end of a continuum (the most elongated cells of a gradient, say);
+- otherwise the cluster is a stretch of one continuum and is not reported.
+
+Each is reported with its share of the observations, the fields and biological repeats it
+is seen in, the features that set it apart from the other observations (Cohen's d), its
+``valley`` and its ``purity``. Observations with a missing value are left out, counted.
 
 A description, not a test: the clusters depend on the features declared and on the
 standardisation, and a population seen in one field only may be one image's artefact (its
@@ -43,13 +58,35 @@ MIN_CELLS = 15
 MAX_POINTS = 20000
 # The features named as setting a population apart, the largest |d| first.
 DEFINING = 3
+# The embedding clustered: this many UMAP dimensions.
+MAP_COMPONENTS = 5
+# A cluster holding more than this share is the main population, the rest of the cells.
+MAIN_SHARE = 0.5
+# Distinct: the density between a cluster and the rest dips to this share of the lower peak.
+VALLEY = 0.5
+# A group on the map: this share of its observations' nearest neighbours is inside it.
+NEIGHBOURS = 10
+PURITY = 0.94
+KINDS = ("main", "distinct", "group")
+_COLUMNS = [
+    "population",
+    "kind",
+    "observations",
+    "share",
+    "fields",
+    "repeats",
+    "defined_by",
+    "defining",
+    "valley",
+    "purity",
+]
 
 
 @dataclass(frozen=True)
 class Populations:
-    """``labels``: each observation's population (``P1``, ``P2``, ... by size; ``None``
-    unassigned or incomplete), indexed like the observation table; ``table``: one row per
-    population; ``settings``."""
+    """``labels``: each observation's population or group (``P1``, ``P2``, ...; ``G1``,
+    ``G2``, ...; ``None`` unassigned or incomplete), indexed like the observation table;
+    ``table``: one row per population and group, with its ``kind``; ``settings``."""
 
     labels: pd.Series
     table: pd.DataFrame
@@ -57,8 +94,12 @@ class Populations:
 
     @property
     def names(self) -> list[str]:
-        """The populations, the largest first."""
+        """The populations, then the groups on the map, each the largest first."""
         return list(self.table["population"])
+
+    def of_kind(self, *kinds: str) -> list[str]:
+        """The names of the populations of these ``kinds`` (``KINDS``)."""
+        return list(self.table.loc[self.table["kind"].isin(kinds), "population"])
 
 
 def _components(z: np.ndarray) -> tuple[np.ndarray, int]:
@@ -83,6 +124,67 @@ def _cluster(points: np.ndarray, min_cells: int) -> np.ndarray:
     return HDBSCAN(min_cluster_size=min_cells, copy=True).fit_predict(points)
 
 
+def _embedding(z: np.ndarray, random_state: int) -> np.ndarray:
+    """The UMAP clustered (imported here: loading umap-learn takes seconds)."""
+    import warnings
+
+    import umap
+
+    reducer = umap.UMAP(
+        n_neighbors=min(15, max(2, len(z) - 1)),
+        min_dist=0.0,
+        n_components=min(MAP_COMPONENTS, max(2, z.shape[1])),
+        random_state=random_state,
+        n_jobs=1,
+    )
+    with warnings.catch_warnings():
+        # umap-learn warns that a seed disables its parallelism: that is the point here.
+        warnings.simplefilter("ignore", UserWarning)
+        return reducer.fit_transform(z)
+
+
+def _valley(z: np.ndarray, member: np.ndarray) -> float:
+    """The lowest density between the rest of the observations and ``member``, along the
+    line joining their means, over the lower of their two peaks (0: a gap; 1: none)."""
+    from scipy.stats import gaussian_kde
+
+    direction = z[member].mean(axis=0) - z[~member].mean(axis=0)
+    norm = float(np.linalg.norm(direction))
+    if not norm or member.sum() < 2 or (~member).sum() < 2:
+        return 1.0
+    scores = z @ (direction / norm)
+    if np.ptp(scores) == 0:
+        return 1.0
+    density = gaussian_kde(scores)
+    grid = np.linspace(scores.min(), scores.max(), 512)
+    values = density(grid)
+
+    def peak(inside: np.ndarray) -> float:
+        low, high = np.quantile(scores[inside], [0.02, 0.98])
+        window = (grid >= low) & (grid <= high)
+        return float(grid[window][np.argmax(values[window])]) if window.any() else np.nan
+
+    own, rest = peak(member), peak(~member)
+    if not np.isfinite(own) or not np.isfinite(rest):
+        return 1.0
+    low, high = sorted((own, rest))
+    between = values[(grid >= low) & (grid <= high)]
+    lower_peak = float(min(density(own)[0], density(rest)[0]))
+    return float(between.min() / lower_peak) if lower_peak > 0 and len(between) else 1.0
+
+
+def _purity(z: np.ndarray, member: np.ndarray) -> float:
+    """The share of the ``NEIGHBOURS`` nearest neighbours of ``member``'s observations, on
+    all the standardised features, that are in ``member`` too."""
+    from scipy.spatial import cKDTree
+
+    k = min(NEIGHBOURS, len(z) - 1)
+    if k < 1 or not member.any():
+        return 0.0
+    _, nearest = cKDTree(z).query(z[member], k=k + 1)
+    return float(member[nearest[:, 1:]].mean())
+
+
 def _defining(
     z: np.ndarray, member: np.ndarray, features: Sequence[str]
 ) -> list[tuple[str, float]]:
@@ -102,6 +204,39 @@ def defined_by(pairs: Sequence[tuple[str, float]]) -> str:
     return ", ".join(f"{'high' if d > 0 else 'low'} {f} (d {d:+.1f})" for f, d in pairs)
 
 
+def _kinds(raw: np.ndarray, z: np.ndarray) -> dict[int, tuple[str | None, float, float]]:
+    """Each cluster's kind (``KINDS``, or ``None``: a stretch of a continuum), valley and
+    purity (see the module)."""
+    sizes = pd.Series(raw[raw >= 0]).value_counts()
+    judged: dict[int, tuple[str | None, float, float]] = {}
+    for cluster, size in sizes.items():
+        member = raw == cluster
+        if size / len(raw) > MAIN_SHARE:
+            judged[int(cluster)] = ("main", np.nan, np.nan)
+            continue
+        valley, purity = _valley(z, member), _purity(z, member)
+        # Both need their observations' neighbours inside them; the valley says which.
+        kind = None if purity < PURITY else "distinct" if valley <= VALLEY else "group"
+        judged[int(cluster)] = (kind, valley, purity)
+    return judged
+
+
+def _names(raw: np.ndarray, judged: dict) -> dict[int, str]:
+    """``P1``, ``P2``, ... for the main and distinct populations, ``G1``, ... for the groups,
+    the largest first; none when nothing but a main population and continua is found."""
+    found = [c for c, (kind, _, _) in judged.items() if kind is not None]
+    if not any(judged[c][0] in ("distinct", "group") for c in found):
+        return {}
+    order = {"main": 0, "distinct": 1, "group": 2}
+    found.sort(key=lambda c: (order[judged[c][0]], -int((raw == c).sum())))
+    names, counts = {}, {"P": 0, "G": 0}
+    for cluster in found:
+        prefix = "G" if judged[cluster][0] == "group" else "P"
+        counts[prefix] += 1
+        names[cluster] = f"{prefix}{counts[prefix]}"
+    return names
+
+
 def find_populations(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -114,7 +249,8 @@ def find_populations(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
 ) -> Populations:
-    """The populations of ``features`` over every observation (see the module)."""
+    """The populations and the groups on the map of ``features`` over every observation
+    (see the module)."""
     features = list(dict.fromkeys(features))
     max_points = as_count(max_points, "max_points", 100)
     random_state = check_seed(random_state)
@@ -138,28 +274,30 @@ def find_populations(
     conditions = meta[CONDITION_COLUMN].to_numpy() if CONDITION_COLUMN in meta else np.zeros(n)
     sample = _sample(conditions, max_points, np.random.default_rng(random_state))
     raw = np.full(n, -1)
-    raw[sample] = _cluster(points[sample], size) if len(kept) else -1
+    if len(kept) and len(sample) >= 2 * size + 2:
+        raw[sample] = _cluster(_embedding(z[sample], random_state), size)
     if len(sample) < n:
         from scipy.spatial import cKDTree
 
         rest = np.setdiff1d(np.arange(n), sample)
         _, nearest = cKDTree(points[sample]).query(points[rest])
         raw[rest] = raw[sample][nearest]
-    # Named by size: P1 the largest.
-    found = [c for c in pd.Series(raw[raw >= 0]).value_counts().index]
-    names = {c: f"P{i + 1}" for i, c in enumerate(found)}
+    judged = _kinds(raw, z)
+    names = _names(raw, judged)
     labels = pd.Series([None] * len(data.objects), index=data.objects.index, dtype=object)
     labels.iloc[np.flatnonzero(complete)] = [names.get(c) for c in raw]
-    rows = []
     # One key per field: the FOV identity (its groups and its identifier).
-    field_keys = meta[list(data.fov_key)].astype(str).agg(" · ".join, axis=1).to_numpy()
-    field_keys = pd.Series(field_keys)
+    keys = meta[list(data.fov_key)].astype(str).agg(" · ".join, axis=1).to_numpy()
+    field_keys = pd.Series(keys)
+    rows = []
     for cluster, name in names.items():
         member = raw == cluster
+        kind, valley, purity = judged[cluster]
         pairs = _defining(z, member, kept)
         rows.append(
             {
                 "population": name,
+                "kind": kind,
                 "observations": int(member.sum()),
                 "share": float(member.mean()),
                 "fields": int(field_keys[member].nunique()),
@@ -168,28 +306,23 @@ def find_populations(
                 else 1,
                 "defined_by": defined_by(pairs),
                 "defining": pairs,
+                "valley": valley,
+                "purity": purity,
             }
         )
-    table = pd.DataFrame(
-        rows,
-        columns=[
-            "population",
-            "observations",
-            "share",
-            "fields",
-            "repeats",
-            "defined_by",
-            "defining",
-        ],
-    )
+    table = pd.DataFrame(rows, columns=_COLUMNS)
     settings = {
         "features": kept,
         "components": k,
         "variance": VARIANCE,
+        "map_components": min(MAP_COMPONENTS, max(2, len(kept))),
         "min_cells": int(size),
+        "valley": VALLEY,
+        "purity": PURITY,
+        "neighbours": NEIGHBOURS,
         "observations": n,
         "incomplete_observations": int((~complete).sum()),
-        "assigned": float((raw >= 0).mean()) if n else 0.0,
+        "assigned": float(np.isin(raw, list(names)).mean()) if n else 0.0,
         "sampled": len(sample),
         "random_state": random_state,
         "observation_unit": data.observation_unit,
@@ -197,4 +330,13 @@ def find_populations(
     return Populations(labels, table, settings)
 
 
-__all__ = ["MIN_CELLS", "MIN_SHARE", "Populations", "defined_by", "find_populations"]
+__all__ = [
+    "KINDS",
+    "MIN_CELLS",
+    "MIN_SHARE",
+    "PURITY",
+    "VALLEY",
+    "Populations",
+    "defined_by",
+    "find_populations",
+]

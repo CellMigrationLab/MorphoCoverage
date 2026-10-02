@@ -31,6 +31,8 @@ from ._populations import tested_populations
 
 # The reservoir optimise holds back to judge each stop, as in docs/workflows.md.
 RESERVOIR = 0.35
+# A population this labelled is the declared rare label's: not declared again.
+LABELLED = 0.9
 _COUNTS = (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96)
 
 
@@ -127,9 +129,9 @@ def conditions_next(result: Any, fovs: pd.DataFrame) -> str:
     return _block(steps) if steps else ""
 
 
-def _chosen_population(populations: Any) -> tuple[str, float, str] | None:
+def _chosen_population(populations: Any) -> tuple[str, float, str, str] | None:
     """The population to follow: the most consistently enriched, else the largest of those
-    tested (never the main one); its name, share and definition."""
+    tested (never the main one); its name, share, definition and kind."""
     table = populations.populations.table
     tested = tested_populations(populations.populations)
     if not tested:
@@ -141,7 +143,16 @@ def _chosen_population(populations: Any) -> tuple[str, float, str] | None:
         if len(rows) and np.isfinite(float(rows["q_paired"].iloc[0])):
             name = str(rows["feature"].iloc[0])
     row = table.set_index("population").loc[name]
-    return name, float(row["share"]), str(row["defined_by"])
+    return name, float(row["share"]), str(row["defined_by"]), str(row["kind"])
+
+
+def _labelled(populations: Any, name: str, label: str | None) -> bool:
+    """Whether ``name`` is the declared rare label's population (most of it labelled)."""
+    overlap = getattr(populations, "label", None)
+    if not label or overlap is None or not len(overlap):
+        return False
+    row = overlap[overlap["population"] == name]
+    return bool(len(row)) and float(row["purity"].iloc[0]) >= LABELLED
 
 
 def populations_next(result: Any, fovs: pd.DataFrame) -> str:
@@ -150,15 +161,28 @@ def populations_next(result: Any, fovs: pd.DataFrame) -> str:
     chosen = _chosen_population(populations) if populations is not None else None
     if chosen is None:
         return ""
-    name, share, defined = chosen
+    name, share, defined, kind = chosen
+    label = result.setup.rare_label
+    if _labelled(populations, name, label):
+        line = (
+            f"{name} is the declared rare phenotype, {label}: most of its cells carry the "
+            "label. Its sampling is answered in “Did I image enough?”, with the label "
+            "itself; nothing to declare again."
+        )
+        return _block([(line, "")])
     counts = fov_counts(fovs)
     phenotype = f"{name}: {defined.split(' (d ')[0]}" if defined else name
+    what = (
+        f"{name}, a group on the map ({percent_fine(share)} of the cells; it may be the end "
+        "of a continuum)"
+        if kind == "group"
+        else f"{name} ({percent_fine(share)} of the cells)"
+    )
     lines = [
         (
-            f"To study {name} ({percent_fine(share)} of the cells) further, label its cells "
-            "and declare it as the rare phenotype: the report then says in “Did I image "
-            "enough?” whether it was seen in enough fields of every well, and optimise plans "
-            "the fields to find it."
+            f"To study {what} further, label its cells and declare it as the rare phenotype: "
+            "the report then says in “Did I image enough?” whether it was seen in "
+            "enough fields of every well, and optimise plans the fields to find it."
         )
     ]
     code = (

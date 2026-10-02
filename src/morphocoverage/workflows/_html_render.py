@@ -135,7 +135,7 @@ def chip(status: Status | None, key: str = "", answer: str = "") -> str:
     few = re.search(r"\bn = ([12])\b", answer) if key in ("conditions", "populations") else None
     if few:
         word = f"No conclusion (n = {few.group(1)})"
-    elif key == "populations" and "no distinct population" in answer:
+    elif key == "populations" and "no distinct population:" in answer:
         word = "One continuum"
     elif key in ("conditions", "populations") and status is Status.CAUTION:
         consistent = "same direction" in answer or "in every repeat" in answer
