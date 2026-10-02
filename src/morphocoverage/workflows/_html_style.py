@@ -209,6 +209,11 @@ dl.glossary { margin: 6px 0 14px; }
   border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit;
   font-size: 14px; }
 .picker .panel-name { margin: 2px 0 6px; font-size: 16px; }
+.choose { margin: 4px 0 14px; }
+.choose label { display: block; font-weight: 600; margin-bottom: 6px; }
+.choose select { padding: 6px 10px; border-radius: 8px; max-width: 100%;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+.choose .choice-panel { margin-top: 10px; }
 .picker .tab-panel { border-top: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
 .long-table:not(.open) tbody tr:nth-child(n+21) { display: none; }
 .long-table button.show-all { border: 1px solid var(--border); background: var(--surface);

@@ -83,6 +83,7 @@ from ..metadata import (
     resolve_group_cols,
     resolve_identity_cols,
 )
+from ..objectives import ObjectiveConfig
 from ..online import OnlineSession
 from ..order_check import OrderCheck
 from ..results import Decision, StrategyResult
@@ -93,8 +94,17 @@ from ._manifest import MANIFEST, OBJECTS_DIR, OBJECTS_FILE, ManifestReader, writ
 from .setup import Setup
 
 
-def live_session(setup: Setup, rules: tuple[SamplingStrategy, ...] | None = None) -> OnlineSession:
+def live_session(
+    setup: Setup,
+    rules: tuple[SamplingStrategy, ...] | None = None,
+    *,
+    objective: ObjectiveConfig | None = None,
+) -> OnlineSession:
     """An ``OnlineSession`` for ``rules`` (default: the setup's rules) on the setup's columns.
+
+    ``objective`` (default: ``setup.objective()``, every declared target) narrows what a stop
+    needs, for example ``ObjectiveConfig("rare_discovery", rare=target)`` to stop each group
+    once a rare phenotype is settled, its mean not waited for.
 
     The session also checks the acquisition order of each group's fields so
     far (``order_check``: the readout against ``acquisition_order_col``,
@@ -105,10 +115,12 @@ def live_session(setup: Setup, rules: tuple[SamplingStrategy, ...] | None = None
     """
     if not isinstance(setup, Setup):
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
+    if objective is not None and not isinstance(objective, ObjectiveConfig):
+        raise TypeError("objective must be a morphocoverage.ObjectiveConfig")
     return _CheckedSession(
         strategies=list(setup.stopping_rules() if rules is None else rules),
         feature_cols=setup.columns,
-        objective=setup.objective(),
+        objective=setup.objective() if objective is None else objective,
         fov_col=setup.fov_col,
         group_cols=None if setup.group_cols is None else list(setup.group_cols),
         observation_unit=setup.observation_unit,

@@ -60,7 +60,7 @@ from ._html_cards import (
 from ._html_data import data_buttons, files_card, heatmap_data, json_island, page_files
 from ._html_enough import enough_body
 from ._html_figures import embeddings, feature_figures
-from ._html_next import conditions_next, enough_next, fields_next, populations_next
+from ._html_next import fields_next, populations_next
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
 from ._html_render import Terms, adjusted_p, chip, text_html
@@ -423,7 +423,7 @@ def html_report(
                     doc.sections[key],
                     headlines.get(key),
                     extras,
-                    conditions_next(result, fovs),
+                    "",
                     figures,
                 )
             )
@@ -445,9 +445,7 @@ def html_report(
                 + _unnumbered(text_html(short))
             )
             answer = None
-        if key == "enough":
-            after = enough_next(result, fovs, features)
-        elif key == "populations":
+        if key == "populations":
             after = populations_next(result, fovs, objects)
         cards.append(
             _section(
