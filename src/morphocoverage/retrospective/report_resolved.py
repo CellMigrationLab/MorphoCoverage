@@ -108,7 +108,8 @@ def _columns(contrast: Any) -> list[str]:
     return [
         "comparison",
         f"{fields} (condition vs control)",
-        f"d {words} ({percent(LEVEL)} interval)",
+        # d is computed on the observations, whatever the first column counts (fields).
+        f"d on {words} ({percent(LEVEL)} interval)",
         "enough in this repeat?",
     ]
 
@@ -125,8 +126,12 @@ def _notes(contrast: Any) -> list[str]:
     ]
 
 
-def resolved_parts(contrast: Any, indent: int = 2) -> tuple[list[str], list[str]]:
-    """The short form: a sentence, a table, and the notes (see the module)."""
+def resolved_parts(
+    contrast: Any, indent: int = 2, *, every: bool = False, where: bool = True
+) -> tuple[list[str], list[str]]:
+    """The short form: a sentence, a table, and the notes (see the module); ``every`` lists
+    every comparison, and ``where=False`` leaves out that the full report has them all (the
+    HTML page says so once, in its help)."""
     rows = _table(contrast)
     lines = [
         wrap(
@@ -137,16 +142,17 @@ def resolved_parts(contrast: Any, indent: int = 2) -> tuple[list[str], list[str]
             hang=indent + 2,
         )
     ]
-    shown = rows if len(rows) <= SHORT_ROWS else rows[~rows["resolved"]]
+    shown = rows if every or len(rows) <= SHORT_ROWS else rows[~rows["resolved"]]
     if len(shown):
         lines.append(
             table(_rows(shown, field_words(contrast)[1]), _columns(contrast), indent=indent + 2)
         )
     if len(shown) < len(rows):
         hidden = len(rows) - len(shown)
+        full = " (every one in the full report)" if where else ""
         lines.append(
             wrap(
-                f"The other {count(hidden, 'comparison')} show it (every one in the full report).",
+                f"The other {count(hidden, 'comparison')} show it{full}.",
                 indent,
                 hang=indent + 2,
             )
@@ -168,14 +174,15 @@ def resolved_full(contrast: Any) -> str:
 
 
 def precision_words(tallies: list[dict[str, Any]], word: str) -> str | None:
-    """The precision of each mean, as a secondary line: the first data rule's tally."""
+    """The precision of each mean, as a secondary line: the first data rule's tally, the
+    rule named (the workflows add "default" when it is theirs, ``_enough_features``)."""
     data = [t for t in tallies if t["data_rule"] and t["undefined"] < t["groups"]]
     if not data:
         return None
     first = data[0]
     return (
-        f"each {word}'s own mean to the precision asked ({first['label']}): met in "
-        f"{first['met']} of {first['groups']}, a different goal from the comparison"
+        f"each {word}'s own mean by the {first['label']}: met in {first['met']} of "
+        f"{first['groups']}, a different goal from the comparison"
     )
 
 

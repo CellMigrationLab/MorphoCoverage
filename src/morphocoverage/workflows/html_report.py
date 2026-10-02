@@ -9,11 +9,12 @@ that opens in any browser, offline, and can be emailed or archived as it is. It 
   data (one row per check, ``_html_cards``), the fields to check and why, with
   ``embedding.MIN_FEATURES`` or more features the whole dataset at once (an **interactive
   PCA and UMAP**, ``_html_figures``), the populations, whether the conditions differ,
-  whether enough was imaged, and the rest; a section this design cannot answer is left out
-  (its reason stays in "What this dataset cannot tell me"). Each gives what it is for under
-  a "?", its answer first and the rest under "Show more" (the words of ``Report.summary``,
-  its aligned tables as sortable tables), and, where an analysis follows, **what to do
-  next** with its code (``_html_next``);
+  whether enough was imaged (one sentence and a table across the features, then a tab per
+  feature and declared target, ``_html_enough``), and the rest; a section this design
+  cannot answer is left out (its reason stays in "What this dataset cannot tell me"). Each
+  gives what it is for under a "?", its answer first and the rest under "Show more" (the
+  words of ``Report.summary``, its aligned tables as sortable tables), and, where an
+  analysis follows, **what to do next** with its code (``_html_next``);
 - under "Do the conditions differ?", the features significant across repeats per
   condition, a **heatmap** of Cohen's d, the **figures** of the best-ranked features, then
   the tests behind the reading;
@@ -43,10 +44,8 @@ from .._wording import listing
 from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
-from ..retrospective.report_status import group_word
 from ..sampling_unit.legend_text import legend_box
 from ..sampling_unit.reading_text import readings_parts
-from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import rule_tallies
 from ._html_cards import (
     check_rows,
@@ -58,9 +57,9 @@ from ._html_cards import (
     significant_summary,
 )
 from ._html_data import data_buttons, files_card, heatmap_data, json_island, page_files
-from ._html_enough import enough_body
+from ._html_enough import enough_body, enough_help
 from ._html_figures import embeddings, feature_figures
-from ._html_next import conditions_next, enough_next, fields_next, populations_next
+from ._html_next import conditions_next, fields_next, populations_next
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
 from ._html_render import Terms, adjusted_p, chip, text_html
@@ -345,7 +344,8 @@ def html_report(
     folder = Path(folder)
     # The "?" help in the report's words for its observations (tracks, patches).
     _INTROS.clear()
-    _INTROS.update(intros_for(result.setup.unit_words, result.setup.observation_unit or "object"))
+    one = result.setup.observation_unit or "object"
+    _INTROS.update(intros_for(result.setup.unit_words, one, **enough_help(result)))
     _WORDS.clear()
     _WORDS.update(chip_words(result))
     _UNITS["words"] = result.setup.unit_words
@@ -429,14 +429,11 @@ def html_report(
             )
             continue
         extra, answer, after = "", headlines.get(key), ""
-        features = result.results.get("enough_features") if key == "enough" else None
-        reading = enough_reading(result) if key == "enough" and features is None else []
-        if features is not None:
-            # Every feature alike: the summary, then one feature at a time (_html_enough).
-            word = group_word(result.results.get("sufficiency"))
-            fields = field_words(next(iter(features.contrasts.values())))[1]
-            extra = enough_body(features, short, word, fields, _TERMS.annotate, _unnumbered)
-            answer = None
+        # One sentence and a table, then one feature at a time (_html_enough).
+        body = enough_body(result, _TERMS.annotate) if key == "enough" else None
+        reading = enough_reading(result) if key == "enough" and body is None else []
+        if body is not None:
+            extra, answer = body, None
         elif reading:
             # The reading answers in sentences, so the headline is not repeated above it.
             lines = "".join(f"<p>{html.escape(line)}</p>" for line in reading)
@@ -445,17 +442,15 @@ def html_report(
                 + _unnumbered(text_html(short))
             )
             answer = None
-        if key == "enough":
-            after = enough_next(result, fovs, features)
-        elif key == "populations":
+        if key == "populations":
             after = populations_next(result, fovs, objects)
         cards.append(
             _section(
                 key,
                 statuses.get(key),
                 short,
-                # Every feature's text is in the tabs already: the full text is in the files.
-                None if features is not None else doc.sections[key],
+                # The card says it all: the full text, the stopping rules, is in the files.
+                None if body is not None else doc.sections[key],
                 answer,
                 body_extra=extra,
                 found=headlines.get(key),

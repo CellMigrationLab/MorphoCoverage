@@ -104,6 +104,18 @@ def test_assumptions_are_never_marked_and_are_listed_once_under_their_heading():
         caveat_lines(caveats, detail="long")
 
 
+def test_a_caveat_that_starts_with_a_name_keeps_its_case():
+    # "siCTRL · repeat 1: ..." read "SiCTRL" (audit, 2026-10-02); a plain word still opens
+    # with a capital.
+    lines = caveat_lines([assumption("siCTRL · repeat 1: no trend"), "drugA wells differ"], 0)
+    assert "siCTRL · repeat 1: no trend." in " ".join(lines)
+    assert lines[0].endswith("drugA wells differ.")
+    assert caveat_lines([assumption("the bound is approximate")], 0) == [
+        "Assumptions: The bound is approximate."
+    ]
+    assert "Dna_intensity" not in " ".join(caveat_lines(["dna_intensity moves"], 0))
+
+
 def test_a_section_built_from_several_results_states_its_assumptions_once_at_its_end():
     first = "\n".join(
         ["  first result", *caveat_lines(["a caution", assumption("a")], 2, detail="full")]

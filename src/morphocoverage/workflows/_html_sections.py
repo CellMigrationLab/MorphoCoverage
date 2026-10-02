@@ -80,10 +80,8 @@ INTROS = {
         "Groups of cells that sit together on all the features, from whichever condition, "
         "and whether a condition holds more or fewer of its cells in one than the control."
     ),
-    "enough": (
-        "Whether the fields imaged are enough: to tell each condition from the control within "
-        "a repeat, and to pin each group's mean down to the precision that was asked."
-    ),
+    # Said here once rather than in every feature's tab (``enough_intro``).
+    "enough": "",
     "profile": (
         "What limits the sampling: how much the fields differ from each other, unusual cells, "
         "and whether rare states sit in a few fields."
@@ -99,14 +97,69 @@ INTROS = {
 }
 
 
-def intros_for(units: str, one: str) -> dict[str, str]:
-    """``INTROS`` in the report's own words for its observations (tracks, patches)."""
+def enough_intro(
+    single_repeat: bool = False, group: str = "group", listed: bool = True, compared: bool = True
+) -> str:
+    """The "?" of "Did I image enough?": what a comparison is, that the answer is per repeat
+    (not with one biological repeat, where there is nothing across repeats to answer), what
+    each group's own mean is for, and, when a tab lists only the comparisons not yet shown
+    (``listed``), where every one is. Without a comparison with the control (``compared``),
+    what the stopping rules answer."""
+    if not compared:
+        return (
+            f"Whether the fields imaged are enough to pin down each {group}'s own mean, and "
+            "whether one more field would show something new: the stopping rules, as optimise "
+            "and live run them."
+        )
+    where = "the biological repeat" if single_repeat else "each biological repeat"
+    one = "against the control" + ("" if single_repeat else " in one repeat")
+    parts = [
+        (
+            f"Whether the fields imaged are enough to show each condition's difference from "
+            f"the control within {where}, a comparison being one condition {one}, and to pin "
+            f"down each {group}'s own mean."
+        )
+    ]
+    if not single_repeat:
+        parts.append(
+            "This is per repeat: whether the conditions differ across the repeats is answered "
+            f"in \u201c{TITLES['conditions']}\u201d, which does not need each repeat to show it "
+            "alone."
+        )
+    parts.append(
+        f"Each {group}'s own mean is a different goal from the comparison: it matters when the "
+        f"value of a mean is reported, not for comparing conditions; more fields per {group} "
+        "is the lever."
+    )
+    if listed:
+        parts.append(
+            "A tab with many comparisons lists those not yet shown; every one is in the full "
+            "report."
+        )
+    return " ".join(parts)
+
+
+INTROS["enough"] = enough_intro()
+
+
+def intros_for(
+    units: str,
+    one: str,
+    *,
+    single_repeat: bool = False,
+    group: str = "group",
+    listed: bool = True,
+    compared: bool = True,
+) -> dict[str, str]:
+    """``INTROS`` in the report's own words for its observations (tracks, patches), the "?"
+    of "Did I image enough?" for its design (``enough_intro``)."""
 
     def words(text: str) -> str:
         text = re.sub(r"\bcells\b", units, text)
         return re.sub(r"\bcell\b(?!-)", one, text)
 
-    return {key: words(text) for key, text in INTROS.items()}
+    intros = {**INTROS, "enough": enough_intro(single_repeat, group, listed, compared)}
+    return {key: words(text) for key, text in intros.items()}
 
 
 # The heatmap's diverging colours (lower than the control, higher), and its neutral middle.
@@ -192,7 +245,8 @@ def not_declared(setup: Any) -> list[str]:
 def _repeats_advice(contrast: Any, fields: str) -> str:
     """What to do across repeats: the repeats the plan asks for the conditions not yet
     significant (``repeat_plan``, at the report's correction), condition by condition when
-    they need different numbers."""
+    they need different numbers. No longer in "Did I image enough?" (owner, 2026-10-02):
+    kept for the plan of the next experiment."""
     plan = getattr(contrast, "plan", None)
     readings = condition_readings(contrast)
     if plan is None or plan.empty or readings.empty:
@@ -232,7 +286,9 @@ def _repeats_advice(contrast: Any, fields: str) -> str:
     )
 
 
-def _resolution(contrast: Any) -> list[str]:
+def _resolution(contrast: Any, single_repeat: bool = False) -> list[str]:
+    """Whether the fields acquired show each comparison, and what more would show the others;
+    what a comparison is and that it is per repeat are said once, in the card's "?"."""
     rows = getattr(contrast, "table", None)
     if rows is None or rows.empty or "d_low" not in rows:
         return []
@@ -244,12 +300,12 @@ def _resolution(contrast: Any) -> list[str]:
     small = int(rows["too_small"].sum())
     needing = rows[~rows["resolved"] & ~rows["too_small"]]
     verdict = "Yes" if needing.empty and not small else ("Partly" if resolved else "Not yet")
+    where = "the biological repeat" if single_repeat else "each biological repeat"
     lines = [
         (
-            f"Enough {fields} to compare with the control? {verdict}: within one biological "
-            f"repeat at a time, the {fields} imaged show the difference from the control in "
-            f"{resolved} of {count(len(rows), 'comparison')} (a condition in one repeat; "
-            "shown: its 95% interval of d excludes 0)."
+            f"Enough {fields} to compare with the control? {verdict}: within {where}, the "
+            f"{fields} imaged show the difference from the control in {resolved} of "
+            f"{count(len(rows), 'comparison')}."
         )
     ]
     if len(needing):
@@ -266,13 +322,6 @@ def _resolution(contrast: Any) -> list[str]:
             f"times the {fields} would not show it within one repeat; that is not evidence of "
             "no effect."
         )
-    lines.append(
-        "This is per repeat. Whether the conditions differ across the repeats is answered in "
-        f"\u201c{TITLES['conditions']}\u201d, which does not need each repeat to show it alone."
-    )
-    advice = _repeats_advice(contrast, fields)
-    if advice:
-        lines.append(advice)
     return lines
 
 
@@ -432,6 +481,7 @@ __all__ = [
     "INTROS",
     "ORDER",
     "TITLES",
+    "enough_intro",
     "enough_reading",
     "heatmap",
     "hidden",

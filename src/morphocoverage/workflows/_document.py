@@ -44,7 +44,7 @@ from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import unit_plural
 from ._declaration import declaration_short
 from ._distribution import with_distribution
-from ._enough_features import with_features
+from ._enough_features import default_precision, with_features
 from ._enough_targets import with_targets
 from ._label_control import with_label_check
 from ._populations import with_populations
@@ -176,7 +176,8 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
     # Question 2 over every feature alike (the report is neutral).
     features = results.get("enough_features")
     word = group_word(results.get("sufficiency"))
-    document = with_features(document, features, results.get("contrast"), word)
+    default = default_precision(setup)
+    document = with_features(document, features, results.get("contrast"), word, default)
     # The rare and fingerprint targets, answered from the fields acquired.
     contrast = results.get("contrast")
     field = field_words(contrast)[0] if contrast is not None else "field"

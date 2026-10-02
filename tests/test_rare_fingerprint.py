@@ -194,3 +194,29 @@ def test_the_page_has_a_tab_beyond_the_mean(screen, tmp_path):
     page = html_report(result, objects, fovs, tmp_path).read_text()
     conditions = page[page.index('id="conditions"') : page.index('id="enough"')]
     assert ">Beyond the mean<" in conditions
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_the_targets_have_their_own_tabs_after_the_features(screen, tmp_path):
+    # Each declared target answers in a line at the top of "Did I image enough?" and in its
+    # own tab after the features; what optimise's held-back fields can confirm is for the
+    # plan of the next experiment (owner, 2026-10-02).
+    import html
+    import re
+
+    objects, fovs, result = screen
+    page = html_report(result, objects, fovs, tmp_path).read_text()
+    start = page.index('<section class="card" id="enough"')
+    card = page[start : page.index("</section>", start)]
+    tabs = re.findall(r'role="tab" id="enough-tab-\d+"[^>]*>([^<]+)<', card)
+    features = list(result.results["enough_features"].table["feature"])
+    assert tabs == [*features, "rare phenotype", "fingerprint"]
+    top = html.unescape(re.sub(r"<[^>]+>", "", card[: card.index("One feature at a time")]))
+    assert "The rare phenotype, mitotic, was seen in at least 3 fields in" in top
+    assert "The fingerprint is within its tolerance in" in top
+    last = len(tabs) - 1
+    fingerprint = card[card.index(f'id="enough-panel-{last}"') :]
+    assert "The fingerprint, the 10-90% quantiles within 0.1 SD: its error" in html.unescape(
+        fingerprint
+    )
+    assert "Optimise judges it" not in card and "held-back" not in card

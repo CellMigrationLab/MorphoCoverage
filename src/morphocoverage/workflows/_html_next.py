@@ -7,7 +7,8 @@ the analysis that follows from what was found, with the code to run it (owner, 2
 - ``populations_next``: for a population (the most enriched, else the largest but the main
   one), label it and declare it as the rare phenotype, so ``report`` says whether it was seen
   in enough fields and ``optimise`` plans for it.
-- ``enough_next``: for a feature not yet shown in every repeat, plan its fields.
+- ``enough_next``: for a feature not yet shown in every repeat, plan its fields (kept for the
+  plan of the next experiment; "Did I image enough?" no longer shows it).
 - ``fields_next``: run the report again without the fields found to be artefacts.
 
 The code reads ``result`` (the ``Report``), ``objects`` and ``fovs``, as named in the
@@ -261,7 +262,8 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
 
 def enough_next(result: Any, fovs: pd.DataFrame, features: Any) -> str:
     """What to do after "Did I image enough?": the feature that needs the most cells to be
-    shown in every repeat, its fields planned; the repeats when there are too few."""
+    shown in every repeat, its fields planned; the repeats when there are too few. No longer
+    on that card (owner, 2026-10-02): kept for the plan of the next experiment."""
     steps = []
     counts = fov_counts(fovs)
     table = getattr(features, "table", None)

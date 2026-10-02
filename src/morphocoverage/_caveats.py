@@ -66,10 +66,17 @@ def once(items: Iterable[str]) -> list[str]:
     return [Assumption(text) if standing else text for text, standing in kinds.items()]
 
 
+# A first word that is a name or an identifier (siCTRL, drugA, pH3, dna_intensity): a
+# capital would change it, so the sentence keeps its case.
+_IDENTIFIER = re.compile(r"[a-z]\S*?[A-Z\d_]")
+
+
 def _sentence(text: str, ends: tuple[str, ...] = (".", "?", "!", ")")) -> str:
-    """``text`` with a capital first letter and a closing full stop (unless it ends with one
-    of ``ends``)."""
-    sentence = text[0].upper() + text[1:]
+    """``text`` with a capital first letter (unless its first word is a name, such as
+    ``siCTRL``) and a closing full stop (unless it ends with one of ``ends``)."""
+    first = text.split(maxsplit=1)[0] if text.strip() else ""
+    keep = _IDENTIFIER.match(first) is not None
+    sentence = text if keep else text[0].upper() + text[1:]
     return sentence if sentence.endswith(ends) else f"{sentence}."
 
 

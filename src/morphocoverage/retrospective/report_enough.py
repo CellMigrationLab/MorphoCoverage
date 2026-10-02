@@ -82,7 +82,8 @@ def enough_short(
     sufficiency: Any, calibration: Any, controls: Any, indent: int = 2, contrast: Any = None
 ) -> str:
     """The short form of question 2 (see the module), under ``indent``; with a contrast that
-    carries a resolution answer, that answer first (``report_resolved``)."""
+    carries a resolution answer, that answer first (``report_resolved``). The HTML page's
+    "Did I image enough?" leaves its stopping rules to the plan of the next experiment."""
     lines: list[str] = []
     cautions: list[str] = []
     if has_resolution(contrast):

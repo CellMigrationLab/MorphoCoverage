@@ -355,6 +355,14 @@ def _few_lines(frame: pd.DataFrame, keys: Sequence[str], confidence: str) -> lis
     return lines
 
 
+def uniformity_assumption(label: str, unit: str) -> str:
+    """The standing assumption of a rule that treats ``unit`` observations as independent
+    draws (``rule_tallies``' label), as the rules' text and the HTML page state it."""
+    return assumption(
+        f"{label} treats {plural(unit)} as independent draws: it assumes a spatially uniform sample"
+    )
+
+
 def _rule_cautions(
     report: Any, tallies: list[dict[str, Any]], name_groups: bool = False
 ) -> list[str]:
@@ -377,12 +385,7 @@ def _rule_cautions(
                 )
             )
         if own["assumes_spatial_uniformity"].astype(bool).any():
-            cautions.append(
-                assumption(
-                    f"{label} treats {plural(unit)} as independent draws: it assumes a "
-                    "spatially uniform sample"
-                )
-            )
+            cautions.append(uniformity_assumption(label, unit))
         found: dict[str, list[tuple[str, str]]] = {}
         for _, row in own.iterrows():
             for text in _warning_list(row):
@@ -481,4 +484,4 @@ def short_summary(report: Any, target: float | None = None) -> str:
     return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
-__all__ = ["rule_tallies", "short_parts", "short_summary"]
+__all__ = ["rule_tallies", "short_parts", "short_summary", "uniformity_assumption"]

@@ -104,8 +104,25 @@ def _number(value: float) -> str:
     return f"{value:.2f}"
 
 
-def fingerprint_lines(table: pd.DataFrame, word: str, fields: str) -> list[str]:
-    """One paragraph per fingerprint criterion (see the module)."""
+def held_back_note(judged: pd.DataFrame, word: str, fields: str) -> str:
+    """That optimise's held-back fields cannot confirm the fingerprint target, when their own
+    error exceeds the tolerance in every group; empty otherwise. Said in the text report and,
+    on the page, by the plan of the next experiment, not by "Did I image enough?"."""
+    if not len(judged) or not (judged["held_back_error"] > judged["tolerance"]).all():
+        return ""
+    return (
+        f"Optimise judges it on held-back {fields}: holding back {rate(HELD_BACK)} of a "
+        f"{word}'s {fields}, their own error (about "
+        f"{_number(judged['held_back_error'].median())}) exceeds the tolerance, so it cannot "
+        "confirm this target; this estimate is the guide."
+    )
+
+
+def fingerprint_lines(
+    table: pd.DataFrame, word: str, fields: str, held_back: bool = True
+) -> list[str]:
+    """One paragraph per fingerprint criterion (see the module); ``held_back=False`` leaves
+    out what optimise's held-back fields can confirm (``held_back_note``)."""
     lines = []
     for criterion, rows in table.groupby("criterion", sort=False):
         judged = rows[rows["met"].notna()]
@@ -128,15 +145,8 @@ def fingerprint_lines(table: pd.DataFrame, word: str, fields: str) -> list[str]:
                 f"; about {span(needed)} {fields} per {word} would bring it there "
                 f"({span(judged['fields'].astype(float))} acquired)."
             )
-        if (judged["held_back_error"] > judged["tolerance"]).all():
-            text += (
-                f" Optimise judges it on held-back {fields}: holding back {rate(HELD_BACK)} of a "
-                f"{word}'s "
-                f"{fields}, their own error (about {_number(judged['held_back_error'].median())}) "
-                "exceeds the tolerance, so it cannot confirm this target; this estimate is the "
-                "guide."
-            )
-        lines.append(wrap(text, 2, hang=4))
+        note = held_back_note(judged, word, fields) if held_back else ""
+        lines.append(wrap(f"{text} {note}".rstrip(), 2, hang=4))
     return lines
 
 
@@ -227,4 +237,10 @@ def with_targets(
     )
 
 
-__all__ = ["fingerprint_lines", "fingerprint_precision", "rare_lines", "with_targets"]
+__all__ = [
+    "fingerprint_lines",
+    "fingerprint_precision",
+    "held_back_note",
+    "rare_lines",
+    "with_targets",
+]
