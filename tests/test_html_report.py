@@ -22,9 +22,9 @@ def test_text_becomes_paragraphs_status_lines_and_tables():
     lines = [
         "  Planning the next experiment, with 3 biological repeats as here: the fields a",
         "    side each repeat needs:",
-        "    condition  d cells, mean  limited by",
-        "    drug       -0.57          sampling (more fields help)",
-        "    other      0.20           the repeats",
+        "    condition  d cells, mean  repeats needed",
+        "    drug       -0.57          7",
+        "    other      0.20           more than 30",
         "  ✅ Data checks: no warning.",
         "  - siCCT8#5 — lower in 3 of 3",
         "  Assumptions: Cells are independent draws.",
@@ -226,12 +226,14 @@ def test_the_page_reads_in_order_with_a_heatmap_a_drawer_and_no_grey(tmp_path):
     assert enough.index('class="reading"') < enough.index("One feature at a time")
     assert enough.count('role="tab"') == 3 and 'id="enough-panel-2"' in enough
     # Question 9: the significant features per condition, the heatmap, the best-ranked
-    # features (not the readout first), then the tests, the readout's reading among them.
+    # features (not the readout first), each with its legend, then the tests; the readings
+    # are not repeated on the card (owner, 2026-10-02).
     conditions = body[body.index('id="conditions"') : body.index('id="enough"')]
     assert conditions.index('class="significant"') < conditions.index('class="heatmap"')
     assert conditions.index('class="heatmap"') < conditions.index("The tests behind")
     tests = conditions.index("The tests behind")
-    assert conditions.index("Reading, condition by condition") > tests
+    assert conditions.index("For a figure legend") < tests
+    assert "Reading, condition by condition" not in conditions
     assert 'aria-label="Cohen' in conditions and 'class="selection"' not in conditions
     assert 'class="selection"' in body[body.index('id="dataset"') : body.index('id="populations"')]
     # The glossary is a drawer with a search.

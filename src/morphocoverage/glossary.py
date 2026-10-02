@@ -161,7 +161,7 @@ GLOSSARY: tuple[Term, ...] = (
         "Held-back fields",
         "Fields set aside before a rule is replayed, so whether the rule stopped too early is "
         "judged on fields it never saw.",
-        "The optimise workflow (planning the next experiment)",
+        "Plan the next experiment, the optimise workflow",
     ),
     Term(
         "Did I image enough?",

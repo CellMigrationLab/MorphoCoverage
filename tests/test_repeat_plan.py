@@ -100,8 +100,12 @@ def test_a_pilot_of_two_repeats_gets_a_plan(cdm):
     text = " ".join(two.summary().split())
     assert "Planning the next experiment on Area (for a new experiment, if the" in text
     assert "corrected over the conditions of its sub-experiment (a follow-up on Area" in text
-    # One cell per field here: the advice counts cells, not fields (images).
-    assert "cells a side per repeat" in text and "limited by" in text
+    # One cell per field here: the advice counts cells, not fields (images); no limiting
+    # factor is named, which 2 or 3 repeats cannot tell (owner, 2026-10-02).
+    assert "cells a side per repeat" in text and "limited by" not in text
+    assert "what limits it" not in text and "add repeats, not" not in text
+    full = " ".join(two.summary(detail="full").split())
+    assert "limited by" not in full and "which more cells cannot reduce" not in full
     # The repeats a paired test needs lead the plan (the limit is the repeats).
     assert "repeats needed" in text and "with twice the cells" in text
 
@@ -115,5 +119,5 @@ def test_a_pilot_of_one_repeat_is_told_what_a_second_repeat_gives(cdm):
     )
     text = " ".join(one.summary().split())
     assert "were imaged in one biological repeat: a second repeat shows how much" in text
-    assert "cells a side per repeat" in text and "unknown with one repeat" in text
+    assert "cells a side per repeat" in text and "unknown with one repeat" not in text
     assert "⚠️" not in one.summary()

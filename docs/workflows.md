@@ -147,42 +147,87 @@ its d. With fewer than 3 biological repeats nothing can be called significant
 exploratory cell-level screen that go the same way in both repeats, with 1 every
 candidate, said as exploratory. Then a heatmap of Cohen's d of every feature and
 condition against the control (● passes the exploratory cell-level screen, ✓ also
-significant across repeats; hover a cell for its q-values), then the best-ranked
-features (the readout only when it ranks, or alone when none does), then the
-tests behind the reading. These open with **the tests, in short**: the paired
-t-test on the biological repeat means (it decides), the cell-level screen
-(exploratory: it treats every cell as independent), and, when they are on the page,
-beyond the mean, the reagents and planning; what Cohen's d is in each table (per
-repeat or on the cells); and what p and the adjusted p are. Then one table per test
-as tabs, each with p and the adjusted p (Benjamini-Hochberg, the q-value) in their
-own columns and its data as CSV: across repeats, every feature and condition with
-its direction in the repeats, its change against the control (the condition's mean over
-the control's, a fold change; the difference of the means where a mean is not positive,
-so a significant change can be read for its size) and its verdict (raw values folded);
-the summary names the same change beside each significant feature; the cell-level
-screen in the version the report trusts, with how often it gives p ≤ 0.05 with no
-effect for the readout (its other versions folded, never one whose control comes from
-repeats the condition was not imaged in); beyond the mean; reagents; planning. The
-readout's reading, condition by condition, is folded under them. The page calls the
-q-value the adjusted p throughout.
+significant across repeats; hover a cell for its adjusted p-values), with the features
+no condition makes a candidate named under it, then the best-ranked features (the
+readout only when it ranks, or alone when none does), each with its text **for a
+figure legend** folded under it: n biological repeats, wells per condition, cells a well,
+what the points and bars show, the test and its correction family, and per condition
+the change, the mean per-repeat d, the adjusted p and p, every number the one the
+Across repeats tab gives for that feature and condition. Then the tests behind the
+reading. These open with **the tests, in short**: the paired t-test on the biological
+repeat means (it decides), the cell-level screen (exploratory: it treats every cell as
+independent), and, when they are on the page, beyond the mean and the reagents; what
+Cohen's d is in each table (per repeat or on the cells); and what p and the adjusted p
+are, with the family they allow for (the features and conditions, in each
+sub-experiment). Then one table per test as tabs, each with p and the adjusted p
+(Benjamini-Hochberg, the q-value) in their own columns and its data as CSV: across
+repeats, every feature and condition with its direction in the repeats, its change
+against the control (the condition's mean over the control's, a fold change; the
+difference of the means where a mean is not positive, so a significant change can be
+read for its size), the mean and range of the per-repeat d and its verdict (raw values
+folded); the summary names the same change beside each significant feature; the
+cell-level screen in the version the report trusts, with the balance of the repeats and
+how often it gives p ≤ 0.05 with no effect for the readout (its other versions folded,
+never one whose control comes from repeats the condition was not imaged in); beyond the
+mean; reagents. The card's "Show more" holds the section's assumptions only. The
+readings condition by condition, the feature ranking, the tables within single repeats
+and the plan for the next experiment are in the text report (`report_full.txt`), not on
+this card (owner, 2026-10-02). The page calls the q-value the adjusted p throughout.
 
 With several features, every test of "Do the conditions differ?" is corrected over
 every feature and condition of a sub-experiment: the readout's paired t-test and its
 cell-level screen take the feature discovery's p and q (`workflows._families`), so the
 readout reads the same in its own table, the summary and the heatmap.
 
-Each answer that calls for an analysis ends with **What to do next**: a sentence,
-and the code to run it on `result`, `objects` and `fovs`, folded under "Show the
-code". After "Fields to check", once the images confirm that a field should be
-excluded, the report again without it (the code lists every flagged field, the
-integrity checks' included: delete the line of each one to keep); after a
-population, the population labelled and declared as the rare phenotype
-(`RareTarget`, `rare_label`), so the report says whether it was seen in enough
-fields and `optimise` plans for it; after a feature significant across repeats,
-`optimise` with it as the readout; after "Did I image enough?", the same for the
-first feature not yet shown in every repeat; with fewer than 3 biological
-repeats, how many to plan. The field counts given to `optimise` fit the wells'
-fields once its reservoir is held back.
+"Did I image enough?" answers in one sentence (owner, 2026-10-02): within each
+biological repeat, for which features the fields imaged show the difference from
+the control in every comparison (a condition against the control in one repeat), in
+some or in none; with fewer than 3 biological repeats it first says that no
+difference can be called significant. With a rare phenotype or a fingerprint
+declared, a line each says in how many wells it was seen in enough fields, or is
+within its tolerance. A compact table follows, one row per feature: the comparisons
+shown and what would show the rest (how many comparisons would need about how many
+fields a side, or cells, tracks, patches when the comparison counts those, and how
+many are too small to show even with 4 times as many). Then one feature at a time,
+as tabs: its comparisons, the precision of each well's own mean and its table within
+each repeat; the rare phenotype and the fingerprint have their own tabs after the
+features. What every tab would repeat (that this is per repeat, what each well's own
+mean is for) is said once, in the card's "?", and the assumptions of these answers
+once, at its end. With one feature the card is the same, the comparison table given
+once, in full. The stopping rules, the repeats a new experiment would need and the
+plan `optimise` would make are not in this card: they are in the text report
+(`report_full.txt`) and, on the page, in its last section, "Plan the next experiment".
+
+An answer that calls for a look at the images ends with **What to do next**: a
+sentence, and the code to run it on `result`, `objects` and `fovs`, folded under
+"Show the code". After "Fields to check", once the images confirm that a field should
+be excluded, the report again without it (the code lists every flagged field, the
+integrity checks' included: delete the line of each one to keep); after a group, open
+the images of its fields, then label it with its rule and declare it as the rare
+phenotype (`RareTarget`, `rare_label`, its share of cells the rule's), so the report
+says whether it was seen in enough fields.
+
+The page ends with **Plan the next experiment**, two lists to pick from, each choice
+with its code filled in from these data:
+
+- *Want to optimise your imaging?* What the next experiment should get right: the mean
+  of a feature in every well (the readout first, then the features significant across
+  repeats; with the readout, how the stopping rules did on these fields), a group of
+  cells or the declared rare phenotype seen in at least 3 fields of every well (planned
+  on the condition where it is rarest), the declared fingerprint: `optimise` on these
+  data, with field counts that fit the wells once its reservoir is held back. A
+  difference from the control is planned in biological repeats, not fields: for each
+  condition not yet significant across repeats, the repeats the paired t-test would need
+  for 80% power, with the cells as now and twice as many (with fewer than 3 repeats, how
+  many to plan), and no code.
+- *Want to focus on a specific phenotype on the microscope?* Stop each well once a group
+  or the rare phenotype has been seen in 3 fields, or once enough fields without it show
+  it rarer than where it is rarest here (`RareIncidenceStrategy`, with
+  `live_session(..., objective=ObjectiveConfig("rare_discovery", rare=target))` so the
+  stop does not wait for a mean), the acquisition labelling each field's cells as it
+  writes them; or once the mean of a feature is known (the other declared targets
+  cleared, so the stop does not wait for rules it does not run). Live decides when to
+  stop imaging a well, not where to image.
 
 Every figure carries the data it draws as CSV, beside its PNG and PDF (in
 `figures/`, inside the page and in the zip), to draw it again outside: per
@@ -360,10 +405,11 @@ acquired:
   declared probability, at the share of fields holding it in the data; and
   the fingerprint's error with the fields acquired (estimated from random
   halves of each well's fields) against its tolerance, with the fields that
-  would bring it there. When half of a well's fields, held back by `optimise`,
-  would themselves err by more than the tolerance, it says so once: the
-  held-back judgement cannot confirm that target, and the estimate is the
-  guide.
+  would bring it there. When the fields `optimise` holds back (35% of a well's)
+  would themselves err by more than the tolerance, the text report says so
+  once: the held-back judgement cannot confirm that target, and the estimate is
+  the guide. On the page each target has its own tab, after the features, and a
+  line at the top of the card.
 - **"Do the conditions differ?"** compares the label's share between the
   conditions like a feature (`"<label> share"`: the ranking, the heatmap, the
   figures, which plot one point per field, its share of labelled cells, while the
@@ -709,7 +755,8 @@ dataset's role: keeping the two apart is up to you.
 
 `live_session(setup)` returns an `OnlineSession` for the setup's rules
 ([`online.md`](online.md)), under the objective made of the declared targets
-(`setup.objective()`). Each update ends with one view per target: the
+(`setup.objective()`), or the narrower `objective=` passed (for example
+`ObjectiveConfig("rare_discovery", rare=target)`, to stop on a rare phenotype alone). Each update ends with one view per target: the
 population summary, the phenotypic fingerprint and the rare phenotype, each
 with the decision of the rules that decide it, then the overall decision. The
 default rules (the mean-precision rule per object and per field; per field only for

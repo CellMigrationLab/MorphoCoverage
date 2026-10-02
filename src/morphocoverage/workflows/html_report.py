@@ -9,14 +9,18 @@ that opens in any browser, offline, and can be emailed or archived as it is. It 
   data (one row per check, ``_html_cards``), the fields to check and why, with
   ``embedding.MIN_FEATURES`` or more features the whole dataset at once (an **interactive
   PCA and UMAP**, ``_html_figures``), the populations, whether the conditions differ,
-  whether enough was imaged, and the rest; a section this design cannot answer is left out
-  (its reason stays in "What this dataset cannot tell me"). Each gives what it is for under
-  a "?", its answer first and the rest under "Show more" (the words of ``Report.summary``,
-  its aligned tables as sortable tables), and, where an analysis follows, **what to do
-  next** with its code (``_html_next``);
+  whether enough was imaged (one sentence and a table across the features, then a tab per
+  feature and declared target, ``_html_enough``), and the rest; a section this design
+  cannot answer is left out (its reason stays in "What this dataset cannot tell me"). Each
+  gives what it is for under a "?", its answer first and the rest under "Show more" (the
+  words of ``Report.summary``, its aligned tables as sortable tables), and, where an
+  analysis follows, **what to do next** with its code (``_html_next``);
 - under "Do the conditions differ?", the features significant across repeats per
-  condition, a **heatmap** of Cohen's d, the **figures** of the best-ranked features, then
-  the tests behind the reading;
+  condition, a **heatmap** of Cohen's d (the features no condition makes a candidate named
+  under it), the **figures** of the best-ranked features, each with its text for a figure
+  legend folded, then the tests behind the reading, one kind a tab, and under "Show more"
+  the section's assumptions only (the readings, the ranking, the plan and the tables within
+  single repeats stay in the text report);
 - the **glossary** as a drawer on the side, with a search, and the **Files**.
 
 Every figure is also saved in ``folder/figures`` as PNG and PDF (vector, for papers), with
@@ -43,10 +47,7 @@ from .._wording import listing
 from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
-from ..retrospective.report_status import group_word
-from ..sampling_unit.legend_text import legend_box
 from ..sampling_unit.reading_text import readings_parts
-from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import rule_tallies
 from ._html_cards import (
     check_rows,
@@ -58,9 +59,10 @@ from ._html_cards import (
     significant_summary,
 )
 from ._html_data import data_buttons, files_card, heatmap_data, json_island, page_files
-from ._html_enough import enough_body
+from ._html_enough import enough_body, enough_help
 from ._html_figures import embeddings, feature_figures
-from ._html_next import conditions_next, enough_next, fields_next, populations_next
+from ._html_next import fields_next, populations_next
+from ._html_plan import PLAN_TITLE, plan_card
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
 from ._html_render import Terms, adjusted_p, chip, text_html
@@ -78,7 +80,7 @@ from ._html_sections import (
     what_checked,
 )
 from ._html_style import CSS
-from ._html_tests import tests_section
+from ._html_tests import figure_legends, page_assumptions, tests_section
 from .retrospective import REPORT_QUESTIONS, Report
 
 REPORT_FILE = "report.html"
@@ -264,8 +266,12 @@ def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -
     grid = heatmap(result.discovery, conditions)
     if grid:
         files = heatmap_data(result.discovery, folder)
+        # The features no condition makes a candidate, under the heatmap (owner, 2026-10-02).
+        unranked = "".join(
+            f'<p class="note">{html.escape(line)}</p>' for line in result.discovery._unranked(8)
+        )
         extra += (
-            f"<h3>Every feature against the control</h3>{grid}"
+            f"<h3>Every feature against the control</h3>{grid}{unranked}"
             f'<p class="tools">{data_buttons(files)}</p>'
         )
     if feature_blocks:
@@ -284,45 +290,34 @@ def _conditions_card(
     full: str,
     answer: str | None,
     extras: str,
-    next_html: str,
     folder: Path,
 ) -> str:
-    """Question 9: the significant features per condition, the figures, then the tests
-    behind them (the readout's reading first), then what to do next."""
+    """Question 9: the significant features per condition, the figures (each with its
+    legend), then the tests behind them, the assumptions under "Show more"; planning the
+    next experiment is the page's last section (_html_plan). The readings, the ranking and
+    the plan are not repeated here (owner, 2026-10-02): the tabs and the figures hold their
+    numbers, and the text report every one."""
     contrast = result.results.get("contrast")
     reading = "\n".join(readings_parts(contrast, indent=2)) if contrast is not None else ""
     summary = significant_summary(result, _TERMS.annotate) or readout_summary(
         result, _TERMS.annotate
     )
-    if reading and short.startswith(reading):
-        rest = short[len(reading) :].lstrip("\n")
-        box = legend_box(contrast, result.setup.unit_words)
-        legend = (
-            f'<p class="legend-box"><strong>For a figure legend.</strong> '
-            f"{_TERMS.annotate(html.escape(box.split(': ', 1)[1]))}</p>"
-            if box
-            else ""
-        )
-        readout = (
-            f"<details><summary>The readout, {html.escape(result.setup.readout)}, condition by "
-            f"condition</summary>{_html(reading)}{legend}</details>"
-        )
-        body = (summary or _html(reading)) + extras + "<h3>The tests behind the reading</h3>"
+    rest = short[len(reading) :].lstrip("\n") if reading and short.startswith(reading) else short
+    # Without a summary (no reading by verdict), the readings answer.
+    body = (summary or _html(reading)) + extras
+    if rest.strip():
         # One kind of test at a time (_html_tabs).
-        body += (tests_section(result, rest, _html, folder) if rest.strip() else "") + readout
-    else:
-        body = summary + _html(short) + extras
+        body += "<h3>The tests behind the reading</h3>" + tests_section(result, rest, _html, folder)
     # The summary answers, so the headline is not repeated above it (it stays the chip's).
     shown = None if summary else answer
     return _section(
         "conditions",
         status,
-        short,
-        full,
+        "",
+        page_assumptions(full, contrast),
         shown,
         body_extra=body,
         found=answer,
-        next_steps=next_html,
     )
 
 
@@ -345,7 +340,8 @@ def html_report(
     folder = Path(folder)
     # The "?" help in the report's words for its observations (tracks, patches).
     _INTROS.clear()
-    _INTROS.update(intros_for(result.setup.unit_words, result.setup.observation_unit or "object"))
+    one = result.setup.observation_unit or "object"
+    _INTROS.update(intros_for(result.setup.unit_words, one, **enough_help(result)))
     _WORDS.clear()
     _WORDS.update(chip_words(result))
     _UNITS["words"] = result.setup.unit_words
@@ -356,7 +352,8 @@ def html_report(
     doc = result.document
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        feature_blocks, specs = feature_figures(result, objects, fovs, figures)
+        legends = {f: _TERMS.annotate(html.escape(t)) for f, t in figure_legends(result).items()}
+        feature_blocks, specs = feature_figures(result, objects, fovs, figures, legends)
         viz, static = ("", [])
         if len(result.setup.columns) >= MIN_FEATURES:
             viz, static = embeddings(result, objects, fovs, figures)
@@ -387,6 +384,7 @@ def html_report(
             )
     for anchor, label in (
         ("limits", "What it cannot tell"),
+        ("plan", PLAN_TITLE),
         ("glossary", "Glossary"),
         ("files", "Files"),
     ):
@@ -423,20 +421,16 @@ def html_report(
                     doc.sections[key],
                     headlines.get(key),
                     extras,
-                    conditions_next(result, fovs),
                     figures,
                 )
             )
             continue
         extra, answer, after = "", headlines.get(key), ""
-        features = result.results.get("enough_features") if key == "enough" else None
-        reading = enough_reading(result) if key == "enough" and features is None else []
-        if features is not None:
-            # Every feature alike: the summary, then one feature at a time (_html_enough).
-            word = group_word(result.results.get("sufficiency"))
-            fields = field_words(next(iter(features.contrasts.values())))[1]
-            extra = enough_body(features, short, word, fields, _TERMS.annotate, _unnumbered)
-            answer = None
+        # One sentence and a table, then one feature at a time (_html_enough).
+        body = enough_body(result, _TERMS.annotate) if key == "enough" else None
+        reading = enough_reading(result) if key == "enough" and body is None else []
+        if body is not None:
+            extra, answer = body, None
         elif reading:
             # The reading answers in sentences, so the headline is not repeated above it.
             lines = "".join(f"<p>{html.escape(line)}</p>" for line in reading)
@@ -445,17 +439,15 @@ def html_report(
                 + _unnumbered(text_html(short))
             )
             answer = None
-        if key == "enough":
-            after = enough_next(result, fovs, features)
-        elif key == "populations":
+        if key == "populations":
             after = populations_next(result, fovs, objects)
         cards.append(
             _section(
                 key,
                 statuses.get(key),
                 short,
-                # Every feature's text is in the tabs already: the full text is in the files.
-                None if features is not None else doc.sections[key],
+                # The card says it all: the full text, the stopping rules, is in the files.
+                None if body is not None else doc.sections[key],
                 answer,
                 body_extra=extra,
                 found=headlines.get(key),
@@ -474,6 +466,8 @@ def html_report(
             title=LIMITS_TITLE,
         )
     )
+    # The next experiment, planned with optimise and live (_html_plan; owner, 2026-10-02).
+    cards.append(_card("plan", PLAN_TITLE, "", plan_card(result, objects, fovs, _TERMS.annotate)))
     texts = {
         "report_short.txt": result.summary() + "\n",
         "report_full.txt": result.summary(detail="full") + "\n",

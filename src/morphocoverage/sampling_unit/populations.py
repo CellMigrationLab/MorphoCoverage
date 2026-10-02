@@ -85,6 +85,7 @@ _COLUMNS = [
     "purity",
     "rule",
     "rule_code",
+    "rule_terms",
     "rule_recall",
     "rule_precision",
 ]
@@ -304,6 +305,7 @@ def find_populations(
                 "purity": purity,
                 "rule": rule.words(),
                 "rule_code": rule.code(),
+                "rule_terms": rule.terms,
                 "rule_recall": rule.recall,
                 "rule_precision": rule.precision,
             }

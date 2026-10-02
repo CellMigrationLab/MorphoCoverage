@@ -69,6 +69,14 @@ SCRIPT = """
       }
     });
   });
+  // The plan's choices: the panel of the option picked.
+  document.querySelectorAll('.choose').forEach(function (choose) {
+    var pick = choose.querySelector('select');
+    var panels = Array.from(choose.querySelectorAll('.choice-panel'));
+    pick.addEventListener('change', function () {
+      panels.forEach(function (p, i) { p.hidden = String(i) !== pick.value; });
+    });
+  });
   // Long tables: the first rows, and a button to show them all (sorting sorts them all).
   document.querySelectorAll('.long-table > button.show-all').forEach(function (button) {
     var shut = button.textContent;

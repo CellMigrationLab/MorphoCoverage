@@ -209,6 +209,11 @@ dl.glossary { margin: 6px 0 14px; }
   border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit;
   font-size: 14px; }
 .picker .panel-name { margin: 2px 0 6px; font-size: 16px; }
+.choose { margin: 4px 0 14px; }
+.choose label { display: block; font-weight: 600; margin-bottom: 6px; }
+.choose select { padding: 6px 10px; border-radius: 8px; max-width: 100%;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+.choose .choice-panel { margin-top: 10px; }
 .picker .tab-panel { border-top: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
 .long-table:not(.open) tbody tr:nth-child(n+21) { display: none; }
 .long-table button.show-all { border: 1px solid var(--border); background: var(--surface);
@@ -234,7 +239,7 @@ ul.significant { margin: 6px 0 4px; padding-left: 1.2em; }
 ul.significant li { margin: 4px 0; max-width: 130ch; }
 .next { border-left: 3px solid var(--ok); background: var(--surface-2); padding: 8px 14px;
   border-radius: 0 8px 8px 0; margin: 14px 0 4px; }
-table.fields td, .tab-panel td:last-child { white-space: normal; }
+table.fields td, .tab-panel td:last-child, .compact td:last-child { white-space: normal; }
 table.fields td:first-child { white-space: nowrap; }
 dl.tests-explained { margin: 4px 0 12px; max-width: 130ch; }
 dl.tests-explained dt { font-weight: 600; margin-top: 8px; }

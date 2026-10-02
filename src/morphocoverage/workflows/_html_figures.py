@@ -82,10 +82,16 @@ def file_stem(name: Any, taken: set[str]) -> str:
 
 
 def feature_figures(
-    result: Report, objects: pd.DataFrame, fovs: pd.DataFrame, folder: Path
+    result: Report,
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    folder: Path,
+    legends: dict[str, str] | None = None,
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """The best-ranked features: each figure's block (interactive, with its static PNG and
-    PDF and its data as CSV) and the specs the page's script draws (``_html_plotly``)."""
+    PDF and its data as CSV, and the feature's text for a figure legend folded, ``legends``
+    as markup by feature) and the specs the page's script draws (``_html_plotly``)."""
+    legends = legends or {}
     setup = result.setup
     drawn = plots(objects, fovs, setup, ranking=result.discovery)
     views = _views(setup)
@@ -168,7 +174,13 @@ def feature_figures(
                 f'<div class="panel">{letter_a}'
                 f'<div class="pl-plot" id="pl-{html.escape(name)}"></div></div>{pair}'
                 f'<div class="figure-legend"><p><strong>Legend:</strong></p>{legend}</div>'
-                f'<p class="note sampled"></p><p class="tools">'
+                + (
+                    "<details><summary>For a figure legend</summary>"
+                    f'<p class="legend-box">{legends[feature]}</p></details>'
+                    if feature in legends and index == 1
+                    else ""
+                )
+                + f'<p class="note sampled"></p><p class="tools">'
                 f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
                 f" {data_buttons(data)}"
                 "</p><details><summary>The static figure (as in the PDF)</summary>"

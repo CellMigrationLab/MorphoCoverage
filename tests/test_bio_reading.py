@@ -1,19 +1,23 @@
 """The report as a cell biologist reads it (owner decisions of 2026-10-01, after a reading of
 the four lab reports by a biologist): the verdict says "significant across repeats", the
 markers say what was found, the advice names each condition's repeats, the correction
-family is counted, and a figure-legend paragraph gives n, the test, q and the change."""
+family is counted, and a figure-legend paragraph gives n, the test, the adjusted p and the
+change."""
 
+import re
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from morphocoverage._style import Status
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.discovery import feature_discovery
-from morphocoverage.sampling_unit.legend_text import legend_box
+from morphocoverage.workflows._html_plan import _difference_goal
 from morphocoverage.workflows._html_render import chip
-from morphocoverage.workflows._html_sections import _repeats_advice, what_checked
+from morphocoverage.workflows._html_sections import what_checked
+from morphocoverage.workflows._html_tests import figure_legends
 from morphocoverage.workflows.setup import Setup
 
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
@@ -30,12 +34,20 @@ def glioma():
     return data, contrast
 
 
-def test_the_advice_names_the_repeats_each_condition_needs(glioma):
-    """CCT8 needs about 5 repeats, CCT7 more than 30: one number for all four was wrong."""
+def test_the_plan_names_the_repeats_each_condition_needs(glioma):
+    """CCT8 needs about 5 repeats, CCT7 more than 30: one number for all four was wrong. The
+    plan of the next experiment gives them condition by condition."""
     _, contrast = glioma
-    advice = _repeats_advice(contrast, "fields")
-    assert "siCCT8#5 and siCCT8#8: about 5 biological repeats in all" in advice
-    assert "siCCT7#3 and siCCT7#6: more than 30" in advice
+    result = SimpleNamespace(
+        setup=SimpleNamespace(readout="Mean Speed", columns=("Mean Speed",)),
+        discovery=None,
+        results={"contrast": contrast},
+    )
+    _, panel = _difference_goal(result)
+    cells = r"<tr><td>Mean Speed</td><td>(.*?)</td><td>.*?</td><td>(.*?)</td>"
+    rows = dict(re.findall(cells, panel))
+    assert rows["siCCT8#5"] == rows["siCCT8#8"] == "5"
+    assert rows["siCCT7#3"] == rows["siCCT7#6"] == "more than 30"
 
 
 def test_the_correction_family_is_counted_per_sub_experiment(glioma):
@@ -51,13 +63,25 @@ def test_the_correction_family_is_counted_per_sub_experiment(glioma):
     assert "Benjamini-Hochberg within each sub-experiment: 26 tests in each of 2" in text
 
 
-def test_the_legend_box_gives_n_the_test_the_family_and_the_change(glioma):
+def _legends(contrast, readout, unit):
+    """The page's figure legends for a one-feature report of ``contrast``."""
+    result = SimpleNamespace(
+        discovery=None,
+        results={"contrast": contrast},
+        setup=SimpleNamespace(readout=readout, unit_words=unit),
+    )
+    return figure_legends(result)
+
+
+def test_the_legend_gives_n_the_test_the_family_and_the_change(glioma):
     _, contrast = glioma
-    box = legend_box(contrast, "tracks")
-    assert box.startswith("For a figure legend (Mean Speed): n = 3 independent biological")
-    assert "per sub-experiment (6 in all), one well per condition in each" in box
+    box = _legends(contrast, "Mean Speed", "tracks")["Mean Speed"]
+    assert box.startswith("n = 3 independent biological repeats per sub-experiment (6 in all)")
+    assert "one well per condition in each" in box
     assert "2 tests in each of 2 sub-experiments, each with its own control" in box
-    assert "siCCT8#5: mean 35% lower than the control, d -1.06, q 0.0506 (p 0.0494)" in box
+    # The numbers of the table across repeats: the change, the mean d, adjusted p and p.
+    assert "siCCT8#5: change ×0.65, d -1.06, adjusted p 0.0506 (p 0.0494)" in box
+    assert "adjusted p ≤ 0.05" in box and " q " not in box
 
 
 def test_one_repeat_gets_a_descriptive_legend_and_no_test():
@@ -70,9 +94,10 @@ def test_one_repeat_gets_a_descriptive_legend_and_no_test():
         control=data.control,
         observation_unit="cell",
     )
-    box = legend_box(one, "cells")
+    box = _legends(one, "Area", "cells")["Area"]
     assert "n = 1 independent biological repeat" in box
     assert "there is no test across repeats: describe the result as one experiment" in box
+    assert "siCCT8#5: change ×0.82, d -0.48" in box
 
 
 def test_the_markers_say_what_was_found():
