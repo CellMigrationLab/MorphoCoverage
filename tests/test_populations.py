@@ -63,7 +63,8 @@ def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen)
     assert "of every condition pooled, clustered on the 3 declared features (HDBSCAN" in short
     assert "the rest (not tested)" in short and "to validate on the images" in short
     # Each group comes with the rule that picks out its cells, checked on held-out cells.
-    assert "picked by dna >" in short and "on held-out cells" in short
+    flat = " ".join(short.split()).lower()
+    assert "picked by dna >" in flat and "on held-out cells" in flat
     assert "arrest higher" in short
     word = "Enriched" if status is Status.OK else "Trend only"
     assert chip(status, "populations", headline).endswith(f"{word}</span>")

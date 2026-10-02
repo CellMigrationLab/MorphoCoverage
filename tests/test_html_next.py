@@ -156,7 +156,7 @@ def test_the_populations_next_step_declares_the_population_as_the_rare_phenotype
     words = _words(markup)
     # Validate on the images first, its fields named; then label it with its rule.
     assert f"First validate {small['population']}" in words and "open the images" in words
-    assert "label its cells with its rule (picked by" in words
+    assert "label its cells with its rule, picked by" in words
     _run(markup, {"result": result, "objects": objects.copy(), "fovs": fovs})
     setup = seen["setup"]
     assert setup.rare_label == small["population"]

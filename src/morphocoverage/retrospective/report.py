@@ -156,7 +156,7 @@ SHORT_QUESTIONS = {
     "effort": "7. More fields or more samples?",
     "order": "8. A better order?",
     "conditions": "9. Do the conditions differ?",
-    "populations": "10. Distinct populations?",
+    "populations": "10. Groups of cells?",
 }
 
 

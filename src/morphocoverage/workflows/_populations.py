@@ -297,15 +297,15 @@ def _rule_cell(row: Any) -> str:
 
 
 def rule_words(row: Any) -> str:
-    """``picked by AR > 3.18 and MinFeret ≤ 17.7 (91% of its cells, 97% of those picked, on
-    held-out cells)``, or empty without a rule."""
+    """``picked by AR > 3.18 and MinFeret ≤ 17.7, which finds 91% of its cells, 97% of
+    those it picks being in it, on held-out cells``, or empty without a rule."""
     if not row["rule"]:
         return ""
     if pd.isna(row["rule_recall"]):
         return f"picked by {row['rule']}"
     return (
-        f"picked by {row['rule']} ({percent(row['rule_recall'])} of its cells, "
-        f"{percent(row['rule_precision'])} of those picked, on held-out cells)"
+        f"picked by {row['rule']}, which finds {percent(row['rule_recall'])} of its cells, "
+        f"{percent(row['rule_precision'])} of those it picks being in it, on held-out cells"
     )
 
 
@@ -398,11 +398,12 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
                 inside = f" ({inside})" if inside else ""
                 parts.append(f"{t['condition']} {side} in every repeat, not significant{inside}")
         if parts:
+            rule = rule_words(row) if row["rule"] else ""
             lines.append(
                 wrap(
-                    f"- {name} ({percent_fine(row['share'])} of {units}; "
-                    f"{defined_by(row['defining'][:2])}; {rule_words(row)}): "
-                    f"{'; '.join(parts)}.",
+                    f"- {name}, {percent_fine(row['share'])} of {units}, "
+                    f"{' and '.join(defined_by(row['defining'][:2]).split(', '))}: "
+                    f"{'; '.join(parts)}." + (f" {rule[:1].upper()}{rule[1:]}." if rule else ""),
                     4,
                     hang=6,
                 )

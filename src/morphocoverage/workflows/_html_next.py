@@ -219,7 +219,7 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
     )
     rule = rule_words(row)
     study = (
-        f"If it is, label its cells with its rule ({rule}) and declare it as the rare "
+        f"If it is, label its cells with its rule, {rule}, and declare it as the rare "
         "phenotype: the report then says in “Did I image enough?” whether it was seen in "
         "enough fields of every well, and optimise plans the fields to find it. The rule "
         "labels new acquisitions the same way; adjust its thresholds after looking at the "
