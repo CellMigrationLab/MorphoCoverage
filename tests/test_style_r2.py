@@ -8,6 +8,8 @@ with fixed meanings. These tests hold ``sampling_reliability``,
 summaries, and the report's questions 4, 5 and 7, to those rules.
 """
 
+from dataclasses import replace
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -154,6 +156,19 @@ def test_next_time_markers_follow_their_rules():
     assert alone[0] is Status.CAUTION and "not checked across samples" in alone[1]
     none = next_time_status(_curve(_wells(many, 0.5, 0.6)), None)
     assert none[0] is Status.PROBLEM
+
+
+def test_a_group_skipped_by_the_reliability_curve_is_counted_apart():
+    """#272: two wells assessed and one skipped (one field) are not "both groups"."""
+    curve = _curve(_wells(("P1",), 0.95, 0.99))
+    assert "enough in both groups" in next_time_status(curve, None)[1]
+    skipped = pd.DataFrame(
+        [{"condition": "ctrl", "plate": "P2", "well": "A1", "fovs": 1, "reason": "only 1 field"}]
+    )
+    curve = replace(curve, skipped=skipped)
+    status, text = next_time_status(curve, None)
+    assert status is Status.CAUTION and "both groups" not in text
+    assert "enough in the 2 groups assessed for the target; 1 more not assessed" in text
 
 
 # --- 5. What did the extra fields buy? ----------------------------------------------
