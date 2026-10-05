@@ -70,6 +70,22 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     assert "its shape the well" in title
 
 
+def test_each_part_of_a_split_figure_describes_its_own_wells():
+    """#179: both parts read the wells of all 14 conditions, not those they show."""
+    objects, fovs = _tables(n_conditions=14, n_repeats=1, n_fields=4)
+    first = sorted(fovs["condition"].unique())[:7]  # the conditions of the first part
+    two = fovs["condition"].isin(first) & fovs["image_file"].str.endswith(("f2", "f3"))
+    fovs.loc[two, "well"] = "w2"
+    objects["well"] = objects["image_file"].map(dict(zip(fovs["image_file"], fovs["well"])))
+    parts = plots_of_data(
+        objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS, technical_col="well"
+    )["x"]
+    assert "whole wells with their fields (2 per repeat)\n" in parts[0].caption
+    assert "one well" not in parts[0].caption and parts[0].axes[0].get_legend() is not None
+    assert "resampling its fields (one well per repeat)" in parts[1].caption
+    assert "2-3 wells" not in parts[1].caption and parts[1].axes[0].get_legend() is None
+
+
 def test_many_conditions_split_and_many_repeats_are_pooled():
     objects, fovs = _tables(n_conditions=14, n_repeats=1, n_fields=2)
     figures = plots_of_data(

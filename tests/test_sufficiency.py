@@ -99,6 +99,45 @@ def test_empty_inputs_are_refused(strategies, orders):
         _report("homogeneous", strategies, orders=orders)
 
 
+@pytest.mark.parametrize("groups", [[], ["condition", "biological_repeat"]])
+@pytest.mark.parametrize("novelty", [None, SupportNoveltyEstimator(0.5, 1, None, 2, 3)])
+def test_an_acquisition_without_fovs_is_refused_whatever_its_groups(groups, novelty):
+    """#128: zero FOV rows raised a KeyError or 'No objects to concatenate' with group columns."""
+    fovs = pd.DataFrame({c: pd.Series([], dtype=str) for c in ["position_id", *groups]})
+    objects = fovs.assign(a=pd.Series([], dtype=float))
+    with pytest.raises(ValueError, match="at least one acquired FOV"):
+        sufficiency_report(
+            objects,
+            fovs,
+            feature_cols=["a"],
+            strategies=[] if novelty else [FixedFOVStrategy(3)],
+            objective=POPULATION,
+            orders=PERMUTED,
+            novelty=novelty,
+            fov_col="position_id",
+        )
+
+
+def test_a_rules_standing_assumption_is_not_called_a_caution():
+    """#139: the plateau rule's standing assumption read "Caution:" in the answer column."""
+    from morphocoverage._caveats import assumption
+    from morphocoverage.strategies import DescriptorPlateauStrategy
+    from morphocoverage.sufficiency_text import _enough_answer
+
+    rule = DescriptorPlateauStrategy("feature_a", 0.05, 3, ORDER_COL)
+    answer = _report("homogeneous", [rule]).enough["answer"].iloc[0]
+    assert "Caution" not in answer and " The tolerance bounds how much the descriptors" in answer
+    row = {
+        "strategy": "custom",
+        "config_id": "c",
+        "policies": "",
+        "n_fovs": 5,
+        "verdict": "continue",
+        "warning_list": ("measured here", assumption("true of every dataset")),
+    }
+    assert _enough_answer(row, []).endswith(" Caution: measured here. True of every dataset.")
+
+
 def _novel_acquisition(n_fovs=12, state_fovs=(3, 7), outlier_fovs=(5,)):
     """Common cells everywhere; its own 3-cell state in ``state_fovs``, one odd cell elsewhere."""
     rng = np.random.default_rng(0)
@@ -143,6 +182,16 @@ def test_next_fov_chance_counts_fovs_with_enough_new_cells():
     assert row["chance_new_at_most"] == pytest.approx(upper_bound(2, 13, 0.95))
     assert pd.isna(row["extra_fovs_if_nothing_new"])
     assert report.enough.empty and report.calibration.empty
+
+
+def test_a_target_beyond_the_projection_range_is_said_not_a_crash():
+    """#136: a target 100000 more FOVs cannot reach left None, and the answer raised TypeError."""
+    report = _novelty_report(novelty_target=1e-6)
+    row = report.next_fov.iloc[0]
+    assert pd.isna(row["extra_fovs_to_rule_out_target"])
+    assert pd.isna(row["extra_fovs_if_nothing_new"])
+    assert row["answer"].count("more than 100000 more FOVs") == 2
+    assert "more than 100000 more fields" in " ".join(report.summary("full").split())
 
 
 def test_new_observations_lists_only_cells_of_new_fovs_without_features():

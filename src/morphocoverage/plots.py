@@ -430,8 +430,6 @@ def plots_of_data(
         [layout.condition_col, layout.repeat_col, layout.technical_col, *layout.pooled_cols],
     )
     observed = meta.iloc[fov_positions(data, data.fovs)].reset_index(drop=True)
-    clusters = _cluster_units(observed, layout)
-    n_technical = max((n for _, technical in clusters for n in technical), default=0)
     statistic = SUMMARIES[summary]
     figures: dict[str, list[Figure]] = {}
     for feature in features:
@@ -447,6 +445,12 @@ def plots_of_data(
         size = -(-len(rest) // -(-len(rest) // room))
         for start in range(0, len(rest), size):
             chunk = lead + rest[start : start + size]
+            # The legend describes the clusters of this figure only, not those of its other parts.
+            in_chunk = np.logical_or.reduce(
+                [_mask(observed, layout.condition_col, c) for c in chunk]
+            )
+            clusters = _cluster_units(observed[in_chunk], layout)
+            n_technical = max((n for _, technical in clusters for n in technical), default=0)
             # Each part its own colours, the control's first (owner, 2026-10-05).
             colours = condition_palette(chunk, first, highlight)
             # Each condition is as wide as the repeats it holds: a slot of 1 per repeat, a gap
