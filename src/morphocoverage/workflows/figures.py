@@ -52,7 +52,8 @@ def plots(
     Plot&Stats does (``plots_pairwise``): Cohen's d and its randomization test, and
     each figure carries the table as ``pairwise``.
     With ``folder`` each figure is also saved there as
-    ``<feature>[_<part>].png``. Returns the figures by feature.
+    ``<feature>[_<part>].png``, a path separator in the name written ``_`` and a name
+    taken twice given a counter (``_file_name``). Returns the figures by feature.
     """
     objects, fovs, _ = check_workflow_inputs(objects, fovs, setup)
     if features is None:
@@ -106,11 +107,26 @@ def plots(
     if folder is not None:
         target = Path(folder)
         target.mkdir(parents=True, exist_ok=True)
+        taken: set[str] = set()
         for feature, parts in figures.items():
             for index, figure in enumerate(parts, start=1):
                 suffix = f"_{index}" if len(parts) > 1 else ""
-                figure.savefig(target / f"{feature}{suffix}.png", dpi=150)
+                name = _file_name(f"{feature}{suffix}", taken)
+                figure.savefig(target / f"{name}.png", dpi=150)
     return figures
+
+
+def _file_name(name: str, taken: set[str]) -> str:
+    """``name`` with no path separator, so the figure stays in the folder, made unique
+    among ``taken`` (compared without case, as some file systems do) with a counter: ``x``
+    in two parts and a feature ``x_1`` are three files; added to ``taken``."""
+    stem = "".join("_" if c in "/\\" else c for c in name) or "feature"
+    unique, n = stem, 1
+    while unique.casefold() in taken:
+        n += 1
+        unique = f"{stem}_{n}"
+    taken.add(unique.casefold())
+    return unique
 
 
 def _add_pairwise(

@@ -597,3 +597,19 @@ def test_an_empty_technical_repeat_column_derives_no_hierarchy_and_reports_none(
     update = tables.update(objects[objects["image_file"] == first["image_file"].iloc[0]], first)
     assert "technical_repeat" not in tables.key
     assert update is not None
+
+
+def test_saved_figures_stay_in_the_folder_and_never_share_a_file(tmp_path):
+    from morphocoverage.workflows import plots
+    from morphocoverage.workflows.figures import _file_name
+
+    objects, fovs = _acquisition(n_fovs=4, n_objects=5)
+    objects = objects.rename(columns={"feature_a": "a/b", "feature_b": "../outside"})
+    setup = Setup(readout="a/b", features=("a/b", "../outside"))
+    folder = tmp_path / "figures"
+    plots(objects, fovs, setup, features=["a/b", "../outside"], folder=folder, n_boot=5)
+    assert sorted(p.name for p in tmp_path.rglob("*.png")) == [".._outside.png", "a_b.png"]
+    assert all(p.parent == folder for p in tmp_path.rglob("*.png"))
+    taken: set[str] = set()
+    names = [_file_name(name, taken) for name in ("x_1", "x_2", "x_1", "X_2", "")]
+    assert names == ["x_1", "x_2", "x_1_2", "X_2_2", "feature"]
