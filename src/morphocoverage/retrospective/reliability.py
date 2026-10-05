@@ -18,11 +18,13 @@ Design, per analysis group (one sample):
    grew would make the curve partly a curve of reference quality.
 4. Per split, the share of draws that preserved the criterion is this
    sample's conditional reliability at ``k``; the curve reports its mean and
-   spread over splits, the Monte Carlo standard error of that mean (the
-   spread over splits divided by the square root of their number: how far
-   the printed share would move under another ``random_state``), the
-   metric's distribution, and the information gain of ``k`` over the
-   previous listed ``k``.
+   spread over splits, the Monte Carlo standard error of that mean with the
+   hold-out as the unit (the spread over splits divided by the square root of
+   their number when every split held back other fields; splits that repeat
+   a hold-out are one cluster, so it stops shrinking once the distinct
+   hold-outs are used up: more splits of the same references add no
+   reference), the metric's distribution, and the information gain of ``k``
+   over the previous listed ``k``.
 
 A draw of FOVs without any observations, or with fewer than the metric needs
 (one object has no covariance), is acquired effort and counts as not
@@ -253,6 +255,7 @@ def _split_draws(
                         "status": status.value,
                         "reservoir_fovs": len(reservoir.fovs),
                         "stream_fovs": n_stream,
+                        "holdout": holdout,
                     }
                 )
     return rows, ceiling
@@ -280,6 +283,25 @@ def _skip_reason(data: ValidatedInput, fraction: float, block_col: str | None) -
 _DIGITS = 12
 
 
+def _clustered_se(per_split: pd.Series, holdouts: pd.Series) -> float | None:
+    """The Monte Carlo standard error of the mean over splits, one cluster per hold-out.
+
+    Splits that held back the same fields differ only by their draws, so they
+    are one cluster (owner, 2026-10-05): the cluster-robust variance
+    ``H / (H - 1) * sum(r_h ** 2) / n ** 2``, with ``r_h`` the summed
+    deviations of hold-out ``h``'s splits from the mean, ``H`` the distinct
+    hold-outs and ``n`` the splits. With every hold-out distinct it is the SD
+    over splits divided by ``sqrt(n)``; ``None`` below two distinct hold-outs.
+    """
+    clusters = holdouts.reindex(per_split.index)
+    n_clusters = int(clusters.nunique())
+    if n_clusters < 2:
+        return None
+    sums = (per_split - per_split.mean()).groupby(clusters).sum()
+    variance = n_clusters / (n_clusters - 1) * float((sums**2).sum()) / len(per_split) ** 2
+    return round(float(np.sqrt(variance)), _DIGITS)
+
+
 def _curve_row(runs: pd.DataFrame) -> dict[str, Any]:
     """Aggregate the draws of one group, criterion and FOV count."""
     defined = runs[runs["status"] != Preservation.UNDEFINED.value]
@@ -290,9 +312,10 @@ def _curve_row(runs: pd.DataFrame) -> dict[str, Any]:
     )
     values = defined["value"].to_numpy(dtype=float)
     spread = round(float(per_split.std(ddof=1)), _DIGITS) if len(per_split) > 1 else None
-    # The Monte Carlo error of the printed mean over splits: another random_state (or
-    # relabelled groups, which the old seeding reseeded) draws other hold-outs and draws.
-    mc_se = None if spread is None else round(spread / np.sqrt(len(per_split)), _DIGITS)
+    # The Monte Carlo error of the printed mean over splits, clustered on the hold-out:
+    # another random_state draws other hold-outs and draws, but no more references.
+    holdouts = runs.groupby("split")["holdout"].first()
+    mc_se = None if spread is None else _clustered_se(per_split, holdouts)
     return {
         "splits": int(runs["split"].nunique()),
         "defined_splits": len(per_split),
@@ -400,12 +423,14 @@ def sampling_reliability(
     draw_table = pd.DataFrame(
         rows,
         columns=[*keys, "split", "fovs", "draw", "criterion", "value", "status"]
-        + ["reservoir_fovs", "stream_fovs"],
+        + ["reservoir_fovs", "stream_fovs", "holdout"],
     )
     curve_rows = []
     for key, runs in draw_table.groupby([*keys, "criterion", "fovs"], sort=False, dropna=False):
         values = dict(zip([*keys, "criterion", "fovs"], key, strict=True))
         curve_rows.append({**values, **_curve_row(runs)})
+    # The hold-out identity only clusters the Monte Carlo error; the ceiling reports it.
+    draw_table = draw_table.drop(columns="holdout")
     curve_rows += _beyond_every_stream(ceiling_rows, curve_rows, criteria, counts, keys)
     curve = pd.DataFrame(curve_rows, columns=[*keys, *CURVE_COLUMNS])
     if len(curve):

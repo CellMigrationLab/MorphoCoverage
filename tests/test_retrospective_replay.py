@@ -17,6 +17,7 @@ from morphocoverage.retrospective import (
     ALL_CRITERIA,
     OutcomeCriterion,
     adequacy_points,
+    calibration,
     first_apparent_adequacy,
     first_realized_adequacy,
     replay_acquisitions,
@@ -26,6 +27,7 @@ from morphocoverage.retrospective import (
     sustained_realized_adequacy,
 )
 from morphocoverage.schema import validate_input_tables
+from morphocoverage.statistics import median_standard_error
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
 MEAN_A = OutcomeCriterion(RelativeMeanError("feature_a"), 0.02, "lower_is_better", "the mean")
@@ -397,3 +399,52 @@ def test_outcome_prefixes_are_in_acquisition_order():
             [acquisition.new_fov(i).objects for i in range(1, step + 1)], ignore_index=True
         )
         pd.testing.assert_frame_equal(acquisition.prefix(step).objects, arrived)
+
+
+def _runs(stops_by_split):
+    """Calibration runs of one group and rule from {split: [stop of each order]}."""
+    rows = [
+        {
+            "group": "A",
+            "split": split,
+            "order_id": order_id,
+            "order": "random",
+            "strategy": "rule",
+            "config_id": "c",
+            "criterion": "mean",
+            "stopped": True,
+            "stop_fovs": stop,
+            "stream_fovs": 30,
+            "status_at_stop": "preserved",
+            "status_at_end": "preserved",
+        }
+        for split, stops in stops_by_split.items()
+        for order_id, stop in enumerate(stops)
+    ]
+    return pd.DataFrame(rows, columns=["group", *calibration.RUN_COLUMNS])
+
+
+def test_issue_228_the_median_stop_mc_se_counts_splits_not_orders():
+    split_stops = {0: 6, 1: 10, 2: 14, 3: 18}
+    se = {}
+    for orders in (1, 2, 20):
+        runs = _runs({s: [stop] * orders for s, stop in split_stops.items()})
+        row = calibration._table(runs, ["group"]).iloc[0]
+        assert row["median_stop_fovs"] == 12.0  # the point estimate is over every run
+        se[orders] = row["median_stop_fovs_mc_se"]
+    # More orders of the same splits add no reservoir: the error does not shrink.
+    assert se[1] == pytest.approx(se[2]) == pytest.approx(se[20])
+    # With one order per split every run is its own split, as before.
+    assert se[1] == pytest.approx(median_standard_error(np.array(list(split_stops.values()))))
+    # Order noise within similar splits does shrink with more orders of each split.
+    rng = np.random.default_rng(228)
+    noisy = {
+        orders: calibration._table(
+            _runs({s: rng.integers(5, 25, orders).tolist() for s in range(8)}), ["group"]
+        ).iloc[0]["median_stop_fovs_mc_se"]
+        for orders in (2, 40)
+    }
+    assert noisy[40] < noisy[2] / 2
+    # One split gives no Monte Carlo error, however many orders it has.
+    one = calibration._table(_runs({0: [6, 10, 14, 18]}), ["group"]).iloc[0]
+    assert one["median_stop_fovs_mc_se"] is None
