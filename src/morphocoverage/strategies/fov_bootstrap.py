@@ -87,8 +87,12 @@ number of selected features (``PCA(3)`` on 2 features: its ``output_width``
 says so). Fewer than ``min_fovs`` visible FOVs with observations, or a
 transform that cannot be fitted yet, give ``insufficient_data``. Resamples
 that draw only FOVs without observations (or, for the covariance, fewer than 2
-observations) have no summary; they are left out and counted in the
-diagnostics (``undefined_resamples``). PCA resamples whose covariance has
+observations) have no summary. When they are more than ``UNDEFINED_TOLERANCE``
+(10%) of the resamples the quantity is ``insufficient_data`` (owner,
+2026-10-05), since the SE of the resamples that happen to hold observations is
+not the SE of the design; below that share the SE comes from the defined
+resamples, and the diagnostics give their count and share
+(``undefined_resamples``, ``undefined_fraction``). PCA resamples whose covariance has
 observations but too little spread to define the summary (no spread for the
 eigenspectrum; a zero eigenvalue among the leading ``n_components`` for the
 subspace, whose basis would be arbitrary) are genuinely undetermined. When they are more than
@@ -152,6 +156,8 @@ from .base import Estimator, SamplingStrategy, _as_ints, _canonical_fovs
 AGGREGATES = ("max", "rms")
 # Largest share of PCA resamples without enough spread that is left out.
 DEGENERATE_TOLERANCE = 0.05
+# Largest share of resamples without a summary (too few observations) that is left out.
+UNDEFINED_TOLERANCE = 0.10
 
 
 def _meta(units: str, summary: str) -> dict[str, Any]:
@@ -395,7 +401,22 @@ class FOVBootstrapEstimator(Estimator):
         components, degenerate = self._resampled(values, positions, self._weights(data))
         defined = ~np.isnan(components).any(axis=1)
         # Degenerate PCA resamples are NaN too; they are counted once, on their own.
-        diagnostics["undefined_resamples"] = int((~defined).sum()) - degenerate
+        undefined = int((~defined).sum()) - degenerate
+        diagnostics["undefined_resamples"] = undefined
+        diagnostics["undefined_fraction"] = undefined / self.n_resamples
+        if undefined > UNDEFINED_TOLERANCE * self.n_resamples:
+            # The defined resamples are those that happened to draw observations: their
+            # spread is conditional on that, not the uncertainty of the design.
+            share = percent(diagnostics["undefined_fraction"])
+            reason = (
+                f"{undefined} of {self.n_resamples} resamples ({share}; more than "
+                f"{percent(UNDEFINED_TOLERANCE)}) draw too few observations to define the summary"
+            )
+            diagnostics["undefined_reason"] = reason
+            return Evidence(
+                self._every(Quantity.insufficient(reason, **_meta(units, self.summary))),
+                diagnostics,
+            )
         if degenerate:
             diagnostics["degenerate_resamples"] = degenerate
             diagnostics["degenerate_fraction"] = degenerate / self.n_resamples
@@ -541,6 +562,7 @@ __all__ = [
     "AGGREGATES",
     "DEGENERATE_TOLERANCE",
     "SUMMARIES",
+    "UNDEFINED_TOLERANCE",
     "FOVBootstrapEstimator",
     "FOVBootstrapStrategy",
     "centroid_resamples",

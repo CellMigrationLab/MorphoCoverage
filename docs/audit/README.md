@@ -188,7 +188,8 @@ the contrast's unit, and without a unit there is no p-value unless
 `fields_independent=True` (Q1); an order check flags a trend beside every
 stop, never vetoing it, and the documents recommend random or dispersed
 orders (Q2); the per-field bound takes Kish's effective number of fields as
-its degrees of freedom (Q3); and the recommended defaults D1 to D20, among
+its degrees of freedom (Q3; replaced by a bootstrap of whole fields, owner,
+2026-10-05); and the recommended defaults D1 to D20, among
 them robust standardization in `default_novelty`, per-plane rows refused,
 `watch(until_stop=True)` waiting for every group, and Monte Carlo errors
 beside every reliability share, with each group seeded from its labels

@@ -446,7 +446,11 @@ acquired:
   declared probability, at the share of fields holding it in the data; and
   the fingerprint's error with the fields acquired (estimated from random
   halves of each well's fields) against its tolerance, with the fields that
-  would bring it there. When the fields `optimise` holds back (35% of a well's)
+  would bring it there. A well where more than 10% of the 20 random halves
+  have no defined error is not judged, and named; below that share the error
+  comes from the other halves, and the text says the share (owner,
+  2026-10-05). When no well can be judged, it reads "not judged in any well"
+  with the reasons, marked ➖. When the fields `optimise` holds back (35% of a well's)
   would themselves err by more than the tolerance, the text report says so
   once: the held-back judgement cannot confirm that target, and the estimate is
   the guide. On the page each target has its own tab, after the features, and a

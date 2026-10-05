@@ -99,38 +99,38 @@ def _estimate_input(values_per_fov, features=("f0",)):
 
 
 def test_c1_empty_fields_leave_the_fov_unit_cv_and_its_bound_unchanged():
-    sums, counts = np.array([30.0, 50.0, 44.0]), np.array([20.0, 20.0, 18.0])
+    sums, counts = np.array([30.0, 50.0, 44.0, 36.0]), np.array([20.0, 20.0, 18.0, 19.0])
     alone = fov_averaging_cv(sums, counts)
     for empties in (1, 8, 38):
         padded = fov_averaging_cv(np.r_[sums, np.zeros(empties)], np.r_[counts, np.zeros(empties)])
         assert padded["cv_mean"] == pytest.approx(alone["cv_mean"])
         assert padded["cv_mean_upper_95"] == pytest.approx(alone["cv_mean_upper_95"])
-        assert padded["fovs_with_objects"] == 3
-    # The factor counts the 3 fields with objects; the bound's degrees of freedom are
-    # Kish's effective number of those fields minus one (audit 4, Q3).
+        assert padded["fovs_with_objects"] == 4
+    # The factor counts the 4 fields with objects; the bound resamples those fields only
+    # (a bootstrap of whole fields, #97; owner, 2026-10-05).
     mean = sums.sum() / counts.sum()
     residual = np.sum((sums - mean * counts) ** 2)
-    assert alone["cv_mean"] == pytest.approx(math.sqrt(3 / 2 * residual) / counts.sum() / mean)
-    kish = counts.sum() ** 2 / (counts**2).sum()
-    assert alone["cv_mean_upper_95"] == pytest.approx(
-        alone["cv_mean"] * statistics.effective_sd_upper_bound_factor(kish - 1)
-    )
+    assert alone["cv_mean"] == pytest.approx(math.sqrt(4 / 3 * residual) / counts.sum() / mean)
+    assert alone["cv_mean_upper_95"] > alone["cv_mean"]
     # Empty fields are still effort: the same CV over more acquired fields asks for more.
     assert required_fovs(alone["cv_mean"], 13, 0.05) > required_fovs(alone["cv_mean"], 3, 0.05)
 
     # Through the strategy: appending empty fields to an acquisition does not move the CV,
     # while the pilot projection still divides by every acquired field.
-    objects, fovs = _tables([[1.0, 2.0], [3.0, 3.5], [2.0, 2.5]])
-    padded_objects, padded_fovs = _tables([[1.0, 2.0], [3.0, 3.5], [2.0, 2.5], [], [], []])
+    acquired = [[1.0, 2.0], [3.0, 3.5], [2.0, 2.5], [1.5, 2.5]]
+    objects, fovs = _tables(acquired)
+    padded_objects, padded_fovs = _tables([*acquired, [], [], []])
     strategy = ScalarPrecisionStrategy("area", 0.05, "fov", "upper_95")
+    bound = _run(objects, fovs, strategy).evidence.value("averaging_cv")
+    assert bound is not None
     assert _run(padded_objects, padded_fovs, strategy).evidence.value(
         "averaging_cv"
-    ) == pytest.approx(_run(objects, fovs, strategy).evidence.value("averaging_cv"))
+    ) == pytest.approx(bound)
     piloted = ScalarPrecisionStrategy("area", 0.05, "fov", "point", pilot_fovs=3, order_col="order")
     result = _run(padded_objects, padded_fovs, piloted)
     pilot_cv = result.diagnostics["pilot"]["cv_mean"]
     assert result.evidence.value("pilot_projected_averaging_cv") == pytest.approx(
-        pilot_cv * math.sqrt(3 / 6)
+        pilot_cv * math.sqrt(3 / 7)
     )
 
 

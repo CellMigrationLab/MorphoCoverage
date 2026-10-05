@@ -12,7 +12,11 @@ fields acquired, per analysis group (a well):
   lower-is-better): the error of the group's fingerprint with the fields acquired, estimated
   from random halves of its fields (two halves of ``m`` fields differ by about
   ``sqrt(2 n / m)`` times the error of all ``n``), against the tolerance; and the fields the
-  error would fall within it, as 1/sqrt(fields). When ``optimise``'s held-back fields would
+  error would fall within it, as 1/sqrt(fields). A half the error is not defined on is counted
+  (``undefined_splits`` of ``splits``); above ``UNDEFINED_TOLERANCE`` (10%) of the halves the
+  group is not judged, since the surviving halves need not be like the rest (owner,
+  2026-10-05), and below it the error comes from the others and the text says their share.
+  When ``optimise``'s held-back fields would
   themselves err by more than the tolerance, the report says so once: its held-back judgement
   cannot confirm the target, and this estimate is the guide.
 """
@@ -27,7 +31,7 @@ import pandas as pd
 
 from .._seeds import group_rng
 from .._style import Status, span, worst, wrap
-from .._wording import count, plural, rate
+from .._wording import count, percent, plural, rate
 from ..evaluator import FovSubsets, iter_analysis_groups
 from ..schema import validate_input_tables
 
@@ -37,6 +41,8 @@ if TYPE_CHECKING:
 
 SPLITS = 20
 MIN_FIELDS = 4
+# Largest share of the random halves without a defined error that is left out.
+UNDEFINED_TOLERANCE = 0.10
 # The share of a group's fields optimise holds back (reservoir_fraction), as the page's
 # "What to do next" runs it (``_html_next``) and docs/workflows.md shows it.
 HELD_BACK = 0.35
@@ -64,16 +70,18 @@ def fingerprint_precision(
         rng = group_rng(setup.random_state, group)
         for criterion in criteria:
             errors = []
-            for _ in range(SPLITS if subsets is not None else 0):
+            splits = SPLITS if subsets is not None else 0
+            for _ in range(splits):
                 order = rng.permutation(n)
                 value = criterion.metric.evaluate(
                     subsets.take(order[half : 2 * half]), subsets.take(order[:half])
                 )
                 if value is not None and np.isfinite(value):
                     errors.append(value)
+            undefined = splits - len(errors)
             estimate = (
                 float(np.sqrt(np.mean(np.square(errors))) * np.sqrt(half / (2 * n)))
-                if errors
+                if errors and undefined <= UNDEFINED_TOLERANCE * splits
                 else np.nan
             )
             tolerance = float(criterion.threshold)
@@ -83,6 +91,8 @@ def fingerprint_precision(
                     "criterion": criterion.description or criterion.metric.name,
                     "tolerance": tolerance,
                     "fields": n,
+                    "splits": splits,
+                    "undefined_splits": undefined,
                     "error": estimate,
                     "met": bool(estimate <= tolerance) if np.isfinite(estimate) else None,
                     "fields_needed": (
@@ -104,15 +114,44 @@ def _number(value: float) -> str:
     return f"{value:.2f}"
 
 
+def _unjudged_reasons(missing: pd.DataFrame, fields: str) -> str:
+    """Why the groups of ``missing`` (rows without ``met``) were not judged: one reason, or each
+    with its count."""
+    few = missing["fields"] < MIN_FIELDS
+    reasons = []
+    if few.any():
+        reasons.append((f"fewer than {MIN_FIELDS} {fields}", int(few.sum())))
+    if not few.all():
+        shares = missing.loc[~few, "undefined_splits"] / missing.loc[~few, "splits"]
+        reason = (
+            f"no defined error on {span(shares, 'percent')} of the random halves, more than "
+            f"{percent(UNDEFINED_TOLERANCE)}"
+        )
+        reasons.append((reason, int((~few).sum())))
+    if len(reasons) == 1:
+        return reasons[0][0]
+    return "; ".join(f"{n} with {reason}" for reason, n in reasons)
+
+
 def not_judged(rows: pd.DataFrame, word: str, fields: str) -> str:
     """That the fingerprint could not be judged in some groups of ``rows`` (one criterion),
-    so a tally over the judged groups does not read as every group; empty otherwise."""
-    missing = int(rows["met"].isna().sum())
-    if not missing:
+    and why, so a tally over the judged groups does not read as every group; empty otherwise."""
+    missing = rows[rows["met"].isna()]
+    if not len(missing):
         return ""
+    return f"Not judged in {count(len(missing), word)}: {_unjudged_reasons(missing, fields)}."
+
+
+def partly_undefined(judged: pd.DataFrame, word: str) -> str:
+    """The share of the random halves without a defined error where some were left out of a
+    judged estimate (at most ``UNDEFINED_TOLERANCE``); empty when every half was defined."""
+    some = judged[judged["undefined_splits"] > 0]
+    if not len(some):
+        return ""
+    shares = some["undefined_splits"] / some["splits"]
     return (
-        f"Not judged in {count(missing, word)}: fewer than {MIN_FIELDS} {fields}, or no "
-        "random half its error is defined on."
+        f"In {count(len(some), word)}, {span(shares, 'percent')} of the random halves have no "
+        "defined error; the error there is from the others."
     )
 
 
@@ -139,6 +178,11 @@ def fingerprint_lines(
     for criterion, rows in table.groupby("criterion", sort=False):
         judged = rows[rows["met"].notna()]
         if not len(judged):
+            text = (
+                f"The fingerprint, {criterion}: not judged in any {word}: "
+                f"{_unjudged_reasons(rows, fields)}."
+            )
+            lines.append(wrap(text, 2, hang=4))
             continue
         met = int(judged["met"].sum())
         errors = judged["error"]
@@ -158,7 +202,7 @@ def fingerprint_lines(
                 f"({span(judged['fields'].astype(float))} acquired)."
             )
         note = held_back_note(judged, word, fields) if held_back else ""
-        said = (text, not_judged(rows, word, fields), note)
+        said = (text, partly_undefined(judged, word), not_judged(rows, word, fields), note)
         lines.append(wrap(" ".join(part for part in said if part), 2, hang=4))
     return lines
 
@@ -200,7 +244,11 @@ def targets_status(
         statuses.append(Status.OK if seen == len(rows) else Status.CAUTION)
     if precision is not None:
         judged = precision[precision["met"].notna()]
-        if len(judged):
+        if not len(judged):
+            groups = len(precision) // precision["criterion"].nunique()
+            parts.append(f"the fingerprint judged in none of {groups}")
+            statuses.append(Status.NOT_ASSESSED)
+        else:
             met = int(judged["met"].sum())
             # Groups it could not be judged in are not counted: say the tally is of the judged.
             of = f"{len(judged)} judged" if len(judged) < len(precision) else f"{len(judged)}"
@@ -257,6 +305,7 @@ __all__ = [
     "fingerprint_precision",
     "held_back_note",
     "not_judged",
+    "partly_undefined",
     "rare_lines",
     "with_targets",
 ]

@@ -92,29 +92,30 @@ def _quantity(result, name):
     return result.evidence.quantities[name]
 
 
-def test_p3_1_the_per_field_bound_takes_kish_degrees_of_freedom():
+def test_p3_1_the_per_field_bound_is_a_whole_field_bootstrap():
+    # The Kish/chi-square bound was replaced by a bootstrap of whole fields (#97; owner,
+    # 2026-10-05); Kish's effective number of fields still gates the rule.
     sums, counts = np.array([300.0, 520.0, 60.0, 90.0]), np.array([30.0, 50.0, 5.0, 10.0])
     found = fov_averaging_cv(sums, counts)
     kish = counts.sum() ** 2 / (counts**2).sum()
     assert found["effective_fovs"] == statistics.kish_effective_fields(counts)
     assert found["effective_fovs"] == round(kish, 9) and 2 < kish < 4
-    assert found["cv_mean_upper_95"] == pytest.approx(
-        found["cv_mean"] * statistics.effective_sd_upper_bound_factor(kish - 1)
-    )
-    # Wider than the former k' - 1 = 3 degrees of freedom, since the sizes are unequal.
-    assert found["cv_mean_upper_95"] > found["cv_mean"] * statistics.sd_upper_bound_factor(3)
-    # Equal sizes: exactly the former bound, and the real-df factor meets the integer one.
-    equal = fov_averaging_cv(np.array([30.0, 52.0, 44.0]), np.array([10.0, 10.0, 10.0]))
-    assert equal["effective_fovs"] == 3
-    assert equal["cv_mean_upper_95"] == equal["cv_mean"] * statistics.sd_upper_bound_factor(2)
-    assert statistics.effective_sd_upper_bound_factor(7) == statistics.sd_upper_bound_factor(7)
+    assert found["cv_mean_upper_95"] > found["cv_mean"]
+    # Seeded: the same fields give the same bound, in any order; another seed moves it a little.
+    shuffled = fov_averaging_cv(sums[::-1], counts[::-1])
+    assert shuffled["cv_mean_upper_95"] == found["cv_mean_upper_95"]
+    other = fov_averaging_cv(sums, counts, random_state=1)["cv_mean_upper_95"]
+    assert other == pytest.approx(found["cv_mean_upper_95"], rel=0.2)
+    # Two fields: half the resamples draw one field twice, so no bound yet; nor with one
+    # dominant field (Kish below 2).
+    assert math.isnan(fov_averaging_cv(sums[:2], counts[:2])["cv_mean_upper_95"])
     assert math.isnan(
         fov_averaging_cv(np.array([1000.0, 5.0]), np.array([10.0, 1.0]))["cv_mean_upper_95"]
     )
-    # The docstring names the scope of its former coverage claim.
+    # The docstrings name the former bound's coverage and the bootstrap's.
     doc = _words(_averaging_cv.fov_averaging_cv.__doc__)
-    assert "93-98% of the time for a nominal 95% only when field sizes were Poisson" in doc
-    assert "94-97%" not in doc
+    assert "covered 70-85% with over-dispersed field sizes" in doc
+    assert "Coverage of the true averaging CV" in _words(_averaging_cv._bootstrap_upper.__doc__)
 
 
 def test_p4_3_one_dominant_field_is_not_enough_data_for_the_per_field_rule():
