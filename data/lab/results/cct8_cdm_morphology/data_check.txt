@@ -7,4 +7,4 @@ What was understood
   - 10 feature columns: 'Area', 'Perim.', 'Major', 'Minor', 'Circ.', 'Feret', 'MinFeret', 'AR' and 2
     more.
 
-The expected format, column by column, is in docs/data_format.md.
+The expected format, column by column, is in docs/common/data_format.md.
