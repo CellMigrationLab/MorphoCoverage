@@ -31,6 +31,7 @@ from ..bounds import lower_bound, upper_bound
 from ..schema import observation_words
 from ..sufficiency import SufficiencyReport
 from .controls import ControlResult
+from .controls_text import pooled_over
 from .effort import EffortResult, design_effect
 from .effort_text import level_words, share_caveat, unit_word
 from .inspection import InspectionResult
@@ -174,10 +175,13 @@ def _detection_adjusted_bounds(
             "  This holds for whole-field phenotypes like the control only: a small state in "
             "an ordinary field is recognized less often (declare planted_objects to measure it)."
         )
+    # One rate for every group: pooled over the control's strata, and said so (#253).
+    pooled = pooled_over(controls)
     heading = (
         f"Adjusted for the declared control's detection rate ({what}; at least {percent(low)} "
-        f"at {percent(confidence)} confidence, of {checks} checks): a phenotype seen as well "
-        "as the control, and shown by no FOV yet, could still be in"
+        f"at {percent(confidence)} confidence, of {checks} checks{', ' if pooled else ''}"
+        f"{pooled}): a phenotype seen as well as the control, and shown by no FOV yet, could "
+        "still be in"
     )
     lines = [heading]
     keys = list(sufficiency.group_cols)
@@ -495,18 +499,21 @@ def _chance_clause(controls: ControlResult | None, inspection: InspectionResult)
     if different is not None:
         return f" (not compared with the declared reference's false alarms: {different})"
     row = controls.pooled.set_index("candidate").loc["reference_lofo"]
+    # One rate for the fields of every group: pooled over the control's strata, said so (#253).
+    over = pooled_over(controls)
+    pooled = f", {over}," if over else ","
     if "judged_new" not in row.index or "candidates" not in row.index:
         return (
             f" (about {number(rate * judged)} of the {judged} fields judged expected by chance "
-            f"at the {percent(rate)} false-alarm rate of the declared reference, each field "
-            "judged against the other fields of its group)"
+            f"at the {percent(rate)} false-alarm rate of the declared reference{pooled} each "
+            "field judged against the other fields of its group)"
         )
     new, total = int(row["judged_new"]), int(row["candidates"])
     high = upper_bound(new, total, _CONFIDENCE)
     return (
         f" ({number(rate * judged)} to {number(high * judged)} of the {judged} fields judged "
-        f"expected by chance: the declared reference's false-alarm rate, each field judged "
-        f"against the other fields of its group, was {new} of {total} fields "
+        f"expected by chance: the declared reference's false-alarm rate{pooled} each "
+        f"field judged against the other fields of its group, was {new} of {total} fields "
         f"({percent(rate)}; at most {percent(high)} at {percent(_CONFIDENCE)} confidence))"
     )
 

@@ -21,11 +21,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._style import check_detail, group_columns, group_label, table, wrap
-from .._wording import column_word, count
+from .._wording import column_word, count, plural
 from ..schema import observation_words
 from ._text import percent
 
@@ -170,6 +171,46 @@ def _by_stratum(result: ControlResult) -> str | None:
     return f"By {words}, positive-control fields recognized: {', '.join(parts)}."
 
 
+def pooled_over(result: ControlResult) -> str:
+    """``pooled over all plates`` when the rates pool two or more strata (``pair_cols``), else
+    ''. The report's group-specific claims read the pooled rate and say so (owner, 2026-10-05).
+    """
+    pair_cols = tuple(result.pair_cols)
+    table_rows = result.table
+    if not pair_cols or "stratum" not in table_rows or table_rows["stratum"].nunique() < 2:
+        return ""
+    if len(pair_cols) == 1:
+        return f"pooled over all {plural(column_word(pair_cols[0]))}"
+    return f"pooled over all {' · '.join(column_word(c) for c in pair_cols)} strata"
+
+
+def representation_gate(result: ControlResult, minimum_detection: float) -> tuple[str, bool]:
+    """The sentence that gates the report's questions 2, 4 and 5, and whether it is a weak
+    representation; ``("", False)`` when the representation is strong enough.
+
+    With ``planted_objects`` declared, the planted rate gates (P6-4), else the whole positive
+    fields. The rate is pooled over the strata, and the sentence says so (owner, 2026-10-05).
+    """
+    rates = result.pooled.set_index("candidate")["rate"]
+    planted = (result.settings.get("control") or {}).get("planted_objects")
+    if pd.isna(rates.get("planted", np.nan)):
+        planted = None
+    rate = rates.get("planted" if planted else "positive")
+    if rate is None or pd.isna(rate) or float(rate) >= minimum_detection:
+        return "", False
+    seen = (
+        f"ordinary fields with {planted} planted positive-control objects"
+        if planted
+        else "fields of the declared positive control"
+    )
+    pooled = f", {pooled_over(result)}" if pooled_over(result) else ""
+    weak = (
+        f"Weak representation: {seen} were recognized in only {percent(float(rate))} of "
+        f"checks{pooled} (below {percent(minimum_detection)})"
+    )
+    return weak, True
+
+
 def _not_assessed(result: ControlResult) -> str:
     skipped = result.settings.get("skipped_strata", [])
     declared = result.settings.get("reason") != "none"
@@ -291,4 +332,11 @@ def control_summary(result: ControlResult, detail: str = "short") -> str:
     return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
-__all__ = ["control_full", "control_parts", "control_summary", "named_stratum"]
+__all__ = [
+    "control_full",
+    "control_parts",
+    "control_summary",
+    "named_stratum",
+    "pooled_over",
+    "representation_gate",
+]

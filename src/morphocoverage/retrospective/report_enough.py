@@ -29,6 +29,7 @@ from .._wording import percent
 from ..bounds import lower_bound
 from ..sufficiency_short import short_parts
 from .calibration import calibration_short_parts
+from .controls_text import pooled_over
 from .report_profile import _CONFIDENCE, _detection, _detection_adjusted_bounds, _words
 from .report_resolved import has_resolution, resolved_full, resolved_parts
 
@@ -68,9 +69,11 @@ def detection_line(sufficiency: Any, controls: Any) -> tuple[str | None, list[st
     cautions.append(
         assumption("the detection-adjusted bound assumes detection is independent between fields")
     )
+    # One rate for every group, pooled over the control's strata, and said so (#253).
+    pooled = f", {pooled_over(controls)}" if pooled_over(controls) else ""
     line = (
         f"Adjusted for detection ({what} recognized in {percent(recognized / checks)} of "
-        f"{checks} checks, at least {percent(low)} at {percent(confidence)} confidence): a "
+        f"{checks} checks, at least {percent(low)} at {percent(confidence)} confidence{pooled}): a "
         f"phenotype seen as well as the control, and shown by no field yet, could still be in "
         f"up to {_span(adjusted)} of fields (the {_span(bounds)} bound divided by "
         f"{percent(low)})."

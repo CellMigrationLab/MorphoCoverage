@@ -65,7 +65,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines, pool_assumptions
 from .._style import DASH, PROBLEM, Status, check_detail, headline, wrap
-from .._wording import count, listing, percent
+from .._wording import count, listing
 from ..sampling_unit import (
     ConditionContrast,
     DescriptorSpreadCheck,
@@ -81,6 +81,7 @@ from ..sufficiency import SufficiencyReport
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
 from .controls import ControlResult
+from .controls_text import representation_gate
 from .effort import EffortResult
 from .inspection import InspectionResult
 from .inspection_text import inspection_parts
@@ -409,21 +410,8 @@ def microscopist_report(
         )
     else:
         # With planted objects declared, the rare-state rate gates the warning (P6-4).
-        planted = (controls.settings.get("control") or {}).get("planted_objects")
-        planted_rate = _control_rate(controls, "planted") if planted else None
-        detection = (
-            planted_rate if planted_rate is not None else _control_rate(controls, "positive")
-        )
-        seen = (
-            f"ordinary fields with {planted} planted positive-control objects"
-            if planted_rate is not None
-            else "fields of the declared positive control"
-        )
-        if detection is not None and detection < float(minimum_detection):
-            weak = (
-                f"Weak representation: {seen} were recognized "
-                f"in only {percent(detection)} of checks (below {percent(minimum_detection)})"
-            )
+        weak, _ = representation_gate(controls, float(minimum_detection))
+        if weak:
             for key in ("enough", "next_time", "bought"):
                 if parts[key]:
                     weakened.append(key)

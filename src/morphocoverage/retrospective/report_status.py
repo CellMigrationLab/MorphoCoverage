@@ -41,7 +41,8 @@ The rules, question by question:
   ``minimum_detection`` of checks (weak representation); ⚠️ when a stratum
   could not be judged (named, with the reason), the false-alarm rate was not
   assessed or is above ``FALSE_ALARM_CAUTION``; ➖ without a control; ✅
-  otherwise.
+  otherwise. The rates are pooled over the control's strata, and the headline
+  says so (owner, 2026-10-05).
 - **2. Did I image enough?** (``enough_status``): over the rules that judge
   the data (not the fixed amounts of effort), each by its own threshold: ❌
   when none was met in any group; ✅ when every one was met in every group,
@@ -158,7 +159,7 @@ from ..schema import observation_words
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
 from .calibration import PREMATURE_CAUTION
-from .controls_text import _selected
+from .controls_text import _selected, pooled_over
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
 from .report_resolved import has_resolution, precision_words, resolved_headline
@@ -327,10 +328,13 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
     what = f"{planted} planted {words}" if kind == "planted" else "positive-control fields"
     if detection is None:
         return Status.CAUTION, f"{what}: not judged"
+    # The rates are pooled over the control's strata, and the headline says so (#253).
+    pooled = pooled_over(controls)
+    over = f", {pooled}" if pooled else ""
     if detection < float(minimum_detection):
         return (
             Status.PROBLEM,
-            f"weak representation: {what} recognized in {percent(detection)} of checks",
+            f"weak representation: {what} recognized in {percent(detection)} of checks{over}",
         )
     # The headline leads with the positive control itself; the planted rate gates the status.
     positive = _rate(controls, "positive")
@@ -343,9 +347,9 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
     false_alarm = _rate(controls, "reference")
     status = Status.OK
     if false_alarm is None:
-        status, headline = Status.CAUTION, f"{headline}; false alarms not assessed"
+        status, headline = Status.CAUTION, f"{headline}{over}; false alarms not assessed"
     else:
-        headline += f"; false alarms {percent(false_alarm)}"
+        headline += f"; false alarms {percent(false_alarm)}{over and f', both {pooled}'}"
         if false_alarm > FALSE_ALARM_CAUTION:
             status = Status.CAUTION
     if controls.settings.get("skipped_strata"):
