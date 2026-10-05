@@ -18,18 +18,29 @@ check (``_value_checks.few_values``) and every analysis already say so. Related 
 joined into groups, each said once as a caution (⚠️) naming what to keep. Nothing is
 dropped or merged and no statistic changes: the user re-declares the features.
 
+With several controls the same check also runs on each experiment's rows (owner,
+2026-10-05; on the ECM data Porosity (mean) = 1 - HDM held in the untransfected experiment
+only). An experiment is a control, the conditions whose own control it is, and its parent
+when one is linked (``workflows._contrasts.experiments``). A relation found in some
+experiments but not on all rows is said once, naming the conditions where it holds, since
+the experiments may then have been processed differently; one that holds on all rows is
+said once as above, never again per experiment. An experiment with fewer than
+``MIN_ROWS`` rows where both values are finite is not checked for that pair.
+
 One pass of matrix products gives every pair's correlation on its shared rows, so hundreds
 of features cost a correlation matrix; only the pairs that pass the screen are fitted.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 
 from .._wording import listing
-from ..schema import ValidatedInput
+from ..metadata import CONDITION_COLUMN
+from ..schema import ValidatedInput, fov_positions
 from ..statistics import spread_is_zero
 
 # The |Pearson r| from which two features that are not exact copies are near copies.
@@ -83,16 +94,10 @@ def _relation(x: np.ndarray, y: np.ndarray) -> dict[str, Any] | None:
     return {"kind": "near", "r": r} if abs(r) >= NEAR_R else None
 
 
-def related_features(data: ValidatedInput) -> list[dict[str, Any]]:
-    """The groups of declared features that repeat one measurement, in declared order:
-    ``{"features": [...], "relations": [(x, y, relation), ...]}``, each relation as
-    ``_relation`` gives it, ``y`` declared after ``x`` (see the module)."""
-    names = list(data.feature_cols)
-    if len(names) < 2:
-        return []
-    values = data.feature_matrix()
+def _related(values: np.ndarray) -> list[tuple[int, int, dict[str, Any]]]:
+    """Every related pair of columns of ``values`` as ``(x, y, relation)``, ``x < y``."""
     varied = []
-    for index in range(len(names)):
+    for index in range(values.shape[1]):
         column = values[:, index]
         column = column[np.isfinite(column)]
         if len(column) >= MIN_ROWS and not spread_is_zero(float(column.std()), column):
@@ -108,7 +113,12 @@ def related_features(data: ValidatedInput) -> list[dict[str, Any]]:
         found = _relation(values[:, x], values[:, y])
         if found is not None:
             relations.append((x, y, found))
-    parent = list(range(len(names)))
+    return relations
+
+
+def _groups(n: int, relations: list[tuple[int, int, Any]]) -> dict[int, list[int]]:
+    """The columns joined by ``relations``, by their first column: ``{first: [columns]}``."""
+    parent = list(range(n))
 
     def root(index: int) -> int:
         while parent[index] != index:
@@ -118,20 +128,74 @@ def related_features(data: ValidatedInput) -> list[dict[str, Any]]:
 
     for x, y, _ in relations:
         parent[max(root(x), root(y))] = min(root(x), root(y))
+    joined = {root(x) for x, _, _ in relations}
     groups: dict[int, list[int]] = {}
-    for x, y, _ in relations:
-        groups.setdefault(root(x), [])
-    for index in range(len(names)):
-        if root(index) in groups:
-            groups[root(index)].append(index)
+    for index in range(n):
+        if root(index) in joined:
+            groups.setdefault(root(index), []).append(index)
+    return dict(sorted(groups.items()))
+
+
+def related_features(data: ValidatedInput) -> list[dict[str, Any]]:
+    """The groups of declared features that repeat one measurement on all rows, in declared
+    order: ``{"features": [...], "relations": [(x, y, relation), ...]}``, each relation as
+    ``_relation`` gives it, ``y`` declared after ``x`` (see the module)."""
+    names = list(data.feature_cols)
+    if len(names) < 2:
+        return []
+    relations = _related(data.feature_matrix())
+    groups = _groups(len(names), relations)
     return [
         {
             "features": [names[i] for i in members],
-            "relations": [
-                (names[x], names[y], found) for x, y, found in relations if root(x) == key
-            ],
+            "relations": [(names[x], names[y], f) for x, y, f in relations if x in members],
         }
-        for key, members in sorted(groups.items())
+        for members in groups.values()
+    ]
+
+
+def _conditions(data: ValidatedInput, condition_col: str) -> np.ndarray | None:
+    """Each observation's condition, ``None`` without the column."""
+    if condition_col not in data.fovs.columns:
+        return None
+    positions = fov_positions(data, data.fovs)
+    labels = data.fovs[condition_col].to_numpy()[np.maximum(positions, 0)]
+    return np.where(positions >= 0, labels, None)
+
+
+def experiment_relations(
+    data: ValidatedInput,
+    experiments: Mapping[Any, Sequence[Any]],
+    condition_col: str = CONDITION_COLUMN,
+) -> list[dict[str, Any]]:
+    """The relations that hold within some experiments but not on all rows, grouped by the
+    experiments they hold in: ``{"experiments": [...], "conditions": [...], "relations":
+    [(x, y, relation), ...], "everywhere": ...}``, each relation as the first of those
+    experiments gives it; ``everywhere`` when it holds in every experiment, with other
+    coefficients in each."""
+    names = list(data.feature_cols)
+    labels = _conditions(data, condition_col)
+    if len(names) < 2 or labels is None or len(experiments) < 2:
+        return []
+    values = data.feature_matrix()
+    pooled = {(x, y) for x, y, _ in _related(values)}
+    found: dict[tuple[int, int], tuple[dict[str, Any], list[Any]]] = {}
+    for experiment, conditions in experiments.items():
+        rows = np.isin(labels, list(conditions))
+        for x, y, relation in _related(values[rows]):
+            if (x, y) not in pooled:
+                found.setdefault((x, y), (relation, []))[1].append(experiment)
+    by_place: dict[tuple[Any, ...], list[tuple[str, str, dict[str, Any]]]] = {}
+    for (x, y), (relation, where) in sorted(found.items()):
+        by_place.setdefault(tuple(where), []).append((names[x], names[y], relation))
+    return [
+        {
+            "experiments": list(where),
+            "conditions": list(dict.fromkeys(c for e in where for c in experiments[e])),
+            "relations": relations,
+            "everywhere": len(where) == len(experiments),
+        }
+        for where, relations in by_place.items()
     ]
 
 
@@ -209,8 +273,66 @@ def _joined(clauses: list[str]) -> str:
     return f"{', '.join(clauses[:-1])}, and {clauses[-1]}"
 
 
-def relation_checks(data: ValidatedInput) -> tuple[str, ...]:
-    """One sentence per group of related features (see the module); empty when none."""
+def _clause(x: str, y: str, relation: dict[str, Any]) -> str:
+    """One relation in words: ``y is a copy of x``, ``y = 1 − x``, ``x and y correlate``."""
+    if relation["kind"] == "copy":
+        return f"{y} is a copy of {x}"
+    if relation["kind"] == "derived":
+        return f"{y} = {_affine(x, relation)}"
+    return f"{x} and {y} correlate at r = {_r(relation['r'])}"
+
+
+def _any_coefficients(x: str, y: str, relation: dict[str, Any]) -> str:
+    """A relation whose coefficients differ between experiments, in words."""
+    if relation["kind"] == "near":
+        return f"{x} and {y} correlate at |r| ≥ {NEAR_R:g}"
+    return f"{y} = a × {x} + b"
+
+
+def place_sentence(place: dict[str, Any], pooled: list[dict[str, Any]]) -> str | None:
+    """Relations that hold in some experiments only, or in each with other coefficients, in
+    words (``None`` when every one joins features already joined on all rows, ``pooled``)."""
+    joined = {name: group["features"][0] for group in pooled for name in group["features"]}
+    clauses, roots = [], set()
+    for x, y, relation in sorted(place["relations"], key=lambda item: item[2]["kind"] == "near"):
+        old, new = joined.get(y, y), joined.get(x, x)
+        if old == new:
+            continue
+        joined = {name: new if mine == old else mine for name, mine in joined.items()}
+        joined.setdefault(y, new)
+        joined.setdefault(x, new)
+        roots = {new if root == old else root for root in roots} | {new}
+        words = _any_coefficients if place["everywhere"] else _clause
+        clauses.append(words(x, y, relation))
+    if not clauses:
+        return None
+    if len(clauses) > _RELATIONS:
+        clauses = [*clauses[:_RELATIONS], f"{len(clauses) - _RELATIONS} more relations"]
+    if place["everywhere"]:
+        # One measurement within each experiment, each scaled its own way: counted again in
+        # each experiment's test family, and the experiments were processed differently.
+        n = sum(root in roots for root in joined.values())
+        exact = all(found["kind"] != "near" for _, _, found in place["relations"])
+        what = "one measurement" if exact else "close to one measurement,"
+        return (
+            f"{NAME}: within each experiment, {_joined(clauses)}, a and b differing between "
+            f"experiments: {what} counted {_times(n)} in each test family; keep one of them. "
+            "The experiments may have been processed differently."
+        )
+    return (
+        f"{NAME}: in {listing(place['conditions'], 6)} only, {_joined(clauses)}; elsewhere "
+        "they are not one measurement, so the experiments may have been processed differently."
+    )
+
+
+def relation_checks(
+    data: ValidatedInput,
+    experiments: Mapping[Any, Sequence[Any]] | None = None,
+    condition_col: str = CONDITION_COLUMN,
+) -> tuple[str, ...]:
+    """One sentence per group of related features on all rows, then, with several
+    ``experiments`` (each control's conditions, ``workflows._contrasts.experiments``), one
+    per set of experiments a relation holds in alone (see the module); empty when none."""
     groups = related_features(data)
     sentences = [group_sentence(group) for group in groups[:_GROUPS]]
     rest = groups[_GROUPS:]
@@ -220,6 +342,10 @@ def relation_checks(data: ValidatedInput) -> tuple[str, ...]:
             f"{NAME}: {len(rest)} more groups, starting with {listing(firsts, 4)}: each "
             "repeats one measurement in each test family; keep one feature of each."
         )
+    if experiments:
+        places = experiment_relations(data, experiments, condition_col)
+        said = [place_sentence(place, groups) for place in places[:_GROUPS]]
+        sentences += [sentence for sentence in said if sentence]
     return tuple(sentences)
 
 
@@ -228,7 +354,9 @@ __all__ = [
     "NAME",
     "NEAR_R",
     "TOLERANCE",
+    "experiment_relations",
     "group_sentence",
+    "place_sentence",
     "related_features",
     "relation_checks",
 ]

@@ -75,6 +75,7 @@ from ..sampling_unit import (
 from ..schema import resolve_observation_unit
 from ..sufficiency import sufficiency_report
 from ._acquisition_gap import with_gap_caution, with_gaps
+from ._contrasts import experiments
 from ._distribution import distribution_by_feature
 from ._document import (
     assemble,
@@ -229,6 +230,7 @@ def report(
             control=setup.single_control,
             data_check=data_check,
             feature_tables=table_lines(setup, tables),
+            control_experiments=experiments(setup),
             **common,
         ),
     }

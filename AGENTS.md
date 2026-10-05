@@ -304,7 +304,7 @@ src/morphocoverage/
         report_sampling.py  # the Foundation and questions 1 and 3, short and full, and the counts their headlines read
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
         _value_checks.py   # private: checks of the values: fields more alike than chance, features with few distinct values
-        _feature_relations.py # private: declared features that repeat one measurement: copies, exact affine relations, near copies (owner, 2026-10-05)
+        _feature_relations.py # private: declared features that repeat one measurement: copies, exact affine relations, near copies, on all rows and within each of several controls' experiments (owner, 2026-10-05)
         _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
     sampling_unit/         # why count fields? the Foundation and R4 of docs/report/questions.md
         __init__.py        # the subpackage's public names

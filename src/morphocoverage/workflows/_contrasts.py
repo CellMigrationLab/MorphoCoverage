@@ -222,6 +222,36 @@ def own_references(setup: Setup) -> dict[Any, Any] | None:
     return own
 
 
+def experiments(setup: Setup) -> dict[Any, tuple[Any, ...]] | None:
+    """Each declared control's experiment, ``{control: (control, its conditions..., its
+    parent)}``: the control, the conditions declared under it and its parent when one is
+    linked (a control linked to it as a child is its own experiment). With a contrast table
+    given in place of a declaration, each reference and the conditions compared with it.
+    An experiment held within another is left out; ``None`` with fewer than two (owner,
+    2026-10-05)."""
+    table = contrast_table(setup)
+    if table is None:
+        return None
+    spec = _several(setup)
+    found: dict[Any, list[Any]] = {}
+    if spec is not None:
+        for control, members in spec.items():
+            found[control] = [control, *(m for _, m in _members(control, members))]
+        for control, parent in (setup.control_parents or {}).items():
+            target = parent[0] if isinstance(parent, tuple) else parent
+            found.setdefault(control, [control]).append(target)
+    else:
+        for condition, control in own_pairs(table):
+            found.setdefault(control, [control]).append(condition)
+    sets = {control: set(members) for control, members in found.items()}
+    kept = {
+        control: tuple(dict.fromkeys(members))
+        for control, members in found.items()
+        if not any(sets[control] < sets[other] for other in sets)
+    }
+    return kept if len(kept) >= 2 else None
+
+
 def compares(setup: Setup) -> bool:
     """Whether conditions are compared: a control on the condition column, or contrasts."""
     return setup.contrasts is not None or (
@@ -392,6 +422,7 @@ __all__ = [
     "contrast_table",
     "controls_sentence",
     "declared_conditions",
+    "experiments",
     "figure_control",
     "generated",
     "left_out",

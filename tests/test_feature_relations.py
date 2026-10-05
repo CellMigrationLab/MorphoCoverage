@@ -8,6 +8,7 @@ import pandas as pd
 from morphocoverage import check_tables
 from morphocoverage.retrospective import dataset_overview
 from morphocoverage.retrospective._feature_relations import (
+    MIN_ROWS,
     NAME,
     NEAR_R,
     related_features,
@@ -168,3 +169,105 @@ def test_hundreds_of_features_are_checked_at_once():
     data = _data(objects, fovs, list(extra.columns))
     assert _kinds(data) == [("f7", "f299", "derived")]
     assert "f299 = 5 − 2 × f7:" in relation_checks(data)[0]
+
+
+# Several controls: the check also runs within each experiment (owner, 2026-10-05).
+
+_EXPERIMENTS = {"ctrl": ("ctrl", "drug"), "ctrl2": ("ctrl2", "drug2")}
+
+
+def _two_experiments(cells: int = 240) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The tables of ``_tables`` with the second half of the fields in a second experiment."""
+    objects, fovs = _tables(cells=cells)
+    second = {"ctrl": "ctrl2", "drug": "drug2"}
+    for table in (objects, fovs):
+        later = table["position_id"].str[1:].astype(int) >= 12
+        table.loc[later, "condition"] = table.loc[later, "condition"].map(second)
+    return objects, fovs
+
+
+def test_a_relation_within_one_experiment_names_where_it_holds():
+    objects, fovs = _two_experiments()
+    first = objects["condition"].isin(_EXPERIMENTS["ctrl"])
+    objects["share"] = objects["base"] / 20
+    objects["rest"] = np.where(first, 1 - objects["share"], objects["other"] / 10)
+    data = _data(objects, fovs, ["share", "rest"])
+    assert relation_checks(data) == ()
+    (sentence,) = relation_checks(data, _EXPERIMENTS)
+    assert sentence == (
+        f"{NAME}: in ctrl and drug only, rest = 1 − share; elsewhere they are not one "
+        "measurement, so the experiments may have been processed differently."
+    )
+
+
+def test_a_relation_on_all_rows_is_said_once_not_per_experiment():
+    objects, fovs = _two_experiments()
+    objects["copy"] = objects["base"]
+    data = _data(objects, fovs, ["base", "other", "copy"])
+    assert relation_checks(data, _EXPERIMENTS) == relation_checks(data)
+    assert len(relation_checks(data, _EXPERIMENTS)) == 1
+
+
+def test_an_experiment_too_small_is_not_checked():
+    objects, fovs = _two_experiments()
+    second = objects["condition"].isin(_EXPERIMENTS["ctrl2"])
+    objects["share"] = objects["base"] / 20
+    exact = np.where(second, 1 - objects["share"], objects["other"])
+    for rows, said in ((MIN_ROWS - 1, 0), (MIN_ROWS, 1)):
+        # In ctrl2 the relation holds on these rows only, the others are missing.
+        kept = ~second | (second.cumsum() <= rows)
+        objects["rest"] = np.where(kept, exact, np.nan)
+        assert (second & objects["rest"].notna()).sum() == rows
+        data = _data(objects, fovs, ["share", "rest"])
+        assert len(relation_checks(data, _EXPERIMENTS)) == said
+
+
+def test_the_experiments_are_the_declared_controls():
+    from morphocoverage.workflows import Setup
+    from morphocoverage.workflows._contrasts import experiments
+
+    control = {
+        "condition": {
+            "VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1"},
+            "THBS5_SiNC": {"SiCol6a1": "THBS5_SiCol6a1"},
+            "VEC": {"THBS5": "THBS5"},
+        }
+    }
+    setup = Setup(readout="x", features=("x",), control=control)
+    assert experiments(setup) == {
+        "VEC_SiNC": ("VEC_SiNC", "VEC_SiCol6a1"),
+        "THBS5_SiNC": ("THBS5_SiNC", "THBS5_SiCol6a1"),
+        "VEC": ("VEC", "THBS5"),
+    }
+    parents = {"VEC_SiNC": ("VEC", "transfection")}
+    linked = experiments(
+        Setup(readout="x", features=("x",), control=control, control_parents=parents)
+    )
+    assert linked["VEC_SiNC"] == ("VEC_SiNC", "VEC_SiCol6a1", "VEC")
+    assert linked["VEC"] == ("VEC", "THBS5")
+    assert experiments(Setup(readout="x", features=("x",), control={"condition": "VEC"})) is None
+
+
+def test_with_one_control_the_overview_is_unchanged():
+    objects, fovs = _two_experiments()
+    first = objects["condition"].isin(_EXPERIMENTS["ctrl"])
+    objects["rest"] = np.where(first, 1 - objects["base"] / 20, objects["other"])
+    features = ["base", "rest"]
+    plain = dataset_overview(objects, fovs, feature_cols=features)
+    assert not any(check.startswith(NAME) for check in plain.value_checks)
+    split = dataset_overview(objects, fovs, feature_cols=features, control_experiments=_EXPERIMENTS)
+    (named,) = [check for check in split.value_checks if check.startswith(NAME)]
+    assert named.startswith(f"{NAME}: in ctrl and drug only, rest = 1 − 0.05 × base;")
+
+
+def test_a_relation_in_every_experiment_with_other_coefficients_is_said_so():
+    objects, fovs = _two_experiments()
+    first = objects["condition"].isin(_EXPERIMENTS["ctrl"])
+    objects["scaled"] = objects["base"] * np.where(first, 1000.0, 10.0)
+    data = _data(objects, fovs, ["base", "scaled"])
+    assert relation_checks(data) == ()
+    (sentence,) = relation_checks(data, _EXPERIMENTS)
+    assert sentence.startswith(
+        f"{NAME}: within each experiment, scaled = a × base + b, a and b differing between "
+        "experiments: one measurement counted twice in each test family"
+    )

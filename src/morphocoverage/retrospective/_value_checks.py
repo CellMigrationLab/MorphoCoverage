@@ -22,12 +22,15 @@ one measurement (copies, exact affine relations, near copies), is ``_feature_rel
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import Any
+
 import numpy as np
 from scipy import stats
 
 from .._wording import count, listing, percent
 from ..evaluator import iter_analysis_groups
-from ..metadata import TECHNICAL_REPEAT_COLUMN
+from ..metadata import CONDITION_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_positions, observation_words
 from ._feature_relations import relation_checks
 
@@ -120,11 +123,16 @@ def few_values(data: ValidatedInput) -> str | None:
     )
 
 
-def value_checks(data: ValidatedInput) -> tuple[str, ...]:
+def value_checks(
+    data: ValidatedInput,
+    experiments: Mapping[Any, Sequence[Any]] | None = None,
+    condition_col: str = CONDITION_COLUMN,
+) -> tuple[str, ...]:
     """The checks' sentences, those that found something: fields more alike than chance,
-    few distinct values, then one per group of related features (``_feature_relations``)."""
+    few distinct values, then one per group of related features (``_feature_relations``,
+    within each of several ``experiments`` too)."""
     found = tuple(text for text in (alike_fields(data), few_values(data)) if text)
-    return (*found, *relation_checks(data))
+    return (*found, *relation_checks(data, experiments, condition_col))
 
 
 __all__ = [
