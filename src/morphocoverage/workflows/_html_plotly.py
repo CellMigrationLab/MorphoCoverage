@@ -223,6 +223,7 @@ def feature_specs(
             conditions = list(dict.fromkeys(summaries["condition"]))
             centres = summaries.groupby("condition", sort=False)["x"].agg(["min", "max"])
             name = names[f"{feature}#{index}"]
+            own = getattr(figure, "colours", {})
             spec = {
                 "id": name,
                 "feature": str(feature),
@@ -232,7 +233,8 @@ def feature_specs(
                     {
                         "name": "all fields" if c is None else str(c),
                         "centre": round(float(centres.loc[c].mean()), 3),
-                        "colour": colours.get(c, COLOURS[0]),
+                        # The static figure's own colours: each part colours its own.
+                        "colour": own.get(c, colours.get(c, COLOURS[0])),
                     }
                     for c in conditions
                 ],

@@ -2,7 +2,9 @@
 
 - **PCA**: every observation a point on the first two axes (each labelled with its share of
   the variance), coloured by condition (the control in the first colour, not grey, and drawn
-  first so the conditions sit on top), and an arrow per highlighted feature: its loadings on
+  first so the conditions sit on top; past 12 conditions only the control and the
+  ``highlight`` conditions keep a colour, ``_palette.condition_palette``, the others grey
+  under them, one entry in the legend), and an arrow per highlighted feature: its loadings on
   the two axes, scaled to the cloud, so the direction a feature pulls the observations is
   read off the figure. The highlighted features are the discovery's best-ranked
   (``Embedding.loadings["top"]``), or the ``ARROWS`` features with the largest loadings when
@@ -14,7 +16,7 @@ Figures are ``matplotlib.figure.Figure`` objects built without pyplot, as in ``p
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -22,29 +24,45 @@ import pandas as pd
 from matplotlib.figure import Figure
 from matplotlib.patheffects import withStroke
 
-from ._palette import COLOURS, FONT, INK, style_axes
+from ._palette import COLOURS, FONT, GREY, INK, condition_palette, style_axes
 from ._wording import count, percent
 from .embedding import Embedding
 from .metadata import CONDITION_COLUMN, sorted_labels
+from .schema import observation_words
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 ARROWS = 5
-MAX_CONDITIONS = len(COLOURS)
 
 
-def _colours(points: pd.DataFrame, control: Any) -> dict[Any, str]:
-    """A colour per condition, the palette in sorted order (the control first, in the palette's
-    first colour: a grey control is hard to see)."""
+def _colours(points: pd.DataFrame, control: Any, highlight: Sequence[Any]) -> dict[Any, str]:
+    """A colour per condition in sorted order, the control first in the palette's first
+    colour (a grey control is hard to see); past 12, grey but for the control and the
+    ``highlight`` conditions (``_palette.condition_palette``)."""
     if CONDITION_COLUMN not in points:
         return {None: COLOURS[0]}
     conditions = sorted_labels(points[CONDITION_COLUMN], control)
-    return {c: COLOURS[i % len(COLOURS)] for i, c in enumerate(conditions)}
+    return condition_palette(conditions, control, highlight)
 
 
 def _scatter(ax: Axes, points: pd.DataFrame, x: str, y: str, colours: dict[Any, str]) -> None:
-    for condition, colour in colours.items():
+    """The points by condition: the grey ones first, as one entry of the legend."""
+    greyed = [c for c, colour in colours.items() if colour == GREY]
+    if greyed:
+        mine = points[points[CONDITION_COLUMN].isin(greyed)].dropna(subset=[x, y])
+        ax.scatter(
+            mine[x],
+            mine[y],
+            s=14,
+            alpha=0.45,
+            color=GREY,
+            linewidths=0,
+            label=f"the other {len(greyed)} conditions ({len(mine)})",
+            rasterized=True,
+        )
+    coloured = {c: colour for c, colour in colours.items() if colour != GREY}
+    for condition, colour in coloured.items():
         mine = points if condition is None else points[points[CONDITION_COLUMN] == condition]
         mine = mine.dropna(subset=[x, y])
         ax.scatter(
@@ -64,7 +82,7 @@ def _scatter(ax: Axes, points: pd.DataFrame, x: str, y: str, colours: dict[Any, 
             markerscale=1.6,
             loc="upper center",
             bbox_to_anchor=(0.5, -0.12),
-            ncol=min(len(colours), 4),
+            ncol=min(len(coloured) + bool(greyed), 4),
         )
 
 
@@ -99,21 +117,20 @@ def _arrows(ax: Axes, embedding: Embedding) -> None:
 
 
 def embedding_figures(
-    embedding: Embedding, *, control: Mapping[str, Any] | None = None
+    embedding: Embedding,
+    *,
+    control: Mapping[str, Any] | None = None,
+    highlight: Sequence[Any] = (),
 ) -> dict[str, Figure]:
     """``{"pca": Figure, "umap": Figure}`` (UMAP only when it was computed; see the module).
-    ``control`` (``{"condition": ...}``) is drawn first, in the first colour."""
+    ``control`` (``{"condition": ...}``) is drawn first, in the first colour; past 12
+    conditions, the ``highlight`` conditions are the others in colour."""
     if not isinstance(embedding, Embedding):
         raise TypeError("embedding must be an embedding.Embedding")
     points = embedding.points
     control_value = dict(control or {}).get(CONDITION_COLUMN)
-    colours = _colours(points, control_value)
-    if len(colours) > MAX_CONDITIONS + 1:
-        raise ValueError(
-            f"{len(colours)} conditions are too many to tell apart by colour (at most "
-            f"{MAX_CONDITIONS} besides the control); embed a subset of the conditions"
-        )
-    unit = embedding.settings["observation_unit"]
+    colours = _colours(points, control_value, highlight)
+    unit = observation_words(embedding.settings)[0]
     n_features = len(embedding.settings["features"])
     figures: dict[str, Figure] = {}
     figure = Figure(figsize=(7.5, 6.8), layout="constrained")

@@ -28,8 +28,8 @@ import pandas as pd
 
 from .._wording import number, percent
 from ..bounds import lower_bound, upper_bound
+from ..schema import observation_words
 from ..sufficiency import SufficiencyReport
-from ._text import unit_plural
 from .controls import ControlResult
 from .effort import EffortResult, design_effect
 from .effort_text import level_words, share_caveat, unit_word
@@ -106,7 +106,7 @@ def _detection(controls: ControlResult) -> tuple[str, int, int] | None:
 
 def _words(controls: ControlResult) -> str:
     """The control's observation unit, plural: ``nuclei`` (``objects`` when none declared)."""
-    return unit_plural(controls.settings.get("observation_unit") or "object")
+    return observation_words(controls.settings)[1]
 
 
 def _detection_adjusted_bounds(
@@ -544,11 +544,11 @@ def sampling_profile(
 ) -> pd.DataFrame:
     """The measured quantities of question 3, one row each with its source."""
     units = [
-        r.settings.get("observation_unit")
+        observation_words(r.settings)[1]
         for r in (variability, clustering, controls, effort)
         if r is not None and r.settings.get("observation_unit")
     ]
-    observations = unit_plural(units[0] if units else "object")
+    observations = units[0] if units else observation_words({})[1]
     rows = [
         *_variability_rows(variability, observations),
         *_clustering_rows(clustering, observations),

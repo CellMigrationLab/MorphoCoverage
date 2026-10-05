@@ -26,7 +26,8 @@ import pandas as pd
 from .._caveats import assumption, caveat_lines
 from .._style import check_detail, group_columns, group_label, table, wrap
 from .._wording import column_word, count
-from ._text import percent, unit_plural
+from ..schema import observation_words
+from ._text import percent
 
 if TYPE_CHECKING:
     from .controls import ControlResult
@@ -96,7 +97,7 @@ def _rows(result: ControlResult, full: bool) -> tuple[list[list[str | None]], bo
     """The table's rows: what was judged, after ``fovs_seen`` fields and as inspect_fovs
     judges; and whether any field could not be judged."""
     rates = result.pooled.set_index("candidate")
-    names = _names(result, unit_plural(result.settings.get("observation_unit", "object")))
+    names = _names(result, observation_words(result.settings)[1])
     rows, unjudged = [], False
     for kind, lofo in _KINDS:
         seen = rates.loc[kind] if kind in rates.index else None
@@ -215,7 +216,7 @@ def _method_line(result: ControlResult, cells: str) -> str:
 
 def control_parts(result: ControlResult, indent: int = 0) -> tuple[list[str], list[str]]:
     """The short form (see the module): ``(lines, cautions)``, lines under ``indent``."""
-    cells = unit_plural(result.settings.get("observation_unit", "object"))
+    cells = observation_words(result.settings)[1]
     if result.status == "not assessed":
         return [wrap(_not_assessed(result), indent, hang=indent + 2)], []
     rows, unjudged = _rows(result, full=False)
@@ -261,7 +262,7 @@ def _strata_table(result: ControlResult, indent: int = 0) -> str | None:
 
 def control_full(result: ControlResult, indent: int = 0) -> str:
     """Every number of the control: pooled counts and rates, then each stratum's rates."""
-    cells = unit_plural(result.settings.get("observation_unit", "object"))
+    cells = observation_words(result.settings)[1]
     if result.status == "not assessed":
         return wrap(_not_assessed(result), indent, hang=indent + 2)
     rows, unjudged = _rows(result, full=True)

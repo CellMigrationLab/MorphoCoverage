@@ -48,6 +48,27 @@ against the control of its own repeats, with the same number of observations
 drawn from every repeat, as the median d and median p over 100 draws. Across
 the draws every observation is used, each repeat weighing the same in each.
 
+**Permutations.** The randomization p is `(extreme + 1) / (B + 1)` over `B`
+shuffles: 2000 for the readout's test as provided, 9999 in the feature screen,
+999 in each balanced draw. It cannot fall below `1 / (B + 1)`, so with `K`
+tests in a correction family Benjamini-Hochberg cannot give a q below
+`K / (B + 1)`: 210 tests at the balanced test's 999 shuffles gave q 0.07 for
+three clear differences, never 0.05. Every test at p ≤ 0.05 after the first
+pass is therefore rerun with `B = max(default, ceil(20 K))` shuffles, `K` the
+tests of its sub-experiment, so the smallest q, `K / (B + 1)`, is below 0.05
+(owner, 2026-10-02: "More permutations"). Only those: a test above 0.05 cannot
+pass at any rank, and a smaller p moving never changes the q of a larger one.
+The rerun is seeded from the test's own identity, so the result does not
+depend on the order of the tests. The balanced test is rerun on its median
+draws only: the draws at the median |d| (two of the 100), whose mean p, at `B`
+shuffles, replaces the median p. All draws hold the same numbers of
+observations, so the p falls with |d| and those draws carry the median p, up
+to the first pass's Monte Carlo error; rerunning all 100 would cost a hundred
+times as much. The report states the shuffles rerun beside the screen's
+family. The pairwise heatmaps (1999 shuffles) correct over the pairs of one
+figure and are not rerun: their smallest q, pairs / 2000, is below 0.05 up to
+100 pairs (14 conditions); a figure of more conditions is floored.
+
 **Very small repeats.** Balancing down to a repeat that holds very few
 observations would keep only that many of every other repeat in each draw. A
 repeat holding under a quarter of the median repeat on its side, or fewer than
@@ -106,7 +127,8 @@ small, nothing is balanced and only the test as provided is given.
   and 18%. It cannot run with fewer than 3 repeats, and the report then
   describes each condition by its direction in every repeat and its d.
 - **The balanced p is a median over draws**, which describes a typical draw. It
-  is not the p of one test. Balancing removes the extra weight of the repeats
+  is not the p of one test; when rerun with more shuffles it is the mean p of
+  the two median-|d| draws. Balancing removes the extra weight of the repeats
   holding more observations, not the independence assumption.
 - **Leaving out a very small repeat changes what is balanced.** The balanced
   test then describes the other repeats; whether the small repeat agrees is

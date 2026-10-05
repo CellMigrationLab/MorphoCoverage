@@ -13,14 +13,19 @@ import pytest
 from test_rare_fingerprint import _screen, _setup
 
 from morphocoverage._wording import change, p_value
-from morphocoverage.sampling_unit.legend_text import _design
+from morphocoverage.sampling_unit.legend_text import _wells, n_sentence
 from morphocoverage.workflows import html_report, report
 from morphocoverage.workflows._html_tests import _family, across_frame, d_per_repeat
 
 
 @pytest.fixture(scope="module")
-def card(tmp_path_factory):
-    objects, fovs = _screen()
+def card_tables():
+    return _screen()
+
+
+@pytest.fixture(scope="module")
+def card(tmp_path_factory, card_tables):
+    objects, fovs = card_tables
     setup = _setup(fingerprint=(), rare=None, rare_label=None)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -65,7 +70,7 @@ def test_show_more_holds_the_assumptions_only(card):
     assert "Repeats needed" not in text and "Most repeats searched" not in text
 
 
-def test_each_figure_has_a_legend_whose_numbers_are_its_across_rows(card):
+def test_each_figure_has_a_legend_whose_numbers_are_its_across_rows(card, card_tables):
     result, _, section = card
     frame = across_frame(result)
     blocks = re.split(r'<div class="feature" data-spec=', section)[1:]
@@ -76,10 +81,19 @@ def test_each_figure_has_a_legend_whose_numbers_are_its_across_rows(card):
             r'<summary>For a figure legend</summary><p class="legend-box">(.*?)</p>', block
         )
         assert legend, feature
-        words = _text(legend.group(1))
+        words = _text(re.sub(r'<span class="tip".*?</span>', "", legend.group(1)))
         rows = frame[frame["feature"] == feature]
         assert len(rows)
-        assert f"n = {int(rows['repeats'].max())} independent biological repeats" in words
+        # n: the observations the figure shows, the repeats and the fewest a side, as the
+        # table across repeats has them (owner, 2026-10-02).
+        objects = card_tables[0]
+        shown = int(objects[feature].notna().sum())
+        repeats = int(rows["repeats"].max())
+        least = int(rows["repeat_observations_min"].min())
+        words = re.sub(r" ([,;.])", r"\1", words)  # the tags' spaces before punctuation
+        head = f"n = {shown} cells shown, from {repeats} biological repeats, 2 wells per "
+        assert words.startswith(head + "condition in each repeat, "), words[:120]
+        assert f"at least {least} per condition and repeat; paired t-test" in words
         for r in rows.itertuples():
             clause = (
                 f"{r.condition}: change {change(r.change, r.values)}, "
@@ -129,6 +143,7 @@ def test_wells_and_the_correction_family_are_said_as_the_legend_says_them():
     table = pd.DataFrame(
         {
             "biological_repeat": ["a", "b", "c"],
+            "condition": ["drug"] * 3,
             "technical": [3, 3, 3],
             "control_technical": [3, 3, 3],
             "observations": [40, 50, 60],
@@ -137,12 +152,27 @@ def test_wells_and_the_correction_family_are_said_as_the_legend_says_them():
     )
     contrast = SimpleNamespace(
         table=table,
-        settings={"repeat_col": "biological_repeat", "observation_unit": "cell"},
+        settings={
+            "repeat_col": "biological_repeat",
+            "condition_col": "condition",
+            "control": {"condition": "ctrl"},
+            "observation_unit": "cell",
+        },
     )
-    rows = pd.DataFrame({"repeats": [3]})
-    assert _design(contrast, rows) == (
-        "n = 3 independent biological repeats, 3 wells per condition in each "
-        "(40 to 65 cells a condition and repeat)"
+    assert _wells(contrast) == "3 wells per condition in each repeat"
+    counts = pd.DataFrame(
+        {
+            "condition": ["drug"] * 3 + ["ctrl"] * 3,
+            "repeat": ["a", "b", "c"] * 2,
+            "n": [40, 50, 60, 45, 55, 65],
+        }
+    )
+    assert n_sentence(counts, "ctrl", "cells", _wells(contrast)) == (
+        (
+            "n = 315 cells shown, from 3 biological repeats, 3 wells per condition in each "
+            "repeat, at least 40 per condition and repeat"
+        ),
+        False,
     )
     repeats = pd.DataFrame(
         {
@@ -154,3 +184,46 @@ def test_wells_and_the_correction_family_are_said_as_the_legend_says_them():
     )
     result = SimpleNamespace(discovery=None, results={"contrast": SimpleNamespace(repeats=repeats)})
     assert _family(result) == "2 conditions at once in each of 6 sub-experiments"
+
+
+def test_the_legend_counts_only_repeats_holding_the_condition_and_the_control():
+    """Stress designs E4/E5: a condition imaged in a repeat without the control, and a
+    repeat holding only the control. Neither counts as a repeat the condition is compared
+    in, and no well count reads "0 to 1"; with one sub-experiment, no "per sub-experiment"."""
+    counts = pd.DataFrame(
+        {
+            "condition": ["a", "a", "a", "a", "b", "b", "b", "ctrl", "ctrl", "ctrl", "ctrl"],
+            "repeat": ["r1", "r2", "r3", "r4", "r1", "r2", "r3", "r1", "r2", "r3", "r5"],
+            "n": [30, 31, 32, 33, 20, 21, 22, 25, 26, 27, 28],
+        }
+    )
+    text, by_condition = n_sentence(counts, "ctrl", "cells")
+    assert by_condition
+    assert text == (
+        "n = 295 cells shown. a: n = 93 cells from 3 repeats, at least 30 per repeat, and 33 "
+        "in repeats without the control, not compared; b: n = 63 cells from 3 repeats, at "
+        "least 20 per repeat; ctrl: n = 78 cells from 3 repeats, at least 25 per repeat, and "
+        "28 in repeats without another condition, not compared"
+    )
+    table = pd.DataFrame(
+        {
+            "biological_repeat": ["r1", "r4"],
+            "condition": ["a", "a"],
+            "technical": [1, 1],
+            "control_technical": [1, 0],
+            "observations": [30, 33],
+            "control_observations": [25, 0],
+        }
+    )
+    assert _wells(SimpleNamespace(table=table)) == ""
+
+
+def test_the_heatmap_names_its_axes(card):
+    _, _, section = card
+    heatmap = section[section.index('class="heatmap"') : section.index("</svg>")]
+    assert "condition, against siCTRL" in heatmap and "feature, best-ranked first" in heatmap
+    # Its key comes first and names the test behind each value and mark.
+    key = section[section.index('class="note hm-legend"') : section.index('class="heatmap"')]
+    assert "randomization test" in key and "paired t-test on the repeat means" in key
+    # Each pairwise panel says what its two triangles hold.
+    assert section.count('class="panel-key"') >= 2 and "◣ lower left: Cohen" in section

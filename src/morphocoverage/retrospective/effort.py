@@ -498,6 +498,7 @@ def effort_projection(
         "random_state": random_state,
         "allocations": None if chosen is None else [list(a) for a in chosen],
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
     }
     where_columns = [*strata, "stratum"]
     frames = [

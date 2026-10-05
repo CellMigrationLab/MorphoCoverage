@@ -9,8 +9,9 @@
 - ``heatmap_data``: Cohen's d and the q-values of every feature and condition.
 
 Each is written in ``folder`` (the report's ``figures``) by ``write_csv``, so the page
-carries it (``_files``) and the results folder and its zip hold it; ``download`` is the
-button that saves a file the page carries, ``data_buttons`` one per file.
+carries it (``page_files``, up to ``EMBED_BUDGET``; past it the page links to it) and the
+results folder and its zip hold it; ``download`` is the button that saves a file the page
+carries or opens one it links to, ``data_buttons`` one per file.
 """
 
 from __future__ import annotations
@@ -37,11 +38,6 @@ def write_csv(frame: pd.DataFrame, folder: Path, name: str) -> str:
     return f"figures/{name}"
 
 
-def _decoded_size(data: str) -> int:
-    """The bytes a base64 string holds, from its length (no decoding)."""
-    return len(data) * 3 // 4 - data[-2:].count("=")
-
-
 _TYPES = {
     ".png": "image/png",
     ".pdf": "application/pdf",
@@ -51,39 +47,88 @@ _TYPES = {
 }
 
 
+# The most the page carries inside it, in bytes (owner, 2026-10-05: "embed up to a
+# budget"): past it, the largest of the figures folder's files are linked, not embedded.
+EMBED_BUDGET = 25 * 1024 * 1024
+# A file the page links to rather than carries, and a PNG it carries once, as its image.
+LINKED, IN_IMAGE = "", "img"
+
+
 def page_files(
-    folder: Path, texts: dict[str, str], attach: Sequence[Path], since: float
-) -> dict[str, list[str]]:
-    """Every file the page carries, by the path it is saved under: the figures this run wrote
-    in ``folder/figures`` (modified at or after ``since``, so an older run's are left out), the
-    ``texts`` written here, and the ``attach`` files."""
-    files: dict[str, list[str]] = {}
-    for path in sorted((folder / "figures").glob("*")):
-        if path.suffix in _TYPES and path.stat().st_mtime >= since:
-            data = base64.b64encode(path.read_bytes()).decode()
-            files[f"figures/{path.name}"] = [_TYPES[path.suffix], data]
+    folder: Path,
+    texts: dict[str, str],
+    attach: Sequence[Path],
+    since: float,
+    budget: int = EMBED_BUDGET,
+) -> tuple[dict[str, list[Any]], dict[str, str]]:
+    """Every file the page carries or links to, by the path it is saved under: the figures
+    this run wrote in ``folder/figures`` (modified at or after ``since``, so an older run's
+    are left out), the ``texts`` written here, and the ``attach`` files; each
+    ``[type, base64, bytes]``. The texts and attachments are always carried; the figures'
+    files, smallest first, while all of it stays within ``budget``, the others linked
+    (``LINKED``: the page's button opens ``figures/<name>``). A PNG carried is written once,
+    as its image's data (``IN_IMAGE``); the second value maps those paths to their base64."""
+    files: dict[str, list[Any]] = {}
     for name, text in texts.items():
         mime = _TYPES.get(Path(name).suffix, "text/plain")
-        files[name] = [mime, base64.b64encode(text.encode("utf-8")).decode()]
+        data = text.encode("utf-8")
+        files[name] = [mime, base64.b64encode(data).decode(), len(data)]
     for path in attach:
         path = Path(path)
         if path.exists():
             mime = _TYPES.get(path.suffix, "application/octet-stream")
-            files[path.name] = [mime, base64.b64encode(path.read_bytes()).decode()]
-    return files
+            data = path.read_bytes()
+            files[path.name] = [mime, base64.b64encode(data).decode(), len(data)]
+    used = sum(entry[2] for entry in files.values())
+    figures = [
+        path
+        for path in (folder / "figures").glob("*")
+        if path.suffix in _TYPES and path.stat().st_mtime >= since
+    ]
+    images: dict[str, str] = {}
+    carried: dict[str, list[Any]] = {}
+    for path in sorted(figures, key=lambda p: (p.stat().st_size, p.name)):
+        name, size = f"figures/{path.name}", path.stat().st_size
+        if used + size > budget:
+            carried[name] = [_TYPES[path.suffix], LINKED, size]
+            continue
+        used += size
+        data = base64.b64encode(path.read_bytes()).decode()
+        if path.suffix == ".png":
+            images[name] = data
+            data = IN_IMAGE
+        carried[name] = [_TYPES[path.suffix], data, size]
+    return {**dict(sorted(carried.items())), **files}, images
 
 
-def files_card(files: dict[str, list[str]]) -> str:
-    """The card listing every file the page carries, each with its size and save button."""
+def inline_images(markup: str, images: dict[str, str]) -> str:
+    """Each carried PNG's ``<img src="figures/...">`` given its data, so the page shows it
+    without the folder; a PNG past the budget keeps its relative path."""
+    for name, data in images.items():
+        markup = markup.replace(f'src="{name}"', f'src="data:image/png;base64,{data}"')
+    return markup
+
+
+def files_card(files: dict[str, list[Any]]) -> str:
+    """The card listing every file the page carries or links to, each with its size and
+    save button."""
     rows = "".join(
         f'<tr><td>{html.escape(name)}</td><td class="num">'
-        f"{_decoded_size(data) / 1024:.0f} kB</td><td>{download(name, 'Save')}</td></tr>"
-        for name, (_, data) in files.items()
+        f"{entry[2] / 1024:.0f} kB</td><td>{download(name, 'Save')}</td></tr>"
+        for name, entry in files.items()
+    )
+    linked = [entry[2] for entry in files.values() if entry[1] == LINKED]
+    note = (
+        "Everything this report was made with and from is inside this page: save any file "
+        "with its button, no folder needed. The same files are in the results folder and "
+        "its zip."
+        if not linked
+        else f"The page carries its files up to {EMBED_BUDGET // 1024**2} MB in all; the "
+        f"{len(linked)} largest, {sum(linked) / 1024**2:.0f} MB, open from the figures folder "
+        "beside it, which the zip holds too, so keep the page with its folder."
     )
     return (
-        '<section class="card" id="files"><h2>Files</h2><p class="note">Everything this report '
-        "was made with and from is inside this page: save any file with its button, no folder "
-        "needed. The same files are in the results folder and its zip.</p>"
+        f'<section class="card" id="files"><h2>Files</h2><p class="note">{note}</p>'
         '<div class="table-wrap"><table class="sortable"><thead><tr><th>file</th><th>size</th>'
         f"<th></th></tr></thead><tbody>{rows}</tbody></table></div></section>"
     )
@@ -196,11 +241,14 @@ def heatmap_data(discovery: Any, folder: Path) -> list[tuple[str, str]]:
 
 
 __all__ = [
+    "EMBED_BUDGET",
     "data_buttons",
     "download",
     "embedding_data",
     "feature_data",
     "heatmap_data",
+    "inline_images",
     "json_island",
+    "page_files",
     "write_csv",
 ]

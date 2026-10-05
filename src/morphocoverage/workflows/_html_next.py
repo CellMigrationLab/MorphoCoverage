@@ -22,19 +22,18 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._wording import percent_fine
+from .._wording import listing, percent_fine
 from ..data_check import validate_input_tables
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import traits
+from ..schema import observation_words
 from ._enough_targets import HELD_BACK
-from ._populations import rule_words, tested_populations
+from ._populations import labelled_populations, rule_words, tested_populations
 
 # The reservoir optimise holds back to judge each stop, as in docs/workflows.md (one
 # value with the fingerprint's answer, ``_enough_targets.HELD_BACK``).
 RESERVOIR = HELD_BACK
-# A population this labelled is the declared rare label's: not declared again.
-LABELLED = 0.9
 # The fields named to open for a group.
 FIELDS_SHOWN = 3
 _COUNTS = (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96)
@@ -110,17 +109,31 @@ def _repeat_counts(discovery: Any) -> dict[Any, int]:
 
 
 def _repeats_line(discovery: Any) -> str:
-    """With fewer than MIN_REPEATS biological repeats: how many to plan."""
-    few = sorted({n for n in _repeat_counts(discovery).values() if n < MIN_REPEATS})
-    if not few:
+    """With fewer than MIN_REPEATS biological repeats: how many to plan. When only some
+    conditions have so few, those are named (the others are planned in repeats)."""
+    counts = _repeat_counts(discovery)
+    pilots = {c: n for c, n in counts.items() if n < MIN_REPEATS}
+    if not pilots:
         return ""
+    few = sorted(set(pilots.values()))
     have = " or ".join(str(n) for n in few)
+    plural = "s" if few != [1] else ""
+    named = "" if len(pilots) == len(counts) else f" for {listing([str(c) for c in pilots], 6)}"
+    unit = observation_words(getattr(discovery, "settings", {}))[0]
     return (
-        f"With {have} biological repeat{'s' if few != [1] else ''}, no difference can be called "
+        f"With {have} biological repeat{plural}{named}, no difference can be called "
         f"significant: the test across repeats needs at least {MIN_REPEATS}. Plan at least "
         f"{MIN_REPEATS} (more for small effects), each with its own control; the candidates "
-        "of the cell-level screen, in “Do the conditions differ?”, say which features to watch."
+        f"of the {unit}-level screen, in “Do the conditions differ?”, say which features to "
+        "watch."
     )
+
+
+def pilot_conditions(discovery: Any) -> set[str]:
+    """The conditions with fewer than MIN_REPEATS biological repeats holding the control."""
+    if discovery is None or discovery.tests is None or not len(discovery.tests):
+        return set()
+    return {str(c) for c, n in _repeat_counts(discovery).items() if n < MIN_REPEATS}
 
 
 def _chosen_population(populations: Any) -> Any | None:
@@ -142,10 +155,7 @@ def _chosen_population(populations: Any) -> Any | None:
 def _labelled(populations: Any, name: str, label: str | None) -> bool:
     """Whether ``name`` is the declared rare label's population (most of it labelled)."""
     overlap = getattr(populations, "label", None)
-    if not label or overlap is None or not len(overlap):
-        return False
-    row = overlap[overlap["population"] == name]
-    return bool(len(row)) and float(row["purity"].iloc[0]) >= LABELLED
+    return bool(label) and name in labelled_populations(overlap)
 
 
 def _group_fields(
@@ -176,29 +186,29 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         return ""
     name, share = str(row.name), float(row["share"])
     label = result.setup.rare_label
+    units = result.setup.unit_words
     if _labelled(populations, name, label):
         line = (
-            f"{name} is the declared rare phenotype, {label}: most of its cells carry the "
-            "label. Its sampling is answered in “Did I image enough?”, with the label "
-            "itself; nothing to declare again."
+            f"Nothing to declare again for {name}: the label {label} already marks its "
+            f"{units}, and “Did I image enough?” says whether they were seen in enough fields."
         )
         return _block([(line, "")])
     fields = _group_fields(result, populations, objects, fovs, name)
-    where = f" (most of its cells are in {', '.join(fields)})" if fields else ""
+    where = f" (most of its {units} are in {', '.join(fields)})" if fields else ""
     validate = (
-        f"First validate {name} ({percent_fine(share)} of the cells; "
+        f"First validate {name} ({percent_fine(share)} of the {units}; "
         f"{traits(row['defining'][:2])}): open the images of its fields{where} and check "
-        "that its cells are one state, not the end of a gradient or an artefact."
+        f"that its {units} are one state, not the end of a gradient or an artefact."
     )
-    rule = rule_words(row)
+    rule = rule_words(row, units)
     study = (
-        f"If it is, label its cells with its rule, {rule}, and declare it as the rare "
+        f"If it is, label its {units} with its rule, {rule}, and declare it as the rare "
         "phenotype: the report then says in “Did I image enough?” whether it was seen in "
         "enough fields of every well. The rule labels new acquisitions the same way; adjust "
         "its thresholds after looking at the images."
         if rule
-        else "If it is, label its cells (the clustering's labels) and declare it as the rare "
-        "phenotype: the report then says in “Did I image enough?” whether it was seen in "
+        else f"If it is, label its {units} (the clustering's labels) and declare it as the "
+        "rare phenotype: the report then says in “Did I image enough?” whether it was seen in "
         "enough fields of every well."
     )
     phenotype = f"{name}: {traits(row['defining'][:2])}"

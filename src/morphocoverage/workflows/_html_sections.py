@@ -21,18 +21,20 @@ from __future__ import annotations
 import html
 import re
 from collections.abc import Sequence
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
 
 from .._style import Status, rule_label
-from .._wording import count, listing, p_value, rate
-from ..retrospective.report import QUESTIONS, SHORT_QUESTIONS
+from .._wording import count, listing, p_value, rate, shortened
+from ..retrospective.report import QUESTIONS, questions_for, short_questions_for
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
 from ..sufficiency_short import rule_tallies
+from ._html_render import in_units
 
 ORDER = (
     "overview",
@@ -151,13 +153,13 @@ def intros_for(
 ) -> dict[str, str]:
     """``INTROS`` in the report's own words for its observations (tracks, patches), the "?"
     of "Did I image enough?" for its design (``enough_intro``)."""
-
-    def words(text: str) -> str:
-        text = re.sub(r"\bcells\b", units, text)
-        return re.sub(r"\bcell\b(?!-)", one, text)
-
     intros = {**INTROS, "enough": enough_intro(single_repeat, group, listed, compared)}
-    return {key: words(text) for key, text in intros.items()}
+    return {key: in_units(text, units, one) for key, text in intros.items()}
+
+
+def titles_for(units: str, one: str) -> dict[str, str]:
+    """``TITLES`` in the words of the report's observations."""
+    return {key: in_units(title, units, one) for key, title in TITLES.items()}
 
 
 # The heatmap's diverging colours (lower than the control, higher), and its neutral middle.
@@ -322,33 +324,43 @@ def enough_reading(result: Any) -> list[str]:
     return lines + _precision(results.get("sufficiency"), result.setup.readout, fields)
 
 
-def _numbered() -> dict[str, str]:
-    """Each numbered title of the text report, to its title here (unnumbered)."""
+@lru_cache(maxsize=8)
+def _numbered(units: str = "cells", one: str = "cell") -> dict[str, str]:
+    """Each numbered title of the text report, to its title here (unnumbered), in the words
+    of the report's observations."""
     names = {}
-    for key, title in [*QUESTIONS, *SHORT_QUESTIONS.items()]:
+    titles = titles_for(units, one)
+    for key, title in [*questions_for(units), *short_questions_for(units).items()]:
         plain = re.sub(r"^(\d\.|Foundation[.:])\s*", "", title)
-        names[title] = TITLES.get(key, plain[:1].upper() + plain[1:])
+        names[title] = titles.get(key, plain[:1].upper() + plain[1:])
     return names
 
 
-_NUMBERED = _numbered()
-_TITLE = re.compile("|".join(re.escape(t) for t in sorted(_NUMBERED, key=len, reverse=True)))
+@lru_cache(maxsize=8)
+def _title_pattern(units: str, one: str) -> re.Pattern:
+    names = _numbered(units, one)
+    return re.compile("|".join(re.escape(t) for t in sorted(names, key=len, reverse=True)))
+
+
 _NUMBER_KEYS = {title.split(".")[0]: key for key, title in QUESTIONS if title[:1].isdigit()}
 _QUESTION = re.compile(r"\b[Qq]uestion (\d)\b")
 _FOUNDATION = re.compile(r"\b(?:the )?Foundation\b")
 
 
-def unnumbered(markup: str, units: str = "cells") -> str:
+def unnumbered(markup: str, units: str = "cells", one: str = "cell") -> str:
     """``markup`` with the text report's numbered titles and "question N" given the titles of
-    this page, which has no numbers (the Foundation's in the report's ``units``)."""
-    markup = _TITLE.sub(lambda m: html.escape(_NUMBERED[m.group(0)]), markup)
+    this page, which has no numbers, in the words of the report's observations (``units``,
+    ``one``)."""
+    names, titles = _numbered(units, one), titles_for(units, one)
+    markup = _title_pattern(units, one).sub(lambda m: html.escape(names[m.group(0)]), markup)
+    questions = dict(questions_for(units))
 
     def title(match: re.Match) -> str:
         key = _NUMBER_KEYS.get(match.group(1))
-        name = TITLES.get(key) or _NUMBERED.get(dict(QUESTIONS).get(key, ""), "")
+        name = titles.get(key) or names.get(questions.get(key, ""), "")
         return f"\u201c{html.escape(name)}\u201d" if name else match.group(0)
 
-    unit = f"Why count fields, and not only {units}?"
+    unit = titles["unit"]
     markup = _FOUNDATION.sub(f"\u201c{html.escape(unit)}\u201d", markup)
     return _QUESTION.sub(title, markup)
 
@@ -364,42 +376,73 @@ def _colour(d: float) -> tuple[str, str]:
     return "#" + "".join(f"{v:02x}" for v in rgb), text
 
 
-def heatmap(discovery: Any, conditions: list[Any]) -> str:
-    """Cohen's d of every feature (rows, best-ranked first) and condition (columns) against
-    the control, as an SVG; ● a candidate at the cell level, ✓ also confirmed across
-    repeats. Empty without tests."""
+# The longest name the heatmap writes in full; the cell's hover and the CSV hold it whole.
+HEATMAP_NAME = 30
+
+
+def _label(x: float, y: float, name: Any, css: str, extra: str = "") -> str:
+    """A heatmap label, cut to ``HEATMAP_NAME`` characters, the full name on hover."""
+    full = html.escape(str(name))
+    return (
+        f'<g><title>{full}</title><text class="{css}" x="{x}" y="{y}"{extra}>'
+        f"{html.escape(shortened(name, HEATMAP_NAME))}</text></g>"
+    )
+
+
+def heatmap(discovery: Any, conditions: list[Any], one: str = "cell") -> str:
+    """Cohen's d of every feature (best-ranked first) and condition against the control, as
+    an SVG at a readable size that scrolls sideways rather than shrinks: the features are the
+    rows, or the conditions when there are more of them than features (owner, 2026-10-05);
+    ● a candidate of the screen on every observation (``one``: the observation unit's word),
+    ✓ also confirmed across repeats. Empty without tests."""
     if discovery is None or discovery.tests is None or not len(discovery.tests):
         return ""
     tests = discovery.tests
     features = list(discovery.ranking["feature"])
     present = set(tests["condition"])
     columns = [c for c in conditions if c in present] or sorted(present, key=str)
-    # The column labels slant up to the right: room above and beside for the longest.
-    longest = max(len(str(c)) for c in columns)
-    cell_w, cell_h, left = 72, 24, 10 + 7 * max(len(str(f)) for f in features)
-    top = 24 + round(4.2 * longest)
-    width = left + cell_w * len(columns) + 10 + round(5.8 * longest)
-    height = top + cell_h * len(features) + 10
+    named = tests["control_condition"].dropna() if "control_condition" in tests else []
+    controls = sorted({str(c) for c in named})
+    against = controls[0] if len(controls) == 1 else "its control"
+    condition_title = f"condition, against {html.escape(against)}"
+    feature_title = "feature, best-ranked first"
+    transposed = len(columns) > len(features)
+    rows, cols = (columns, features) if transposed else (features, columns)
+    row_title, col_title = (
+        (condition_title, feature_title) if transposed else (feature_title, condition_title)
+    )
+    # The column labels slant up to the right: room above and beside for the longest, and
+    # for each axis's title (the rows' turned up its left side).
+    longest = max(len(shortened(c, HEATMAP_NAME)) for c in cols)
+    title = 22
+    cell_w, cell_h = 72, 24
+    left = title + 10 + 7 * max(len(shortened(r, HEATMAP_NAME)) for r in rows)
+    top = title + 24 + round(4.2 * longest)
+    width = left + cell_w * len(cols) + 10 + round(5.8 * longest)
+    height = top + cell_h * len(rows) + 10
+    middle_x = left + cell_w * len(cols) / 2
+    middle_y = top + cell_h * len(rows) / 2
     parts = [
         (
             f'<svg class="heatmap" viewBox="0 0 {width} {height}" width="{width}" '
-            'role="img" aria-label="Cohen\'s d of every feature against the control">'
-        )
+            f'height="{height}" role="img" '
+            'aria-label="Cohen\'s d of every feature against the control">'
+        ),
+        (f'<text class="hm-axis" x="{middle_x}" y="16" text-anchor="middle">{col_title}</text>'),
+        (
+            f'<text class="hm-axis" x="16" y="{middle_y}" text-anchor="middle" '
+            f'transform="rotate(-90 16 {middle_y})">{row_title}</text>'
+        ),
     ]
-    for j, condition in enumerate(columns):
+    for j, name in enumerate(cols):
         x = left + j * cell_w + cell_w / 2
-        parts.append(
-            f'<text class="hm-col" x="{x}" y="{top - 8}" transform="rotate(-35 {x} {top - 8})">'
-            f"{html.escape(str(condition))}</text>"
-        )
+        parts.append(_label(x, top - 8, name, "hm-col", f' transform="rotate(-35 {x} {top - 8})"'))
     lookup = {(r.feature, r.condition): r for r in tests.itertuples()}
-    for i, feature in enumerate(features):
+    for i, name in enumerate(rows):
         y = top + i * cell_h
-        parts.append(
-            f'<text class="hm-row" x="{left - 8}" y="{y + cell_h / 2 + 4}" text-anchor="end">'
-            f"{html.escape(str(feature))}</text>"
-        )
-        for j, condition in enumerate(columns):
+        parts.append(_label(left - 8, y + cell_h / 2 + 4, name, "hm-row", ' text-anchor="end"'))
+        for j, other in enumerate(cols):
+            feature, condition = (other, name) if transposed else (name, other)
             row = lookup.get((feature, condition))
             d = float(row.d) if row is not None and row.d == row.d else float("nan")
             fill, ink = _colour(d)
@@ -409,7 +452,7 @@ def heatmap(discovery: Any, conditions: list[Any]) -> str:
             shown = "–" if not np.isfinite(d) else f"{d:+.2f}"
             tip = f"{feature}, {condition}: d {shown}"
             if row is not None and np.isfinite(row.q_cells):
-                tip += f"; cell-level q {p_value(row.q_cells)}"
+                tip += f"; {one}-level q {p_value(row.q_cells)}"
             if row is not None and np.isfinite(row.q_paired):
                 tip += f"; repeat means q {p_value(row.q_paired)}"
             x = left + j * cell_w
@@ -420,15 +463,18 @@ def heatmap(discovery: Any, conditions: list[Any]) -> str:
                 f'fill="{ink}" class="hm-cell">{shown}{mark}</text></g>'
             )
     parts.append("</svg>")
+    # The key first: which test each value and mark comes from (owner, 2026-10-02).
     legend = (
-        '<p class="note">Cohen\'s d against the control, '
-        '<span class="hm-key" style="background:#2a78d6"></span> lower · '
-        '<span class="hm-key" style="background:#e34948"></span> higher (colour full at '
-        f"|d| ≥ {D_CAP:g}); ● a candidate (exploratory cell-level q ≤ 0.05), ✓ also "
-        "significant across repeats (the paired t-test on the repeat means, q ≤ 0.05). "
-        "Hover a cell for its q-values.</p>"
+        '<p class="note hm-legend">Each square: Cohen\'s d of the condition against the '
+        f"control on every {one}, as the {one}-level screen computes it "
+        '(<span class="hm-key" style="background:#2a78d6"></span> lower · '
+        '<span class="hm-key" style="background:#e34948"></span> higher, colour full at '
+        f"|d| ≥ {D_CAP:g}). ● a candidate: the {one}-level screen's randomization test, "
+        "q ≤ 0.05, exploratory. ✓ also significant across repeats: the paired t-test on "
+        "the repeat means, q ≤ 0.05. Hover a square for its q-values.</p>"
     )
-    return f'<div class="table-wrap">{"".join(parts)}</div>{legend}'
+    # Scrolls sideways at its own size instead of shrinking to the page (owner, 2026-10-05).
+    return f'{legend}<div class="heatmap-scroll">{"".join(parts)}</div>'
 
 
 __all__ = [
@@ -441,6 +487,7 @@ __all__ = [
     "hidden",
     "intros_for",
     "not_declared",
+    "titles_for",
     "unnumbered",
     "what_checked",
 ]

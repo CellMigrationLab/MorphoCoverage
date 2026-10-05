@@ -160,6 +160,19 @@ def ordinal(n: int) -> str:
     return f"{n}{suffix}"
 
 
+def shortened(name: object, most: int = 30) -> str:
+    """``name`` as a label of at most ``most`` characters, cut in the middle with an ellipsis
+    (its start and its end kept); the full name goes where the label is hovered and in the
+    CSV."""
+    text = str(name)
+    if len(text) <= most:
+        return text
+    # Cut in the middle: names of a series often differ only at their end (siRNA lots, wells).
+    head = (most - 1) * 3 // 5
+    tail = most - 1 - head
+    return text[:head].rstrip() + "…" + text[len(text) - tail :].lstrip()
+
+
 def column_word(column: object) -> str:
     """A column's own name as a word: ``plate``, ``biological repeat`` (underscores as spaces)."""
     return str(column).replace("_", " ")
@@ -194,5 +207,6 @@ __all__ = [
     "plural",
     "rate",
     "rows_of",
+    "shortened",
     "where",
 ]

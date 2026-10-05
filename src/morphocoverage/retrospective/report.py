@@ -57,7 +57,7 @@ Shared-private: re-exports ``_detection_adjusted_bounds`` and
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -76,7 +76,7 @@ from ..sampling_unit import (
     ObjectRuleCheck,
     UnusualObjects,
 )
-from ..schema import unit_plural
+from ..schema import observation_words, unit_words
 from ..sufficiency import SufficiencyReport
 from .adequacy import AdequacyResult
 from .calibration import StoppingCalibration
@@ -129,35 +129,44 @@ GLANCE_KEY = (
     "which."
 )
 
-QUESTIONS = (
-    ("unit", "Foundation: why count fields, and not only objects?"),
-    ("controls", "1. Can these features detect what I care about?"),
-    ("enough", "2. Did I image enough?"),
-    ("profile", "3. What is limiting my sampling?"),
-    ("next_time", "4. How many fields should I image next time?"),
-    ("bought", "5. What did the extra fields buy?"),
-    ("inspect", "6. Which fields should I look at?"),
-    ("effort", "7. More fields or more samples?"),
-    ("order", "8. Could I have sampled more efficiently?"),
-    ("conditions", "9. Do the conditions differ, and how confidently?"),
-    ("populations", "10. Are there groups of cells, and is a condition enriched in one?"),
-)
 
-# The questions as the "At a glance" block names them.
-SHORT_QUESTIONS = {
-    "overview": "The data",
-    "unit": "Foundation. Why count fields?",
-    "controls": "1. Can the features see the phenotype?",
-    "enough": "2. Did I image enough?",
-    "profile": "3. What limits my sampling?",
-    "next_time": "4. How many fields next time?",
-    "bought": "5. What did the extra fields buy?",
-    "inspect": "6. Which fields should I look at?",
-    "effort": "7. More fields or more samples?",
-    "order": "8. A better order?",
-    "conditions": "9. Do the conditions differ?",
-    "populations": "10. Groups of cells?",
-}
+def questions_for(units: str = "cells") -> tuple[tuple[str, str], ...]:
+    """The report's questions, keyed, in the words of its observations (``tracks``)."""
+    return (
+        ("unit", f"Foundation: why count fields, and not only {units}?"),
+        ("controls", "1. Can these features detect what I care about?"),
+        ("enough", "2. Did I image enough?"),
+        ("profile", "3. What is limiting my sampling?"),
+        ("next_time", "4. How many fields should I image next time?"),
+        ("bought", "5. What did the extra fields buy?"),
+        ("inspect", "6. Which fields should I look at?"),
+        ("effort", "7. More fields or more samples?"),
+        ("order", "8. Could I have sampled more efficiently?"),
+        ("conditions", "9. Do the conditions differ, and how confidently?"),
+        ("populations", f"10. Are there groups of {units}, and is a condition enriched in one?"),
+    )
+
+
+def short_questions_for(units: str = "cells") -> dict[str, str]:
+    """The questions as the "At a glance" block names them, in the observations' words."""
+    return {
+        "overview": "The data",
+        "unit": "Foundation. Why count fields?",
+        "controls": "1. Can the features see the phenotype?",
+        "enough": "2. Did I image enough?",
+        "profile": "3. What limits my sampling?",
+        "next_time": "4. How many fields next time?",
+        "bought": "5. What did the extra fields buy?",
+        "inspect": "6. Which fields should I look at?",
+        "effort": "7. More fields or more samples?",
+        "order": "8. A better order?",
+        "conditions": "9. Do the conditions differ?",
+        "populations": f"10. Groups of {units}?",
+    }
+
+
+QUESTIONS = questions_for()
+SHORT_QUESTIONS = short_questions_for()
 
 
 @dataclass(frozen=True)
@@ -168,7 +177,7 @@ class MicroscopistReport:
     of the questions that have one (and of the opening, ``"overview"``; the
     others print their full text in both), ``statuses`` and ``headlines`` each
     answer's marker and one-line answer (``report_status``), keyed like
-    ``sections`` and ``"overview"``.
+    ``sections`` and ``"overview"``; ``units`` the observations, for the titles.
     """
 
     sections: dict[str, str]
@@ -181,6 +190,7 @@ class MicroscopistReport:
     statuses: dict[str, Status] = field(default_factory=dict)
     headlines: dict[str, str] = field(default_factory=dict)
     title: str = REPORT_TITLE
+    units: str = "cells"
 
     def summary(self, questions: Sequence[str] | None = None, detail: str = "short") -> str:
         """The whole report, question by question, or only the ``questions`` keys given.
@@ -196,12 +206,13 @@ class MicroscopistReport:
         ``questions`` selects.
         """
         short = check_detail(detail) == "short"
-        keys = [key for key, _ in QUESTIONS]
+        titles = questions_for(self.units)
+        keys = [key for key, _ in titles]
         if questions is not None:
             unknown = sorted(set(questions) - set(keys))
             if unknown:
                 raise ValueError(f"unknown report questions {unknown}; choose from {keys}")
-        chosen = [(k, t) for k, t in QUESTIONS if questions is None or k in questions]
+        chosen = [(k, t) for k, t in titles if questions is None or k in questions]
         blocks = [self.title, self.at_a_glance([k for k, _ in chosen])] if short else []
         if self.overview:
             text = self.short.get("overview") if short else None
@@ -225,12 +236,13 @@ class MicroscopistReport:
     def at_a_glance(self, keys: Sequence[str] | None = None) -> str:
         """One line per answer: ``<marker> <n>. <short question> — <headline>``."""
         lines = [GLANCE_TITLE, wrap(GLANCE_KEY, "  ", hang=4)]
+        short_titles = short_questions_for(self.units)
         chosen = [k for k, _ in QUESTIONS if keys is None or k in keys]
         for key in ["overview", *chosen]:
             status = self.statuses.get(key)
             if status is None:
                 continue
-            line = headline(status, SHORT_QUESTIONS[key], self.headlines.get(key))
+            line = headline(status, short_titles[key], self.headlines.get(key))
             lines.append(wrap(line, "  ", hang=5))
         # The planning questions come from optimise; say so rather than skip their numbers.
         missing = [
@@ -253,7 +265,12 @@ class MicroscopistReport:
         notes (``report_answers.limits_text``; ``detail="short"`` names each need in a few
         words and leaves out a note a section above already states)."""
         return limits_text(
-            self, questions, detail, titles=QUESTIONS, needs=_NEEDS, short_titles=SHORT_QUESTIONS
+            self,
+            questions,
+            detail,
+            titles=questions_for(self.units),
+            needs=_NEEDS,
+            short_titles=short_questions_for(self.units),
         )
 
 
@@ -502,8 +519,16 @@ def microscopist_report(
         short,
         statuses,
         headlines,
+        units=_units(results),
     )
     return with_opening(document, overview) if overview is not None else document
+
+
+def _units(results: Mapping[str, Any]) -> str:
+    """The observations the results were computed on, plural (``cells`` when undeclared)."""
+    found = [getattr(r, "settings", None) for r in results.values()]
+    found = [f for f in found if isinstance(f, dict) and f.get("observation_unit")]
+    return observation_words(found[0] if found else {})[1]
 
 
 def opening(overview: DatasetOverview, integrity: Any = None) -> dict[str, Any]:
@@ -525,9 +550,10 @@ def opening(overview: DatasetOverview, integrity: Any = None) -> dict[str, Any]:
         full = f"{full}\n\n{integrity.summary(detail='full')}"
     overall, glance = overview_status(overview, integrity)
     counts = overview.counts
-    unit = overview.settings["observation_unit"]
+    settings = overview.settings
+    unit, units = unit_words(settings["observation_unit"], settings["observation_unit_declared"])
     title = (
-        f"{REPORT_TITLE} {DASH} {count(counts['objects'], unit, unit_plural(unit))} in "
+        f"{REPORT_TITLE} {DASH} {count(counts['objects'], unit, units)} in "
         f"{count(counts['fields'], 'field')}"
     )
     return {
@@ -536,6 +562,7 @@ def opening(overview: DatasetOverview, integrity: Any = None) -> dict[str, Any]:
         "status": overall,
         "headline": glance,
         "title": title,
+        "units": units,
     }
 
 
@@ -551,6 +578,7 @@ def with_opening(
         statuses={**document.statuses, "overview": parts["status"]},
         headlines={**document.headlines, "overview": parts["headline"]},
         title=parts["title"],
+        units=parts["units"],
     )
 
 
@@ -565,5 +593,7 @@ __all__ = [
     "MicroscopistReport",
     "microscopist_report",
     "opening",
+    "questions_for",
+    "short_questions_for",
     "with_opening",
 ]

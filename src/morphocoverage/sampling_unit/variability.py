@@ -183,6 +183,7 @@ def fov_variability(
         "feature": feature,
         "fov_key": list(data.fov_key),
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
         "unusual_z": UNUSUAL_Z,
     }
     return FOVVariability(pd.DataFrame(group_rows), pd.DataFrame(fov_rows), tuple(keys), settings)

@@ -21,9 +21,9 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption
-from .._style import table, wrap
+from .._style import span, table, wrap
 from .._wording import column_word, count, listing, p_value, percent
-from ..schema import unit_plural
+from ..schema import observation_words
 from .contrast_cells import (
     ALPHA,
     BALANCED_DRAWS,
@@ -36,6 +36,11 @@ from .contrast_cells import (
 
 def _cells(contrast: Any) -> pd.DataFrame:
     return getattr(contrast, "cells", pd.DataFrame())
+
+
+def _unit(contrast: Any) -> str:
+    """The word for one observation (``nucleus``; ``cell`` when none was declared)."""
+    return observation_words(contrast.settings)[0]
 
 
 def _test(d: float, p: float, corrected: float) -> str:
@@ -57,13 +62,13 @@ def _chance(row: dict[str, Any], prefix: str = "chance") -> str:
 def _balance(contrast: Any, cells: pd.DataFrame) -> str:
     """The balance check in a sentence."""
     word = column_word(contrast.settings["repeat_col"])
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     unbalanced = cells[cells["unbalanced"]]
     if unbalanced.empty:
         return (
             f"Balance: every {word} holds {words} within {percent(IMBALANCE - 1)} of the others, "
             "and each condition is compared with the control of its own repeats, so the test "
-            "is run on the data as provided."
+            "is run on the data as provided." + _control_only(contrast, cells)
         )
     reasons = []
 
@@ -83,11 +88,17 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
         )
     others = unbalanced[unbalanced["other_control_repeats"] > 0]
     if len(others):
-        reasons.append(
-            f"for {which(others)}, the control as provided is pooled from "
-            f"{count(int(others['other_control_repeats'].max()), word)} the condition was not "
-            "imaged in"
-        )
+        # Each condition's own number, in the order named (their range beyond three).
+        held_out = [int(n) for n in others["other_control_repeats"]]
+        if len(set(held_out)) == 1:
+            pooled_from = f"{count(held_out[0], word)} the condition was not imaged in"
+        else:
+            named = len(held_out) <= 3 and len(others) != len(cells)
+            numbers = listing([str(n) for n in held_out]) if named else None
+            pooled_from = f"{word}s the condition was not imaged in " + (
+                f"({numbers} of them)" if numbers else f"({span(held_out)} of them)"
+            )
+        reasons.append(f"for {which(others)}, the control as provided is pooled from {pooled_from}")
     shift = others["control_shift"].max() if len(others) and "control_shift" in others else np.nan
     # A pooled control mixes these levels: the raw test as provided then compares a condition
     # with other repeats' level.
@@ -102,14 +113,28 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
         f"Balance: {'; and '.join(reasons)}; so the test is also given balanced (each "
         f"condition against the control of its own {word}s, the same number of {words} from "
         f"each {word}; the median d and p over {BALANCED_DRAWS} draws), and as provided only "
-        f"where the control comes from the condition's own {word}s." + shifted
+        f"where the control comes from the condition's own {word}s."
+        + shifted
+        + _control_only(contrast, cells)
     )
+
+
+def _control_only(contrast: Any, cells: pd.DataFrame) -> str:
+    """The repeats holding only the control, which no comparison pools; empty without."""
+    repeats = [str(r) for r in contrast.settings.get("control_only_repeats", [])]
+    if not repeats:
+        return ""
+    word = column_word(contrast.settings["repeat_col"])
+    control = listing(sorted(set(map(str, cells["control_condition"]))), 2)
+    which = f"{word} {repeats[0]}" if len(repeats) == 1 else f"{word}s {listing(repeats, 3)}"
+    holds = "holds" if len(repeats) == 1 else "hold"
+    return f" The {control} of {which}, which {holds} no other condition, is in no comparison."
 
 
 def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
     """One sentence per repeat too small to balance to, naming the conditions it concerns."""
     word = column_word(contrast.settings["repeat_col"])
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     flagged = cells[cells["sparse_repeats"].map(len) > 0]
     groups: dict[tuple[tuple[str, ...], int], list[str]] = {}
     for row in flagged.to_dict("records"):
@@ -151,12 +176,12 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
     cells = _cells(contrast)
     if cells.empty or contrast.settings.get("repeat_col") is None:
         return [], []
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     balanced = bool(cells["p_balanced"].notna().any())
     lines = [
         wrap(
-            f"Cell-level screen (exploratory, as in Plot&Stats): Cohen's d on every "
-            f"{contrast.settings['observation_unit']} against the "
+            f"{_unit(contrast).capitalize()}-level screen (exploratory, as in Plot&Stats): "
+            f"Cohen's d on every {_unit(contrast)} against the "
             f"control, the randomization test shuffling the labels over the {words}:",
             indent,
             hang=indent + 2,
@@ -245,11 +270,11 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
 def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
     """The same assumptions in a sentence each, for the short report (the full report and
     docs/condition_tests.md give the formula and the simulations)."""
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     text = (
-        f"The cell-level test treats the {words} as independent, so it asks whether these "
-        "wells differ, not whether the effect repeats. Normalised: each value divided by its "
-        "own repeat's control mean"
+        f"The {_unit(contrast)}-level test treats the {words} as independent, so it asks "
+        "whether these wells differ, not whether the effect repeats. Normalised: each value "
+        "divided by its own repeat's control mean"
     )
     text += (
         f". Balanced: the median over {BALANCED_DRAWS} draws with as many {words} from each repeat."
@@ -261,11 +286,12 @@ def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str
 
 def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
     """The assumptions and limitations of the cell-level test, normalisation and balancing."""
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     single = bool(cells["between_sd"].isna().any())
     notes = [
         assumption(
-            f"Cell-level test (Cohen's d, randomization over the {words}): it assumes the "
+            f"{_unit(contrast).capitalize()}-level test (Cohen's d, randomization over the "
+            f"{words}): it assumes the "
             f"{words} are independent draws, so it asks whether these wells differ, not whether "
             "the effect repeats, and it responds with one or two repeats. Limitation: when the "
             f"difference varies between repeats it gives p ≤ {ALPHA:g} without an effect in "
@@ -287,7 +313,8 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
             "removes a scale both wells of a repeat share (staining, imaging) and pairs every "
             "condition with its own repeat's control. It assumes a positive feature on a ratio "
             "scale (not computed when a control mean is 0 or below); it does not remove the part "
-            "of the effect that varies between repeats, so the cell-level chance still applies."
+            "of the effect that varies between repeats, so the "
+            f"{_unit(contrast)}-level chance still applies."
         ),
     ]
     if balanced:
@@ -295,7 +322,9 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
             assumption(
                 f"Balanced: the median d and median p over {BALANCED_DRAWS} draws taking the same "
                 f"number of {words} from each repeat, against the control of the condition's own "
-                "repeats; it describes the typical draw and is not the p of one test. In "
+                "repeats; it describes the typical draw and is not the p of one test (where a "
+                "large correction family reruns a p at or below 0.05 with more shuffles, the "
+                "mean p of the two draws at the median d). In "
                 "data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells "
                 "of the others, the test as provided gives 22-46% false positives where equal "
                 "repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control "
@@ -319,7 +348,7 @@ def cells_headline(contrast: Any) -> str | None:
     if cells.empty or contrast.settings.get("repeat_col") is None:
         return None
     text = (
-        f"cell-level test, raw / normalised: {_passing(cells, 'p_cells')} / "
+        f"{_unit(contrast)}-level test, raw / normalised: {_passing(cells, 'p_cells')} / "
         f"{_passing(cells, 'p_cells_normalised')} of {len(cells)} at q ≤ {ALPHA:g}"
     )
     if cells["p_balanced"].notna().any():

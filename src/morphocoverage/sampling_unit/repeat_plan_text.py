@@ -19,7 +19,7 @@ import pandas as pd
 from .._caveats import assumption
 from .._style import table, wrap
 from .._wording import change, count, listing, percent
-from ..schema import unit_plural
+from ..schema import observation_words, unit_plural
 from .contrast_sampling import PRACTICAL
 from .repeat_plan import ALPHA, MAX_REPEATS, POWER
 
@@ -69,10 +69,18 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
     plan = _plan(contrast)
     if plan.empty:
         return [], []
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     _, fields = field_words(contrast)
     feature = contrast.settings.get("feature", "the readout")
-    n = int(plan["repeats"].max())
+    held = sorted({int(n) for n in plan["repeats"]})
+    # Each condition's own repeats: "each of 3 repeats", "the one repeat", or "each repeat".
+    each = (
+        "the one repeat"
+        if held == [1]
+        else f"each of {count(held[0], 'repeat')}"
+        if len(held) == 1
+        else "each repeat"
+    )
     lines = [
         wrap(
             f"Planning the next experiment on {feature} (for a new experiment, if the "
@@ -80,8 +88,8 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
             "needs): the biological repeats a paired t-test on the repeat means needs for "
             f"{percent(POWER)} power, corrected over the conditions of its sub-experiment (a "
             f"follow-up on {feature} alone), with the "
-            f"{fields} per repeat as now and with twice as many; then the {fields} a side each of "
-            f"{count(n, 'repeat')} needs to show the difference on its own:",
+            f"{fields} per repeat as now and with twice as many; then the {fields} a side "
+            f"{each} needs to show the difference on its own:",
             indent,
             hang=indent + 2,
         )

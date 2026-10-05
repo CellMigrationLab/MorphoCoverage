@@ -34,16 +34,15 @@ from .._caveats import assumption, caveat_lines
 from .._style import SINGLE_LEVEL, among, check_detail, span, table, wrap
 from .._wording import column_word, count, listing, number, percent
 from ..metadata import REPEAT_COLUMN
-from ..schema import unit_plural
+from ..schema import observation_words
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
 from .cells_text import cells_parts
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
-from .reading_text import readings_parts
+from .reading_text import NO_CONTROL, readings_parts
 from .reagents_text import reagents_parts
 from .repeat_plan_text import plan_parts
 from .repeats_text import _range, _repeat_head, _repeat_rows, _repeats, repeat_cautions
 
-NO_CONTROL = "no control group in"
 # Units a side at or below which a d on unit means is not computed: from so few means a d
 # can be very large by chance, so it could not help.
 FEW_UNITS_D = 3
@@ -83,13 +82,11 @@ def _head(contrast: Any, short: bool) -> str:
     settings = contrast.settings
     control, repeat_col, shared = settings["control"], settings["repeat_col"], settings.get("unit")
     within = f", within each {column_word(repeat_col)}" if repeat_col else ""
-    unit = settings["observation_unit"]
+    words = observation_words(settings)[1]
     if short:
         label = " · ".join(str(v) for v in control.values())
         units = (
-            f"{unit_plural(unit)}, fields and technical repeats (tech.)"
-            if shared
-            else f"{unit_plural(unit)} and fields"
+            f"{words}, fields and technical repeats (tech.)" if shared else f"{words} and fields"
         )
         return (
             f"{settings['feature']}, each condition against the control ({label}){within}; the "
@@ -100,7 +97,7 @@ def _head(contrast: Any, short: bool) -> str:
     return (
         f"Feature {settings['feature']}, each condition against the control ({label})"
         f"{within}. The fields of a condition's analysis groups are pooled for this comparison. "
-        f"{unit_plural(unit).capitalize()} are compared as Plot&Stats does and, since a "
+        f"{words.capitalize()} are compared as Plot&Stats does and, since a "
         "microscope acquires them through fields, with the field as the unit"
         + (
             f" and, where each side has at least two, with the technical repeat ({shared}) as "
@@ -135,7 +132,7 @@ def _contrast_rows(contrast: Any, full: bool) -> tuple[list[list[str]], list[str
     """One row per contrast: counts, effect sizes and (short) the test; and its columns."""
     settings = contrast.settings
     repeat_col, shared = settings["repeat_col"], settings.get("unit")
-    words = unit_plural(settings["observation_unit"])
+    words = observation_words(settings)[1]
     with_technical = shared and contrast.table["d_technical"].notna().any()
     # One observation per field: the d on field means is the d on observations.
     by_field = not _one_per_field(contrast)
@@ -143,7 +140,7 @@ def _contrast_rows(contrast: Any, full: bool) -> tuple[list[list[str]], list[str
     columns = ["contrast", "fields", words, *([technical] if shared else [])]
     columns += [f"d on {words}", *(["d on field means"] if by_field else [])]
     columns += [f"d on {technical} means"] if with_technical else []
-    unit = settings["observation_unit"]
+    unit = observation_words(settings)[0]
     # The JCS effect size: the difference over the control's SD (Glass's delta).
     columns += [f"over control SD, every {unit}"] if full else ["p (Bonferroni)"]
     rows = []
@@ -187,6 +184,9 @@ def _untested(contrast: Any) -> list[str]:
     the usual design, and the test across repeats, when there is one, answers the question."""
     repeat_col = contrast.settings["repeat_col"]
     table_ = contrast.table
+    # A repeat without the control is said once, in the readings ("left out", "Not
+    # compared"), with the conditions it concerns; the others are counted among the rest.
+    table_ = table_[~table_["status"].astype(str).str.startswith(NO_CONTROL)]
     n = len(table_)
     lines: list[str] = []
     untested = table_[table_["status"] != "ok"]
@@ -216,7 +216,7 @@ def _untested(contrast: Any) -> list[str]:
 def _cautions(contrast: Any) -> list[str]:
     """Every caveat of the contrast, once each (see the module)."""
     settings = contrast.settings
-    words = unit_plural(settings["observation_unit"])
+    words = observation_words(settings)[1]
     cautions = _untested(contrast)
     sizes = contrast.table[["d_objects", "d_fields", "d_technical"]].to_numpy(dtype=float)
     if np.isinf(sizes).any():
@@ -265,7 +265,7 @@ def _cautions(contrast: Any) -> list[str]:
 
 def _draws_short(contrast: Any, indent: int) -> list[str]:
     """The JCS effect size over the contrasts, and its same-sign shares per draw size."""
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     full = contrast.table["effect_full"].astype(float)
     full = full[np.isfinite(full)]
     if full.empty:
@@ -273,7 +273,7 @@ def _draws_short(contrast: Any, indent: int) -> list[str]:
     n = len(contrast.table)
     head = (
         f"JCS effect size (treated mean minus control mean, over the control SD) from every "
-        f"{contrast.settings['observation_unit']}: {_range(full)}"
+        f"{observation_words(contrast.settings)[0]}: {_range(full)}"
         + (f" over the {n} contrasts" if n > 1 else "")
     )
     effects = contrast.effects
@@ -321,10 +321,11 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
     if across and within_untested:
         # Nothing was tested within a repeat: the per-repeat d are in question 2 and the
         # across-repeat table, so the table would repeat them.
+        unit, units = observation_words(contrast.settings)
         lines[-1] = wrap(
             "No test within a single repeat: each condition has one well there, and the "
-            "cells of one well are not independent replicates (the cell-level screen above "
-            "treats them as such, and is exploratory). The per-repeat d are in question 2, "
+            f"{units} of one well are not independent replicates (the {unit}-level screen "
+            "above treats them as such, and is exploratory). The per-repeat d are in question 2, "
             "and every number in the full report (report_full.txt).",
             indent,
             hang=indent + 2,
@@ -410,7 +411,7 @@ def _test_sentence(contrast: Any, row: dict[str, Any], n_contrasts: int) -> str:
 
 def _draw_rows(contrast: Any) -> tuple[list[list[str]], list[str]]:
     """Per contrast and draw size: the median (IQR) and same-sign share of each sampling."""
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     repeat_col = contrast.settings["repeat_col"]
     effects = contrast.effects
     resampled = effects["resampled"].notna().any() if "resampled" in effects else False
@@ -469,12 +470,12 @@ def _full(contrast: Any) -> str:
         for row in tested.to_dict("records")
     ]
     if not contrast.effects.empty:
-        words = unit_plural(contrast.settings["observation_unit"])
+        words = observation_words(contrast.settings)[1]
         lines.append(
             wrap(
                 "JCS effect size (treated mean minus control mean, over the control SD) from "
                 f"draws of {words}: median (IQR), and the share of draws with the sign of the "
-                f"effect from every {contrast.settings['observation_unit']}; fields: the mean "
+                f"effect from every {observation_words(contrast.settings)[0]}; fields: the mean "
                 "number of acquired fields the whole-field draws took on the treated side.",
                 0,
                 hang=2,

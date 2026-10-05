@@ -16,8 +16,9 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption
+from .._style import span
 from .._wording import column_word, count, listing, p_value
-from ..schema import unit_plural
+from ..schema import observation_words
 from ._experiments import family_words
 from .contrast_repeats import MIN_REPEATS
 
@@ -51,7 +52,7 @@ def _p_cell(p: float, corrected: float) -> str:
 def _repeat_rows(contrast: Any, full: bool = False) -> tuple[list[list[str]], list[str]]:
     """One row per condition across the biological repeats, and the columns (the sign-flip
     test in the full form only)."""
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     repeats = _repeats(contrast)
     flip = full and bool(repeats["p_sign_flip"].notna().any())
     tested = bool(repeats["p_paired_t"].notna().any())
@@ -80,11 +81,17 @@ def _repeat_rows(contrast: Any, full: bool = False) -> tuple[list[list[str]], li
 def _repeat_head(contrast: Any) -> str:
     repeats = _repeats(contrast)
     word = column_word(contrast.settings["repeat_col"])
-    words = unit_plural(contrast.settings["observation_unit"])
-    n = int(repeats["repeats"].max())
+    words = observation_words(contrast.settings)[1]
+    held = sorted({int(n) for n in repeats["repeats"]})
+    # Each condition's own number of repeats: one count when they share it, else the range.
+    across = (
+        f"the {count(held[0], word)}"
+        if len(held) == 1
+        else f"the {word}s, {span(held)} per condition"
+    )
     return (
-        f"Across the {count(n, word)} (each repeat's value is the mean of its {words}, paired "
-        "with the control of the same repeat):"
+        f"Across {across} (each repeat's value is the mean of its {words}, paired with the "
+        "control of the same repeat):"
     )
 
 
@@ -100,11 +107,19 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
     notes = []
     untested = repeats[repeats["status"] != "ok"]
     if len(untested):
-        n = int(untested["repeats"].max())
+        held = [int(n) for n in untested["repeats"]]
+        names = listing([str(c) for c in untested["condition"]], 3)
+        # Each condition's own number of repeats holding both sides (the range beyond three).
+        numbers = (
+            count(held[0], word)
+            if len(set(held)) == 1
+            else f"{listing([str(n) for n in held])} {word}s"
+            if len(held) <= 3
+            else f"{span(held)} {word}s"
+        )
         notes.append(
             assumption(
-                f"With {count(n, word)} holding both sides, "
-                f"{listing(list(untested['condition']), 3)} "
+                f"{names}, with {numbers} holding both sides, "
                 f"{'is' if len(untested) == 1 else 'are'} described by direction and effect "
                 f"size; the paired test across repeats needs {MIN_REPEATS}."
             )
@@ -119,6 +134,7 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
             )
         )
     elif repeats["p_paired_t"].notna().any():
+        unit = observation_words(contrast.settings)[0]
         flip = repeats["p_sign_flip"].notna().any()
         notes.append(
             assumption(
@@ -126,7 +142,8 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
                 f"treats each {word} as one replicate and assumes the differences (raw) or the "
                 "log ratios to the control (normalised) are normally distributed and "
                 f"independent between {word}s. It keeps false positives at 5% when the effect "
-                f"varies between {word}s, which the cell-level test does not; the cost is power: "
+                f"varies between {word}s, which the {unit}-level test does not; the cost is "
+                "power: "
                 f"with 3 {word}s and 30 cells a well, d 1.5 is found in 98, 90 and 63% of "
                 f"experiments and d 1.0 in 85, 67 and 39% as {word}s differ by 0, 0.25 and 0.5 "
                 "cell SD (data/simulations/test_choice.py)"

@@ -5,13 +5,13 @@ embedded, and the data and markup of the interactive PCA and UMAP.
   (plots), each with the CSV of what it draws (``_html_data``).
 - embeddings: the PCA and UMAP of every feature, raw and normalised to the control, as
   data for the page's script (with the static figures beside): every condition, the control
-  included, in a colour of COLOURS.
+  included, in a colour of COLOURS; past 12 conditions the control and the hits in colour,
+  the others grey (``figures.highlighted``), with a search to find one.
 - figure_block: a figure with its download buttons (``_html_data.download``).
 """
 
 from __future__ import annotations
 
-import base64
 import html
 from dataclasses import replace
 from pathlib import Path
@@ -20,52 +20,62 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._palette import COLOURS
+from .._palette import COLOURS, GREY, condition_palette
 from .._wording import percent
 from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import normalize_to_control
 from ..plots_embedding import embedding_figures
-from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_TITLES
+from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_KEYS, PANEL_TITLES
 from ._html_data import data_buttons, download, embedding_data, feature_data, json_island
 from ._html_plotly import feature_specs, interactive_caption
 from ._populations import population_of
 from ._rare_share import with_share
 from ._shared import check_workflow_inputs
-from .figures import plots
+from .figures import colour_note, highlighted, plots
 from .retrospective import Report
 
-# The interactive figures use the static figures' palette (``_palette.COLOURS``, the
-# control included, no grey); beyond its 12 colours they repeat, and the legend and hover
-# name each point.
+# The interactive figures use the static figures' palette (``_palette.condition_palette``,
+# the control included); past its 12 colours the control and the hits keep theirs and the
+# others are grey, and the legend and hover name each point.
+
+
+# The widest a static PNG is drawn, in pixels: a split figure of 12 conditions is 27 inches
+# wide, which at 150 dpi made PNGs of 4113 pixels; past this width the dpi is lowered.
+PNG_PIXELS = 2400
 
 
 def _save(figure: Any, folder: Path, name: str) -> str:
-    """``name``.png and .pdf in ``folder``; the PNG as a data URI for the page."""
-    figure.savefig(folder / f"{name}.png", dpi=150)
+    """``name``.png and .pdf in ``folder``; the PNG's path as the page refers to it (given
+    its data when the page carries it, ``_html_data.inline_images``)."""
+    width = max(figure.get_size_inches())
+    figure.savefig(folder / f"{name}.png", dpi=min(150, PNG_PIXELS / width))
     figure.savefig(folder / f"{name}.pdf")
-    data = base64.b64encode((folder / f"{name}.png").read_bytes()).decode()
-    return f"data:image/png;base64,{data}"
+    return f"figures/{name}.png"
 
 
 def figure_block(uri: str, name: str, caption: str) -> str:
     """A static figure with its caption and its PDF and PNG download links."""
     return (
-        f'<figure><img src="{uri}" alt="{html.escape(caption)}" loading="lazy">'
+        f'<figure><img src="{uri}" data-file="{uri}" alt="{html.escape(caption)}" '
+        'loading="lazy">'
         f"<figcaption>{html.escape(caption)} · "
         f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
         "</figcaption></figure>"
     )
 
 
-def condition_colours(objects: pd.DataFrame, fovs: pd.DataFrame, control: Any) -> dict:
+def condition_colours(
+    objects: pd.DataFrame, fovs: pd.DataFrame, control: Any, highlight: Any = ()
+) -> dict:
     """Every condition's colour, by its place among all of them (the control first), the
-    same in every interactive figure."""
+    same in every interactive figure; past 12, the ``highlight`` ones in colour, the rest grey
+    (a split feature figure colours its own, ``plots.plots_of_data``)."""
     values = [
         v for table in (fovs, objects) if CONDITION_COLUMN in table for v in table[CONDITION_COLUMN]
     ]
     names = sorted_labels([v for v in values if pd.notna(v)], control)
-    return {name: COLOURS[i % len(COLOURS)] for i, name in enumerate(names)}
+    return condition_palette(names, control, highlight)
 
 
 def file_stem(name: Any, taken: set[str]) -> str:
@@ -135,7 +145,8 @@ def feature_figures(
             pair = (
                 '<div class="pair-row">'
                 + "".join(
-                    f'<div class="panel"><p class="panel-title"><b>{letter}</b> {title}</p>'
+                    f'<div class="panel"><p class="panel-title"><b>{letter}</b> {title}'
+                    f'<span class="panel-key">{html.escape(PANEL_KEYS[letter])}</span></p>'
                     f'<div class="pl-pair" data-panel="{letter.lower()}"></div></div>'
                     for letter, title in PANEL_TITLES.items()
                 )
@@ -184,11 +195,12 @@ def feature_figures(
                 f"{download(f'figures/{name}.pdf', 'PDF')} {download(f'figures/{name}.png', 'PNG')}"
                 f" {data_buttons(data)}"
                 "</p><details><summary>The static figure (as in the PDF)</summary>"
-                f'<figure><img src="{uri}" alt="{html.escape(label)}" loading="lazy"></figure>'
+                f'<figure><img src="{uri}" data-file="{uri}" alt="{html.escape(label)}" '
+                'loading="lazy"></figure>'
                 "</details></div>"
             )
     control = (setup.control or {}).get(CONDITION_COLUMN)
-    colours = condition_colours(objects, fovs, control)
+    colours = condition_colours(objects, fovs, control, highlighted(result.discovery)[0])
     by_view = {}
     for key, view in views:
         by_view[key] = feature_specs(
@@ -302,18 +314,39 @@ def _set(
     }
 
 
-def _colour_menu(data: dict[str, Any]) -> str:
-    """The "Colour by" menu: condition, population (when found) or a feature."""
+def _colour_menu(data: dict[str, Any], n_features: int) -> str:
+    """The "Colour by" menu: condition, population (when found) or a feature, and how many of
+    the ``n_features`` it offers when it cannot offer them all (``MAP_FEATURES``)."""
     options = ['<option value="condition">condition</option>']
     if data["populations"]:
         options.append('<option value="population">population</option>')
     options += [
         f'<option value="{html.escape(f)}">{html.escape(f)}</option>' for f in data["features"]
     ]
+    shown = len(data["features"])
+    limit = (
+        f'<span class="note">Colour by and the selection use the {shown} best-ranked of '
+        f"{n_features} features.</span>"
+        if shown < n_features
+        else ""
+    )
     return (
         '<label class="colour-by-label">Colour by <select class="colour-by">'
         + "".join(options)
         + "</select></label>"
+        + limit
+    )
+
+
+def _find(names: list[str], colours: list[str]) -> str:
+    """Past 12 conditions, a search box to pick one and see it highlighted on the map."""
+    if GREY not in colours:
+        return ""
+    options = "".join(f'<option value="{html.escape(n)}"></option>' for n in names)
+    return (
+        '<label class="find-label">Find a condition <input type="search" class="find" '
+        'list="embedding-conditions" placeholder="name" aria-label="Find a condition">'
+        f'</label><datalist id="embedding-conditions">{options}</datalist>'
     )
 
 
@@ -363,8 +396,11 @@ def embeddings(
         else ["all"]
     )
     order = {name: i for i, name in enumerate(names)}
-    shared = condition_colours(objects, fovs, control_value)
-    colours = [shared.get(name, COLOURS[i % len(COLOURS)]) for i, name in enumerate(names)]
+    # Past 12 conditions, the control and the hits in colour (owner, 2026-10-05).
+    hits, words = highlighted(result.discovery)
+    palette = condition_palette(names, control_value, hits)
+    colours = [palette[name] for name in names]
+    note = colour_note(palette, words)
     counts = (
         [int((first[CONDITION_COLUMN] == name).sum()) for name in names]
         if CONDITION_COLUMN in first
@@ -380,6 +416,7 @@ def embeddings(
     data = {
         "conditions": [str(n) for n in names],
         "colours": colours,
+        "grey": GREY,
         "counts": counts,
         "methods": ["PCA", "UMAP"],
         "features": features,
@@ -401,11 +438,11 @@ def embeddings(
     data_files = embedding_data(embeddings, folder)
     static = []
     for values, embedding in embeddings.items():
-        for method, figure in embedding_figures(embedding, control=control).items():
+        drawn = embedding_figures(embedding, control=control, highlight=hits)
+        for method, figure in drawn.items():
             name = f"{method}_{values}"
-            static.append(
-                figure_block(_save(figure, folder, name), name, f"{method.upper()}, {values}")
-            )
+            caption = f"{method.upper()}, {values}" + (f". {note}" if note else "")
+            static.append(figure_block(_save(figure, folder, name), name, caption))
     buttons = "".join(
         f'<button type="button" data-key="method" data-value="{m}" '
         f'aria-pressed="{str(i == 0).lower()}">{m}</button>'
@@ -424,7 +461,8 @@ def embeddings(
             if len(data["values"]) > 1
             else ""
         )
-        + _colour_menu(data)
+        + _colour_menu(data, len(setup.columns))
+        + _find(data["conditions"], colours)
         + '<button type="button" class="dl full">Enlarge</button>'
         '<span class="note">Click an entry in the legend to hide it, double-click to show '
         "it alone; draw around points (the lasso is on) to see which conditions and "
@@ -433,7 +471,8 @@ def embeddings(
         '<div class="viz-body"><div class="pl-embed"></div>'
         '<div class="selection" aria-live="polite"></div></div>'
         '<p class="caption note"></p>'
-        f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
+        + (f'<p class="note">{html.escape(note)}</p>' if note else "")
+        + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
         "repeats, which the normalised values (each divided by its repeat's control mean) take "

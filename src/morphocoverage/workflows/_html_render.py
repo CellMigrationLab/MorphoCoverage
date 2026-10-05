@@ -28,17 +28,37 @@ _SPLIT = re.compile(r" {2,}")
 _NUMBER = re.compile(r"^[−+-]?[<>≤≥]?\d[\d.,]*%?$")
 
 
+def in_units(text: str, units: str, one: str) -> str:
+    """``text``, written of cells, in the words of the report's observations (``units``,
+    ``one``: ``patches``, ``patch``), capitals kept; "cell-level" names the test for them
+    (``patch-level``)."""
+
+    def word(match: re.Match) -> str:
+        found = match.group(0)
+        written = units if found.lower() == "cells" else one
+        return written[:1].upper() + written[1:] if found[:1].isupper() else written
+
+    return re.sub(r"\b[Cc]ells?\b", word, text)
+
+
 class Terms:
     """The glossary's phrases in the report's text, each linked to its entry with its meaning
     as a tooltip: only the first mention of a term in each section (``annotate``), never inside
     a link or a table, so the text stays readable."""
 
-    def __init__(self) -> None:
+    def __init__(self, units: str = "cells", one: str = "cell") -> None:
+        self.use(units, one)
+
+    def use(self, units: str, one: str) -> None:
+        """Link the phrases as the page writes them for its observations (``in_units``:
+        "patch-level test" as well as "cell-level test")."""
+        self.units, self.one = units, one
         by_name = {term.name: term for term in GLOSSARY}
         self.lookup: dict[str, Term] = {}
         for name, phrases in PHRASES.items():
             for phrase in phrases:
-                self.lookup[html.escape(phrase).lower()] = by_name[name]
+                for written in {phrase, in_units(phrase, units, one)}:
+                    self.lookup[html.escape(written).lower()] = by_name[name]
         alternatives = sorted(self.lookup, key=len, reverse=True)
         self.pattern = re.compile(
             r"(?<![\w-])(" + "|".join(re.escape(a) for a in alternatives) + r")(?![\w-])",
@@ -52,7 +72,8 @@ class Terms:
         seen.add(term.name)
         return (
             f'<a class="term" href="#{slug(term)}">{match.group(0)}'
-            f'<span class="tip" role="tooltip">{html.escape(term.meaning)}</span></a>'
+            f'<span class="tip" role="tooltip">'
+            f"{html.escape(in_units(term.meaning, self.units, self.one))}</span></a>"
         )
 
     def annotate(self, markup: str) -> str:
@@ -99,7 +120,6 @@ RESULT_WORDS = {
 _ADJUSTED = (
     (re.compile(r"\bq-values\b"), "adjusted p-values"),
     (re.compile(r"\(q\)"), "(adjusted p)"),
-    (re.compile(r"\bq cell level\b"), "adjusted p, cells"),
     (re.compile(r"\bq repeat means\b"), "adjusted p, repeat means"),
     (re.compile(r"\bq: Benjamini"), "adjusted p: Benjamini"),
     (re.compile(r"Benjamini-Hochberg q\b(?!-)"), "Benjamini-Hochberg adjusted p"),
@@ -115,15 +135,31 @@ _TEXT_NODE = re.compile(r">([^<]+)<")
 _SCRIPT = re.compile(r"(<script\b.*?</script>)", re.DOTALL)
 
 
-def adjusted_p(markup: str) -> str:
+# The screen on every observation: the text report names it for the observations
+# ("patch-level screen", the discovery table's "q patch level"); the page's own labels that
+# are written of cells (the glossary, the tab "Cell-level screen") are named here for them
+# too (owner, 2026-10-02, "cells could be the default"). A unit's own word never matches, so
+# nothing is converted twice.
+_SCREEN = re.compile(r"\b([Cc])ell([- ])level\b")
+
+
+def adjusted_p(markup: str, units: str = "cells", one: str = "cell") -> str:
     """``markup`` with every q (a Benjamini-Hochberg q-value) in its text called the
-    adjusted p; its scripts (the figures' data) left as they are."""
+    adjusted p, and the cell-level screen named for the report's observations (``units``,
+    ``one``); its scripts (the figures' data) left as they are."""
+
+    def screen(match: re.Match) -> str:
+        word = one.capitalize() if match.group(1) == "C" else one
+        return f"{word}{match.group(2)}level"
+
+    # The discovery table's column, "q nucleus level" (as the text report writes it).
+    column = re.compile(rf"\bq {re.escape(one)} level\b")
 
     def fix(match: re.Match) -> str:
-        text = match.group(1)
+        text = column.sub(f"adjusted p, {units}", match.group(1))
         for pattern, words in _ADJUSTED:
             text = pattern.sub(words, text)
-        return f">{text}<"
+        return f">{_SCREEN.sub(screen, text)}<"
 
     parts = _SCRIPT.split(markup)
     return "".join(
@@ -254,4 +290,4 @@ def text_html(text: str) -> str:
     return "\n".join(out)
 
 
-__all__ = ["STATUS_WORDS", "Terms", "adjusted_p", "chip", "text_html"]
+__all__ = ["STATUS_WORDS", "Terms", "adjusted_p", "chip", "in_units", "text_html"]

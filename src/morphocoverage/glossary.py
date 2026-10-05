@@ -185,7 +185,8 @@ GLOSSARY: tuple[Term, ...] = (
         "Shuffles the condition labels over every cell of a condition and its control, as the "
         "Plot&Stats notebook does. It asks whether these wells differ, not whether the effect "
         "repeats: when the difference varies between repeats it gives p ≤ 0.05 more often "
-        "than 5% with no real effect, and the report prints how often beside it.",
+        "than 5% with no real effect, and the report prints how often beside it. It is named "
+        "after the declared observation unit: the patch-level test for patches.",
         "Do the conditions differ?",
         (PLOT_AND_STATS,),
     ),

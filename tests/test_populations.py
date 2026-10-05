@@ -60,7 +60,8 @@ def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen)
     )
     assert re.search(found, headline)
     short = result.document.short["populations"]
-    assert "of every condition pooled, clustered on the 3 declared features (HDBSCAN" in short
+    # "of every condition pooled" read as a number per condition (ChatGPT, 2026-10-05).
+    assert "cells in all, every condition pooled, clustered on the 3 declared features (" in short
     assert "the rest (not tested)" in short and "to validate on the images" in short
     # Each group comes with the rule that picks out its cells, checked on held-out cells.
     flat = " ".join(short.split()).lower()

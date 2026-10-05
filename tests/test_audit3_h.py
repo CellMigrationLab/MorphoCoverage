@@ -280,7 +280,7 @@ def test_h11_the_field_rule_is_also_given_in_acquired_fields():
     text = result.summary(detail="full")
     rule = f"{int(row['fov_rule_fovs'])} ({int(row['fov_rule_fovs_upper95'])})"
     acquired = f"{int(row['fov_rule_acquired'])} ({int(row['fov_rule_acquired_upper95'])})"
-    assert "fields with objects" in text and "20 of 40" in text
+    assert "fields with cells" in text and "20 of 40" in text
     assert rule in text and acquired in text
     # The short form gives the fields to acquire.
     assert acquired in result.summary()
@@ -295,7 +295,7 @@ def test_h12_a_zero_control_mean_is_not_too_few_fields():
     result = object_rule_check(objects, fovs, feature="mitoses", control=CONTROL, n_draws=50)
     assert result.table["status"].str.contains("the reference mean is 0").all()
     few = object_rule_check(*_tables([("ctrl", "r1", "w", 1, 10.0, 0.1)]), feature="x")
-    assert few.table["status"].eq("fewer than 2 fields with objects").all()
+    assert few.table["status"].eq("fewer than 2 fields with cells").all()
 
 
 def test_h13_a_sparse_group_does_not_read_zero_per_field():
@@ -403,7 +403,7 @@ def test_h19_an_untested_contrast_keeps_its_effect_sizes():
     assert len(result.effects) == 4
     text = " ".join(result.summary().split())
     assert "No well-level test within a repeat in the contrast: only one technical repeat" in text
-    assert "d objects" in text and "JCS effect size" in text
+    assert "d on cells" in text and "JCS effect size" in text
 
 
 def test_j1_groups_whose_seeds_collide_are_still_told_apart():
@@ -445,7 +445,7 @@ def test_j2_j16_shares_are_worded_once_and_modules_list_their_names():
     text = fov_clustering(objects, fovs, label_col="state", states=["rare"], n_permutations=9)
     line = text.summary()
     assert "1 (1%)" in line and "1 objects" not in line
-    assert "Are the state 'rare' objects spread over the fields?" in line
+    assert "Are the state 'rare' cells spread over the fields?" in line
     # No contrast can be tested: the ranking does not speak of BH over 0 tests.
     spec = [("ctrl", "r1", "c0", 1, 0.0, 0.2), ("drug", "r1", "d0", 1, 1.0, 0.2)]
     ranking = feature_ranking(*_tables(spec), features=["x"], control=CONTROL)

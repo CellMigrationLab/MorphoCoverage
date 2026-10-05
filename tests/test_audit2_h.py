@@ -407,7 +407,7 @@ def test_h16_the_variability_summary_states_missing_values():
     objects.loc[np.random.default_rng(0).random(len(objects)) < 0.4, "x"] = np.nan
     missing = int(objects["x"].isna().sum())
     result = fov_variability(objects, fovs, feature="x")
-    assert f"Objects with no value were left out: {missing}." in result.summary()
+    assert f"Cells with no value were left out: {missing}." in result.summary()
     full = result.summary(detail="full")
     assert "no value, left out" in full and f" {missing} " in full
     complete = fov_variability(objects.dropna(), fovs, feature="x")
@@ -501,7 +501,7 @@ def test_j12_a_group_without_complete_features_is_not_assessed():
     assert kd["status"].startswith("not assessed") and kd["status"] != "ok"
     text = " ".join(result.summary().split())
     assert (
-        "Unusual objects not scored in KD: not assessed: none of its 80 objects has a value of "
+        "Unusual cells not scored in KD: not assessed: none of its 80 cells has a value of "
         "every feature." in text
     )
     assert "nan%" not in text and "0 of 0" not in text

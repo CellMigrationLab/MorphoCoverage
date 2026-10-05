@@ -33,6 +33,8 @@ TEST_KINDS = (
 # heatmap and the Across repeats tab give it) and the tests within single repeats.
 OFF_PAGE = ("Planning", "Every feature", "Within repeats")
 _CLOSING = ("⚠️", "Assumptions")
+# The screen's paragraph starts with the observations' own word ("Nucleus-level screen").
+_SCREEN_START = re.compile(r"\w+-level screen\b")
 # More tabs than this do not fit a row or two: a list to search and pick from instead.
 TABS_AT_MOST = 12
 
@@ -87,6 +89,8 @@ def tabs_html(name: str, items: Sequence[tuple[str, str, str]], label: str) -> s
 
 def _kind(line: str) -> str | None:
     text = line.strip()
+    if _SCREEN_START.match(text):
+        return "Cell-level screen"
     return next((name for name, starts in TEST_KINDS if text.startswith(starts)), None)
 
 

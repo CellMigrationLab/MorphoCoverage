@@ -85,6 +85,17 @@ def test_the_panel_is_drawn_under_each_figure_with_its_table():
     assert any(t.endswith("†") for t in texts)  # drug and other: different repeats
     assert sum(t.endswith("†") for t in texts) == 1  # its d; it is not tested
     assert len(figure.pairwise) == 3
+    # Each cell reads its row's condition against its column's: the axes say so, and the
+    # panels' titles stay within their width.
+    assert panel.get_xlabel() == "against" and panel.get_ylabel() == "condition"
+    assert paired.get_xlabel() == "against"
+    assert "◣ lower left: Cohen's d" in panel.get_title(loc="left")
+    assert "◥ upper right: adjusted p" in paired.get_title(loc="left")
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    renderer = FigureCanvasAgg(figure).get_renderer()
+    title = panel.title.get_window_extent(renderer)
+    assert title.x1 <= paired.get_window_extent(renderer).x0
     summaries = figure.cluster_summaries
     assert set(summaries["condition"]) == {"ctrl", "drug", "other"}
     # Each condition only as wide as its own repeats.

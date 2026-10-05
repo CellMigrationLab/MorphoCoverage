@@ -41,8 +41,10 @@ import pandas as pd
 
 from .._style import wrap
 from .._wording import column_word, count, listing, p_value, percent, percent_fine
+from ..metadata import REPEAT_COLUMN
+from ..schema import observation_words
 from ..statistics import repeat_values
-from ._experiments import family_words
+from ._experiments import bridges, family_words, not_compared
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
 
@@ -51,12 +53,50 @@ CONSISTENT = "same direction in every repeat, not significant"
 MIXED = "no consistent direction"
 ONE_REPEAT = "one repeat"
 VERDICTS = (CONFIRMED, CONSISTENT, MIXED, ONE_REPEAT)
+# The status of a contrast whose repeat holds no control field (``condition_contrast``).
+NO_CONTROL = "no control group in"
 
 
 def _by_condition(frame: Any) -> pd.DataFrame:
     if frame is None or len(frame) == 0:
         return pd.DataFrame()
     return frame.drop_duplicates("condition").set_index("condition")
+
+
+def _repeats_held(contrast: Any) -> tuple[dict[Any, list[Any]], dict[Any, list[Any]]]:
+    """Per condition, the biological repeats it is compared with the control in, and those
+    it was imaged in without the control (left out of every test)."""
+    table = getattr(contrast, "table", None)
+    if table is None or not len(table) or "status" not in table:
+        return {}, {}
+    repeat = REPEAT_COLUMN if REPEAT_COLUMN in table else None
+    held: dict[Any, list[Any]] = {}
+    without: dict[Any, list[Any]] = {}
+    for row in table.to_dict("records"):
+        mine = without if str(row["status"]).startswith(NO_CONTROL) else held
+        mine.setdefault(row["condition"], []).append(row[repeat] if repeat else 0)
+    return held, without
+
+
+def unpaired_conditions(contrast: Any) -> list[str]:
+    """The conditions no biological repeat holds beside the control: never compared."""
+    held, without = _repeats_held(contrast)
+    return [str(c) for c in without if c not in held]
+
+
+def _left_out(contrast: Any, condition: Any, control: str, word: str) -> str:
+    """``3 of its 4 biological repeats hold ctrl; 2026_01_26 left out``, for a condition
+    also imaged in repeats without the control; empty otherwise."""
+    held, without = _repeats_held(contrast)
+    missing = without.get(condition, [])
+    if not missing or condition not in held:
+        return ""
+    n = len(held[condition])
+    verb = "holds" if n == 1 else "hold"
+    return (
+        f"{n} of its {n + len(missing)} {word}s {verb} {control}; "
+        f"{listing([str(r) for r in missing], 3)} left out"
+    )
 
 
 def _direction_rows(contrast: Any) -> pd.DataFrame:
@@ -121,12 +161,13 @@ def _chance_sentence(chance: str, single: bool = False) -> str:
     return f"with no real effect it gives p ≤ {ALPHA:g} in {chance} of experiments like this one"
 
 
-def _why_raw(row: pd.Series, label: str) -> str:
-    """What the raw pooled test does that the version read does not."""
+def _why_raw(row: pd.Series, label: str, units: str) -> str:
+    """What the raw pooled test does that the version read does not (``units``: the
+    observations' plural word)."""
     if row["other_control_repeats"] > 0:
         return "it pools the control of repeats this condition was not imaged in"
     if label.startswith("balanced"):
-        return "it lets the repeat with most cells weigh more"
+        return f"it lets the repeat with most {units} weigh more"
     return "it keeps a scale shared within each repeat"
 
 
@@ -147,20 +188,21 @@ def _paired(row: pd.Series, n: int, word: str) -> tuple[bool, str]:
     return confirmed, words
 
 
-def _cells(row: pd.Series | None, single: bool = False) -> str:
-    """The cell-level screen in words, with its chance of p <= alpha without an effect."""
+def _cells(row: pd.Series | None, words: tuple[str, str], single: bool = False) -> str:
+    """The cell-level screen in words, with its chance of p <= alpha without an effect
+    (``words``: the observations' singular and plural words)."""
     if row is None:
         return ""
     label, _, q, low, high, _p_value = _cell_version(row)
     if pd.isna(q):
         return ""
     chance = _chance_words(low, high)
-    text = f"cell-level screen (exploratory) q {p_value(q)} ({label}" + (
+    text = f"{words[0]}-level screen (exploratory) q {p_value(q)} ({label}" + (
         f"; {_chance_sentence(chance, single)})" if chance else ")"
     )
     raw = row["q_cells"]
     if label != "raw" and q > ALPHA and pd.notna(raw) and raw <= ALPHA:
-        text += f"; the raw pooled test is not read here: {_why_raw(row, label)}"
+        text += f"; the raw pooled test is not read here: {_why_raw(row, label, words[1])}"
     return text
 
 
@@ -203,11 +245,19 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
         return pd.DataFrame(columns=columns)
     cells = _by_condition(getattr(contrast, "cells", None))
     word = column_word(contrast.settings.get("repeat_col"))
+    words = observation_words(contrast.settings)
     out = []
     for condition, row in rows.iterrows():
         n, lower, higher = int(row["repeats"]), int(row["lower"]), int(row["higher"])
         direction = "lower" if lower == n else "higher" if higher == n else "mixed"
-        d = f"Cohen's d per repeat, mean {row['d_mean']:+.2f}" if pd.notna(row["d_mean"]) else ""
+        # One repeat has one d: said as the d of that repeat, not as a mean.
+        d = (
+            ""
+            if pd.isna(row["d_mean"])
+            else f"Cohen's d {row['d_mean']:+.2f}"
+            if n == 1
+            else f"Cohen's d per repeat, mean {row['d_mean']:+.2f}"
+        )
         change = change_words(contrast, condition)
         d = ", ".join(x for x in (d, change) if x)
         if n == 1:
@@ -222,7 +272,9 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
                 verdict = CONFIRMED if confirmed else CONSISTENT
                 parts = [f"{direction} in {n} of {n} {word}s" + (f" ({d})" if d else "")]
             parts.append(paired)
-        cell = _cells(cells.loc[condition] if condition in cells.index else None, n == 1)
+        left_out = _left_out(contrast, condition, str(row["control_condition"]), word)
+        parts[1:1] = [left_out] if left_out else []
+        cell = _cells(cells.loc[condition] if condition in cells.index else None, words, n == 1)
         parts += [cell] if cell else []
         reagents = _reagents(contrast, condition, word)
         parts += [reagents] if reagents else []
@@ -239,47 +291,90 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
 
 
 def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
-    """The readings under a one-line heading (empty without a contrast to read)."""
+    """The readings under a one-line heading, then the conditions never compared (empty
+    without a contrast to read)."""
     readings = condition_readings(contrast)
+    unpaired = unpaired_conditions(contrast) if contrast is not None else []
+    word = column_word(contrast.settings.get("repeat_col")) if contrast is not None else ""
     if readings.empty:
-        return []
+        if not unpaired:
+            return []
+        control = " · ".join(str(v) for v in contrast.settings["control"].values())
+        return [wrap(not_compared(unpaired, control, word), indent, hang=indent + 2)]
     control = listing(sorted(set(map(str, readings["control_condition"]))), 3)
-    unit = contrast.settings["observation_unit"]
-    head = (
-        f"Reading, condition by condition, against {control}. Significant across repeats: the "
-        "paired t-test on the biological repeat means (as SuperPlots; values normalised to "
-        f"each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg "
-        f"{family_words(contrast.settings, own=True)}: this is the result to report. Same "
-        "direction, not "
-        "significant: on one side of the control in every repeat without reaching q ≤ 0.05, "
-        "a consistent trend and not evidence of no effect (with 3 repeats only large, "
-        "consistent effects reach it). Beside it, the cell-level screen (as Plot&Stats, every "
-        f"{unit} an independent draw) is exploratory: it finds candidates, not effects that "
-        "repeat:"
-    )
+    unit = observation_words(contrast.settings)[0]
+    if int(_direction_rows(contrast)["repeats"].max()) == 1:
+        # One repeat: no verdict across repeats can occur, so none is explained.
+        head = (
+            f"Reading, condition by condition, against {control}, in one {word}: the "
+            "direction and Cohen's d of that repeat; whether a difference holds across "
+            f"repeats needs {MIN_REPEATS} of them (the paired t-test on the repeat means). "
+            f"The {unit}-level screen (as Plot&Stats, every {unit} an independent draw) is "
+            "exploratory: it finds candidates, not effects that repeat:"
+        )
+    else:
+        head = (
+            f"Reading, condition by condition, against {control}. Significant across repeats: "
+            "the paired t-test on the biological repeat means (as SuperPlots; values "
+            "normalised to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg "
+            f"{family_words(contrast.settings, own=True)}: this is the result to report. Same "
+            "direction, not significant: on one side of the control in every repeat without "
+            "reaching q ≤ 0.05, a consistent trend and not evidence of no effect (with 3 "
+            "repeats only large, consistent effects reach it). Beside it, the "
+            f"{unit}-level screen (as Plot&Stats, every {unit} an independent draw) is "
+            "exploratory: it finds candidates, not effects that repeat:"
+        )
     design = _design(contrast, control)
-    return [wrap(design + head, indent, hang=indent + 2)] + [
+    lines = [wrap(design + head, indent, hang=indent + 2)] + [
         wrap(f"- {text}", indent + 2, hang=indent + 4) for text in readings["reading"]
     ]
+    if unpaired:
+        lines.append(wrap(not_compared(unpaired, control, word), indent + 2, hang=indent + 4))
+    return lines
 
 
 def _design(contrast: Any, control: str) -> str:
     """The design in one sentence: the sub-experiments when the conditions were imaged in
-    separate biological repeats, each with its own control; empty with one."""
+    separate biological repeats, each with its own control, and a condition that joins
+    sets of repeats into one; empty when neither applies."""
     across = getattr(contrast, "repeats", None)
-    if across is None or "experiment" not in across or across["experiment"].nunique() < 2:
+    if across is None or "experiment" not in across or not len(across):
         return ""
     word = column_word(contrast.settings.get("repeat_col"))
-    groups = [
-        listing(list(block["condition"].astype(str)), 3)
-        for _, block in across.groupby("experiment", sort=False)
-    ]
-    sizes = sorted({int(n) for n in across["repeats"]})
-    held = count(sizes[0], word) if len(sizes) == 1 else f"{sizes[0]} to {sizes[-1]} {word}s"
-    return (
-        f"Design: {len(groups)} sub-experiments, each with its own {control} in its own "
-        f"{held} ({'; '.join(groups[:6])}{'; ...' if len(groups) > 6 else ''}). "
-    )
+    text = ""
+    if across["experiment"].nunique() > 1:
+        groups = [
+            listing(list(block["condition"].astype(str)), 3)
+            for _, block in across.groupby("experiment", sort=False)
+        ]
+        sizes = sorted({int(n) for n in across["repeats"]})
+        held = count(sizes[0], word) if len(sizes) == 1 else f"{sizes[0]} to {sizes[-1]} {word}s"
+        text = (
+            f"Design: {len(groups)} sub-experiments, each with its own {control} in its own "
+            f"{held} ({'; '.join(groups[:6])}{'; ...' if len(groups) > 6 else ''}). "
+        )
+    return text + _bridged(contrast, across, word)
+
+
+def _bridged(contrast: Any, across: pd.DataFrame, word: str) -> str:
+    """``bridge, imaged in both sets of biological repeats, joins them into one
+    sub-experiment of 25 tests.``: why a sub-experiment is whole (``_experiments.bridges``);
+    its tests are its conditions times the features corrected together."""
+    held, _ = _repeats_held(contrast)
+    joining = bridges({c: r for c, r in held.items() if c in set(across["condition"])})
+    if not joining:
+        return ""
+    features = max(int(contrast.settings.get("family_features") or 1), 1)
+    experiment = across.set_index("condition")["experiment"]
+    sentences = []
+    for condition, sets in list(joining.items())[:3]:
+        members = int((across["experiment"] == experiment[condition]).sum())
+        both = "both sets" if sets == 2 else f"all {sets} sets"
+        sentences.append(
+            f"{condition}, imaged in {both} of {word}s, joins them into one sub-experiment of "
+            f"{count(members * features, 'test')}."
+        )
+    return " ".join(sentences) + " "
 
 
 def readings_headline(contrast: Any) -> str | None:
@@ -341,19 +436,21 @@ def _cells_headline(contrast: Any) -> str:
     chance = _chance_words(min(lows), max(highs)) if lows and highs else ""
     passing = sum(v[2] <= ALPHA for v in tested)
     single = int(_direction_rows(contrast)["repeats"].max()) == 1
-    return f"; exploratory cell-level screen: {passing} of {len(tested)} at q ≤ {ALPHA:g}" + (
-        f" ({_chance_sentence(chance, single)})" if chance else ""
-    )
+    unit = observation_words(contrast.settings)[0]
+    screen = f"; exploratory {unit}-level screen: {passing} of {len(tested)} at q ≤ {ALPHA:g}"
+    return screen + (f" ({_chance_sentence(chance, single)})" if chance else "")
 
 
 __all__ = [
     "CONFIRMED",
     "CONSISTENT",
     "MIXED",
+    "NO_CONTROL",
     "ONE_REPEAT",
     "VERDICTS",
     "change_words",
     "condition_readings",
     "readings_headline",
     "readings_parts",
+    "unpaired_conditions",
 ]

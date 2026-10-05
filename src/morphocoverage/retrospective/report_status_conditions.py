@@ -18,6 +18,7 @@ from ..sampling_unit.contrast_text import (
 )
 from ..sampling_unit.reading_text import CONFIRMED, condition_readings, readings_headline
 from ..sampling_unit.reagents_text import reagents_headline
+from ..schema import observation_words
 
 Answer = tuple[Status, str]
 
@@ -128,14 +129,16 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             if share in set(discovery.ranking["feature"])
             else f"{n_features} features"
         )
+        # The screen named for the observations (owner, 2026-10-02: ``patch-level``).
+        one = observation_words(contrast.settings if contrast is not None else {})[0]
         # Every feature alike: any of them significant across repeats is a difference
         # (owner, 2026-10-01: the report is neutral; the readout is optimise's and live's).
         parts.insert(
             0,
             f"{len(significant)} of {what} significant across repeats{named}; "
-            f"{passing} candidates in the exploratory cell-level screen"
+            f"{passing} candidates in the exploratory {one}-level screen"
             if across
-            else f"{passing} of {what} candidates in the exploratory cell-level "
+            else f"{passing} of {what} candidates in the exploratory {one}-level "
             f"screen, hypotheses for another repeat (no test across repeats: n = {held})",
         )
         if across and not significant:

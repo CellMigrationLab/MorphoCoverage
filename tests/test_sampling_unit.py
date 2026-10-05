@@ -426,7 +426,8 @@ def test_the_report_opens_with_the_sampling_unit_and_profiles_clustering():
     text = report.summary(detail="full")
     unit = text.split("1. Can these features")[0]
     marker = report.statuses["unit"].marker
-    assert unit.startswith(f"{marker} Foundation: why count fields, and not only objects?")
+    # Undeclared observations are called cells (owner, 2026-10-02).
+    assert unit.startswith(f"{marker} Foundation: why count fields, and not only cells?")
     assert "How variable are the fields?" in unit
     assert "Would the mean-precision object-count rule hold" in unit
     items = set(report.profile["item"])
@@ -552,7 +553,7 @@ def test_a_shifted_condition_differs_confidently_on_objects_and_on_fields():
     assert (whole["fields_treated"] >= 2).all() and whole["fields_treated"].max() <= 9
     text = " ".join(result.summary().split())
     assert "treated vs control, repeat R1" in text
-    assert "d on objects d on field means" in text
+    assert "d on cells d on field means" in text
     assert "Randomization tests over whole technical repeats (well)" in text
     full = " ".join(result.summary(detail="full").split())
     # Across repeats the JCS draws are in the full form only.
@@ -661,7 +662,7 @@ def test_technical_repeats_are_the_unit_when_each_side_holds_two():
     assert table["d_technical"].isna().all()
     text = " ".join(result.summary(detail="full").split())
     assert "with the technical repeat (technical_repeat) as the unit" in text
-    assert "tech. repeats d on objects d on field means" in text and " 2 vs 2 " in text
+    assert "tech. repeats d on cells d on field means" in text and " 2 vs 2 " in text
     assert "⚠️" not in result.summary()
     assert "too few technical repeats on a side for the randomization test" in text
     # Without the column among the groups, the technical repeats stay the unit (audit 3, H-1).

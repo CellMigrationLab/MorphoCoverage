@@ -61,7 +61,7 @@ from .._former_repeat import one_warning, read_former
 from .._seeds import group_key, group_rng
 from .._style import check_detail
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..schema import unit_plural
+from ..schema import observation_words
 from ..transforms import Standardize
 from ._common import groups, matching_groups, validated
 from ._experiments import repeat_experiments, same_experiment
@@ -207,7 +207,7 @@ def unusual_objects(
             continue
         scores, threshold, state, calibration = results[0]
         if np.isnan(scores).all():
-            words = unit_plural(data.observation_unit)
+            words = observation_words(data)[1]
             rows.append(
                 {
                     **row,
@@ -255,6 +255,7 @@ def unusual_objects(
         "transform": Standardize().describe(),
         "distance": "mean Euclidean distance to the n_neighbors nearest reference observations",
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
     }
     return UnusualObjects(
         label_series,

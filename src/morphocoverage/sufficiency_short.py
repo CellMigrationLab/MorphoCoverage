@@ -48,7 +48,7 @@ from ._style import (
 )
 from ._wording import count, listing, number, percent, plural, rows_of
 from .order_check import order_caveat
-from .schema import unit_plural
+from .schema import observation_words
 
 _MET = ("yes", "target reached")
 
@@ -305,7 +305,7 @@ def _novelty_lines(report: Any, target: float | None) -> tuple[list[str], list[s
         ),
     ]
     m = estimable["min_novel_observations"].dropna()
-    words = unit_plural(getattr(report, "observation_unit", None) or "object")
+    words = observation_words(report)[1]
     if len(m) and int(m.max()) > 1:
         cautions.append(
             assumption(
@@ -473,7 +473,7 @@ def _new_in_short(report: Any) -> str | None:
         return None
     frame = report.next_fov
     m = frame["min_novel_observations"].dropna() if "min_novel_observations" in frame else []
-    words = unit_plural(getattr(report, "observation_unit", None) or "object")
+    words = observation_words(report)[1]
     least = f"at least {int(max(m))} similar {words}" if len(m) else f"similar {words}"
     return f"'New': {least} that no other field shows; the exact definition is in the full report."
 

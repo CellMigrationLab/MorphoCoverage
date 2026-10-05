@@ -30,9 +30,11 @@ PLOTLY_SCRIPT = r"""
     toImageButtonOptions: { format: 'png', scale: 2 } };
   var redraws = [];
   window.mcRedraw = function () { redraws.forEach(function (f) { f(); }); };
+  // Plotly reads its strings as HTML, so & < > are escaped; a quote is not (Plotly would
+  // show &quot; as written), and no string here goes into an attribute.
   function escape(text) {
-    return String(text).replace(/[&<>"]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    return String(text).replace(/[&<>]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
     });
   }
   function merge(a, b) { for (var k in b) a[k] = b[k]; return a; }
@@ -126,13 +128,20 @@ PLOTLY_SCRIPT = r"""
         return (k.repeat || '').length;
       }));
       var slant = (plot.clientWidth || 900) / span < 8 * longest + 6;
+      // The slanted condition names, cut at 30 characters, take this much room below.
+      var names = Math.max.apply(null, spec.conditions.map(function (c) {
+        return Math.min(c.name.length, 30);
+      }));
       var layout = merge(base(t), {
-        height: height, margin: { l: 70, r: 16, t: slant ? 30 + 6 * longest : 34,
-          b: many ? 110 : 70 },
+        // Taller by the room the long names take, so the plot keeps its height.
+        height: height + (many ? Math.max(0, 7 * names - 80) : 0),
+        margin: { l: 70, r: 16, t: slant ? 30 + 6 * longest : 34,
+          b: many ? Math.max(110, 30 + 7 * names) : 70 },
         hovermode: 'closest', showlegend: false, dragmode: 'zoom',
         xaxis: { tickvals: spec.conditions.map(function (c) { return c.centre; }),
-          ticktext: spec.conditions.map(function (c) { return escape(c.name); }),
+          ticktext: spec.conditions.map(function (c) { return escape(cutName(c.name, 30)); }),
           tickangle: many ? -30 : 0, tickfont: { size: 15 }, showgrid: false, zeroline: false,
+          automargin: true,
           range: [Math.min.apply(null, xs) - 0.7, Math.max.apply(null, xs) + 0.7] },
         yaxis: { title: { text: escape(spec.ylabel), font: { size: 15 } }, gridcolor: t.grid,
           zeroline: false },
@@ -160,19 +169,32 @@ PLOTLY_SCRIPT = r"""
 
   // A matrix of every pair (panel B or C): its lower-left and upper-right triangles drawn as
   // two heatmaps with their own colours, the text and the hover of every cell.
+  // A matrix writes a name of up to 24 characters in full; a longer one ends in an ellipsis,
+  // the full name in the hover (as in the static figure). Functions, not variables: the
+  // figures above are drawn before a variable here would be set.
+  // Cut in the middle, as _wording.shortened: names of a series often differ at their end.
+  function cutName(s, most) {
+    if (s.length <= most) return s;
+    var head = Math.floor((most - 1) * 3 / 5), tail = most - 1 - head;
+    return s.slice(0, head).replace(/\s+$/, '') + '\u2026' +
+      s.slice(s.length - tail).replace(/^\s+/, '');
+  }
+  function shortName(s) { return cutName(s, 24); }
   function matrix(node, pw, panel, t, labels) {
     var n = pw.names.length, longest = Math.max.apply(null, pw.names.map(function (s) {
-      return s.length;
+      return shortName(s).length;
     }));
     function half(below) {
       return panel.text.map(function (row, i) {
         return row.map(function (v, j) { return (below ? i > j : i < j) ? v : ''; });
       });
     }
-    // Plotly reads names and hovers as HTML: the conditions' names are escaped.
-    var names = pw.names.map(escape);
+    // Plotly reads names and hovers as HTML: the conditions' names are escaped. The cells sit
+    // at 0..n-1 so two names cut alike stay two rows.
+    var names = pw.names.map(function (s) { return escape(shortName(s)); });
+    var at = pw.names.map(function (_, i) { return i; });
     var hovers = panel.hover.map(function (row) { return row.map(escape); });
-    var common = { type: 'heatmap', x: names, y: names, showscale: false, xgap: 4,
+    var common = { type: 'heatmap', x: at, y: at, showscale: false, xgap: 4,
       ygap: 4, hoverongaps: false, customdata: hovers, texttemplate: '%{text}',
       textfont: { size: n > 8 ? 12 : 14 }, hovertemplate: '%{customdata}<extra></extra>' };
     function scale(stops) { return stops.map(function (stop) { return stop.slice(); }); }
@@ -184,16 +206,20 @@ PLOTLY_SCRIPT = r"""
       merge(merge({}, common), { z: panel.upper, text: half(false), zmin: 0, zmax: 1,
         colorscale: scale(GREENS) })
     ];
-    var cell = n > 8 ? 58 : 80, left = labels ? 24 + 8.5 * longest : 20;
-    var side = cell * n;
+    // Each cell reads its row's condition against its column's: the axes say so.
+    var cell = n > 8 ? 58 : 80, left = labels ? Math.min(48 + 8.5 * longest, 250) : 20;
+    var side = cell * n, below = 54 + 8.5 * longest * 0.7;
+    var title = { font: { size: 13 }, standoff: 10 };
     var layout = merge(base(t), {
-      width: left + side + 20, height: side + 20 + 8.5 * longest * 0.7 + 30,
-      margin: { l: left, r: 20, t: 20, b: 30 + 8.5 * longest * 0.7 },
+      width: left + side + 20, height: side + 20 + below,
+      margin: { l: left, r: 20, t: 20, b: below },
       xaxis: { tickangle: -35, showgrid: false, zeroline: false, tickfont: { size: 14 },
-        constrain: 'domain', ticks: '', showline: false },
+        constrain: 'domain', ticks: '', showline: false, tickvals: at, ticktext: names,
+        title: merge({ text: 'against' }, title) },
       yaxis: { autorange: 'reversed', showgrid: false, zeroline: false, tickfont: { size: 14 },
-        scaleanchor: 'x', constrain: 'domain', ticks: '', showline: false,
-        showticklabels: labels }
+        scaleanchor: 'x', constrain: 'domain', ticks: '', showline: false, tickvals: at,
+        ticktext: names,
+        showticklabels: labels, title: merge({ text: labels ? 'condition' : '' }, title) }
     });
     Plotly.react(node, traces, layout, merge(merge({}, config), { responsive: false }));
   }
@@ -219,9 +245,13 @@ PLOTLY_SCRIPT = r"""
   }
   document.querySelectorAll('.viz[data-viz]').forEach(function (viz) {
     if (!data) return;
-    var state = { method: data.methods[0], values: data.values[0], colour: 'condition' };
+    var state = { method: data.methods[0], values: data.values[0], colour: 'condition',
+      pick: null };
     var node = viz.querySelector('.pl-embed'), panel = viz.querySelector('.selection');
-    var menu = viz.querySelector('select.colour-by');
+    var menu = viz.querySelector('select.colour-by'), find = viz.querySelector('input.find');
+    // Past 12 conditions most are grey: the legend names the coloured ones, and the search
+    // highlights the condition picked.
+    var many = data.colours.indexOf(data.grey) >= 0;
     var height = 600;
     function current() { return data.sets[state.values][state.method]; }
     function hiddenConditions() {
@@ -288,6 +318,7 @@ PLOTLY_SCRIPT = r"""
       var rows = data.conditions.map(function (name, c) {
         if (!total[c]) return '';
         var k = mine[c] || 0, share = n ? k / n : 0, chance = total[c] / shown;
+        if (many && !k) return '';
         return '<tr><td><span class="swatch" style="background:' + data.colours[c] +
           '"></span> ' + escape(name) + '</td><td class="num">' + k + '</td><td>' +
           '<span class="bar" style="width:' + (share * 100).toFixed(1) + '%;background:' +
@@ -368,12 +399,36 @@ PLOTLY_SCRIPT = r"""
           { showlegend: false, hovertemplate: '%{text}<br>' + escape(state.colour) +
             ' %{marker.color:.2f} SD<extra></extra>' })];
       }
-      return data.conditions.map(function (name, c) {
-        var index = [];
+      var greyed = data.colours.filter(function (c, k) {
+        return c === data.grey && k !== state.pick;
+      }).length;
+      var first = true, picked = null, traces = [];
+      data.conditions.forEach(function (name, c) {
+        var index = [], grey = data.colours[c] === data.grey;
         set.cond.forEach(function (k, i) { if (k === c) index.push(i); });
-        return scatter(escape(name) + ' (' + index.length + ')', index,
-          { color: data.colours[c], size: 7, opacity: 0.7 }, { meta: { condition: c } });
+        var marker = { color: data.colours[c], size: grey ? 6 : 7,
+          opacity: state.pick === null ? (grey ? 0.45 : 0.7) : 0.2 };
+        var extra = { meta: { condition: c } };
+        // A long name is cut in the legend, whole in the hover.
+        var label = escape(cutName(name, 40)) + ' (' + index.length + ')';
+        extra.hovertemplate = '<b>' + escape(name) + '</b><br>%{text}<extra></extra>';
+        if (c === state.pick) {
+          // The condition picked: on top, in its colour (ink when grey), larger.
+          picked = scatter(label, index,
+            { color: grey ? theme().text : data.colours[c], size: 9, opacity: 1 }, extra);
+          return;
+        }
+        if (grey) {
+          extra.legendgroup = 'grey';
+          extra.showlegend = first;
+          first = false;
+          traces.unshift(scatter('the other ' + greyed + ' conditions, grey', index, marker,
+            extra));
+          return;
+        }
+        traces.push(scatter(label, index, marker, extra));
       });
+      return picked ? traces.concat([picked]) : traces;
     }
     function draw() {
       var t = theme(), set = current();
@@ -382,14 +437,16 @@ PLOTLY_SCRIPT = r"""
       (set.arrows || []).forEach(function (a) {
         annotations.push({ x: a[1], y: a[2], ax: 0, ay: 0, axref: 'x', ayref: 'y', text: '',
           showarrow: true, arrowhead: 2, arrowwidth: 1.8, arrowcolor: t.text });
-        annotations.push({ x: a[1], y: a[2], text: '<b>' + escape(a[0]) + '</b>',
+        annotations.push({ x: a[1], y: a[2], text: '<b>' + escape(cutName(a[0], 30)) + '</b>',
+          hovertext: escape(a[0]),
           showarrow: false, xanchor: a[1] >= 0 ? 'left' : 'right', yanchor: 'bottom',
           font: { size: 13, color: t.text }, bgcolor: t.surface, opacity: 0.9 });
       });
       var layout = merge(base(t), {
         height: viz.classList.contains('full') ? Math.max(height, innerHeight - 200) : height,
         margin: { l: 70, r: 16, t: 16, b: 60 }, dragmode: 'lasso', hovermode: 'closest',
-        legend: { orientation: 'h', y: -0.12, font: { size: 14 } },
+        // Under the x axis's title, never over it.
+        legend: { orientation: 'h', yanchor: 'top', y: -0.2, font: { size: 14 } },
         xaxis: { title: { text: escape(set.xlabel) }, gridcolor: t.grid, zeroline: false },
         yaxis: { title: { text: escape(set.ylabel) }, gridcolor: t.grid, zeroline: false },
         annotations: annotations
@@ -407,6 +464,16 @@ PLOTLY_SCRIPT = r"""
       });
     });
     if (menu) menu.addEventListener('change', function () { state.colour = menu.value; draw(); });
+    if (find) find.addEventListener('input', function () {
+      var index = data.conditions.indexOf(find.value.trim());
+      var pick = index >= 0 ? index : null;
+      if (pick === state.pick) return;
+      state.pick = pick;
+      if (pick !== null && menu && state.colour !== 'condition') {
+        state.colour = 'condition'; menu.value = 'condition';
+      }
+      draw();
+    });
     draw();
     node.on('plotly_selected', function (event) {
       describe(event && event.points && event.points.length ? event.points : null);

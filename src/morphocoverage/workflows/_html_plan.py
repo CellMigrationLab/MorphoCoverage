@@ -40,6 +40,7 @@ from ._html_next import (
     _optimise_code,
     _repeats_line,
     fov_counts,
+    pilot_conditions,
     rule_code,
     rule_labels,
 )
@@ -183,9 +184,9 @@ def _tolerances(result: Any) -> str:
 
 def _mean_goal(result: Any, feature: str, counts: list[int], extra: str) -> tuple[str, str]:
     readout = result.setup.readout
+    # The features significant across repeats come first (``_features``): no suffix, which
+    # would read as if optimise planned that significance (ChatGPT audit A1, 2026-10-02).
     option = f"The mean of {feature} in every well"
-    if feature in _significant(result):
-        option += ", significant across repeats"
     if not counts:
         sentence = (
             "These wells hold too few fields for optimise to replay: image more fields per "
@@ -237,9 +238,12 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         else ""
     )
     option = "A difference from the control"
-    if few:
-        return option, _panel(few)
+    pilots = pilot_conditions(discovery)
     plans = _plans(result)
+    # Every condition a pilot: only how many repeats to plan. Some: the others' plan, then
+    # the pilots named (stress test, 2026-10-02).
+    if few and (not plans or len(pilots) == len(_repeat_conditions(discovery))):
+        return option, _panel(few)
     if not plans:
         return None
     done = _confirmed_pairs(result)
@@ -257,6 +261,8 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
             continue
         unit = field_words(contrast)[1]
         for _, row in plan.iterrows():
+            if str(row["condition"]) in pilots:
+                continue
             if (feature, str(row["condition"])) in done:
                 shown.append(feature)
                 continue
@@ -280,8 +286,14 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
             )
     already = list(dict.fromkeys(shown))
     known = f" Significant across repeats already: {listing(already, 6)}." if already else ""
+    pilot = f"<p>{html.escape(few)}</p>" if few else ""
     if not rows:
-        return option, _panel(f"Every condition is significant across repeats.{known}".strip())
+        done_words = (
+            "Every condition with 3 or more repeats is significant across repeats."
+            if few
+            else "Every condition is significant across repeats."
+        )
+        return option, _panel(f"{done_words}{known}".strip(), extra=pilot)
     unit = rows[0][5]
     head = (
         "<tr><th>feature</th><th>condition</th><th>change seen</th><th>repeats needed</th>"
@@ -301,7 +313,11 @@ def _difference_goal(result: Any) -> tuple[str, str] | None:
         f"for {rate(POWER)} power, if the change and the variation seen here recur, each "
         f"repeat with its own control.{known}"
     )
-    return option, _panel(sentence, extra=table)
+    return option, _panel(sentence, extra=table + pilot)
+
+
+def _repeat_conditions(discovery: Any) -> set[str]:
+    return {str(c) for c in discovery.tests["condition"]} if discovery is not None else set()
 
 
 def _group(result: Any) -> Any | None:
@@ -369,10 +385,10 @@ def _group_goals(
         "print(plan.summary())"
     )
     plan_sentence = (
-        f"Once {name} is validated on the images, label its cells with its rule, "
-        f"{rule_words(row)}, and declare it: optimise says how many fields find it in at "
-        f"least {count(OCCURRENCES, 'field')} of every well, in “How many fields next "
-        f"time?”. {rarest}"
+        f"Once {name} is validated on the images, label its {result.setup.unit_words} with "
+        f"its rule, {rule_words(row, result.setup.unit_words)}, and declare it: optimise says "
+        f"how many fields find it in at least {count(OCCURRENCES, 'field')} of every well, in "
+        f"“How many fields next time?”. {rarest}"
     )
     optimise = [(seen, _panel(plan_sentence, plan_code if counts else ""))]
     live = [_live_rare(result, fovs, name, incidence, where, None, phenotype, terms)]
@@ -396,7 +412,7 @@ def _live_rare(
     label = (
         f"#   field_objects[{name!r}] = {rule_code(terms, 'field_objects')}\n"
         if terms
-        else f"#   field_objects[{name!r}]: each cell's label, True or False\n"
+        else f"#   field_objects[{name!r}]: each {setup.unit_word}'s label, True or False\n"
     )
     code = (
         "from dataclasses import replace\n"
@@ -410,16 +426,18 @@ def _live_rare(
         f"rule = RareIncidenceStrategy({name!r}, prior_a=1.0, prior_b=1.0, max_risk={risk})\n"
         "session = live_session(setup, rules=(rule,),\n"
         '                       objective=ObjectiveConfig("rare_discovery", rare=target))\n\n'
-        "# On the acquisition computer, once per completed field (field_objects: its cells):\n"
+        "# On the acquisition computer, once per completed field "
+        f"(field_objects: its {setup.unit_words}):\n"
         "#   from morphocoverage.workflows import write_fov\n"
         + label
         + f"#   write_fov({LIVE_FOLDER!r}, field_objects, {_meta_comment(fovs)})\n"
         f'LiveFolder({LIVE_FOLDER!r}, session).watch(interval=1.0, until_stop="latest_group")'
     )
     labelling = (
-        f"The acquisition labels each field's cells with {name}'s rule as it writes them."
+        f"The acquisition labels each field's {setup.unit_words} with {name}'s rule as it "
+        "writes them."
         if terms
-        else f"The acquisition writes each cell's {name} label with its field."
+        else f"The acquisition writes each {setup.unit_word}'s {name} label with its field."
     )
     sentence = (
         f"Each well stops once {name} has been seen in {count(OCCURRENCES, 'field')}, or once "
@@ -506,7 +524,8 @@ def _live_mean(result: Any, feature: str, fovs: pd.DataFrame) -> tuple[str, str]
         head
         + "from morphocoverage.workflows import LiveFolder, live_session\n\n"
         + made
-        + "\n# On the acquisition computer, once per completed field (field_objects: its cells):\n"
+        + "\n# On the acquisition computer, once per completed field "
+        f"(field_objects: its {result.setup.unit_words}):\n"
         "#   from morphocoverage.workflows import write_fov\n"
         f"#   write_fov({LIVE_FOLDER!r}, field_objects, {_meta_comment(fovs)})\n"
         f"LiveFolder({LIVE_FOLDER!r}, live_session(setup)).watch(interval=1.0, "

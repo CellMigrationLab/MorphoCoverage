@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from .._seeds import group_key
+from .._wording import listing
 from ..statistics import benjamini_hochberg
 
 ALPHA = 0.05
@@ -72,6 +73,33 @@ def repeat_experiments(
     return numbers
 
 
+def not_compared(conditions: list[str], control: str, word: str = "biological repeat") -> str:
+    """``Not compared: cond3 (no biological repeat holds both it and ctrl).``: the conditions
+    imaged in no repeat beside the control, which no test of question 9 can include."""
+    if len(conditions) == 1:
+        return f"Not compared: {conditions[0]} (no {word} holds both it and {control})."
+    return f"Not compared: {listing(conditions, 4)} (none shares a {word} with {control})."
+
+
+def bridges(repeats: Mapping[Any, Iterable[Any]]) -> dict[Any, int]:
+    """The conditions that join otherwise separate sets of repeats into one sub-experiment,
+    each with the number of sets it joins: without it, the other conditions of its
+    sub-experiment would fall into two or more (``repeats`` as for ``experiments``). The
+    sub-experiments are as ``experiments`` defines them; this only says why one is whole."""
+    family = experiments(repeats)
+    found: dict[Any, int] = {}
+    for condition in repeats:
+        others = {
+            c: list(held)
+            for c, held in repeats.items()
+            if c != condition and family[c] == family[condition]
+        }
+        parts = len(set(experiments(others).values())) if others else 0
+        if parts > 1:
+            found[condition] = parts
+    return found
+
+
 def same_experiment(blocks: Mapping[Any, int], first: Any, second: Any) -> bool:
     """Whether two repeats may be compared: the same sub-experiment, or either in none."""
     return first not in blocks or second not in blocks or blocks[first] == blocks[second]
@@ -109,10 +137,12 @@ def family_words(settings: Mapping[str, Any], own: bool = False) -> str:
 
 __all__ = [
     "ALPHA",
+    "bridges",
     "corrected",
     "experiments",
     "family_sizes",
     "family_words",
+    "not_compared",
     "repeat_experiments",
     "same_experiment",
 ]

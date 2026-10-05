@@ -81,6 +81,8 @@ th { color: var(--text-2); font-weight: 600; cursor: pointer; user-select: none;
 th[aria-sort="ascending"]::after { content: " ▲"; font-size: 10px; }
 th[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
 td.num { font-variant-numeric: tabular-nums; text-align: right; }
+td:not(.num) { white-space: normal; overflow-wrap: anywhere; min-width: 8ch; }
+ul.significant li, .feature-head h4 { overflow-wrap: anywhere; }
 pre { background: var(--surface-2); padding: 10px 12px; border-radius: 8px; overflow-x: auto;
   font-size: 12.5px; }
 details { margin-top: 12px; border-top: 1px solid var(--grid); padding-top: 10px; }
@@ -100,6 +102,9 @@ figcaption a { color: #1c5cab; }
   font: inherit; font-size: 13px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text);
   font-weight: 600; }
+select.colour-by { max-width: 22em; }
+.find { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--text); width: 14em; }
 .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .note { color: var(--text-3); font-size: 13px; }
 a.term { color: inherit; text-decoration: underline dotted var(--text-3);
@@ -115,9 +120,11 @@ p.answer { background: var(--surface-2); border-radius: 8px; padding: 8px 12px;
 .reading { border-left: 3px solid var(--link); padding: 2px 0 2px 12px; margin: 10px 0 14px; }
 ul.checked { margin: 6px 0 4px; padding-left: 1.2em; }
 ul.checked li { margin: 3px 0; }
-svg.heatmap { display: block; max-width: 100%; height: auto; }
+.heatmap-scroll { overflow-x: auto; margin: 8px 0 12px; }
+svg.heatmap { display: block; max-width: none; }
 svg.heatmap text { font: 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 svg.heatmap .hm-col, svg.heatmap .hm-row { fill: var(--text); }
+svg.heatmap .hm-axis { fill: var(--text-2); font-weight: 600; font-size: 13px; }
 svg.heatmap .hm-cell { font-size: 11px; font-variant-numeric: tabular-nums; }
 .hm-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px;
   vertical-align: -1px; }
@@ -181,6 +188,7 @@ dl.glossary dt.hit { background: var(--caution-bg); border-radius: 4px; }
 .pair-row .panel { min-width: 0; }
 .panel-title { margin: 6px 0 0; color: var(--text-2); font-size: 14px; }
 .panel-title b { font-size: 18px; color: var(--text); margin-right: 6px; }
+.panel-title .panel-key { display: block; margin-top: 2px; font-size: 13px; }
 .figure-legend { color: var(--text-2); font-size: 13.5px; margin-top: 8px; max-width: 130ch; }
 .figure-legend p { margin: 4px 0; }
 .feature .tools { margin: 4px 0; }

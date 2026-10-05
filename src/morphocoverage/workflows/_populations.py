@@ -9,7 +9,10 @@ share is as steady there as a large one, and a population reads like its complem
 tested across the repeats by the paired t-test, Benjamini-Hochberg within each
 sub-experiment over every population and condition (a family of its own); a main
 population, holding most cells, is listed but not tested, its share being all but the
-complement of the others'. A declared rare label is matched to the group that holds it.
+complement of the others'; a repeat where the group is absent from both sides counts as no
+change (owner, 2026-10-02). A declared rare label is matched to the group that holds it,
+and a group most of whose cells carry it (``LABELLED``) is the label's own: its share is
+compared in question 9, so it is not tested again here (owner, 2026-10-02).
 Each group is a candidate to validate on the images, given with the rule on the features
 that picks out its cells (``sampling_unit._population_rule``).
 """
@@ -28,7 +31,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit._experiments import corrected, experiments
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
-from ..schema import unit_plural
+from ..schema import observation_words
 from ..statistics import paired_t
 
 if TYPE_CHECKING:
@@ -36,6 +39,11 @@ if TYPE_CHECKING:
     from .setup import Setup
 
 ALPHA = 0.05
+# A group this labelled (the share of its cells carrying the declared rare label) is the
+# label's own: compared as the label's share, never tested as a group too.
+LABELLED = 0.9
+# Where the label's share is compared, as the page titles it.
+COMPARED_IN = "“Do the conditions differ?”"
 
 
 @dataclass(frozen=True)
@@ -71,8 +79,6 @@ def populations_in_report(
     from ._shared import pooled_columns  # _shared imports the assembly, which imports this
 
     pooled = pooled_columns(marked, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
-    if control is not None and several and not pooled:
-        enrichment = enrichment_tests(marked, tested_populations(populations), control)
     label = None
     if setup.rare_label is not None and setup.rare_label in complete:
         flag = complete[setup.rare_label].fillna(False).astype(bool)
@@ -88,7 +94,20 @@ def populations_in_report(
                     }
                 )
         label = pd.DataFrame(rows, columns=["population", "held", "purity"])
+    if control is not None and several and not pooled:
+        # The declared label's group is compared once, as the label's share (question 9).
+        own = set(labelled_populations(label))
+        names = [name for name in tested_populations(populations) if name not in own]
+        enrichment = enrichment_tests(marked, names, control)
     return PopulationsResult(populations, enrichment, label, control)
+
+
+def labelled_populations(label: pd.DataFrame | None) -> list[str]:
+    """The groups most of whose cells carry the declared rare label (``LABELLED``): the
+    label's own, whose share question 9 compares, so not tested again (owner, 2026-10-02)."""
+    if label is None or not len(label):
+        return []
+    return [str(r.population) for r in label.itertuples() if r.purity >= LABELLED]
 
 
 def tested_populations(populations: Populations) -> list[str]:
@@ -102,11 +121,11 @@ def _log_odds_ratio(t: Any, c: Any) -> float:
     (``t`` and ``c`` the cells in the population, ``sum``, and the cells, ``count``). One
     pseudo-cell is added to each side, split by the population's pooled share of that repeat,
     so a share of 0 has log odds and uneven numbers of cells do not tip the ratio (a fixed
-    half cell would make 1 of 5000 read lower than 0 of 300); NaN when the population is
-    absent from both sides."""
+    half cell would make 1 of 5000 read lower than 0 of 300); 0, no change, when the
+    population is absent from both sides (owner, 2026-10-02: the repeat still counts)."""
     pooled = (t["sum"] + c["sum"]) / (t["count"] + c["count"])
     if not pooled > 0:
-        return np.nan
+        return 0.0
 
     def odds(k: float, n: float) -> float:
         return float(np.log((k + pooled) / (n - k + 1 - pooled)))
@@ -128,7 +147,9 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
     condition (``_experiments``)."""
     repeat = REPEAT_COLUMN if REPEAT_COLUMN in marked else None
     keys = [CONDITION_COLUMN, *([repeat] if repeat else [])]
-    counts = marked.groupby(keys, dropna=False)[names].agg(["sum", "count"])
+    # Without a group to test (the declared label's only), the counts are of an empty column.
+    counts = marked.assign(_none=0.0).groupby(keys, dropna=False)[names or ["_none"]]
+    counts = counts.agg(["sum", "count"])
     conditions = [c for c in pd.unique(marked[CONDITION_COLUMN]) if c != control]
     rows, held, unpaired = [], {}, []
     for condition in conditions:
@@ -156,9 +177,10 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
                 ratios.append(_log_odds_ratio(t, c))
                 sides["t"] = [sides["t"][0] + t["sum"], sides["t"][1] + t["count"]]
                 sides["c"] = [sides["c"][0] + c["sum"], sides["c"][1] + c["count"]]
-            # Absent from the condition and from its own control: nothing to compare.
+            # Absent from the condition and from its own control in every repeat: nothing
+            # to compare. Absent from both in some repeats: no change there (0), kept in n.
             ratios = np.array([r for r in ratios if np.isfinite(r)])
-            if not len(ratios):
+            if not len(ratios) or not sides["t"][0] + sides["c"][0]:
                 continue
             tested = len(ratios) >= MIN_REPEATS
             rows.append(
@@ -267,14 +289,46 @@ def _finding(result: PopulationsResult, name: str, units: str, trend: bool = Fal
     return f"{name} ({share} of {units}; {feature}): {listing(parts, 3)} {where}"
 
 
-def _label_line(result: PopulationsResult, label: str) -> str | None:
+def _label_line(
+    result: PopulationsResult, label: str, units: str, said: bool = False
+) -> str | None:
+    """Where the declared label's observations are; ``said`` when the headline already
+    says the group is the label's (``label_words``), which is then not said again."""
     if result.label is None or not len(result.label):
         return None
     best = result.label.sort_values("held", ascending=False).iloc[0]
+    own = best["population"] in labelled_populations(result.label)
+    if own and said:
+        return (
+            f"{best['population']}: {percent(best['purity'])} of its {units} carry the label "
+            f"{label}, and it holds {percent(best['held'])} of the labelled ones; not tested "
+            "again here."
+        )
+    if own:
+        return (
+            f"{label_words(best['population'], label, units)} ({percent(best['purity'])} of "
+            f"them; it holds {percent(best['held'])} of the labelled ones); its share is "
+            f"compared in {COMPARED_IN}, so it is not tested again here."
+        )
     return (
-        f"The cells labelled {label}: {percent(best['held'])} of them in {best['population']}, "
-        f"which they make {percent(best['purity'])} of."
+        f"The {units} labelled {label}: {percent(best['held'])} of them in "
+        f"{best['population']}, which they make {percent(best['purity'])} of."
     )
+
+
+def label_words(name: str, label: str, units: str) -> str:
+    """``G1 is the declared rare phenotype, mitotic: most of its cells carry the label``
+    (``units``: the observations' plural word)."""
+    return f"{name} is the declared rare phenotype, {label}: most of its {units} carry the label"
+
+
+def only_labelled(result: PopulationsResult | None) -> list[str]:
+    """The groups found when every one is the declared label's own (empty otherwise)."""
+    if result is None:
+        return []
+    groups = tested_populations(result.populations)
+    own = labelled_populations(result.label)
+    return groups if groups and all(name in own for name in groups) else []
 
 
 _KIND_WORDS = {"main": "main (the rest)", "group": "group"}
@@ -283,7 +337,7 @@ _KIND_WORDS = {"main": "main (the rest)", "group": "group"}
 def _found_words(pops: Populations) -> str:
     """``1 group of cells to validate``, in the report's words for its observations."""
     groups = len(pops.of_kind("group"))
-    units = unit_plural(pops.settings.get("observation_unit") or "observation")
+    units = observation_words(pops.settings)[1]
     return f"{count(groups, 'group')} of {units} to validate on the images"
 
 
@@ -296,16 +350,17 @@ def _rule_cell(row: Any) -> str:
     return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)})"
 
 
-def rule_words(row: Any) -> str:
+def rule_words(row: Any, units: str) -> str:
     """``picked by AR > 3.18 and MinFeret ≤ 17.7, which finds 91% of its cells, 97% of
-    those it picks being in it, on held-out cells``, or empty without a rule."""
+    those it picks being in it, on held-out cells``, or empty without a rule (``units``: the
+    observations' plural word)."""
     if not row["rule"]:
         return ""
     if pd.isna(row["rule_recall"]):
         return f"picked by {row['rule']}"
     return (
-        f"picked by {row['rule']}, which finds {percent(row['rule_recall'])} of its cells, "
-        f"{percent(row['rule_precision'])} of those it picks being in it, on held-out cells"
+        f"picked by {row['rule']}, which finds {percent(row['rule_recall'])} of its {units}, "
+        f"{percent(row['rule_precision'])} of those it picks being in it, on held-out {units}"
     )
 
 
@@ -322,8 +377,8 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
     settings = pops.settings
     units = setup.unit_words
     method = (
-        f"{count(settings['observations'], setup.observation_unit or 'observation')} of every "
-        f"condition pooled, clustered on the {count(len(settings['features']), 'declared feature')}"
+        f"{count(settings['observations'], setup.unit_word)} in all, every condition pooled, "
+        f"clustered on the {count(len(settings['features']), 'declared feature')}"
         f" (HDBSCAN on a {settings['map_components']}-dimensional UMAP of their robust "
         f"standardisation; a cluster holds at least {settings['min_cells']} {units}), each "
         "cluster then judged on all the features"
@@ -347,6 +402,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
     control = result.control
     heading = f"most different (vs {control})" if control is not None else "most different"
     tested = set(tested_populations(pops))
+    own = set(labelled_populations(result.label))
     rows = [
         [
             r.population,
@@ -357,7 +413,11 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             _rule_cell(r),
             r.fields,
             r.repeats,
-            _enriched(result, r.population) if r.population in tested else "the rest (not tested)",
+            _enriched(result, r.population)
+            if r.population in tested and r.population not in own
+            else "the declared label (not tested again)"
+            if r.population in own
+            else "the rest (not tested)",
         ]
         for r in pops.table.itertuples()
     ]
@@ -398,7 +458,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
                 inside = f" ({inside})" if inside else ""
                 parts.append(f"{t['condition']} {side} in every repeat, not significant{inside}")
         if parts:
-            rule = rule_words(row) if row["rule"] else ""
+            rule = rule_words(row, units) if row["rule"] else ""
             lines.append(
                 wrap(
                     f"- {name}, {percent_fine(row['share'])} of {units}, "
@@ -418,8 +478,10 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
                 hang=6,
             )
         )
+    labelled = only_labelled(result)
     if setup.rare_label is not None:
-        line = _label_line(result, setup.rare_label)
+        # When the label's group is the only one, the headline says so (In short).
+        line = _label_line(result, setup.rare_label, units, said=bool(labelled))
         if line:
             lines.append(wrap(line, 4, hang=6))
     lines.append(
@@ -446,6 +508,13 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         )
     )
     found = _found_words(pops)
+    if labelled and setup.rare_label is not None:
+        # The label's group is compared once, as the label's share: no q of its own here.
+        headline = (
+            f"{found}; {label_words(labelled[0], setup.rare_label, units)}; its share is compared "
+            f"in {COMPARED_IN}"
+        )
+        return Status.OK, headline, "\n".join(lines)
     if significant:
         headline = f"{found}; " + "; ".join(
             _finding(result, name, units) for name in _rarest(result, significant)[:3]
@@ -481,7 +550,11 @@ def population_of(result: PopulationsResult | None, objects: pd.DataFrame) -> pd
 
 
 __all__ = [
+    "LABELLED",
     "PopulationsResult",
+    "label_words",
+    "labelled_populations",
+    "only_labelled",
     "population_of",
     "populations_in_report",
     "populations_text",

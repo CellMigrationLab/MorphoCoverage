@@ -45,11 +45,12 @@ from .._checks import is_number
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
-from .._wording import change, count, listing, p_value
+from .._wording import change, column_word, count, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..schema import observation_words
 from ..statistics import cohen_d, paired_t, repeat_values
 from ._common import groups, validated
-from ._experiments import corrected, experiments
+from ._experiments import corrected, experiments, not_compared
 from ._units import (
     check_arguments,
     contrasts_of,
@@ -59,7 +60,7 @@ from ._units import (
     side_units,
     sides,
 )
-from .contrast_cells import trusted_test
+from .contrast_cells import BALANCED_PERMUTATIONS, refined, trusted_test
 from .contrast_repeats import MIN_REPEATS
 
 EFFECT_CAP = 20.0
@@ -80,6 +81,7 @@ TEST_COLUMNS = [
     "p_cells",
     "normalised",
     "balanced",
+    "permutations",
     "q_cells",
     "passes",
     "p_paired",
@@ -165,7 +167,10 @@ def _row(
     side: dict[str, Any],
     n_permutations: int,
     rng: np.random.Generator,
-) -> dict[str, Any]:
+    alpha: float = GATE_ALPHA,
+) -> tuple[dict[str, Any], list]:
+    """One test's row, and what ``contrast_cells.refined`` reruns when its p is at most
+    ``alpha`` (empty otherwise, so only those samples are kept)."""
     by_t, by_c = side["by_t"], side["by_c"]
     p_paired, paired_values, lower, higher, p_raw, change = _paired(by_t, by_c)
     row: dict[str, Any] = {
@@ -184,8 +189,9 @@ def _row(
     }
     values = np.concatenate([*by_t.values(), *side["every"].values()])
     if np.ptp(values) == 0:
-        return {**row, "d": np.nan, "p_cells": np.nan, "status": "one value everywhere"}
+        return {**row, "d": np.nan, "p_cells": np.nan, "status": "one value everywhere"}, []
     test = trusted_test(by_t, by_c, side["every"], n_permutations, rng)
+    retest = test["retest"] if test["p"] <= alpha else []
     return {
         **row,
         "observations": test["observations"],
@@ -194,7 +200,8 @@ def _row(
         "p_cells": test["p"],
         "normalised": test["normalised"],
         "balanced": test["balanced"],
-    }
+        "permutations": test["permutations"] if np.isfinite(test["p"]) else np.nan,
+    }, retest
 
 
 def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
@@ -283,6 +290,10 @@ class FeatureDiscovery:
         ranked = self.ranking.dropna(subset=["score"])
         return ranked.loc[ranked["confirmed"], "feature"].tolist()
 
+    def _unit(self) -> str:
+        """The word for one observation (``nucleus``; ``cell`` when none was declared)."""
+        return observation_words(self.settings)[0]
+
     def _head(self) -> str:
         n_tests = int(self.tests["p_cells"].notna().sum()) if len(self.tests) else 0
         n = self.settings["n_features"]
@@ -304,16 +315,41 @@ class FeatureDiscovery:
         return (
             f"Which features separate the conditions? {passing} of {count(n, 'feature')} "
             f"{'is a candidate' if passing == 1 else 'are candidates'} in the exploratory "
-            "cell-level screen: they differ for at least one condition (each condition against "
-            "the control, "
+            f"{self._unit()}-level screen: they differ for at least one condition (each "
+            "condition against the control, "
             f"{label}: Cohen's d on the observations normalised to each repeat's control, "
             f"randomization test, q ≤ {alpha:g} after Benjamini-Hochberg within each "
-            f"sub-experiment: {family}). Ranked by the largest difference "
+            f"sub-experiment: {family}{self._shuffles()}).{self._unpaired()} Ranked by the "
+            "largest difference "
             "(|d|); change: the condition's mean over the control's, the fold change the "
             "paired t-test compares (the difference of the means where a mean is not "
             "positive); a candidate is significant across repeats when the paired t-test on the "
             f"repeat means also gives q ≤ {alpha:g}:"
         )
+
+    def _shuffles(self) -> str:
+        """The shuffles of the p-values rerun so that q can reach alpha (``contrast_cells
+        .refined``), said as a fact; empty when none was rerun."""
+        tests = self.tests
+        if "permutations" not in tests:
+            return ""
+        first = {self.settings["n_permutations"], BALANCED_PERMUTATIONS}
+        rerun = tests.loc[~tests["permutations"].isin(first), "permutations"].dropna()
+        if rerun.empty:
+            return ""
+        alpha = self.settings["alpha"]
+        return (
+            f"; the p-values at or below {alpha:g} rerun with {span(list(rerun))} shuffles, so "
+            f"that q can reach {alpha:g} in a family this large"
+        )
+
+    def _unpaired(self) -> str:
+        """The conditions never compared: no biological repeat holds them and the control."""
+        unpaired = [str(c) for c in self.settings.get("unpaired", [])]
+        if not unpaired:
+            return ""
+        label = " · ".join(str(v) for v in self.settings["control"].values())
+        return " " + not_compared(unpaired, label, column_word(self.settings["repeat_col"]))
 
     def _table(self, max_rows: int, indent: int) -> list[str]:
         ranked = self.ranking.dropna(subset=["score"])
@@ -338,7 +374,7 @@ class FeatureDiscovery:
             "d",
             "condition",
             "change",
-            "q cell level",
+            f"q {self._unit()} level",
             "q repeat means",
             "repeats",
         ]
@@ -377,10 +413,10 @@ class FeatureDiscovery:
     def _cautions(self) -> list[str]:
         cautions = [
             assumption(
-                "Candidates come from the cell-level test, which treats every observation as "
-                "an independent draw and so finds differences that may not repeat; only the "
-                f"paired t-test on the repeat means ({MIN_REPEATS} or more repeats) decides "
-                "significance."
+                f"Candidates come from the {self._unit()}-level test, which treats every "
+                "observation as an independent draw and so finds differences that may not "
+                f"repeat; only the paired t-test on the repeat means ({MIN_REPEATS} or more "
+                "repeats) decides significance."
             )
         ]
         if len(self.tests) and self.tests["p_paired"].isna().all():
@@ -471,21 +507,46 @@ def feature_discovery(
         "alpha": alpha,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
     }
     contrasts = contrasts_of(described)
     rows = []
+    retests: dict[int, list] = {}  # what refined may rerun, by row
     held: dict[Any, set] = {}  # the repeats each condition is compared in
     for feature in features:
         pooled = _pooled(all_groups, described, contrasts, feature, technical_col)
         for condition, side in pooled.items():
             held.setdefault(condition, set()).update(side["by_t"])
             rng = group_rng(random_state, {"feature": feature, "condition": condition})
-            rows.append(_row(feature, condition, side, n_permutations, rng))
+            row, retest = _row(feature, condition, side, n_permutations, rng, alpha)
+            if retest:
+                retests[len(rows)] = retest
+            rows.append(row)
+    # The conditions no biological repeat holds beside the control: never compared, said.
+    settings["unpaired"] = [
+        c for c in dict.fromkeys(condition for _, condition in contrasts) if c not in held
+    ]
     if not rows:
         settings["reason"] = f"No condition to compare with the control {dict(control)}."
         return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), pd.DataFrame(), settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)
     tests["experiment"] = tests["condition"].map(experiments(held))
+    # The tests at p <= alpha rerun with the shuffles their family needs (contrast_cells).
+    tests["p_cells"], tests["permutations"] = refined(
+        tests["p_cells"],
+        tests["experiment"],
+        tests["permutations"],
+        retests,
+        lambda index: group_rng(
+            random_state,
+            {
+                "feature": tests.at[index, "feature"],
+                "condition": tests.at[index, "condition"],
+                "test": "refined",
+            },
+        ),
+        alpha,
+    )
     # Corrected over every feature and condition of a sub-experiment (_experiments).
     tests["q_cells"] = corrected(tests["p_cells"], tests["experiment"])
     tests["q_paired"] = corrected(tests["p_paired"], tests["experiment"])

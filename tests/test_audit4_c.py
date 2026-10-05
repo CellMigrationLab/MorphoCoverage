@@ -211,7 +211,7 @@ def test_p1_6_same_sign_draws_resample_whole_technical_repeats():
         fields_independent=True,
     )
     assert fields_only.effects["resampled"].isna().all()
-    assert "The draws resample these fields and objects, not wells" in " ".join(
+    assert "The draws resample these fields and cells, not wells" in " ".join(
         fields_only.summary().split()
     )
 
@@ -330,7 +330,7 @@ def test_p1_12_small_unit_d_plural_and_rare_declaration_wording():
     fovs = pd.concat([fovs, fovs.assign(position_id=fovs["position_id"] + "_empty")])
     result = object_rule_check(objects, fovs, feature="x", control=CONTROL, n_draws=20)
     full = result.summary(detail="full")
-    assert "fields with objects" in full and "1 fields" not in full
+    assert "fields with cells" in full and "1 fields" not in full
     row = result.table.iloc[0]
     assert f"{int(row['fov_rule_fovs'])} ({int(row['fov_rule_fovs_upper95'])})" in full
     from morphocoverage.objectives import RareTarget

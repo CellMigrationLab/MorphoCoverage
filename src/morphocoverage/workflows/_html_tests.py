@@ -37,7 +37,7 @@ from .._wording import change, count, listing, p_value, percent
 from ..sampling_unit.cells_text import balance_lines
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
-from ..sampling_unit.legend_text import described_rows, figure_legend
+from ..sampling_unit.legend_text import described_rows, feature_counts, figure_legend
 from ..sampling_unit.reading_text import CONFIRMED, CONSISTENT, MIXED
 from ..sampling_unit.repeat_plan_text import plan_parts
 from ._families import _CELL_VERSIONS
@@ -97,10 +97,18 @@ def _direction(lower: int, higher: int, n: int) -> str:
     return f"lower in {lower}, higher in {higher} of {n}"
 
 
-def _verdict(q: float, lower: int, higher: int, n: int, confirmed: bool | None = None) -> str:
+def _verdict(
+    q: float,
+    lower: int,
+    higher: int,
+    n: int,
+    confirmed: bool | None = None,
+    one: str = "cell",
+) -> str:
     """The verdict in the reading's words (``reading_text.VERDICTS``): a direction that
     changes between repeats first, then significant across repeats (the discovery's
-    ``confirmed``, which also needs the cell-level screen, when given; else q <= 0.05)."""
+    ``confirmed``, which also needs the cell-level screen, when given; else q <= 0.05); the
+    screen named for the observations, ``one`` (``patch-level``)."""
     if n < MIN_REPEATS:
         return f"not tested (needs {MIN_REPEATS} repeats)"
     if not (lower == n or higher == n):
@@ -109,7 +117,7 @@ def _verdict(q: float, lower: int, higher: int, n: int, confirmed: bool | None =
     if confirmed if confirmed is not None else significant:
         return CONFIRMED
     if significant:
-        return "adjusted p ≤ 0.05, but not a candidate of the cell-level screen"
+        return f"adjusted p ≤ 0.05, but not a candidate of the {one}-level screen"
     return CONSISTENT
 
 
@@ -178,8 +186,9 @@ def across_frame(result: Any) -> pd.DataFrame:
         )
     else:
         return pd.DataFrame()
+    one = getattr(result.setup, "unit_word", "cell")
     frame["verdict"] = [
-        _verdict(r.adjusted_p, r.lower, r.higher, r.repeats, getattr(r, "confirmed", None))
+        _verdict(r.adjusted_p, r.lower, r.higher, r.repeats, getattr(r, "confirmed", None), one)
         for r in frame.itertuples()
     ]
     return frame
@@ -194,9 +203,11 @@ def d_per_repeat(row: Any) -> str:
     return f"{mean:+.2f}" if low == high else f"{mean:+.2f} ({low:+.2f} to {high:+.2f})"
 
 
-def figure_legends(result: Any) -> dict[str, str]:
-    """Each feature's figure legend (``legend_text.figure_legend``), its numbers its rows
-    of the table across repeats; a feature without rows has none."""
+def figure_legends(
+    result: Any, objects: pd.DataFrame | None = None, fovs: pd.DataFrame | None = None
+) -> dict[str, str]:
+    """Each feature's figure legend (``legend_text.figure_legend``): its rows of the table
+    across repeats, its observations shown from the tables given (a share: the readout's)."""
     frame = across_frame(result)
     contrast = result.results.get("contrast")
     if contrast is None:
@@ -206,9 +217,13 @@ def figure_legends(result: Any) -> dict[str, str]:
         frame = described_rows(contrast).assign(feature=result.setup.readout)
     if frame.empty:
         return {}
+    shown = {}
+    if objects is not None and fovs is not None:
+        features = [f for f in dict.fromkeys(frame["feature"]) if f in objects.columns]
+        shown = feature_counts(objects, fovs, features, contrast, result.setup.common)
     legends = {}
     for feature, rows in frame.groupby("feature", sort=False):
-        text = figure_legend(contrast, rows, result.setup.unit_words)
+        text = figure_legend(contrast, rows, result.setup.unit_words, shown.get(feature))
         if text:
             legends[feature] = text
     return legends
@@ -346,7 +361,7 @@ def _cells(result: Any, folder: Path) -> str:
     columns = (["feature"] if many else []) + [
         "condition",
         f"{result.setup.unit_words} (vs control)",
-        "d (cells)",
+        f"d ({result.setup.unit_words})",
         "p",
         "adjusted p",
         "candidate",
@@ -354,7 +369,7 @@ def _cells(result: Any, folder: Path) -> str:
     columns += [] if many else ["p ≤ 0.05 with no effect"]
     versions = list(dict.fromkeys(frame["version"]))
     caption = (
-        f"<p>Every {result.setup.observation_unit or 'observation'} against the control's, "
+        f"<p>Every {result.setup.unit_word} against the control's, "
         f"{listing(versions, 3)}. A candidate: "
         "adjusted p ≤ 0.05.</p>"
     )
@@ -410,7 +425,8 @@ def _other_versions(
         if skipped
         else ""
     )
-    columns = ["condition", "version", "d (cells)", "p", "adjusted p", "p ≤ 0.05 with no effect"]
+    columns = ["condition", "version", f"d ({unit})", "p", "adjusted p"]
+    columns.append("p ≤ 0.05 with no effect")
     return (
         f"<details><summary>The other versions, for the readout ({html.escape(readout)})</summary>"
         f"<p>As provided: the {unit} pooled as imaged, so the repeat with most weighs most. "
@@ -465,8 +481,7 @@ def _beyond(result: Any, folder: Path) -> str:
 
 def _explainer(result: Any, kinds: Sequence[str], family: str) -> str:
     """The tests, in short: one paragraph per test on the page, then p and adjusted p."""
-    unit = result.setup.unit_words
-    one = result.setup.observation_unit or "observation"
+    unit, one = result.setup.unit_words, result.setup.unit_word
     paired = (
         f"In each biological repeat, the mean of the condition's {unit} is divided by the "
         "mean of the control of the same repeat; the repeats' ratios are tested against no "
@@ -484,7 +499,7 @@ def _explainer(result: Any, kinds: Sequence[str], family: str) -> str:
     )
     parts = [
         ("Paired t-test on the biological repeat means: decides", paired),
-        ("Cell-level screen: exploratory", screen),
+        (f"{one.capitalize()}-level screen: exploratory", screen),
     ]
     if "Beyond the mean" in kinds:
         beyond = (
@@ -500,8 +515,8 @@ def _explainer(result: Any, kinds: Sequence[str], family: str) -> str:
         parts.append(("Reagents of one target", reagents))
     effect = (
         "The difference in means in units of the spread. \u2018d per repeat\u2019 is "
-        "computed in each repeat and averaged; the cell-level d, \u2018d (cells)\u2019, on every "
-        f"{one} at once, in the version of the screen. They differ when the repeats differ."
+        f"computed in each repeat and averaged; the {one}-level d, \u2018d ({unit})\u2019, on "
+        f"every {one} at once, in the version of the screen. They differ when the repeats differ."
     )
     adjusted = (
         "p is each test's own probability of a difference this large with no effect. The "
@@ -528,7 +543,7 @@ def tests_section(result: Any, rest: str, render: Callable[[str], str], folder: 
     items = [("Across repeats", "", across)]
     cells = _cells(result, folder)
     if cells:
-        items.append(("Cell-level screen", "", cells))
+        items.append((f"{result.setup.unit_word.capitalize()}-level screen", "", cells))
     beyond = _beyond(result, folder)
     if beyond:
         items.append(("Beyond the mean", "", beyond))

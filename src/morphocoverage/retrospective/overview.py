@@ -26,7 +26,7 @@ from .._data_rules import _loose
 from .._former_repeat import one_warning, read_former
 from .._style import Status, check_detail, group_columns, wrap
 from .._style import table as style_table
-from .._wording import column_word, count
+from .._wording import column_word, count, listing
 from ..data_check import DataCheck, Problem, validate_input_tables
 from ..metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -34,7 +34,8 @@ from ..metadata import (
     WITHIN_FOV_METADATA_COLUMNS,
     sorted_labels,
 )
-from ..schema import fov_positions, unit_plural
+from ..sampling_unit._experiments import experiments
+from ..schema import fov_positions, observation_words
 from ._value_checks import value_checks
 from .report_status import data_check_status
 
@@ -55,6 +56,29 @@ def _listed(names: Sequence[Any], limit: int) -> str:
     if len(names) <= limit:
         return ", ".join(names)
     return ", ".join(names[:limit]) + f" and {len(names) - limit} more"
+
+
+def _sub_experiments(family: dict[Any, int], compared: dict[Any, list[Any]], control: Any) -> str:
+    """``2 sub-experiments, each of 2 conditions and its own siCTRL in its own 3 biological
+    repeats (siCCT7#3 and siCCT7#6; siCCT8#5 and siCCT8#8)``; the conditions named for at
+    most 3 sub-experiments, and each one's size when they differ."""
+    members: dict[int, list[Any]] = {}
+    for condition, number in family.items():
+        members.setdefault(number, []).append(condition)
+    repeats = {n: len({r for c in names for r in compared[c]}) for n, names in members.items()}
+    sizes = {(len(names), repeats[n]) for n, names in members.items()}
+    head = f"{len(members)} sub-experiments, each"
+    if len(sizes) == 1:
+        conditions, held = next(iter(sizes))
+        text = (
+            f"{head} of {count(conditions, 'condition')} and its own {control} in its own "
+            f"{count(held, 'biological repeat')}"
+        )
+        if len(members) <= 3:
+            text += f" ({'; '.join(listing(names, 4) for names in members.values())})"
+        return text
+    each = "; ".join(f"{listing(names, 4)} in {repeats[n]}" for n, names in members.items())
+    return f"{head} with its own {control} in its own repeats: {each}"
 
 
 @dataclass(frozen=True)
@@ -100,8 +124,7 @@ class DatasetOverview:
         """The short form's sentences, one per line, not wrapped (a report wraps them under its
         own indent): counts, features and values, the design, planes, the data checks."""
         c, settings = self.counts, self.settings
-        unit = settings["observation_unit"]
-        words = unit_plural(unit)
+        unit, words = observation_words(settings)
         declared = "" if settings["observation_unit_declared"] else " (assumed, not declared)"
         empty = f", {c['empty_fields']} without {words}" if c["empty_fields"] else ", none empty"
         objects = f"{count(c['objects'], unit, words)}{declared}"
@@ -138,8 +161,11 @@ class DatasetOverview:
         if repeat_col is not None:
             names = self.layout[repeat_col].drop_duplicates().tolist()
             parts.append(f"{count(c['repeats'], 'biological repeat')} ({_listed(names, 6)})")
+        arrangement = self.arrangement()
+        if arrangement:
+            parts = [", ".join(parts) + f"; {arrangement}"]
         if settings["technical_col"] is not None:
-            parts.append(self._wells())
+            parts.append(self._wells(apart=bool(arrangement)))
         group_cols = settings.get("group_cols", ())
         groups = (
             "each well analysed apart"
@@ -156,18 +182,59 @@ class DatasetOverview:
             fields = f"{low}" if low == high else f"{low} to {high}"
             # One observation per field: the fields are the cells a biologist counts.
             one = c["objects"] == c["fields"]
-            word = unit_plural(settings["observation_unit"]) if one else "fields"
+            word = observation_words(settings)[1] if one else "fields"
             spread = f"; {fields} {word} per condition and repeat"
-        return f"{', '.join(parts) + '; ' if parts else ''}{groups}{spread}."
+        joined = "; ".join(parts) if arrangement else ", ".join(parts)
+        return f"{joined + '; ' if parts else ''}{groups}{spread}."
 
-    def _wells(self) -> str:
+    def arrangement(self) -> str:
+        """How the conditions fall across the repeats when not every condition is in every
+        repeat, empty when they are: the sub-experiments when the conditions do not all share
+        their repeats and control (``2 sub-experiments, each of 2 conditions and its own
+        siCTRL in its own 3 biological repeats (siCCT7#3 and siCCT7#6; siCCT8#5 and
+        siCCT8#8)``, ``sampling_unit._experiments``), else the repeats each condition holds
+        (``cond1 in 3, cond2 and cond3 each in 2 of the 4 repeats``)."""
+        condition_col, repeat_col = self.settings["condition_col"], self.settings["repeat_col"]
+        layout = self.layout
+        if condition_col is None or repeat_col is None or not len(layout):
+            return ""
+        held = {
+            c: list(dict.fromkeys(block[repeat_col]))
+            for c, block in layout.groupby(condition_col, sort=False, dropna=False)
+        }
+        every = list(dict.fromkeys(layout[repeat_col]))
+        if all(len(repeats) == len(every) for repeats in held.values()):
+            return ""
+        control = self.settings.get("control")
+        own = set(held.get(control, ()))
+        compared = {
+            c: [r for r in repeats if r in own] for c, repeats in held.items() if c != control
+        }
+        alone = [c for c, repeats in compared.items() if not repeats] if own else []
+        never = f"; {listing(alone, 4)} in no repeat with {control}" if alone else ""
+        family = experiments({c: r for c, r in compared.items() if r})
+        if len(set(family.values())) > 1:
+            return _sub_experiments(family, compared, control) + never
+        by_size: dict[int, list[Any]] = {}
+        for condition, repeats in held.items():
+            if len(repeats) < len(every):
+                by_size.setdefault(len(repeats), []).append(condition)
+        uneven = ", ".join(
+            f"{listing(names, 4)} {'each ' if len(names) > 1 else ''}in {size}"
+            for size, names in sorted(by_size.items())[::-1]
+        )
+        return f"{uneven} of the {len(every)} repeats{never}"
+
+    def _wells(self, apart: bool = False) -> str:
         """The technical repeats in lab words: ``one well per condition in each repeat (9
-        wells)``, or ``14 wells (technical repeats; 1 to 2 per condition and repeat)``."""
+        wells)`` (``apart``: ``..., 9 wells``, after the sub-experiments' parentheses), or
+        ``14 wells (technical repeats; 1 to 2 per condition and repeat)``."""
         c, layout = self.counts, self.layout
         per = layout.get("technical_repeats", [])
         wells = count(c["technical_repeats"], "well")
         if len(per) and int(min(per)) == int(max(per)) == 1:
-            return f"one well per condition in each repeat ({wells})"
+            each = "one well per condition in each repeat"
+            return f"{each}, {wells}" if apart else f"{each} ({wells})"
         low, high = (int(min(per)), int(max(per))) if len(per) else (0, 0)
         each = f"{low}" if low == high else f"{low} to {high}"
         spread = f"; {each} per condition and repeat" if len(per) else ""
@@ -176,8 +243,7 @@ class DatasetOverview:
     def _full(self, max_features_listed: int) -> str:
         """Plain sentences and a fields-by-condition-and-repeat table when there is one."""
         c = self.counts
-        unit = self.settings["observation_unit"]
-        words = unit_plural(unit)
+        unit, words = observation_words(self.settings)
         declared = "" if self.settings["observation_unit_declared"] else " (assumed, not declared)"
         empty = f", {c['empty_fields']} of them without {words}" if c["empty_fields"] else ""
         lines = [
@@ -238,6 +304,9 @@ class DatasetOverview:
             else:
                 parts.append("no repeat column (one implicit repeat)")
             lines.append("; ".join(parts) + ".")
+            arrangement = self.arrangement()
+            if arrangement:
+                lines.append(f"{arrangement[:1].upper()}{arrangement[1:]}.")
             table = self.layout.copy()
             if len(table) <= 40:
                 header = [col for col in (condition_col, repeat_col) if col is not None]
@@ -377,6 +446,7 @@ def dataset_overview(
         "group_cols": tuple(data.group_cols),
         "planes": _within_field_values(data),
         "normalized": normalized,
+        "control": dict(control or {}).get(condition_col),
         # Whether a data check was given: without one, "no warning" is not known.
         "data_checked": data_check is not None,
     }
