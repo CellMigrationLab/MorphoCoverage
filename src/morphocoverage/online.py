@@ -406,6 +406,8 @@ class OnlineSession:
                 replay.step(new, added.visible, record=True, setup_seconds=setup_seconds)
                 for replay in added.replays
             ]
+            # Inside the transaction: a warning turned into an error refuses the FOV.
+            _warn_copies(stamped, [*group_cols, fov_col], _GroupSession._key_of(validated))
         except Exception:
             if session is not None:
                 session.remove_last()
@@ -414,7 +416,6 @@ class OnlineSession:
         self._groups[group_values] = added
         self._resolved_fov_col, self._resolved_group_cols = fov_col, group_cols
         self._plane_rows = plane_rows
-        _warn_copies(stamped, [*group_cols, fov_col], _GroupSession._key_of(validated))
         return results
 
 
