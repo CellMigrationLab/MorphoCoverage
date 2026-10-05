@@ -139,7 +139,7 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
 
 def test_docs_glossary_is_the_rendering_of_the_glossary():
     root = Path(__file__).resolve().parents[1]
-    assert (root / "docs" / "glossary.md").read_text() == glossary_markdown()
+    assert (root / "docs" / "common" / "glossary.md").read_text() == glossary_markdown()
     names = [term.name for term in GLOSSARY]
     assert len(names) == len(set(names))
     assert "Mean-precision rule" in names

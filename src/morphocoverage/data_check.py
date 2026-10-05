@@ -7,7 +7,7 @@ problem, what is wrong, where (the table, the column, how many rows and a few
 example rows) and how to fix it, together with what was understood about the
 tables. ``validate_input_tables`` and every workflow attach the same summary
 to the error they raise, so the full list reaches the user whichever way the
-data were loaded. The format itself is described in ``docs/data_format.md``.
+data were loaded. The format itself is described in ``docs/common/data_format.md``.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ from .schema import (
     unhashable_values,
 )
 
-FORMAT_DOC = "docs/data_format.md"
+FORMAT_DOC = "docs/common/data_format.md"
 
 
 @dataclass(frozen=True)
@@ -361,7 +361,7 @@ def check_tables(
                 else "Give every plane, channel or frame of one stage position the same "
                 "'position_id', and a z/c/t value that tells its files apart."
                 if planes
-                else "Correct what the message names; every rule is in docs/data_format.md.",
+                else "Correct what the message names; every rule is in docs/common/data_format.md.",
             )
     return DataCheck(tuple(c.problems), tuple(c.understood))
 
@@ -467,7 +467,7 @@ def validate_input_tables(
     ``objects`` holds one row per phenotype observation (the name is kept for
     backwards compatibility; rows may be cells, nuclei, patches, slices, ...),
     ``fovs`` one row per acquired field, fields without observations included.
-    The rules, all described column by column in ``docs/data_format.md``:
+    The rules, all described column by column in ``docs/common/data_format.md``:
 
     - ``feature_cols`` are named explicitly, once each, in an ordered sequence
       (not a set), and hold real numbers; NaN is kept (never imputed or

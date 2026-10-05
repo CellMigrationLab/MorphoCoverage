@@ -58,10 +58,10 @@ def _constructed_wells() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def test_objects_or_fields_example_runs(tmp_path, capsys):
-    """The usage example of docs/objects_or_fields.md runs against the current API."""
-    text = (ROOT / "docs" / "objects_or_fields.md").read_text()
+    """The usage example of docs/report/objects_or_fields.md runs against the current API."""
+    text = (ROOT / "docs" / "report" / "objects_or_fields.md").read_text()
     section = re.search(r"## Checking your own data.*?```python\n(.*?)```", text, flags=re.DOTALL)
-    assert section, "docs/objects_or_fields.md example not found"
+    assert section, "docs/report/objects_or_fields.md example not found"
     script = tmp_path / "objects_or_fields_example.py"
     script.write_text(section.group(1))
     objects, fovs = _constructed_wells()
@@ -74,10 +74,10 @@ def test_objects_or_fields_example_runs(tmp_path, capsys):
 
 
 def test_data_format_example_runs_and_prints_what_it_says(tmp_path, capsys):
-    """The minimal example of docs/data_format.md runs and its comments are true."""
-    text = (ROOT / "docs" / "data_format.md").read_text()
+    """The minimal example of docs/common/data_format.md runs and its comments are true."""
+    text = (ROOT / "docs" / "common" / "data_format.md").read_text()
     section = re.search(r"## Minimal example.*?```python\n(.*?)```", text, flags=re.DOTALL)
-    assert section, "docs/data_format.md example not found"
+    assert section, "docs/common/data_format.md example not found"
     script = tmp_path / "data_format_example.py"
     script.write_text(section.group(1))
     runpy.run_path(str(script))
@@ -90,19 +90,19 @@ def test_data_format_example_runs_and_prints_what_it_says(tmp_path, capsys):
 
 
 def test_data_format_lists_every_shared_column():
-    """Every MorphoBricks shared column is documented in docs/data_format.md."""
+    """Every MorphoBricks shared column is documented in docs/common/data_format.md."""
     from morphocoverage.metadata import MORPHOBRICKS_SHARED_COLUMNS
 
-    text = (ROOT / "docs" / "data_format.md").read_text()
+    text = (ROOT / "docs" / "common" / "data_format.md").read_text()
     for column in MORPHOBRICKS_SHARED_COLUMNS:
         assert f"`{column}`" in text, column
 
 
 def test_data_format_feature_tables_example_runs_and_prints_what_it_says(tmp_path, capsys):
-    """The other feature tables' example of docs/data_format.md runs and its comments are true."""
-    text = (ROOT / "docs" / "data_format.md").read_text()
+    """The other feature tables' example of docs/common/data_format.md runs; its comments hold."""
+    text = (ROOT / "docs" / "common" / "data_format.md").read_text()
     section = re.search(r"## Other feature tables.*?```python\n(.*?)```", text, flags=re.DOTALL)
-    assert section, "docs/data_format.md feature tables example not found"
+    assert section, "docs/common/data_format.md feature tables example not found"
     script = tmp_path / "feature_tables_example.py"
     script.write_text(section.group(1))
     runpy.run_path(str(script))
