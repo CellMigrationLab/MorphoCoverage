@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
+from ._checks import as_count, check_seed
 from ._figure_layout import grow_bottom, panel_letter, remove_legend, sentences, set_legend
 from ._palette import MUTED
 from ._seeds import group_rng
@@ -150,6 +151,9 @@ def pairwise_contrasts(
     """One row per pair of ``conditions`` (all, the ``control`` first, by default); see the
     module. ``first`` and ``second`` follow the order of the conditions; each pair's shuffles
     are seeded from ``random_state``, the feature and the pair."""
+    # Zero shuffles would give every pair p = 1 as if the test had run.
+    n_permutations = as_count(n_permutations, "n_permutations")
+    random_state = check_seed(random_state)
     data = validate_input_tables(
         objects,
         fovs=fovs,

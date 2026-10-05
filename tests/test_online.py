@@ -282,3 +282,31 @@ def test_an_empty_position_id_on_every_field_does_not_stop_the_session():
         [result] = session.add_fov(objects, metadata)
     assert session.fov_col == "image_file"
     assert result.n_fovs == 4
+
+
+def test_a_copy_warning_raised_as_an_error_leaves_the_session_as_it_was():
+    """#185: the copy warning is part of the transaction, so a warnings-as-errors policy
+    refuses the FOV instead of keeping it and raising."""
+    import warnings
+
+    scenario = SCENARIOS["homogeneous"]()
+    first, second = (row for _, row in scenario.fovs.nsmallest(2, ORDER_COL).iterrows())
+    session = OnlineSession(
+        strategies=[FixedFOVStrategy(3)],
+        feature_cols=list(FEATURE_COLS),
+        objective=POPULATION,
+    )
+
+    def rows(fov):
+        mask = scenario.objects["image_file"].eq(fov["image_file"])
+        observations = scenario.objects.loc[mask].copy()
+        return observations.assign(label_id=range(1, len(observations) + 1))
+
+    session.add_fov(rows(first), first.to_dict())
+    relabelled = rows(second).assign(label_id=1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with pytest.raises(UserWarning, match="appear twice in the same field"):
+            session.add_fov(relabelled, second.to_dict())
+    [result] = session.add_fov(rows(second), second.to_dict())
+    assert result.n_fovs == 2
