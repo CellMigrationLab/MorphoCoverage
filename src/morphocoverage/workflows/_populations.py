@@ -12,7 +12,8 @@ population, holding most cells, is listed but not tested, its share being all bu
 complement of the others'; a repeat where the group is absent from both sides counts as no
 change (owner, 2026-10-02). A declared rare label is matched to the group that holds it,
 and a group most of whose cells carry it (``LABELLED``) is the label's own: its share is
-compared in question 9, so it is not tested again here (owner, 2026-10-02).
+compared in question 9, so it is not tested again here (owner, 2026-10-02). A cell whose
+label is missing is unknown: out of both shares of the overlap (owner, 2026-10-05).
 Each group is a candidate to validate on the images, given with the rule on the features
 that picks out its cells (``sampling_unit._population_rule``).
 """
@@ -33,6 +34,7 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
 from ..schema import observation_words, validate_input_tables
 from ..statistics import paired_t
+from ._population_rule_words import rule_cell, rule_words
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -83,10 +85,12 @@ def populations_in_report(
     pooled = pooled_columns(marked, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
     label = None
     if setup.rare_label is not None and setup.rare_label in complete:
-        flag = complete[setup.rare_label].fillna(False).astype(bool)
+        # A missing label is unknown, out of both shares (owner, 2026-10-05).
+        known = complete[setup.rare_label].notna()
+        flag = complete[setup.rare_label].where(known, False).astype(bool)
         rows = []
         for name in populations.names:
-            inside = labels == name
+            inside = (labels == name) & known
             if flag.sum() and inside.sum():
                 rows.append(
                     {
@@ -343,29 +347,6 @@ def _found_words(pops: Populations) -> str:
     return f"{count(groups, 'group')} of {units} to validate on the images"
 
 
-def _rule_cell(row: Any) -> str:
-    """``AR > 3.18 and MinFeret ≤ 17.7 (91%, 97%)`` for the table; ``–`` without a rule."""
-    if not row.rule:
-        return "–"
-    if pd.isna(row.rule_recall):
-        return row.rule
-    return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)})"
-
-
-def rule_words(row: Any, units: str) -> str:
-    """``picked by AR > 3.18 and MinFeret ≤ 17.7, which finds 91% of its cells, 97% of
-    those it picks being in it, on held-out cells``, or empty without a rule (``units``: the
-    observations' plural word)."""
-    if not row["rule"]:
-        return ""
-    if pd.isna(row["rule_recall"]):
-        return f"picked by {row['rule']}"
-    return (
-        f"picked by {row['rule']}, which finds {percent(row['rule_recall'])} of its {units}, "
-        f"{percent(row['rule_precision'])} of those it picks being in it, on held-out {units}"
-    )
-
-
 def _shares_line(pops: Populations, units: str) -> str:
     """``P1 91%, P2 3.4%, G1 20%; 6% in none``: each one's share and the unassigned."""
     shares = ", ".join(f"{r.population} {percent_fine(r.share)}" for r in pops.table.itertuples())
@@ -394,12 +375,17 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         )
         return Status.NOT_ASSESSED, f"not clustered: too few {units}", text
     if not pops.names:
+        # Not finding a group says nothing of a continuum, nor of rare states (#94; owner,
+        # 2026-10-05): ➖, a neutral answer.
         text = wrap(
-            f"{method}: no group; the {units} form one continuum on these features.",
+            f"{method}: no candidate group passed the neighbours-inside check on these "
+            f"features ({percent(settings['purity'])} or more of a cluster's {units}' "
+            f"{settings['neighbours']} nearest neighbours in it).",
             2,
             hang=4,
         )
-        return Status.OK, "no group: one continuum on these features", text
+        headline = "no group: no candidate group passed the check on these features"
+        return Status.NOT_ASSESSED, headline, text
     lines = [wrap(f"{method}: {_found_words(pops)} ({_shares_line(pops, units)}).", 2, hang=4)]
     control = result.control
     heading = f"most different (vs {control})" if control is not None else "most different"
@@ -412,8 +398,9 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             f"{r.observations} ({percent_fine(r.share)})",
             defined_by(r.defining[:2]) or "–",
             percent(r.purity) if pd.notna(r.purity) else "–",
-            _rule_cell(r),
+            rule_cell(r),
             r.fields,
+            percent(r.largest_field),
             r.repeats,
             _enriched(result, r.population)
             if r.population in tested and r.population not in own
@@ -429,8 +416,9 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         units,
         "defined by",
         "neighbours inside",
-        "rule (held-out: found, right)",
+        "rule (held-out fields: found, right)",
         "fields",
+        "in largest field",
         "repeats",
         heading,
     ]
@@ -501,10 +489,13 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             "numbers: no test of a gap told the two apart reliably at these sizes, so open "
             "the images of its fields to validate it. Its rule is the simplest one on the "
             "features (at most two thresholds, a decision tree) that picks out its "
-            f"{units}, with the share of them it finds and the share right of those it picks, "
-            f"on {units} it was not fitted on. Groups that overlap strongly on every feature "
+            f"{units}, fitted on all of them; the share of them it finds and the share right "
+            "of those it picks describe that procedure refitted with whole fields held out "
+            f"({units} held out for a group in one field), not the exact thresholds shown. "
+            "Groups that overlap strongly on every feature "
             "are not told apart. The clusters depend on the declared features and their "
-            "standardisation; a group held by few fields may be an artefact of those images.",
+            "standardisation; a group held by few fields, or most of whose "
+            f"{units} are in one (in largest field), may be an artefact of those images.",
             2,
             hang=4,
         )

@@ -4,6 +4,7 @@ distributions are compared beyond the mean, both targets are answered in "Did I 
 enough?", and the label checks the features."""
 
 import warnings
+from dataclasses import replace
 
 import numpy as np
 import pandas as pd
@@ -324,3 +325,64 @@ def test_a_labelled_cell_in_a_crowded_field_finds_its_neighbour_of_another_field
     )
     # f0's labelled cells find f1's; f1's find f2's unlabelled cells.
     assert label_control(objects, fovs, setup).recognized == pytest.approx(5 / 8)
+
+
+def _fields(parts):
+    rng = np.random.default_rng(0)
+    objects = pd.concat(
+        pd.DataFrame(rng.normal(centre, 0.05, (n, 2)), columns=["x", "y"]).assign(
+            image_file=field, lab=labelled
+        )
+        for field, n, centre, labelled in parts
+    )
+    fovs = pd.DataFrame({"image_file": sorted(set(objects["image_file"]))})
+    rare = RareTarget(
+        object_prevalence=0.05, detection_probability=0.95, min_fov_occurrences=1, phenotype="p"
+    )
+    setup = Setup(
+        readout="x", features=("x", "y"), rare=rare, rare_label="lab", observation_unit="cell"
+    )
+    return objects, fovs, setup
+
+
+@pytest.mark.parametrize(
+    "parts, reason",
+    [
+        # One populated field: no labelled cell has a cell of another field (#349).
+        ([("f0", 100, (0, 0), False), ("f0", 6, (3, 3), True)], "no labelled cell has a cell"),
+        ([("f0", 100, (0, 0), False), ("f1", 3, (3, 3), True)], "3 labelled cells, at least 5"),
+        ([("f0", 10, (0, 0), True), ("f1", 10, (3, 3), True)], "every cell with a label is lab"),
+    ],
+)
+def test_a_declared_label_the_check_cannot_assess_says_why(parts, reason):
+    """#348 (owner, 2026-10-05): declared but not assessable is an answer of its own, with
+    its reason and the denominator it assessed, never the silence of an undeclared label."""
+    objects, fovs, setup = _fields(parts)
+    check = label_control(objects, fovs, setup)
+    assert check is not None and check.reason.startswith(reason)
+    assert np.isnan(check.recognized) and check.assessed == 0
+    status, headline, text = label_answer(check)
+    assert status is Status.NOT_ASSESSED and status.marker == "➖"
+    assert headline == f"lab declared, not assessable: {check.reason}"
+    assert "declared, but not assessable" in text and "Assessed: 0 of " in text
+
+
+def test_a_missing_feature_value_makes_the_label_check_not_assessable():
+    objects, fovs, setup = _fields(
+        [("f0", 100, (0, 0), False), ("f0", 5, (3, 3), True), ("f1", 5, (3, 3), True)]
+    )
+    objects.iloc[0, 0] = np.nan
+    check = label_control(objects, fovs, setup)
+    assert check.reason == "1 cell with a missing feature value, which has no nearest one"
+    # Without a label declared there is nothing to answer.
+    assert label_control(objects, fovs, replace(setup, rare_label=None)) is None
+
+
+def test_the_assessed_denominator_is_given_with_the_answer():
+    objects, fovs, setup = _fields(
+        [("f0", 100, (0, 0), False), ("f0", 5, (3, 3), True), ("f1", 5, (3, 3), True)]
+    )
+    check = label_control(objects, fovs, setup)
+    assert not check.reason and check.assessed == check.labelled == 10
+    assert check.recognized == pytest.approx(1.0)
+    assert label_answer(check)[0] is Status.OK

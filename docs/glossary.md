@@ -4,7 +4,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 ## Reading the report
 
-**Status markers.** What each answer found: ✅ yes or a clear answer (a condition differs across repeats, enough was imaged, the data are clean, the cells form one continuum); ⚠️ partly, a trend only, or something to look at; ❌ check the data first; ➖ no conclusion possible here (not assessed, or one biological repeat). The word beside the marker says which.
+**Status markers.** What each answer found: ✅ yes or a clear answer (a condition differs across repeats, enough was imaged, the data are clean); ⚠️ partly, a trend only, or something to look at; ❌ check the data first; ➖ no conclusion possible here (not assessed, one biological repeat, or no candidate group of cells passed the check). The word beside the marker says which.
 
 *Where:* At a glance, every answer.
 

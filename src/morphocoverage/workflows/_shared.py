@@ -417,7 +417,9 @@ def rare_clustering(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> 
     """R4 for the declared rare phenotype: are its labelled objects clustered in few fields?
 
     The fields to see it are planned for the declared target: seen in at least
-    ``rare.min_fov_occurrences`` fields with ``rare.detection_probability``.
+    ``rare.min_fov_occurrences`` fields with ``rare.detection_probability``. A missing
+    label is unknown, as everywhere (owner, 2026-10-05): ``fov_clustering`` leaves the object
+    out, and a field whose objects all lack one out of the fields assessed.
     """
     assert setup.rare is not None and setup.rare_label is not None
     return fov_clustering(

@@ -317,7 +317,7 @@ src/morphocoverage/
         discovery.py       # the same question by the cell-level gate (BH), the paired t on repeat means beside it
         distribution.py    # beyond the mean: spread and 10/50/90% quantiles per repeat, tested across repeats
         populations.py     # question 10: groups of every cell pooled (HDBSCAN on a UMAP, kept when their neighbours on all features are inside)
-        _population_rule.py  # private: the simplest feature rule that picks out a group (a depth-2 balanced tree), checked on held-out cells
+        _population_rule.py  # private: the simplest feature rule that picks out a group (a depth-2 balanced tree, fitted on all cells), its procedure checked on held-out fields
         _units.py          # private: sides, units and the randomization test shared by contrast and ranking
         unusual.py         # unusual (out-of-distribution) objects against a declared reference (unusual_objects)
         clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered
@@ -360,6 +360,7 @@ src/morphocoverage/
         _rare_share.py     # private: the labelled rare state's share, compared like a feature
         _label_control.py  # private: the rare label as a positive control of the features (question 1)
         _populations.py    # private: question 10, the populations and each condition's enrichment across repeats
+        _population_rule_words.py  # private: a group's feature rule in words (fitted on all cells; its procedure checked on held-out fields)
         _result_influence.py  # private: the fields whose removal moves the result (the repeat means the paired test compares)
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)

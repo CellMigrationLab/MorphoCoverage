@@ -24,19 +24,24 @@ features:
 - a **group** (``G1``, ``G2``, ...): ``PURITY`` or more of its observations' ``NEIGHBOURS``
   nearest neighbours on all the features are in it too (HDBSCAN on a Gaussian or a line
   cuts clusters that fail this);
-- otherwise the cluster is a stretch of one continuum and is not reported.
+- otherwise the cluster is not a group and is not reported; finding no group says
+  nothing of a continuum or of rare states (owner, 2026-10-05).
 
 Whether a group is a separate state or the end of a continuum is not decided here: no test
 of a gap of low density told the two apart reliably at the sizes of an experiment (owner,
 2026-10-02, after one along the line between the centres and one along a held-out
 discriminant both missed groups a UMAP shows apart). It is for the user to validate on the
 images; each group comes with the simplest rule on the features that picks out its cells
-(``_population_rule``: at most two thresholds, how well it does on held-out cells), to label
-it and study it as a rare phenotype.
+(``_population_rule``: at most two thresholds fitted on every cell, and how well the procedure
+that fits them does refitted with whole fields held out), to label it and study it as a rare
+phenotype.
 
 Each is reported with its share of the observations, the fields and biological repeats it
-is seen in, the features that set it apart from the other observations (Cohen's d), its
-``purity`` and its rule. Observations with a missing value are left out, counted.
+is seen in, the share of its observations in its largest field (``largest_field``: a group
+living mostly in one field may be that image's artefact) and, with a ``technical_repeat``
+column, the technical repeats it is seen in (owner, 2026-10-05), the features that set it
+apart from the other observations (Cohen's d), its ``purity`` and its rule. Observations
+with a missing value are left out, counted.
 
 A description, not a test: the clusters depend on the features declared and on the
 standardisation, and a group seen in one field only may be one image's artefact (its
@@ -54,7 +59,7 @@ import pandas as pd
 
 from .._checks import as_count, check_seed
 from ..embedding import _sample, _standardised
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import fov_positions, validate_input_tables
 from ..statistics import cohen_d
 from ._population_rule import Rule, population_rule
@@ -81,6 +86,8 @@ _COLUMNS = [
     "share",
     "fields",
     "repeats",
+    "largest_field",
+    "technical_repeats",
     "defined_by",
     "defining",
     "purity",
@@ -89,6 +96,7 @@ _COLUMNS = [
     "rule_terms",
     "rule_recall",
     "rule_precision",
+    "rule_held_out",
 ]
 
 
@@ -193,7 +201,7 @@ def traits(pairs: Sequence[tuple[str, float]]) -> str:
 
 
 def _kinds(raw: np.ndarray, z: np.ndarray) -> dict[int, tuple[str | None, float]]:
-    """Each cluster's kind (``KINDS``, or ``None``: a stretch of a continuum) and purity
+    """Each cluster's kind (``KINDS``, or ``None``: not a group) and purity
     (see the module)."""
     sizes = pd.Series(raw[raw >= 0]).value_counts()
     judged: dict[int, tuple[str | None, float]] = {}
@@ -222,6 +230,17 @@ def _names(raw: np.ndarray, judged: dict) -> dict[int, str]:
             groups += 1
             names[cluster] = f"G{groups}"
     return names
+
+
+def _support(member: np.ndarray, field_keys: pd.Series, meta: pd.DataFrame) -> dict[str, Any]:
+    """The share of ``member``'s observations in its largest field, and the technical
+    repeats holding it (``None`` without a ``technical_repeat`` column)."""
+    largest = float(field_keys[member].value_counts().iloc[0] / member.sum())
+    if TECHNICAL_REPEAT_COLUMN not in meta:
+        return {"largest_field": largest, "technical_repeats": None}
+    columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN) if c in meta]
+    wells = meta.loc[member, columns].astype(str).drop_duplicates()
+    return {"largest_field": largest, "technical_repeats": len(wells)}
 
 
 def find_populations(
@@ -289,7 +308,7 @@ def find_populations(
         pairs = _defining(z, member, kept)
         # The rule on the features in their own units, for a group (the main one is the rest).
         rule = (
-            population_rule(values, member, kept, random_state)
+            population_rule(values, member, kept, random_state, groups=keys)
             if kind == "group"
             else Rule((), np.nan, np.nan)
         )
@@ -303,6 +322,7 @@ def find_populations(
                 "repeats": int(meta.loc[member, REPEAT_COLUMN].nunique())
                 if REPEAT_COLUMN in meta
                 else 1,
+                **_support(member, field_keys, meta),
                 "defined_by": defined_by(pairs),
                 "defining": pairs,
                 "purity": purity,
@@ -311,6 +331,7 @@ def find_populations(
                 "rule_terms": rule.terms,
                 "rule_recall": rule.recall,
                 "rule_precision": rule.precision,
+                "rule_held_out": rule.held_out,
             }
         )
     table = pd.DataFrame(rows, columns=_COLUMNS)

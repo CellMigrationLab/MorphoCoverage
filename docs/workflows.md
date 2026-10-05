@@ -424,7 +424,10 @@ that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
 - **a rare phenotype**: `rare=RareTarget(...)` (its definition, its object
   prevalence and/or field incidence, the detection probability, the fields it
   must be seen in) and, when an independent label exists, `rare_label`, the
-  object column (booleans or 0/1) that marks it. With the label, held-back
+  object column (booleans or 0/1) that marks it; a missing value is unknown, never a
+  negative: the cell is left out of every share's numerator and denominator (the label
+  check, the groups, the share compared, the plan, the fields holding it), and the report's
+  notes count such cells once (owner, 2026-10-05). With the label, held-back
   fields judge whether `k` fields showed the state; without it the target is
   stated and planned for (the binomial field count at the declared incidence)
   but not judged. Object prevalence is never converted to field incidence.
@@ -472,16 +475,25 @@ acquired:
   held-out discriminant, told the two apart reliably at the sizes of an experiment
   (owner, 2026-10-02). Each group comes with the simplest rule on the features that
   picks out its cells (at most two thresholds from a balanced decision tree, in the
-  features' own units), with the share of its cells it finds and the share right of
-  those it picks, on cells it was not fitted on; "What to do next" names the fields
+  features' own units), fitted on all the cells, with the share of its cells it finds
+  and the share right of those it picks when the same procedure is refitted with whole
+  fields held out (5 folds of fields, scikit-learn's `StratifiedGroupKFold`, fewer
+  with fewer fields; cells held out for a group in one field, and the report says so):
+  these describe the procedure, not the exact thresholds shown (owner, 2026-10-05);
+  "What to do next" names the fields
   that hold most of it, to validate on the images, and gives the code that labels
   it with the rule and declares it as the rare phenotype. A cluster holding most
   cells is the main population (`P1`), the rest of the cells. On constructed data
   this finds no group in a Gaussian, a separate blob as a group its rule finds,
   and the end of a straight line at most as a group; groups overlapping strongly
-  on every feature are not told apart. Each group is listed with its share, the
-  features that set it apart, its neighbours inside, its rule, and the fields and
-  repeats it is seen in; then each condition is compared with its own
+  on every feature are not told apart. Without a group the answer is ➖ "No group":
+  no candidate group passed the check on these features, which says nothing of a
+  continuum or of rare states (owner, 2026-10-05). Each group is listed with its share, the
+  features that set it apart, its neighbours inside, its rule, the fields and
+  repeats it is seen in, and the share of its cells in its largest field (a group
+  living mostly in one field may be that image's artefact; the table, `Populations.table`,
+  also counts the technical repeats holding it, `largest_field` and `technical_repeats`;
+  owner, 2026-10-05); then each condition is compared with its own
   control on its share of cells in it, per biological repeat, on the log odds of
   the shares (a small share is as steady there as a large one), by the paired
   test across repeats (Benjamini-Hochberg within each sub-experiment); the main
@@ -499,7 +511,12 @@ acquired:
   positive control, is answered by the label: for each labelled cell, whether
   the nearest cell of another field (on the declared features, robustly
   standardized) is labelled too, against the share labelled overall, with
-  `minimum_detection` as for a positive control.
+  `minimum_detection` as for a positive control. Every labelled cell is looked up
+  against its true nearest cell of another field, and the answer gives how many were
+  assessed. A declared label the check cannot assess (fewer than 5 labelled cells, no
+  unlabelled cell to compare, a missing feature value, or no labelled cell with a cell
+  of another field) is answered ➖ "declared, not assessable" with the reason, never
+  as if no label were declared (owner, 2026-10-05).
 
 Every document opens with the declaration (`setup.declaration()`), one
 sentence per target, and a target that is not declared says so, so that an
