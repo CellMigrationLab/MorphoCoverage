@@ -253,6 +253,20 @@ to see the message each mistake gives.
 `validate_input_tables` and every workflow run the same check when they
 refuse tables, so their error carries the full report after its first line.
 
+**Features that repeat one measurement** (owner, 2026-10-05). The report's
+"The data" also compares the declared features of the observation table pair
+by pair, on the rows where both are finite. A copy, an exact affine relation
+(`1 − x`, a change of units; the largest residual within 1e-4 of the column's
+range) or a near copy (|Pearson r| ≥ 0.999) counts one measurement several
+times in each test family, the heatmap and the discovery. Related features
+are grouped and each group is said once as a ⚠️ caution, for example
+"Porosity X (mean) and Porosity Y (mean) are copies of Porosity (mean), and
+Porosity (mean) = 1 − HDM: one measurement counted 4 times in each test
+family; keep one of them." Nothing is dropped or merged and no statistic
+changes: declare the features again with one of each group. Constant
+features are left to the few-distinct-values check, and other feature tables
+are not compared, since their dimensions are expected to correlate.
+
 ## Minimal example
 
 ```python

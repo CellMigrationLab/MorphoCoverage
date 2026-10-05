@@ -93,13 +93,17 @@ on first.
 ### The data
 
 "The data" gives one row per check with its chip (the data checks; the integrity
-checks, whose fields are listed under "Fields to check"; and two checks of the values:
+checks, whose fields are listed under "Fields to check"; and three checks of the values:
 **fields more alike than chance**, a feature whose field means agree more closely than
 cells drawn at random would let them in at least half of the groups, a lower-tail
 analysis of variance at p < 0.001, as values normalised per image, rounded or copied
 make them; and **few distinct values**, a feature whose most common value holds 90% of
 its observations, or that takes at most 25 values with the most common holding a third,
-kept in the analysis but named) and a line naming what
+kept in the analysis but named; and **duplicated or derived features**, declared features
+that repeat one measurement, one row per group: copies, exact affine relations such as
+1 − x or a change of units, and near copies at |r| ≥ 0.999, so that one measurement counts
+several times in each test family; nothing is dropped, keep one of them, owner 2026-10-05)
+and a line naming what
 was not declared and so not checked; the tables, what was checked (the
 declaration in short lines) and the declaration in full are under "Show more".
 

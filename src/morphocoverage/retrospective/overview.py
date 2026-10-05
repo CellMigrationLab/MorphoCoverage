@@ -97,7 +97,8 @@ class DatasetOverview:
       normalisation applied.
     - ``warnings``: the data check's warnings (``check_tables``), when one was given.
     - ``value_checks``: the checks of the values that found something (``_value_checks``:
-      fields more alike than chance, features with few distinct values), as sentences.
+      fields more alike than chance, features with few distinct values, one sentence per
+      group of duplicated or derived features), as sentences.
     """
 
     counts: dict[str, int]
