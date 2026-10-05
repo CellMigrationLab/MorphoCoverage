@@ -354,6 +354,13 @@ def html_report(
     """
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
+    # The figures are drawn from these tables, the answers were computed from the report's.
+    counts = getattr(result.results.get("overview"), "counts", None)
+    if counts is not None and (len(objects), len(fovs)) != (counts["objects"], counts["fields"]):
+        raise ValueError(
+            f"objects and fovs must be the tables the report was run on ({counts['objects']} "
+            f"observations, {counts['fields']} fields), not {len(objects)} rows and {len(fovs)}"
+        )
     folder = Path(folder)
     # The "?" help in the report's words for its observations (tracks, patches).
     _INTROS.clear()
