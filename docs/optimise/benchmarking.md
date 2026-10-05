@@ -43,73 +43,6 @@ Synthetic data remain useful for unit tests, explicit counterexamples, and regre
 
 Adequacy points are now defined (`morphocoverage.retrospective.adequacy_points`, below). Not yet implemented: excess FOVs beyond them in benchmark records, and aggregation into a regime map.
 
-## Retrospective sufficiency of one dataset
-
-`sufficiency_report(objects, fovs, feature_cols=..., strategies=..., objective=..., orders=..., novelty=..., novelty_target=..., calibration=...)` answers two questions per analysis group of an analysed dataset:
-
-1. **Did each criterion say enough?** (`enough`) For each criterion, judged by its own threshold and not by held-out FOVs: `sampled_enough` (`yes`, `no` or `undefined` on the acquired FOVs; a fixed-effort rule, an `EffortPolicy` or a strategy flagged `effort_rule`, reports `target reached`, since reaching a fixed effort says nothing about the data), after how many FOVs it was first met across the declared acquisition orders (median and 10-90% range), and the FOVs imaged beyond that point. The recorded and the permuted orders are kept apart (`order_kind` in the stops table; the answer gives each kind in its own clause, for example "in 2 of 9 random orders, first met after ..."), never pooled into one median. A rule that cannot be judged yet gives the reason (`insufficient_reason`), and a rule's caveats (the FOV-size warning of the per-field mean-precision rule, the object-unit JCS assumption of random objects) are carried into its sentence (`warnings`, printed as `Caution:`). Verdicts hold only for each criterion and threshold, so compare several.
-2. **Would one more FOV show something new?** (`next_fov`, given a `SupportNoveltyEstimator` that defines "new") The chance, its nominal upper bound (Clopper–Pearson on leave-one-FOV-out outcomes, which are not independent, so its coverage is approximate and is checked by the calibration below), and, for a `novelty_target`, the extra FOVs needed before the bound can fall below it: at least this many if none of them shows anything new, and this many if new FOVs keep appearing at the current rate. The target is also added as a criterion to question 1. `new_observations` lists the observations counted as new so they can be inspected in the images: debris or segmentation errors count as new too.
-
-With `few_fovs`, it also counts the FOVs holding a state that fewer than `few_fovs` other FOVs show: a state recurring in two neighbouring FOVs is not new to the next FOV, yet not established either. It also states what the FOVs rule out: a state that no FOV has shown yet is present in at most `1 - (1 - confidence) ** (1 / k)` of FOVs (about `3 / k` at 95%; `unseen_state_max_frequency`), with the extra FOVs needed to rule out states above `novelty_target`. A small chance for the next FOV is not evidence that no rare state remains (preliminary findings, entry 3). `summary()` states both answers in short (the rules in one table across the groups, each caveat once); `summary(detail="full")` gives every number group by group, and the `answer` columns keep one sentence per group and rule. `final` and `stops` keep the full evidence and stop distributions.
-
-The chance can be checked on the dataset itself (`calibration=CalibrationSettings(...)`, or `morphocoverage.calibration.calibrate_next_fov_novelty`). Random subsets of `k` FOVs predict the chance, and the remaining FOVs, judged against the same subset with the same definition, give the actual rate. A FOV shows something new when at least `min_novel_observations` (`m`) of its unsupported cells form one cluster (linked within `epsilon`), so scattered outliers do not add up to a phenotype. Support mirrors that rule: another FOV covers a cell only with at least `m` cells of its own within `epsilon`, so a single stray cell cannot cancel a new state. The two are not exactly symmetric, since support counts cells in a ball of radius `epsilon` while a new state is a single-linkage chain that can reach beyond it (the module docstring of `support_novelty` gives a case that is counted new in two FOVs although it recurs).
-
-No committed script or results table holds this check on the committed data. The table below was computed on 2026-09-28, at the code of the third audit, with the call beneath it (it replaces a table from an unscripted run of 2026-09-24, before later changes to the calibration and to support novelty, whose values were close but not identical). On idr0028 (12 wells of 28 FOVs; 30 standardized intensity features; `epsilon = sqrt(30)`), pooled over wells with 20 draws each:
-
-| FOVs imaged | `m = 2`: predicted | actual | mean nominal 95% bound | bound held | `m = 3`: predicted | actual | bound held |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 5 | 0.159 | 0.134 | 0.61 | 100% | 0.054 | 0.052 | 100% |
-| 10 | 0.091 | 0.079 | 0.38 | 99.6% | 0.025 | 0.025 | 100% |
-| 20 | 0.060 | 0.057 | 0.23 | 96% | 0.013 | 0.016 | 99.6% |
-
-```python
-# from the repository root, with data/crick_idr on sys.path
-import numpy as np
-import datasets
-from morphocoverage.calibration import calibrate_next_fov_novelty
-from morphocoverage.strategies import SupportNoveltyEstimator
-from morphocoverage.transforms import Standardize
-
-d = datasets.load("idr0028_screenB")
-for m in (2, 3):
-    novelty = SupportNoveltyEstimator(np.sqrt(30), 1, Standardize(), 2, m)
-    table = calibrate_next_fov_novelty(
-        d.objects, d.fovs, feature_cols=list(d.features), novelty=novelty,
-        fov_counts=[5, 10, 20], draws=20, random_state=0,
-        group_cols=list(d.groups), observation_unit="nucleus",
-    )
-    print(m, table.groupby("fovs_imaged")[["predicted", "actual", "bound", "bound_held"]].mean())
-```
-
-The prediction tracks the actual rate at these settings (at 20 FOVs with `m = 3` it is slightly below it). The bound is conservative here, which is not the same as calibrated: the mean bound sits far above the actual rate, and a bound that ignores the data, `1 - 0.05 ** (1 / k)`, would hold about as often, so "bound held" cannot tell the two apart; that needs settings where the actual rate approaches the bound. Each row pools 12 wells of 20 draws, so a share near 96% has a Monte Carlo standard error of at least about 1.3 points (more, since draws within a well are not independent), and one well alone far more. The fourth audit reproduced the table exactly at `random_state=0`, with similar values at other seeds; it is still not tracked as a script and results table. The unscripted run of 2026-09-24 also found that the definition moves the answer a lot: counting any unsupported cells rather than a cluster gave much higher rates, mostly from scattered cells; letting one cell of another FOV support a cluster gave rates near zero, because stray cells cancelled real groups; and at half the distance the bound held less often. Those variants were not rerun, so their numbers are not given here. With no new FOVs among `k` the bound is `1 - 0.05 ** (1 / k)` (0.14 at 20 FOVs) whatever the data. Random subsets treat FOVs as exchangeable, so this does not test drift along the recorded order, and the actual rate is measured on few remaining FOVs when `k` is close to the group size.
-
-In the calibration, a group too small for a count gets a row with `draws=0` and its `reason` rather than being dropped; a criterion passed twice to `sufficiency_report` is refused. It is self-assessment of one dataset; whether a criterion is right in general is a benchmark question.
-
-## How many FOVs next time? Sampling reliability
-
-`morphocoverage.retrospective.sampling_reliability` answers the planning question without any stopping rule (P1 of `docs/questions.md`). For each analysis group and outer split it holds back a fixed reservoir of whole FOVs (`ReservoirSplit`), draws `k` random FOVs from the rest, and assesses each declared `OutcomeCriterion` (an outcome metric with a tolerance and direction, for example the well mean within 5%) against the same reservoir for every `k`. The curve gives, per `k`, the share of draws in which the criterion was preserved (averaged over splits, with its spread and the Monte Carlo standard error of that mean, `preserved_mc_se`, clustered on the hold-out: splits that held back the same fields count as one, so it stops shrinking once the distinct hold-outs are used up; owner, 2026-10-05), the metric's median and 10–90% range, and the gain from the previous `k`. The ceiling table gives how often the whole stream preserved the criterion: the reservoir is itself a finite sample, so the curve cannot be read above it, and its own error adds to that of the `k` fields, so the curve understates how often `k` fields preserve the sample's true value and a field count read from it errs high. `summary()` states the curve in sentences. Draws and splits describe one sample and are not independent replicates; statements across samples count samples or repeats (P2). With few blocks the splits repeat hold-outs, which differ only by the random draws, so the summary says how many of the splits were distinct hold-outs. A group too small to split (fewer than two FOVs or blocks) is skipped and listed with its reason in `ReliabilityResult.skipped` (and `ReplayResult.skipped` for replays); the other groups are analysed as usual. `SamplingHierarchy` declares which columns are the FOV, the sample and the independent unit; nothing is inferred from column names.
-
-## Does this stopping rule work? Calibration and adequacy points
-
-A stopping rule can depend on the order in which FOVs arrive, so it is checked sequentially, separately from sampling reliability (P6 for the calibration; R2 and P4 for the adequacy points). `morphocoverage.retrospective.replay_acquisitions` holds back the same fixed reservoir per split as `sampling_reliability` and replays the stream in the recorded order (when an acquisition-order column is given) and in seeded random orders (10 by default). After every FOV it records each strategy's decision, computed from the visible prefix only, and, separately, whether the prefix preserves each `OutcomeCriterion` against the reservoir. Outcomes never depend on a strategy.
-
-- `stopping_calibration` finds each rule's first stop and reports, over replayed acquisitions, how often it stopped, the median FOVs at the stop (with its Monte Carlo standard error over the reservoir splits, each split's median stop counting once, since its orders share one reservoir; owner, 2026-10-05), and the shares of correct stops (preserved at the stop), stops that could not be judged, and runs that never stopped, with whether those had it by the last FOV. The headline risk is the share **not preserved at the stop**. It splits into premature stops (the whole stream was not shown to fail the criterion) and stops the whole stream did not fix either (not preserved by every stream FOV together). The held-back reference is itself a finite sample, so its noise alone can put the whole stream outside the tolerance: the premature share is a lower bound on the stops that came too early, and the total not preserved at the stop an upper bound; the summary prints both. For a fixed-FOV rule in random orders the share of correct stops estimates the same quantity as `sampling_reliability` at that `k`; a test checks this.
-- `adequacy_points` gives, per replayed acquisition, the first and the sustained apparent adequacy (from decisions only; a later continue, unsupported or undefined decision breaks a sustained stop) and the first and the sustained realized adequacy (from outcomes only, for all criteria together and each on its own; a later failure breaks it, an undefined outcome is skipped). Sustained realized adequacy is the preferred answer to "how many FOVs did this experiment really need?". For example, decisions that say stop at FOV 16, stay stop to 23, continue at 24 and stop from 25 on give a first apparent adequacy of 16 and a sustained one of 25; outcomes preserved at 10 and 11, not at 12 and from 13 on give a first realized adequacy of 10 and a sustained one of 13. The apparent points use only decisions and the realized points only outcomes; they are never mixed.
-
-Both have a `summary()` in plain sentences. Replayed acquisitions are hold-outs and orders of the same FOVs, not independent experiments.
-
-## Across samples, fields to inspect, controls, effort and order
-
-The remaining retrospective analyses (P2, R5, R1, P10, P7, P8, the difference from the control and the assembled report) each answer one question and have a plain-language `summary()`:
-
-- `effect_preservation(objects, fovs, feature=..., control=..., fov_counts=..., tolerance=0.2)` asks, for one feature, whether `k` fields a side preserve each biological repeat's difference from the control (#81, phase 1; owner, 2026-10-05). The effect is the per-repeat Cohen's d on the observations that the condition analysis reports. In each of `n_splits` splits, half of each side's fields (`reservoir_fraction`) are held back at random, and their d is the reference, the same for every `k`; `k` fields a side are drawn from the other fields `n_draws` times, and a draw preserves the difference when its d has the reference's sign and lies within `tolerance` of it (in units of d; the preset 0.2 is Cohen's "small" effect, printed with the result). A split whose held-back d has a 95% interval including 0 (the field bootstrap of question 2), or fewer than two held-back fields with observations on a side, gives no reference; a `k` without any such split is **not evaluable**, never "not preserved". The table gives the share per repeat, condition and `k`, the draws judged and a status; a `workflows.Setup` passed as `setup` fills the feature (its readout), the control and the columns. It is a standalone analysis: `optimise` and the report do not use it until the owner settles the multi-group outcome contract.
-- `protocol_reliability(per_sample, hierarchy, threshold=..., strata=...)` counts, from per-sample reliability curves, the samples adequately represented at each number of FOVs (reliability at least `threshold`, provisional preset 0.9), with explicit denominators, per independent unit, each sample's difficulty, and a leave-one-unit-out check of a number chosen on the other units. Intervals resample the declared independent units, so more draws or splits never narrow them, and are never narrower than the exact Clopper-Pearson interval over the units in whole counts, each unit a success when at least `protocol_share` of its samples are adequate and a failure otherwise (`scipy.stats.binomtest`; owner, 2026-10-05). When every unit or none is adequate, resampling would give zero width, and the interval is that exact one (5 of 5 units is compatible with a true share of about 48%); more samples inside one unit never narrow it. Samples whose stream is too short for a `k`, and criteria that could not be judged, are counted apart (`beyond_stream`, `undefined`); with fewer than five units the summary says the uncertainty is large. Pooling across conditions is an explicit `strata=[]`.
-- `inspect_fovs` lists fields to reopen, one reason per line with its numbers: a new state (support novelty), influence on a declared FOV-weighted summary (mean or an interpolated quantile) that also stands out from the group's other fields (`influence_spread`, 3 robust SDs from the median change; groups of fewer than 4 fields not judged; owner, 2026-10-05), an observation count far from the median, or a difference from the nearest stage neighbours. `novelty_cols` names the features the new-state reason is judged on, so the other reasons can read the readout. There is no combined score and no FOV is called an artifact.
-- `representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's "expected by chance" clause and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
-- `effort_projection` estimates nested variance components of a scalar mean (Henderson's method I for unbalanced designs) with a hierarchical bootstrap, gives the standard error of the acquired design from its actual sample and repeat sizes, and projects the standard error of balanced allocations at equal total FOVs, compared with the acquired allocation made balanced (the cost of the acquired imbalance is stated apart); a difference between allocations is stated only when its interval excludes 1 and there are at least five independent units, and the summary names the smallest standard error that resolved here: it is picked after looking at every allocation's own interval, so it describes these data and is not tested as the best allocation (owner, 2026-10-05). Where levels cannot be separated (a single repeat, or one sample per repeat) the repeat level is left out of that stratum and the summary says so; a stratum that cannot be estimated at all is listed in `EffortResult.skipped` with its reason, and the other strata are still estimated. With `Setup.normalize`, the projection reads raw values, so normalising to the control does not remove the between-repeat variance. The bootstrap intervals are approximate: in a simulation with 8 samples their coverage was 80–88% for the sample and field components, not 95%, measured over 40 runs (a Monte Carlo standard error of about 5 to 6 points).
-- `order_efficiency` compares recorded, random and dispersed (`AcquisitionOrder.dispersed(seed)`, greedy farthest point on stage coordinates) orders of the same positions by sustained realized adequacy and stage travel, and refuses adequacy points from another replay; `redundancy_distance` gives the distance below which neighbouring fields are more alike than random pairs (a group too small to measure gets a row with its `reason`). The report counts such a group apart, never as a group without redundancy: "in 1 of the 2 groups assessed ...; 1 more not assessed", with the reason (owner, 2026-10-05).
-- `microscopist_report` assembles the answers in the order of the questions of `docs/questions.md`, with a sampling profile of measured quantities; a question without its analysis says "not assessed" and what it needs.
-
 **Registered datasets** (`data/crick_idr/datasets.py`, a `BenchmarkRegistry`). idr0028 (committed subset: 12 wells × 28 FOVs on 3 plates) is the **development** dataset: every preset and definition of new was chosen on it, and it sets no protocol. idr0139 (10 wells × 4 FOVs on one plate, the JCS case study) is registered **held out**: never used to choose a setting, so `check_tuning` refuses a run that claims to be tuned on it. It is shallow (a 2-field reservoir judges 1 or 2 stream fields), so it can refute a development conclusion but not establish a field number; `heldout_idr0139.py` runs that check (`docs/preliminary_findings.md`, entry 7). Deeper held-out data are still needed.
 
 ## The score: fields saved at matched risk
@@ -127,6 +60,44 @@ The remaining retrospective analyses (P2, R5, R1, P10, P7, P8, the difference fr
 A family is either strategies replayed side by side (`family`) or one replayed configuration re-decided at many thresholds (`sweep`, which uses `redecide` on results kept with `replay_acquisitions(keep_results=True)`, so no estimator runs twice). Each family records how its reservoirs and orders were drawn, and families from replays that drew others are refused rather than scored against these reservoirs.
 
 The benchmark on the committed data is `data/crick_idr/benchmark.py`. Its protocol (`benchmark_protocol.py`: questions, criteria, families and their threshold grids, risk levels, replay design, units) is locked by digest before the first run of each version (`benchmark_protocol.lock`, one line per version), and the runner refuses to run a changed protocol; a change needs a new version. Stage 1 compares each rule per object and per field; stage 2 compares the richer rules with those and with the fixed count, question by question (`docs/questions.md`, the **Benchmark** rows). Results are in `docs/preliminary_findings.md`, entry 8.
+
+## The `benchmark` workflow: which rule needs the fewest fields for the same risk?
+
+```python
+from morphocoverage.workflows import benchmark, default_families
+
+bench = benchmark(objects, fovs, setup, reservoir_fraction=0.35)
+print(bench.summary())                        # a table of the rules per criterion and risk level
+print(bench.summary(detail="full"))           # every rule in sentences
+```
+
+Each criterion opens with its marker: ✅ when the rule that saves most
+fields does so with an interval above 0, or when no rule beats the fixed
+count (the null result) with an interval; ⚠️ when the largest saving is not
+resolved or has no interval; ➖ when a fixed count never met the risk level
+lastingly, so no rule is scored. With several rules, the one that saves most
+is picked after looking at every rule's own interval: the headline says it
+"saves the most here", a description of these data, not a test of the best
+rule (owner, 2026-10-05).
+
+`default_families(setup.readout)` holds the rule families and threshold grids
+of the locked protocol (version 5, whose grids are those of versions 1 to 4): the mean-precision rule and the JCS descriptor
+spread, each per object and per field, and the FOV bootstrap of the mean
+(on the readout only, whatever other features are declared).
+`default_families` takes `random_state` for its resampling rules; `benchmark`
+passes `Setup.random_state`, and the locked protocol uses 0. Pass `families=`
+to compare others. The grids are absolute (the JCS spread and the
+bootstrap's standard error are in the readout's units), so a readout in other
+units needs other grids: the summary warns for every family whose grid does
+not bracket the data (it never stopped, or stopped at the first field it
+could decide, at every setting) and says to widen it. The fields saved carry
+an approximate 95% interval from resampling the independent units, withheld
+below 5 units, where such an interval covers the truth far less often than
+it says.
+
+Tuning belongs on development data and scoring on held-out data
+([`benchmarking.md`](benchmarking.md)). The workflow does not know a
+dataset's role: keeping the two apart is up to you.
 
 ## Scientific performance dimensions
 
@@ -235,10 +206,3 @@ Different winners may be appropriate for:
 - later targeted acquisition.
 
 A method that is slightly less accurate but orders of magnitude faster may be the better smart-microscopy strategy, while a slower method may remain preferable for offline experimental design.
-
-
-## Online equivalence
-
-`OnlineSession` is the deployment counterpart of incremental replay. It receives one FOV at a time and knows nothing about future acquisition. Contract tests compare live session outputs with `evaluate_acquisition_prefixes(..., incremental=True)` on the same revealed sequence. Scientific evidence and decisions must match; only timing context may differ.
-
-Methods without an incremental `EstimatorState` remain deployable because the session can recompute them from accumulated visible observations. Benchmarking determines whether that latency is acceptable.

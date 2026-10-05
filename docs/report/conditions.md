@@ -32,12 +32,83 @@ control's.
 
 ## Several controls
 
-With several declared controls (owner, 2026-10-05; [`workflows.md`](workflows.md#several-controls))
-the tests are the rows of the contrast table. The main verdicts (`own_control`: each condition
-against its own control, each control against its parent) are the three answers below, per
-row, labelled `condition vs control` and corrected within each sub-experiment as with one
-control. The secondary rows are tested on the repeat means, without a cell-level test, each
-kind one Benjamini-Hochberg family:
+One control is declared as `control={"condition": "siCTRL"}`, and every condition is
+compared with it within each biological repeat, as always. A dataset of several experiments,
+each with its own control, declares the controls, each mapping a treatment key to its
+condition (a plain list of conditions is accepted too, with no keys), and optionally the
+parents of the controls (any condition, with an optional treatment key) and a master control
+(owner, 2026-10-05):
+
+```python
+setup = Setup(
+    readout="Order",
+    control={
+        "condition": {
+            "VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1", "SiFBN2": "VEC_SiFBN2"},
+            "THBS5_SiNC": {"SiCol6a1": "THBS5_SiCol6a1", "SiFBN2": "THBS5_SiFBN2"},
+            "VEC": {"THBS5": "THBS5"},
+        }
+    },
+    control_parents={"VEC_SiNC": ("VEC", "transfection"), "THBS5_SiNC": ("THBS5", "transfection")},
+    master_control="VEC_SiNC",
+)
+```
+
+A condition belongs to one control at most, a treatment key names one condition of a
+control, a parent may be any condition (a member of another control included) but the links
+may not form a cycle, and every condition named must be in the data; each is refused with a
+message otherwise. The declaration gives the **contrast table** (`Setup.contrast_table`), one
+row per test, shown in the report and saved as `contrasts.csv`:
+
+- `own_control`, **the main verdicts**: each condition against its own control, and each
+  control against its parent, raw and normalised, paired per biological repeat, exactly as
+  with one control (the paired test across repeats, the cell-level screen, the per-repeat d,
+  "Did I image enough?", the feature discovery and the heatmap use these rows only),
+  Benjamini-Hochberg within each sub-experiment as before. A row reads
+  `THBS5_SiCol6a1 vs THBS5_SiNC`.
+- `across_normalised`: two links with the same treatment key under different controls (or
+  parents): the two conditions each normalised to its own control, in every repeat holding all
+  four the difference of their log ratios, paired across those repeats
+  (`SiCol6a1 effect: THBS5_SiCol6a1/THBS5_SiNC vs VEC_SiCol6a1/VEC_SiNC`); a list of
+  conditions gives no such row. One Benjamini-Hochberg family.
+- `vs_master_raw`, only with a master: each other control against it on the raw values, in
+  the repeats holding both, unless a parent link joins them already
+  (`THBS5_SiNC vs VEC_SiNC (raw)`). The report gives the master's repeats once and says that
+  raw comparisons across experiments assume the experiments were imaged and processed alike.
+  One Benjamini-Hochberg family.
+
+For the ECM design above that is 7 + 3 + 1 = 11 rows per feature. The secondary rows are
+tested on the repeat means, with no cell-level test; a row held in fewer than 3 repeats is
+named once as not compared, and where a mean is not positive (a signed feature) the raw
+differences are compared instead of log ratios, and the table says so for that feature.
+`Setup(contrasts=table)` takes a table of the same columns (`kind`, `condition`,
+`reference`, `condition_control`, `reference_control`, `family`, `label`) in place of the
+generated one.
+
+Only the statistics read the controls: the figures, the PCA and UMAP, the population
+detection and the SuperPlots show every condition under its own name. With `normalize`, the
+normalised views show each condition divided by its own control's mean in its repeat, a
+control by its parent's (else its own, so 1); a condition held in a repeat without its own
+control is left out there, and the report names it once. Levels across experiments are read
+on the raw values. The tests read the raw values and each normalises to its own control.
+Unusual observations and the population enrichment take each condition's own control as the
+reference; the object rules, clustering and a positive control take every control pooled.
+
+**Controls apart in intensity** (owner, 2026-10-05). Raw comparisons across experiments, and
+maps on raw values, assume the experiments were imaged and processed alike. So the controls
+are compared with each other on every declared column whose name contains "intensity" (any
+case) and on those listed in `Setup(intensity_features=...)`: when two controls' medians, over
+all their observations, differ 2-fold or more (`_acquisition_gap.GAP_FOLD`), the report says
+so with one ⚠️ caution among the checks of the values ("Controls apart in intensity: VEC_SiNC
+and VEC differ 13-fold in median Intensity (mean); ...") and in "Do the conditions differ?",
+and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
+its table. With one control nothing is compared.
+
+### The tests of the secondary rows
+
+The main verdicts (`own_control`) are the three answers below, per row, labelled
+`condition vs control` and corrected within each sub-experiment as with one control. The
+secondary rows:
 
 - **`across_normalised`**: the same treatment in two experiments, each condition normalised to
   its own control: the paired t-test on each repeat's
@@ -46,10 +117,7 @@ kind one Benjamini-Hochberg family:
   four conditions of a repeat share cancel, so without a difference of effects it gives
   p <= 0.05 in about 5% of experiments (`tests/test_comparisons.py` simulates it).
 - **`vs_master_raw`**: a control against the master control, the paired t-test on each
-  repeat's difference of the means, in the repeats holding both. It assumes the experiments
-  were imaged and processed alike, so a difference here may be a batch between them; when
-  two controls' medians of an intensity differ 2-fold or more the report says so, and names
-  the rows that join them (owner, 2026-10-05; `workflows._acquisition_gap`).
+  repeat's difference of the means, in the repeats holding both.
 
 The sign-flip test is given where it can reach 0.05 once corrected (`_reach`). The code is
 `sampling_unit.contrast_across`, its words `across_text`, and the table `_control`.
@@ -192,6 +260,31 @@ small, nothing is balanced and only the test as provided is given.
 - **The simulations are one design.** They have one well per condition and
   repeat and normal cell noise.
 
+## Within each repeat
+
+When `control` names a condition and the FOV table holds other conditions,
+the report also answers question 9, "Do the conditions differ, and how
+confidently?": each condition against the control, per repeat, with Cohen's
+d and the JCS effect size computed on objects (the numbers of the lab's
+Plot&Stats notebook) and with the field as the unit, and a randomization test
+that shuffles condition labels over whole units when each side has at least
+two. The unit is the FOV table's `technical_repeat` column, whatever
+`group_cols` says; without it, a group column beyond condition and repeat
+(a `well` column in `group_cols`) when some condition of a repeat holds more
+than one of its values. Over wells the p-value is coarser: with 2 wells a
+side it cannot go below 1/3. A side with a single unit gets no test, since
+its fields cannot stand in for wells, and its effect sizes are still
+reported. **Without a unit there is no p-value**, unless
+`Setup(fields_independent=True)` declares the fields independent draws;
+whole fields are then shuffled and the section says the p-value treats them
+so. A d computed from three or fewer unit means is marked unstable. The
+whole-field draws of the JCS effect size take whole technical repeats with
+replacement when both sides have them; otherwise they resample these fields
+only, and their "same sign in X% of draws" is not a confidence in the effect.
+Every test compares means, and the section says that a difference confined
+to a subpopulation is not tested. It describes what these fields support;
+generalizing needs independent repeats.
+
 ## Many features
 
 With several declared features, `feature_discovery` asks which of them separate
@@ -214,6 +307,39 @@ large, consistent effects. The PCA and UMAP (`embedding_plots`) describe how the
 conditions sit over all features at once and test nothing; on raw values a
 separation can be a batch between repeats.
 
+The table gives each feature's best contrast, both q-values and its direction in each
+repeat; a passing feature that goes up in some repeats and down in others is flagged.
+
+When there are wells to shuffle, the section also ranks the features within
+each repeat (`sampling_unit.feature_ranking`), as fiberfeatures scores a
+feature set: the same test for every feature and contrast, Benjamini-Hochberg
+corrected together, a gate at q <= 0.05, and the passing features ordered by
+the largest |d| on field means. The ranking says which features are worth
+plotting. With few technical repeats a side the p-values have a floor, and
+after the correction a lone contrast at the floor cannot pass: the section
+gives the smallest q the tests can reach and how many must reach the floor
+for one to pass.
+
+## Beyond the mean, and a labelled share
+
+The report compares a rare label's share between the
+conditions like a feature (`"<label> share"`: the ranking, the heatmap, the
+figures, which plot one point per field, its share of labelled cells, while the
+tests keep the cells), and, with a fingerprint, each feature's distribution beyond the
+mean: per biological repeat against its own control, the spread (the SD
+ratio) and the 10%, 50% and 90% quantiles (their shift in control SDs), each
+tested across the repeats (Benjamini-Hochberg within each sub-experiment,
+a family of its own). A condition whose distribution differs answers the
+question like a feature significant across repeats. When a condition's cells
+may split into two groups on a feature where the control's do not (Sarle's
+bimodality coefficient above 5/9 for the condition without a heavy tail, excess
+kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
+below 5/9 for the control, in at least half of its repeats that can be assessed),
+the summary says so and points to its figure: described, not tested. A repeat
+whose coefficient is undefined, with fewer than 4 cells on a side or no spread,
+leaves the denominator and is named ("1 repeat not assessed: 3 cells"), and a
+condition with no repeat assessed is said not assessed (owner, 2026-10-05).
+
 ## Reading them together
 
 With three or more repeats, the paired t answers whether the effect repeats,
@@ -229,3 +355,58 @@ positive), with the spread of those values between the repeats and their samplin
 within one (a bootstrap of the fields as acquired, which also gives each repeat's
 interval of d). The table gives the change it plans on (the geometric mean of the repeats' fold changes) beside
 the mean d.
+
+The plan is made at the design the user ran (a dataset is one experiment, pooled as
+provided; a pilot of 1 or 2 repeats included): per condition, the fields a side each repeat
+needs to resolve the difference (projected from its interval: fewer than acquired where it
+is resolved), led by the repeats a paired test needs for 80% power at 0.05/m, m the
+conditions of the sub-experiment (what Benjamini-Hochberg asks at most), with the fields per
+repeat as now and twice as many (`sampling_unit.repeat_plan`). No verdict on what limits it
+is printed (owner, 2026-10-02): from 3 repeats it contradicted the readings, and telling the
+variation between repeats from the sampling within them is P10's question, which needs 5 or
+more units.
+
+With a `target` column, the report also says whether the independent reagents of one
+target (two siRNAs of one gene) are on the same side of the control in every repeat
+(`contrast_repeats.reagent_agreement`; described, not tested).
+
+## On the page
+
+"Do the conditions differ?" opens with the features significant across repeats,
+condition by condition, each with its direction, how many repeats agree, its q and
+its d. With fewer than 3 biological repeats nothing can be called significant
+(the paired test needs 3), and it says so: with 2 it gives the candidates of the
+exploratory cell-level screen that go the same way in both repeats, with 1 every
+candidate, said as exploratory. Then a heatmap of Cohen's d of every feature and
+condition against the control (● passes the exploratory cell-level screen, ✓ also
+significant across repeats; hover a cell for its adjusted p-values), with the features
+no condition makes a candidate named under it, then the best-ranked features (the
+readout only when it ranks, or alone when none does), each with its text **for a
+figure legend** folded under it: n biological repeats, wells per condition, cells a well,
+what the points and bars show, the test and its correction family, and per condition
+the change, the mean per-repeat d, the adjusted p and p, every number the one the
+Across repeats tab gives for that feature and condition. Then the tests behind the
+reading. These open with **the tests, in short**: the paired t-test on the biological
+repeat means (it decides), the cell-level screen (exploratory: it treats every cell as
+independent), and, when they are on the page, beyond the mean and the reagents; what
+Cohen's d is in each table (per repeat or on the cells); and what p and the adjusted p
+are, with the family they allow for (the features and conditions, in each
+sub-experiment). Then one table per test as tabs, each with p and the adjusted p
+(Benjamini-Hochberg, the q-value) in their own columns and its data as CSV: across
+repeats, every feature and condition with its direction in the repeats, its change
+against the control (the condition's mean over the control's, a fold change; the
+difference of the means where a mean is not positive, so a significant change can be
+read for its size), the mean and range of the per-repeat d and its verdict (raw values
+folded); the summary names the same change beside each significant feature; the
+cell-level screen in the version the report trusts, with the balance of the repeats and
+how often it gives p ≤ 0.05 with no effect for the readout (its other versions folded,
+never one whose control comes from repeats the condition was not imaged in); beyond the
+mean; reagents. The card's "Show more" holds the section's assumptions only. The
+readings condition by condition, the feature ranking, the tables within single repeats
+and the plan for the next experiment are in the text report (`report_full.txt`), not on
+this card (owner, 2026-10-02). The page calls the q-value the adjusted p throughout.
+
+With several features, every test of "Do the conditions differ?" is corrected over
+every feature and condition of a sub-experiment: the readout's paired t-test and its
+cell-level screen take the feature discovery's p and q (`workflows._families`), so the
+readout reads the same in its own table, the summary and the heatmap.
