@@ -18,7 +18,7 @@ from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.separation import separation
 from morphocoverage.transforms import Chain, ColumnWeights, RobustStandardize
-from morphocoverage.workflows import Setup, html_report, report
+from morphocoverage.workflows import Setup, html_report, report, scan_design
 from morphocoverage.workflows._feature_space import attached, novelty_space, space
 from morphocoverage.workflows.setup import default_novelty
 
@@ -351,3 +351,19 @@ def test_the_page_draws_a_map_per_table_the_combined_one_first(combined_report, 
     assert (tmp_path / "figures" / "pca_raw_sep.png").exists()
     with pytest.raises(ValueError, match="pass the tables themselves"):
         html_report(combined_report, objects, fovs, tmp_path)
+
+
+def test_the_scan_lists_the_tables_before_loaded_correctly_and_names_them_in_the_setup():
+    objects, fovs, sep, _ = _experiment()
+    scan = scan_design(objects, fovs, feature_cols=["f1", "f2", "f3"], feature_tables={"sep": sep})
+    text = scan.summary()
+    assert text.index("Other feature table sep: 6 feature columns") < text.index(
+        "Loaded correctly?"
+    )
+    assert set(scan.integrity.settings["feature_cols"]) >= {"s0", "s5"}
+    setup = scan.setup("f1", control={"condition": "ctrl"})
+    assert setup.feature_tables == {"sep": tuple(f"s{j}" for j in range(6))}
+    refused = scan_design(objects, fovs, feature_tables={"sep": sep.iloc[3:]})
+    (finding,) = [f for f in refused.findings if f.about == "feature_tables"]
+    assert finding.status.marker == "❌" and "'sep' lacks a row for 3 observations" in finding.text
+    assert "s0" not in refused.objects and refused.settings["feature_tables"] is None

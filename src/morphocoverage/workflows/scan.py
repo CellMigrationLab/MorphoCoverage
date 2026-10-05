@@ -41,6 +41,7 @@ import pandas as pd
 from .._former_repeat import one_warning, read_former, renamed_tables
 from .._style import Status, check_detail
 from ..data_check import DataCheck, check_tables
+from ..feature_tables import FeatureTables, attach_feature_tables
 from ..integrity import IntegrityResult, integrity_checks
 from ..metadata import (
     CONDITION_COLUMN,
@@ -200,6 +201,7 @@ class DesignScan:
             "fov_col": settings["fov_col"],
             "group_cols": tuple(settings["group_cols"]),
             "observation_unit": settings["observation_unit"],
+            "feature_tables": settings.get("feature_tables"),
         }
         values.update(fields)
         return Setup(readout=readout, **values)
@@ -424,6 +426,34 @@ def _constant(objects: pd.DataFrame, features: Sequence[str]) -> list[str]:
     return found
 
 
+def _with_tables(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    tables: Mapping[str, pd.DataFrame] | None,
+    fov_col: str,
+    added: bool,
+) -> tuple[pd.DataFrame, FeatureTables | None, list[Finding]]:
+    """``objects`` with the other feature tables attached, what was checked, and the finding
+    that says why they cannot be used (then ``objects`` as given)."""
+    if not tables:
+        return objects, None, []
+    reason = None
+    if added:
+        reason = (
+            "the other feature tables are matched to observations by their image, and the "
+            "observation table names none"
+        )
+    else:
+        try:
+            attached = attach_feature_tables(objects, fovs, tables, fov_col=fov_col)
+        except (ValueError, TypeError) as error:
+            reason = str(error)
+        else:
+            return attached.objects, attached, []
+    text = f"{reason[:1].upper()}{reason[1:]}."
+    return objects, None, [Finding(Status.PROBLEM, "feature_tables", text)]
+
+
 def _quiet(function: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """``function`` with its ``UserWarning`` s caught: the scan reports what they say."""
     with warnings.catch_warnings():
@@ -440,6 +470,7 @@ def scan_design(
     control: Mapping[str, Any] | None = None,
     observation_unit: str | None = None,
     fov_col: str | None = None,
+    feature_tables: Mapping[str, pd.DataFrame] | None = None,
 ) -> DesignScan:
     """Scan the design of ``objects`` (and ``fovs``, when there is a FOV table) before any
     analysis (see the module).
@@ -448,8 +479,11 @@ def scan_design(
     not metadata are read as candidate features (for the copy checks only, and said so);
     without an image identifier (``position_id``, ``image_file``, ``fov_id`` or ``fov_col``)
     each row is assumed to be its own image; without ``control`` a condition named like a
-    control is suggested, never used. Never raises for bad data: what is wrong is in the
-    findings.
+    control is suggested, never used. ``feature_tables`` are other feature tables for the same
+    observations, by name (a DINO embedding, owner 2026-10-05): checked and attached
+    (``attach_feature_tables``), they are listed with the design, read by the copy checks,
+    and named in ``DesignScan.setup``; one that cannot be used is a finding. Never raises
+    for bad data: what is wrong is in the findings.
     """
     from ._scan_rules import findings, questions, suggestions
 
@@ -480,6 +514,8 @@ def scan_design(
     features_declared = feature_cols is not None
     taken = {*fov_key, *groups}
     features = list(feature_cols) if features_declared else _feature_candidates(objects, taken)
+    objects, tables, refused = _with_tables(objects, fovs, feature_tables, found_fov, added_fov)
+    others = [c for columns in (tables.columns if tables else {}).values() for c in columns]
     data_check = _quiet(
         check_tables,
         objects,
@@ -495,7 +531,7 @@ def scan_design(
             integrity_checks,
             objects,
             fovs,
-            feature_cols=features,
+            feature_cols=[*features, *others],
             fov_col=found_fov,
             observation_unit=observation_unit,
         )
@@ -519,7 +555,9 @@ def scan_design(
         "observation_unit": observation_unit,
         "control": dict(control) if control else None,
         "control_declared": control_declared,
+        "feature_tables": tables.columns if tables else None,
     }
+    design["feature_tables"] = tables.lines() if tables else []
     scan = DesignScan(
         design=design,
         layout=layout,
@@ -535,7 +573,7 @@ def scan_design(
     return DesignScan(
         design=design,
         layout=layout,
-        findings=tuple(findings(scan)),
+        findings=(*findings(scan), *refused),
         suggestions=tuple(suggestions(scan)),
         questions=tuple(questions(scan)),
         data_check=data_check,

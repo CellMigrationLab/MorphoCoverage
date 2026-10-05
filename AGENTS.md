@@ -363,6 +363,7 @@ src/morphocoverage/
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
         _guided_controls.py  # private: its control gate: one control, or several with their conditions, parents and master
+        _guided_tables.py  # private: its other feature tables: asked for at load with a path and a name, checked, saved with their checksums
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal
         _declaration.py    # private: the Setup's declaration in sentences, every preset printed
         retrospective.py   # report, optimise, document: the analyses in question order
