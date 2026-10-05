@@ -317,6 +317,7 @@ src/morphocoverage/
         across_text.py     # its words: "Compared across experiments", the two tables
         repeats_text.py    # its words: the across-repeat table and its notes
         contrast_cells.py  # the Plot&Stats cell-level test, raw and normalised, its balance check and balanced version
+        _balanced.py       # private: the balanced test's arithmetic, every labelling at once by matrix products, from the same random keys
         cells_text.py      # its words: the balance line, the tables, the false-positive chance, the notes
         reading_text.py    # one verdict per condition, read from every test (confirmed, same direction, mixed, one repeat)
         reagents_text.py   # whether independent reagents for one target agree (with a `target` column)
@@ -328,6 +329,7 @@ src/morphocoverage/
         _reach.py          # private: run a test only when the design lets its smallest p reach 0.05 after Bonferroni
         ranking.py         # which features separate the conditions: BH-gated |d| ranking over whole technical repeats
         discovery.py       # the same question by the cell-level gate (BH), the paired t on repeat means beside it
+        _discovery_tests.py  # private: its tests per feature and condition, the features in worker processes (n_jobs)
         distribution.py    # beyond the mean: spread and 10/50/90% quantiles per repeat, tested across repeats
         populations.py     # question 10: groups of every cell pooled (HDBSCAN on a UMAP, kept when their neighbours on all features are inside)
         _population_rule.py  # private: the simplest feature rule that picks out a group (a depth-2 balanced tree, fitted on all cells), its procedure checked on held-out fields

@@ -46,24 +46,22 @@ from .._caveats import assumption, caveat_lines
 from .._checks import is_number
 from .._control import check_comparisons, compared_name, control_text
 from .._former_repeat import one_warning, read_former
+from .._parallel import check_n_jobs
 from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
 from .._wording import change, column_word, count, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
-from ..statistics import cohen_d, paired_t, repeat_values
 from ._common import groups, validated
+from ._discovery_tests import tested_rows
 from ._experiments import corrected, experiments, not_compared
 from ._units import (
     check_arguments,
     contrasts_of,
-    control_label,
     describe_groups,
     resolve_columns,
-    side_units,
-    sides,
 )
-from .contrast_cells import BALANCED_PERMUTATIONS, refined, trusted_test
+from .contrast_cells import BALANCED_PERMUTATIONS, refined
 from .contrast_repeats import MIN_REPEATS
 
 EFFECT_CAP = 20.0
@@ -71,11 +69,8 @@ GATE_ALPHA = 0.05
 TOP_FEATURES = 5
 MAX_ROWS_LISTED = 24
 N_PERMUTATIONS = 9999
-# Why a condition was not tested, beyond one value everywhere: as provided its control would
-# pool other repeats and no balanced test could be formed (contrast_cells.trusted_test), or
-# there is no Cohen's d (each side holds one value of its own); UNTESTED for mixed reasons.
-POOLED_CONTROL = "its control would include repeats the condition was not imaged in"
-NO_SPREAD = "no spread within the condition and the control"
+# Why no condition of a feature was tested when their reasons differ (each condition's
+# reason is its status, _discovery_tests).
 UNTESTED = "no condition could be tested"
 TEST_COLUMNS = [
     "feature",
@@ -108,119 +103,6 @@ TEST_COLUMNS = [
     "repeat_observations_min",
     "repeat_observations_max",
 ]
-
-
-def _pooled(
-    all_groups: list, described: list, contrasts: list, feature: str, technical_col: str | None
-) -> dict[Any, dict[str, Any]]:
-    """Per condition (or comparison), its observations and its own control's per repeat, and
-    every observation of that control (a comparison's reference) per repeat, as
-    ``condition_contrast`` pools them."""
-    pooled: dict[Any, dict[str, Any]] = {}
-    every: dict[Any, dict[Any, np.ndarray]] = {}
-    pairs = getattr(described, "comparisons", None) or {}
-    for repeat, condition in contrasts:
-        treated, controls = sides(described, repeat, condition)
-        if not controls:
-            continue
-        t_units, _ = side_units(all_groups, feature, treated, technical_col)
-        c_units, _ = side_units(all_groups, feature, controls, technical_col)
-        t_values = np.concatenate([f for u in t_units for f in u])
-        c_values = np.concatenate([f for u in c_units for f in u])
-        if not len(t_values) or not len(c_values):
-            continue
-        reference = pairs[condition][1] if pairs else None
-        every.setdefault(reference, {}).setdefault(repeat, c_values)
-        side = pooled.setdefault(
-            condition,
-            {
-                "by_t": {},
-                "by_c": {},
-                "control_condition": control_label(described, controls),
-                "reference": reference,
-            },
-        )
-        side["by_t"][repeat] = t_values
-        side["by_c"][repeat] = c_values
-    for side in pooled.values():
-        side["every"] = every[side["reference"]]
-    return pooled
-
-
-def _paired(by_t: dict, by_c: dict) -> tuple[float, str, int, int, float, float]:
-    """The paired t-test on the repeat means (``statistics.repeat_values``: log ratios when
-    every mean is positive), how many repeats are lower and higher than the control, the
-    test on the raw differences (as ``condition_contrast`` gives it beside, so the readout's
-    reading shares this family) and the change it tests (a fold change, else the mean
-    difference)."""
-    means = np.array([np.mean(by_t[r]) for r in by_t])
-    controls = np.array([np.mean(by_c[r]) for r in by_t])
-    lower, higher = int((means < controls).sum()), int((means > controls).sum())
-    values, compared, change = repeat_values(means, controls)
-    if len(means) < MIN_REPEATS:
-        return np.nan, values, lower, higher, np.nan, change
-    return paired_t(compared), values, lower, higher, paired_t(means - controls), change
-
-
-def _per_repeat(by_t: dict, by_c: dict) -> dict[str, float]:
-    """Cohen's d of the observations in each repeat (``condition_contrast``'s ``d_objects``),
-    its mean and range, and the fewest and most observations on a side in one repeat, for
-    the page's table across repeats and each figure's legend."""
-    d = np.array([cohen_d(by_t[r], by_c[r]) for r in by_t], dtype=float)
-    d = d[np.isfinite(d)]
-    sizes = [len(by_t[r]) for r in by_t] + [len(by_c[r]) for r in by_t]
-    return {
-        "d_repeat_mean": float(d.mean()) if len(d) else np.nan,
-        "d_repeat_min": float(d.min()) if len(d) else np.nan,
-        "d_repeat_max": float(d.max()) if len(d) else np.nan,
-        "repeat_observations_min": min(sizes),
-        "repeat_observations_max": max(sizes),
-    }
-
-
-def _row(
-    feature: str,
-    condition: Any,
-    side: dict[str, Any],
-    n_permutations: int,
-    rng: np.random.Generator,
-    alpha: float = GATE_ALPHA,
-) -> tuple[dict[str, Any], Any]:
-    """One test's row, and what ``contrast_cells.refined`` reruns when its p is at most
-    ``alpha`` (empty otherwise, so only those samples are kept)."""
-    by_t, by_c = side["by_t"], side["by_c"]
-    p_paired, paired_values, lower, higher, p_raw, change = _paired(by_t, by_c)
-    row: dict[str, Any] = {
-        "feature": feature,
-        "condition": condition,
-        "control_condition": side["control_condition"],
-        "repeats": len(by_t),
-        "lower": lower,
-        "higher": higher,
-        "p_paired": p_paired,
-        "paired_values": paired_values,
-        "change": change,
-        "p_paired_raw": p_raw,
-        "status": "ok",
-        **_per_repeat(by_t, by_c),
-    }
-    values = np.concatenate([*by_t.values(), *side["every"].values()])
-    if np.ptp(values) == 0:
-        return {**row, "d": np.nan, "p_cells": np.nan, "status": "one value everywhere"}, []
-    test = trusted_test(by_t, by_c, side["every"], n_permutations, rng)
-    retest = test["retest"] if test["p"] <= alpha else []
-    if not np.isfinite(test["p"]):
-        row["status"] = POOLED_CONTROL if len(side["every"]) > len(by_c) else NO_SPREAD
-    return {
-        **row,
-        "observations": test["observations"],
-        "control_observations": test["control_observations"],
-        "d": test["d"],
-        "p_cells": test["p"],
-        "normalised": test["normalised"],
-        "balanced": test["balanced"],
-        "permutations": test["permutations"] if np.isfinite(test["p"]) else np.nan,
-    }, retest
 
 
 def _rank(tests: pd.DataFrame, features: list[str]) -> pd.DataFrame:
@@ -509,9 +391,11 @@ def feature_discovery(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     comparisons: Sequence[tuple[Any, Any]] | None = None,
+    n_jobs: int = 1,
 ) -> FeatureDiscovery:
     """Rank ``features`` by the cell-level gate, with the paired test beside it (see the
-    module). Arguments follow ``condition_contrast``."""
+    module). Arguments follow ``condition_contrast``; ``n_jobs`` worker processes test the
+    features, with the same results for every value (``_parallel``)."""
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     features = list(dict.fromkeys(features))
     if not features:
@@ -543,18 +427,13 @@ def feature_discovery(
         "observation_unit_declared": data.observation_unit_declared,
     }
     contrasts = contrasts_of(described)
-    rows = []
-    retests: dict[int, Any] = {}  # what refined may rerun, by row
-    held: dict[Any, set] = {}  # the repeats each condition is compared in
-    for feature in features:
-        pooled = _pooled(all_groups, described, contrasts, feature, technical_col)
-        for condition, side in pooled.items():
-            held.setdefault(condition, set()).update(side["by_t"])
-            rng = group_rng(random_state, {"feature": feature, "condition": condition})
-            row, retest = _row(feature, condition, side, n_permutations, rng, alpha)
-            if retest:
-                retests[len(rows)] = retest
-            rows.append(row)
+    workers = check_n_jobs(n_jobs)
+    rows, retests, held = tested_rows(
+        (all_groups, described, contrasts, technical_col),
+        features,
+        (n_permutations, random_state, alpha),
+        workers,
+    )
     # The conditions no biological repeat holds beside the control: never compared, said.
     settings["unpaired"] = [
         c for c in dict.fromkeys(condition for _, condition in contrasts) if c not in held
@@ -579,6 +458,7 @@ def feature_discovery(
             },
         ),
         alpha,
+        n_jobs=workers,
     )
     # Corrected over every feature and condition of a sub-experiment (_experiments).
     tests["q_cells"] = corrected(tests["p_cells"], tests["experiment"])

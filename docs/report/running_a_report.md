@@ -217,11 +217,12 @@ archiving, without the figures an earlier session left in `figures/` (`since=`).
 ## Run time on real data
 
 These times come from idr0028 screen B: 12 wells, 28 fields each, 30
-features, 4 workers. They are approximate and predate audit 4.
+features, 4 workers. They are approximate; those of `optimise` and `benchmark`
+predate audit 4.
 
 | Workflow | Settings | Time |
 | --- | --- | --- |
-| `report` | defaults | about 45 s |
+| `report` | the example notebook's | about 2 min, 3.5 min on one process (2026-10-05) |
 | `optimise` | `fov_counts=[2, 4, 8, 12]` | about 20 s |
 | `benchmark` | `n_boot=200` | about 85 s |
 
@@ -239,9 +240,10 @@ explainable features and a DINO table of 384), the report and its page took 76 s
 processes, against 65 s without the DINO table.
 
 `Setup.n_jobs` reaches every workflow, the report's replay of the stopping
-rules included (`sufficiency_report(..., n_jobs=)`, since audit 4); results
-are the same for every value. With a novelty definition the report's time
-grows faster than the number of objects, since the leave-one-field-out
+rules included (`sufficiency_report(..., n_jobs=)`, since audit 4), and the
+cell-level tests of the feature discovery (`feature_discovery(..., n_jobs=)`,
+2026-10-05); results are the same for every value. With a novelty definition
+the report's time grows faster than the number of objects, since the leave-one-field-out
 novelty compares every object with the other fields' objects. In audit 4 (336
 fields, 12 groups, 5 features, one process) it took about 90 s of CPU at
 30,000 objects, 7 min at 100,000 and 86 min at 300,000, and did not finish in
