@@ -168,9 +168,15 @@ declaration in short lines) and the declaration in full are under "Show more".
 checks name, then those that sway the result, have an unusual count or show a
 state no other field shows. A field sways the result when leaving it out moves its
 condition's mean in its repeat, every cell weighing one as in the paired t-test, by
-10% or more; the reason gives the condition's change against the control and the
-paired t-test's p with the field and without it (a control field: the condition it
-moves most). Without a control, it is the field-weighted mean of its group.
+10% or more, and that change stands out from the other fields' of its group: more than
+3 robust SDs (1.4826 times the median absolute deviation) from the group's median
+leave-one-out change. With 3-5 fields a group, leaving almost any field out moves the
+mean by 10%, so the 10% alone listed noise; a group of fewer than 4 fields is not judged,
+and the groups are named once (owner, 2026-10-05). The reason gives the condition's
+change against the control and the paired t-test's p with the field and without it (a
+control field: the condition it moves most), on the values the test compares (raw with
+several controls). Without a control, it is the field-weighted mean of its group, by the
+same rule.
 
 "Do the conditions differ?" opens with the features significant across repeats,
 condition by condition, each with its direction, how many repeats agree, its q and
@@ -476,6 +482,16 @@ control is left out there, and the report names it once. Levels across experimen
 on the raw values. The tests read the raw values and each normalises to its own control.
 Unusual observations and the population enrichment take each condition's own control as the
 reference; the object rules, clustering and a positive control take every control pooled.
+
+**Controls apart in intensity** (owner, 2026-10-05). Raw comparisons across experiments, and
+maps on raw values, assume the experiments were imaged and processed alike. So the controls
+are compared with each other on every declared column whose name contains "intensity" (any
+case) and on those listed in `Setup(intensity_features=...)`: when two controls' medians, over
+all their observations, differ 2-fold or more (`_acquisition_gap.GAP_FOLD`), the report says
+so with one ⚠️ caution among the checks of the values ("Controls apart in intensity: VEC_SiNC
+and VEC differ 13-fold in median Intensity (mean); ...") and in "Do the conditions differ?",
+and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
+its table. With one control nothing is compared.
 
 ### Normalising to the control
 

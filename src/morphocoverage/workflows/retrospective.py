@@ -74,6 +74,7 @@ from ..sampling_unit import (
 )
 from ..schema import resolve_observation_unit
 from ..sufficiency import sufficiency_report
+from ._acquisition_gap import with_gap_caution, with_gaps
 from ._distribution import distribution_by_feature
 from ._document import (
     assemble,
@@ -276,6 +277,7 @@ def report(
     # normalises to its own reference); the populations read the figures' values.
     compared = setup.compared_values(objects, fovs)
     results.update(conditions(compared, fovs, setup, reasons))
+    gaps = with_gaps(results, objects, fovs, setup)  # several controls apart in intensity
     if "contrast" in results:
         # Question 2 for every feature alike: the report is neutral (owner, 2026-10-01).
         results["enough_features"] = enough_by_feature(
@@ -319,7 +321,8 @@ def report(
     # or crowded fields and stage neighbours on the readout.
     novel = novelty is not None and bool(setup.features)
     # With a contrast, a field's influence is on the result (the repeat means the paired
-    # test compares, _result_influence); without one, on the field-weighted mean.
+    # test compares, on the values it compares, _result_influence); without one, on the
+    # field-weighted mean.
     on_result = influence_on_result(results.get("contrast"))
     results["inspection"] = inspect_fovs(
         objects,
@@ -334,14 +337,14 @@ def report(
     )
     if on_result:
         results["inspection"] = with_result_influence(
-            results["inspection"], prepared, fovs, results["contrast"], setup
+            results["inspection"], compared, fovs, results["contrast"], setup
         )
     settings = {
         "recorded_order": setup.acquisition_order_col is not None,
         "permuted_orders": REPORT_ORDERS,
         "random_state": setup.random_state,
     }
-    document = with_reasons(assemble(results, setup), reasons)
+    document = with_gap_caution(with_reasons(assemble(results, setup), reasons), gaps)
     unlabelled = unlabelled_note(objects, setup)
     if unlabelled:
         # Said once, where the label is used: the notes every answer is read with.
