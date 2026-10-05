@@ -37,14 +37,18 @@ MIN_FEATURES = 3
 MAX_POINTS = 5000
 N_NEIGHBORS = 15
 MIN_DIST = 0.1
+# The MorphoBricks column naming an object within its image (CellPatcher's patches).
+LABEL_COLUMN = "label_id"
 
 
 @dataclass(frozen=True)
 class Embedding:
     """``points``: one row per observation kept (its condition and biological repeat when
-    the tables have them, its ``field``, ``pc1``, ``pc2``, ``umap1``, ``umap2``; UMAP NaN for
-    observations outside its sample); ``loadings``: one row per feature (``pc1``, ``pc2``, ``top``);
-    ``explained``: the share of the variance on each PCA axis; ``settings``."""
+    the tables have them, its ``field``, its ``observation``, which is its index in the
+    observation table, its ``label_id`` when the table has one, ``pc1``, ``pc2``, ``umap1``
+    and ``umap2``; UMAP NaN for observations outside its sample); ``loadings``: one row per
+    feature (``pc1``, ``pc2``, ``top``); ``explained``: the share of the variance on each PCA
+    axis; ``settings``."""
 
     points: pd.DataFrame
     loadings: pd.DataFrame
@@ -144,6 +148,10 @@ def embed(
     if data.fov_col in meta and data.fov_col not in columns:
         built["field"] = meta[data.fov_col].to_numpy()
     kept_rows = data.objects.loc[complete]
+    # Where each point came from, to find the observation again (#74).
+    built["observation"] = kept_rows.index.to_numpy()
+    if LABEL_COLUMN in kept_rows:
+        built[LABEL_COLUMN] = kept_rows[LABEL_COLUMN].to_numpy()
     for column in carry:
         if column in kept_rows:
             built[column] = kept_rows[column].to_numpy()

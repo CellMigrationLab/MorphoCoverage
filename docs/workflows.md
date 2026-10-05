@@ -240,7 +240,8 @@ feature figure `<feature>_data.csv` (every observation, raw and normalised, with
 its condition, repeats and field), `<feature>_repeats.csv` (each biological
 repeat's median and interval) and `<feature>_pairs.csv` (every pair of
 conditions); for the maps `embedding_<values>.csv` (the PCA and UMAP coordinates
-of every point, with its condition, repeat, field, population and standardised
+of every point, with its condition, repeat, field, `observation` (its index in the
+observation table), `label_id` when the table has one, population and standardised
 features) and `pca_loadings_<values>.csv`; for the heatmap `heatmap_d.csv`.
 
 The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
@@ -266,7 +267,8 @@ different repeats is marked †, since the batch is in its difference
 (`plots_pairwise`). The words are a legend under the panels, "(A)", "(B)", "(C)",
 as in a paper. The static figure (PNG and PDF, for papers) is folded
 under each, with the same matrix under the plot. On the PCA and UMAP, hover a
-point for its condition, repeat and field, click a condition in the legend to
+point for its condition, repeat and field, and its observation and `label_id` to
+find it again in the table and the image, click a condition in the legend to
 hide it, switch between PCA and UMAP and between raw values and values
 normalised to each repeat's control, and draw around points (the lasso is on) to
 see which conditions they come from: their number, their share of the selection,

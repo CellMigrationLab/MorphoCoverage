@@ -348,7 +348,14 @@ PLOTLY_SCRIPT = r"""
       var set = current();
       return { x: index.map(function (i) { return set.x[i]; }),
         y: index.map(function (i) { return set.y[i]; }),
-        text: index.map(function (i) { return escape(set.labels[i]); }), customdata: index };
+        text: index.map(function (i) { return escape(set.labels[i]) + where(set, i); }),
+        customdata: index };
+    }
+    // The point's line naming its row in the observation table, and its label_id (#74).
+    function where(set, i) {
+      if (!set.obs) return '';
+      var lid = set.lid && set.lid[i] !== null ? ' · label_id ' + set.lid[i] : '';
+      return '<br>observation ' + escape(String(set.obs[i])) + escape(lid);
     }
     function scatter(name, index, marker, extra) {
       return Object.assign({ type: 'scatter', mode: 'markers', name: name, marker: marker,

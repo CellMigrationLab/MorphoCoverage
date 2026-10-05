@@ -120,6 +120,11 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     assert {"condition", "biological_repeat", "field", "area"} <= set(drawn.columns)
     points = pd.read_csv(figures / "embedding_raw.csv")
     assert len(points) == len(objects) and {"PC1", "PC2", "condition"} <= set(points.columns)
+    # Each point names its row in the observation table and its label_id (#74).
+    assert sorted(points["observation"]) == list(objects.index)
+    assert (objects.loc[points["observation"], "label_id"].to_numpy() == points["label_id"]).all()
+    assert sorted(pca["obs"]) == list(objects.index) and len(pca["lid"]) == len(objects)
+    assert pca["lid"][0] == objects.loc[pca["obs"][0], "label_id"] and "' · label_id '" in page
     assert set(pd.read_csv(figures / "heatmap_d.csv")["feature"]) <= set(setup.columns)
     # Terms in the answers open their meaning, and link to their entry.
     assert 'class="term"' in page and 'id="g-mean-precision-rule"' in page

@@ -5,7 +5,8 @@
   observation and kind of values, raw or normalised), each biological repeat's summary and
   interval (the figure's ``cluster_summaries``) and every pair of conditions (``pairwise``).
 - ``embedding_data``: the PCA and UMAP coordinates of every point, with its condition,
-  repeat, field, population and standardised features, and the PCA loadings.
+  repeat, field, observation (its index in the observation table), ``label_id`` when the
+  table has one, population and standardised features, and the PCA loadings.
 - ``heatmap_data``: Cohen's d and the q-values of every feature and condition.
 
 Each is written in ``folder`` (the report's ``figures``) by ``write_csv``, so the page
