@@ -62,6 +62,7 @@ from ._html_cards import (
 )
 from ._html_data import (
     LINKED,
+    across_data,
     data_buttons,
     files_card,
     heatmap_data,
@@ -290,7 +291,9 @@ def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -
         )
     across = across_parts(contrast, indent=0) if contrast is not None else []
     if across:  # several controls: the secondary rows, the contrast table (owner, 2026-10-05)
+        buttons = data_buttons(across_data(contrast, folder))
         extra += "<h3>Compared across experiments</h3>" + _html("\n".join(across))
+        extra += f'<p class="tools">{buttons}</p>' if buttons else ""
     if feature_blocks:
         ranked = result.discovery is not None and len(result.discovery.top())
         extra += (

@@ -495,11 +495,13 @@ def conditions(
         # The headline counts the share apart from the features (report_status_conditions).
         results["discovery"].settings["share"] = share_column(setup)
         # One correction family on the page: the readout's tests take the discovery's.
-        from ._families import shared_family
+        from ._families import shared_across, shared_family
 
         results["contrast"] = shared_family(
             results["contrast"], results["discovery"], setup.readout
         )
+        # The secondary rows for every feature, each family over all of them.
+        results["contrast"] = shared_across(results["contrast"], shared, fovs, compared, setup)
         results["ranking"] = feature_ranking(
             shared,
             fovs,

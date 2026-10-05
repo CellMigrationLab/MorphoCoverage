@@ -8,6 +8,7 @@
   repeat, field, observation (its index in the observation table), ``label_id`` when the
   table has one, population and standardised features, and the PCA loadings.
 - ``heatmap_data``: Cohen's d and the q-values of every feature and condition.
+- ``across_data``: with several controls, the secondary rows of every feature.
 
 Each is written in ``folder`` (the report's ``figures``) by ``write_csv``, so the page
 carries it (``page_files``, up to ``EMBED_BUDGET``; past it the page links to it) and the
@@ -27,6 +28,7 @@ from typing import Any
 
 import pandas as pd
 
+from ..sampling_unit.across_text import ACROSS_CSV
 from ._html_plotly import _observations
 
 # The columns of a feature's observations, named as the MorphoBricks tables name them.
@@ -262,8 +264,42 @@ def heatmap_data(discovery: Any, folder: Path) -> list[tuple[str, str]]:
     return [(write_csv(frame, folder, "heatmap_d.csv"), "Data (CSV)")]
 
 
+def across_data(contrast: Any, folder: Path) -> list[tuple[str, str]]:
+    """The secondary rows of every feature (``ACROSS_CSV``, owner 2026-10-05): kind, label,
+    feature, the biological repeats each used (named), the change (a fold change, or the
+    difference where a mean is not positive), p and q; empty without them."""
+    every = getattr(contrast, "settings", {}).get("across_features")
+    if every is None:
+        across = getattr(contrast, "across", None)
+        if across is None or not len(across):
+            return []
+        every = across.assign(feature=contrast.settings["feature"])
+    folded = every["fold_change"].notna()
+    frame = pd.DataFrame(
+        {
+            "kind": every["kind"],
+            "label": every["comparison"],
+            "feature": every["feature"],
+            "biological_repeats": every["held"].map(
+                lambda held: "; ".join(map(str, held)) if isinstance(held, list) else ""
+            ),
+            "repeats": every["repeats"],
+            "values": every["values"],
+            "change": every["fold_change"].where(folded, every["effect"]),
+            "change_is": folded.map({True: "fold change", False: "difference"}),
+            "lower": every["lower"],
+            "higher": every["higher"],
+            "p_paired_t": every["p_paired_t"],
+            "q_paired_t": every["q_paired_t"],
+            "status": every["status"],
+        }
+    )
+    return [(write_csv(frame, folder, ACROSS_CSV), "Data (CSV)")]
+
+
 __all__ = [
     "EMBED_BUDGET",
+    "across_data",
     "data_buttons",
     "download",
     "embedding_data",
