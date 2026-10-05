@@ -211,7 +211,7 @@ def test_p1_6_same_sign_draws_resample_whole_technical_repeats():
         fields_independent=True,
     )
     assert fields_only.effects["resampled"].isna().all()
-    assert "The draws resample these fields and objects, not wells" in " ".join(
+    assert "The draws resample these fields and cells, not wells" in " ".join(
         fields_only.summary().split()
     )
 

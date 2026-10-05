@@ -203,7 +203,7 @@ def test_contrast_summary_without_any_object_count_that_fits():
     # The effect size from every object is still given (audit 3, H-19), with no draws.
     assert result.effects.empty and "from 50 objects" not in result.summary()
     # Across repeats the short form leaves it to the full one's table.
-    assert "over control SD, every object" in result.summary(detail="full")
+    assert "over control SD, every cell" in result.summary(detail="full")
 
 
 def test_h10_df2_plots_give_the_top_places_to_the_best_ranked(monkeypatch):

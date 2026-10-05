@@ -331,7 +331,7 @@ def test_comparisons_too_small_are_counted_over_the_features_they_sum(result):
     table = features.table.assign(too_small=[2, 3] + [0] * (len(features.table) - 2))
     _, text = features_status(FeatureEnough(table, features.contrasts, {}), "group")
     names = list(table["feature"][:2])
-    assert f"{names[0]} and {names[1]}: too small to show in 5 comparisons over 2 features" in text
+    assert f"5 comparisons over {names[0]} and {names[1]} too small to show" in text
     one = features.table.assign(too_small=[2] + [0] * (len(features.table) - 1))
     _, text = features_status(FeatureEnough(one, features.contrasts, {}), "group")
-    assert f"{names[0]}: too small to show in 2 comparisons even" in text
+    assert f"2 comparisons of {names[0]} too small to show even" in text
