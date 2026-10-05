@@ -31,8 +31,9 @@ of a gap of low density told the two apart reliably at the sizes of an experimen
 2026-10-02, after one along the line between the centres and one along a held-out
 discriminant both missed groups a UMAP shows apart). It is for the user to validate on the
 images; each group comes with the simplest rule on the features that picks out its cells
-(``_population_rule``: at most two thresholds, how well it does on held-out cells), to label
-it and study it as a rare phenotype.
+(``_population_rule``: at most two thresholds fitted on every cell, and how well the procedure
+that fits them does refitted with whole fields held out), to label it and study it as a rare
+phenotype.
 
 Each is reported with its share of the observations, the fields and biological repeats it
 is seen in, the features that set it apart from the other observations (Cohen's d), its
@@ -89,6 +90,7 @@ _COLUMNS = [
     "rule_terms",
     "rule_recall",
     "rule_precision",
+    "rule_held_out",
 ]
 
 
@@ -289,7 +291,7 @@ def find_populations(
         pairs = _defining(z, member, kept)
         # The rule on the features in their own units, for a group (the main one is the rest).
         rule = (
-            population_rule(values, member, kept, random_state)
+            population_rule(values, member, kept, random_state, groups=keys)
             if kind == "group"
             else Rule((), np.nan, np.nan)
         )
@@ -311,6 +313,7 @@ def find_populations(
                 "rule_terms": rule.terms,
                 "rule_recall": rule.recall,
                 "rule_precision": rule.precision,
+                "rule_held_out": rule.held_out,
             }
         )
     table = pd.DataFrame(rows, columns=_COLUMNS)

@@ -452,8 +452,12 @@ acquired:
   held-out discriminant, told the two apart reliably at the sizes of an experiment
   (owner, 2026-10-02). Each group comes with the simplest rule on the features that
   picks out its cells (at most two thresholds from a balanced decision tree, in the
-  features' own units), with the share of its cells it finds and the share right of
-  those it picks, on cells it was not fitted on; "What to do next" names the fields
+  features' own units), fitted on all the cells, with the share of its cells it finds
+  and the share right of those it picks when the same procedure is refitted with whole
+  fields held out (5 folds of fields, scikit-learn's `StratifiedGroupKFold`, fewer
+  with fewer fields; cells held out for a group in one field, and the report says so):
+  these describe the procedure, not the exact thresholds shown (owner, 2026-10-05);
+  "What to do next" names the fields
   that hold most of it, to validate on the images, and gives the code that labels
   it with the rule and declares it as the rare phenotype. A cluster holding most
   cells is the main population (`P1`), the rest of the cells. On constructed data

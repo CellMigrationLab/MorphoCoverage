@@ -344,25 +344,35 @@ def _found_words(pops: Populations) -> str:
 
 
 def _rule_cell(row: Any) -> str:
-    """``AR > 3.18 and MinFeret ≤ 17.7 (91%, 97%)`` for the table; ``–`` without a rule."""
+    """``AR > 3.18 and MinFeret ≤ 17.7 (91%, 97%)`` for the table, ``(91%, 97%, cells held
+    out)`` for a group in one field; ``–`` without a rule."""
     if not row.rule:
         return "–"
     if pd.isna(row.rule_recall):
         return row.rule
-    return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)})"
+    cells = ", cells held out" if row.rule_held_out == "cells" else ""
+    return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)}{cells})"
 
 
 def rule_words(row: Any, units: str) -> str:
-    """``picked by AR > 3.18 and MinFeret ≤ 17.7, which finds 91% of its cells, 97% of
-    those it picks being in it, on held-out cells``, or empty without a rule (``units``: the
-    observations' plural word)."""
+    """``picked by AR > 3.18 and MinFeret ≤ 17.7, fitted on all the cells; the procedure,
+    refitted with whole fields held out, finds 91% of the group's cells in them, 97% of those
+    it picks being in it``, or empty without a rule (``units``: the observations' plural
+    word). The numbers describe the procedure, not the thresholds shown (owner, 2026-10-05)."""
     if not row["rule"]:
         return ""
     if pd.isna(row["rule_recall"]):
         return f"picked by {row['rule']}"
+    held = (
+        f"refitted with {units} held out (the group is in one field), finds "
+        f"{percent(row['rule_recall'])} of its {units}"
+        if row.get("rule_held_out") == "cells"
+        else "refitted with whole fields held out, finds "
+        f"{percent(row['rule_recall'])} of the group's {units} in them"
+    )
     return (
-        f"picked by {row['rule']}, which finds {percent(row['rule_recall'])} of its {units}, "
-        f"{percent(row['rule_precision'])} of those it picks being in it, on held-out {units}"
+        f"picked by {row['rule']}, fitted on all the {units}; the procedure, {held}, "
+        f"{percent(row['rule_precision'])} of those it picks being in it"
     )
 
 
@@ -429,7 +439,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         units,
         "defined by",
         "neighbours inside",
-        "rule (held-out: found, right)",
+        "rule (held-out fields: found, right)",
         "fields",
         "repeats",
         heading,
@@ -501,8 +511,10 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             "numbers: no test of a gap told the two apart reliably at these sizes, so open "
             "the images of its fields to validate it. Its rule is the simplest one on the "
             "features (at most two thresholds, a decision tree) that picks out its "
-            f"{units}, with the share of them it finds and the share right of those it picks, "
-            f"on {units} it was not fitted on. Groups that overlap strongly on every feature "
+            f"{units}, fitted on all of them; the share of them it finds and the share right "
+            "of those it picks describe that procedure refitted with whole fields held out "
+            f"({units} held out for a group in one field), not the exact thresholds shown. "
+            "Groups that overlap strongly on every feature "
             "are not told apart. The clusters depend on the declared features and their "
             "standardisation; a group held by few fields may be an artefact of those images.",
             2,

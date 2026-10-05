@@ -63,9 +63,11 @@ def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen)
     # "of every condition pooled" read as a number per condition (ChatGPT, 2026-10-05).
     assert "cells in all, every condition pooled, clustered on the 3 declared features (" in short
     assert "the rest (not tested)" in short and "to validate on the images" in short
-    # Each group comes with the rule that picks out its cells, checked on held-out cells.
+    # Each group comes with the rule that picks out its cells, fitted on all the cells; its
+    # procedure is checked on held-out fields (#88, owner, 2026-10-05).
     flat = " ".join(short.split()).lower()
-    assert "picked by dna >" in flat and "on held-out cells" in flat
+    assert "picked by dna >" in flat and "fitted on all the cells" in flat
+    assert "refitted with whole fields held out" in flat
     assert "arrest higher" in short
     word = "Enriched" if status is Status.OK else "Trend only"
     assert chip(status, "populations", headline).endswith(f"{word}</span>")
