@@ -22,6 +22,7 @@ import pandas as pd
 
 from .._wording import change, count, listing, p_value
 from ..data_check import validate_input_tables
+from ..schema import observation_words
 from ..statistics import repeat_values
 from .contrast_cells import ALPHA
 from .contrast_repeats import MIN_REPEATS
@@ -235,6 +236,7 @@ def figure_legend(
     (``observation_counts``; the readout's ``table_counts`` when not given)."""
     if contrast is None or not len(getattr(contrast, "table", ())) or not len(rows):
         return None
+    one = observation_words(getattr(contrast, "settings", {}) or {})[0]
     drawn = (
         f"Points: {unit_words}, coloured by condition; bars: the median with its 95% interval "
         "(the tests use means)."
@@ -253,7 +255,7 @@ def figure_legend(
         described = f" Described as one experiment: {'; '.join(readings)}." if readings else ""
         return (
             f"{n}{join}{lead(f'no test across repeats (it needs {MIN_REPEATS})')}. {drawn}"
-            f"{described} Repeat the experiment before testing; the cell-level screen is "
+            f"{described} Repeat the experiment before testing; the {one}-level screen is "
             "exploratory."
         )
     across = getattr(contrast, "repeats", None)
@@ -272,7 +274,7 @@ def figure_legend(
     )
     return (
         f"{n}{join}{lead(test)}. {drawn} d: Cohen's d, the mean of the per-repeat values. "
-        f"{conditions}. Report the change and the adjusted p; the cell-level screen is "
+        f"{conditions}. Report the change and the adjusted p; the {one}-level screen is "
         "exploratory."
     )
 
