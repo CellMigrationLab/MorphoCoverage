@@ -15,7 +15,9 @@
   rests on the observations that differ from the most common value.
 
 Each is a measured property of these data, so it is a caution (⚠️), never a standing
-assumption, and is said once, naming the features.
+assumption, and is said once, naming the features. A third check, of features that repeat
+one measurement (copies, exact affine relations, near copies), is ``_feature_relations``
+(owner, 2026-10-05).
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from .._wording import count, listing, percent
 from ..evaluator import iter_analysis_groups
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_positions, observation_words
+from ._feature_relations import relation_checks
 
 # The fewest fields of two or more observations a group needs for the comparison.
 MIN_FIELDS = 3
@@ -118,8 +121,10 @@ def few_values(data: ValidatedInput) -> str | None:
 
 
 def value_checks(data: ValidatedInput) -> tuple[str, ...]:
-    """Both checks' sentences, those that found something."""
-    return tuple(text for text in (alike_fields(data), few_values(data)) if text)
+    """The checks' sentences, those that found something: fields more alike than chance,
+    few distinct values, then one per group of related features (``_feature_relations``)."""
+    found = tuple(text for text in (alike_fields(data), few_values(data)) if text)
+    return (*found, *relation_checks(data))
 
 
 __all__ = [

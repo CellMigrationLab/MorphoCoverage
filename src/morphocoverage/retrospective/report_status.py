@@ -258,7 +258,8 @@ def overview_status(overview: Any, integrity: Any = None) -> Answer:
     # The checks of the values themselves (fields more alike than chance, one value).
     checks = getattr(overview, "value_checks", ())
     if checks:
-        names = listing([check.partition(":")[0].lower() for check in checks], 2)
+        # A check said once per group (related features) is named once.
+        names = listing(list(dict.fromkeys(c.partition(":")[0].lower() for c in checks)), 2)
         parts.append((Status.CAUTION, f"values: {names}"))
     return worst(s for s, _ in parts), "; ".join(text for _, text in parts)
 
