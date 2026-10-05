@@ -231,12 +231,15 @@ def shift_words(row: Mapping[str, Any]) -> str:
 
 
 def tests_words(result: DistributionContrast) -> str:
-    """The correction family counted: ``40 tests``, ``40 tests in each of 2 sub-experiments``."""
-    families = result.settings["families"]
-    per = result.n_tests // max(families, 1)
-    if families <= 1:
-        return count(per, "test")
-    return f"{count(per, 'test')} in each of {count(families, 'sub-experiment')}"
+    """The correction family counted: ``40 tests``, ``40 tests in each of 2 sub-experiments``,
+    ``16-48 tests in each of 2 sub-experiments`` when their sizes differ."""
+    tests = result.tests
+    sizes = tests.loc[tests["p"].notna()].groupby("experiment").size() if len(tests) else []
+    if len(sizes) <= 1:
+        return count(result.n_tests, "test")
+    low, high = int(min(sizes)), int(max(sizes))
+    per = count(low, "test") if low == high else f"{low}-{high} tests"
+    return f"{per} in each of {count(len(sizes), 'sub-experiment')}"
 
 
 __all__ = [
