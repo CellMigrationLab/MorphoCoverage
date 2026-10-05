@@ -63,10 +63,13 @@ def _run(objects, folder, answers, **kwargs):
 
 
 def test_the_questions_are_asked_and_the_answers_saved(tmp_path):
-    # loaded? control (default: siCTRL), positive control, aim, features, readout, unit
-    # (default), tolerance
+    # loaded? one control? control (default: siCTRL), positive control, aim, features,
+    # readout, unit (default), tolerance
     result, script = _run(
-        _cells(), tmp_path, ["y", "", "siA#1", "both", "1,3", "area", "", "15%"], run_report=False
+        _cells(),
+        tmp_path,
+        ["y", "", "", "siA#1", "both", "1,3", "area", "", "15%"],
+        run_report=False,
     )
     answers = result.answers
     assert answers.control == {"condition": "siCTRL"}
@@ -91,13 +94,13 @@ def test_the_questions_are_asked_and_the_answers_saved(tmp_path):
 
 
 def test_saved_answers_are_continued_or_deleted(tmp_path):
-    _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""], run_report=False)
+    _run(_cells(), tmp_path, ["y", "", "", "", "", "all", "", ""], run_report=False)
     result, script = _run(_cells(), tmp_path, [""], run_report=False)
     assert "were found for this table" in script.text
     assert result.answers.aim == "population" and result.setup.fingerprint == ()
     # Start over: the file is deleted and every question is asked again.
     result, script = _run(
-        _cells(), tmp_path, ["start over", "y", "4", "", "intensity", ""], run_report=False
+        _cells(), tmp_path, ["start over", "y", "", "4", "", "intensity", ""], run_report=False
     )
     assert "The saved answers were deleted" in script.text
     assert result.answers.control is None and result.answers.features == ["intensity"]
@@ -105,13 +108,13 @@ def test_saved_answers_are_continued_or_deleted(tmp_path):
 
 
 def test_answers_for_another_table_are_never_reused(tmp_path):
-    _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""], run_report=False)
+    _run(_cells(), tmp_path, ["y", "", "", "", "", "all", "", ""], run_report=False)
     other = _cells(seed=1)
     result, script = _run(other, tmp_path, ["n"], run_report=False)
     assert "cannot be reused for this one" in script.text
     assert result.stopped.endswith("choose another folder for this table")
     assert (tmp_path / ANSWERS_FILE).exists()
-    _run(other, tmp_path, ["y", "y", "", "", "", "1", ""], run_report=False)
+    _run(other, tmp_path, ["y", "y", "", "", "", "", "1", ""], run_report=False)
     assert load_answers(tmp_path).dataset["checksum"] == table_checksum(other)
 
 
@@ -133,6 +136,7 @@ def test_paths_and_the_folder_are_asked_and_bad_answers_asked_again(tmp_path):
             str(folder),
             "maybe",
             "y",
+            "",
             "9",
             "",
             "",
@@ -175,7 +179,7 @@ def test_an_unreadable_answers_file_is_offered_for_deletion(tmp_path):
     (tmp_path / ANSWERS_FILE).write_text("{not json")
     with pytest.raises(ValueError, match="not a saved-answers file"):
         load_answers(tmp_path)
-    _, script = _run(_cells(), tmp_path, ["y", "y", "", "", "", "1", ""], run_report=False)
+    _, script = _run(_cells(), tmp_path, ["y", "y", "", "", "", "", "1", ""], run_report=False)
     assert "cannot be read" in script.text
     assert load_answers(tmp_path).features == ["area"]
 
@@ -185,7 +189,7 @@ def test_the_session_ends_with_the_report_saved(tmp_path):
     (tmp_path / "figures").mkdir()
     (tmp_path / "figures" / "stale.png").write_bytes(b"png")
     os.utime(tmp_path / "figures" / "stale.png", (time.time() - 3600,) * 2)
-    result, script = _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""])
+    result, script = _run(_cells(), tmp_path, ["y", "", "", "", "", "all", "", ""])
     with zipfile.ZipFile(tmp_path / f"{tmp_path.name}.zip") as archive:
         names = archive.namelist()
     assert f"{tmp_path.name}/figures/area.png" in names
@@ -208,7 +212,7 @@ def test_the_session_ends_with_the_report_saved(tmp_path):
     assert load_answers(tmp_path).readout == "area"
 
 
-POPULATION = ["y", "", "", "", "all", "", ""]  # loaded, control, positive, aim, features, ...
+POPULATION = ["y", "", "", "", "", "all", "", ""]  # loaded, one control?, control, ...
 
 
 def _fields(objects):

@@ -11,8 +11,11 @@
    the FOV table (the questions are asked again; owner, 2026-10-05).
 3. **Scan** the design (``scan_design``) and print what it found; the scan is saved as
    ``scan.txt``.
-4. **Ask**: did the dataset load correctly (if not, stop and fix the tables); the control
-   to log (the scan's guess is the default); an optional positive control (a condition known
+4. **Ask**: did the dataset load correctly (if not, stop and fix the tables); whether all
+   the conditions are compared with the same control (``_guided_controls``: Yes, the control
+   to log, the scan's guess the default; No, several controls with their conditions,
+   parents and a master, each proposed to confirm; owner, 2026-10-05), then the tests that
+   will run, one per line; an optional positive control (a condition known
    to change the phenotype, for question 1); the aim (population averages, a phenotypic
    fingerprint, or both); the features to assess (several, or all the numeric columns);
    the readout among them; what one row is, when not declared; and for a fingerprint, its
@@ -52,6 +55,7 @@ from ..metadata import CONDITION_COLUMN
 from ..multivariate_outcomes import CovarianceError
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
+from ._guided_controls import ask_controls, contrast_lines
 from ._html_data import EMBED_BUDGET
 from .html_report import html_report, zip_results
 from .retrospective import Report, report
@@ -99,7 +103,9 @@ class Answers:
     """What the user answered, as saved in ``ANSWERS_FILE``.
 
     ``aim`` is ``"population"``, ``"fingerprint"`` or ``"both"``; ``control`` is
-    ``{"condition": ...}`` or ``None``; ``fingerprint_tolerance`` is the share the covariance
+    ``{"condition": ...}`` (one control, or several with their conditions, then with
+    ``control_parents`` and ``master_control`` as ``Setup`` takes them) or ``None``;
+    ``fingerprint_tolerance`` is the share the covariance
     of the standardised features must stay within (``None`` for the population aim);
     ``dataset`` records the tables the answers were given for: paths, rows, the observation
     table's ``checksum`` and the FOV table's ``fovs_checksum`` (``None`` without one).
@@ -116,8 +122,15 @@ class Answers:
     dataset: dict[str, Any] = field(default_factory=dict)
     saved: str | None = None
     version: int = ANSWERS_VERSION
+    control_parents: dict[str, Any] | None = None
+    master_control: Any = None
 
     def __post_init__(self) -> None:
+        if self.control_parents:
+            # JSON keeps a (parent, treatment) pair as a list.
+            self.control_parents = {
+                c: tuple(p) if isinstance(p, list) else p for c, p in self.control_parents.items()
+            }
         if self.aim not in q.AIMS:
             raise ValueError(f"aim must be one of {tuple(q.AIMS)}, not {self.aim!r}")
         if not self.features:
@@ -148,6 +161,8 @@ class Answers:
         values: dict[str, Any] = {
             "features": tuple(self.features),
             "control": self.control,
+            "control_parents": self.control_parents,
+            "master_control": self.master_control,
             "observation_unit": self.observation_unit,
         }
         if goal == "fingerprint":
@@ -166,6 +181,16 @@ class Answers:
     def lines(self) -> list[str]:
         """The answers in sentences."""
         control = "none" if self.control is None else self.control["condition"]
+        if isinstance(control, dict):  # several controls, each with its conditions
+            control = "; ".join(
+                f"{c} for {', '.join(map(str, m.values() if isinstance(m, dict) else m)) or '-'}"
+                for c, m in control.items()
+            )
+            control += "".join(
+                f"; {c} under {p[0] if isinstance(p, tuple) else p}"
+                for c, p in (self.control_parents or {}).items()
+            )
+            control += f"; master {self.master_control}" if self.master_control else ""
         lines = [
             f"Control: {control}.",
             f"Aim: {q.AIM_TEXT[self.aim]}.",
@@ -318,7 +343,8 @@ def _questions(ask: q.Ask, say: q.Say, scan: DesignScan, dataset: dict[str, Any]
     if not q.yes_no(ask, say, "Here is what we found. Did your dataset load correctly?"):
         say("Fix the tables (the scan above says what it read) and start again.")
         return None
-    control = q.ask_control(ask, say, scan)
+    control, parents, master = ask_controls(ask, say, scan)
+    say("The tests that will run:\n" + "\n".join(contrast_lines(control, parents, master)))
     positive = q.ask_positive(ask, say, scan, control)
     aim = q.ask_aim(ask, say)
     features = q.ask_features(ask, say, scan.settings["feature_cols"])
@@ -338,6 +364,8 @@ def _questions(ask: q.Ask, say: q.Say, scan: DesignScan, dataset: dict[str, Any]
         fingerprint_tolerance=tolerance,
         positive=positive,
         dataset=dataset,
+        control_parents=parents,
+        master_control=master,
     )
 
 

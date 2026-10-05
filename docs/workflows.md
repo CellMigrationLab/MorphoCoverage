@@ -81,8 +81,18 @@ session = guide("cells.csv", folder="results")   # paths or DataFrames; asked fo
 
 or, from a terminal, `python -m morphocoverage.workflows cells.csv [fovs.csv] --folder results`.
 The session loads the tables, scans them and prints the scan, then asks: did
-the dataset load correctly (if not, it stops); the control to log (the scan's
-guess is the default, "no control" is an answer); a positive control, a
+the dataset load correctly (if not, it stops); whether all the conditions are
+compared with the same control (owner, 2026-10-05; No is proposed, after a table of the
+images per condition and biological repeat, when the likeliest control is missing from
+repeats where other conditions are imaged). Yes: the control to log (the scan's
+guess is the default, "no control" is an answer). No: [several
+controls](#several-controls), each with a proposal to confirm: which conditions are
+controls (named like one, such as `VEC_SiNC`), the conditions of each with their treatment
+keys (the name without the stem it shares with its control: `THBS5_SiCol6a1` under
+`THBS5_SiNC` is `SiCol6a1`), a parent when a control's name extends another condition's
+(`VEC_SiNC` under `VEC`, key `transfection` for an siRNA suffix), and an optional master
+control; the tests these answers give are then listed, one per line with its family. Then
+a positive control, a
 condition known to change the phenotype, which checks that the features can see
 a change ("none", the default, leaves that check out; it can be named later,
 whenever such a condition was imaged); the aim (population

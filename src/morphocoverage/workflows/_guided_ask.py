@@ -101,12 +101,21 @@ def _selection(answer: str, options: Sequence[Any]) -> list[Any] | str:
     return [options[i] for i in sorted(chosen)]
 
 
-def choose_many(ask: Ask, say: Say, prompt: str, options: Sequence[Any]) -> list[Any]:
-    """Several of ``options``: ``all`` (the default), numbers, ranges or names."""
+def choose_many(
+    ask: Ask, say: Say, prompt: str, options: Sequence[Any], default: Sequence[Any] | None = None
+) -> list[Any]:
+    """Several of ``options``: numbers, ranges or names; Enter takes ``default`` (all of them
+    when ``None``)."""
     say(f"{prompt}\n{_numbered(options, None)}")
-    say("  Enter 'all' (the default), numbers and ranges (1,3-5), or names separated by commas.")
+    if default is None:
+        hint = "'all' (the default)"
+    else:
+        hint = f"'all'; Enter takes {listing([str(d) for d in default], 6)}"
+    say(f"  Enter {hint}, numbers and ranges (1,3-5), or names separated by commas.")
     while True:
         answer = ask("> ").strip()
+        if not answer and default is not None:
+            return list(default)
         selected = _selection(answer or "all", options)
         if isinstance(selected, list):
             return selected
@@ -159,7 +168,9 @@ def ask_positive(ask: Ask, say: Say, scan: Any, control: dict[str, Any] | None) 
     can check that the features see a change at all (question 1). ``None`` for none."""
     if control is None:
         return None
-    others = [c for c in scan.design["conditions"] if c != control.get("condition")]
+    named = control.get("condition")
+    controls = set(named) if isinstance(named, dict) else {named}  # several, or one
+    others = [c for c in scan.design["conditions"] if c not in controls]
     if not others:
         return None
     none = "none"
