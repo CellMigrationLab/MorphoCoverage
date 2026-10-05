@@ -322,8 +322,10 @@ def trusted_test(
     """The cell-level test in the version the readings trust most (``reading_text``): on
     values normalised to each repeat's control when every control mean is positive, and
     balanced over the repeats that are not sparse when the condition is unbalanced (as
-    ``cell_table`` decides it); otherwise pooled as provided. ``d``, ``p``, whether the
-    values were ``normalised`` and the test ``balanced``, and the observations it used."""
+    ``cell_table`` decides it); otherwise pooled as provided, unless that pools the control
+    of repeats the condition was not imaged in: then no test (``d`` and ``p`` NaN). ``d``,
+    ``p``, whether the values were ``normalised`` and the test ``balanced``, and the
+    observations it used."""
     sizes = {r: len(x) for r, x in by_t.items()}
     control_sizes = {r: len(x) for r, x in by_c.items()}
     spread = max(max(n.values()) / max(min(n.values()), 1) for n in (sizes, control_sizes))
@@ -334,6 +336,8 @@ def trusted_test(
     values = scaled if all(x is not None for x in scaled) else (by_t, by_c, every)
     d, p, d_bal, p_bal, per_t, per_c, retests = _tests(*values, kept, n_permutations, rng)
     balanced = bool(kept) and bool(np.isfinite(p_bal))
+    if not balanced and len(every) > len(control_sizes):
+        d = p = np.nan
     return {
         "d": d_bal if balanced else d,
         "p": p_bal if balanced else p,

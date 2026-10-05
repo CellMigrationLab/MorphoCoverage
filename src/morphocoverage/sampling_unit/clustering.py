@@ -71,7 +71,7 @@ from ..bounds import interval
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_positions
 from ..statistics import fovs_to_detect
-from ._common import groups, matching_groups, validated
+from ._common import canonical_fields, groups, matching_groups, validated
 from ._state_text import clustering_parts
 from .unusual import UnusualObjects, unusual_objects
 
@@ -157,7 +157,11 @@ def fov_clustering(
     k = as_count(min_fov_occurrences, "min_fov_occurrences", 1)
     random_state = check_seed(random_state)
     labels = objects[label_col]
+    if states is not None and (isinstance(states, (str, bytes, Mapping)) or not len(states)):
+        raise ValueError(f"states must be a list of {label_col!r} values, such as ['rare']")
     chosen = list(pd.unique(labels.dropna())) if states is None else list(states)
+    if len(set(chosen)) < len(chosen):
+        raise ValueError(f"states names a state twice: {chosen}")
     codes = pd.Series(np.nan, index=objects.index)
     lookup = {state: i for i, state in enumerate(chosen)}
     known = labels.notna()
@@ -175,16 +179,28 @@ def fov_clustering(
         observed_fields = np.bincount(positions, minlength=n_acquired) > 0
         keep = ~np.isnan(code)
         code, positions = code[keep].astype(int), positions[keep]
+        rank = np.empty(n_acquired, dtype=np.int64)
+        rank[canonical_fields(group_data)] = np.arange(n_acquired)
         sizes = np.bincount(positions, minlength=n_acquired)
         # A field whose observations all lack a label was not looked at; a field
         # without observations was, and did not show the state.
         unlabelled = int(np.sum(observed_fields & (sizes == 0)))
-        rng = group_rng(random_state, group)
         wells = _technical_repeat_of(group_data)
         for index, state in enumerate(chosen):
             is_state = code == index
+            # One generator per state and its observations in a canonical order (fields by FOV
+            # key, the state's last), so neither the other states nor the row order change its p.
+            rng = group_rng(random_state, {**group, "state": state})
+            order = np.lexsort((is_state, rank[positions]))
             row = _state_row(
-                is_state, positions, sizes, n_acquired - unlabelled, rng, n_permutations, m, k
+                is_state[order],
+                positions[order],
+                sizes,
+                n_acquired - unlabelled,
+                rng,
+                n_permutations,
+                m,
+                k,
             )
             per_fov = np.bincount(positions[is_state], minlength=n_acquired)
             if wells is not None:

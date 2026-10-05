@@ -305,6 +305,37 @@ def test_fov_clustering_is_deterministic():
     pd.testing.assert_frame_equal(first, again)
 
 
+def test_a_states_p_value_depends_neither_on_the_other_states_nor_on_the_row_order():
+    """The states of a group shared one generator in their order, and the shuffles followed
+    the row order, so reordering rows or states changed an unchanged state's p (#296)."""
+    objects, fovs = acquisition(n_fields=30, per_field=10)
+    draw = np.random.default_rng(1).random(len(objects))
+    objects["state"] = np.where(draw < 0.04, "rare", np.where(draw < 0.1, "other", "common"))
+
+    def p_values(table, states=None):
+        result = fov_clustering(table, fovs, label_col="state", states=states)
+        return dict(zip(result.table["state"], result.table["p_clustered"], strict=True))
+
+    first = p_values(objects)
+    assert 0.05 < first["rare"] < 1 and 0.05 < first["other"] < 1
+    assert p_values(objects.sample(frac=1, random_state=2)) == first
+    assert p_values(objects, ["other", "rare"]) == {s: first[s] for s in ("other", "rare")}
+    assert p_values(objects, ["rare"]) == {"rare": first["rare"]}
+
+
+@pytest.mark.parametrize(
+    ("states", "message"),
+    [("rare", "must be a list"), ([], "must be a list"), (["rare", "rare"], "twice")],
+)
+def test_fov_clustering_refuses_states_it_would_misread(states, message):
+    """A bare string was read letter by letter, a state named twice gave one row with the
+    state and one without, and no state gave a table the summary could not read (#288)."""
+    objects, fovs = acquisition(n_fields=10, per_field=10)
+    objects = _labelled(objects, ["f1"], per_field=2)
+    with pytest.raises(ValueError, match=message):
+        fov_clustering(objects, fovs, label_col="state", states=states)
+
+
 # -- unusual (out-of-distribution) objects ------------------------------------------------
 
 
@@ -358,6 +389,23 @@ def test_unusual_objects_use_only_the_explicit_features_and_are_deterministic():
     again = unusual_objects(noisy, fovs, feature_cols=["x", "y"], reference={"condition": "ctrl"})
     pd.testing.assert_series_equal(first.labels, again.labels)
     pd.testing.assert_series_equal(first.distances, again.distances)
+
+
+def test_unusual_labels_do_not_depend_on_row_order_when_observations_tie():
+    """Identical observations in different fields (discrete features) used to swap their
+    left-out reference group, and so their scores, when the rows were reordered (#282)."""
+    objects, fovs, _ = _with_planted(n_planted=0)
+    objects[["x", "y"]] = objects[["x", "y"]].round()
+
+    def scored(table):
+        result = unusual_objects(
+            table, fovs, feature_cols=["x", "y"], reference={"condition": "ctrl"}, quantile=0.05
+        )
+        return result.distances.sort_index(), result.labels.sort_index()
+
+    shuffled = scored(objects.sample(frac=1, random_state=7))
+    for first, again in zip(scored(objects), shuffled, strict=True):
+        pd.testing.assert_series_equal(first, again)
 
 
 def test_unusual_labels_feed_fov_clustering():
