@@ -232,6 +232,8 @@ def _reagents(contrast: Any, condition: Any, word: str) -> str:
         if condition in row["reagents"]:
             others = [r for r in row["reagents"] if r != condition]
             verb = "agrees" if len(others) == 1 else "agree"
+            if not row["repeats"]:
+                return f"{listing(others, 2)} ({row['target']}) not imaged in the same {word}"
             return (
                 f"{listing(others, 2)} ({row['target']}) {verb} in {row['agree']} of "
                 f"{count(int(row['repeats']), word)}"
