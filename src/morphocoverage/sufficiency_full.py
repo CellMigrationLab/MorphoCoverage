@@ -289,7 +289,7 @@ def _check_line(report: Any, group: Mapping[str, Any]) -> list[str]:
     return [check]
 
 
-def _full_cautions(report: Any, target: float | None) -> list[str]:
+def _full_cautions(report: Any) -> list[str]:
     """What the per-group numbers rest on, once each (beyond the short form's caveats)."""
     cautions = []
     frame = report.next_fov
@@ -367,7 +367,7 @@ def full_summary(report: Any, target: float | None = None) -> str:
         blocks.append(wrap(f"'New' means {report.novelty_definition}.", 0, hang=2))
     _, novelty_cautions = _novelty_lines(report, target)
     cautions = [
-        *_full_cautions(report, target),
+        *_full_cautions(report),
         *_rule_cautions(report, tallies, name_groups=True),
         *novelty_cautions,
     ]
