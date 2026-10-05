@@ -429,6 +429,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             percent(r.purity) if pd.notna(r.purity) else "–",
             _rule_cell(r),
             r.fields,
+            percent(r.largest_field),
             r.repeats,
             _enriched(result, r.population)
             if r.population in tested and r.population not in own
@@ -446,6 +447,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         "neighbours inside",
         "rule (held-out fields: found, right)",
         "fields",
+        "in largest field",
         "repeats",
         heading,
     ]
@@ -521,7 +523,8 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             f"({units} held out for a group in one field), not the exact thresholds shown. "
             "Groups that overlap strongly on every feature "
             "are not told apart. The clusters depend on the declared features and their "
-            "standardisation; a group held by few fields may be an artefact of those images.",
+            "standardisation; a group held by few fields, or most of whose "
+            f"{units} are in one (in largest field), may be an artefact of those images.",
             2,
             hang=4,
         )

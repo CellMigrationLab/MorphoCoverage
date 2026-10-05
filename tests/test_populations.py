@@ -44,6 +44,8 @@ def test_the_planted_population_is_found_on_every_condition_pooled():
     assert inside[objects["mitotic"]].mean() > 0.9
     assert set(objects.loc[inside, "condition"]) == {"siCTRL", "narrow", "arrest"}
     assert "high dna" in small["defined_by"] and small["repeats"] == 3
+    # Spread over many fields and every well (#79, owner, 2026-10-05).
+    assert small["largest_field"] < 0.1 and small["technical_repeats"] == 18
     assert found.names == list(
         found.table.sort_values("observations", ascending=False)["population"]
     )
@@ -63,6 +65,8 @@ def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen)
     # "of every condition pooled" read as a number per condition (ChatGPT, 2026-10-05).
     assert "cells in all, every condition pooled, clustered on the 3 declared features (" in short
     assert "the rest (not tested)" in short and "to validate on the images" in short
+    # The share of a group's cells in its largest field is a column of the table (#79).
+    assert "in largest field" in short
     # Each group comes with the rule that picks out its cells, fitted on all the cells; its
     # procedure is checked on held-out fields (#88, owner, 2026-10-05).
     flat = " ".join(short.split()).lower()

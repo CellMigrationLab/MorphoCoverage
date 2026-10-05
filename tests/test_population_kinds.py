@@ -127,3 +127,31 @@ def test_a_group_in_one_field_is_checked_on_held_out_cells_and_says_so():
     assert "fitted on all the cells" in words
     assert "refitted with cells held out (the group is in one field)" in words
     assert "whole fields" in rule_words(row.replace("cells", "fields"), "cells")
+
+
+def test_a_group_in_one_field_is_seen_in_its_largest_field_share():
+    """#79 (owner, 2026-10-05): the share of a group's cells in its largest field tells a
+    group spread over the fields from one living in one image."""
+    rng = np.random.default_rng(1)
+    values = np.vstack([rng.normal(size=(2160, 4)), rng.normal(size=(240, 4)) + [5, 0, 0, 0]])
+    objects, fovs, features = _tables(values)
+    spread = find_populations(objects, fovs, features=features, observation_unit="cell")
+    group = spread.table.set_index("population").loc["G1"]
+    assert group["largest_field"] < 0.2 and group["fields"] > 5
+    # Without a technical_repeat column there are none to count.
+    assert group["technical_repeats"] is None
+    # The same cells moved into one field of a technical repeat each.
+    blob = objects["f0"] > 3
+    one = objects.assign(technical_repeat="w1")
+    one.loc[blob, ["condition", "biological_repeat", "image_file"]] = ["a", "r0", "a_r0_0.tif"]
+    found = find_populations(
+        one,
+        one[[*fovs.columns, "technical_repeat"]].drop_duplicates(),
+        features=features,
+        observation_unit="cell",
+    )
+    group = found.table.set_index("population").loc["G1"]
+    assert group["largest_field"] > 0.9
+    inside = found.labels.reindex(one.index) == "G1"
+    wells = one.loc[inside, ["condition", "biological_repeat", "technical_repeat"]]
+    assert group["technical_repeats"] == len(wells.drop_duplicates())

@@ -466,8 +466,11 @@ acquired:
   on every feature are not told apart. Without a group the answer is ➖ "No group":
   no candidate group passed the check on these features, which says nothing of a
   continuum or of rare states (owner, 2026-10-05). Each group is listed with its share, the
-  features that set it apart, its neighbours inside, its rule, and the fields and
-  repeats it is seen in; then each condition is compared with its own
+  features that set it apart, its neighbours inside, its rule, the fields and
+  repeats it is seen in, and the share of its cells in its largest field (a group
+  living mostly in one field may be that image's artefact; the table, `Populations.table`,
+  also counts the technical repeats holding it, `largest_field` and `technical_repeats`;
+  owner, 2026-10-05); then each condition is compared with its own
   control on its share of cells in it, per biological repeat, on the log odds of
   the shares (a small share is as steady there as a large one), by the paired
   test across repeats (Benjamini-Hochberg within each sub-experiment); the main

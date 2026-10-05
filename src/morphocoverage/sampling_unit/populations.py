@@ -37,8 +37,11 @@ that fits them does refitted with whole fields held out), to label it and study 
 phenotype.
 
 Each is reported with its share of the observations, the fields and biological repeats it
-is seen in, the features that set it apart from the other observations (Cohen's d), its
-``purity`` and its rule. Observations with a missing value are left out, counted.
+is seen in, the share of its observations in its largest field (``largest_field``: a group
+living mostly in one field may be that image's artefact) and, with a ``technical_repeat``
+column, the technical repeats it is seen in (owner, 2026-10-05), the features that set it
+apart from the other observations (Cohen's d), its ``purity`` and its rule. Observations
+with a missing value are left out, counted.
 
 A description, not a test: the clusters depend on the features declared and on the
 standardisation, and a group seen in one field only may be one image's artefact (its
@@ -56,7 +59,7 @@ import pandas as pd
 
 from .._checks import as_count, check_seed
 from ..embedding import _sample, _standardised
-from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import fov_positions, validate_input_tables
 from ..statistics import cohen_d
 from ._population_rule import Rule, population_rule
@@ -83,6 +86,8 @@ _COLUMNS = [
     "share",
     "fields",
     "repeats",
+    "largest_field",
+    "technical_repeats",
     "defined_by",
     "defining",
     "purity",
@@ -227,6 +232,17 @@ def _names(raw: np.ndarray, judged: dict) -> dict[int, str]:
     return names
 
 
+def _support(member: np.ndarray, field_keys: pd.Series, meta: pd.DataFrame) -> dict[str, Any]:
+    """The share of ``member``'s observations in its largest field, and the technical
+    repeats holding it (``None`` without a ``technical_repeat`` column)."""
+    largest = float(field_keys[member].value_counts().iloc[0] / member.sum())
+    if TECHNICAL_REPEAT_COLUMN not in meta:
+        return {"largest_field": largest, "technical_repeats": None}
+    columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN) if c in meta]
+    wells = meta.loc[member, columns].astype(str).drop_duplicates()
+    return {"largest_field": largest, "technical_repeats": len(wells)}
+
+
 def find_populations(
     objects: pd.DataFrame,
     fovs: pd.DataFrame,
@@ -306,6 +322,7 @@ def find_populations(
                 "repeats": int(meta.loc[member, REPEAT_COLUMN].nunique())
                 if REPEAT_COLUMN in meta
                 else 1,
+                **_support(member, field_keys, meta),
                 "defined_by": defined_by(pairs),
                 "defining": pairs,
                 "purity": purity,
