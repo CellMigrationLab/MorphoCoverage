@@ -2,8 +2,8 @@
 
 #97: the FOV unit's upper-95 averaging CV is a bootstrap of whole fields, not the chi-square
 bound on Kish's effective fields; its coverage is simulated here.
-#315: the FOV bootstrap's SE is not available when more than 10% of its resamples are
-undefined, and the share is said.
+#315 and #333: the FOV bootstrap's SE and the fingerprint's random-half error are not
+available when more than 10% of their draws are undefined, and the share is said.
 """
 
 from __future__ import annotations
@@ -15,10 +15,19 @@ import pandas as pd
 from scipy import stats
 
 from morphocoverage import ObjectiveConfig, SamplingObjective, validate_input_tables
+from morphocoverage._style import span
+from morphocoverage._wording import count
+from morphocoverage.outcomes import OutcomeMetric
+from morphocoverage.retrospective import OutcomeCriterion
 from morphocoverage.statistics import kish_effective_fields
 from morphocoverage.strategies import FOVBootstrapEstimator
 from morphocoverage.strategies._averaging_cv import fov_averaging_cv
 from morphocoverage.strategies.fov_bootstrap import UNDEFINED_TOLERANCE
+from morphocoverage.workflows._enough_targets import (
+    fingerprint_lines,
+    fingerprint_precision,
+    not_judged,
+)
 
 
 def _wells(
@@ -124,3 +133,90 @@ def test_below_10_percent_undefined_the_fov_bootstrap_se_is_from_the_defined_res
     assert evidence.quantities["fov_bootstrap_centroid_max_se"].availability == "available"
     assert 0.01 < evidence.diagnostics["undefined_fraction"] < 0.06
     assert _bootstrap(_fields(4, 0)).diagnostics["undefined_fraction"] == 0
+
+
+class _UndefinedWith(OutcomeMetric):
+    """The difference of the mean area of two halves; undefined when ``fields`` all fall in
+    the second half (invalidity tied to which fields a half holds)."""
+
+    name = "undefined with fields"
+
+    def __init__(self, fields: tuple[str, ...]) -> None:
+        self.fields = fields
+
+    def evaluate(self, full: object, stopped: object) -> float | None:
+        held = set(stopped.fovs["image_file"])
+        if held and all(any(name.endswith(f) for name in held) for f in self.fields):
+            return None
+        return abs(
+            float(np.mean(full.feature_values("area")))
+            - float(np.mean(stopped.feature_values("area")))
+        )
+
+
+def _precision(fields: tuple[str, ...]) -> pd.DataFrame:
+    from test_rare_fingerprint import _screen, _setup
+
+    objects, fovs = _screen()
+    criterion = OutcomeCriterion(_UndefinedWith(fields), 10.0, "lower_is_better", "loose")
+    return fingerprint_precision(objects, fovs, _setup(fingerprint=(criterion,)))
+
+
+def test_the_fingerprint_is_not_judged_above_10_percent_undefined_halves():
+    # Regression (#333): halves whose error was undefined were dropped, so the estimate came
+    # from the halves that happened to be defined. Here a half holding field 0 is undefined:
+    # about half of every well's halves.
+    precision = _precision(("_0.tif",))
+    assert (precision["splits"] == 20).all()
+    shares = precision["undefined_splits"] / precision["splits"]
+    assert (shares > 0.10).all() and precision["met"].isna().all()
+    assert precision["error"].isna().all()
+    text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields")).split())
+    assert text == ""  # no well judged: no tally to qualify
+    said = not_judged(precision, "well", "fields")
+    assert said.startswith(
+        f"Not judged in 18 wells: no defined error on {span(shares, 'percent')} of the random "
+        "halves, more than 10%."
+    )
+
+
+def test_below_10_percent_undefined_halves_the_error_is_from_the_others_and_said():
+    # A half holding fields 0, 1 and 2 together is undefined: 1 in 20 halves of 6 fields.
+    precision = _precision(("_0.tif", "_1.tif", "_2.tif"))
+    undefined = precision["undefined_splits"]
+    assert undefined.max() > 0 and (undefined == 0).any()
+    judged = undefined <= 2
+    assert precision.loc[judged, "error"].notna().all()
+    assert precision.loc[~judged, "met"].isna().all()
+    text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields")).split())
+    some = precision[judged & (undefined > 0)]
+    shares = some["undefined_splits"] / some["splits"]
+    assert (
+        f"In {count(len(some), 'well')}, {span(shares, 'percent')} of the random halves have no "
+        "defined error; the error there is from the others."
+    ) in text
+    # Wells whose halves are all defined keep the estimate as before.
+    whole = _precision(("_never.tif",))
+    assert (whole["undefined_splits"] == 0).all() and whole["error"].notna().all()
+
+
+def test_the_wells_not_judged_are_named_with_each_reason():
+    # Fields 0 and 1 both in the second half: 4 in 20 halves of 6 fields; a well left with 3
+    # fields is too small to be judged at all.
+    from test_rare_fingerprint import _screen, _setup
+
+    objects, fovs = _screen()
+    small = fovs["image_file"].str.startswith("arrest_2026_01_05_C1_")
+    drop = set(fovs.loc[small, "image_file"].iloc[3:])
+    fovs, objects = fovs[~fovs["image_file"].isin(drop)], objects[~objects["image_file"].isin(drop)]
+    criterion = OutcomeCriterion(_UndefinedWith(("_0.tif", "_1.tif")), 10.0, "lower_is_better")
+    precision = fingerprint_precision(objects, fovs, _setup(fingerprint=(criterion,)))
+    missing = precision[precision["met"].isna()]
+    halves = missing[missing["fields"] >= 4]
+    shares = halves["undefined_splits"] / halves["splits"]
+    assert len(missing) - len(halves) == 1 and (shares > 0.10).all()
+    assert not_judged(precision, "well", "fields") == (
+        f"Not judged in {count(len(missing), 'well')}: 1 with fewer than 4 fields; "
+        f"{len(halves)} with no defined error on {span(shares, 'percent')} of the random "
+        "halves, more than 10%."
+    )
