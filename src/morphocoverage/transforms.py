@@ -386,6 +386,51 @@ class PCA(FeatureTransform):
         return (matrix - np.asarray(state["mean"])) @ np.asarray(state["components"]).T
 
 
+@dataclass(frozen=True)
+class ColumnWeights(FeatureTransform):
+    """Multiply each feature by a fixed, declared weight: nothing is fitted.
+
+    The weight of each column in the weighted combined space of several feature tables
+    (``feature_tables.table_weights``), applied after a standardisation:
+    ``Chain([RobustStandardize(), ColumnWeights(weights)])``. Not fitted when the number of
+    features is not the number of weights.
+    """
+
+    weights: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        values = tuple(float(w) for w in self.weights)
+        if not values or not all(np.isfinite(w) and w > 0 for w in values):
+            raise ValueError("weights must be one positive finite number per feature")
+        object.__setattr__(self, "weights", values)
+
+    @property
+    def name(self) -> str:
+        """``column_weights``."""
+        return "column_weights"
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """The weights, in the order of the features."""
+        return {"weights": list(self.weights)}
+
+    def output_width(self, n_inputs: int) -> int | None:
+        """One output per feature, when there is one weight per feature."""
+        return n_inputs if n_inputs == len(self.weights) else None
+
+    def fit_matrix(
+        self, matrix: np.ndarray, names: tuple[str, ...]
+    ) -> tuple[dict[str, Any], tuple[str, ...]] | str:
+        """Nothing to fit: only the number of features is checked."""
+        if matrix.shape[1] != len(self.weights):
+            return f"{matrix.shape[1]} features for {len(self.weights)} weights"
+        return {}, names
+
+    def apply_matrix(self, state: Mapping[str, Any], matrix: np.ndarray) -> np.ndarray:
+        """Each feature times its weight."""
+        return matrix * np.asarray(self.weights)
+
+
 class Chain(FeatureTransform):
     """Transforms applied in order, each fitted on the previous one's visible output."""
 
@@ -450,6 +495,7 @@ class Chain(FeatureTransform):
 __all__ = [
     "PCA",
     "Chain",
+    "ColumnWeights",
     "FeatureTransform",
     "FittedTransform",
     "RobustStandardize",

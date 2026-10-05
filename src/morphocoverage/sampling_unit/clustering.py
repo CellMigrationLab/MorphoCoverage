@@ -19,7 +19,9 @@ features. Per analysis group and state it reports:
   the same fields (hypergeometric, ``scipy.stats.hypergeom``), and the
   **clustering ratio** expected / observed (1: spread like random objects);
 - a permutation p-value: how often labels shuffled across the group's objects
-  reach as few fields as observed;
+  reach as few fields as observed, and its q, Benjamini-Hochberg over every
+  group and state of the analysis (the tests shown); a state is called
+  clustered at q <= 0.05 (owner, 2026-10-05);
 - the fields needed to see the state in at least ``min_fov_occurrences``
   fields with ``detection_probability``, from the incidence of the fields
   holding it (``statistics.fovs_to_detect``), with a bound from the low end
@@ -70,7 +72,7 @@ from .._style import check_detail
 from ..bounds import interval
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import ValidatedInput, fov_positions
-from ..statistics import fovs_to_detect
+from ..statistics import benjamini_hochberg, fovs_to_detect
 from ._common import canonical_fields, groups, matching_groups, validated
 from ._state_text import clustering_parts
 from .unusual import UnusualObjects, unusual_objects
@@ -132,6 +134,7 @@ def fov_clustering(
     observations carry no label), ``fovs_acquired``, ``fovs_unlabelled``,
     ``fovs_with_state``, ``fov_incidence``,
     ``expected_fovs_if_random``, ``clustering_ratio``, ``p_clustered``,
+    ``q_clustered`` (Benjamini-Hochberg over every group and state of the table),
     ``largest_fov_share`` (the share of the state's objects in its fullest
     field), ``fovs_holding_state`` (fields with at least
     ``min_objects_per_fov`` of its objects) and ``holding_incidence``,
@@ -217,6 +220,12 @@ def fov_clustering(
                 }
             )
     table = pd.DataFrame(rows)
+    if len(table):
+        # The tests shown are one family: every group and state of this analysis.
+        p_values = pd.to_numeric(table["p_clustered"], errors="coerce").to_numpy(dtype=float)
+        table.insert(
+            table.columns.get_loc("p_clustered") + 1, "q_clustered", benjamini_hochberg(p_values)
+        )
     if reference is not None:
         _add_reference(table, list(data.group_cols), references)
     settings = {

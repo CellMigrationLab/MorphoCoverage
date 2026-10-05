@@ -13,7 +13,11 @@ pooled over each side's technical repeats (as ``feature_discovery`` pools them):
   (``statistics.bimodality_coefficient``); a condition's cells may split in two
   (``splits``) when its coefficient is above 5/9 without a heavy tail (excess kurtosis at
   most ``HEAVY_TAIL``: a skewed single-peaked feature reaches 5/9 too) and its control's
-  is below 5/9, in at least half of its repeats. Described, not tested.
+  is below 5/9, in at least half of its repeats that can be assessed. Described, not
+  tested. A repeat cannot be assessed when a coefficient is undefined (fewer than 4
+  observations on a side, or no spread): it leaves the denominator and is named
+  (``1 repeat not assessed: 3 cells``), and a condition with no repeat assessed is not
+  assessed (``not_assessed``; owner, 2026-10-05, #301).
 
 Each statistic is tested across the biological repeats like a mean (a one-sample t-test
 on its per-repeat values, ``MIN_REPEATS`` repeats or more), its p-values Benjamini-Hochberg
@@ -33,8 +37,10 @@ import numpy as np
 import pandas as pd
 
 from .._checks import is_number
-from .._wording import count
+from .._control import check_comparisons
+from .._wording import count, listing, plural
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..schema import observation_words
 from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, paired_t
 from ._common import groups, validated
 from ._experiments import corrected, experiments
@@ -46,17 +52,79 @@ QUANTILES = (0.1, 0.5, 0.9)
 # The statistics compared, in the order the report gives them.
 STATISTICS = ("spread", "q10", "q50", "q90")
 ALPHA = 0.05
-SHAPE_COLUMNS = ["feature", "condition", "repeat", "bimodality", "kurtosis", "control_bimodality"]
+SHAPE_COLUMNS = [
+    "feature",
+    "condition",
+    "repeat",
+    "bimodality",
+    "kurtosis",
+    "control_bimodality",
+    "observations",
+    "control_observations",
+]
 # The excess kurtosis above which a sample has a heavy tail rather than two groups.
 HEAVY_TAIL = 2.0
 SPLIT_COLUMNS = [
     "feature",
     "condition",
     "repeats",
+    "assessed",
     "split_repeats",
     "bimodality",
     "control_bimodality",
+    "not_assessed",
 ]
+# Fewer observations than this on a side give no bimodality coefficient.
+_MIN_SHAPE = 4
+
+
+def _assessable(shapes: pd.DataFrame) -> pd.Series:
+    """Whether each repeat's split can be assessed: both coefficients and the kurtosis
+    defined (4 observations or more a side, with spread)."""
+    return (
+        shapes["bimodality"].notna()
+        & shapes["kurtosis"].notna()
+        & shapes["control_bimodality"].notna()
+    )
+
+
+def _counted(numbers: list[int], unit: str, side: str = "") -> str:
+    """``3 cells``, ``3 and 2 cells``, ``1 control cell``."""
+    word = unit if len(numbers) == 1 and numbers[0] == 1 else plural(unit)
+    return f"{listing(numbers, len(numbers))} {side}{word}"
+
+
+def _reasons(rows: pd.DataFrame, unit: str) -> str:
+    """``3 and 2 cells``: why each repeat's split cannot be assessed (the observations of the
+    side with fewer than 4, else no spread)."""
+    few, few_control, flat, flat_control = [], [], 0, 0
+    for row in rows.to_dict("records"):
+        if row["observations"] < _MIN_SHAPE:
+            few.append(int(row["observations"]))
+        elif row["control_observations"] < _MIN_SHAPE:
+            few_control.append(int(row["control_observations"]))
+        elif pd.isna(row["bimodality"]) or pd.isna(row["kurtosis"]):
+            flat += 1
+        else:
+            flat_control += 1
+    reasons = []
+    if few:
+        reasons.append(_counted(few, unit))
+    if few_control:
+        reasons.append(_counted(few_control, unit, "control "))
+    if flat:
+        reasons.append("no spread")
+    if flat_control:
+        reasons.append("no spread in the control")
+    return listing(reasons, len(reasons))
+
+
+def unassessed_words(rows: pd.DataFrame, unit: str = "cell") -> str:
+    """``1 repeat not assessed: 3 cells``: the repeats whose split cannot be assessed and why;
+    empty for none."""
+    if rows.empty:
+        return ""
+    return f"{count(len(rows), 'repeat')} not assessed: {_reasons(rows, unit)}"
 
 
 @dataclass(frozen=True)
@@ -69,11 +137,13 @@ class DistributionContrast:
 
     def splits(self) -> pd.DataFrame:
         """The feature and condition pairs whose cells split into two groups where the
-        control's do not (see the module): the repeats that show it, of how many, and the
-        median coefficient of each side over those repeats."""
+        control's do not (see the module): the repeats that show it, of the repeats
+        ``assessed`` (``repeats`` counts them all), the median coefficient of each side over
+        those that show it, and the repeats ``not_assessed``, in words."""
         shapes = self.shapes
         if shapes.empty:
             return pd.DataFrame(columns=SPLIT_COLUMNS)
+        unit = observation_words(self.settings)[0]
         # Two groups, not a long tail: a skewed single-peaked feature (an exponential, a
         # lognormal) also passes 5/9, but with a heavy tail (excess kurtosis above 2, the
         # package's heavy-tail threshold, ``strategies._averaging_cv``); the control's
@@ -83,23 +153,49 @@ class DistributionContrast:
             & (shapes["kurtosis"] <= HEAVY_TAIL)
             & (shapes["control_bimodality"] <= BIMODAL)
         )
+        marked = shapes.assign(shows=shows, assessable=_assessable(shapes))
         rows = []
-        for (feature, condition), block in shapes.assign(shows=shows).groupby(
-            ["feature", "condition"], sort=False
-        ):
-            showing = block[block["shows"]]
-            if len(showing) and 2 * len(showing) >= len(block):
+        for (feature, condition), block in marked.groupby(["feature", "condition"], sort=False):
+            # A repeat that cannot be assessed is no evidence either way: out of the
+            # denominator, and named (owner, 2026-10-05).
+            assessed = block[block["assessable"]]
+            showing = assessed[assessed["shows"]]
+            if len(showing) and 2 * len(showing) >= len(assessed):
                 rows.append(
                     {
                         "feature": feature,
                         "condition": condition,
                         "repeats": len(block),
+                        "assessed": len(assessed),
                         "split_repeats": len(showing),
                         "bimodality": float(showing["bimodality"].median()),
                         "control_bimodality": float(showing["control_bimodality"].median()),
+                        "not_assessed": unassessed_words(block[~block["assessable"]], unit),
                     }
                 )
         return pd.DataFrame(rows, columns=SPLIT_COLUMNS)
+
+    def not_assessed(self) -> pd.DataFrame:
+        """The feature and condition pairs whose split no repeat can assess: their repeats and
+        why (``reasons``: ``3, 2 and 3 cells``)."""
+        columns = ["feature", "condition", "repeats", "reasons"]
+        shapes = self.shapes
+        if shapes.empty:
+            return pd.DataFrame(columns=columns)
+        unit = observation_words(self.settings)[0]
+        rows = [
+            {
+                "feature": feature,
+                "condition": condition,
+                "repeats": len(block),
+                "reasons": _reasons(block, unit),
+            }
+            for (feature, condition), block in shapes.assign(
+                assessable=_assessable(shapes)
+            ).groupby(["feature", "condition"], sort=False)
+            if not block["assessable"].any()
+        ]
+        return pd.DataFrame(rows, columns=columns)
 
     def differing(self) -> pd.DataFrame:
         """The feature and condition pairs whose distribution differs (some ``q <= alpha``),
@@ -164,7 +260,7 @@ def distribution_contrast(
     fovs: pd.DataFrame,
     *,
     features: Sequence[str],
-    control: Mapping[str, Any],
+    control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
     repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
@@ -172,9 +268,12 @@ def distribution_contrast(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    comparisons: Sequence[tuple[Any, Any]] | None = None,
 ) -> DistributionContrast:
     """Compare each feature's distribution with the control's (see the module); arguments
-    follow ``feature_discovery``."""
+    follow ``feature_discovery`` (``comparisons``: each condition against its reference)."""
+    if comparisons is not None:
+        comparisons = check_comparisons(comparisons)
     features = list(dict.fromkeys(features))
     if not is_number(alpha) or not 0 < alpha < 1:
         raise ValueError("alpha must be between 0 and 1")
@@ -183,7 +282,7 @@ def distribution_contrast(
         data, condition_col, repeat_col, technical_col, control
     )
     all_groups = groups(data)
-    described = describe_groups(all_groups, condition_col, repeat_col, control)
+    described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     contrasts = contrasts_of(described)
     rows, held, shapes = [], {}, []
     for feature in features:
@@ -200,6 +299,8 @@ def distribution_contrast(
                     "bimodality": bimodality_coefficient(treated),
                     "kurtosis": excess_kurtosis(treated),
                     "control_bimodality": bimodality_coefficient(side["by_c"][repeat]),
+                    "observations": len(treated),
+                    "control_observations": len(side["by_c"][repeat]),
                 }
                 for repeat, treated in side["by_t"].items()
             ]
@@ -211,7 +312,8 @@ def distribution_contrast(
         tests["q"] = corrected(tests["p"], tests["experiment"])
     settings = {
         "features": features,
-        "control": dict(control),
+        "control": dict(control or {}),
+        "comparisons": list(comparisons or []),
         "alpha": alpha,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
@@ -255,4 +357,5 @@ __all__ = [
     "shift_words",
     "spread_words",
     "tests_words",
+    "unassessed_words",
 ]

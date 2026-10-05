@@ -49,7 +49,15 @@ from .._wording import column_word, listing
 from ..metadata import REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN, empty_values
 from ..schema import ValidatedInput, fov_values
 from ..statistics import RELATIVE_TOLERANCE, cohen_d, mean_is_zero
-from ._common import canonical_fields, no_match_message
+from ._common import canonical_fields
+from ._groups import (  # noqa: F401  (re-exported: the contrast and ranking import them here)
+    Described,
+    contrasts_of,
+    control_label,
+    describe_groups,
+    reference_of,
+    sides,
+)
 
 FIELD = "field"
 # Assignments enumerated exactly, whatever n_permutations asks for: below this many the
@@ -79,12 +87,16 @@ def check_arguments(
     n_permutations: object,
     random_state: object,
     fields_independent: object = False,
+    comparisons: object = None,
 ) -> tuple[int, int]:
-    """The checks ``condition_contrast`` and ``feature_ranking`` share; the counts as ``int``."""
-    if not isinstance(control, Mapping) or not control:
-        raise ValueError("control must be a non-empty mapping of FOV-table column to value")
-    if condition_col not in control:
-        raise ValueError(f"control must name the condition column {condition_col!r}")
+    """The checks ``condition_contrast`` and ``feature_ranking`` share; the counts as ``int``.
+    With ``comparisons`` (checked by ``_control.check_comparisons``) ``control`` may be
+    ``None``."""
+    if comparisons is None or control is not None:
+        if not isinstance(control, Mapping) or not control:
+            raise ValueError("control must be a non-empty mapping of FOV-table column to value")
+        if condition_col not in control:
+            raise ValueError(f"control must name the condition column {condition_col!r}")
     if not isinstance(fields_independent, (bool, np.bool_)):
         raise TypeError("fields_independent must be True or False")
     return as_count(n_permutations, "n_permutations", 1), check_seed(random_state)
@@ -111,7 +123,7 @@ def resolve_columns(
     columns = data.fovs.columns
     if condition_col not in columns:
         raise ValueError(f"condition_col {condition_col!r} is not a column of the FOV table")
-    missing = [c for c in control if c not in columns]
+    missing = [c for c in control or {} if c not in columns]
     if missing:
         raise ValueError(
             f"control names columns absent from the FOV table: {missing}; name the control "
@@ -141,51 +153,6 @@ def resolve_columns(
                 "to go without one"
             )
     return repeat_col, technical_col
-
-
-def describe_groups(
-    all_groups: list[tuple[dict[str, Any], ValidatedInput]],
-    condition_col: str,
-    repeat_col: str | None,
-    control: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    """Each analysis group with its condition, repeat and whether it is the control.
-
-    Raises when a group spans several conditions or repeats (the column is
-    then missing from ``group_cols``) or when no group matches ``control``.
-    """
-
-    def value_of(group_data: ValidatedInput, column: str) -> Any:
-        values = group_data.fovs[column].drop_duplicates()
-        if len(values) != 1:
-            raise ValueError(
-                f"an analysis group spans several values of {column!r}; add it to group_cols"
-            )
-        return values.iloc[0]
-
-    described = []
-    for group, group_data in all_groups:
-        described.append(
-            {
-                "group": group,
-                "condition": value_of(group_data, condition_col),
-                "repeat": value_of(group_data, repeat_col) if repeat_col else None,
-                "is_control": all(
-                    value_of(group_data, column) == value for column, value in control.items()
-                ),
-            }
-        )
-    if not any(d["is_control"] for d in described):
-        raise ValueError(no_match_message(all_groups, control, "control"))
-    return described
-
-
-def contrasts_of(described: list[dict[str, Any]]) -> list[tuple[Any, Any]]:
-    """The ``(repeat, condition)`` pairs to compare with the control, in a stable order."""
-    return sorted(
-        {(d["repeat"], d["condition"]) for d in described if not d["is_control"]},
-        key=lambda pair: (str(pair[0]), str(pair[1])),
-    )
 
 
 def resolve_unit(
@@ -222,24 +189,6 @@ def resolve_unit(
             "cannot serve as a unit to shuffle"
         )
     return name, None
-
-
-def sides(
-    described: list[dict[str, Any]], repeat: Any, condition: Any
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """The treated groups of ``condition`` and the control groups, within ``repeat``."""
-    controls = [d["group"] for d in described if d["is_control"] and d["repeat"] == repeat]
-    treated = [
-        d["group"]
-        for d in described
-        if not d["is_control"] and d["repeat"] == repeat and d["condition"] == condition
-    ]
-    return treated, controls
-
-
-def control_label(described: list[dict[str, Any]], controls: list[dict[str, Any]]) -> str:
-    """The control conditions of ``controls``, joined by ``/`` (empty without controls)."""
-    return "/".join(sorted({str(d["condition"]) for d in described if d["group"] in controls}))
 
 
 def side_units(

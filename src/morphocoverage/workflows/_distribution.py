@@ -40,10 +40,10 @@ def distribution_by_feature(
 ) -> DistributionContrast | None:
     """The comparison of the declared features' distributions, or ``None`` without a
     fingerprint, a control or several conditions."""
-    if not setup.fingerprint or setup.control is None:
+    if not setup.fingerprint or not setup.compares:
         return None
     result = distribution_contrast(
-        objects, fovs, features=setup.columns, control=setup.control, **setup.common
+        objects, fovs, features=setup.columns, **setup.contrast_arguments, **setup.common
     )
     return result if result.n_tests else None
 
@@ -63,24 +63,42 @@ def _named(rows: pd.DataFrame) -> list[str]:
     return [f"{r.feature} ({_NAMES[r.statistic]}, q {p_value(r.q)})" for r in best.itertuples()]
 
 
+def _of_assessed(row: Any) -> str:
+    """``in 2 of 2 repeats``, ``in 2 of 2 repeats assessed, 1 repeat not assessed: 3 cells``."""
+    if not row.not_assessed:
+        return f"in {row.split_repeats} of {row.assessed} repeats"
+    return f"in {row.split_repeats} of {row.assessed} repeats assessed, {row.not_assessed}"
+
+
 def split_words(result: DistributionContrast | None, condition: Any) -> str:
     """``its cells may split into two groups on area (bimodality 0.62, the control 0.41, in 3 of
-    3 repeats; see its figure)``, or empty when the condition splits no feature."""
-    splits = result.splits() if result is not None else pd.DataFrame()
-    mine = splits[splits["condition"] == condition] if len(splits) else splits
-    if mine.empty:
+    3 repeats; see its figure)``, the repeats that cannot be assessed named and left out of the
+    count (owner, 2026-10-05); ``a split into two groups is not assessed on area (3 repeats:
+    3, 2 and 3 cells)`` when no repeat can be; empty when neither."""
+    if result is None:
         return ""
+    splits, unassessed = result.splits(), result.not_assessed()
+    mine = splits[splits["condition"] == condition]
+    blank = unassessed[unassessed["condition"] == condition]
     units = observation_words(result.settings)[1]
-    named = [
-        f"{r.feature} (bimodality coefficient {r.bimodality:.2f}, the control "
-        f"{r.control_bimodality:.2f}, in {r.split_repeats} of {r.repeats} repeats)"
-        for r in mine.itertuples()
-    ]
-    figures = "its figure" if len(mine) == 1 else "their figures"
-    return (
-        f"its {units} may split into two groups on {listing(named, 4)}, where "
-        f"the control's do not (see {figures})"
-    )
+    parts = []
+    if len(mine):
+        named = [
+            f"{r.feature} (bimodality coefficient {r.bimodality:.2f}, the control "
+            f"{r.control_bimodality:.2f}, {_of_assessed(r)})"
+            for r in mine.itertuples()
+        ]
+        figures = "its figure" if len(mine) == 1 else "their figures"
+        parts.append(
+            f"its {units} may split into two groups on {listing(named, 4)}, where "
+            f"the control's do not (see {figures})"
+        )
+    if len(blank):
+        named = [
+            f"{r.feature} ({count(r.repeats, 'repeat')}: {r.reasons})" for r in blank.itertuples()
+        ]
+        parts.append(f"a split into two groups is not assessed on {listing(named, 4)}")
+    return "; ".join(parts)
 
 
 def _condition_line(condition: Any, rows: pd.DataFrame, result: DistributionContrast) -> str:

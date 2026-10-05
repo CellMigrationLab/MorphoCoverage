@@ -3,6 +3,7 @@
 import pandas as pd
 import pytest
 from scenarios import FEATURE_COLS, SCENARIOS
+from scipy import stats
 
 from morphocoverage.bounds import interval
 from morphocoverage.outcomes import RelativeMeanError
@@ -10,6 +11,7 @@ from morphocoverage.retrospective import (
     OutcomeCriterion,
     ReliabilityResult,
     SamplingHierarchy,
+    protocol,
     protocol_reliability,
     sampling_reliability,
 )
@@ -219,3 +221,59 @@ def test_a_protocol_with_no_sample_curve_says_it_is_not_assessed():
     for detail in ("short", "full"):
         assert result.summary(detail) == "Not assessed: no sample had a reliability curve to count."
     assert result.summary() != _protocol().summary()
+
+
+def _units_curve(adequate_per_unit):
+    """A one-condition curve from [(samples, adequate samples), ...], one entry per plate."""
+    preserved = {}
+    for unit, (samples, adequate) in enumerate(adequate_per_unit):
+        for sample in range(samples):
+            preserved[(f"P{unit}", f"W{sample}")] = {5: 0.95 if sample < adequate else 0.5}
+    return preserved
+
+
+def _exact_reference(successes, trials):
+    ci = stats.binomtest(successes, trials).proportion_ci(confidence_level=0.95, method="exact")
+    return ci.low, ci.high
+
+
+@pytest.mark.parametrize("n_units", [2, 3, 5, 10, 12])
+@pytest.mark.parametrize("sizes", ["equal", "unequal"])
+def test_issue_95_the_exact_floor_counts_whole_units(n_units, sizes, monkeypatch):
+    seen = []
+    exact = protocol._exact
+    monkeypatch.setattr(
+        protocol, "_exact", lambda k, n: seen.append((k, n)) or exact(k, n), raising=True
+    )
+    samples = [3] * n_units if sizes == "equal" else [1 + 7 * (u % 3) for u in range(n_units)]
+    # None, every and, in between, one unit whole and all but one sample of the others.
+    for adequate in ([0] * n_units, list(samples), [samples[0]] + [s - 1 for s in samples[1:]]):
+        # A unit is served when at least protocol_share (0.9) of its samples are adequate.
+        served = sum(a / s >= 0.9 for a, s in zip(adequate, samples, strict=True))
+        row = _protocol(_units_curve(list(zip(samples, adequate, strict=True)))).table.iloc[0]
+        low, high = _exact_reference(served, n_units)
+        if row["share"] in (0.0, 1.0):
+            assert (row["share_low"], row["share_high"]) == pytest.approx((low, high))
+        else:
+            assert row["share_low"] <= low + 1e-12 and row["share_high"] >= high - 1e-12
+        assert row["share_low"] <= row["share"] <= row["share_high"]
+    # Never a fractional pseudo-count: whole successes of whole units only.
+    assert seen and all(isinstance(k, int) and isinstance(n, int) for k, n in seen)
+    assert all(n == n_units for _, n in seen)
+
+
+def test_issue_95_more_samples_in_a_unit_do_not_narrow_the_interval():
+    for adequate in (lambda s: s, lambda s: 0):
+        few = _protocol(_units_curve([(1, adequate(1))] * 3)).table.iloc[0]
+        many = _protocol(_units_curve([(20, adequate(20))] * 3)).table.iloc[0]
+        assert (few["share_low"], few["share_high"]) == pytest.approx(
+            (many["share_low"], many["share_high"])
+        )
+    # A unit with many samples, 85% adequate, is one unit not served, not 17 successes.
+    row = _protocol(_units_curve([(20, 17), (1, 1), (1, 1)])).table.iloc[0]
+    assert row["share"] == pytest.approx(19 / 22)
+    assert row["share_low"] <= _exact_reference(2, 3)[0] + 1e-12 < _exact_reference(3, 3)[0]
+    # Width is driven by the units: all adequate, more units narrow it, more samples do not.
+    lows = [_protocol(_units_curve([(4, 4)] * n)).table.iloc[0]["share_low"] for n in (2, 3, 5, 10)]
+    assert lows == sorted(lows) and lows[0] < lows[-1]
+    assert lows == pytest.approx([_exact_reference(n, n)[0] for n in (2, 3, 5, 10)])

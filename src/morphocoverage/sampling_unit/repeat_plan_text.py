@@ -17,10 +17,11 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption
+from .._control import versus
 from .._style import table, wrap
 from .._wording import change, count, listing, percent
 from ..schema import observation_words, unit_plural
-from .contrast_sampling import PRACTICAL
+from .contrast_sampling import MORE_WELLS, PRACTICAL
 from .repeat_plan import ALPHA, MAX_REPEATS, POWER
 
 
@@ -48,10 +49,25 @@ def _repeats_cell(value: float) -> str:
     return f"more than {MAX_REPEATS}" if np.isinf(value) else str(int(value))
 
 
-def _fields_cell(value: float, fields: str = "fields") -> str:
+def _fields_cell(value: float, fields: str = "fields", wells: bool = False) -> str:
     if pd.isna(value):
         return "–"
+    if np.isinf(value) and wells:
+        # More fields will not resolve it (owner, 2026-10-05).
+        return MORE_WELLS
     return f"more than {PRACTICAL} times the {fields}" if np.isinf(value) else f"about {int(value)}"
+
+
+def _between_wells(contrast: Any, row: dict[str, Any]) -> bool:
+    """Whether some repeat of the plan's condition is one more fields will not resolve, the
+    wells differing more than the difference (``contrast_sampling``)."""
+    table = getattr(contrast, "table", pd.DataFrame())
+    if "between_wells" not in table:
+        return False
+    mine = (table["condition"] == row["condition"]) & (
+        table["control_condition"] == row["control_condition"]
+    )
+    return bool(table.loc[mine, "between_wells"].fillna(False).astype(bool).any())
 
 
 def change_cell(row: Any) -> str:
@@ -98,12 +114,12 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
     for row in plan.to_dict("records"):
         rows.append(
             [
-                f"{row['condition']} vs {row['control_condition']}",
+                versus(row["condition"], row["control_condition"]),
                 change_cell(row),
                 f"{row['d_mean']:+.2f}",
                 _repeats_cell(row["repeats_needed"]),
                 _repeats_cell(row["repeats_needed_twice_fields"]),
-                _fields_cell(row["fields_per_repeat"], fields),
+                _fields_cell(row["fields_per_repeat"], fields, _between_wells(contrast, row)),
             ]
         )
     columns = [
@@ -153,7 +169,9 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         notes.append(
             assumption(
                 f"The {fields} a side per repeat are the most any repeat needs, projected from "
-                "its interval of d (narrowing as 1/sqrt of the number)."
+                "the part of its interval of d within wells (narrowing as 1/sqrt of the number); "
+                f"the part between wells stays, and when it alone is as wide as the difference, "
+                f"more {fields} will not resolve it: {MORE_WELLS}."
             )
         )
         notes.append(

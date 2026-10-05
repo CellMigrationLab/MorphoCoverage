@@ -12,6 +12,10 @@ combination of them. ``embed`` places every observation in two dimensions, two w
   ``min_dist``, seeded by ``random_state``), which keeps neighbourhoods rather than
   variance and so can show groups PCA mixes.
 
+With ``weights`` (a weight per feature, the others 1), each standardised feature is
+multiplied by its weight before both: the weighted combined space of several feature tables
+(``feature_tables.table_weights``), where every table carries the same total variance.
+
 Both are descriptions, not tests: a separation in either is a pattern to read with the
 discovery's tests, and its absence does not show the conditions alike. Observations with a
 missing value in any feature are left out (counted). Above ``max_points`` observations,
@@ -22,7 +26,7 @@ table (``Setup.prepared``) to embed values relative to each repeat's control.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,14 +41,18 @@ MIN_FEATURES = 3
 MAX_POINTS = 5000
 N_NEIGHBORS = 15
 MIN_DIST = 0.1
+# The MorphoBricks column naming an object within its image (CellPatcher's patches).
+LABEL_COLUMN = "label_id"
 
 
 @dataclass(frozen=True)
 class Embedding:
     """``points``: one row per observation kept (its condition and biological repeat when
-    the tables have them, its ``field``, ``pc1``, ``pc2``, ``umap1``, ``umap2``; UMAP NaN for
-    observations outside its sample); ``loadings``: one row per feature (``pc1``, ``pc2``, ``top``);
-    ``explained``: the share of the variance on each PCA axis; ``settings``."""
+    the tables have them, its ``field``, its ``observation``, which is its index in the
+    observation table, its ``label_id`` when the table has one, ``pc1``, ``pc2``, ``umap1``
+    and ``umap2``; UMAP NaN for observations outside its sample); ``loadings``: one row per
+    feature (``pc1``, ``pc2``, ``top``); ``explained``: the share of the variance on each PCA
+    axis; ``settings``."""
 
     points: pd.DataFrame
     loadings: pd.DataFrame
@@ -60,6 +68,16 @@ def _standardised(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     scale = np.where(scale > 0, scale, sd)
     varies = scale > 0
     return (matrix[:, varies] - centre[varies]) / scale[varies], varies
+
+
+def weighted(
+    z: np.ndarray, features: Sequence[str], weights: Mapping[str, float] | None
+) -> np.ndarray:
+    """``z`` with each column times its feature's weight (1 when not given); ``z`` itself
+    without ``weights``."""
+    if not weights:
+        return z
+    return z * np.array([float(weights.get(f, 1.0)) for f in features])
 
 
 def _pca(z: np.ndarray) -> tuple[np.ndarray, np.ndarray, tuple[float, float]]:
@@ -109,11 +127,15 @@ def embed(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    weights: Mapping[str, float] | None = None,
+    standardised: Sequence[str] | None = None,
 ) -> Embedding:
     """PCA (and, with ``umap``, UMAP) of ``features`` (see the module); needs at least
     ``MIN_FEATURES`` features that vary. ``carry`` are observation columns copied onto the
     points (a population, a label); the points also hold each feature's standardised value
-    (``z:<feature>``), for colouring the maps and describing a selection."""
+    (``z:<feature>``), for colouring the maps and describing a selection (of the features in
+    ``standardised`` only, when given); ``weights`` weigh the standardised features (see the
+    module)."""
     features = list(dict.fromkeys(features))
     max_points = as_count(max_points, "max_points", 10)
     n_neighbors = as_count(n_neighbors, "n_neighbors", 2)
@@ -131,6 +153,7 @@ def embed(
     complete = ~np.isnan(matrix).any(axis=1)
     z, varies = _standardised(matrix[complete])
     kept_features = [f for f, v in zip(features, varies, strict=True) if v]
+    z = weighted(z, kept_features, weights)
     if len(kept_features) < MIN_FEATURES:
         raise ValueError(
             f"an embedding needs at least {MIN_FEATURES} features that vary; "
@@ -144,11 +167,17 @@ def embed(
     if data.fov_col in meta and data.fov_col not in columns:
         built["field"] = meta[data.fov_col].to_numpy()
     kept_rows = data.objects.loc[complete]
+    # Where each point came from, to find the observation again (#74).
+    built["observation"] = kept_rows.index.to_numpy()
+    if LABEL_COLUMN in kept_rows:
+        built[LABEL_COLUMN] = kept_rows[LABEL_COLUMN].to_numpy()
     for column in carry:
         if column in kept_rows:
             built[column] = kept_rows[column].to_numpy()
+    carried = set(kept_features if standardised is None else standardised)
     for i, feature in enumerate(kept_features):
-        built[f"z:{feature}"] = z[:, i]
+        if feature in carried:
+            built[f"z:{feature}"] = z[:, i]
     built["pc1"], built["pc2"] = scores[:, 0], scores[:, 1]
     built["umap1"], built["umap2"] = np.full(len(z), np.nan), np.full(len(z), np.nan)
     points = pd.DataFrame(built, index=pd.RangeIndex(len(z)))
@@ -182,6 +211,7 @@ def embed(
         "random_state": random_state,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
+        "weights": dict(weights) if weights else None,
     }
     return Embedding(points, table, explained, settings)
 

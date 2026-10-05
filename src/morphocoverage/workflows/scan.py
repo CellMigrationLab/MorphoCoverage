@@ -41,6 +41,7 @@ import pandas as pd
 from .._former_repeat import one_warning, read_former, renamed_tables
 from .._style import Status, check_detail
 from ..data_check import DataCheck, check_tables
+from ..feature_tables import FeatureTables, attach_feature_tables
 from ..integrity import IntegrityResult, integrity_checks
 from ..metadata import (
     CONDITION_COLUMN,
@@ -200,6 +201,7 @@ class DesignScan:
             "fov_col": settings["fov_col"],
             "group_cols": tuple(settings["group_cols"]),
             "observation_unit": settings["observation_unit"],
+            "feature_tables": settings.get("feature_tables"),
         }
         values.update(fields)
         return Setup(readout=readout, **values)
@@ -324,10 +326,13 @@ def _design(
     control_declared: bool,
     fovs: pd.DataFrame | None = None,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
-    """The facts of the design and the observations per condition and repeat."""
+    """The facts of the design and the observations per condition and repeat; with the FOV
+    table (``fovs``), its conditions and repeats, those held only by empty fields included."""
     design: dict[str, Any] = {"observations": len(objects)}
     has_condition = column_has_values(objects, CONDITION_COLUMN)
     has_repeat = column_has_values(objects, REPEAT_COLUMN)
+    listed = fovs is not None and set(fov_key) <= set(fovs.columns)
+    groups = fovs if listed else objects
     fields, *per_field = (
         _per_field(objects, fov_key, fovs) if fov_key else (len(objects), 1, 1.0, 1)
     )
@@ -335,21 +340,19 @@ def _design(
     conditions: list[Any] = []
     design["control_guesses"], design["control_guess"] = [], None
     if has_condition:
-        guesses = _control_guess(list(dict.fromkeys(objects[CONDITION_COLUMN])))
+        guesses = _control_guess(list(dict.fromkeys(groups[CONDITION_COLUMN])))
         design["control_guesses"] = guesses
         design["control_guess"] = (
             control if control_declared else (guesses[0] if len(guesses) == 1 else None)
         )
         first = control if control_declared else design["control_guess"]
-        conditions = sorted_labels(objects[CONDITION_COLUMN], first)
+        conditions = sorted_labels(groups[CONDITION_COLUMN], first)
     design["conditions"] = conditions
     design["control"] = control if control_declared else None
-    design["repeats"] = sorted_labels(objects[REPEAT_COLUMN]) if has_repeat else []
+    design["repeats"] = sorted_labels(groups[REPEAT_COLUMN]) if has_repeat else []
     keys = [c for c, has in ((CONDITION_COLUMN, has_condition), (REPEAT_COLUMN, has_repeat)) if has]
     design["technical"] = _technical(objects, keys)
-    design["repeat_sets"] = (
-        _repeat_sets(objects, conditions) if has_condition and has_repeat else []
-    )
+    design["repeat_sets"] = _repeat_sets(groups, conditions) if has_condition and has_repeat else []
     planes = {}
     for axis in WITHIN_FOV_METADATA_COLUMNS:
         if column_has_values(objects, axis) and fov_key:
@@ -373,7 +376,19 @@ def _design(
         layout = layout.to_frame("observations")
     else:
         layout = pd.DataFrame()
+    if listed and not layout.empty:
+        # A condition and repeat whose fields are all empty holds 0 observations, not none.
+        layout = layout.where(_layout(fovs, layout).isna(), layout.fillna(0))
     return design, layout
+
+
+def _layout(table: pd.DataFrame, like: pd.DataFrame) -> pd.DataFrame:
+    """The rows of ``table`` per condition (and repeat), shaped as the layout ``like``."""
+    if list(like.columns) == ["observations"]:
+        counts = table.groupby(CONDITION_COLUMN, sort=False).size().to_frame("observations")
+    else:
+        counts = table.groupby([CONDITION_COLUMN, REPEAT_COLUMN], sort=False).size().unstack()
+    return counts.reindex(index=like.index, columns=like.columns)
 
 
 def _balance(layout: pd.DataFrame, repeats: list[Any]) -> list[dict[str, Any]]:
@@ -411,6 +426,34 @@ def _constant(objects: pd.DataFrame, features: Sequence[str]) -> list[str]:
     return found
 
 
+def _with_tables(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame | None,
+    tables: Mapping[str, pd.DataFrame] | None,
+    fov_col: str,
+    added: bool,
+) -> tuple[pd.DataFrame, FeatureTables | None, list[Finding]]:
+    """``objects`` with the other feature tables attached, what was checked, and the finding
+    that says why they cannot be used (then ``objects`` as given)."""
+    if not tables:
+        return objects, None, []
+    reason = None
+    if added:
+        reason = (
+            "the other feature tables are matched to observations by their image, and the "
+            "observation table names none"
+        )
+    else:
+        try:
+            attached = attach_feature_tables(objects, fovs, tables, fov_col=fov_col)
+        except (ValueError, TypeError) as error:
+            reason = str(error)
+        else:
+            return attached.objects, attached, []
+    text = f"{reason[:1].upper()}{reason[1:]}."
+    return objects, None, [Finding(Status.PROBLEM, "feature_tables", text)]
+
+
 def _quiet(function: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """``function`` with its ``UserWarning`` s caught: the scan reports what they say."""
     with warnings.catch_warnings():
@@ -427,6 +470,7 @@ def scan_design(
     control: Mapping[str, Any] | None = None,
     observation_unit: str | None = None,
     fov_col: str | None = None,
+    feature_tables: Mapping[str, pd.DataFrame] | None = None,
 ) -> DesignScan:
     """Scan the design of ``objects`` (and ``fovs``, when there is a FOV table) before any
     analysis (see the module).
@@ -435,8 +479,11 @@ def scan_design(
     not metadata are read as candidate features (for the copy checks only, and said so);
     without an image identifier (``position_id``, ``image_file``, ``fov_id`` or ``fov_col``)
     each row is assumed to be its own image; without ``control`` a condition named like a
-    control is suggested, never used. Never raises for bad data: what is wrong is in the
-    findings.
+    control is suggested, never used. ``feature_tables`` are other feature tables for the same
+    observations, by name (a DINO embedding, owner 2026-10-05): checked and attached
+    (``attach_feature_tables``), they are listed with the design, read by the copy checks,
+    and named in ``DesignScan.setup``; one that cannot be used is a finding. Never raises
+    for bad data: what is wrong is in the findings.
     """
     from ._scan_rules import findings, questions, suggestions
 
@@ -467,6 +514,8 @@ def scan_design(
     features_declared = feature_cols is not None
     taken = {*fov_key, *groups}
     features = list(feature_cols) if features_declared else _feature_candidates(objects, taken)
+    objects, tables, refused = _with_tables(objects, fovs, feature_tables, found_fov, added_fov)
+    others = [c for columns in (tables.columns if tables else {}).values() for c in columns]
     data_check = _quiet(
         check_tables,
         objects,
@@ -482,7 +531,7 @@ def scan_design(
             integrity_checks,
             objects,
             fovs,
-            feature_cols=features,
+            feature_cols=[*features, *others],
             fov_col=found_fov,
             observation_unit=observation_unit,
         )
@@ -506,7 +555,9 @@ def scan_design(
         "observation_unit": observation_unit,
         "control": dict(control) if control else None,
         "control_declared": control_declared,
+        "feature_tables": tables.columns if tables else None,
     }
+    design["feature_tables"] = tables.lines() if tables else []
     scan = DesignScan(
         design=design,
         layout=layout,
@@ -522,7 +573,7 @@ def scan_design(
     return DesignScan(
         design=design,
         layout=layout,
-        findings=tuple(findings(scan)),
+        findings=(*findings(scan), *refused),
         suggestions=tuple(suggestions(scan)),
         questions=tuple(questions(scan)),
         data_check=data_check,

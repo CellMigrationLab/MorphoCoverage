@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption
+from .._control import versus
 from .._style import span, table, wrap
 from .._wording import column_word, count, listing, p_value, percent
 from ..schema import observation_words
@@ -112,7 +113,8 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
     return (
         f"Balance: {'; and '.join(reasons)}; so the test is also given balanced (each "
         f"condition against the control of its own {word}s, the same number of {words} from "
-        f"each {word}; the median d and p over {BALANCED_DRAWS} draws), and as provided only "
+        f"each {word}; the median d over {BALANCED_DRAWS} draws, labels shuffled within each "
+        f"{word} for p), and as provided only "
         f"where the control comes from the condition's own {word}s."
         + shifted
         + _control_only(contrast, cells)
@@ -195,7 +197,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
     ]
     as_provided = [
         [
-            f"{row['condition']} vs {row['control_condition']}",
+            versus(row["condition"], row["control_condition"]),
             _test(row["d_cells"], row["p_cells"], row["q_cells"]),
             _test(
                 row["d_cells_normalised"],
@@ -233,7 +235,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         rows = []
         for row in cells[cells["p_balanced"].notna()].to_dict("records"):
             values = [
-                f"{row['condition']} vs {row['control_condition']}",
+                versus(row["condition"], row["control_condition"]),
                 _test(row["d_balanced"], row["p_balanced"], row["q_balanced"]),
                 _test(
                     row["d_balanced_normalised"],
@@ -277,7 +279,8 @@ def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str
         "divided by its own repeat's control mean"
     )
     text += (
-        f". Balanced: the median over {BALANCED_DRAWS} draws with as many {words} from each repeat."
+        f". Balanced: the median d over {BALANCED_DRAWS} draws with as many {words} from each "
+        "repeat, its p from labels shuffled within each repeat."
         if balanced
         else "."
     )
@@ -320,17 +323,16 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
     if balanced:
         notes.append(
             assumption(
-                f"Balanced: the median d and median p over {BALANCED_DRAWS} draws taking the same "
-                f"number of {words} from each repeat, against the control of the condition's own "
-                "repeats; it describes the typical draw and is not the p of one test (where a "
-                "large correction family reruns a p at or below 0.05 with more shuffles, the "
-                "mean p of the two draws at the median d). In "
+                f"Balanced: one permutation test against the control of the condition's own "
+                f"repeats, d the median over {BALANCED_DRAWS} draws taking the same number of "
+                f"{words} from each repeat, p from the condition and control labels shuffled "
+                "within each repeat, the same statistic on the same draws for each shuffle. In "
                 "data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells "
                 "of the others, the test as provided gives 22-46% false positives where equal "
-                "repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control "
+                "repeats give 16% (s = 0.25), and the balanced test 15-19%; with the control "
                 "pooled from repeats the condition was not imaged in, the raw test as provided "
-                "gives 46% even when the repeats agree, the balanced test 2%. Balancing removes "
-                "the weight of the repeats holding more, not the independence assumption."
+                "gives 46% even when the repeats agree, the balanced test about 5%. Balancing "
+                "removes the weight of the repeats holding more, not the independence assumption."
             )
         )
     return notes

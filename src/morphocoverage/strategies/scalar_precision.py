@@ -29,36 +29,32 @@ control mean. The faithful multi-sample, control-normalized planning procedure
 is therefore ``plan_objects_to_average`` plus ``PlannedObjectCountStrategy``
 in ``jcb_planning``.
 
-``resampling_unit="object"`` is the published criterion. ``resampling_unit="fov"``
-is a MorphoCoverage variant, not part of the paper: the same averaging noise
-estimated with FOVs as the sampling unit (ratio-estimator variance for cluster
-sampling), so phenotypes clustered within FOVs inflate it. The gap between the
-two is the comparison the regime map needs; it does not make either wrong.
-The FOV unit assumes the acquired FOVs are representative, exchangeable draws
-of the well's positions: it does not see correlation between neighbouring
-FOVs, so a raster over a spatial gradient, or a readout that drifts during
-the acquisition, can stop it early (audit 4, P4-2); the live and report
-lines print the order check (``morphocoverage.order_check``), or without
-order and stage columns this assumption, beside every stop. Its upper bound uses Kish's effective
-number of FOVs, ``(sum N_j) ** 2 / sum N_j ** 2`` over the FOVs' object
-counts, minus one as its degrees of freedom (``fov_averaging_cv``): with one
-crowded FOV among sparse ones the bound is wide, and below 2 effective FOVs
-the quantity is ``insufficient_data`` in both SD estimates.
+``resampling_unit="object"`` is the published criterion. ``resampling_unit="fov"`` is a
+MorphoCoverage variant, not part of the paper: the same averaging noise estimated with FOVs as
+the sampling unit (ratio-estimator variance for cluster sampling), so phenotypes clustered
+within FOVs inflate it. The gap between the two is the comparison the regime map needs; it does
+not make either wrong. The FOV unit assumes the acquired FOVs are representative, exchangeable
+draws of the well's positions: it does not see correlation between neighbouring FOVs, so a
+raster over a spatial gradient, or a readout that drifts during the acquisition, can stop it
+early (audit 4, P4-2); the live and report lines print the order check
+(``morphocoverage.order_check``), or without order and stage columns this assumption, beside
+every stop. Its upper bound is a bootstrap of whole fields (``fov_averaging_cv``; owner,
+2026-10-05), ``insufficient_data`` until it is defined, and below 2 effective FOVs (Kish,
+``(sum N_j) ** 2 / sum N_j ** 2`` over the FOVs' object counts) the quantity is
+``insufficient_data`` in both SD estimates.
 
 Assumptions the paper's arithmetic makes, stated here because the rule cannot
 check them all:
 
-- The chi-square upper bound of the SD holds for normal values. A readout
-  with a heavy tail or a minority state (10% of cells at four times the
-  level of the rest) makes it optimistic; the object unit's upper-95 variant
-  then says so in ``warning`` (excess kurtosis above 2 or bimodality
-  coefficient above 5/9, from 8 objects).
-- A CV is not invariant to an additive offset: intensities must be
-  background-subtracted (+500 of camera background moved the per-FOV stop from
-  FOV 21 to FOV 5 in one well).
-- The point SD estimate is optimistic with few FOVs: with fewer than 5 FOVs
-  holding objects the FOV unit's point variant says so in ``warning``, since
-  the paper advises the upper bound for small samples.
+- The chi-square upper bound of the SD holds for normal values. A readout with a heavy tail or
+  a minority state (10% of cells at four times the level of the rest) makes it optimistic; the
+  object unit's upper-95 variant then says so in ``warning`` (excess kurtosis above 2 or
+  bimodality coefficient above 5/9, from 8 objects).
+- A CV is not invariant to an additive offset: intensities must be background-subtracted (+500
+  of camera background moved the per-FOV stop from FOV 21 to FOV 5 in one well).
+- The point SD estimate is optimistic with few FOVs: with fewer than 5 FOVs holding objects the
+  FOV unit's point variant says so in ``warning``, since the paper advises the upper bound for
+  small samples.
 
 Not reproduced here, but in ``jcb_planning``, both parts of the multi-sample
 procedure:
@@ -67,29 +63,26 @@ procedure:
 - when several samples are used, subtracting each sample's mean before
   estimating the pooled within-sample SD.
 
-Within one group the sample's own mean is used by this adaptation. That is
-not the general published normalization for treated samples; use the planning
-procedure when a separate control normalization is required.
+Within one group the sample's own mean is used by this adaptation. That is not the general
+published normalization for treated samples; use the planning procedure when a separate control
+normalization is required.
 
-Estimation and decision are separate. ``ScalarPrecisionEstimator`` reports the
-averaging CV (and, with a pilot, the averaging CV the pilot projects for the
-visible effort); ``ScalarPrecisionStrategy`` applies the paper's target to it
-with a ``ThresholdPolicy``. The projected CV reaches the target when the
-visible effort reaches the pilot's required number of objects
-(``required_objects``) or, up to floating-point rounding, of FOVs
-(``required_fovs``: at a rounding boundary the projection can need one FOV
-more than that count), so the stopping rule is the paper's.
+Estimation and decision are separate. ``ScalarPrecisionEstimator`` reports the averaging CV
+(and, with a pilot, the averaging CV the pilot projects for the visible effort);
+``ScalarPrecisionStrategy`` applies the paper's target to it with a ``ThresholdPolicy``. The
+projected CV reaches the target when the visible effort reaches the pilot's required number of
+objects (``required_objects``) or, up to floating-point rounding, of FOVs (``required_fovs``: at
+a rounding boundary the projection can need one FOV more than that count), so the stopping rule
+is the paper's.
 
-A feature with no spread so far (a saturated intensity, the same integer
-count in every object) gives an averaging CV of 0, which says nothing about
-averaging noise: the quantity is ``insufficient_data`` until objects (object
-unit) or FOV means (FOV unit) differ, in every variant, as the planning path
-refuses such a pilot.
+A feature with no spread so far (a saturated intensity, the same integer count in every object)
+gives an averaging CV of 0, which says nothing about averaging noise: the quantity is
+``insufficient_data`` until objects (object unit) or FOV means (FOV unit) differ, in every
+variant, as the planning path refuses such a pilot.
 
-A missing value is never imputed or dropped: one object without a value makes
-the rule undefined (``not_applicable``) for the group from that FOV on, and
-the reason names the first FOV and object without one, so the value can be
-filled in.
+A missing value is never imputed or dropped: one object without a value makes the rule undefined
+(``not_applicable``) for the group from that FOV on, and the reason names the first FOV and
+object without one, so the value can be filled in.
 """
 
 from __future__ import annotations
@@ -190,13 +183,12 @@ class ScalarPrecisionEstimator(Estimator):
       FOV that sorts before a pilot FOV takes its place, so the pilot and its
       requirement can change as acquisition goes on.
 
-    Too few objects or FOVs, fewer than 2 effective FOVs (Kish, FOV unit), or
-    a zero mean so far (only zeros), give ``insufficient_data``, as does no
-    spread so far (every object alike for the object unit, every FOV mean
-    alike for the FOV unit, up to rounding: a CV of 0 says nothing about
-    averaging noise). Missing or negative values make the CV undefined
-    (``not_applicable``; the reason names the first FOV and object without a
-    value), as does a pilot that cannot define the requirement.
+    Too few objects or FOVs (for the FOV unit's upper-95 bootstrap too), fewer than 2 effective
+    FOVs (Kish, FOV unit), or a zero mean so far (only zeros), give ``insufficient_data``, as
+    does no spread so far (every object alike for the object unit, every FOV mean alike for the
+    FOV unit, up to rounding: a CV of 0 says nothing about averaging noise). Missing or negative
+    values make the CV undefined (``not_applicable``; the reason names the first FOV and object
+    without a value), as does a pilot that cannot define the requirement.
 
     With the FOV unit the diagnostics also give ``ratio_design_effect``, the
     FOV-unit variance of the mean over that of as many random objects (the
@@ -340,6 +332,13 @@ class ScalarPrecisionEstimator(Estimator):
                 return "insufficient_data", (
                     f"fewer than 2 effective FOVs (Kish: {estimate['effective_fovs']:.2f}); "
                     f"one FOV holds most of the {plural(unit)}"
+                )
+            if math.isnan(estimate["cv_mean_upper_95"]):
+                estimate["cv_mean_upper_95"] = None  # no bound yet: the point variant goes on
+            if self.sd_estimate == "upper_95" and estimate["cv_mean_upper_95"] is None:
+                return "insufficient_data", (
+                    "too few FOVs for the whole-field bootstrap bound: over 5% of its resamples "
+                    "draw no spread between FOVs"
                 )
             # Values are non-negative here, so a between-object CV at rounding level is a
             # constant feature: its design effect would be rounding noise over noise.

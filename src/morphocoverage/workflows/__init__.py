@@ -39,6 +39,7 @@ resamples, grids, the fields held back), and every random procedure is seeded
 from ``Setup.random_state``. See ``docs/workflows.md``.
 """
 
+from ..feature_tables import FeatureTables, attach_feature_tables
 from .figures import embedding_plots, plots
 from .guided import Answers, GuidedResult, guide, load_answers, save_answers
 from .html_report import html_report, zip_results
@@ -62,6 +63,7 @@ __all__ = [
     "Benchmark",
     "DesignScan",
     "Family",
+    "FeatureTables",
     "GuidedResult",
     "LiveFolder",
     "LiveTables",
@@ -70,6 +72,7 @@ __all__ = [
     "PositiveControl",
     "Report",
     "Setup",
+    "attach_feature_tables",
     "benchmark",
     "default_families",
     "default_novelty",

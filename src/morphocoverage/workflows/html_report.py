@@ -35,7 +35,7 @@ import html
 import re
 import time
 import warnings
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -47,8 +47,10 @@ from .._wording import listing
 from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
+from ..sampling_unit.across_text import across_parts
 from ..sampling_unit.reading_text import readings_parts
 from ..sufficiency_short import rule_tallies
+from ._feature_space import attached, space
 from ._html_cards import (
     check_rows,
     chip_words,
@@ -68,7 +70,8 @@ from ._html_data import (
     page_files,
 )
 from ._html_enough import enough_body, enough_help
-from ._html_figures import embeddings, feature_figures
+from ._html_figures import feature_figures
+from ._html_maps import embeddings, maps_body
 from ._html_next import fields_next, populations_next
 from ._html_plan import PLAN_TITLE, plan_card
 from ._html_plotly import plotly_js
@@ -264,13 +267,7 @@ def _fields_card(result: Report, status: Status | None, short: str, full: str) -
 
 def _dataset_card(result: Report, viz: str, static: list[str]) -> str:
     """Every feature at once: the interactive PCA and UMAP, the static figures folded."""
-    body = (
-        f"<p>All {len(result.setup.columns)} features at once, every "
-        f"{result.setup.unit_word} a point.</p>{viz}"
-        "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
-        f'<div class="figures">{"".join(static)}</div></details>'
-    )
-    return _card("dataset", _words(TITLES["dataset"]), "", body)
+    return _card("dataset", _words(TITLES["dataset"]), "", maps_body(result.setup, viz, static))
 
 
 def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -> str:
@@ -291,6 +288,9 @@ def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -
             f"<h3>Every feature against the control</h3>{grid}{unranked}"
             f'<p class="tools">{data_buttons(files)}</p>'
         )
+    across = across_parts(contrast, indent=0) if contrast is not None else []
+    if across:  # several controls: the secondary rows, the contrast table (owner, 2026-10-05)
+        extra += "<h3>Compared across experiments</h3>" + _html("\n".join(across))
     if feature_blocks:
         ranked = result.discovery is not None and len(result.discovery.top())
         extra += (
@@ -346,11 +346,14 @@ def html_report(
     *,
     title: str = "MorphoCoverage report",
     attach: Sequence[str | Path] = (),
+    feature_tables: Mapping[str, pd.DataFrame] | None = None,
 ) -> Path:
     """Write ``folder/report.html`` and its figures (see the module); returns the page's path.
 
     ``objects`` and ``fovs`` are the tables the ``report`` was run on; ``attach`` are more files
-    the page carries for download (the design scan, the saved answers).
+    the page carries for download (the design scan, the saved answers): one not found is named
+    in the Files card, and two of one name are both carried (``_html_data.page_files``).
+    ``feature_tables`` are the other feature tables given to ``report``, attached again here.
     """
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
@@ -361,6 +364,7 @@ def html_report(
             f"objects and fovs must be the tables the report was run on ({counts['objects']} "
             f"observations, {counts['fields']} fields), not {len(objects)} rows and {len(fovs)}"
         )
+    objects = attached(objects, fovs, result.setup, feature_tables)[0]
     folder = Path(folder)
     # The "?" help in the report's words for its observations (tracks, patches).
     _INTROS.clear()
@@ -381,7 +385,7 @@ def html_report(
         legends = {f: _TERMS.annotate(html.escape(t)) for f, t in legends.items()}
         feature_blocks, specs = feature_figures(result, objects, fovs, figures, legends)
         viz, static = ("", [])
-        if len(result.setup.columns) >= MIN_FEATURES:
+        if len(space(result.setup)[0]) >= MIN_FEATURES:
             viz, static = embeddings(result, objects, fovs, figures)
     statuses, headlines = doc.statuses, doc.headlines
     # The titles name the report's own observations (tracks, patches).
@@ -500,8 +504,10 @@ def html_report(
     }
     if result.discovery is not None and len(result.discovery.tests):
         texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
+    if result.setup.contrast_table is not None:  # one row per test (owner, 2026-10-05)
+        texts["contrasts.csv"] = result.setup.contrast_table.to_csv(index=False)
     files, images = page_files(folder, texts, [Path(p) for p in attach], started)
-    cards.append(files_card(files))
+    cards.append(files_card(files, attach))
     # The page names the q-value the adjusted p (owner, 2026-10-02); then each PNG it
     # carries is given its data, once (past the budget it stays a link, _html_data).
     cards = [inline_images(adjusted_p(card, units, one), images) for card in cards]
@@ -569,7 +575,8 @@ def _settings(result: Report) -> str:
 
 def zip_results(folder: str | Path, *, since: float | None = None) -> Path:
     """Every file of ``folder`` (its subfolders included) in ``folder/<name>.zip``, for
-    archiving or sending as one file; a zip already there is replaced, never included. With
+    archiving or sending as one file; that zip, when already there, is replaced, never
+    included, and any other zip (an attachment) is included. With
     ``since`` (a ``time.time()``), the figures modified before it are an earlier run's,
     left out as the page leaves them out."""
     import zipfile
@@ -579,7 +586,7 @@ def zip_results(folder: str | Path, *, since: float | None = None) -> Path:
     figures = folder / "figures"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(folder.rglob("*")):
-            if not path.is_file() or path.suffix == ".zip":
+            if not path.is_file() or path == target:
                 continue
             if since is not None and path.parent == figures and path.stat().st_mtime < since:
                 continue

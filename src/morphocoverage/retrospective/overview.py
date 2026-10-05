@@ -140,6 +140,7 @@ class DatasetOverview:
             f"{count(c['features'], 'feature')} "
             f"({_listed(self.features, min(3, max_features_listed))}); {values}."
         )
+        lines += list(settings.get("feature_tables", ()))
         design = self._design_line()
         if design:
             lines.append(design)
@@ -333,6 +334,7 @@ class DatasetOverview:
             lines.append(f"Values: {normalized}.")
         else:
             lines.append("Values: as given (not normalised).")
+        lines += list(self.settings.get("feature_tables", ()))
         status, text = data_check_status(self)
         if self.warnings:
             lines.append(
@@ -374,8 +376,10 @@ def dataset_overview(
     observation_unit: str | None = None,
     control: Mapping[str, Any] | None = None,
     data_check: DataCheck | None = None,
+    feature_tables: Sequence[str] = (),
 ) -> DatasetOverview:
-    """Count what the tables hold (see the module). ``normalized`` is a sentence to print.
+    """Count what the tables hold (see the module). ``normalized`` is a sentence to print, and
+    so is each of ``feature_tables`` (the other feature tables, ``workflows._feature_space``).
 
     Each column argument is used when the FOV table has it; a technical
     repeat is counted within its condition and repeat (well J23 of two
@@ -446,6 +450,7 @@ def dataset_overview(
         "group_cols": tuple(data.group_cols),
         "planes": _within_field_values(data),
         "normalized": normalized,
+        "feature_tables": list(feature_tables),
         "control": dict(control or {}).get(condition_col),
         # Whether a data check was given: without one, "no warning" is not known.
         "data_checked": data_check is not None,

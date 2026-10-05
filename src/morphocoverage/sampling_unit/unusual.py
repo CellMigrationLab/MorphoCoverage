@@ -25,17 +25,34 @@ the **other** reference groups, so a shift between groups (a repeat's batch
 effect, say) raises the threshold as it raises the scores of the groups
 tested, instead of flagging a control group three times as often as the
 share asked for. This holds for every group scored, control or not; a tested
-object is scored against all reference groups but one (drawn at random), so
-it sees as dense a reference as the calibration did. With few reference
+object is scored against all reference groups but one, drawn uniformly, and in
+the threshold the scores of every left-out group weigh the same whatever its
+observations, so calibration and scoring leave a group out the same way and
+see an equally dense reference (owner, 2026-10-05). With few reference
 groups the threshold rests on few between-group differences and varies from
 dataset to dataset: under a repeat shift of half an SD, a nominal 1% flagged
 1.2% of control objects on average with six repeats but 2.5% with three
-(median 1.3%). With a
-single reference group (no other group to leave in), the threshold comes from
-reference objects scored against reference objects of other fields of that
-group, and the result says so (``calibration``): a shift between that group
-and the tested one then raises the share flagged. A control group with no
-other control group to compare with is not scored. In a screen of sub-experiments (the
+(median 1.3%). With a single reference group (no other group to leave in),
+its fields take the groups' place: reference objects are scored against its
+other fields, tested objects against all its fields but one, drawn uniformly,
+each field weighing the same (owner, 2026-10-05), and the result says so
+(``calibration``): a shift between that group and the tested one then raises
+the share flagged. A control group with no other control group to compare with
+is not scored.
+
+The leave-out was chosen by simulation (``data/simulations/unusual_calibration.py``,
+400 datasets a design, the tested group drawn like the reference groups, a nominal 5%).
+Leaving groups out by their size in the threshold but uniformly for tested objects, as
+before, flagged 3.5% with reference groups of 3, 10 and 30 fields and 3.9% with 2 to 40;
+scoring tested objects against the whole of a single reference group flagged 4.0% with 4
+fields and 4.7% with 10. Leaving a group out by size for both, or uniformly for both, gave
+4.9-5.1% with several groups; under a repeat shift of half an SD with unequal groups the
+uniform scheme flagged 5.1-5.8%, the size-weighted one 5.4-6.1%, so the uniform one is
+used. With a single reference group of 10 fields it flags 5.3%, of 4 fields 5.5%: the
+remaining excess is ``np.quantile``'s, about ``(1 + q(N - 1)) / (N + 1)`` for ``N``
+reference observations.
+
+In a screen of sub-experiments (the
 conditions sharing their repeats and control, ``_experiments``), a group is scored against
 the reference groups of its own sub-experiment (``within_experiment``, owner 2026-10-02), so
 one set's control never stands for another's.
@@ -114,6 +131,8 @@ def unusual_objects(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    own: Mapping[Any, Any] | None = None,
+    weights: Mapping[str, float] | None = None,
 ) -> UnusualObjects:
     """Label observations that lie outside a declared reference population.
 
@@ -126,7 +145,11 @@ def unusual_objects(
     ``objects`` (its index is kept). ``seed_checks`` refits with the
     next seeds and reports how much the labels agree. ``within_experiment`` scores each
     group against the reference groups of its own sub-experiment only (the biological
-    repeats its conditions share, ``_experiments.repeat_experiments``).
+    repeats its conditions share, ``_experiments.repeat_experiments``). ``own`` maps each
+    condition to its own control (several declared controls, owner 2026-10-05): a group is
+    then scored against its own control's groups only, among ``reference``'s. ``weights``
+    multiply the standardised features, a weight per feature (the others 1): the weighted
+    combined space of several feature tables (``feature_tables.table_weights``).
     """
     (reference,) = read_former(reference=reference)
     if not 0 < quantile < 1:
@@ -140,6 +163,7 @@ def unusual_objects(
     reference_groups = matching_groups(all_groups, reference, "reference")
     by_key = {group_key(g): d for g, d in all_groups}
     matrix = data.feature_matrix()
+    scale = np.array([float(weights.get(c, 1.0)) for c in data.feature_cols]) if weights else None
     positions_all = np.arange(len(data.objects))
     labels = np.full(len(data.objects), np.nan)
     distances = np.full(len(data.objects), np.nan)
@@ -168,11 +192,13 @@ def unusual_objects(
         else {}
     )
     for g_index, (group, _) in enumerate(all_groups):
+        target = None if own is None else own.get(group.get(CONDITION_COLUMN))
         others = [
             g
             for g in reference_groups
             if group_key(g) != group_key(group)
             and same_experiment(block, g.get(REPEAT_COLUMN), group.get(REPEAT_COLUMN))
+            and (own is None or g.get(CONDITION_COLUMN) == target)
         ]
         row: dict[str, Any] = {**group, "reference_groups": [dict(g) for g in others]}
         mine = positions_all[observation_group == g_index]
@@ -200,6 +226,7 @@ def unusual_objects(
                     quantile,
                     rng,
                     data.feature_cols,
+                    scale,
                 )
             )
         if isinstance(results[0], str):
@@ -257,6 +284,7 @@ def unusual_objects(
         "seed_checks": seed_checks,
         "within_experiment": bool(within_experiment and len(set(block.values())) > 1),
         "transform": Standardize().describe(),
+        "weights": dict(weights) if weights else None,
         "distance": "mean Euclidean distance to the n_neighbors nearest reference observations",
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,

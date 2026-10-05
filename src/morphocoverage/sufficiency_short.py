@@ -363,6 +363,22 @@ def uniformity_assumption(label: str, unit: str) -> str:
     )
 
 
+# The mean-precision rule per field with its upper-95 SD: its bound is a bootstrap of whole fields.
+_FIELD_BOUND = "scalar_precision_fov_upper95"
+
+
+def field_bound_assumption(label: str, own: pd.DataFrame) -> str | None:
+    """The simulated coverage of the per-field upper-95 bound (``_averaging_cv``), when ``own``
+    (a rule's rows of the final table) are that rule's; ``None`` otherwise (owner, 2026-10-05)."""
+    if "strategy" not in own or not own["strategy"].astype(str).str.startswith(_FIELD_BOUND).any():
+        return None
+    return assumption(
+        f"{label}: in simulations its upper bound, a bootstrap of whole fields, covered the true "
+        "averaging error about 85-95% of the time with uneven field sizes and 93-99% with "
+        "Poisson sizes"
+    )
+
+
 def _rule_cautions(
     report: Any, tallies: list[dict[str, Any]], name_groups: bool = False
 ) -> list[str]:
@@ -386,6 +402,8 @@ def _rule_cautions(
             )
         if own["assumes_spatial_uniformity"].astype(bool).any():
             cautions.append(uniformity_assumption(label, unit))
+        if bound := field_bound_assumption(label, own):
+            cautions.append(bound)
         found: dict[str, list[tuple[str, str]]] = {}
         for _, row in own.iterrows():
             for text in _warning_list(row):
@@ -484,4 +502,10 @@ def short_summary(report: Any, target: float | None = None) -> str:
     return "\n".join([*lines, *caveat_lines(cautions, indent=0)])
 
 
-__all__ = ["rule_tallies", "short_parts", "short_summary", "uniformity_assumption"]
+__all__ = [
+    "field_bound_assumption",
+    "rule_tallies",
+    "short_parts",
+    "short_summary",
+    "uniformity_assumption",
+]

@@ -12,7 +12,8 @@ population, holding most cells, is listed but not tested, its share being all bu
 complement of the others'; a repeat where the group is absent from both sides counts as no
 change (owner, 2026-10-02). A declared rare label is matched to the group that holds it,
 and a group most of whose cells carry it (``LABELLED``) is the label's own: its share is
-compared in question 9, so it is not tested again here (owner, 2026-10-02).
+compared in question 9, so it is not tested again here (owner, 2026-10-02). A cell whose
+label is missing is unknown: out of both shares of the overlap (owner, 2026-10-05).
 Each group is a candidate to validate on the images, given with the rule on the features
 that picks out its cells (``sampling_unit._population_rule``).
 """
@@ -25,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from .._control import comparison_label
 from .._style import Status, table, wrap
 from .._wording import count, listing, p_value, percent, percent_fine
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
@@ -33,6 +35,8 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
 from ..schema import observation_words, validate_input_tables
 from ..statistics import paired_t
+from ._feature_space import space
+from ._population_rule_words import rule_cell, rule_words
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -62,11 +66,19 @@ def populations_in_report(
 ) -> PopulationsResult | None:
     """The populations and their enrichment (see the module), or ``None`` with fewer than
     two features."""
-    features = list(setup.columns)
+    # With other feature tables, on the weighted combined space, the groups named by the
+    # explainable features (owner, 2026-10-05).
+    features, weights = space(setup)
     if len(features) < 2:
         return None
     populations = find_populations(
-        objects, fovs, features=features, random_state=setup.random_state, **setup.common
+        objects,
+        fovs,
+        features=features,
+        random_state=setup.random_state,
+        weights=weights,
+        named_by=setup.columns,
+        **setup.common,
     )
     if not populations.names:
         return PopulationsResult(populations, None, None, None)
@@ -75,7 +87,9 @@ def populations_in_report(
     complete = data.objects.loc[~data.objects[features].isna().any(axis=1)]
     labels = populations.labels.reindex(complete.index)
     marked = complete.assign(**{name: (labels == name).astype(float) for name in populations.names})
-    control = (setup.control or {}).get(CONDITION_COLUMN)
+    control = (setup.single_control or {}).get(CONDITION_COLUMN)
+    if setup.comparisons is not None:  # several controls: each condition against its own
+        control = setup.comparisons
     enrichment = None
     several = CONDITION_COLUMN in marked and marked[CONDITION_COLUMN].nunique() > 1
     from ._shared import pooled_columns  # _shared imports the assembly, which imports this
@@ -83,10 +97,12 @@ def populations_in_report(
     pooled = pooled_columns(marked, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
     label = None
     if setup.rare_label is not None and setup.rare_label in complete:
-        flag = complete[setup.rare_label].fillna(False).astype(bool)
+        # A missing label is unknown, out of both shares (owner, 2026-10-05).
+        known = complete[setup.rare_label].notna()
+        flag = complete[setup.rare_label].where(known, False).astype(bool)
         rows = []
         for name in populations.names:
-            inside = labels == name
+            inside = (labels == name) & known
             if flag.sum() and inside.sum():
                 rows.append(
                     {
@@ -146,20 +162,25 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
     repeat, on the log-odds scale (a population and its complement alike, a small share as
     steady as a large one), tested across the repeats: the one-sample t-test on the log odds
     ratios, Benjamini-Hochberg within each sub-experiment over every population and
-    condition (``_experiments``)."""
+    condition (``_experiments``). ``control`` is the control condition, or with several
+    controls the ``(condition, control)`` pairs: each condition against its own, its rows
+    labelled ``condition vs control`` (owner, 2026-10-05)."""
     repeat = REPEAT_COLUMN if REPEAT_COLUMN in marked else None
     keys = [CONDITION_COLUMN, *([repeat] if repeat else [])]
     # Without a group to test (the declared label's only), the counts are of an empty column.
     counts = marked.assign(_none=0.0).groupby(keys, dropna=False)[names or ["_none"]]
     counts = counts.agg(["sum", "count"])
-    conditions = [c for c in pd.unique(marked[CONDITION_COLUMN]) if c != control]
+    if isinstance(control, tuple):
+        pairs = [(comparison_label(c, r), c, r) for c, r in control]
+    else:
+        pairs = [(c, c, control) for c in pd.unique(marked[CONDITION_COLUMN]) if c != control]
     rows, held, unpaired = [], {}, []
-    for condition in conditions:
+    for label, condition, own in pairs:
         repeats = (
             [
                 r
                 for r in pd.unique(marked[repeat])
-                if (condition, r) in counts.index and (control, r) in counts.index
+                if (condition, r) in counts.index and (own, r) in counts.index
             ]
             if repeat
             else [None]
@@ -167,15 +188,15 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
         if not repeat and not ((condition,) in counts.index or condition in counts.index):
             continue
         if not repeats:
-            unpaired.append(condition)
+            unpaired.append(label)
             continue
-        held[condition] = set(repeats)
+        held[label] = set(repeats)
         for name in names:
             ratios = []
             sides = {"t": [0.0, 0.0], "c": [0.0, 0.0]}  # cells in it, cells, on each side
             for r in repeats:
                 t = counts.loc[(condition, r) if repeat else condition, name]
-                c = counts.loc[(control, r) if repeat else control, name]
+                c = counts.loc[(own, r) if repeat else own, name]
                 ratios.append(_log_odds_ratio(t, c))
                 sides["t"] = [sides["t"][0] + t["sum"], sides["t"][1] + t["count"]]
                 sides["c"] = [sides["c"][0] + c["sum"], sides["c"][1] + c["count"]]
@@ -188,7 +209,7 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
             rows.append(
                 {
                     "feature": name,
-                    "condition": condition,
+                    "condition": label,
                     "repeats": len(ratios),
                     # The sides as the test reads them (the sign of each repeat's ratio).
                     "higher": int((ratios > 0).sum()),
@@ -343,29 +364,6 @@ def _found_words(pops: Populations) -> str:
     return f"{count(groups, 'group')} of {units} to validate on the images"
 
 
-def _rule_cell(row: Any) -> str:
-    """``AR > 3.18 and MinFeret ≤ 17.7 (91%, 97%)`` for the table; ``–`` without a rule."""
-    if not row.rule:
-        return "–"
-    if pd.isna(row.rule_recall):
-        return row.rule
-    return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)})"
-
-
-def rule_words(row: Any, units: str) -> str:
-    """``picked by AR > 3.18 and MinFeret ≤ 17.7, which finds 91% of its cells, 97% of
-    those it picks being in it, on held-out cells``, or empty without a rule (``units``: the
-    observations' plural word)."""
-    if not row["rule"]:
-        return ""
-    if pd.isna(row["rule_recall"]):
-        return f"picked by {row['rule']}"
-    return (
-        f"picked by {row['rule']}, which finds {percent(row['rule_recall'])} of its {units}, "
-        f"{percent(row['rule_precision'])} of those it picks being in it, on held-out {units}"
-    )
-
-
 def _shares_line(pops: Populations, units: str) -> str:
     """``P1 91%, P2 3.4%, G1 20%; 6% in none``: each one's share and the unassigned."""
     shares = ", ".join(f"{r.population} {percent_fine(r.share)}" for r in pops.table.itertuples())
@@ -394,14 +392,21 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         )
         return Status.NOT_ASSESSED, f"not clustered: too few {units}", text
     if not pops.names:
+        # Not finding a group says nothing of a continuum, nor of rare states (#94; owner,
+        # 2026-10-05): ➖, a neutral answer.
         text = wrap(
-            f"{method}: no group; the {units} form one continuum on these features.",
+            f"{method}: no candidate group passed the neighbours-inside check on these "
+            f"features ({percent(settings['purity'])} or more of a cluster's {units}' "
+            f"{settings['neighbours']} nearest neighbours in it).",
             2,
             hang=4,
         )
-        return Status.OK, "no group: one continuum on these features", text
+        headline = "no group: no candidate group passed the check on these features"
+        return Status.NOT_ASSESSED, headline, text
     lines = [wrap(f"{method}: {_found_words(pops)} ({_shares_line(pops, units)}).", 2, hang=4)]
     control = result.control
+    if isinstance(control, tuple):  # several controls: each condition against its own
+        control = "its control"
     heading = f"most different (vs {control})" if control is not None else "most different"
     tested = set(tested_populations(pops))
     own = set(labelled_populations(result.label))
@@ -412,8 +417,9 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             f"{r.observations} ({percent_fine(r.share)})",
             defined_by(r.defining[:2]) or "–",
             percent(r.purity) if pd.notna(r.purity) else "–",
-            _rule_cell(r),
+            rule_cell(r),
             r.fields,
+            percent(r.largest_field),
             r.repeats,
             _enriched(result, r.population)
             if r.population in tested and r.population not in own
@@ -429,8 +435,9 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         units,
         "defined by",
         "neighbours inside",
-        "rule (held-out: found, right)",
+        "rule (held-out fields: found, right)",
         "fields",
+        "in largest field",
         "repeats",
         heading,
     ]
@@ -501,10 +508,13 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             "numbers: no test of a gap told the two apart reliably at these sizes, so open "
             "the images of its fields to validate it. Its rule is the simplest one on the "
             "features (at most two thresholds, a decision tree) that picks out its "
-            f"{units}, with the share of them it finds and the share right of those it picks, "
-            f"on {units} it was not fitted on. Groups that overlap strongly on every feature "
+            f"{units}, fitted on all of them; the share of them it finds and the share right "
+            "of those it picks describe that procedure refitted with whole fields held out "
+            f"({units} held out for a group in one field), not the exact thresholds shown. "
+            "Groups that overlap strongly on every feature "
             "are not told apart. The clusters depend on the declared features and their "
-            "standardisation; a group held by few fields may be an artefact of those images.",
+            "standardisation; a group held by few fields, or most of whose "
+            f"{units} are in one (in largest field), may be an artefact of those images.",
             2,
             hang=4,
         )

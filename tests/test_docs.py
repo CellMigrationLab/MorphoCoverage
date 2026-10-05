@@ -96,3 +96,19 @@ def test_data_format_lists_every_shared_column():
     text = (ROOT / "docs" / "data_format.md").read_text()
     for column in MORPHOBRICKS_SHARED_COLUMNS:
         assert f"`{column}`" in text, column
+
+
+def test_data_format_feature_tables_example_runs_and_prints_what_it_says(tmp_path, capsys):
+    """The other feature tables' example of docs/data_format.md runs and its comments are true."""
+    text = (ROOT / "docs" / "data_format.md").read_text()
+    section = re.search(r"## Other feature tables.*?```python\n(.*?)```", text, flags=re.DOTALL)
+    assert section, "docs/data_format.md feature tables example not found"
+    script = tmp_path / "feature_tables_example.py"
+    script.write_text(section.group(1))
+    runpy.run_path(str(script))
+    printed = capsys.readouterr().out.splitlines()
+    assert printed == [
+        "('condition', 'biological_repeat', 'image_file')",
+        "('dino_0', 'dino_1', 'dino_2')",
+        "(4, 7)",
+    ]

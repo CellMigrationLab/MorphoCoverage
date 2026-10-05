@@ -16,6 +16,7 @@ from morphocoverage.retrospective import (
     SamplingHierarchy,
     sampling_reliability,
 )
+from morphocoverage.retrospective.reliability import _clustered_se
 from morphocoverage.schema import fov_table_from_observations, validate_input_tables
 
 MEAN_A = OutcomeCriterion(RelativeMeanError("feature_a"), 0.02, "lower_is_better")
@@ -362,3 +363,51 @@ def test_worker_processes_give_identical_curves(n_jobs):
     pd.testing.assert_frame_equal(one.curve, two.curve)
     pd.testing.assert_frame_equal(one.draws, two.draws)
     pd.testing.assert_frame_equal(one.ceiling, two.ceiling)
+
+
+def _three_blocks():
+    """Twelve fields in three blocks whose means differ, so each hold-out is another reference."""
+    rng = np.random.default_rng(235)
+    objects, fovs = [], []
+    for i in range(12):
+        where = {"condition": "A", "biological_repeat": "r1", "position_id": f"p{i:02d}"}
+        fovs.append({**where, "block": f"b{i % 3}"})
+        offset = (9.6, 10.0, 10.4)[i % 3]
+        objects += [{**where, "f": offset + rng.normal(0, 1)} for _ in range(6)]
+    return pd.DataFrame(objects), pd.DataFrame(fovs)
+
+
+def test_issue_235_the_mc_se_stops_shrinking_once_the_hold_outs_are_used_up():
+    objects, fovs = _three_blocks()
+    criterion = OutcomeCriterion(RelativeMeanError("f"), 0.03, "lower_is_better")
+    settings = {"feature_cols": ["f"], "criteria": [criterion], "fov_counts": [2]}
+    settings.update(reservoir_fraction=0.3, draws=20)
+    rows = {}
+    for block_col in ("block", None):
+        for n_splits in (12, 120):
+            result = sampling_reliability(
+                objects, fovs, n_splits=n_splits, block_col=block_col, **settings
+            )
+            row = result.curve.iloc[0]
+            rows[block_col, n_splits] = (row, result.ceiling["distinct_holdouts"].iloc[0])
+    # Three blocks give three references: ten times the splits do not divide the error
+    # by sqrt(10), as an SD over every split would.
+    (few, three), (many, also_three) = rows["block", 12], rows["block", 120]
+    assert three == also_three == 3
+    assert many["preserved_mc_se"] > 0.6 * few["preserved_mc_se"]
+    assert many["preserved_mc_se"] > 3 * many["preserved_split_sd"] / np.sqrt(120)
+    # Genuinely distinct hold-outs: the SD over splits divided by sqrt(splits), as before.
+    row, distinct = rows[None, 12]
+    assert distinct == 12
+    assert row["preserved_mc_se"] == pytest.approx(row["preserved_split_sd"] / np.sqrt(12))
+
+
+def test_issue_235_repeating_a_hold_out_adds_no_reference():
+    shares = [0.2, 0.5, 0.8]
+    expected = float(np.std(shares, ddof=1) / np.sqrt(3))
+    for repeats in (1, 5, 50):
+        per_split = pd.Series([s for s in shares for _ in range(repeats)])
+        holdouts = pd.Series([h for h in "abc" for _ in range(repeats)])
+        assert _clustered_se(per_split, holdouts) == pytest.approx(expected)
+    # One reference, however many splits: no Monte Carlo error over references.
+    assert _clustered_se(pd.Series([0.2, 0.4]), pd.Series(["a", "a"])) is None

@@ -63,10 +63,13 @@ def _run(objects, folder, answers, **kwargs):
 
 
 def test_the_questions_are_asked_and_the_answers_saved(tmp_path):
-    # loaded? control (default: siCTRL), positive control, aim, features, readout, unit
-    # (default), tolerance
+    # loaded? unit (default), one control? control (default: siCTRL), positive control,
+    # aim, features, readout, tolerance
     result, script = _run(
-        _cells(), tmp_path, ["y", "", "siA#1", "both", "1,3", "area", "", "15%"], run_report=False
+        _cells(),
+        tmp_path,
+        ["y", "", "", "", "siA#1", "both", "1,3", "area", "15%"],
+        run_report=False,
     )
     answers = result.answers
     assert answers.control == {"condition": "siCTRL"}
@@ -91,13 +94,13 @@ def test_the_questions_are_asked_and_the_answers_saved(tmp_path):
 
 
 def test_saved_answers_are_continued_or_deleted(tmp_path):
-    _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""], run_report=False)
+    _run(_cells(), tmp_path, ["y", "", "", "", "", "", "all", ""], run_report=False)
     result, script = _run(_cells(), tmp_path, [""], run_report=False)
     assert "were found for this table" in script.text
     assert result.answers.aim == "population" and result.setup.fingerprint == ()
     # Start over: the file is deleted and every question is asked again.
     result, script = _run(
-        _cells(), tmp_path, ["start over", "y", "4", "", "intensity", ""], run_report=False
+        _cells(), tmp_path, ["start over", "y", "", "", "4", "", "intensity"], run_report=False
     )
     assert "The saved answers were deleted" in script.text
     assert result.answers.control is None and result.answers.features == ["intensity"]
@@ -105,13 +108,13 @@ def test_saved_answers_are_continued_or_deleted(tmp_path):
 
 
 def test_answers_for_another_table_are_never_reused(tmp_path):
-    _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""], run_report=False)
+    _run(_cells(), tmp_path, ["y", "", "", "", "", "", "all", ""], run_report=False)
     other = _cells(seed=1)
     result, script = _run(other, tmp_path, ["n"], run_report=False)
     assert "cannot be reused for this one" in script.text
     assert result.stopped.endswith("choose another folder for this table")
     assert (tmp_path / ANSWERS_FILE).exists()
-    _run(other, tmp_path, ["y", "y", "", "", "", "1", ""], run_report=False)
+    _run(other, tmp_path, ["y", "y", "", "", "", "", "", "1"], run_report=False)
     assert load_answers(tmp_path).dataset["checksum"] == table_checksum(other)
 
 
@@ -130,16 +133,18 @@ def test_paths_and_the_folder_are_asked_and_bad_answers_asked_again(tmp_path):
         [
             str(path),
             "",
+            "",  # no other feature tables (owner, 2026-10-05)
             str(folder),
             "maybe",
             "y",
+            "",
+            "",
             "9",
             "",
             "",
             "2",
             "0",
             "1-2",
-            "",
             "",
             "200",
             "0.2",
@@ -175,7 +180,7 @@ def test_an_unreadable_answers_file_is_offered_for_deletion(tmp_path):
     (tmp_path / ANSWERS_FILE).write_text("{not json")
     with pytest.raises(ValueError, match="not a saved-answers file"):
         load_answers(tmp_path)
-    _, script = _run(_cells(), tmp_path, ["y", "y", "", "", "", "1", ""], run_report=False)
+    _, script = _run(_cells(), tmp_path, ["y", "y", "", "", "", "", "", "1"], run_report=False)
     assert "cannot be read" in script.text
     assert load_answers(tmp_path).features == ["area"]
 
@@ -185,7 +190,7 @@ def test_the_session_ends_with_the_report_saved(tmp_path):
     (tmp_path / "figures").mkdir()
     (tmp_path / "figures" / "stale.png").write_bytes(b"png")
     os.utime(tmp_path / "figures" / "stale.png", (time.time() - 3600,) * 2)
-    result, script = _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""])
+    result, script = _run(_cells(), tmp_path, ["y", "", "", "", "", "", "all", "", ""])
     with zipfile.ZipFile(tmp_path / f"{tmp_path.name}.zip") as archive:
         names = archive.namelist()
     assert f"{tmp_path.name}/figures/area.png" in names
@@ -206,3 +211,143 @@ def test_the_session_ends_with_the_report_saved(tmp_path):
     assert result.report is not None
     save_answers(tmp_path, result.answers)
     assert load_answers(tmp_path).readout == "area"
+
+
+POPULATION = ["y", "", "", "", "", "", "all", ""]  # loaded, unit, one control?, ...
+
+
+def _fields(objects):
+    """The FOV table of ``objects``: one row per field with its condition and repeat."""
+    columns = ["image_file", "condition", "biological_repeat"]
+    return objects[columns].drop_duplicates().reset_index(drop=True)
+
+
+def _guided(objects, fovs, folder, answers):
+    script = Script(answers)
+    result = guide(objects, fovs, folder=folder, ask=script.ask, say=script.say, run_report=False)
+    return result, script
+
+
+def test_357_saved_answers_need_the_same_fov_table_too(tmp_path):
+    cells = _cells()
+    fovs = _fields(cells)
+    _guided(cells, fovs, tmp_path, POPULATION)
+    saved = json.loads((tmp_path / ANSWERS_FILE).read_text())
+    assert saved["version"] == 2 and saved["dataset"]["fovs_checksum"] == table_checksum(fovs)
+    _, script = _guided(cells, fovs.copy(), tmp_path, [""])
+    assert "were found for this table" in script.text
+    moved = fovs.copy()
+    moved.loc[0, "biological_repeat"] = "2026_02_01"
+    empty = pd.concat([fovs, fovs.iloc[[0]].assign(image_file="empty.tif")], ignore_index=True)
+    for other in (moved, empty, None):
+        result, script = _guided(cells, other, tmp_path, ["n"])
+        assert "cannot be reused for this one" in script.text
+        assert result.stopped.endswith("choose another folder for this table")
+
+
+def test_357_answers_saved_without_a_fov_table_are_not_reused_with_one(tmp_path):
+    cells = _cells()
+    _guided(cells, None, tmp_path, POPULATION)
+    assert load_answers(tmp_path).dataset["fovs_checksum"] is None
+    result, script = _guided(cells, _fields(cells), tmp_path, ["n"])
+    assert "cannot be reused for this one" in script.text and result.stopped
+
+
+def test_357_the_same_tables_under_other_paths_are_the_same_dataset(tmp_path):
+    cells = _cells()
+    paths = []
+    for name in ("a", "b"):
+        folder = tmp_path / name
+        folder.mkdir()
+        cells.to_csv(folder / "cells.csv", index=False)
+        _fields(cells).to_csv(folder / "fovs.csv", index=False)
+        paths.append((folder / "cells.csv", folder / "fovs.csv"))
+    results = tmp_path / "results"
+    # Given as paths, the session asks for other feature tables first: none here.
+    _guided(*paths[0], results, ["", *POPULATION])
+    result, script = _guided(*paths[1], results, ["", ""])
+    assert "were found for this table" in script.text and result.answers is not None
+
+
+def test_357_answers_of_an_earlier_version_are_asked_again_once(tmp_path):
+    cells = _cells()
+    _guided(cells, None, tmp_path, POPULATION)
+    path = tmp_path / ANSWERS_FILE
+    old = json.loads(path.read_text())
+    old["version"] = 1
+    del old["dataset"]["fovs_checksum"]
+    path.write_text(json.dumps(old))
+    result, script = _guided(cells, None, tmp_path, POPULATION)
+    assert "saved by an earlier version, which did not check the FOV table" in script.text
+    assert result.answers is not None and load_answers(tmp_path).version == 2
+    _, script = _guided(cells, None, tmp_path, [""])
+    assert "were found for this table" in script.text
+
+
+# --- Other feature tables (owner, 2026-10-05) --------------------------------------------
+
+
+def _embedding(cells, drop=0, seed=3):
+    key = cells[["condition", "biological_repeat", "image_file", "label_id"]]
+    rng = np.random.default_rng(seed)
+    return key.assign(**{f"dino_{j}": rng.normal(size=len(key)) for j in range(4)}).iloc[drop:]
+
+
+def test_other_feature_tables_are_asked_for_checked_named_and_saved(tmp_path):
+    cells = _cells()
+    path, good, short = tmp_path / "cells.csv", tmp_path / "dino.csv", tmp_path / "short.csv"
+    cells.to_csv(path, index=False)
+    _embedding(cells).to_csv(good, index=False)
+    _embedding(cells, drop=2).to_csv(short, index=False)
+    tables = ["y", str(tmp_path / "missing.csv"), str(short), "short", str(good), "DINOv2", ""]
+    questions = ["y", "", "", "", "", "", "all", ""]
+    result, script = _run(str(path), tmp_path / "results", tables + questions, run_report=False)
+    assert "other feature tables for the same observations" in script.prompts[0]
+    assert "It cannot be read" in script.text
+    assert "'short' lacks a row for 2 observations" in script.text
+    assert "DINOv2: 4 feature columns, checked." in script.text
+    entry = result.answers.dataset["feature_tables"]
+    assert entry == [
+        {"name": "DINOv2", "path": str(good), "checksum": table_checksum(pd.read_csv(good))}
+    ]
+    assert result.setup.feature_tables == {"DINOv2": tuple(f"dino_{j}" for j in range(4))}
+    # Listed in the scan, which is printed before "Did your dataset load correctly?".
+    scan = (tmp_path / "results" / "scan.txt").read_text()
+    assert "Other feature table DINOv2: 4 feature columns, every observation matched once" in scan
+    assert script.text.index("Other feature table DINOv2") < script.text.index("Loaded correctly?")
+    assert "Other feature tables: DINOv2" in "\n".join(result.answers.lines())
+
+
+def test_saved_answers_are_reused_only_with_the_same_other_tables(tmp_path):
+    cells = _cells()
+    first = {"DINOv2": _embedding(cells)}
+    _run(
+        cells,
+        tmp_path,
+        ["y", "", "", "", "", "", "all", ""],
+        run_report=False,
+        feature_tables=first,
+    )
+    result, script = _run(cells, tmp_path, [""], run_report=False, feature_tables=first)
+    assert "were found for this table" in script.text and result.setup.feature_tables
+    other = {"DINOv2": _embedding(cells, seed=4)}
+    result, script = _run(cells, tmp_path, ["n"], run_report=False, feature_tables=other)
+    assert "cannot be reused for this one" in script.text and result.answers is None
+
+
+def test_a_fingerprint_with_other_tables_reads_the_weighted_combined_space():
+    answers = Answers(
+        loaded_correctly=True,
+        control=None,
+        aim="fingerprint",
+        features=["area", "aspect"],
+        readout="area",
+        observation_unit="cell",
+        fingerprint_tolerance=0.2,
+    )
+    (criterion,) = answers.fingerprint({"DINOv2": ("d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7")})
+    metric = criterion.metric
+    assert metric.features == ("area", "aspect", *(f"d{i}" for i in range(8)))
+    assert metric.weights == (1.0, 1.0, *(0.5,) * 8)
+    assert "and the other feature tables, each weighing as much" in criterion.description
+    assert answers.fingerprint()[0].metric.weights is None

@@ -31,12 +31,14 @@ each share comes from resampling the declared independent units with
 replacement (``statistics.bootstrap_fields``, each unit's samples as one field,
 widened for few units), so it does not narrow when more draws or splits are
 run for the same samples. It is never narrower than the exact Clopper-Pearson
-interval of the share over the units (the share times the number of units as
-the count, in the beta-quantile form that allows a fractional count): when
-every sample (or none) is adequate, resampling can only return that share
-again, and the interval is then that exact one (5 of 5 units is compatible
-with a true share of about 48%); just below, 19 of 20 samples in 5 units, it
-is no narrower, rather than jumping to a much narrower bootstrap range. It is
+interval over the units, in whole counts: a unit is a success when the
+protocol serves it, at least ``protocol_share`` of its samples adequate, and a
+failure otherwise (``scipy.stats.binomtest``; owner, 2026-10-05). When every
+sample (or none) is adequate, resampling can only return that share again,
+and the interval is then that exact one (5 of 5 units is compatible with a
+true share of about 48%); just below, 19 of 20 samples in 5 units, it is no
+narrower, rather than jumping to a much narrower bootstrap range. More
+samples inside one unit never narrow it as if they were more units. It is
 clipped to 0-100%. With few units the interval is wide, and the summary says
 so.
 """
@@ -176,43 +178,39 @@ def _unit_ids(frame: pd.DataFrame, unit_cols: list[str]) -> pd.Series:
     return frame[unit_cols].astype(str).agg(" / ".join, axis=1)
 
 
-def _exact(share: float, units: int) -> tuple[float, float]:
-    """The Clopper-Pearson interval of ``share`` with ``units`` trials.
+def _exact(successes: int, units: int) -> tuple[float, float]:
+    """The exact Clopper-Pearson interval of ``successes`` of ``units`` whole units.
 
-    ``share * units`` is the count; the beta quantiles allow a fractional
-    one, and for a whole count this is ``bounds.interval``. Each end is a
-    one-sided bound at ``(1 + confidence) / 2``; at 0 or 1 that end is closed.
+    ``scipy.stats.binomtest``'s exact interval: integer counts only, each end
+    a one-sided bound at ``(1 + confidence) / 2``, closed at 0 or 1.
     """
-    tail = (1 - _CONFIDENCE) / 2
-    successes = share * units
-    low = 0.0 if successes <= 0 else float(stats.beta.ppf(tail, successes, units - successes + 1))
-    high = (
-        1.0
-        if successes >= units
-        else float(stats.beta.ppf(1 - tail, successes + 1, units - successes))
+    interval = stats.binomtest(int(successes), int(units)).proportion_ci(
+        confidence_level=_CONFIDENCE, method="exact"
     )
-    return low, high
+    return float(interval.low), float(interval.high)
 
 
 def _bootstrap(
-    block: pd.DataFrame, n_boot: int, rng: np.random.Generator
+    block: pd.DataFrame, n_boot: int, rng: np.random.Generator, protocol_share: float
 ) -> tuple[float | None, float | None]:
     """95% interval of the pooled share of adequate samples, over whole units.
 
     The interval of ``statistics.bootstrap_fields`` over the units (each
     unit's samples as one field, widened for few units), never narrower than
-    the exact Clopper-Pearson interval of the share over the units
-    (``_exact``) and clipped to [0, 1]. At a share of 0 or 1 every resample
-    returns that share, a zero-width interval that would look exact, so the
-    exact interval alone is given. One unit gives no interval.
+    the exact interval of the units served (``_exact``: a unit counts when at
+    least ``protocol_share`` of its samples are adequate) and clipped to
+    [0, 1]. At a share of 0 or 1 every resample returns that share, a
+    zero-width interval that would look exact, so the exact interval alone is
+    given. One unit gives no interval.
     """
     adequacy = block.groupby("unit")["adequate"]
     units = [own.to_numpy(dtype=float) for _, own in adequacy]
     if len(units) < 2:
         # One unit gives a zero-width interval that would look exact.
         return None, None
+    served = sum(bool(own.mean() >= protocol_share - _TOLERANCE) for own in units)
+    exact_low, exact_high = _exact(served, len(units))
     share = float(block["adequate"].mean())
-    exact_low, exact_high = _exact(share, len(units))
     if share in (0.0, 1.0):
         return exact_low, exact_high
     _, low, high = bootstrap_fields(units, np.mean, n_boot=n_boot, rng=rng, confidence=_CONFIDENCE)
@@ -279,8 +277,10 @@ def protocol_reliability(
     (provisional preset 0.9; a reliability of at least ``threshold`` is
     adequate). ``strata`` names analysis-group columns kept apart (for
     example ``["condition"]``); ``[]`` pools every sample, which must be asked
-    for. ``protocol_share`` is the share of samples a protocol should serve,
-    used only for the leave-one-unit-out check. ``n_boot`` and
+    for. ``protocol_share`` is the share of samples a protocol should serve:
+    the leave-one-unit-out check chooses a number by it, and a unit with at
+    least that share adequate counts as served in the exact floor of the
+    interval (module docstring). ``n_boot`` and
     ``random_state`` set the resampling of independent units (numpy integers
     accepted); each stratum has its own generator.
     """
@@ -301,7 +301,7 @@ def protocol_reliability(
         n_units = int(block["unit"].nunique())
         for k, rows in block.groupby("fovs", sort=True):
             eligible = rows[rows["preserved"].notna()]
-            low, high = _bootstrap(eligible, n_boot, rng)
+            low, high = _bootstrap(eligible, n_boot, rng, float(protocol_share))
             beyond = int(rows["beyond_stream"].sum())
             table.append(
                 {

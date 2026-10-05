@@ -332,7 +332,7 @@ def test_g10_small_shares_are_not_written_as_zero_percent():
         }
     )
     line = effort_text._allocation_line(compared, {}, 12, "biological_repeat", "sample")
-    assert "a 0.4% smaller standard error" in line
+    assert "0.4% smaller than the acquired" in line
 
 
 def _counted(counts, stage=False):

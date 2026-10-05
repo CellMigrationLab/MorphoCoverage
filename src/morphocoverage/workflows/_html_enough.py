@@ -26,21 +26,22 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import caveat_lines
-from .._style import table
+from .._style import NOT_ASSESSED, table
 from .._wording import count, listing, plural
 from ..metadata import REPEAT_COLUMN
 from ..retrospective.report_resolved import (
     SHORT_ROWS,
     _needing,
     _table,
+    between_wells,
     has_resolution,
     resolved_parts,
 )
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
-from ..sampling_unit.contrast_sampling import PRACTICAL
+from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
-from ..sufficiency_short import rule_tallies, uniformity_assumption
+from ..sufficiency_short import field_bound_assumption, rule_tallies, uniformity_assumption
 from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
 from ._enough_targets import fingerprint_lines, rare_lines
 from ._html_render import text_html
@@ -97,10 +98,16 @@ def _rest(rows: pd.DataFrame, fields: str) -> str:
     """What the comparisons not shown are: ``most of the others are too small ...``."""
     unshown = int((rows["comparisons"] - rows["shown"]).sum())
     small, need = int(rows["too_small"].sum()), int(rows["needing"].sum())
+    wells = int(rows["between_wells"].sum()) if "between_wells" in rows else 0
     beyond = f"too small to show even with {PRACTICAL} times the {fields}"
     if not unshown:
         return ""
-    for part, said in ((small, f"are {beyond}"), (need, f"would show with more {fields}")):
+    said_of = (
+        (small, f"are {beyond}"),
+        (need, f"would show with more {fields}"),
+        (wells, f"need {MORE_WELLS}, not more {fields}"),
+    )
+    for part, said in said_of:
         if part == unshown:
             return f"; the others {said}"
         if 2 * part > unshown:
@@ -180,6 +187,9 @@ def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
     small = int(rows["too_small"].sum())
     if small:
         parts.append(f"{small} too small even with {PRACTICAL} times the {fields}")
+    wells = int(between_wells(rows).sum())
+    if wells:
+        parts.append(f"{wells} {MORE_WELLS}")
     return "; ".join(parts) or "–"
 
 
@@ -255,9 +265,13 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
         tabs.append(("rare phenotype", "✅" if seen.all() else "⚠️", text_html(text)))
     if precision is not None:
         judged = precision[precision["met"].notna()]
-        criteria = list(dict.fromkeys(judged["criterion"]))
+        criteria = list(dict.fromkeys(precision["criterion"]))
         for criterion in criteria:
             own = judged[judged["criterion"] == criterion]
+            named = "" if len(criteria) == 1 else f", {criterion},"
+            if not len(own):
+                lines.append(f"The fingerprint{named} is not judged in any {word}.")
+                continue
             met = int(own["met"].sum())
             every = (precision["criterion"] == criterion).sum() == len(own)
             within = (
@@ -265,11 +279,12 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
                 if met == len(own) and every
                 else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
             )
-            named = "" if len(criteria) == 1 else f", {criterion},"
             lines.append(f"The fingerprint{named} is within its tolerance {within}.")
         text = "\n".join(fingerprint_lines(precision, word, plural(field), held_back=False))
         if text:
+            # No group judged: not assessed, never a ✅ over an empty set.
             mark = "✅" if judged["met"].astype(bool).all() else "⚠️"
+            mark = mark if len(judged) else NOT_ASSESSED
             tabs.append(("fingerprint", mark, text_html(text)))
     return lines, tabs
 
@@ -283,8 +298,12 @@ def _assumptions(contrast: Any, sufficiency: Any, labels: set[str]) -> str:
         unit = getattr(sufficiency, "observation_unit", None) or "object"
         for tally in rule_tallies(sufficiency):
             own = final[final["config_id"].eq(tally["config_id"])]
-            if tally["label"] in labels and own["assumes_spatial_uniformity"].astype(bool).any():
+            if tally["label"] not in labels:
+                continue
+            if own["assumes_spatial_uniformity"].astype(bool).any():
                 notes.append(uniformity_assumption(tally["label"], unit))
+            if bound := field_bound_assumption(tally["label"], own):
+                notes.append(bound)
     return text_html("\n".join(caveat_lines(notes, indent=0)))
 
 
@@ -361,6 +380,9 @@ def _single_answer(contrast: Any, fields: str, repeats: int) -> str:
             f"{small} {verb} too small to show even with {PRACTICAL} times the {fields}, which "
             "is not evidence of no effect"
         )
+    wells = int(between_wells(rows).sum())
+    if wells:
+        parts.append(f"{wells} that more {fields} will not resolve: {MORE_WELLS}")
     return "; ".join(parts) + "."
 
 

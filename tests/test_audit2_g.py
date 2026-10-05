@@ -18,13 +18,14 @@ from morphocoverage.retrospective import (
     microscopist_report,
     representation_control,
 )
-from morphocoverage.retrospective.effort import _acquired_se, _contributions, _se
+from morphocoverage.retrospective.effort import _contributions
+from morphocoverage.retrospective.effort_design import _acquired_se, _se
 from morphocoverage.retrospective.frontier import (
     BASELINE,
     FrontierResult,
     _met_not_sustained,
 )
-from morphocoverage.retrospective.report import _detection_adjusted_bounds
+from morphocoverage.retrospective.report_profile import _detection_adjusted_bounds
 from morphocoverage.strategies import SupportNoveltyEstimator
 
 WELLS = SamplingHierarchy(fov="image_file", sample="well")
@@ -475,7 +476,7 @@ def test_g16_a_saving_whose_interval_includes_zero_is_not_resolved():
 def test_g18_the_split_modules_keep_the_names_callers_use():
     from morphocoverage.retrospective import report, report_profile
 
-    assert report._detection_adjusted_bounds is report_profile._detection_adjusted_bounds
+    assert report.sampling_profile is report_profile.sampling_profile
     assert "sampling_profile" in report_profile.__all__
 
 

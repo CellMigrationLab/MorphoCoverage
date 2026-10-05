@@ -29,12 +29,14 @@ import numpy as np
 from .._style import Status, rule_label
 from .._wording import count, listing, p_value, rate, shortened
 from ..retrospective.report import QUESTIONS, questions_for, short_questions_for
-from ..retrospective.report_resolved import _needing, _table, _unassessed
+from ..retrospective.report_resolved import _needing, _table, _unassessed, between_wells
 from ..retrospective.report_status import group_word
-from ..sampling_unit.contrast_sampling import PRACTICAL
+from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
+from ..strategies.base import SamplingStrategy
 from ..sufficiency_short import rule_tallies
+from ._contrasts import controls_sentence
 from ._html_render import in_units
 
 ORDER = (
@@ -174,11 +176,15 @@ def hidden(status: Status | None, headline: str) -> bool:
 
 
 def _rules(setup: Any, undefined: Sequence[str] = ()) -> str:
-    try:
-        unit = resolve_observation_unit(setup.observation_unit)[0]
-        rules = [rule_label(rule, unit) or rule.name for rule in setup.stopping_rules()]
-    except (AttributeError, TypeError, ValueError):
-        return ""
+    """The stopping rules in words; a rule that is not a ``SamplingStrategy`` (it has no
+    policies to describe) by its name, and any error of a strategy's label raises."""
+    unit = resolve_observation_unit(setup.observation_unit)[0]
+    rules = [
+        (rule_label(rule, unit) or rule.name)
+        if isinstance(rule, SamplingStrategy)
+        else str(getattr(rule, "name", type(rule).__name__))
+        for rule in setup.stopping_rules()
+    ]
     return listing([r for r in rules if r not in undefined], 4)
 
 
@@ -190,8 +196,11 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
     features = tuple(setup.columns)
     if len(features) > 1:
         lines.append(f"Features: {count(len(features), 'feature')} ({listing(list(features), 6)}).")
-    control = (setup.control or {}).get("condition")
-    if control is not None:
+    control = (setup.single_control or {}).get("condition")
+    several = controls_sentence(setup)
+    if several:  # several controls, each with its conditions (owner, 2026-10-05)
+        lines.append(f"{several}.")
+    elif control is not None:
         lines.append(
             f"Negative control: {control}; every condition is compared with it, within each "
             "biological repeat."
@@ -210,11 +219,17 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
     if setup.fingerprint:
         named = "; ".join(c.description or c.name for c in setup.fingerprint)
         lines.append(f"Fingerprint: {named}.")
-    lines.append(
-        "Values: divided by each repeat's control mean."
-        if setup.normalize
-        else "Values: as measured (the tests between conditions also use them normalised)."
-    )
+    if several and setup.normalize:
+        lines.append(
+            "Values: each condition divided by its own control's mean in its repeat for the "
+            "figures; levels across experiments are read on the raw values."
+        )
+    else:
+        lines.append(
+            "Values: divided by each repeat's control mean."
+            if setup.normalize
+            else "Values: as measured (the tests between conditions also use them normalised)."
+        )
     rules = _rules(setup, undefined)
     if rules:
         lines.append(f"Stopping rules checked: {rules}.")
@@ -275,6 +290,11 @@ def _resolution(contrast: Any, single_repeat: bool = False) -> list[str]:
             f"In {count(small, 'comparison')} the difference is so small that even {PRACTICAL} "
             f"times the {fields} would not show it within one repeat; that is not evidence of "
             "no effect."
+        )
+    wells = int(between_wells(rows).sum())
+    if wells:
+        lines.append(
+            f"In {count(wells, 'comparison')} more {fields} will not resolve it: {MORE_WELLS}."
         )
     if _unassessed(rows):
         lines.append(

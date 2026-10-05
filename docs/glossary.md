@@ -4,7 +4,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 ## Reading the report
 
-**Status markers.** What each answer found: ✅ yes or a clear answer (a condition differs across repeats, enough was imaged, the data are clean, the cells form one continuum); ⚠️ partly, a trend only, or something to look at; ❌ check the data first; ➖ no conclusion possible here (not assessed, or one biological repeat). The word beside the marker says which.
+**Status markers.** What each answer found: ✅ yes or a clear answer (a condition differs across repeats, enough was imaged, the data are clean); ⚠️ partly, a trend only, or something to look at; ❌ check the data first; ➖ no conclusion possible here (not assessed, one biological repeat, or no candidate group of cells passed the check). The word beside the marker says which.
 
 *Where:* At a glance, every answer.
 
@@ -75,7 +75,7 @@ Every test, rule and term the report uses, in plain words, with where it appears
 *Where:* Do the conditions differ?.
 *See:* Plot&Stats, the Cell Migration Lab's analysis notebook.
 
-**Balanced test.** The cell-level test when the repeats hold different numbers of cells: each draw takes the same number from every repeat, so none weighs more; the median d and p over 100 draws.
+**Balanced test.** The cell-level test when the repeats hold different numbers of cells: each draw takes the same number from every repeat, so none weighs more; d is the median over 100 draws, and p comes from the labels shuffled within each repeat, one permutation test.
 
 *Where:* Do the conditions differ?.
 
@@ -130,6 +130,10 @@ Every test, rule and term the report uses, in plain words, with where it appears
 
 *Where:* The whole dataset at once.
 *See:* [McInnes L, Healy J, Melville J. UMAP: Uniform Manifold Approximation and Projection for dimension reduction. arXiv:1802.03426. 2018.](https://arxiv.org/abs/1802.03426)
+
+**Other feature tables and the combined map.** Features not read one by one, such as a deep-learning embedding, loaded as named tables beside the explainable features and never tested feature by feature. Each has its own map; the combined map weighs every table as much as the explainable features. Under each map, the share of each cell's 10 nearest neighbours in its biological repeat that have its condition, against chance: how far the conditions separate in that table. Describes, does not test.
+
+*Where:* The whole dataset at once.
 
 ## The data
 

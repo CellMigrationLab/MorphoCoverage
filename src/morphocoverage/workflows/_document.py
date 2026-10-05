@@ -17,7 +17,6 @@ Shared-private: every name in ``__all__`` is used by ``workflows.retrospective``
 
 from __future__ import annotations
 
-import math
 import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
@@ -30,6 +29,7 @@ from .._style import CAUTION, Status, worst, wrap
 from .._wording import count, fields, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
+from ..retrospective.effort_design import between_technical_repeats
 from ..retrospective.report import QUESTIONS, with_opening
 from ..retrospective.report_profile import sampling_profile
 from ..retrospective.report_sampling import states_lines
@@ -61,6 +61,7 @@ _EXTRA_RESULTS = (
     "fingerprint_precision",
     "label_control",
     "populations",
+    "separation",
 )
 
 
@@ -230,34 +231,6 @@ def _with_integrity(document: MicroscopistReport, integrity: Any) -> Microscopis
     return replace(document, notes=(*document.notes, note))
 
 
-def _between_technical_repeats(fov_rows: pd.DataFrame, technical: str, outer: list[str]) -> list:
-    """Per condition and repeat with 2 or more technical repeats: the spread of their means
-    against what their fields predict, and the relative SE of the mean over them.
-
-    From the fields' means (every field with observations weighing one): the
-    observed variance of the technical-repeat means against the mean over
-    technical repeats of ``var(field means) / fields``, which is all the
-    fields alone would give. Returns ``(ratio, relative SE)`` pairs.
-    """
-    rows = fov_rows.dropna(subset=["mean"])
-    parts = rows.groupby(outer, sort=False, dropna=False) if outer else [((), rows)]
-    found = []
-    for _, own in parts:
-        per = own.groupby(technical, sort=False)["mean"].agg(["mean", "var", "count"])
-        per = per[per["count"] >= 2]
-        if len(per) < 2:
-            continue
-        predicted = float((per["var"] / per["count"]).mean())
-        observed = float(per["mean"].var(ddof=1))
-        grand = abs(float(per["mean"].mean()))
-        if predicted <= 0 or grand == 0:
-            continue
-        found.append(
-            (math.sqrt(observed / predicted), math.sqrt(observed / len(per)) / grand, len(per))
-        )
-    return found
-
-
 def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any]) -> Any:
     """What every "enough" leaves out about technical repeats (audit 4, P1-7 and P1-8).
 
@@ -294,7 +267,7 @@ def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any])
         document = with_text(document, "enough", text, status=Status.CAUTION)
         return replace(document, notes=(*document.notes, note))
     outer = [c for c in variability.group_cols if c != technical]
-    found = _between_technical_repeats(variability.fovs, technical, outer)
+    found, left = between_technical_repeats(variability.fovs, technical, outer)
     note = assumption(
         "Each 'enough' is per technical repeat; the condition mean also varies between "
         "technical repeats, which more fields of one technical repeat cannot reduce "
@@ -318,10 +291,29 @@ def _technical_repeats(document: MicroscopistReport, results: Mapping[str, Any])
             f"{percent(errors[0])} to {percent(errors[-1])}) from that spread. Every 'enough' "
             "of question 2 is per technical repeat and says nothing about this variation, "
             f"which only more technical repeats reduce (optimise, question 7){uncertain}."
+            f"{_left_out(left)}"
         )
         brief = "\n".join(caveat_lines([text], indent=2))
         document = with_text(document, "profile", text, status=Status.CAUTION, short_text=brief)
     return replace(document, notes=(*document.notes, note))
+
+
+def _left_out(left: Mapping[str, list[str]]) -> str:
+    """`` Left out: ...``: the technical repeats and groups the between-well spread could not
+    use, and why (#150, owner, 2026-10-05); '' when none."""
+    parts = []
+    if left["one_field"]:
+        many = len(left["one_field"]) > 1
+        named = f"technical repeat{'s' if many else ''} {listing(left['one_field'], 4)}"
+        each = " each" if many else ""
+        parts.append(f"{named}, with one field{each}, whose field variance cannot be estimated")
+    if left["fewer"]:
+        parts.append(
+            f"{listing(left['fewer'], 4)}, with fewer than 2 technical repeats of 2 or more fields"
+        )
+    if left["flat"]:
+        parts.append(f"{listing(left['flat'], 4)}, whose fields do not vary or average 0")
+    return f" Left out: {'; '.join(parts)}." if parts else ""
 
 
 def coverage_notes(results: Mapping[str, Any], setup: Setup) -> list[str]:
@@ -543,7 +535,7 @@ def plan_settings(settings: Mapping[str, Any]) -> str:
 
 
 def protocol_reason(
-    setup: Setup, hierarchy: SamplingHierarchy, strata: Sequence[str], groups: Sequence[str]
+    hierarchy: SamplingHierarchy, strata: Sequence[str], groups: Sequence[str]
 ) -> str | None:
     """Why protocol reliability cannot run on these analysis groups, or ``None``."""
     levels = [c for c in hierarchy.unit_key(hierarchy.sample) if c not in groups]

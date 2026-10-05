@@ -10,8 +10,10 @@ module (``detail="short"`` by default, ``"full"`` for every number):
 - **clustering**: one answer sentence per state (in how many groups where it
   was seen it is clustered in a few fields), then one table of the groups
   where it was seen (its objects, the fields holding it against random
-  objects, the permutation p, and the fields to see it against a count of
-  objects); full adds the fields holding at least ``min_objects_per_fov``,
+  objects, the permutation p and its q, and the fields to see it against a
+  count of objects); a group is clustered at ``q <= CLUSTER_ALPHA``,
+  Benjamini-Hochberg over every group and state of the analysis
+  (``clustered``, owner, 2026-10-05); full adds the fields holding at least ``min_objects_per_fov``,
   the reference groups' floor and the fields left out. The technical repeats
   holding each state in one line (short) or table (full), and the assumption
   of independent technical repeats once.
@@ -37,6 +39,8 @@ from ._outliers import LEAVE_ONE_FIELD_OUT
 
 # Seed-check agreement below which the labels are called unstable (as in fiberfeatures).
 SEED_AGREEMENT_WARNING = 0.9
+# The q at or below which a state is clustered in a group's fields (Benjamini-Hochberg).
+CLUSTER_ALPHA = 0.05
 
 
 def _present(value: Any) -> bool:
@@ -206,6 +210,17 @@ def _needed(row: Mapping[str, Any]) -> str | None:
     return f"{int(row['fovs_needed'])}{bound}"
 
 
+def clustered(rows: pd.DataFrame) -> pd.Series:
+    """Which rows of a clustering table are clustered: ``q_clustered <= CLUSTER_ALPHA``, the
+    permutation p corrected over every group and state of the analysis."""
+    return pd.to_numeric(rows["q_clustered"], errors="coerce") <= CLUSTER_ALPHA
+
+
+def _family(result: Any) -> int:
+    """The tests the q-values are corrected over: the groups and states with a p."""
+    return int(pd.to_numeric(result.table["p_clustered"], errors="coerce").notna().sum())
+
+
 def _seen(result: Any, block: pd.DataFrame) -> list[dict]:
     return [r for r in block.to_dict("records") if r["labelled"] and r["state_objects"]]
 
@@ -244,16 +259,18 @@ def _clustering_cautions(result: Any, words: str) -> list[str]:
 def _state_answer(result: Any, state: Any, block: pd.DataFrame, words: str) -> str:
     keys = list(result.group_cols)
     seen = _seen(result, block)
-    clustered = [r for r in seen if r["p_clustered"] <= 0.05]
+    hits = [r for r in seen if float(r["q_clustered"]) <= CLUSTER_ALPHA]
     name = state_words(result, state, words)
     text = f"Are the {name} spread over the fields? "
     if not seen:
         text += "Not seen in any group."
     else:
+        tests = count(_family(result), "test")
         text += (
-            f"Clustered in a few fields (p ≤ 0.05) in {among(len(clustered), len(seen))} where seen"
+            f"Clustered in a few fields (q ≤ {CLUSTER_ALPHA:g} after Benjamini-Hochberg over the "
+            f"{tests} of every group and state) in {among(len(hits), len(seen))} where seen"
         )
-        text += f" ({listing([_group(r, keys) for r in clustered], 3)})." if clustered else "."
+        text += f" ({listing([_group(r, keys) for r in hits], 3)})." if hits else "."
     unseen = [r for r in block.to_dict("records") if r["labelled"] and not r["state_objects"]]
     if unseen:
         where = [
@@ -284,7 +301,7 @@ def _state_columns(result: Any, words: str, full: bool) -> list[str]:
     k = int(result.settings.get("min_fov_occurrences", 1))
     chance = percent(result.settings["detection_probability"])
     columns = ["group"]
-    columns += [words, "in fields", "if random", "ratio" if full else None, "p"]
+    columns += [words, "in fields", "if random", "ratio" if full else None, "p", "q"]
     columns += [f"holding ≥{m}"] if m > 1 else []
     reference = "reference_fovs" in result.table.columns
     columns += ["reference holding"] if reference else []
@@ -300,7 +317,7 @@ def _state_cells(result: Any, row: Mapping[str, Any], keys: Sequence[str], full:
     cell += [f"{int(row['fovs_with_state'])} of {int(row['fovs'])}"]
     cell += [f"{float(row['expected_fovs_if_random']):.1f}"]
     cell += [f"{float(row['clustering_ratio']):.1f}"] if full else []
-    cell += [f"{float(row['p_clustered']):.2g}"]
+    cell += [f"{float(row['p_clustered']):.2g}", f"{float(row['q_clustered']):.2g}"]
     if m > 1:
         holding = int(row.get("fovs_holding_state", row["fovs_with_state"]))
         cell += [f"{holding} of {int(row['fovs'])}"]
@@ -382,7 +399,8 @@ def clustering_parts(
         lines.append(
             wrap(
                 f"In fields: the fields holding the state; if random: the fields as many random "
-                f"{words} would fill; p: how often shuffled labels reach as few fields. To see: "
+                f"{words} would fill; p: how often shuffled labels reach as few fields; q: that "
+                f"p corrected over every group and state (Benjamini-Hochberg). To see: "
                 f"the fields to see it from its field incidence (up to: from the low end of its "
                 f"interval), against the fields a count of random {words} asks for.",
                 indent,
@@ -394,7 +412,9 @@ def clustering_parts(
 
 
 __all__ = [
+    "CLUSTER_ALPHA",
     "SEED_AGREEMENT_WARNING",
+    "clustered",
     "clustering_parts",
     "state_words",
     "unusual_full",

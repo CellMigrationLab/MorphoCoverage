@@ -434,9 +434,10 @@ def test_f7_a_boundary_share_gets_an_exact_interval_over_units():
     units = [block.loc[block["unit"] == u, "adequate"].to_numpy(float) for u in "abcd"]
     shared = bootstrap_fields(units, np.mean, n_boot=500, rng=np.random.default_rng(1))
     # Audit 3 (F-5): never narrower than the exact interval over the units, within 0-1.
-    exact = _exact(4 / 7, 4)
+    # Issue #95: in whole units, only unit c serves 90% of its samples: 1 of 4.
+    exact = _exact(1, 4)
     expected = (max(0.0, min(shared[1], exact[0])), min(1.0, max(shared[2], exact[1])))
-    assert _bootstrap(block, 500, np.random.default_rng(1)) == pytest.approx(expected)
+    assert _bootstrap(block, 500, np.random.default_rng(1), 0.9) == pytest.approx(expected)
 
 
 def test_f8_a_low_ceiling_is_not_called_unjudgeable():

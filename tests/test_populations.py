@@ -44,6 +44,8 @@ def test_the_planted_population_is_found_on_every_condition_pooled():
     assert inside[objects["mitotic"]].mean() > 0.9
     assert set(objects.loc[inside, "condition"]) == {"siCTRL", "narrow", "arrest"}
     assert "high dna" in small["defined_by"] and small["repeats"] == 3
+    # Spread over many fields and every well (#79, owner, 2026-10-05).
+    assert small["largest_field"] < 0.1 and small["technical_repeats"] == 18
     assert found.names == list(
         found.table.sort_values("observations", ascending=False)["population"]
     )
@@ -63,9 +65,13 @@ def test_a_condition_more_common_in_a_population_is_said_with_its_shares(screen)
     # "of every condition pooled" read as a number per condition (ChatGPT, 2026-10-05).
     assert "cells in all, every condition pooled, clustered on the 3 declared features (" in short
     assert "the rest (not tested)" in short and "to validate on the images" in short
-    # Each group comes with the rule that picks out its cells, checked on held-out cells.
+    # The share of a group's cells in its largest field is a column of the table (#79).
+    assert "in largest field" in short
+    # Each group comes with the rule that picks out its cells, fitted on all the cells; its
+    # procedure is checked on held-out fields (#88, owner, 2026-10-05).
     flat = " ".join(short.split()).lower()
-    assert "picked by dna >" in flat and "on held-out cells" in flat
+    assert "picked by dna >" in flat and "fitted on all the cells" in flat
+    assert "refitted with whole fields held out" in flat
     assert "arrest higher" in short
     word = "Enriched" if status is Status.OK else "Trend only"
     assert chip(status, "populations", headline).endswith(f"{word}</span>")
@@ -104,7 +110,7 @@ def test_a_lean_observation_table_gives_the_same_populations_and_enrichment():
     pd.testing.assert_frame_equal(found.enrichment, full.enrichment)
 
 
-def test_one_continuum_is_no_population():
+def test_no_group_found_is_said_neutrally():
     rng = np.random.default_rng(0)
     rows = []
     for repeat in ("r1", "r2", "r3"):
@@ -126,8 +132,11 @@ def test_one_continuum_is_no_population():
     result = populations_in_report(objects, fovs, setup)
     status, headline, _text = populations_text(result, setup)
     if not result.populations.names:
-        assert status is Status.OK and headline.startswith("no group:")
-        assert chip(status, "populations", headline).endswith("One continuum</span>")
+        # #94 (owner, 2026-10-05): no group found is no evidence of one continuum.
+        assert status is Status.NOT_ASSESSED and headline.startswith("no group:")
+        assert "no candidate group passed the check on these features" in headline
+        assert "continuum" not in headline + _text
+        assert chip(status, "populations", headline).endswith("➖</span> No group</span>")
     else:  # one blob found as one population: nothing enriched
         assert status is not Status.OK
 
@@ -193,3 +202,29 @@ def test_the_maps_ring_populations_colour_by_feature_and_describe_a_selection(sc
     assert len(first["pop"]) == len(first["x"]) and set(first["z"]) == set(FEATURES)
     assert '<select class="colour-by">' in page and '<option value="population">' in page
     assert "Features that set them apart" in page and "circle-open" in page
+
+
+def test_no_group_reads_neutrally_in_the_text_the_chip_and_the_report():
+    """#94 (owner, 2026-10-05): with no group, question 10 says no candidate passed the
+    check, ➖ "No group", never that the cells form one continuum."""
+    from morphocoverage.sampling_unit.populations import _COLUMNS, Populations
+    from morphocoverage.workflows._populations import PopulationsResult
+
+    settings = {
+        "features": list(FEATURES),
+        "map_components": 3,
+        "min_cells": 15,
+        "purity": 0.94,
+        "neighbours": 10,
+        "observations": 500,
+        "clustered": True,
+    }
+    empty = Populations(pd.Series(dtype=object), pd.DataFrame(columns=_COLUMNS), settings)
+    setup = _setup(fingerprint=(), rare=None, rare_label=None)
+    status, headline, text = populations_text(PopulationsResult(empty, None, None, None), setup)
+    assert status is Status.NOT_ASSESSED and status.marker == "➖"
+    assert headline == "no group: no candidate group passed the check on these features"
+    flat = " ".join(text.split())
+    assert "no candidate group passed the neighbours-inside check on these features" in flat
+    assert "continuum" not in flat
+    assert chip(status, "populations", headline).endswith("No group</span>")

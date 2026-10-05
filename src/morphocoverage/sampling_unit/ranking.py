@@ -50,6 +50,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
+from .._control import check_comparisons, compared_name, control_text, versus
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import check_detail, table, wrap
@@ -165,8 +166,12 @@ class FeatureRanking:
         repeat_col = self.settings["repeat_col"]
         return (
             f"Which features separate the conditions? Each of the "
-            f"{self.settings['n_features']} declared features, every condition against the "
-            f"control {control}"
+            f"{self.settings['n_features']} declared features, "
+            + (
+                "each condition against its own control"
+                if self.settings.get("comparisons")
+                else f"every condition against the control {control}"
+            )
             + (f" within each {column_word(repeat_col)}" if repeat_col else "")
             + f": Cohen's d on field means and a randomization test over whole {self._units()} "
             "as in the contrast above, "
@@ -190,12 +195,13 @@ class FeatureRanking:
                 "features no contrast could be tested."
             )
         passing = int(self.ranking["score"].notna().sum())
-        label = " · ".join(str(v) for v in self.settings["control"].values())
+        label = compared_name(self.settings)
         return (
             f"Which features separate the conditions? {passing} of {count(n, 'feature')} pass "
             f"the gate (q <= {self.settings['alpha']:g}, Benjamini-Hochberg over "
-            f"{count(n_tests, 'test')}: Cohen's d on field means, each condition against the "
-            f"control ({label}), and a randomization test over whole {self._units()}), ranked "
+            f"{count(n_tests, 'test')}: Cohen's d on field means, each condition against "
+            + ("its own control" if self.settings.get("comparisons") else f"the control ({label})")
+            + f", and a randomization test over whole {self._units()}), ranked "
             f"by |d| (capped at {EFFECT_CAP:g}):"
         )
 
@@ -206,7 +212,7 @@ class FeatureRanking:
             return []
         rows = []
         for rank, row in enumerate(ranked.head(max_rows).to_dict("records"), start=1):
-            where = f"{row['condition']} vs {row['control_condition']}"
+            where = versus(row["condition"], row["control_condition"])
             if self.settings["repeat_col"]:
                 where += f" · {row[REPEAT_COLUMN]}"
             passes = f"{int(row['passing'])} of {int(row['tests'])}"
@@ -315,7 +321,7 @@ def feature_ranking(
     fovs: pd.DataFrame,
     *,
     features: Sequence[str],
-    control: Mapping[str, Any],
+    control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
     repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
@@ -326,6 +332,7 @@ def feature_ranking(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     fields_independent: bool = False,
+    comparisons: Sequence[tuple[Any, Any]] | None = None,
 ) -> FeatureRanking:
     """Rank ``features`` by how confidently they separate each condition from the control.
 
@@ -334,15 +341,17 @@ def feature_ranking(
     ``technical_col`` names the FOV-table column of the technical repeats
     (the units whatever ``group_cols`` says; without it a nested group
     column), ``fields_independent`` declares the fields independent draws
-    when no unit exists, ``alpha`` is the Benjamini-Hochberg gate. See the
-    module.
+    when no unit exists, ``alpha`` is the Benjamini-Hochberg gate, ``comparisons`` replace
+    the control by ``(condition, reference)`` pairs. See the module.
     """
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     features = list(dict.fromkeys(features))
     if not features:
         raise ValueError("features must name at least one column")
+    if comparisons is not None:
+        comparisons = check_comparisons(comparisons)
     n_permutations, random_state = check_arguments(
-        control, condition_col, n_permutations, random_state, fields_independent
+        control, condition_col, n_permutations, random_state, fields_independent, comparisons
     )
     if not is_number(alpha) or not 0 < alpha < 1:
         raise ValueError("alpha must be between 0 and 1")
@@ -351,12 +360,13 @@ def feature_ranking(
         data, condition_col, repeat_col, technical_col, control
     )
     all_groups = groups(data)
-    described = describe_groups(all_groups, condition_col, repeat_col, control)
+    described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     unit, unit_note = resolve_unit(data, described, condition_col, repeat_col, technical_col)
     settings: dict[str, Any] = {
         "features": features,
         "n_features": len(features),
-        "control": dict(control),
+        "control": dict(control or {}),
+        "comparisons": list(comparisons or []),
         "condition_col": condition_col,
         "repeat_col": repeat_col,
         "technical_col": technical_col,
@@ -372,7 +382,8 @@ def feature_ranking(
     contrasts = contrasts_of(described)
     if not contrasts:
         settings["reason"] = (
-            f"Every analysis group is the control {dict(control)}: no other condition to compare."
+            f"Every analysis group is the control {control_text(control)}: no other condition "
+            "to compare."
         )
         return FeatureRanking(pd.DataFrame(), pd.DataFrame(), settings)
     rows = []

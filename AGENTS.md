@@ -64,7 +64,7 @@ Scientific rules:
 - **Pilots get advice, not verdicts.** A dataset of one or two biological repeats gets every answer its design supports, the cell-level test leading question 9, and what to change next time within the design the user ran (fields a side per repeat, technical repeats per condition), never a blanket "image 5-6 repeats". The repeats a paired test would need lead the plan, at 0.05/m with m the conditions of the sub-experiment, the correction the verdict uses at most (owner, 2026-10-01; before, full report only at 0.05).
 - **Permit null results.** Do not optimize validation, examples, or documentation to guarantee that MorphoCoverage outperforms fixed cells/FOVs or scalar precision rules.
 - **FOV/spatial position is the primary acquisition/resampling unit.** Never bootstrap, permute, or sequentially reveal individual objects, z-planes, channels, or time points as independent FOVs. All observations from one position must enter together.
-- **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
+- **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly; an other feature table, passed by name, declares every column but its identity columns (section 5, owner 2026-10-05). Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
 - **Feature rows are generic observations, not necessarily cells.** Record `observation_unit` (for example `cell`, `nucleus`, `patch`, `slice`, `fov_summary`); labels are normalized to lowercase singular form, so `Cells` and `nuclei` mean `cell` and `nucleus`. When no unit is given, rows are assumed to be objects and every result records `observation_unit_declared=False`; the report's words then call them cells (`schema.unit_words`, owner 2026-10-02: "cells could be the default"), and with a declared unit every word for the observations, the cell-level test's name included ("patch-level"), is the unit's (`Setup.unit_words`/`unit_word`, `observation_words` of a result's settings). FOV count and observation count are different quantities. Object/cell-specific scientific rules must not silently reinterpret arbitrary observations as cells.
 - **Missing phenotype values are allowed at the input boundary.** NaN is preserved; infinity is rejected. The framework never silently imputes or drops missing values. Every estimator/transform that uses affected features must state its missing-data behavior explicitly.
 - **Metadata is not phenotype.** Grouping/acquisition columns such as condition, biological repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`; validation refuses `z`, `z0`, `z1`, `c` and `t` there, and a feature measured per plane becomes one feature per plane only on explicit request (`planes_as_features`).
@@ -108,14 +108,16 @@ Scientific rules:
 MorphoCoverage does not replace the user's final biological inference workflow, but the report answers "Do the conditions differ, and how confidently?" (question 9, `sampling_unit.condition_contrast`; owner decisions of 2026-09-26, 2026-09-30 and 2026-10-01; the tests, their assumptions and limitations and the simulation evidence are in `docs/condition_tests.md`). Per condition against the declared control, it gives:
 
 - **across biological repeats**, the repeat as the replicate (SuperPlots): the direction in every repeat, the per-repeat Cohen's d, and from 3 repeats the paired t-test on the repeat means, raw and on the log ratios to the control of the same repeat (`contrast_repeats`); the exact sign-flip test only where it can reach 0.05 after Bonferroni (from 6 repeats, full report);
-- **the lab's Plot&Stats cell-level test**: Cohen's d and a randomization test over the observations pooled as provided, on raw values and on values divided by the mean of the same repeat's control, labelled with its chance of p <= 0.05 without an effect, `2·P(Z > 1.96/√(1 + n·s²/2))` (`n` the observations per well, each repeat weighted by its share; `s` the SD between repeats), checked against `data/simulations/test_choice.py` and `unbalanced.py` (`contrast_cells`). When the repeats are unbalanced (one holds more than 25% more observations than another on a side, or the control is pooled from repeats the condition was not imaged in) it is also given balanced: against the control of the condition's own repeats, the same number of observations from every repeat, the median d and p over 100 draws. A repeat under a quarter of the median repeat (or with fewer than 5 observations) is named and left out of the balanced test only;
+- **the lab's Plot&Stats cell-level test**: Cohen's d and a randomization test over the observations pooled as provided, on raw values and on values divided by the mean of the same repeat's control, labelled with its chance of p <= 0.05 without an effect, `2·P(Z > 1.96/√(1 + n·s²/2))` (`n` the observations per well, each repeat weighted by its share; `s` the SD between repeats), checked against `data/simulations/test_choice.py` and `unbalanced.py` (`contrast_cells`). When the repeats are unbalanced (one holds more than 25% more observations than another on a side, or the control is pooled from repeats the condition was not imaged in) it is also given balanced: against the control of the condition's own repeats, one permutation test whose d is the median over 100 draws of the same number of observations from every repeat and whose p shuffles the condition and control labels within each repeat, the same statistic on the same draws for each shuffle, `(extreme + 1) / (B + 1)` (owner, 2026-10-05; before, the median p over the draws, which is not the p of one test). A repeat under a quarter of the median repeat (or with fewer than 5 observations) is named and left out of the balanced test only;
 - **within each repeat**, Cohen's d and the JCS effect size on objects, field means and technical-repeat means, with a randomization test over whole technical repeats only when its smallest p can reach 0.05 after Bonferroni (4 a side for one contrast), over whole fields only without a technical-repeat column;
 - with a `target` column, whether independent reagents for one target are on the same side of the control in every repeat (described, not tested);
 - **one reading per condition** that puts these together (`reading_text`): significant across repeats (the paired test, normalised, q <= 0.05 after Benjamini-Hochberg within the sub-experiment: the conditions sharing their repeats and control, `_experiments`, owner 2026-10-01), same direction in every repeat but not significant, no consistent direction, or one repeat; then the evidence, and when the raw pooled test disagrees, what it does differently;
 - planning the next experiment at the design the user ran (`repeat_plan`; see "Pilots get advice", section 3);
 - **with several features, which of them separate the conditions** (`discovery`, owner decision of 2026-10-01): every feature and condition by the cell-level test in the version the readings trust most (normalised, balanced when unbalanced), Benjamini-Hochberg over all of them within each sub-experiment as the discovery gate, ranked by |d|; the paired t on the repeat means, corrected the same way, beside it as the second gate ("significant across repeats"), and the direction in each repeat. The plots draw the best-ranked (`plots(..., ranking=report.discovery)`), and `embedding_plots` the PCA (the best-ranked as arrows) and UMAP of all the features. The ranking over whole technical repeats (`ranking`) is shown only when there are wells to shuffle.
 
-The cell-level test answers whether these wells differ, not whether the effect repeats: its false-positive chance is always printed beside it, and only the paired test across repeats confirms a difference. With a control, question 2 asks whether the fields acquired resolve the difference from the control in each repeat (`contrast_sampling`: a bootstrap over fields as acquired, and the fields a side a resolution would need).
+**Several controls** (owner, 2026-10-05): `Setup(control={"condition": {control: {treatment: condition, ...} or [conditions], ...}}, control_parents={control: parent or (parent, treatment)}, master_control=...)` declares several experiments; one control is unchanged. The declaration generates one **contrast table** (`workflows/_contrasts`; columns `_control.CONTRAST_COLUMNS`), one row per test, shown in question 9 and saved as `contrasts.csv`; `Setup(contrasts=table)` takes one in its place. `own_control` rows (each condition against its own control, each control against its parent) are the main verdicts: the tests above, the cell-level test, "Did I image enough?", the discovery and the heatmap use them only (pairs resolved by `sampling_unit._groups`). The secondary rows are tested on the repeat means, no cell-level test, each kind one Benjamini-Hochberg family (`sampling_unit.contrast_across`, words in `across_text`): `across_normalised` (the same treatment key under different controls, each condition normalised to its own control: the difference of the log ratios per repeat holding all four) and `vs_master_raw` (with a master, each other control against it on raw values, unless a parent link joins them; the master's repeats and the assumption that experiments were imaged and processed alike said once); a row held in fewer than 3 repeats is named once as not compared. Figures, PCA/UMAP, population detection and SuperPlots show every condition; normalised views divide each condition by its own control (a control by its parent, else 1), the conditions left out named once; unusual observations and population enrichment use each condition's own control, the object rules, clustering and the positive control every control pooled.
+
+The cell-level test answers whether these wells differ, not whether the effect repeats: its false-positive chance is always printed beside it, and only the paired test across repeats confirms a difference. With a control, question 2 asks whether the fields acquired resolve the difference from the control in each repeat (`contrast_sampling`: a bootstrap over wells and fields as acquired, empty fields included, and the fields a side a resolution would need, projected from the part of the interval within wells; when the part between wells alone is as wide as the difference, "more fields will not resolve it: more wells or biological repeats", owner 2026-10-05).
 
 It may also use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
 
@@ -152,6 +154,10 @@ Optional:
 - object/label/patch identifiers and z/c/t coordinates for traceability.
 
 The backwards-compatible API argument is still named `objects`, but `ValidatedInput.observations` and `n_observations` are the canonical generic semantics.
+
+### Other feature tables
+
+Optional, by name, for the same observations (owner, 2026-10-05): features that are not read one by one, such as a deep-learning embedding ("DINOv2", "DINOv3"), so several models can be compared side by side. The observation table holds the explainable features, tested one by one as before; the other tables are never tested feature by feature and there is no whole-embedding test. With the explainable features they make the PCA/UMAP (one map per table and a weighted combined map, first), the populations (named and given rules with explainable features), unusual observations, novelty, the copy checks and a fingerprint declared on them, in the weighted combined space: each column standardised as each analysis does, each table of `p` columns times `sqrt(p_explainable / p)` so every table carries the explainable features' total variance (MFA-style, by the square root of the number of columns rather than the first singular value, so the weights do not depend on the data); novelty's radius times the square root of the number of tables. A descriptive separation score per table (`separation`: per biological repeat, the share of each observation's 10 nearest neighbours with its condition against chance, the median over repeats; no p-value) is a line under each map and a comparison table on the page. They are passed as `feature_tables={name: table}` to `report`, `html_report`, `scan_design` and `guide` and checked at loading by `attach_feature_tables` (`feature_tables.py`): each row identified as the observation table identifies an observation (the FOV key columns it holds, then `label_id` and `z`/`z0`/`z1`/`c`/`t` when present), every observation matched exactly once, every other column numeric (the table is the explicit declaration of its features; metadata names are refused), no infinite value, missing values counted and kept, no column shared with the observation table or another table, a non-empty name of its own (`explainable` and `combined` are reserved); every problem raised at once. `Setup.feature_tables` records each table's columns. They are never divided by a control.
 
 MorphoCoverage must be able to consume output derived from CellPatcher or any feature-extraction repo without importing those packages.
 
@@ -200,6 +206,7 @@ MorphoCoverage currently produces in-memory result objects (`StrategyResult`, `S
 src/morphocoverage/
     __init__.py            # public API (__all__); changes need approval (section 15)
     metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings (the one resolver)
+    _control.py            # private: the control resolved in one place: control rows, pooled controls, labels, the contrast table's columns
     _spelling.py           # private: typing errors of a name (edits), for metadata's near-miss spellings
     schema.py              # ValidatedInput and linked-table validation
     _plane_rules.py        # private: the plane rule (z/c/t planes are not fields, never features)
@@ -251,6 +258,8 @@ src/morphocoverage/
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     glossary.py            # the report's glossary: every test, rule and term in plain words, with its papers
     embedding.py           # PCA and UMAP of the declared features (embed): coordinates and loadings, no figure
+    feature_tables.py      # other feature tables (a DINO embedding, ...): validated against the observation table, attached as named blocks; their weights in the combined space
+    separation.py          # how far the conditions separate in a feature space: the share of each observation's neighbours with its condition against chance, per repeat (descriptive)
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
     _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend
@@ -262,6 +271,7 @@ src/morphocoverage/
         hierarchy.py       # SamplingHierarchy: declared FOV / sample / biological-repeat levels
         reliability.py     # sampling reliability: how often k random FOVs are enough
         reliability_text.py  # its sentences
+        effect_preservation.py  # k fields a side against held-back fields: is each repeat's difference from the control kept?
         replay.py          # replayed orders against a fixed reservoir: decisions and outcomes
         calibration.py     # stopping-rule calibration: how often a rule's stop was premature
         adequacy.py        # first and sustained apparent and realized adequacy points
@@ -302,6 +312,8 @@ src/morphocoverage/
         contrast.py        # each condition against the control: per repeat, across repeats, cell-level; question 9
         contrast_text.py   # its words: the readings first, then a table per contrast and per draw size, each caveat once
         contrast_repeats.py  # across biological repeats: direction, per-repeat d, paired t raw and normalised, sign-flip
+        contrast_across.py # the contrast table's secondary rows: each normalised to its own control, controls against the master raw
+        across_text.py     # its words: "Compared across experiments", the two tables
         repeats_text.py    # its words: the across-repeat table and its notes
         contrast_cells.py  # the Plot&Stats cell-level test, raw and normalised, its balance check and balanced version
         cells_text.py      # its words: the balance line, the tables, the false-positive chance, the notes
@@ -317,8 +329,9 @@ src/morphocoverage/
         discovery.py       # the same question by the cell-level gate (BH), the paired t on repeat means beside it
         distribution.py    # beyond the mean: spread and 10/50/90% quantiles per repeat, tested across repeats
         populations.py     # question 10: groups of every cell pooled (HDBSCAN on a UMAP, kept when their neighbours on all features are inside)
-        _population_rule.py  # private: the simplest feature rule that picks out a group (a depth-2 balanced tree), checked on held-out cells
+        _population_rule.py  # private: the simplest feature rule that picks out a group (a depth-2 balanced tree, fitted on all cells), its procedure checked on held-out fields
         _units.py          # private: sides, units and the randomization test shared by contrast and ranking
+        _groups.py         # private: the analysis groups and each comparison's two sides (one control, or (condition, control) pairs)
         unusual.py         # unusual (out-of-distribution) objects against a declared reference (unusual_objects)
         clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered
         _outliers.py       # private: the distances and leave-one-group-out thresholds behind unusual_objects
@@ -328,13 +341,17 @@ src/morphocoverage/
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
+        _setup_parts.py    # private: the positive control, the default definition of new and the presets' checks, re-exported by setup
+        _feature_space.py  # private: the Setup's other feature tables: the weighted combined space, novelty on it, the tables attached
+        _contrasts.py      # private: one control or several: the contrast table, own controls, the pooled and figure controls
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
         _html_render.py    # private: the report's text as HTML, glossary term links, status chips
         _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
-        _html_figures.py   # private: figures as PNG/PDF, PCA/UMAP data and markup, palette
+        _html_figures.py   # private: the feature figures as PNG/PDF, palette
+        _html_maps.py      # private: the PCA/UMAP data and markup, a map per feature table and the combined one, with the neighbours line under each
         _html_plotly.py    # private: plotly.js (assets/) and the feature figures' data for it
         _html_plotly_script.py  # private: the script drawing the Plotly figures
         _html_style.py     # private: the page's style sheet (light/dark, drawer, lightbox)
@@ -349,6 +366,8 @@ src/morphocoverage/
         _families.py       # private: one correction family: the readout's tests take the feature discovery's p and q
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
+        _guided_controls.py  # private: its control gate: one control, or several with their conditions, parents and master
+        _guided_tables.py  # private: its other feature tables: asked for at load with a path and a name, checked, saved with their checksums
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal
         _declaration.py    # private: the Setup's declaration in sentences, every preset printed
         retrospective.py   # report, optimise, document: the analyses in question order
@@ -360,6 +379,7 @@ src/morphocoverage/
         _rare_share.py     # private: the labelled rare state's share, compared like a feature
         _label_control.py  # private: the rare label as a positive control of the features (question 1)
         _populations.py    # private: question 10, the populations and each condition's enrichment across repeats
+        _population_rule_words.py  # private: a group's feature rule in words (fitted on all cells; its procedure checked on held-out fields)
         _result_influence.py  # private: the fields whose removal moves the result (the repeat means the paired test compares)
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)
@@ -408,7 +428,8 @@ data/
                            # dataset; run_lab.py runs the report, FINDINGS.md logs each run (rules in data/lab/README.md:
                            # only pinned public or owner-released sources, never a manuscript)
     morphobricks/          # small tables as the other MorphoBricks tools write them (fiberfeatures_patches.csv), with provenance
-    simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py) and results
+    simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py,
+                           # unusual_calibration.py) and results
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
 
 docs/                      # questions.md (the questions and their status), glossary.md (generated from glossary.py), condition_tests.md (question 9's tests,
@@ -460,7 +481,7 @@ Rules for these tests:
 - Every strategy added to the package must be added to `STRATEGIES_UNDER_CONTRACT` in `tests/contract_registry.py`. It then has to pass, on every scenario: counts that match the acquisition record, determinism, and group independence. Framework-level contracts (whole-FOV reveal in acquisition order, no future-FOV leakage, explicit features only, zero-observation FOVs counted as effort) apply to all strategies automatically.
 - An estimator that supports incremental updates (`Estimator.start`) must give, at every step and on every scenario, the same evidence and decisions under `incremental=True` replay as under full recomputation, to floating-point rounding. The incremental-equivalence contract in `tests/test_contracts_incremental.py` runs this for every strategy in `STRATEGIES_UNDER_CONTRACT`.
 - Every group-local outcome metric added to the package must be added to `METRICS_UNDER_CONTRACT`. It has to return a finite float or None (never NaN), be deterministic, leave its inputs unchanged, and depend only on the full acquisition and the stop prefix, never on which strategy stopped.
-- Future multi-group biological-fidelity outcomes require a **separate contract registry and contract-test module** rather than being silently added to `METRICS_UNDER_CONTRACT`. Those contracts must verify determinism, invariance to strategy identity at matched stop prefixes, preservation of the declared biological-repeat unit, no mutation of inputs, and strict retrospective-only use. Until that registry exists, multi-group outcomes remain proposal/benchmark design work rather than packaged metrics.
+- Future multi-group biological-fidelity outcomes require a **separate contract registry and contract-test module** rather than being silently added to `METRICS_UNDER_CONTRACT`. Those contracts must verify determinism, invariance to strategy identity at matched stop prefixes, preservation of the declared biological-repeat unit, no mutation of inputs, and strict retrospective-only use. Until that registry exists, multi-group outcomes remain proposal/benchmark design work rather than packaged metrics. The one exception is `retrospective.effect_preservation` (owner, 2026-10-05): a standalone retrospective analysis of one feature's per-repeat difference from the control at k fields a side, judged on held-back fields, not an outcome metric and not used by the optimise workflow or the report.
 - Every feature transform added to the package must be added to `TRANSFORMS_UNDER_CONTRACT`. Its fitted state and output at step k must not change when FOVs acquired after step k are altered, and its fitted state must be JSON-serializable provenance.
 - Contract tests check correct handling, not scientific performance. Whether a strategy stops early enough, or detects the clustered rare state, is a benchmarking result on real data. Such expectations must not be encoded as contract tests that force a strategy to "win".
 - `baseline_comparison` covers the fixed-cell, fixed-FOV, fixed-area (`FixedAreaStrategy`), JCB-style scalar-precision (`ScalarPrecisionStrategy`, and the multi-sample `PlannedObjectCountStrategy`) and Marcotti-style descriptor-stabilization (`DescriptorPlateauStrategy`, `DescriptorSpreadStrategy`) baselines. Any new current-practice baseline must be added to it.
@@ -633,7 +654,7 @@ Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 | Cell-level test | The lab's Plot&Stats test: Cohen's d and a randomization test over the observations of all repeats pooled. It asks whether these wells differ; its chance of p <= 0.05 without an effect is printed beside it (section 4). |
 | Paired test across repeats | The paired t-test on the repeat means (SuperPlots), raw and on log ratios to the control: the biological repeat is the replicate; the only test that confirms a difference in question 9. |
 | Normalised | Divided by the mean of the control of the same biological repeat (a fold change); removes a scale both wells of a repeat share, not the part of an effect that varies between repeats. |
-| Balanced | The cell-level test against the control of the condition's own repeats, with the same number of observations drawn from every repeat (median over 100 draws); given when the repeats are unbalanced. |
+| Balanced | The cell-level test against the control of the condition's own repeats, with the same number of observations drawn from every repeat: d the median over 100 draws, p one permutation test shuffling labels within each repeat (owner, 2026-10-05); given when the repeats are unbalanced. |
 
 ## 20. Adding or swapping a strategy
 

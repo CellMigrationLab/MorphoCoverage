@@ -18,6 +18,7 @@ from .adequacy import (
 from .calibration import StoppingCalibration, calibrate_next_fov_novelty, stopping_calibration
 from .controls import ControlResult, RepresentationControl, representation_control
 from .criteria import OutcomeCriterion, Preservation
+from .effect_preservation import EffectPreservation, effect_preservation
 from .effort import EffortResult, design_effect, effort_projection, nested_variance_components
 from .hierarchy import SamplingHierarchy
 from .inspection import InspectionResult, Summary, inspect_fovs
@@ -39,6 +40,7 @@ __all__ = [
     "AdequacyResult",
     "ControlResult",
     "DatasetOverview",
+    "EffectPreservation",
     "EfficiencyResult",
     "EffortResult",
     "InspectionResult",
@@ -58,6 +60,7 @@ __all__ = [
     "default_orders",
     "design_effect",
     "dispersed_order",
+    "effect_preservation",
     "effort_projection",
     "first_apparent_adequacy",
     "first_realized_adequacy",

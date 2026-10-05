@@ -282,7 +282,7 @@ def test_i10_sentences_use_the_observation_unit_and_need_a_control_for_unusual_o
     assert "nucleus rows wait for their FOV rows" in update.summary()
 
 
-def test_i11_watch_until_stop_follows_each_rules_own_verdict(tmp_path):
+def test_i11_watch_until_stop_follows_the_objective_and_stop_on_rule_each_verdict(tmp_path):
     objects, fovs = _tables()
     fingerprint = (
         OutcomeCriterion(CovarianceError(["feature_a", "feature_b"], True), 0.5, "lower_is_better"),
@@ -292,13 +292,17 @@ def test_i11_watch_until_stop_follows_each_rules_own_verdict(tmp_path):
     for _, row in group.sort_values("acquisition_order").iterrows():
         write_fov(tmp_path, objects.merge(row.to_frame().T[KEY], on=KEY), row.to_dict())
     seen = LiveFolder(tmp_path, live_session(setup)).watch(
-        interval=0.01, timeout=5, until_stop=True, on_update=None
+        interval=0.01, timeout=1, until_stop=True, on_update=None
+    )
+    # The objective stays unsupported (no rule decides the fingerprint), so the watch
+    # does not stop (owner, 2026-10-05, #85) and reads every field.
+    assert len(seen) == len(group)
+    seen = LiveFolder(tmp_path, live_session(setup)).watch(
+        interval=0.01, timeout=5, until_stop=True, on_update=None, stop_on="rule"
     )
     last = seen[-1].results[0]
-    # The objective stays unsupported (no rule decides the fingerprint); the rule stops
-    # at the second field of each well (wells alternate: w0, w1, w0, w1), and watch
-    # returns once both wells stop (audit 4, P2-5) instead of reading every field and
-    # waiting for the timeout.
+    # With stop_on="rule", the rule stops at the second field of each well (wells
+    # alternate: w0, w1, w0, w1), and watch returns once both wells stop (audit 4, P2-5).
     assert last.decision != Decision.STOP and last.rule_decision == Decision.STOP
     assert len(seen) == 4 < len(group)
 

@@ -38,8 +38,13 @@ result = report(scan.objects, scan.fovs, setup)
   like one: siCTRL, MOCK, DMSO, NT, scramble, vehicle), the biological repeats
   and which conditions each holds (one experiment, or separate acquisitions
   sharing the control, as in a screen), the technical repeats, the fields and
-  the observations per field, the planes, the targets, the features, and the
-  observations per condition and repeat.
+  the observations per field, the planes, the targets, the features, the
+  [other feature tables](#other-feature-tables-embeddings) given as
+  `scan_design(..., feature_tables={"DINOv2": dino})`, each checked (owner,
+  2026-10-05: one that cannot be used is a ❌ finding, with why), and the
+  observations per condition and repeat. With a FOV table that passes the data
+  check, the fields, conditions and repeats are those it lists, a condition or
+  repeat held only by empty fields included, with 0 observations.
 - **Loaded correctly?** The data check (`check_tables`), the copy checks
   (`integrity_checks`: a field read twice, rows pasted into another field,
   a change of units), declared features holding one value in every row, and
@@ -78,25 +83,49 @@ session = guide("cells.csv", folder="results")   # paths or DataFrames; asked fo
 ```
 
 or, from a terminal, `python -m morphocoverage.workflows cells.csv [fovs.csv] --folder results`.
-The session loads the tables, scans them and prints the scan, then asks: did
-the dataset load correctly (if not, it stops); the control to log (the scan's
-guess is the default, "no control" is an answer); a positive control, a
+The session loads the tables; given as paths (asked for, or from a terminal), it then
+asks "Do you have other feature tables for the same observations, e.g. deep-learning
+embeddings such as DINO?" and, for each, a path and a name, checking each against the
+observation table and asking again when one cannot be used (owner, 2026-10-05;
+`guide(..., feature_tables={"DINOv2": dino})` gives them directly). It scans them,
+the other tables listed in the scan, and prints the scan, then asks: did
+the dataset load correctly (if not, it stops); what one row is (owner, 2026-10-05: asked
+here, so the scan's words follow it); whether all the conditions are
+compared with the same control (owner, 2026-10-05; No is proposed, after a table of the
+images per condition and biological repeat, when the likeliest control is missing from
+repeats where other conditions are imaged). Yes: the control to log (the scan's
+guess is the default, "no control" is an answer). No: [several
+controls](#several-controls), each with a proposal to confirm: which conditions are
+controls (named like one, such as `VEC_SiNC`), the conditions of each with their treatment
+keys (the name without the stem it shares with its control: `THBS5_SiCol6a1` under
+`THBS5_SiNC` is `SiCol6a1`), a parent when a control's name extends another condition's
+(`VEC_SiNC` under `VEC`, key `transfection` for an siRNA suffix), and an optional master
+control; the tests these answers give are then listed, one per line with its family. Then
+a positive control, a
 condition known to change the phenotype, which checks that the features can see
 a change ("none", the default, leaves that check out; it can be named later,
-whenever such a condition was imaged); the aim (population
-averages, a phenotypic fingerprint, or both); the features to assess
-(several by number, range or name, or all the numeric columns); the readout
-among them; what one row is; and, for a fingerprint, its tolerance (the
-covariance of the standardised features within a share you state; 10% is
-offered, with no published meaning). Enter takes each default.
+whenever such a condition was imaged); whether you want to know if the average of each
+feature differs, the whole distribution (shape, spread, tails), or both; the features to
+assess (several by number, range or name, or all the numeric columns); the readout among
+them; an optional column that marks a phenotype you care about (true/false or 0/1 per cell,
+such as mitotic: `Setup.rare_label`, its share taken as the rare target's prevalence, to be
+seen in 3 fields with 95% chance); and, for the whole distribution, its tolerance (the
+covariance of the standardised features within a share you state; 10% is offered, with no
+published meaning). Last, it asks whether to run the report now (the default) or to save
+the answers and stop, as `run_report=False` does. Enter takes each default.
 
 The answers are saved in the folder as `morphocoverage_answers.json`, with a
-checksum of the observation table, before the report runs; the folder then
+checksum of the observation table and one of the FOV table (`None` without
+one), and each other feature table's name, path and checksum, before the report runs; the folder then
 holds `scan.txt`, `report_short.txt` and `report_full.txt`. Run in the same
 folder again, the session shows the saved answers and offers to continue with
 them (straight to the report) or to delete them and start over. Answers saved
-for another table are never reused: the session offers to delete them, or
-stops so you can choose another folder. Extra `Setup` fields go through
+for another table, or with another FOV table or none, or with other feature tables
+(compared by name and checksum), are never reused: the
+session offers to delete them, or stops so you can choose another folder.
+Answers saved by an earlier version, which did not check the FOV table, are
+not reused either: the session says so and asks the questions again
+(owner, 2026-10-05). Extra `Setup` fields go through
 `guide(..., n_jobs=4, normalize="control_mean")`; `load_answers(folder)` and
 `answers.setup(scan)` rebuild the `Setup` without the questions.
 
@@ -190,8 +219,18 @@ difference can be called significant. With a rare phenotype or a fingerprint
 declared, a line each says in how many wells it was seen in enough fields, or is
 within its tolerance. A compact table follows, one row per feature: the comparisons
 shown and what would show the rest (how many comparisons would need about how many
-fields a side, or cells, tracks, patches when the comparison counts those, and how
-many are too small to show even with 4 times as many). Then one feature at a time,
+fields a side, or cells, tracks, patches when the comparison counts those, how
+many are too small to show even with 4 times as many, and how many more fields will
+not resolve: more wells or biological repeats). The fields a side are projected from
+the part of the interval of d within wells only (owner, 2026-10-05): the interval
+comes from resampling the wells and then their fields as acquired, fields without
+cells included, and a nested bootstrap splits its variance into a part between wells,
+which more fields of the same wells do not reduce, and a part within wells, which
+shrinks as 1/fields. When the part between wells alone is as wide as the difference,
+the answer is that more fields will not resolve it: more wells or biological repeats.
+With one well a side the interval holds no variation between wells, and the
+projection is from its fields alone. The plan's repeats needed with twice the fields halve
+only that part within wells too. Then one feature at a time,
 as tabs: its comparisons, the precision of each well's own mean and its table within
 each repeat; the rare phenotype and the fingerprint have their own tabs after the
 features. What every tab would repeat (that this is per repeat, what each well's own
@@ -238,8 +277,12 @@ feature figure `<feature>_data.csv` (every observation, raw and normalised, with
 its condition, repeats and field), `<feature>_repeats.csv` (each biological
 repeat's median and interval) and `<feature>_pairs.csv` (every pair of
 conditions); for the maps `embedding_<values>.csv` (the PCA and UMAP coordinates
-of every point, with its condition, repeat, field, population and standardised
-features) and `pca_loadings_<values>.csv`; for the heatmap `heatmap_d.csv`.
+of every point, with its condition, repeat, field, `observation` (its index in the
+observation table), `label_id` when the table has one, population and standardised
+features) and `pca_loadings_<values>.csv` (with other feature tables
+`embedding_<values>_<table>.csv`, the combined space's table named `Combined`), and
+`separation.csv` (each space's share of neighbours sharing the condition, per biological
+repeat); for the heatmap `heatmap_d.csv`.
 
 The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
 which the page carries (about 1.5 MB, MIT licence), so they work offline. A
@@ -264,11 +307,20 @@ different repeats is marked †, since the batch is in its difference
 (`plots_pairwise`). The words are a legend under the panels, "(A)", "(B)", "(C)",
 as in a paper. The static figure (PNG and PDF, for papers) is folded
 under each, with the same matrix under the plot. On the PCA and UMAP, hover a
-point for its condition, repeat and field, click a condition in the legend to
+point for its condition, repeat and field, and its observation and `label_id` to
+find it again in the table and the image, click a condition in the legend to
 hide it, switch between PCA and UMAP and between raw values and values
 normalised to each repeat's control, and draw around points (the lasso is on) to
 see which conditions they come from: their number, their share of the selection,
-the share chance would give and the ratio of the two. Up to 12 conditions, every
+the share chance would give and the ratio of the two. Under each map, one line says
+how far the conditions separate in it (owner, 2026-10-05): of each observation's 10
+nearest neighbours among the other observations of its biological repeat, the share that
+have its condition, against that condition's share of the repeat (chance), the median over
+the repeats ("DINOv2: 61% of neighbours share the condition, against 13% by chance; median
+over 3 repeats"); a description, with no p-value. With [other feature
+tables](#other-feature-tables-embeddings), a selector switches between a map per table,
+the weighted combined map first, and a table under the maps compares them. Up to 12
+conditions, every
 condition, the control included, has a colour of its own (no grey, hard to see);
 past 12, the control and the conditions significant across repeats (else the
 cell-level screen's best-ranked candidates), at most 11, keep a colour and the
@@ -291,8 +343,10 @@ its meaning on hover or focus (`glossary.PHRASES` lists the words matched; terms
 inside tables are left plain, explained by the sentences around them). A Files
 section holds every figure (PNG and PDF), both text reports, the feature table
 as CSV and, from the guided session, the design scan and the saved answers, each
-saved with its button, so the page alone is the file to share. The guided
-session also zips the whole folder (`zip_results(folder)`: `<folder>.zip`) for
+saved with its button, so the page alone is the file to share. A file passed in
+`attach=` that is not found is named there, and two of one name are both carried,
+the second as `<name>_2`. The guided session also zips the whole folder
+(`zip_results(folder)`: `<folder>.zip`, any other zip in it included) for
 archiving, without the figures an earlier session left in `figures/` (`since=`).
 
 ## Declare the dataset
@@ -327,7 +381,14 @@ field; pass `rules=(...)` to assess others. `random_state` (default 0) seeds
 every random procedure the workflows run, the report's random orders
 included, and `minimum_detection` (default 0.9, a provisional preset) is the
 share of positive-control checks the representation must recognize before the
-adequacy answers are read without a warning. A `PositiveControl` without
+adequacy answers are read without a warning. The control's rates are pooled over
+its strata (the repeats, or `pair_cols`), and the report says "pooled over all
+biological repeats" wherever it applies one to a group: the warning, the
+detection-adjusted bound, the false alarms expected among the fields to check,
+and question 1 (owner, 2026-10-05). With planted objects declared, their rate is the
+warning's; when none could be planted, the warning on questions 2, 4 and 5 reads
+"not assessed: the planted check could not run", never the whole-field rate
+(owner, 2026-10-05). A `PositiveControl` without
 `pair_cols` pairs its fields with reference fields within each repeat when the
 FOV table has a repeat column; `pair_cols=()` pools the repeats, as an
 explicit request. The declaration prints every such preset.
@@ -351,6 +412,70 @@ Features measured plane by plane are split before the `Setup`:
 `morphocoverage.planes_as_features` turns `area` into `area_z0`, `area_z1`,
 ... (objects matched by `label_id`), and those names are the `readout` and
 `features` declared here ([`data_format.md`](data_format.md#features-measured-per-plane)).
+
+### Several controls
+
+One control is declared as `control={"condition": "siCTRL"}`, and every condition is
+compared with it within each biological repeat, as always. A dataset of several experiments,
+each with its own control, declares the controls, each mapping a treatment key to its
+condition (a plain list of conditions is accepted too, with no keys), and optionally the
+parents of the controls (any condition, with an optional treatment key) and a master control
+(owner, 2026-10-05):
+
+```python
+setup = Setup(
+    readout="Order",
+    control={
+        "condition": {
+            "VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1", "SiFBN2": "VEC_SiFBN2"},
+            "THBS5_SiNC": {"SiCol6a1": "THBS5_SiCol6a1", "SiFBN2": "THBS5_SiFBN2"},
+            "VEC": {"THBS5": "THBS5"},
+        }
+    },
+    control_parents={"VEC_SiNC": ("VEC", "transfection"), "THBS5_SiNC": ("THBS5", "transfection")},
+    master_control="VEC_SiNC",
+)
+```
+
+A condition belongs to one control at most, a treatment key names one condition of a
+control, a parent may be any condition (a member of another control included) but the links
+may not form a cycle, and every condition named must be in the data; each is refused with a
+message otherwise. The declaration gives the **contrast table** (`Setup.contrast_table`), one
+row per test, shown in the report and saved as `contrasts.csv`:
+
+- `own_control`, **the main verdicts**: each condition against its own control, and each
+  control against its parent, raw and normalised, paired per biological repeat, exactly as
+  with one control (the paired test across repeats, the cell-level screen, the per-repeat d,
+  "Did I image enough?", the feature discovery and the heatmap use these rows only),
+  Benjamini-Hochberg within each sub-experiment as before. A row reads
+  `THBS5_SiCol6a1 vs THBS5_SiNC`.
+- `across_normalised`: two links with the same treatment key under different controls (or
+  parents): the two conditions each normalised to its own control, in every repeat holding all
+  four the difference of their log ratios, paired across those repeats
+  (`SiCol6a1 effect: THBS5_SiCol6a1/THBS5_SiNC vs VEC_SiCol6a1/VEC_SiNC`); a list of
+  conditions gives no such row. One Benjamini-Hochberg family.
+- `vs_master_raw`, only with a master: each other control against it on the raw values, in
+  the repeats holding both, unless a parent link joins them already
+  (`THBS5_SiNC vs VEC_SiNC (raw)`). The report gives the master's repeats once and says that
+  raw comparisons across experiments assume the experiments were imaged and processed alike.
+  One Benjamini-Hochberg family.
+
+For the ECM design above that is 7 + 3 + 1 = 11 rows per feature. The secondary rows are
+tested on the repeat means, with no cell-level test; a row held in fewer than 3 repeats is
+named once as not compared, and where a mean is not positive (a signed feature) the raw
+differences are compared instead of log ratios, and the table says so for that feature.
+`Setup(contrasts=table)` takes a table of the same columns (`kind`, `condition`,
+`reference`, `condition_control`, `reference_control`, `family`, `label`) in place of the
+generated one.
+
+Only the statistics read the controls: the figures, the PCA and UMAP, the population
+detection and the SuperPlots show every condition under its own name. With `normalize`, the
+normalised views show each condition divided by its own control's mean in its repeat, a
+control by its parent's (else its own, so 1); a condition held in a repeat without its own
+control is left out there, and the report names it once. Levels across experiments are read
+on the raw values. The tests read the raw values and each normalises to its own control.
+Unusual observations and the population enrichment take each condition's own control as the
+reference; the object rules, clustering and a positive control take every control pooled.
 
 ### Normalising to the control
 
@@ -407,7 +532,10 @@ that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
 - **a rare phenotype**: `rare=RareTarget(...)` (its definition, its object
   prevalence and/or field incidence, the detection probability, the fields it
   must be seen in) and, when an independent label exists, `rare_label`, the
-  object column (booleans or 0/1) that marks it. With the label, held-back
+  object column (booleans or 0/1) that marks it; a missing value is unknown, never a
+  negative: the cell is left out of every share's numerator and denominator (the label
+  check, the groups, the share compared, the plan, the fields holding it), and the report's
+  notes count such cells once (owner, 2026-10-05). With the label, held-back
   fields judge whether `k` fields showed the state; without it the target is
   stated and planned for (the binomial field count at the declared incidence)
   but not judged. Object prevalence is never converted to field incidence.
@@ -420,7 +548,11 @@ acquired:
   declared probability, at the share of fields holding it in the data; and
   the fingerprint's error with the fields acquired (estimated from random
   halves of each well's fields) against its tolerance, with the fields that
-  would bring it there. When the fields `optimise` holds back (35% of a well's)
+  would bring it there. A well where more than 10% of the 20 random halves
+  have no defined error is not judged, and named; below that share the error
+  comes from the other halves, and the text says the share (owner,
+  2026-10-05). When no well can be judged, it reads "not judged in any well"
+  with the reasons, marked ➖. When the fields `optimise` holds back (35% of a well's)
   would themselves err by more than the tolerance, the text report says so
   once: the held-back judgement cannot confirm that target, and the estimate is
   the guide. On the page each target has its own tab, after the features, and a
@@ -437,8 +569,11 @@ acquired:
   may split into two groups on a feature where the control's do not (Sarle's
   bimodality coefficient above 5/9 for the condition without a heavy tail, excess
   kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
-  below 5/9 for the control, in at least half of its repeats), the summary says
-  so and points to its figure: described, not tested.
+  below 5/9 for the control, in at least half of its repeats that can be assessed),
+  the summary says so and points to its figure: described, not tested. A repeat
+  whose coefficient is undefined, with fewer than 4 cells on a side or no spread,
+  leaves the denominator and is named ("1 repeat not assessed: 3 cells"), and a
+  condition with no repeat assessed is said not assessed (owner, 2026-10-05).
 - **"Are there populations or groups of cells?"** (question 10, in every report) finds
   groups of cells that sit together on all the declared features, from every
   condition pooled. The candidates are the clusters of HDBSCAN (scikit-learn) on a
@@ -452,16 +587,25 @@ acquired:
   held-out discriminant, told the two apart reliably at the sizes of an experiment
   (owner, 2026-10-02). Each group comes with the simplest rule on the features that
   picks out its cells (at most two thresholds from a balanced decision tree, in the
-  features' own units), with the share of its cells it finds and the share right of
-  those it picks, on cells it was not fitted on; "What to do next" names the fields
+  features' own units), fitted on all the cells, with the share of its cells it finds
+  and the share right of those it picks when the same procedure is refitted with whole
+  fields held out (5 folds of fields, scikit-learn's `StratifiedGroupKFold`, fewer
+  with fewer fields; cells held out for a group in one field, and the report says so):
+  these describe the procedure, not the exact thresholds shown (owner, 2026-10-05);
+  "What to do next" names the fields
   that hold most of it, to validate on the images, and gives the code that labels
   it with the rule and declares it as the rare phenotype. A cluster holding most
   cells is the main population (`P1`), the rest of the cells. On constructed data
   this finds no group in a Gaussian, a separate blob as a group its rule finds,
   and the end of a straight line at most as a group; groups overlapping strongly
-  on every feature are not told apart. Each group is listed with its share, the
-  features that set it apart, its neighbours inside, its rule, and the fields and
-  repeats it is seen in; then each condition is compared with its own
+  on every feature are not told apart. Without a group the answer is ➖ "No group":
+  no candidate group passed the check on these features, which says nothing of a
+  continuum or of rare states (owner, 2026-10-05). Each group is listed with its share, the
+  features that set it apart, its neighbours inside, its rule, the fields and
+  repeats it is seen in, and the share of its cells in its largest field (a group
+  living mostly in one field may be that image's artefact; the table, `Populations.table`,
+  also counts the technical repeats holding it, `largest_field` and `technical_repeats`;
+  owner, 2026-10-05); then each condition is compared with its own
   control on its share of cells in it, per biological repeat, on the log odds of
   the shares (a small share is as steady there as a large one), by the paired
   test across repeats (Benjamini-Hochberg within each sub-experiment); the main
@@ -479,7 +623,12 @@ acquired:
   positive control, is answered by the label: for each labelled cell, whether
   the nearest cell of another field (on the declared features, robustly
   standardized) is labelled too, against the share labelled overall, with
-  `minimum_detection` as for a positive control.
+  `minimum_detection` as for a positive control. Every labelled cell is looked up
+  against its true nearest cell of another field, and the answer gives how many were
+  assessed. A declared label the check cannot assess (fewer than 5 labelled cells, no
+  unlabelled cell to compare, a missing feature value, or no labelled cell with a cell
+  of another field) is answered ➖ "declared, not assessable" with the reason, never
+  as if no label were declared (owner, 2026-10-05).
 
 Every document opens with the declaration (`setup.declaration()`), one
 sentence per target, and a target that is not declared says so, so that an
@@ -567,6 +716,51 @@ should I look at?" and in "What this dataset cannot tell me", since every
 other answer still counts them as independent fields; see
 [`integrity.md`](integrity.md).
 
+### Other feature tables: embeddings
+
+The features you test one by one (explainable features, such as the readout and the
+shape and intensity measurements) are the observation table's. Features that are not
+read one by one, such as the embedding of a deep-learning model, come as other feature
+tables, each with a name, so that several models can be compared side by side (owner,
+2026-10-05):
+
+```python
+tables = {"DINOv2": dino_v2, "DINOv3": dino_v3}
+result = report(objects, fovs, setup, feature_tables=tables)
+html_report(result, objects, fovs, "results", feature_tables=tables)
+```
+
+Each table is checked against the observation table at loading
+([its rules](data_format.md#other-feature-tables-embeddings-beside-the-explainable-features):
+every observation matched exactly once by the same identity, numeric columns, missing
+values counted, no clashing names, a name of its own), and `result.setup.feature_tables`
+names their columns. They are never tested feature by feature, and there is no
+whole-embedding test: the discovery, the heatmap, the SuperPlots, "Did I image enough?"
+and the contrasts read the explainable features as before. With the explainable features
+they make:
+
+- the PCA and UMAP: one map per table and a weighted combined map, shown first;
+- the populations, found on the combined space and still named, and given rules, with
+  explainable features;
+- unusual observations, novelty (with the positive control and the fields to inspect)
+  and the copy checks;
+- a fingerprint declared on their columns (the guided session's fingerprint reads the
+  combined space).
+
+In the weighted combined space each column is standardised as each analysis
+standardises it, then each table is weighted so that it carries the explainable
+features' total variance: a table of `p` columns times `sqrt(p_explainable / p)`, MFA's
+equal weight per table with the square root of the number of columns in place of the
+first singular value, so the weights do not depend on the data. The definition of new
+keeps its meaning there with its radius times the square root of the number of tables.
+An other table is never divided by a control (an embedding has no ratio scale), so its
+map is the same in raw and normalised values. On the page, under each map, the share of
+neighbours that share the condition against chance compares the tables: a higher share,
+the conditions sit further apart in that table, by biology or by how the conditions were
+imaged; near chance, that table does not tell them apart here, which does not show them
+alike. The live session and `optimise` read the columns already in `objects`: for them,
+attach the tables first (`attach_feature_tables(objects, fovs, tables).objects`).
+
 ## Plots: every object a point, the interval from fields
 
 ```python
@@ -639,6 +833,11 @@ loadings, so the axes read in features; and a UMAP (`umap-learn`, seeded by
 of every condition). Both describe, they do not test: a separation is a
 pattern to read with question 9's tests, and on raw values a separation can
 be a batch between repeats, which `normalize="control_mean"` takes out.
+Under the page's PCA, one line per axis names its three strongest loadings
+with their signs on the axis as drawn, whatever the ranking, and the caption
+says how many PCs hold 90% of the variance (counted by the populations) and
+which arrows are drawn: the best-ranked features, or without a ranking the
+five largest loadings.
 
 When `control` names a condition and the FOV table holds other conditions,
 the report also answers question 9, "Do the conditions differ, and how
@@ -747,9 +946,12 @@ print(bench.summary(detail="full"))           # every rule in sentences
 
 Each criterion opens with its marker: ✅ when the rule that saves most
 fields does so with an interval above 0, or when no rule beats the fixed
-count (the null result) with an interval; ⚠️ when the best saving is not
+count (the null result) with an interval; ⚠️ when the largest saving is not
 resolved or has no interval; ➖ when a fixed count never met the risk level
-lastingly, so no rule is scored.
+lastingly, so no rule is scored. With several rules, the one that saves most
+is picked after looking at every rule's own interval: the headline says it
+"saves the most here", a description of these data, not a test of the best
+rule (owner, 2026-10-05).
 
 `default_families(setup.readout)` holds the rule families and threshold grids
 of the locked protocol (version 5, whose grids are those of versions 1 to 4): the mean-precision rule and the JCS descriptor
@@ -800,11 +1002,16 @@ live = LiveFolder(folder, live_session(setup))
 live.watch(interval=1.0, until_stop=True)    # or live.poll() from your own loop
 ```
 
-`until_stop=True` returns once every rule says stop in every group seen so
-far, each group judged by its latest field: on a plate acquired well by well,
-the watch goes on while any well still needs fields.
+`until_stop=True` returns once the objective's overall decision is stop in
+every group seen so far, each group judged by its latest field: on a plate
+acquired well by well, the watch goes on while any well still needs fields.
 `until_stop="latest_group"` returns as soon as the latest field's group is
-done. Fields are added one at a time, so a backlog stops at the stop: the
+done. The overall decision is the last line of each update's view, as in
+`benchmark`: a declared target that no rule decides is unsupported and keeps
+the watch going, so the watch never stops while the view says otherwise
+(owner, 2026-10-05; before, the watch read each rule's own verdict).
+`watch(..., stop_on="rule")` is the lower-level stop when every rule's own
+verdict is stop, whatever the targets it does not decide. Fields are added one at a time, so a backlog stops at the stop: the
 fields still waiting in the folder are not added, and the next `poll` or
 `watch` reads them.
 
@@ -939,7 +1146,10 @@ features and 151 conditions about 30 min. The guided session says its estimate
 before it starts. It is approximate, from constructed datasets of 5 to 300
 features and 3 to 151 conditions (2026-10-02 and 2026-10-05), which took 13, 50
 and about 30 min; a busy machine, the novelty question below and many objects
-per field add to it.
+per field add to it. Other feature tables add little, as they are never tested
+feature by feature: on the ECM tables of 2026-10-05 (236 images, 8 conditions, 17
+explainable features and a DINO table of 384), the report and its page took 76 s on 2
+processes, against 65 s without the DINO table.
 
 `Setup.n_jobs` reaches every workflow, the report's replay of the stopping
 rules included (`sufficiency_report(..., n_jobs=)`, since audit 4); results

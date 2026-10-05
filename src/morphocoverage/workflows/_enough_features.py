@@ -35,9 +35,15 @@ import pandas as pd
 from .._parallel import check_n_jobs, map_units
 from .._style import Status, table, wrap
 from .._wording import count, listing
-from ..retrospective.report_resolved import _needing, _table, has_resolution, resolved_full
+from ..retrospective.report_resolved import (
+    _needing,
+    _table,
+    between_wells,
+    has_resolution,
+    resolved_full,
+)
 from ..sampling_unit.contrast import condition_contrast
-from ..sampling_unit.contrast_sampling import PRACTICAL
+from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency import sufficiency_report
 from ..sufficiency_short import rule_tallies
@@ -134,6 +140,7 @@ def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str,
     rows = _table(contrast)
     shown = int(rows["resolved"].sum()) if len(rows) else 0
     small = int(rows["too_small"].sum()) if len(rows) else 0
+    wells = int(between_wells(rows).sum()) if len(rows) else 0
     needing = _needing(rows) if len(rows) else rows
     counts = needing["fields_to_resolve"].astype(float) if len(needing) else pd.Series([])
     verdict = ENOUGH if len(rows) and shown == len(rows) else PARTLY if shown else NOT_YET
@@ -146,6 +153,7 @@ def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str,
         "fields_low": float(counts.min()) if len(counts) else np.nan,
         "fields_high": float(counts.max()) if len(counts) else np.nan,
         "too_small": small,
+        "between_wells": wells,
         "precision_rule": tally["label"] if tally else None,
         "precision_met": tally["met"] if tally else np.nan,
         "precision_groups": tally["groups"] if tally else np.nan,
@@ -158,7 +166,7 @@ def _contrast(prepared: pd.DataFrame, fovs: pd.DataFrame, feature: str, setup: S
         prepared,
         fovs,
         feature=feature,
-        control=setup.control,
+        **setup.contrast_arguments,
         random_state=setup.random_state,
         fields_independent=setup.fields_independent,
         object_counts=(),
@@ -178,7 +186,7 @@ def enough_by_feature(
     no control; ``prepared`` holds the values the contrasts read (normalised as declared),
     ``objects`` the raw ones the rules read."""
     features = list(setup.columns)
-    if len(features) < 2 or setup.control is None:
+    if len(features) < 2 or not setup.compares:
         return None
     ordered = _order(features, discovery)
     # One light contrast per feature, in worker processes when the setup allows them.
@@ -210,6 +218,8 @@ def _needed(row: dict[str, Any], fields: str) -> str:
         parts.append(f"about {about} {fields} a side")
     if row["too_small"]:
         parts.append(f"{row['too_small']} too small to show")
+    if row.get("between_wells", 0):
+        parts.append(f"{row['between_wells']} {MORE_WELLS}")
     return "; ".join(parts) or "–"
 
 
@@ -295,6 +305,10 @@ def features_status(
             if len(names) == 1
             else f"; {many} over {listing(names, 3)} too small to show {beyond}"
         )
+    wells = int(rows["between_wells"].sum()) if "between_wells" in rows else 0
+    if wells:
+        # More fields will not resolve these: the wells differ more (owner, 2026-10-05).
+        text += f"; {count(wells, 'comparison')} that more {fields} will not resolve: {MORE_WELLS}"
     if len(open_):
         worst = open_.loc[open_["fields_high"].idxmax()]
         most = int(worst["fields_high"])

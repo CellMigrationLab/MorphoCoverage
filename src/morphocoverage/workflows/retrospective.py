@@ -38,7 +38,7 @@ into the full microscopist's report, with the settings of both.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields, replace
 from typing import Any
 
@@ -86,8 +86,16 @@ from ._document import (
 )
 from ._enough_features import enough_by_feature
 from ._enough_targets import fingerprint_precision
+from ._feature_space import (
+    attached,
+    novelty_space,
+    separation_in_report,
+    table_columns,
+    table_lines,
+)
 from ._label_control import label_control
 from ._populations import populations_in_report
+from ._rare_share import unlabelled_note
 from ._result_influence import influence_on_result, with_result_influence
 from ._shared import (
     check_workflow_inputs,
@@ -161,7 +169,12 @@ class Report:
 
 
 def report(
-    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, *, integrity: bool = False
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    setup: Setup,
+    *,
+    integrity: bool = False,
+    feature_tables: Mapping[str, pd.DataFrame] | None = None,
 ) -> Report:
     """REPORT on a finished acquisition: what can be trusted, and what cannot.
 
@@ -187,8 +200,18 @@ def report(
     With ``integrity=True`` (opt-in) the overview also reports the exact
     data-integrity checks (``integrity_checks``: copied, reordered or scaled
     fields, repeated blocks and field summaries) on every declared column.
+
+    ``feature_tables`` are other feature tables for the same observations, by name (a DINO
+    embedding, owner 2026-10-05): checked and attached (``attach_feature_tables``), never
+    tested feature by feature, they join the explainable features in the populations,
+    unusual observations, novelty, the copy checks and a fingerprint declared on them, in
+    the weighted combined space (``_feature_space``); the report's ``setup`` names them.
     """
-    objects, fovs, data_check = check_workflow_inputs(objects, fovs, setup, warn=False)
+    given = feature_tables is not None
+    objects, fovs, data_check = check_workflow_inputs(
+        objects, fovs, setup, warn=False, tables_given=given
+    )
+    objects, setup, tables = attached(objects, fovs, setup, feature_tables)
     common = setup.common
     readout = setup.readout
     # One observation per field (one cell per image): the questions about fields do not
@@ -202,28 +225,31 @@ def report(
             fovs,
             feature_cols=setup.columns,
             normalized=setup.normalized_sentence(fovs, objects),
-            control=setup.control,
+            control=setup.single_control,
             data_check=data_check,
+            feature_tables=table_lines(setup, tables),
             **common,
         ),
     }
     if per_field:
         results["variability"] = fov_variability(objects, fovs, feature=readout, **common)
-    if setup.control is not None:
+    if setup.reference_control is not None:
         results.update(control_checks(objects, fovs, setup, reasons, per_field))
     if setup.positive is None and setup.rare_label is not None:
         # The labelled rare state is a positive control of its own (owner, 2026-10-02).
         results["label_control"] = label_control(objects, fovs, setup)
+    # "New" is judged on the declared features, with other tables on the combined space.
+    combined, novelty_cols = novelty_space(setup)
     if setup.positive is not None:  # Setup guarantees features and novelty with it
         positive = setup.positive
         results["controls"] = representation_control(
             objects,
             fovs,
-            feature_cols=list(setup.features),
-            novelty=setup.novelty,
+            feature_cols=novelty_cols,
+            novelty=combined,
             control=RepresentationControl(
                 positive=positive.selector,
-                reference=setup.control,
+                reference=setup.reference_control,
                 planted_objects=positive.planted_objects,
             ),
             pair_cols=list(positive.resolved_pair_cols(fovs)),
@@ -241,21 +267,27 @@ def report(
             lofo_group_cols=common["group_cols"],
         )
     if integrity:
-        results["integrity"] = integrity_checks(objects, fovs, feature_cols=setup.columns, **common)
+        every = [*setup.columns, *table_columns(setup)]
+        results["integrity"] = integrity_checks(objects, fovs, feature_cols=every, **common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     prepared = setup.prepared(objects, fovs)
-    results.update(conditions(prepared, fovs, setup, reasons))
+    # The tests read the normalised values, or with comparisons the raw ones (each test
+    # normalises to its own reference); the populations read the figures' values.
+    compared = setup.compared_values(objects, fovs)
+    results.update(conditions(compared, fovs, setup, reasons))
     if "contrast" in results:
         # Question 2 for every feature alike: the report is neutral (owner, 2026-10-01).
         results["enough_features"] = enough_by_feature(
-            objects, fovs, prepared, setup, results.get("discovery")
+            objects, fovs, compared, setup, results.get("discovery")
         )
         results["distribution"] = distribution_by_feature(objects, fovs, setup)
     if setup.fingerprint:
         results["fingerprint_precision"] = fingerprint_precision(objects, fovs, setup)
     # Question 10: populations on every condition pooled, then their enrichment.
     results["populations"] = populations_in_report(prepared, fovs, setup)
+    # Per feature table, how far the conditions separate (descriptive, owner 2026-10-05).
+    results["separation"] = separation_in_report(prepared, fovs, setup)
     rules, novelty_target = sufficiency_rules(setup)
     if novelty is None:
         novelty_target = None
@@ -263,19 +295,19 @@ def report(
         objects,
         fovs,
         # The rules read the same columns, and the same raw values, in report,
-        # optimise, benchmark and live.
-        feature_cols=setup.columns,
+        # optimise, benchmark and live (with novelty, the other tables too: it reads them).
+        feature_cols=list(dict.fromkeys([*setup.columns, *(novelty_cols if novelty else [])])),
         strategies=rules,
         objective=setup.objective(),
         # sufficiency_report seeds a permutation by its order's seed alone.
         orders=_orders(setup, permuted=REPORT_ORDERS, dispersed=0, seed_permuted=True),
-        novelty=novelty,
+        novelty=combined if novelty is not None else None,
         novelty_target=novelty_target,
         few_fovs=setup.resolved_few_fovs if novelty is not None else None,
         acquisition_order_col=setup.acquisition_order_col,
         # "New" is judged on the declared features only, as in the controls and the
         # inspection; the rules read the readout.
-        novelty_cols=list(setup.features) if novelty is not None else None,
+        novelty_cols=novelty_cols if novelty is not None else None,
         # The order check beside every stop: the readout against order and stage.
         readout=setup.readout,
         stage_cols=setup.stage_cols,
@@ -294,8 +326,8 @@ def report(
         fovs,
         feature_cols=[readout],
         summaries=[] if on_result else [Summary(readout, "mean")],
-        novelty=novelty if novel else None,
-        novelty_cols=list(setup.features) if novel else None,
+        novelty=combined if novel else None,
+        novelty_cols=novelty_cols if novel else None,
         stage_cols=setup.stage_cols,
         label_col=setup.rare_label,
         **common,
@@ -310,6 +342,10 @@ def report(
         "random_state": setup.random_state,
     }
     document = with_reasons(assemble(results, setup), reasons)
+    unlabelled = unlabelled_note(objects, setup)
+    if unlabelled:
+        # Said once, where the label is used: the notes every answer is read with.
+        document = replace(document, notes=(*document.notes, unlabelled))
     return Report(results, document, setup, reasons, settings)
 
 
@@ -399,7 +435,7 @@ def optimise(
     criteria = setup.criteria()
     hierarchy = setup.resolved_hierarchy(objects, fovs)
     strata = setup.resolved_effort_strata(fovs)
-    prepared = setup.prepared(objects, fovs)
+    prepared = setup.compared_values(objects, fovs)
     reasons: dict[str, str] = {}
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(
@@ -419,7 +455,7 @@ def optimise(
         reasons.update(no_hierarchy_reasons(setup, fovs))
     else:
         groups = results["reliability"].group_cols
-        reason = protocol_reason(setup, hierarchy, strata, groups)
+        reason = protocol_reason(hierarchy, strata, groups)
         if reason is not None:
             reasons["next_time"] = reason
         else:

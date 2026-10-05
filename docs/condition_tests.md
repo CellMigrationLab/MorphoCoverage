@@ -30,6 +30,28 @@ unchanged; pooled over repeats it does not. The paired t on normalised values
 is run on the log of each repeat's ratio of the condition's mean to the
 control's.
 
+## Several controls
+
+With several declared controls (owner, 2026-10-05; [`workflows.md`](workflows.md#several-controls))
+the tests are the rows of the contrast table. The main verdicts (`own_control`: each condition
+against its own control, each control against its parent) are the three answers below, per
+row, labelled `condition vs control` and corrected within each sub-experiment as with one
+control. The secondary rows are tested on the repeat means, without a cell-level test, each
+kind one Benjamini-Hochberg family:
+
+- **`across_normalised`**: the same treatment in two experiments, each condition normalised to
+  its own control: the paired t-test on each repeat's
+  `log(mean(a) / mean(control of a)) - log(mean(b) / mean(control of b))`, in the repeats
+  holding all four (raw differences of differences where a mean is not positive). Shifts the
+  four conditions of a repeat share cancel, so without a difference of effects it gives
+  p <= 0.05 in about 5% of experiments (`tests/test_comparisons.py` simulates it).
+- **`vs_master_raw`**: a control against the master control, the paired t-test on each
+  repeat's difference of the means, in the repeats holding both. It assumes the experiments
+  were imaged and processed alike, so a difference here may be a batch between them.
+
+The sign-flip test is given where it can reach 0.05 once corrected (`_reach`). The code is
+`sampling_unit.contrast_across`, its words `across_text`, and the table `_control`.
+
 ## The three answers
 
 | | What it asks | What it treats as the replicate | Responds with |
@@ -44,15 +66,25 @@ than 25% more observations than another, on the condition's side or the
 control's. They also count as unbalanced when the control is pooled from
 repeats the condition was not imaged in. Unbalanced data get the cell-level
 test twice. The first is as provided. The second is balanced: each condition
-against the control of its own repeats, with the same number of observations
-drawn from every repeat, as the median d and median p over 100 draws. Across
-the draws every observation is used, each repeat weighing the same in each.
-When the control is pooled from other repeats and no balanced test can be formed
+against the control of its own repeats, as one permutation test (owner,
+2026-10-05; before, the median d and median p over 100 draws). Its d is the
+median Cohen's d over 100 draws, each with the same number of observations
+drawn from every repeat; across the draws every observation is used, each
+repeat weighing the same in each. Its p shuffles the condition and control
+labels within each repeat, 999 times, and computes the same median d, on the
+same draws, for each shuffle: `p = (extreme + 1) / (B + 1)`. Without an
+effect it gives p ≤ 0.05 in 5% of experiments, within Monte Carlo error, raw
+and normalised (`tests/test_contrast_cells.py`). Normalised, each shuffle divides a repeat by
+the mean of its control as shuffled. This p is corrected like the others.
+When the control is pooled from other repeats, the test as provided is not
+reported for that condition, and when no balanced test can be formed either
 (every repeat of the condition too small), the condition gets no cell-level number.
+A test not reported leaves the Benjamini-Hochberg family of its sub-experiment:
+the q-values are corrected over the tests reported only (owner, 2026-10-05).
 
 **Permutations.** The randomization p is `(extreme + 1) / (B + 1)` over `B`
 shuffles: 2000 for the readout's test as provided, 9999 in the feature screen,
-999 in each balanced draw. It cannot fall below `1 / (B + 1)`, so with `K`
+999 for the balanced test. It cannot fall below `1 / (B + 1)`, so with `K`
 tests in a correction family Benjamini-Hochberg cannot give a q below
 `K / (B + 1)`: 210 tests at the balanced test's 999 shuffles gave q 0.07 for
 three clear differences, never 0.05. Every test at p ≤ 0.05 after the first
@@ -61,12 +93,8 @@ tests of its sub-experiment, so the smallest q, `K / (B + 1)`, is below 0.05
 (owner, 2026-10-02: "More permutations"). Only those: a test above 0.05 cannot
 pass at any rank, and a smaller p moving never changes the q of a larger one.
 The rerun is seeded from the test's own identity, so the result does not
-depend on the order of the tests. The balanced test is rerun on its median
-draws only: the draws at the median |d| (two of the 100), whose mean p, at `B`
-shuffles, replaces the median p. All draws hold the same numbers of
-observations, so the p falls with |d| and those draws carry the median p, up
-to the first pass's Monte Carlo error; rerunning all 100 would cost a hundred
-times as much. The report states the shuffles rerun beside the screen's
+depend on the order of the tests. The balanced test is rerun with `B` new
+shuffles, its observed median d kept. The report states the shuffles rerun beside the screen's
 family. The pairwise heatmaps (1999 shuffles) correct over the pairs of one
 figure and are not rerun: their smallest q, pairs / 2000, is below 0.05 up to
 100 pairs (14 conditions); a figure of more conditions is floored.
@@ -128,10 +156,13 @@ small, nothing is balanced and only the test as provided is given.
   differ by 0, 0.25 and 0.5 SD; d 1.0 in 85%, 67% and 39%; d 0.5 in 41%, 27%
   and 18%. It cannot run with fewer than 3 repeats, and the report then
   describes each condition by its direction in every repeat and its d.
-- **The balanced p is a median over draws**, which describes a typical draw. It
-  is not the p of one test; when rerun with more shuffles it is the mean p of
-  the two median-|d| draws. Balancing removes the extra weight of the repeats
-  holding more observations, not the independence assumption.
+- **The balanced p is calibrated for these wells only.** It is the p of one
+  permutation test, whose null is that the observations of the condition and
+  the control are exchangeable within each repeat (owner, 2026-10-05).
+  Balancing removes the extra weight of the repeats holding more observations,
+  not the independence assumption: when the difference varies between repeats
+  it gives p ≤ 0.05 without an effect as often as the formula says at the
+  observations per repeat it keeps.
 - **Leaving out a very small repeat changes what is balanced.** The balanced
   test then describes the other repeats; whether the small repeat agrees is
   in the across-repeat table, where it counts as one repeat like the others.
@@ -145,13 +176,17 @@ small, nothing is balanced and only the test as provided is given.
   *s* = 0.25 rises from 16% to 22%, 31% and 46% (normalised;
   `data/simulations/unbalanced.py`). The label follows it within 1-2 points,
   with the cells per well weighted by each repeat's share
-  (`sum(n²) / sum(n)`). The balanced test stays at 12-14%.
+  (`sum(n²) / sum(n)`). The balanced permutation test stays at 15-19%, about
+  the 16% its label gives at the 30 cells a repeat it keeps (normalised, 500
+  experiments a setting with that script's generator, 2026-10-05; the median p
+  over draws it replaced gave 12-14%).
 - **A control pooled from other repeats is the worst case on raw values.** The
   raw test as provided gives 46% false positives even when the repeats agree,
   because batch shifts between repeats no longer cancel. Normalising cuts it
   to 9%, and the balanced test, against the control of the condition's own
-  repeats, to 2%. Read the balanced numbers whenever the balance line says the
-  control comes from other repeats.
+  repeats, to about 5%, its nominal rate (the median p over draws gave 2%).
+  Read the balanced numbers whenever the balance line says the control comes
+  from other repeats.
 - **The simulations are one design.** They have one well per condition and
   repeat and normal cell noise.
 

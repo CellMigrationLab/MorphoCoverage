@@ -5,7 +5,8 @@
   observation and kind of values, raw or normalised), each biological repeat's summary and
   interval (the figure's ``cluster_summaries``) and every pair of conditions (``pairwise``).
 - ``embedding_data``: the PCA and UMAP coordinates of every point, with its condition,
-  repeat, field, population and standardised features, and the PCA loadings.
+  repeat, field, observation (its index in the observation table), ``label_id`` when the
+  table has one, population and standardised features, and the PCA loadings.
 - ``heatmap_data``: Cohen's d and the q-values of every feature and condition.
 
 Each is written in ``folder`` (the report's ``figures``) by ``write_csv``, so the page
@@ -19,6 +20,7 @@ from __future__ import annotations
 import base64
 import html
 import json
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -64,7 +66,9 @@ def page_files(
     """Every file the page carries or links to, by the path it is saved under: the figures
     this run wrote in ``folder/figures`` (modified at or after ``since``, so an older run's
     are left out), the ``texts`` written here, and the ``attach`` files; each
-    ``[type, base64, bytes]``. The texts and attachments are always carried; the figures'
+    ``[type, base64, bytes]``. The texts and attachments are always carried, an attachment
+    whose name is taken as ``<name>_2`` (``_3``, ...), a missing one not (``files_card`` says
+    so); the figures'
     files, smallest first, while all of it stays within ``budget``, the others linked
     (``LINKED``: the page's button opens ``figures/<name>``). A PNG carried is written once,
     as its image's data (``IN_IMAGE``); the second value maps those paths to their base64."""
@@ -73,12 +77,10 @@ def page_files(
         mime = _TYPES.get(Path(name).suffix, "text/plain")
         data = text.encode("utf-8")
         files[name] = [mime, base64.b64encode(data).decode(), len(data)]
-    for path in attach:
-        path = Path(path)
-        if path.exists():
-            mime = _TYPES.get(path.suffix, "application/octet-stream")
-            data = path.read_bytes()
-            files[path.name] = [mime, base64.b64encode(data).decode(), len(data)]
+    for path in dict.fromkeys(Path(p).resolve() for p in attach if Path(p).is_file()):
+        mime = _TYPES.get(path.suffix, "application/octet-stream")
+        data = path.read_bytes()
+        files[_free_name(path, files)] = [mime, base64.b64encode(data).decode(), len(data)]
     used = sum(entry[2] for entry in files.values())
     figures = [
         path
@@ -101,6 +103,16 @@ def page_files(
     return {**dict(sorted(carried.items())), **files}, images
 
 
+def _free_name(path: Path, files: dict[str, list[Any]]) -> str:
+    """``path``'s name, or ``<stem>_2<suffix>`` (``_3``, ...) when a file carried has it, so
+    two attachments of one name are both carried."""
+    name, number = path.name, 1
+    while name in files:
+        number += 1
+        name = f"{path.stem}_{number}{path.suffix}"
+    return name
+
+
 def inline_images(markup: str, images: dict[str, str]) -> str:
     """Each carried PNG's ``<img src="figures/...">`` given its data, so the page shows it
     without the folder; a PNG past the budget keeps its relative path."""
@@ -109,9 +121,9 @@ def inline_images(markup: str, images: dict[str, str]) -> str:
     return markup
 
 
-def files_card(files: dict[str, list[Any]]) -> str:
+def files_card(files: dict[str, list[Any]], attach: Sequence[str | Path] = ()) -> str:
     """The card listing every file the page carries or links to, each with its size and
-    save button."""
+    save button; a line names the ``attach`` files that were not found."""
     rows = "".join(
         f'<tr><td>{html.escape(name)}</td><td class="num">'
         f"{entry[2] / 1024:.0f} kB</td><td>{download(name, 'Save')}</td></tr>"
@@ -127,6 +139,10 @@ def files_card(files: dict[str, list[Any]]) -> str:
         f"{len(linked)} largest, {sum(linked) / 1024**2:.0f} MB, open from the figures folder "
         "beside it, which the zip holds too, so keep the page with its folder."
     )
+    missing = list(dict.fromkeys(str(p) for p in attach if not Path(p).is_file()))
+    if missing:
+        names = html.escape(", ".join(missing))
+        note += f'</p><p class="note">Not found, so not attached: {names}.'
     return (
         f'<section class="card" id="files"><h2>Files</h2><p class="note">{note}</p>'
         '<div class="table-wrap"><table class="sortable"><thead><tr><th>file</th><th>size</th>'
@@ -193,8 +209,14 @@ def feature_data(
     return files
 
 
+def _stem(key: str) -> str:
+    """``raw, DINO`` as a file name: ``raw_DINO``."""
+    return re.sub(r"[^\w.-]+", "_", key)
+
+
 def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[str, str]]:
-    """Every point of the PCA and UMAP, and the loadings, per kind of values."""
+    """Every point of the PCA and UMAP, and the loadings, per kind of values (and feature
+    table, ``raw, DINO``)."""
     files = []
     for values, embedding in embeddings.items():
         points = embedding.points.rename(
@@ -203,11 +225,11 @@ def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[st
         first = [c for c in ("PC1", "PC2", "UMAP1", "UMAP2") if c in points]
         points = points[first + [c for c in points.columns if c not in first]]
         label = f"Points, {values} (CSV)" if len(embeddings) > 1 else "Points (CSV)"
-        files.append((write_csv(points, folder, f"embedding_{values}.csv"), label))
+        files.append((write_csv(points, folder, f"embedding_{_stem(values)}.csv"), label))
     for values, embedding in embeddings.items():
         loadings = embedding.loadings.rename(columns={"pc1": "PC1", "pc2": "PC2", "top": "arrow"})
         label = f"Loadings, {values} (CSV)" if len(embeddings) > 1 else "Loadings (CSV)"
-        files.append((write_csv(loadings, folder, f"pca_loadings_{values}.csv"), label))
+        files.append((write_csv(loadings, folder, f"pca_loadings_{_stem(values)}.csv"), label))
     return files
 
 

@@ -72,10 +72,10 @@ GLOSSARY: tuple[Term, ...] = (
         "Reading the report",
         "Status markers",
         "What each answer found: ✅ yes or a clear answer (a condition differs across "
-        "repeats, enough was imaged, the data are clean, the cells form one continuum); ⚠️ "
-        "partly, a trend only, or something to look at; ❌ check the data first; ➖ no "
-        "conclusion possible here (not assessed, or one biological repeat). The word beside "
-        "the marker says which.",
+        "repeats, enough was imaged, the data are clean); ⚠️ partly, a trend only, or "
+        "something to look at; ❌ check the data first; ➖ no conclusion possible here (not "
+        "assessed, one biological repeat, or no candidate group of cells passed the check). "
+        "The word beside the marker says which.",
         "At a glance, every answer",
     ),
     Term(
@@ -194,8 +194,8 @@ GLOSSARY: tuple[Term, ...] = (
         "Do the conditions differ?",
         "Balanced test",
         "The cell-level test when the repeats hold different numbers of cells: each draw takes "
-        "the same number from every repeat, so none weighs more; the median d and p over 100 "
-        "draws.",
+        "the same number from every repeat, so none weighs more; d is the median over 100 "
+        "draws, and p comes from the labels shuffled within each repeat, one permutation test.",
         "Do the conditions differ?",
     ),
     Term(
@@ -296,6 +296,17 @@ GLOSSARY: tuple[Term, ...] = (
         (UMAP,),
     ),
     Term(
+        "Figures",
+        "Other feature tables and the combined map",
+        "Features not read one by one, such as a deep-learning embedding, loaded as named "
+        "tables beside the explainable features and never tested feature by feature. Each has "
+        "its own map; the combined map weighs every table as much as the explainable features. "
+        "Under each map, the share of each cell's 10 nearest neighbours in its biological "
+        "repeat that have its condition, against chance: how far the conditions separate in "
+        "that table. Describes, does not test.",
+        "The whole dataset at once",
+    ),
+    Term(
         "The data",
         "Integrity checks",
         "Exact checks for accidents of image analysis: a field exported twice, rows pasted into "
@@ -357,6 +368,7 @@ PHRASES: dict[str, tuple[str, ...]] = {
     "JCS effect size": ("JCS effect size",),
     "PCA and loadings": ("PCA", "loadings"),
     "UMAP": ("UMAP",),
+    "Other feature tables and the combined map": ("other feature tables", "combined map"),
     "Integrity checks": ("integrity",),
     "Unusual cells and 'nothing new'": ("unusual", "nothing new"),
     "Positive control (representation)": ("positive control",),

@@ -30,7 +30,9 @@ against the reservoir:
 
 Shares are over replayed acquisitions (splits x orders). Those are not
 independent replicates of the sample; they describe this sample's behaviour
-under this rule. For a fixed-FOV rule and random orders, the share of correct
+under this rule. The Monte Carlo standard error of the median stop counts the
+splits, not the runs: the orders of one split share its reservoir and stream.
+For a fixed-FOV rule and random orders, the share of correct
 stops at ``k`` estimates the same quantity as ``sampling_reliability`` at ``k``,
 the one case where the two analyses coincide (when no outcome is undefined:
 here undefined stops stay in the denominator, as "could not be judged").
@@ -105,8 +107,10 @@ class StoppingCalibration:
     ``premature`` plus ``not_preserved_by_stream``, the headline risk, of which
     ``premature`` is the lower bound of the stops that came too early and
     ``not_preserved_at_stop`` the upper bound; ``median_stop_fovs_mc_se`` is
-    the Monte Carlo standard error of the median stop over the runs that
-    stopped (``statistics.median_standard_error``); ``never_stopped_preserved_at_end``
+    the Monte Carlo standard error of the median stop with the reservoir split
+    as the unit (``statistics.median_standard_error`` of each split's median
+    stop over its orders that stopped, so more orders of the same splits do
+    not shrink it; ``None`` below two splits); ``never_stopped_preserved_at_end``
     is a share of the runs that never stopped (``None`` when all stopped).
     ``skipped`` lists the groups the replay skipped, with the reason.
     """
@@ -190,13 +194,16 @@ def _table(runs: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
         out_of_reach = failed & (block["status_at_end"] == Preservation.NOT_PRESERVED.value)
         never = block[~stopped]
         stops = block.loc[stopped, "stop_fovs"].astype(float)
+        # Orders of one split share its reservoir and stream, so the split is the
+        # Monte Carlo unit: one median stop per split (owner, 2026-10-05).
+        split_stops = stops.groupby(block.loc[stopped, "split"], sort=True).median()
         rows.append(
             {
                 **dict(zip(keys, key, strict=True)),
                 "runs": len(block),
                 "stopped": _share(stopped),
                 "median_stop_fovs": float(np.median(stops)) if len(stops) else None,
-                "median_stop_fovs_mc_se": median_standard_error(stops.to_numpy()),
+                "median_stop_fovs_mc_se": median_standard_error(split_stops.to_numpy()),
                 "correct": _share(stopped & (at_stop == Preservation.PRESERVED.value)),
                 "not_preserved_at_stop": _share(failed),
                 "premature": _share(failed & ~out_of_reach),

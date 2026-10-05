@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from morphocoverage._style import CAUTION, Status
@@ -11,7 +12,13 @@ from morphocoverage.retrospective.report_enough import enough_short
 from morphocoverage.retrospective.report_resolved import resolved_full
 from morphocoverage.retrospective.report_status import enough_status
 from morphocoverage.sampling_unit.contrast import condition_contrast
-from morphocoverage.sampling_unit.contrast_sampling import PRACTICAL, sampling_row
+from morphocoverage.sampling_unit.contrast_sampling import (
+    PRACTICAL,
+    projected_fields,
+    sampling_row,
+)
+from morphocoverage.sampling_unit.repeat_plan import repeat_plan
+from morphocoverage.sampling_unit.repeat_plan_text import plan_parts
 from morphocoverage.statistics import cohen_d
 from morphocoverage.workflows._html_sections import _resolution
 
@@ -47,18 +54,106 @@ def test_a_moderate_difference_gets_the_fields_that_would_resolve_it():
     assert 10 < row["fields_to_resolve"] <= PRACTICAL * 10
 
 
-def test_the_fields_to_resolve_count_the_fields_without_observations():
-    """The projection counted only the fields with observations, so a side where half the
-    fields acquired were empty was told half the fields it would acquire (#289)."""
+def test_the_fields_without_observations_are_drawn_and_counted():
+    """The bootstrap drew only the fields with observations and the projection counted only
+    them, so a side where half the fields acquired were empty was told half the fields it
+    would acquire (#289). Empty fields are now drawn too (owner, 2026-10-05): the interval
+    carries the field-to-field variation in cell counts, and the projection counts every
+    field acquired."""
     rng = np.random.default_rng(3)
     t, c = _fields(rng, 10, 0.8, per_field=1), _fields(rng, 10, 0.0, per_field=1)
     d = cohen_d(np.concatenate(t[0]), np.concatenate(c[0]))
     row = sampling_row(t, c, d, np.random.default_rng(2))
     empty = [np.empty(0)] * 10
     halved = sampling_row([t[0] + empty], [c[0] + empty], d, np.random.default_rng(2))
-    assert halved["d_low"] == row["d_low"] and halved["d_high"] == row["d_high"]
-    assert halved["fields_to_resolve"] == pytest.approx(2 * row["fields_to_resolve"], abs=1)
-    assert halved["too_small"] == row["too_small"]
+    # Half the draws' fields hold no cell: fewer cells a draw, a wider interval.
+    assert halved["d_high"] - halved["d_low"] > row["d_high"] - row["d_low"]
+    assert halved["fields_to_resolve"] > 2 * row["fields_to_resolve"]
+    # Without empty fields, the draws are those of before: the interval is unchanged.
+    again = sampling_row(t, c, d, np.random.default_rng(2))
+    assert (again["d_low"], again["d_high"]) == (row["d_low"], row["d_high"])
+
+
+def _wells(rng, n_wells, n_fields, mean, well_sd, field_sd, cells=10):
+    shifts = rng.normal(0, well_sd, n_wells)
+    return [
+        [rng.normal(mean + s + rng.normal(0, field_sd), 1.0, cells) for _ in range(n_fields)]
+        for s in shifts
+    ], shifts
+
+
+def _d(t, c):
+    return cohen_d(
+        np.concatenate([f for u in t for f in u]), np.concatenate([f for u in c for f in u])
+    )
+
+
+def _half(row):
+    return (row["d_high"] - row["d_low"]) / 2
+
+
+@pytest.mark.parametrize(
+    ("well_sd", "field_sd", "between"), [(0.0, 0.5, (0, 0.3)), (0.5, 0.0, (0.6, 1.0))]
+)
+def test_the_projection_shrinks_the_part_within_wells_only(well_sd, field_sd, between):
+    """#96: the interval from wells and their fields resampled holds a part between wells,
+    which more fields of the same wells do not reduce. The projection takes it from a nested
+    bootstrap (owner, 2026-10-05), and its half-width at 4 times the fields matches the
+    interval of the same wells imaged with 4 times the fields; the whole interval shrinking
+    as 1/sqrt(fields), as before, was far too narrow when the wells differ."""
+    predicted, actual, shares, old = [], [], [], []
+    for seed in range(4):
+        rng = np.random.default_rng(seed)
+        (t, t_shift), (c, c_shift) = (
+            _wells(rng, 3, 6, 0.3, well_sd, field_sd),
+            _wells(rng, 3, 6, 0.0, well_sd, field_sd),
+        )
+        row = sampling_row(t, c, _d(t, c), np.random.default_rng(1))
+        share = row["between_share"]
+        shares.append(share)
+        predicted.append(_half(row) * np.sqrt(share + (1 - share) / 4))
+        old.append(_half(row) / 2)
+        # The same wells (their shifts), 4 times the fields.
+        more_t = [
+            [rng.normal(0.3 + s + rng.normal(0, field_sd), 1, 10) for _ in range(24)]
+            for s in t_shift
+        ]
+        more_c = [
+            [rng.normal(s + rng.normal(0, field_sd), 1, 10) for _ in range(24)] for s in c_shift
+        ]
+        actual.append(
+            _half(sampling_row(more_t, more_c, _d(more_t, more_c), np.random.default_rng(1)))
+        )
+    assert between[0] <= np.mean(shares) <= between[1]
+    assert np.mean(predicted) == pytest.approx(np.mean(actual), rel=0.2)
+    if well_sd:
+        assert np.mean(old) < 0.7 * np.mean(actual)
+
+
+def test_a_difference_the_wells_alone_blur_needs_more_wells_not_fields():
+    """When the part of the interval between wells alone is as wide as the difference, more
+    fields will not resolve it: it is said plainly, with no field count (#96)."""
+    rng = np.random.default_rng(0)
+    # Wells 1 apart on each side, the sides 0.2 apart: 8 fields a well, no field effect.
+    t = [[rng.normal(m, 1.0, 10) for _ in range(8)] for m in (-0.8, 0.2, 1.2)]
+    c = [[rng.normal(m, 1.0, 10) for _ in range(8)] for m in (-1.0, 0.0, 1.0)]
+    row = sampling_row(t, c, _d(t, c), np.random.default_rng(1))
+    assert not row["resolved"] and row["between_wells"] and not row["too_small"]
+    assert np.isnan(row["fields_to_resolve"]) and row["between_share"] > 0.5
+    needed, between = projected_fields(24, _d(t, c), row["d_low"], row["d_high"], 0.0)
+    assert not between and np.isfinite(needed)  # the old projection gave a count
+
+
+def test_one_well_a_side_projects_from_its_fields_as_before():
+    """With one well a side the interval holds no variation between wells: share 0, and the
+    projection is that of the whole interval."""
+    rng = np.random.default_rng(3)
+    t, c = _fields(rng, 10, 0.8, per_field=1), _fields(rng, 10, 0.0, per_field=1)
+    d = cohen_d(np.concatenate(t[0]), np.concatenate(c[0]))
+    row = sampling_row(t, c, d, np.random.default_rng(2))
+    assert row["between_share"] == 0 and not row["between_wells"]
+    old = np.ceil(10 * (_half(row) / abs(d)) ** 2)
+    assert row["fields_to_resolve"] == old
 
 
 def test_too_few_fields_give_no_answer():
@@ -127,3 +222,61 @@ def test_the_screens_hits_are_resolved_in_every_repeat(dataset_id):
     table = contrast.table
     hits = table["condition"].str.startswith(("siCCT8", "siCSNK1A1", "siSCRIB"))
     assert table.loc[hits, "resolved"].all()
+
+
+def _blurred_by_wells():
+    """Two repeats, three wells a condition 1 apart, the treated wells 0.2 higher."""
+    rng = np.random.default_rng(5)
+    objects, fovs = [], []
+    for repeat in ("R1", "R2"):
+        for condition, shift in (("control", 0.0), ("treated", 0.2)):
+            for w, offset in enumerate((-1.0, 0.0, 1.0)):
+                for f in range(8):
+                    name = f"{repeat}_{condition}_w{w}_f{f}"
+                    meta = {
+                        "condition": condition,
+                        "biological_repeat": repeat,
+                        "technical_repeat": f"w{w}",
+                        "image_file": name,
+                    }
+                    fovs.append(meta)
+                    objects += [{**meta, "x": v} for v in rng.normal(shift + offset, 1, 10)]
+    return pd.DataFrame(objects), pd.DataFrame(fovs)
+
+
+def test_the_report_says_plainly_when_more_wells_not_fields_would_resolve_it():
+    contrast = condition_contrast(
+        *_blurred_by_wells(), feature="x", control={"condition": "control"}, n_draws=5
+    )
+    table = contrast.table
+    assert table["between_wells"].all() and table["fields_to_resolve"].isna().all()
+    _, headline = enough_status(None, None, contrast)
+    assert "2 that more fields will not resolve: more wells or biological repeats" in headline
+    assert "would need about" not in headline
+    full = " ".join(resolved_full(contrast).split())
+    assert "no, more fields will not resolve it: more wells or biological repeats" in full
+    page = " ".join(_resolution(contrast))
+    assert "In 2 comparisons more fields will not resolve it: more wells or biological" in page
+    # The plan's fields a side per repeat take the same projection.
+    plan = " ".join(" ".join(plan_parts(contrast, full=True)[0]).split())
+    assert plan.endswith("more wells or biological repeats")
+
+
+def test_twice_the_fields_do_not_reduce_the_repeats_needed_when_the_wells_blur_it():
+    """#96: the plan halved the whole sampling error of each repeat with twice the fields,
+    so a wells-limited difference read "more wells or biological repeats" for the fields
+    and 29 repeats with twice the fields. Only the part within wells halves now: the two
+    repeat counts agree."""
+    contrast = condition_contrast(
+        *_blurred_by_wells(), feature="x", control={"condition": "control"}, n_draws=5
+    )
+    [row] = contrast.plan.to_dict("records")
+    assert np.isinf(row["fields_per_repeat"])
+    assert row["repeats_needed_twice_fields"] == row["repeats_needed"]
+    # Without a part between wells, twice the fields halve the whole error, as before.
+    table = contrast.table.assign(between_share=0.0)
+    [old] = repeat_plan(table).to_dict("records")
+    assert old["repeats_needed_twice_fields"] < old["repeats_needed"]
+    # All between wells: twice the fields change nothing, whatever the counts.
+    [same] = repeat_plan(contrast.table.assign(between_share=1.0)).to_dict("records")
+    assert same["repeats_needed_twice_fields"] == same["repeats_needed"]

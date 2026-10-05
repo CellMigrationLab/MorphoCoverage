@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._control import control_mask, control_text
 from ._copy_rules import check_copies
 from ._data_problems import (  # noqa: F401  (re-exported)
     ERROR,
@@ -527,7 +528,13 @@ def _check_control(
             f"Name the control by {table} columns, e.g. control={{'condition': 'MOCK'}}.",
         )
         return
-    listed = [k for k, value in control.items() if not pd.api.types.is_scalar(value)]
+    # A tuple of labels is several controls pooled (a Setup's reference population).
+    listed = [
+        k
+        for k, value in control.items()
+        if not pd.api.types.is_scalar(value)
+        and not (isinstance(value, tuple) and all(pd.api.types.is_scalar(v) for v in value))
+    ]
     if listed:
         c.error(
             "The control gives a column several values, or a value that is not one label.",
@@ -538,13 +545,11 @@ def _check_control(
     read = [*control, *([REPEAT_COLUMN] if REPEAT_COLUMN in fovs.columns else [])]
     if any(unhashable_values(fovs[column]).any() for column in read):
         return  # lists in an identity column: reported with the field identity
-    is_control = np.ones(len(fovs), dtype=bool)
-    for column, value in control.items():
-        is_control &= (fovs[column] == value).to_numpy()
+    is_control = control_mask(fovs, control)
     if not is_control.any():
         values = fovs[next(iter(control))].drop_duplicates().tolist()
         c.error(
-            f"No field matches the control {dict(control)}.",
+            f"No field matches the control {control_text(control)}.",
             f"values present: {_names(values)}.",
             "Check the spelling of the control condition.",
         )
@@ -556,7 +561,7 @@ def _check_control(
             c.warning(
                 f"{count(len(lacking), 'repeat')} {'has' if len(lacking) == 1 else 'have'} no "
                 f"control field.",
-                f"repeats without {dict(control)}: {_names(lacking)}.",
+                f"repeats without {control_text(control)}: {_names(lacking)}.",
                 "Normalising to the control and comparing conditions work within a repeat; add "
                 "the control to those repeats or leave them out.",
             )

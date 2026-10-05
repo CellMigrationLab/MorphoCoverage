@@ -26,11 +26,14 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from .._wording import number, percent
+from .._wording import count, number, percent
 from ..bounds import lower_bound, upper_bound
+from ..sampling_unit._state_text import CLUSTER_ALPHA
+from ..sampling_unit._state_text import clustered as clustered_rows
 from ..schema import observation_words
 from ..sufficiency import SufficiencyReport
 from .controls import ControlResult
+from .controls_text import pooled_over
 from .effort import EffortResult, design_effect
 from .effort_text import level_words, share_caveat, unit_word
 from .inspection import InspectionResult
@@ -174,10 +177,13 @@ def _detection_adjusted_bounds(
             "  This holds for whole-field phenotypes like the control only: a small state in "
             "an ordinary field is recognized less often (declare planted_objects to measure it)."
         )
+    # One rate for every group: pooled over the control's strata, and said so (#253).
+    pooled = pooled_over(controls)
     heading = (
         f"Adjusted for the declared control's detection rate ({what}; at least {percent(low)} "
-        f"at {percent(confidence)} confidence, of {checks} checks): a phenotype seen as well "
-        "as the control, and shown by no FOV yet, could still be in"
+        f"at {percent(confidence)} confidence, of {checks} checks{', ' if pooled else ''}"
+        f"{pooled}): a phenotype seen as well as the control, and shown by no FOV yet, could "
+        "still be in"
     )
     lines = [heading]
     keys = list(sufficiency.group_cols)
@@ -243,10 +249,11 @@ def _clustering_rows(clustering: FOVClustering | None, observations: str) -> lis
         seen = block[block["state_objects"] > 0]
         if not len(seen):
             continue
-        clustered = seen[seen["p_clustered"] <= 0.05]
+        clustered = seen[clustered_rows(seen)]
         statement = (
-            f"{clustering.state_name(state)}: clustered in a few fields (p <= 0.05) in "
-            f"{len(clustered)} of the {len(seen)} groups where it was seen"
+            f"{clustering.state_name(state)}: clustered in a few fields "
+            f"(q <= {CLUSTER_ALPHA:g}) in {len(clustered)} of the {len(seen)} groups where it was "
+            "seen"
         )
         # Fields holding the state (at least m of its objects, for unusual labels);
         # a group where no field holds it has no field count to compare.
@@ -392,6 +399,24 @@ def _pairs(found: pd.DataFrame) -> str:
     return f", from {span} pairs of fields closer than that per group"
 
 
+# Why a group has no spatial estimate, in a few words (``spatial.redundancy_distance``).
+_NOT_MEASURED = (
+    ("missing values", "missing values"),
+    ("only ", "too few fields"),
+    ("no pair", "no pair of fields in the distance bins"),
+    ("the FOV means", "the field means do not vary"),
+)
+
+
+def _not_measured(rows: pd.DataFrame) -> str:
+    """``; 1 more not assessed (too few fields)``, or '' when every group was assessed."""
+    reasons: list[str] = []
+    for text in rows.get("reason", pd.Series(dtype=object)).fillna("not measured").astype(str):
+        short = next((words for start, words in _NOT_MEASURED if text.startswith(start)), text)
+        reasons += [] if short in reasons else [short]
+    return f"; {len(rows)} more not assessed ({'; '.join(reasons)})" if len(rows) else ""
+
+
 def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     """The distance over which neighbouring fields are alike, when it was measured.
 
@@ -402,6 +427,14 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     if redundancy is None or not len(redundancy):
         return []
     measured = redundancy.dropna(subset=["smallest_lag"])
+    # Groups with no estimate are counted apart, neither evidence for nor against (#272).
+    unassessed, assessed = redundancy[redundancy["smallest_lag"].isna()], len(measured)
+    of = (
+        f"of the {count(assessed, 'group')} assessed"
+        if len(unassessed)
+        else f"of {len(redundancy)} groups"
+    )
+    apart = _not_measured(unassessed)
     # Only distances beyond the position-shuffle null count (audit 4, P8-2): without
     # spatial structure, a distance beyond the first bin arises in about 40% of groups.
     tested = "beyond_chance" in measured.columns
@@ -421,7 +454,7 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
             else "not tested against chance"
         )
         parts.append(
-            f"in {len(alike)} of {len(redundancy)} groups, fields closer than about "
+            f"in {len(alike)} {of}, fields closer than about "
             f"{np.median(alike['redundancy_distance']):.0f} {unit} (the median of point "
             f"estimates, {tested_text}{_pairs(alike)}) are more alike than "
             "random pairs"
@@ -430,7 +463,7 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
         largest = float(always["largest_lag"].max()) if "largest_lag" in always else None
         reach = f" (up to {largest:.0f} {unit})" if largest is not None else ""
         parts.append(
-            f"in {len(always)} of {len(redundancy)} groups, fields are more alike than "
+            f"in {len(always)} {of}, fields are more alike than "
             f"random pairs at every distance measured{reach}"
         )
     # Groups whose point estimate suggested redundancy that the shuffles do not support.
@@ -448,17 +481,18 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     if len(suggested):
         typical = float(suggested["null_share"].median())
         parts.append(
-            f"in {len(suggested)} of {len(redundancy)} groups the point estimate suggested "
+            f"in {len(suggested)} {of} the point estimate suggested "
             "that closer fields are more alike, but shuffling their positions within the "
             f"group gave as large a distance in a median of {percent(typical)} of shuffles, "
             "so no spatial redundancy is shown there"
         )
     if parts:
-        statement = "; ".join(parts)
+        statement = "; ".join(parts) + apart
     elif smallest is not None:
+        among = f"in the {count(assessed, 'group')} assessed, " if len(unassessed) else ""
         statement = (
-            f"no group shows neighbouring fields more alike than random pairs, down to the "
-            f"closest spacing measured ({smallest:.0f} {unit})"
+            f"{among}no group shows neighbouring fields more alike than random pairs, down to "
+            f"the closest spacing measured ({smallest:.0f} {unit}){apart}"
         )
     else:
         return []
@@ -495,18 +529,21 @@ def _chance_clause(controls: ControlResult | None, inspection: InspectionResult)
     if different is not None:
         return f" (not compared with the declared reference's false alarms: {different})"
     row = controls.pooled.set_index("candidate").loc["reference_lofo"]
+    # One rate for the fields of every group: pooled over the control's strata, said so (#253).
+    over = pooled_over(controls)
+    pooled = f", {over}," if over else ","
     if "judged_new" not in row.index or "candidates" not in row.index:
         return (
             f" (about {number(rate * judged)} of the {judged} fields judged expected by chance "
-            f"at the {percent(rate)} false-alarm rate of the declared reference, each field "
-            "judged against the other fields of its group)"
+            f"at the {percent(rate)} false-alarm rate of the declared reference{pooled} each "
+            "field judged against the other fields of its group)"
         )
     new, total = int(row["judged_new"]), int(row["candidates"])
     high = upper_bound(new, total, _CONFIDENCE)
     return (
         f" ({number(rate * judged)} to {number(high * judged)} of the {judged} fields judged "
-        f"expected by chance: the declared reference's false-alarm rate, each field judged "
-        f"against the other fields of its group, was {new} of {total} fields "
+        f"expected by chance: the declared reference's false-alarm rate{pooled} each "
+        f"field judged against the other fields of its group, was {new} of {total} fields "
         f"({percent(rate)}; at most {percent(high)} at {percent(_CONFIDENCE)} confidence))"
     )
 

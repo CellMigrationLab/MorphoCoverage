@@ -684,7 +684,9 @@ fields when the rule stopped; the unit is the well. Before locking, a
 reduced dry run (one split, one order, not scored) showed several grids
 ending before the cheap end; they were widened under a stated rule (every
 grid reaches from never stopping to stopping at the first allowed field), not
-on a result. Tables: `results/benchmark_*`.
+on a result. Tables: `results/benchmark_*`. Since then the JCB per-field
+upper-95 bound is a bootstrap of whole fields (owner, 2026-10-05); the JCB
+per-field numbers below are from the former chi-square bound and were not rerun.
 
 Fields saved against a fixed count, idr0028 (negative: costs fields):
 
@@ -972,7 +974,8 @@ the fields, or clustered in a few?
   reach against the other control wells (calibrated leaving one control well
   out since the third audit; each tested object is scored against all
   control wells but one, drawn at random, so both see an equally dense
-  reference). Each well is scored against the control wells other than
+  reference; since 2026-10-05 every control well weighs the same in the
+  threshold, which the numbers below predate). Each well is scored against the control wells other than
   itself. The design follows
   fiberfeatures' pixel-category fit (reference sampling, provenance, a seed
   check), without its scikit-learn Gaussian mixture: rare states are what a

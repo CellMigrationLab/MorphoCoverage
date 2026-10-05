@@ -7,12 +7,14 @@ samples, repeats and fields count as acquired; an allocation is projected as
 balanced (every sample with as many fields and observations), and compared
 with the acquired allocation made balanced. See ``effort`` for the formulas.
 
-Shared-private: ``_acquired_se``, ``_allocation_rows``, ``_check_allocations``,
-``_contributions``, ``_design``, ``_interval`` and ``_se`` (used by ``effort``).
+Shared-private: ``_allocation_rows``, ``_check_allocations``, ``_contributions``,
+``_design`` and ``_interval`` (used by ``effort``); ``between_technical_repeats`` (used by
+``workflows._document``).
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -20,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import is_integer, is_number
+from .._style import group_label
 from ..statistics import _interval as _widened
 from ..statistics import cluster_size
 from .hierarchy import SamplingHierarchy
@@ -256,6 +259,49 @@ def _allocation_rows(
             }
         )
     return projections, comparisons
+
+
+def between_technical_repeats(
+    fov_rows: pd.DataFrame, technical: str, outer: list[str]
+) -> tuple[list[tuple[float, float, int]], dict[str, list[str]]]:
+    """Per condition and repeat with 2 or more technical repeats: the spread of their means
+    against what their fields predict, the relative SE of the mean over them, and what was
+    left out.
+
+    From the fields' means (every field with observations weighing one): the
+    observed variance of the technical-repeat means against the mean over
+    technical repeats of ``var(field means) / fields``, which is all the
+    fields alone would give. Returns ``(ratio, relative SE, technical repeats)``
+    per group, and the labels left out by reason: ``one_field`` (a technical
+    repeat with one field, whose field variance cannot be estimated), ``fewer``
+    (a group with fewer than 2 technical repeats of 2 or more fields) and ``flat``
+    (fields that do not vary, or a mean of 0). A group with one technical repeat
+    has nothing between them and is not named (owner, 2026-10-05).
+    """
+    rows = fov_rows.dropna(subset=["mean"])
+    parts = rows.groupby(outer, sort=False, dropna=False) if outer else [((), rows)]
+    found, left = [], {"one_field": [], "fewer": [], "flat": []}
+    for key, own in parts:
+        label = group_label(dict(zip(outer, key if isinstance(key, tuple) else (key,))))
+        per = own.groupby(technical, sort=False)["mean"].agg(["mean", "var", "count"])
+        if len(per) < 2:
+            continue
+        single = [f"{name} of {label}" for name in per.index[per["count"] < 2]]
+        per = per[per["count"] >= 2]
+        if len(per) < 2:
+            left["fewer"].append(label)
+            continue
+        predicted = float((per["var"] / per["count"]).mean())
+        observed = float(per["mean"].var(ddof=1))
+        grand = abs(float(per["mean"].mean()))
+        if predicted <= 0 or grand == 0:
+            left["flat"].append(label)
+            continue
+        left["one_field"] += single
+        found.append(
+            (math.sqrt(observed / predicted), math.sqrt(observed / len(per)) / grand, len(per))
+        )
+    return found, left
 
 
 __all__: list[str] = []
