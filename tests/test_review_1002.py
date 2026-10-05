@@ -38,6 +38,16 @@ def test_a_centred_readout_is_not_judged_by_relative_change():
     assert reasons == {"has negative values, so a relative change is undefined"}
 
 
+def test_a_mean_of_zero_is_recorded_as_not_checked():
+    objects, fovs = _three()
+    zero = (objects["condition"] == "drug") & (objects["biological_repeat"] == "r1")
+    objects.loc[zero, "x"] = 0.0
+    result = _influence(objects, fovs, {"condition": "ctrl"})
+    [entry] = result.settings["skipped_summaries"]
+    assert entry["reason"] == "is 0 here, so a relative change is undefined"
+    assert "drug" in entry["group"] and "r1" in entry["group"]
+
+
 def test_a_field_outside_a_two_column_control_is_not_a_control_field():
     rows, fovs = [], []
     rng = np.random.default_rng(4)
