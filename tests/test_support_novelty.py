@@ -275,6 +275,18 @@ def test_new_fovs_use_the_transform_fitted_on_the_seen_fovs():
     assert estimator.novel_fovs_against(too_few, new) is None
 
 
+def test_new_fovs_must_share_the_seen_feature_columns():
+    # Regression (#330): the same number of features in another order was
+    # compared position by position, in mismatched coordinates.
+    rng = np.random.default_rng(11)
+    seen = _table([rng.normal(0, 1, size=(30, 2)) for _ in range(3)])
+    new = _table([rng.normal(0, 1, size=(30, 2))])
+    swapped = validate_input_tables(new.objects, fovs=new.fovs, feature_cols=["b", "a"])
+    estimator = SupportNoveltyEstimator(1.0, 1, None, 2, 1)
+    with pytest.raises(ValueError, match="same columns in the same order"):
+        estimator.novel_fovs_against(seen, swapped)
+
+
 def test_observation_flags_match_the_estimate():
     rng = np.random.default_rng(12)
     data = _table([rng.normal(size=(15, 2)) for _ in range(5)])
