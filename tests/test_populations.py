@@ -91,6 +91,19 @@ def test_the_main_population_is_listed_but_not_tested(screen):
     assert main["population"] not in set(populations.enrichment["feature"])
 
 
+def test_a_lean_observation_table_gives_the_same_populations_and_enrichment():
+    """#86: condition and repeats only in the FOV table (a lean table, which the validator
+    attaches) gave no enrichment, as if there were no control, or raised in pooled_columns."""
+    objects, fovs = _screen()
+    setup = _setup(fingerprint=(), rare=None, rare_label=None)
+    full = populations_in_report(objects, fovs, setup)
+    lean = objects.drop(columns=["condition", "biological_repeat", "technical_repeat"])
+    found = populations_in_report(lean, fovs, setup)
+    assert found.populations.table.equals(full.populations.table)
+    assert found.enrichment is not None and len(found.enrichment)
+    pd.testing.assert_frame_equal(found.enrichment, full.enrichment)
+
+
 def test_one_continuum_is_no_population():
     rng = np.random.default_rng(0)
     rows = []
@@ -130,6 +143,27 @@ def test_above_the_sample_size_every_cell_still_gets_a_population():
     small = sampled.table.sort_values("share").iloc[0]["population"]
     assert (sampled.labels.reindex(objects.index)[mitotic] == small).mean() > 0.9
     assert full.settings["sampled"] == len(objects)
+
+
+def test_the_smallest_cluster_is_a_share_of_the_sample_not_of_the_whole_table():
+    """#87: the default min_cells was 0.5% of every observation, applied to the sample, so a
+    table ten times larger than max_points lost the planted mitoses (5%) altogether."""
+    tables = [_screen(seed) for seed in range(10)]
+    objects = pd.concat(
+        [o.assign(image_file=f"s{s}_" + o["image_file"]) for s, (o, _) in enumerate(tables)],
+        ignore_index=True,
+    )
+    fovs = pd.concat(
+        [f.assign(image_file=f"s{s}_" + f["image_file"]) for s, (_, f) in enumerate(tables)],
+        ignore_index=True,
+    )
+    found = find_populations(
+        objects, fovs, features=FEATURES, observation_unit="cell", max_points=500
+    )
+    assert len(found.table)
+    small = found.table.sort_values("share").iloc[0]["population"]
+    assert (found.labels[objects["mitotic"]] == small).mean() > 0.9
+    assert found.settings["sampled"] <= 501 and found.settings["min_cells"] == 15
 
 
 def test_the_points_carry_their_population_and_feature_values():

@@ -32,6 +32,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._checks import is_number
 from .._wording import count
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, paired_t
@@ -175,6 +176,8 @@ def distribution_contrast(
     """Compare each feature's distribution with the control's (see the module); arguments
     follow ``feature_discovery``."""
     features = list(dict.fromkeys(features))
+    if not is_number(alpha) or not 0 < alpha < 1:
+        raise ValueError("alpha must be between 0 and 1")
     data = validated(objects, fovs, features, fov_col, group_cols, observation_unit)
     repeat_col, technical_col = resolve_columns(
         data, condition_col, repeat_col, technical_col, control
@@ -231,12 +234,15 @@ def shift_words(row: Mapping[str, Any]) -> str:
 
 
 def tests_words(result: DistributionContrast) -> str:
-    """The correction family counted: ``40 tests``, ``40 tests in each of 2 sub-experiments``."""
-    families = result.settings["families"]
-    per = result.n_tests // max(families, 1)
-    if families <= 1:
-        return count(per, "test")
-    return f"{count(per, 'test')} in each of {count(families, 'sub-experiment')}"
+    """The correction family counted: ``40 tests``, ``40 tests in each of 2 sub-experiments``,
+    ``16-48 tests in each of 2 sub-experiments`` when their sizes differ."""
+    tests = result.tests
+    sizes = tests.loc[tests["p"].notna()].groupby("experiment").size() if len(tests) else []
+    if len(sizes) <= 1:
+        return count(result.n_tests, "test")
+    low, high = int(min(sizes)), int(max(sizes))
+    per = count(low, "test") if low == high else f"{low}-{high} tests"
+    return f"{per} in each of {count(len(sizes), 'sub-experiment')}"
 
 
 __all__ = [

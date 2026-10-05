@@ -365,6 +365,32 @@ def test_planted_far_objects_are_unusual_and_typical_objects_mostly_not():
     assert treated["status"] == "ok" and treated["unusual"] >= 10
 
 
+def test_a_failed_seed_refit_is_counted_and_said(monkeypatch):
+    """#314: a refit that failed (a feature constant in that reference sample) was dropped, so
+    the refits that succeeded alone gave the agreement, or none was shown."""
+    from morphocoverage.sampling_unit import unusual
+
+    objects, fovs, _ = _with_planted()
+    calls = []
+    real = unusual.score
+
+    def failing_second(*args, **kwargs):
+        calls.append(1)
+        if len(calls) % 3 == 2:  # the first of the two refits of every group
+            return "zero SD on the visible data for ['y']"
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(unusual, "score", failing_second)
+    result = unusual.unusual_objects(
+        objects, fovs, feature_cols=["x", "y"], reference={"condition": "ctrl"}, seed_checks=2
+    )
+    ok = result.groups[result.groups["status"] == "ok"]
+    assert (ok["seed_failures"] == 1).all() and ok["seed_agreement"].notna().all()
+    text = " ".join(result.summary().split())
+    assert f"{len(ok)} refits with other reference samples failed in" in text
+    assert "zero SD on the visible data for ['y']" in text
+
+
 def test_a_group_is_never_its_own_reference():
     objects, fovs, _ = _with_planted()
     groups = unusual_objects(
@@ -800,3 +826,23 @@ def test_feature_ranking_says_when_few_technical_repeats_cannot_pass_the_gate():
     controls = objects[objects["condition"] == "control"]
     alone = feature_ranking(controls, only, features=["x"], control={"condition": "control"})
     assert alone.tests.empty and "no other condition to compare" in alone.summary()
+
+
+@pytest.mark.parametrize("independent", [False, True])
+def test_feature_ranking_says_the_fields_are_independent_only_when_declared(independent):
+    """#306: the wording was reversed, printing the declaration when it was not made."""
+    from morphocoverage.sampling_unit import feature_ranking
+
+    objects, fovs = _two_conditions(shift=1.0, field_sd=0.3)
+    result = feature_ranking(
+        objects,
+        fovs,
+        features=["x"],
+        control={"condition": "control"},
+        technical_col=None,
+        fields_independent=independent,
+        n_permutations=100,
+    )
+    for detail in ("short", "full"):
+        text = " ".join(result.summary(detail=detail).split())
+        assert ("declared independent draws" in text) is independent

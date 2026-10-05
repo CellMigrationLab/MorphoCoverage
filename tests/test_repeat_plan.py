@@ -121,3 +121,31 @@ def test_a_pilot_of_one_repeat_is_told_what_a_second_repeat_gives(cdm):
     assert "were imaged in one biological repeat: a second repeat shows how much" in text
     assert "cells a side per repeat" in text and "unknown with one repeat" not in text
     assert "⚠️" not in one.summary()
+
+
+def test_a_repeat_without_an_interval_still_counts_and_is_not_read_as_one_repeat():
+    """#305: the plan dropped every repeat without an interval of d (one field a side), so 2
+    repeats imaged read as "imaged in one biological repeat" and 3 as 2."""
+    from types import SimpleNamespace
+
+    from morphocoverage.sampling_unit.repeat_plan_text import plan_parts
+
+    three = _table([-0.6, -0.8, -1.0], 0.3, 3)
+    three.loc[2, ["d_low", "d_high"]] = np.nan
+    row = repeat_plan(three).iloc[0]
+    assert row["repeats"] == 3 and row["d_mean"] == pytest.approx(-0.8)
+    assert row["status"] == "ok" and np.isfinite(row["repeats_needed"])
+    two = three.iloc[1:].reset_index(drop=True)
+    none = three.assign(condition="KD2", d_low=np.nan, d_high=np.nan)
+    plan = repeat_plan(pd.concat([two, none], ignore_index=True)).set_index("condition")
+    assert list(plan["repeats"]) == [2, 3]
+    assert plan["status"].str.startswith("one biological repeat").sum() == 0
+    assert plan["repeats_needed"].isna().all()
+    contrast = SimpleNamespace(
+        plan=plan.reset_index(),
+        table=pd.DataFrame(),
+        settings={"feature": "x", "observation_unit": "cell"},
+    )
+    text = " ".join(" ".join(plan_parts(contrast)[0]).split())
+    assert "imaged in one biological repeat" not in text
+    assert "KD and KD2: fewer than two of the repeats have two fields a side" in text

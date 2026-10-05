@@ -154,7 +154,7 @@ class FeatureRanking:
         """What the tests shuffle: technical repeats, or fields (declared independent)."""
         if self.settings.get("unit"):
             return f"technical repeats ({self.settings['unit']})"
-        if not self.settings.get("fields_independent"):
+        if self.settings.get("fields_independent"):
             return "fields, where the fields are declared independent draws,"
         return "fields"
 
