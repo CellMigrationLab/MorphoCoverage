@@ -247,8 +247,8 @@ def test_f5_protocol_interval_is_never_narrower_than_the_exact_one():
     for n_fail in (1, 2, 4):
         low, high = interval_of(n_fail)
         assert 0 <= low <= all_low and high <= 1
-    # At whole counts the exact interval is Clopper-Pearson's.
-    assert protocol._exact(0.6, 5) == pytest.approx(interval(3, 5, 0.95))
+    # The exact interval takes whole counts and is Clopper-Pearson's (issue #95).
+    assert protocol._exact(3, 5) == pytest.approx(interval(3, 5, 0.95))
 
 
 def test_f6_neighbouring_seeds_share_no_reservoir_and_both_analyses_hold_the_same_one():
