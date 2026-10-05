@@ -24,8 +24,9 @@ from morphocoverage.retrospective.report_enough import detection_line
 from morphocoverage.retrospective.report_profile import (
     _detection_adjusted_bounds,
     _new_state_rows,
+    _redundancy_rows,
 )
-from morphocoverage.retrospective.report_status import controls_status
+from morphocoverage.retrospective.report_status import controls_status, unit_status
 
 # --- #243, #244: a post-hoc selected best is described ---------------------------------------
 
@@ -155,11 +156,11 @@ def test_a_strong_plate_and_a_weak_one_are_said_to_be_pooled_wherever_the_rate_i
     note = next(n for n in report.notes if n.startswith("Weak representation"))
     assert "recognized in only 75% of checks, pooled over all plates (below 90%)" in note
     strong = _two_plates(positive=((10, 10), (9, 10)), reference=((0, 10), (1, 10)))
-    assert controls_status(strong) == (
-        Status.OK,
+    headline = (
         "positive-control fields recognized in 95% of checks; false alarms 5%, both pooled "
-        "over all plates",
+        "over all plates"
     )
+    assert controls_status(strong) == (Status.OK, headline)
 
 
 # --- #270: a declared planted check that could not run is not replaced by the whole fields --
@@ -201,4 +202,99 @@ def test_a_report_with_no_planting_says_the_gate_was_not_assessed():
     assert not any(n.startswith("Weak representation") for n in report.notes)
     assert f"{NOT_PLANTED}, so the adequacy answers (questions 2, 4 and 5) are not checked" in (
         " ".join(report.notes)
+    )
+
+
+# --- #272 (#259, #278): assessed and not assessed groups are counted apart --------------------
+
+
+def _redundancy(*groups):
+    """One row per group: (group, smallest_lag, redundancy_distance, reason)."""
+    return pd.DataFrame(
+        [
+            {
+                "well": well,
+                "smallest_lag": lag,
+                "largest_lag": None if lag is None else 2000.0,
+                "redundancy_distance": distance,
+                "beyond_chance": None if lag is None else True,
+                "null_share": None if lag is None else 0.01,
+                "unit": "µm",
+                "reason": reason,
+            }
+            for well, lag, distance, reason in groups
+        ]
+    )
+
+
+ALIKE = ("A1", 100.0, 500.0, None)
+UNLIKE = ("A2", 100.0, 100.0, None)
+ONE_FIELD = ("A3", None, None, "only 1 field with observations: the semivariogram needs pairs")
+
+
+def test_a_redundancy_group_with_no_estimate_is_not_counted_as_negative_evidence():
+    both = _redundancy_rows(_redundancy(ALIKE, UNLIKE))[0]["statement"]
+    assert both.startswith("in 1 of 2 groups, fields closer than about 500 µm")
+    assert "not assessed" not in both
+    mixed = _redundancy_rows(_redundancy(ALIKE, UNLIKE, ONE_FIELD))[0]["statement"]
+    assert mixed.startswith("in 1 of the 2 groups assessed, fields closer than about 500 µm")
+    assert mixed.endswith("; 1 more not assessed (too few fields)")
+    none = _redundancy_rows(_redundancy(UNLIKE, ONE_FIELD))[0]["statement"]
+    assert none.startswith("in the 1 group assessed, no group shows neighbouring fields")
+    assert none.endswith("(100 µm); 1 more not assessed (too few fields)")
+
+
+def _rules(*groups):
+    """An object-rule check: one row per (well, status, meets_target)."""
+    table = pd.DataFrame(
+        [{"well": w, "target": 0.05, "status": s, "meets_target": m} for w, s, m in groups]
+    )
+    return SimpleNamespace(table=table, group_cols=("well",), settings={})
+
+
+def _spread(matched, skipped=0):
+    """A descriptor-spread check: whole fields settle (``True``) or never do, per well."""
+    rows = pd.DataFrame(
+        [{"well": f"B{i}", "objects_to_match": 50 if ok else None} for i, ok in enumerate(matched)],
+        columns=["well", "objects_to_match"],
+    )
+    settings = {
+        "threshold": 100,
+        "skipped_groups": [{"group": f"well=C{i}", "label": f"C{i}"} for i in range(skipped)],
+    }
+    return SimpleNamespace(at_threshold=rows, group_cols=("well",), settings=settings)
+
+
+def test_the_foundation_headline_counts_groups_that_could_not_be_checked_apart():
+    few = "fewer than 2 fields with cells"
+    held = _rules(("A1", "ok", True), ("A2", "ok", True))
+    assert unit_status(None, held, None) == (
+        Status.OK,
+        "the mean-precision count rule still held with whole fields in both groups",
+    )
+    held = _rules(("A1", "ok", True), ("A2", "ok", True), ("A3", few, None))
+    status, text = unit_status(None, held, None)
+    assert "both groups" not in text
+    assert text == (
+        "the mean-precision count rule still held with whole fields in the 2 groups assessed; "
+        f"1 more not assessed ({few})"
+    )
+    missed = _rules(("A1", "ok", False), ("A2", "ok", True), ("A3", few, None))
+    assert unit_status(None, missed, None)[1] == (
+        "the mean-precision count rule missed with whole fields in 1 of the 2 groups assessed; "
+        f"1 more not assessed ({few})"
+    )
+    assert unit_status(None, None, _spread([True, True])) == (Status.OK, "assessed")
+    status, text = unit_status(None, None, _spread([False, True], skipped=1))
+    assert status is Status.CAUTION
+    assert text == (
+        "descriptors from whole fields never settled in 1 of the 2 groups assessed; 1 more not "
+        "assessed (fewer than 100 cells)"
+    )
+    assert unit_status(None, None, _spread([True], skipped=1))[1] == (
+        "descriptor spread not assessed in 1 of 2 groups (fewer than 100 cells)"
+    )
+    # Every group skipped: never merely "assessed".
+    assert unit_status(None, None, _spread([], skipped=3))[1] == (
+        "descriptor spread not assessed in all 3 groups (fewer than 100 cells)"
     )

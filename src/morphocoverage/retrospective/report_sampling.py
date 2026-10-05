@@ -12,9 +12,9 @@
   one line, each caveat once; full, every statement of the profile with its
   source, the unusual objects and the clustering group by group.
 
-The helpers ``rule_held``, ``skipped_strata``, ``clustered_states``,
-``largest_sources`` and ``unstable_labels`` give ``report_status`` the counts
-its headlines read.
+The helpers ``rule_held``, ``rule_unchecked``, ``spread_headline``,
+``skipped_strata``, ``clustered_states``, ``largest_sources`` and
+``unstable_labels`` give ``report_status`` the counts its headlines read.
 """
 
 from __future__ import annotations
@@ -104,6 +104,61 @@ def rule_held(object_rules: Any) -> tuple[int, int]:
         return int(bool(checked["meets_target"].all())), 1
     held = checked.groupby(keys, sort=False)["meets_target"].all()
     return int(held.sum()), len(held)
+
+
+def rule_unchecked(object_rules: Any) -> tuple[int, str]:
+    """The groups where the mean-precision rule could not be checked at any target, and why
+    in a few words: counted apart in the Foundation's headline, neither held nor missed."""
+    table = object_rules.table
+    keys = list(object_rules.group_cols)
+    if not len(table):
+        return 0, ""
+    ok = table["status"] == "ok"
+    if keys:
+        by = [table[k] for k in keys]
+        checked = ok.groupby(by, sort=False, dropna=False).transform("any").astype(bool)
+    else:
+        checked = pd.Series(bool(ok.any()), index=table.index)
+    unchecked = table[~checked]
+    groups = len(unchecked[keys].drop_duplicates()) if keys else int(len(unchecked) > 0)
+    return groups, "; ".join(once([_few_words(str(text)) for text in unchecked["status"]]))
+
+
+def _few_words(reason: str) -> str:
+    """``not applicable`` for ``not applicable: the reference mean is 0, ...``."""
+    return reason.split(":")[0].split(", so ")[0]
+
+
+def spread_headline(descriptor_spread: Any, word: str) -> tuple[bool, str]:
+    """The Foundation's descriptor-spread phrase, and whether whole fields never settled in
+    some group; groups too small to check are counted apart (#272, owner, 2026-10-05)."""
+    rows = descriptor_spread.at_threshold
+    keys = list(descriptor_spread.group_cols)
+    if len(rows) and keys:
+        total = len(rows[keys].drop_duplicates())
+        missed = len(rows[rows["objects_to_match"].isna()][keys].drop_duplicates())
+    else:
+        total, missed = (
+            int(len(rows) > 0),
+            int(len(rows) > 0 and rows["objects_to_match"].isna().any()),
+        )
+    skipped = len(descriptor_spread.settings.get("skipped_groups", []))
+    words = observation_words(descriptor_spread.settings)[1]
+    why = f"fewer than {descriptor_spread.settings.get('threshold')} {words}"
+    if missed:
+        never = (
+            among(missed, total, word)
+            if not skipped
+            else f"{missed} of the {count(total, word)} assessed"
+        )
+        apart = f"; {skipped} more not assessed ({why})" if skipped else ""
+        return True, f"descriptors from whole fields never settled in {never}{apart}"
+    if skipped:
+        return (
+            False,
+            f"descriptor spread not assessed in {among(skipped, total + skipped, word)} ({why})",
+        )
+    return False, ""
 
 
 # --- 1. Controls -----------------------------------------------------------------
@@ -417,7 +472,9 @@ __all__ = [
     "profile_full",
     "profile_short",
     "rule_held",
+    "rule_unchecked",
     "skipped_strata",
+    "spread_headline",
     "states_lines",
     "unit_full",
     "unit_short",

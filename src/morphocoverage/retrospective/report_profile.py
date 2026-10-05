@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from .._wording import number, percent
+from .._wording import count, number, percent
 from ..bounds import lower_bound, upper_bound
 from ..schema import observation_words
 from ..sufficiency import SufficiencyReport
@@ -396,6 +396,24 @@ def _pairs(found: pd.DataFrame) -> str:
     return f", from {span} pairs of fields closer than that per group"
 
 
+# Why a group has no spatial estimate, in a few words (``spatial.redundancy_distance``).
+_NOT_MEASURED = (
+    ("missing values", "missing values"),
+    ("only ", "too few fields"),
+    ("no pair", "no pair of fields in the distance bins"),
+    ("the FOV means", "the field means do not vary"),
+)
+
+
+def _not_measured(rows: pd.DataFrame) -> str:
+    """``; 1 more not assessed (too few fields)``, or '' when every group was assessed."""
+    reasons: list[str] = []
+    for text in rows.get("reason", pd.Series(dtype=object)).fillna("not measured").astype(str):
+        short = next((words for start, words in _NOT_MEASURED if text.startswith(start)), text)
+        reasons += [] if short in reasons else [short]
+    return f"; {len(rows)} more not assessed ({'; '.join(reasons)})" if len(rows) else ""
+
+
 def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     """The distance over which neighbouring fields are alike, when it was measured.
 
@@ -406,6 +424,14 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     if redundancy is None or not len(redundancy):
         return []
     measured = redundancy.dropna(subset=["smallest_lag"])
+    # Groups with no estimate are counted apart, neither evidence for nor against (#272).
+    unassessed, assessed = redundancy[redundancy["smallest_lag"].isna()], len(measured)
+    of = (
+        f"of the {count(assessed, 'group')} assessed"
+        if len(unassessed)
+        else f"of {len(redundancy)} groups"
+    )
+    apart = _not_measured(unassessed)
     # Only distances beyond the position-shuffle null count (audit 4, P8-2): without
     # spatial structure, a distance beyond the first bin arises in about 40% of groups.
     tested = "beyond_chance" in measured.columns
@@ -425,7 +451,7 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
             else "not tested against chance"
         )
         parts.append(
-            f"in {len(alike)} of {len(redundancy)} groups, fields closer than about "
+            f"in {len(alike)} {of}, fields closer than about "
             f"{np.median(alike['redundancy_distance']):.0f} {unit} (the median of point "
             f"estimates, {tested_text}{_pairs(alike)}) are more alike than "
             "random pairs"
@@ -434,7 +460,7 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
         largest = float(always["largest_lag"].max()) if "largest_lag" in always else None
         reach = f" (up to {largest:.0f} {unit})" if largest is not None else ""
         parts.append(
-            f"in {len(always)} of {len(redundancy)} groups, fields are more alike than "
+            f"in {len(always)} {of}, fields are more alike than "
             f"random pairs at every distance measured{reach}"
         )
     # Groups whose point estimate suggested redundancy that the shuffles do not support.
@@ -452,17 +478,18 @@ def _redundancy_rows(redundancy: pd.DataFrame | None) -> list[dict]:
     if len(suggested):
         typical = float(suggested["null_share"].median())
         parts.append(
-            f"in {len(suggested)} of {len(redundancy)} groups the point estimate suggested "
+            f"in {len(suggested)} {of} the point estimate suggested "
             "that closer fields are more alike, but shuffling their positions within the "
             f"group gave as large a distance in a median of {percent(typical)} of shuffles, "
             "so no spatial redundancy is shown there"
         )
     if parts:
-        statement = "; ".join(parts)
+        statement = "; ".join(parts) + apart
     elif smallest is not None:
+        among = f"in the {count(assessed, 'group')} assessed, " if len(unassessed) else ""
         statement = (
-            f"no group shows neighbouring fields more alike than random pairs, down to the "
-            f"closest spacing measured ({smallest:.0f} {unit})"
+            f"{among}no group shows neighbouring fields more alike than random pairs, down to "
+            f"the closest spacing measured ({smallest:.0f} {unit}){apart}"
         )
     else:
         return []

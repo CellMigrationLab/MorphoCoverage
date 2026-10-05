@@ -35,7 +35,8 @@ The rules, question by question:
   stayed within the random-object descriptor spread in some group, or when a
   group's variability could not be estimated; ✅ otherwise. Headline: how
   much more a mean from whole fields varies (the median design effect), and
-  in how many groups the mean-precision rule held with whole fields.
+  in how many groups the mean-precision rule held with whole fields; groups
+  that could not be checked are counted apart (owner, 2026-10-05).
 - **1. Controls** (``controls_status``): ❌ when the declared positive
   control (the planted objects when declared) was recognized in fewer than
   ``minimum_detection`` of checks (weak representation); ⚠️ when a stratum
@@ -168,7 +169,9 @@ from .report_sampling import (
     largest_sources,
     profile_answer,
     rule_held,
+    rule_unchecked,
     skipped_strata,
+    spread_headline,
     unstable_labels,
 )
 from .report_status_conditions import conditions_status
@@ -281,28 +284,31 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
     if object_rules is not None:
         kept, total = rule_held(object_rules)
         word = group_word(object_rules)
+        # Groups that could not be checked are counted apart, neither held nor missed (#272).
+        unchecked, why = rule_unchecked(object_rules)
+        apart = f"; {unchecked} more not assessed ({why})" if unchecked and total else ""
         if not total:
             parts.append("mean-precision count rule not applicable")
         elif kept == total:
-            held = among(kept, total, word)
-            parts.append(f"the mean-precision count rule still held with whole fields in {held}")
+            held = f"the {count(total, word)} assessed" if apart else among(kept, total, word)
+            parts.append(
+                f"the mean-precision count rule still held with whole fields in {held}{apart}"
+            )
         else:
             status = Status.CAUTION
-            missed = among(total - kept, total, word)
-            parts.append(f"the mean-precision count rule missed with whole fields in {missed}")
+            missed = total - kept
+            missed = (
+                f"{missed} of the {count(total, word)} assessed"
+                if apart
+                else among(missed, total, word)
+            )
+            parts.append(
+                f"the mean-precision count rule missed with whole fields in {missed}{apart}"
+            )
     if descriptor_spread is not None:
-        rows = descriptor_spread.at_threshold
-        keys = list(descriptor_spread.group_cols)
-        if len(rows) and keys:
-            total = len(rows[keys].drop_duplicates())
-            never = rows[rows["objects_to_match"].isna()][keys].drop_duplicates()
-            missed = len(never)
-        else:
-            total, missed = 1, int(len(rows) > 0 and bool(rows["objects_to_match"].isna().any()))
-        if missed:
-            status = Status.CAUTION
-            never = among(missed, total, group_word(descriptor_spread))
-            parts.append(f"descriptors from whole fields never settled in {never}")
+        never, phrase = spread_headline(descriptor_spread, group_word(descriptor_spread))
+        status = Status.CAUTION if never else status
+        parts += [phrase] if phrase else []
     return status, "; ".join(parts) or "assessed"
 
 
