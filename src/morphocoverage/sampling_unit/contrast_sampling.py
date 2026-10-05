@@ -5,9 +5,10 @@ whether the fields acquired pin down the difference the experiment was built
 to see, not whether each group's mean reached a fixed precision. Per repeat
 and condition, ``sampling_row`` resamples what was acquired, as it was
 acquired: technical repeats with replacement, then each one's fields with
-replacement (with one technical repeat a side, its fields alone), both sides
-independently, ``n_boot`` times, and takes Cohen's d on the observations of
-each draw. From the draws:
+replacement (with one technical repeat a side, its fields alone), fields
+without observations included (a draw of one adds a field and no cell, #289),
+both sides independently, ``n_boot`` times, and takes Cohen's d on the
+observations of each draw. From the draws:
 
 - **the interval**: the central ``level`` share of the draws' d (a
   percentile interval);
@@ -16,12 +17,20 @@ each draw. From the draws:
 - **the sampling error of the repeat's value**: the draws' standard deviation of the
   difference of means and of the log of their ratio, the values the paired t-test across
   repeats compares (``repeat_plan`` plans on them);
+- **the part between wells** (``between_share``, owner 2026-10-05, #96): the share of the
+  draws' variance of d that more fields per well do not reduce, from a nested bootstrap
+  (the wells resampled with their fields as acquired, less the fields resampled within
+  the wells as acquired); 0 with one well a side, whose interval holds no variation
+  between wells;
 - **fields to resolve it**: when not resolved, the fields per side at which
-  the interval's half-width, shrinking as ``1 / sqrt(fields)``, would fall
-  below |d| (a projection from these fields, not a promise), counted as
-  acquired: fields without observations included, at the share seen. Beyond
-  ``PRACTICAL`` times the fields acquired, the difference is called too small
-  to settle with more fields of these wells: it is described, not flagged.
+  the interval's half-width would fall to |d|, its part within wells shrinking
+  as ``1 / fields`` in variance and its part between wells staying (a projection
+  from these fields, not a promise), counted as acquired, fields without
+  observations included. When the part between wells alone is as wide as |d|
+  (``between_wells``), more fields will not resolve it: more wells or biological
+  repeats would. Beyond ``PRACTICAL`` times the fields acquired, the difference
+  is called too small to settle with more fields of these wells: it is
+  described, not flagged.
 
 This is a sampling answer about these wells and repeats: whether the
 difference between conditions generalizes is question 9, across biological
@@ -43,26 +52,107 @@ N_BOOT = 400
 # Fields to resolve a difference beyond this many times the fields acquired: too small to
 # settle with more fields of these wells.
 PRACTICAL = 4
+# What a difference that more fields will not resolve needs (owner, 2026-10-05).
+MORE_WELLS = "more wells or biological repeats"
 SAMPLING_COLUMNS = [
     "d_low",
     "d_high",
     "resolved",
     "fields_to_resolve",
     "too_small",
+    "between_wells",
+    "between_share",
     "difference_se",
     "log_ratio_se",
 ]
 
 
-def _draw(units: list[list[np.ndarray]], rng: np.random.Generator) -> np.ndarray:
-    """One resample of a side: units with replacement, then their fields with replacement."""
-    filled = [[f for f in u if len(f)] for u in units]
-    filled = [u for u in filled if u]
+def _draw(
+    units: list[list[np.ndarray]],
+    rng: np.random.Generator,
+    by_unit: bool = True,
+    by_field: bool = True,
+) -> np.ndarray:
+    """One resample of a side: units with replacement, then their fields with replacement,
+    fields without observations included (#289). ``by_unit=False`` keeps the units as
+    acquired, ``by_field=False`` each unit's fields as acquired."""
+    units = [u for u in units if u]
+    picks = rng.integers(len(units), size=len(units)) if by_unit else range(len(units))
     taken = []
-    for i in rng.integers(len(filled), size=len(filled)):
-        unit = filled[int(i)]
-        taken += [unit[int(j)] for j in rng.integers(len(unit), size=len(unit))]
-    return np.concatenate(taken)
+    for i in picks:
+        unit = units[int(i)]
+        if by_field:
+            taken += [unit[int(j)] for j in rng.integers(len(unit), size=len(unit))]
+        else:
+            taken += unit
+    return np.concatenate(taken) if taken else np.empty(0)
+
+
+def _draws(
+    t_units: list[list[np.ndarray]],
+    c_units: list[list[np.ndarray]],
+    rng: np.random.Generator,
+    n_boot: int,
+    by_unit: bool = True,
+    by_field: bool = True,
+) -> np.ndarray:
+    """``n_boot`` resamples of both sides: d and each side's mean (NaN when a side drew fewer
+    than two observations, which can happen once empty fields are drawn)."""
+    sampled = []
+    for _ in range(n_boot):
+        treated = _draw(t_units, rng, by_unit, by_field)
+        control = _draw(c_units, rng, by_unit, by_field)
+        if len(treated) < 2 or len(control) < 2:
+            sampled.append((np.nan, np.nan, np.nan))
+            continue
+        sampled.append((cohen_d(treated, control), treated.mean(), control.mean()))
+    return np.array(sampled, dtype=float)
+
+
+def _variance(values: np.ndarray) -> float:
+    """The variance of the finite draws of d."""
+    d = values[:, 0]
+    d = d[np.isfinite(d)]
+    return float(np.var(d, ddof=1)) if len(d) > 1 else np.nan
+
+
+def _between_share(
+    t_units: list[list[np.ndarray]],
+    c_units: list[list[np.ndarray]],
+    total: float,
+    rng: np.random.Generator,
+    n_boot: int,
+) -> float:
+    """The share of the variance of d that is between wells, which more fields per well do
+    not reduce (#96): the wells resampled with their fields as acquired carry the variation
+    between wells and their field error once, the fields resampled within wells held as
+    acquired carry the field error alone, and the difference is the part between wells
+    (a nested bootstrap, as a one-way analysis of variance splits the variance of well
+    means). 0 with one well a side: the interval then holds no variation between wells."""
+    if max(len(t_units), len(c_units)) < 2 or not total > 0:
+        return 0.0
+    wells = _variance(_draws(t_units, c_units, rng, n_boot, by_field=False))
+    fields = _variance(_draws(t_units, c_units, rng, n_boot, by_unit=False))
+    if not (np.isfinite(wells) and np.isfinite(fields)):
+        return 0.0
+    return float(min(max(wells - fields, 0.0) / total, 1.0))
+
+
+def projected_fields(
+    fields: float, d: float, low: float, high: float, between_share: float = 0.0
+) -> tuple[float, bool]:
+    """The fields a side at which the interval's half-width would fall to |d|, projected from
+    its field part only (``between_share`` of its variance does not shrink with more fields,
+    the rest as ``1 / fields``), and whether the part between wells alone is already as wide
+    as |d|: then more fields will not resolve it (``inf``, ``True``)."""
+    half = (high - low) / 2
+    share = float(between_share) if np.isfinite(between_share) else 0.0
+    if not d:
+        return np.inf, False
+    between, within = half**2 * share, half**2 * (1 - share)
+    if between >= d**2:
+        return np.inf, True
+    return fields * within / (d**2 - between), False
 
 
 def sampling_row(
@@ -80,6 +170,8 @@ def sampling_row(
         "resolved": False,
         "fields_to_resolve": np.nan,
         "too_small": False,
+        "between_wells": False,
+        "between_share": np.nan,
         "difference_se": np.nan,
         "log_ratio_se": np.nan,
     }
@@ -88,11 +180,7 @@ def sampling_row(
     )
     if not np.isfinite(d) or n_fields < 2:
         return empty
-    sampled = []
-    for _ in range(n_boot):
-        treated, control = _draw(t_units, rng), _draw(c_units, rng)
-        sampled.append((cohen_d(treated, control), treated.mean(), control.mean()))
-    values = np.array(sampled, dtype=float)
+    values = _draws(t_units, c_units, rng, n_boot)
     values = values[np.isfinite(values[:, 0])]
     draws = values[:, 0]
     if len(draws) < n_boot / 2:
@@ -114,15 +202,25 @@ def sampling_row(
     if positive.sum() >= n_boot / 2:
         ratios = np.log(values[positive, 1] / values[positive, 2])
         row["log_ratio_se"] = float(np.std(ratios, ddof=1))
+    # After the draws above, so the interval does not depend on it.
+    row["between_share"] = _between_share(t_units, c_units, _variance(values), rng, n_boot)
     if not resolved:
-        half = (high - low) / 2
-        # In fields acquired: the draws hold the fields with observations, and empty ones
-        # come at the share these sides show.
+        # In fields acquired, empty ones included: the draws hold them too (#289).
         acquired = min(sum(len(u) for u in t_units), sum(len(u) for u in c_units))
-        needed = acquired * (half / abs(d)) ** 2 if d else np.inf
-        row["fields_to_resolve"] = float(np.ceil(needed)) if np.isfinite(needed) else np.inf
-        row["too_small"] = bool(needed > PRACTICAL * acquired)
+        needed, between = projected_fields(acquired, d, low, high, row["between_share"])
+        row["between_wells"] = between
+        if not between:
+            row["fields_to_resolve"] = float(np.ceil(needed)) if np.isfinite(needed) else np.inf
+            row["too_small"] = bool(needed > PRACTICAL * acquired)
     return row
 
 
-__all__ = ["LEVEL", "N_BOOT", "PRACTICAL", "SAMPLING_COLUMNS", "sampling_row"]
+__all__ = [
+    "LEVEL",
+    "MORE_WELLS",
+    "N_BOOT",
+    "PRACTICAL",
+    "SAMPLING_COLUMNS",
+    "projected_fields",
+    "sampling_row",
+]

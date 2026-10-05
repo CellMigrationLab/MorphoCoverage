@@ -190,8 +190,18 @@ difference can be called significant. With a rare phenotype or a fingerprint
 declared, a line each says in how many wells it was seen in enough fields, or is
 within its tolerance. A compact table follows, one row per feature: the comparisons
 shown and what would show the rest (how many comparisons would need about how many
-fields a side, or cells, tracks, patches when the comparison counts those, and how
-many are too small to show even with 4 times as many). Then one feature at a time,
+fields a side, or cells, tracks, patches when the comparison counts those, how
+many are too small to show even with 4 times as many, and how many more fields will
+not resolve: more wells or biological repeats). The fields a side are projected from
+the part of the interval of d within wells only (owner, 2026-10-05): the interval
+comes from resampling the wells and then their fields as acquired, fields without
+cells included, and a nested bootstrap splits its variance into a part between wells,
+which more fields of the same wells do not reduce, and a part within wells, which
+shrinks as 1/fields. When the part between wells alone is as wide as the difference,
+the answer is that more fields will not resolve it: more wells or biological repeats.
+With one well a side the interval holds no variation between wells, and the
+projection is from its fields alone. The plan's repeats needed with twice the fields halve
+only that part within wells too. Then one feature at a time,
 as tabs: its comparisons, the precision of each well's own mean and its table within
 each repeat; the rare phenotype and the fingerprint have their own tabs after the
 features. What every tab would repeat (that this is per repeat, what each well's own
@@ -444,8 +454,11 @@ acquired:
   may split into two groups on a feature where the control's do not (Sarle's
   bimodality coefficient above 5/9 for the condition without a heavy tail, excess
   kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
-  below 5/9 for the control, in at least half of its repeats), the summary says
-  so and points to its figure: described, not tested.
+  below 5/9 for the control, in at least half of its repeats that can be assessed),
+  the summary says so and points to its figure: described, not tested. A repeat
+  whose coefficient is undefined, with fewer than 4 cells on a side or no spread,
+  leaves the denominator and is named ("1 repeat not assessed: 3 cells"), and a
+  condition with no repeat assessed is said not assessed (owner, 2026-10-05).
 - **"Are there populations or groups of cells?"** (question 10, in every report) finds
   groups of cells that sit together on all the declared features, from every
   condition pooled. The candidates are the clusters of HDBSCAN (scikit-learn) on a

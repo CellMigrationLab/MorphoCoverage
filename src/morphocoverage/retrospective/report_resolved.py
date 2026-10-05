@@ -10,7 +10,9 @@ secondary line.
 - ``resolved_headline``: the "At a glance" words and status: ✅ when every
   difference is resolved; ⚠️ when any is not (owner, 2026-10-01): some would be
   resolved with more fields (the advice says how many a side), are too small to
-  settle with a practical number of fields, or have too few fields for an interval.
+  settle with a practical number of fields, would not be resolved by more fields because the
+  wells differ more than the difference (more wells or biological repeats would, owner
+  2026-10-05), or have too few fields for an interval.
 - ``resolved_parts``: the short section: one sentence, the contrasts not
   resolved in a table (all contrasts when there are few), and the notes.
 - ``resolved_full``: every contrast with its interval.
@@ -26,7 +28,7 @@ from .._caveats import assumption
 from .._style import SINGLE_LEVEL, Status, table, wrap
 from .._wording import count, percent
 from ..metadata import REPEAT_COLUMN
-from ..sampling_unit.contrast_sampling import LEVEL, PRACTICAL
+from ..sampling_unit.contrast_sampling import LEVEL, MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import observation_words
 
@@ -51,9 +53,19 @@ def has_resolution(contrast: Any) -> bool:
     return contrast is not None and not _table(contrast).empty
 
 
+def between_wells(rows: pd.DataFrame) -> pd.Series:
+    """Whether each comparison is one more fields will not resolve: the part of its interval
+    between wells alone is as wide as the difference (``contrast_sampling``; False in a table
+    from before the column)."""
+    if "between_wells" not in rows:
+        return pd.Series(False, index=rows.index)
+    return rows["between_wells"].fillna(False).astype(bool)
+
+
 def _needing(rows: pd.DataFrame) -> pd.DataFrame:
     """The comparisons with an interval that more fields would resolve."""
-    return rows[~rows["resolved"] & ~rows["too_small"] & rows["d_low"].notna()]
+    open_ = ~rows["resolved"] & ~rows["too_small"] & ~between_wells(rows)
+    return rows[open_ & rows["d_low"].notna()]
 
 
 def _unassessed(rows: pd.DataFrame) -> int:
@@ -67,6 +79,7 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
     resolved = int(rows["resolved"].sum())
     needing = _needing(rows)
     small = int(rows["too_small"].sum())
+    wells = int(between_wells(rows).sum())
     _, fields_word = field_words(contrast)
     text = f"to compare with the control, within single repeats: shown in {resolved} of " + count(
         len(rows), "comparison"
@@ -78,6 +91,8 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
         text += f"; {len(needing)} would need about {about} {fields_word} a side"
     if small:
         text += f"; {small} too small to show with more {fields_word}"
+    if wells:
+        text += f"; {wells} that more {fields_word} will not resolve: {MORE_WELLS}"
     if _unassessed(rows):
         text += f"; {_unassessed(rows)} not assessed (too few {fields_word} for an interval)"
     # The marker says what was found: every comparison shown is enough, any other partly or
@@ -101,6 +116,9 @@ def _answer(row: dict[str, Any], fields: str = "fields") -> str:
         return "yes (shown)"
     if row["too_small"]:
         return f"no: too small to show with more {fields}"
+    flag = row.get("between_wells", False)
+    if pd.notna(flag) and bool(flag):
+        return f"no, more {fields} will not resolve it: {MORE_WELLS}"
     return f"no: about {int(row['fields_to_resolve'])} {fields} a side"
 
 
@@ -139,9 +157,12 @@ def _notes(contrast: Any) -> list[str]:
     return [
         assumption(
             f"Shown: the {percent(LEVEL)} interval of d, from resampling the technical repeats "
-            f"and their fields as acquired, excludes 0. The {fields} a side it would take are "
-            f"projected from these (the interval narrowing as 1/sqrt({fields})); beyond "
-            f"{PRACTICAL} times the {fields} acquired a difference is called too small to show."
+            f"and their fields as acquired, empty fields included, excludes 0. The {fields} a "
+            f"side it would take are projected from the part of the interval within wells "
+            f"(narrowing as 1/sqrt({fields})); the part between wells does not shrink with more "
+            f"{fields}, and when it alone is as wide as the difference, more {fields} will not "
+            f"resolve it: {MORE_WELLS}. Beyond {PRACTICAL} times the {fields} acquired a "
+            "difference is called too small to show."
         )
     ]
 
@@ -208,6 +229,7 @@ def precision_words(tallies: list[dict[str, Any]], word: str) -> str | None:
 
 __all__ = [
     "SHORT_ROWS",
+    "between_wells",
     "has_resolution",
     "precision_words",
     "resolved_full",
