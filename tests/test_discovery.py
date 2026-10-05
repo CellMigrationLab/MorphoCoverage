@@ -88,6 +88,16 @@ def test_a_condition_with_nothing_to_balance_against_a_pooled_control_is_not_tes
     assert tests.loc["drug", "status"].startswith("its control would include repeats")
 
 
+def test_a_perfect_separation_is_not_called_one_value_everywhere():
+    """Control 0 and drug 1 in every cell: no Cohen's d, so no test, and the feature was
+    listed as holding one value everywhere (#297)."""
+    objects, fovs = _tables()
+    objects["flag"] = (objects["condition"] == "drug").astype(float)
+    text = " ".join(_discovery(objects, fovs, features=("area", "flag", "flat")).summary().split())
+    assert "Not tested (1 feature, no spread within the condition and the control): flag." in text
+    assert "Not tested (1 feature, one value everywhere): flat." in text
+
+
 def test_unbalanced_repeats_use_the_balanced_test():
     result = _discovery(*_tables(unbalanced=True))
     row = result.tests.set_index("feature").loc["area"]

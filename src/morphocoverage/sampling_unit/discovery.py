@@ -28,7 +28,8 @@ The cell-level gate treats every observation as an independent draw: it finds ca
 and when the difference varies between repeats it passes more often than ``alpha`` without
 an effect (question 9 gives that chance for the readout). The paired test holds its rate
 but needs ``MIN_REPEATS`` repeats and, with three, has little power. A feature with one
-value everywhere is not tested.
+value everywhere is not tested, nor one whose condition and control each hold one value
+(no Cohen's d).
 """
 
 from __future__ import annotations
@@ -68,9 +69,11 @@ GATE_ALPHA = 0.05
 TOP_FEATURES = 5
 MAX_ROWS_LISTED = 24
 N_PERMUTATIONS = 9999
-# Why a condition was not tested: as provided its control would pool other repeats, and no
-# balanced test could be formed (contrast_cells.trusted_test); several reasons over conditions.
+# Why a condition was not tested, beyond one value everywhere: as provided its control would
+# pool other repeats and no balanced test could be formed (contrast_cells.trusted_test), or
+# there is no Cohen's d (each side holds one value of its own); UNTESTED for mixed reasons.
 POOLED_CONTROL = "its control would include repeats the condition was not imaged in"
+NO_SPREAD = "no spread within the condition and the control"
 UNTESTED = "no condition could be tested"
 TEST_COLUMNS = [
     "feature",
@@ -196,8 +199,8 @@ def _row(
         return {**row, "d": np.nan, "p_cells": np.nan, "status": "one value everywhere"}, []
     test = trusted_test(by_t, by_c, side["every"], n_permutations, rng)
     retest = test["retest"] if test["p"] <= alpha else []
-    if not np.isfinite(test["p"]) and len(side["every"]) > len(by_c):
-        row["status"] = POOLED_CONTROL
+    if not np.isfinite(test["p"]):
+        row["status"] = POOLED_CONTROL if len(side["every"]) > len(by_c) else NO_SPREAD
     return {
         **row,
         "observations": test["observations"],
