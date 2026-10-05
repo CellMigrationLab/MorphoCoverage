@@ -13,6 +13,12 @@ control's groups) moves every condition compared with it in its repeat: the cond
 change it moves most is named. With declared comparisons a field moves each comparison its
 condition is in, as the condition or as the reference (owner, 2026-10-05).
 
+The influence scales with the group (owner, 2026-10-05): with 3-5 noisy fields a group, leaving
+almost any field out moves the mean by 10%, so a field is listed only when its change is also
+more than ``INFLUENCE_SPREAD`` robust SDs from its analysis group's median change
+(``inspection.stands_out``, which says why this rule), and a group of fewer than
+``INFLUENCE_MIN_FIELDS`` fields is not judged, named once.
+
 A relative change needs a positive scale: a readout with negative values (standardised,
 centred), or a mean of 0, is not checked, as ``inspect_fovs`` skips it, and the report says
 so once.
@@ -30,12 +36,20 @@ import numpy as np
 import pandas as pd
 
 from .._control import comparison_label
+from .._style import group_label
 from .._wording import change, p_value, percent
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..retrospective._text import where
-from ..retrospective.inspection import InspectionResult, field_rows
+from ..retrospective.inspection import (
+    INFLUENCE_MIN_FIELDS,
+    INFLUENCE_SPREAD,
+    SMALL_GROUP,
+    InspectionResult,
+    field_rows,
+    stands_out,
+)
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..schema import ValidatedInput, fov_positions
 from ..statistics import paired_t, repeat_values
@@ -55,6 +69,11 @@ def influence_on_result(contrast: Any) -> bool:
         and REPEAT_COLUMN in table
         and bool(table[REPEAT_COLUMN].notna().any())
     )
+
+
+def _where(group: dict[str, Any]) -> dict[str, str]:
+    """A group where a check did not run: its key, and its label as the summaries name it."""
+    return {"group": where(group), "label": group_label(group)}
 
 
 def _result(means: np.ndarray, controls: np.ndarray, values: str | None = None) -> tuple:
@@ -135,9 +154,12 @@ def _found(
     setup: Any,
     threshold: float,
     skipped: list[dict[str, Any]],
+    small: list[dict[str, Any]],
+    spread: float | None = INFLUENCE_SPREAD,
 ) -> list[dict[str, Any]]:
     """The influence rows of one analysis group's fields (see the module); a mean of 0 has
-    no relative change and goes in ``skipped``, as ``inspect_fovs`` records it."""
+    no relative change and goes in ``skipped``, as ``inspect_fovs`` records it, and a group
+    too small to judge in ``small``."""
     condition, repeat = group.get(CONDITION_COLUMN), group.get(REPEAT_COLUMN)
     rows, columns = _sides(group_data, condition, table[table[REPEAT_COLUMN] == repeat], setup)
     if rows.empty:
@@ -148,15 +170,18 @@ def _found(
     size = "observations" if columns[0] == "mean" else "control_observations"
     mean, total = float(rows[columns[0]].iloc[0]), float(rows[size].iloc[0])
     if not mean > 0:
-        skipped.append({"group": where(group), "summary": f"mean of {readout}", "reason": _ZERO})
+        skipped.append({**_where(group), "summary": f"mean of {readout}", "reason": _ZERO})
         return []
+    if spread is not None and np.count_nonzero(counts) < INFLUENCE_MIN_FIELDS:
+        small.append({**_where(group), "reason": SMALL_GROUP})
+        return []
+    positions = [p for p in np.flatnonzero(counts) if total - counts[p] >= 1]
+    withouts = [(mean * total - sums[p]) / (total - counts[p]) for p in positions]
+    changes = [(without - mean) / mean for without in withouts]
+    apart = stands_out(np.asarray(changes), spread)
     found = []
-    for position in np.flatnonzero(counts):
-        if total - counts[position] < 1:
-            continue
-        without = (mean * total - sums[position]) / (total - counts[position])
-        moved = (without - mean) / mean
-        if abs(moved) < threshold:
+    for position, without, moved, alone in zip(positions, withouts, changes, apart, strict=True):
+        if abs(moved) < threshold or not alone:
             continue
         # The condition whose change the field moves most (itself, for a treated field).
         effects = [
@@ -195,9 +220,12 @@ def with_result_influence(
     contrast: Any,
     setup: Any,
     threshold: float = THRESHOLD,
+    spread: float | None = INFLUENCE_SPREAD,
 ) -> InspectionResult:
     """``inspection`` (run without summaries) with the influence of each field on the result
-    (see the module); unchanged without a contrast across repeats."""
+    (see the module); unchanged without a contrast across repeats. ``objects`` holds the
+    values the contrast compared (``Setup.compared_values``). ``spread=None``: the threshold
+    alone, every group judged."""
     if not influence_on_result(contrast):
         return inspection
     table = contrast.table
@@ -206,15 +234,16 @@ def with_result_influence(
     trace = inspection.settings.get("trace", [])
     rows: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
+    small: list[dict[str, Any]] = []
     for group, both in iter_analysis_groups(data):
         group_data = replace(both, feature_cols=(setup.readout,))
         values = group_data.feature_values(setup.readout)
         if np.nanmin(values, initial=0.0) < 0:
             skipped.append(
-                {"group": where(group), "summary": f"mean of {setup.readout}", "reason": _NEGATIVE}
+                {**_where(group), "summary": f"mean of {setup.readout}", "reason": _NEGATIVE}
             )
             continue
-        found = _found(group, group_data, table, setup, threshold, skipped)
+        found = _found(group, group_data, table, setup, threshold, skipped, small, spread)
         rows += field_rows(group, group_data, found, trace)
     frame = pd.concat([inspection.fovs, pd.DataFrame(rows)], ignore_index=True)
     checked = list(inspection.settings.get("checked", []))
@@ -225,7 +254,9 @@ def with_result_influence(
         "checked": checked,
         "influence_on": "result",
         "influence_threshold": float(threshold),
+        "influence_spread": None if spread is None else float(spread),
         "skipped_summaries": skipped,
+        "skipped_small": small,
     }
     return replace(inspection, fovs=frame, settings=settings)
 

@@ -168,9 +168,15 @@ declaration in short lines) and the declaration in full are under "Show more".
 checks name, then those that sway the result, have an unusual count or show a
 state no other field shows. A field sways the result when leaving it out moves its
 condition's mean in its repeat, every cell weighing one as in the paired t-test, by
-10% or more; the reason gives the condition's change against the control and the
-paired t-test's p with the field and without it (a control field: the condition it
-moves most). Without a control, it is the field-weighted mean of its group.
+10% or more, and that change stands out from the other fields' of its group: more than
+3 robust SDs (1.4826 times the median absolute deviation) from the group's median
+leave-one-out change. With 3-5 fields a group, leaving almost any field out moves the
+mean by 10%, so the 10% alone listed noise; a group of fewer than 4 fields is not judged,
+and the groups are named once (owner, 2026-10-05). The reason gives the condition's
+change against the control and the paired t-test's p with the field and without it (a
+control field: the condition it moves most), on the values the test compares (raw with
+several controls). Without a control, it is the field-weighted mean of its group, by the
+same rule.
 
 "Do the conditions differ?" opens with the features significant across repeats,
 condition by condition, each with its direction, how many repeats agree, its q and

@@ -319,7 +319,8 @@ def report(
     # or crowded fields and stage neighbours on the readout.
     novel = novelty is not None and bool(setup.features)
     # With a contrast, a field's influence is on the result (the repeat means the paired
-    # test compares, _result_influence); without one, on the field-weighted mean.
+    # test compares, on the values it compares, _result_influence); without one, on the
+    # field-weighted mean.
     on_result = influence_on_result(results.get("contrast"))
     results["inspection"] = inspect_fovs(
         objects,
@@ -334,7 +335,7 @@ def report(
     )
     if on_result:
         results["inspection"] = with_result_influence(
-            results["inspection"], prepared, fovs, results["contrast"], setup
+            results["inspection"], compared, fovs, results["contrast"], setup
         )
     settings = {
         "recorded_order": setup.acquisition_order_col is not None,

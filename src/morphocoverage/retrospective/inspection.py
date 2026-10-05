@@ -16,10 +16,12 @@ Reasons:
   those observations is given.
 - **influence** (with ``summaries``): removing the FOV changes a declared
   summary (the mean or a quantile of a named feature) by at least
-  ``influence_threshold`` in relative terms. Summaries weight every FOV
-  equally, so duplicating objects within a FOV does not raise its influence
-  beyond its effect as one FOV; a dense FOV is reported by the count reason
-  instead.
+  ``influence_threshold`` in relative terms, and that change stands out from
+  the other fields' of its group (``stands_out``; a group of fewer than
+  ``INFLUENCE_MIN_FIELDS`` fields is not judged, owner 2026-10-05). Summaries
+  weight every FOV equally, so duplicating objects within a FOV does not raise
+  its influence beyond its effect as one FOV; a dense FOV is reported by the
+  count reason instead.
 - **count**: the observation count is at least ``count_ratio`` times the group
   median, at most the median divided by it, or zero.
 - **neighbours** (with stage coordinates): the FOV's mean of some feature
@@ -56,6 +58,7 @@ from ..objectives import ObjectiveConfig, SamplingObjective
 from ..schema import ValidatedInput, fov_positions, observation_words
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
+from ..transforms import MAD_TO_SD
 from ._text import where
 from .inspection_text import inspection_summary
 
@@ -63,6 +66,12 @@ REASONS = ("new state", "influence", "count", "neighbours")
 _TIED = "; fields tied in distance taken by field name"
 _TRACE = ("image_file", "position_id", "mask_file")
 _POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
+# The influence scales with the group (owner, 2026-10-05; see stands_out): a field's change
+# must lie this many robust SDs from its group's median change, in a group of at least
+# INFLUENCE_MIN_FIELDS fields.
+INFLUENCE_SPREAD = 3.0
+INFLUENCE_MIN_FIELDS = 4
+SMALL_GROUP = f"fewer than {INFLUENCE_MIN_FIELDS} fields"
 
 
 @dataclass(frozen=True)
@@ -128,24 +137,62 @@ def _weighted(values: np.ndarray, weights: np.ndarray, statistic: str) -> float 
     return float(np.interp(float(statistic), positions, values))
 
 
+def stands_out(changes: np.ndarray, spread: float | None = INFLUENCE_SPREAD) -> np.ndarray:
+    """Whether each field's leave-one-out change stands out from the others' of its group:
+    more than ``spread`` robust SDs (``MAD_TO_SD`` times the median absolute deviation) from
+    the group's median change (all ``True`` with ``spread=None``, the threshold alone).
+
+    Why not a multiple of the median absolute change: leaving a field out moves a mean by the
+    field's difference from it divided by the others' number, so a lone aberrant field moves
+    it about ``n - 1`` times as much as a typical field, and inflates every other field's
+    change too. "More than 3 times the median change" could then never flag it in a group of
+    4, and the ratio grows with the group. The distance from the median change in robust SDs
+    is a robust z-score of the field among its group's (the Hampel identifier, at the 3 SD of
+    the neighbour reason) whatever the group's size: in simulations of 4-5 log-normal fields
+    with a CV of 30-50%, 1-7% of ordinary fields were flagged (24-48% by the 10% threshold
+    alone), and a field 4 times the others 66-97% of the time. With fewer than
+    ``INFLUENCE_MIN_FIELDS`` fields one of the two others sets the spread, so such groups are
+    not judged (the callers say where).
+    """
+    changes = np.asarray(changes, dtype=float)
+    if spread is None:
+        return np.ones(len(changes), dtype=bool)
+    if not len(changes):
+        return np.zeros(0, dtype=bool)
+    typical = float(np.median(changes))
+    scale = MAD_TO_SD * float(np.median(np.abs(changes - typical)))
+    return np.abs(changes - typical) > spread * scale
+
+
 def _influence(
     data: ValidatedInput,
     summaries: Sequence[Summary],
     threshold: float,
     group: str,
     skipped: list[dict],
+    small: list[dict],
+    spread: float | None = INFLUENCE_SPREAD,
 ) -> tuple[list[dict], bool]:
-    """Relative change of each FOV-weighted summary when one FOV is left out.
+    """Relative change of each FOV-weighted summary when one FOV is left out, listed when it
+    is at least ``threshold`` and stands out from the group's (``stands_out``).
 
     A relative change needs a positive scale: for a feature with negative
     values (standardized, PCA or embedding coordinates, centred near zero) it
     explodes, and for a summary that is zero (a percentile of a count most
     objects do not have) it is undefined, so such summaries are skipped and
-    reported in ``skipped`` with the group they were skipped in. Also returns
-    whether any summary was checked in this group.
+    reported in ``skipped`` with the group they were skipped in. A group of fewer than
+    ``INFLUENCE_MIN_FIELDS`` fields with a value is not judged and goes in ``small`` (unless
+    ``spread`` is None). Also returns whether any summary was checked in this group.
     """
     positions = fov_positions(data, data.fovs)
     rows, checked = [], False
+    present = np.zeros(len(positions), dtype=bool)
+    for summary in summaries:
+        present |= ~np.isnan(data.feature_values(summary.feature))
+    fields = len(np.unique(positions[present]))
+    if spread is not None and summaries and fields < INFLUENCE_MIN_FIELDS:
+        small.append({"group": group, "reason": SMALL_GROUP})
+        return rows, checked
     for summary in summaries:
         values = data.feature_values(summary.feature)
         why = None
@@ -166,26 +213,30 @@ def _influence(
             skipped.append({"group": group, "summary": summary.label, "reason": why})
             continue
         checked = True
+        left_out, changes = [], []
         for fov in np.unique(positions):
             keep = positions != fov
             without = _weighted(values[keep], weights[keep], summary.statistic)
-            if without is None:
+            if without is not None:
+                left_out.append(int(fov))
+                changes.append((without - full) / abs(full))
+        apart = stands_out(np.asarray(changes), spread)
+        for fov, change, alone in zip(left_out, changes, apart, strict=True):
+            if abs(change) < threshold or not alone:
                 continue
-            change = (without - full) / abs(full)
-            if abs(change) >= threshold:
-                direction = "lowers" if change < 0 else "raises"
-                rows.append(
-                    {
-                        "position": int(fov),
-                        "reason": "influence",
-                        "value": float(change),
-                        # Every FOV weighs one in the summary, however many objects it holds.
-                        "detail": (
-                            f"removing it {direction} the field-weighted {summary.label} by "
-                            f"{percent(abs(change))}"
-                        ),
-                    }
-                )
+            direction = "lowers" if change < 0 else "raises"
+            rows.append(
+                {
+                    "position": fov,
+                    "reason": "influence",
+                    "value": float(change),
+                    # Every FOV weighs one in the summary, however many objects it holds.
+                    "detail": (
+                        f"removing it {direction} the field-weighted {summary.label} by "
+                        f"{percent(abs(change))}"
+                    ),
+                }
+            )
     return rows, checked
 
 
@@ -349,6 +400,7 @@ def _check(
     stage: Sequence[str] | None,
     neighbour_threshold: float | None,
     k: int,
+    spread: float | None = INFLUENCE_SPREAD,
 ) -> list[Summary]:
     summaries = [s if isinstance(s, Summary) else Summary(*s) for s in summaries]
     if novelty is not None and not isinstance(novelty, SupportNoveltyEstimator):
@@ -359,6 +411,8 @@ def _check(
         raise ValueError("count_ratio must be greater than 1, or None to skip the count reason")
     if not is_number(neighbour_threshold) or not 0 < neighbour_threshold < np.inf:
         raise ValueError("neighbour_threshold must be a positive number")
+    if spread is not None and not (is_number(spread) and 0 < spread < np.inf):
+        raise ValueError("influence_spread must be a positive number, or None")
     if not is_integer(k) or k < 1:
         raise ValueError("n_neighbours must be a positive integer")
     if stage is not None and (len(stage) != 2 or not all(isinstance(c, str) for c in stage)):
@@ -406,6 +460,7 @@ def inspect_fovs(
     summaries: Sequence[Summary | tuple] = (),
     novelty: SupportNoveltyEstimator | None = None,
     influence_threshold: float = 0.10,
+    influence_spread: float | None = INFLUENCE_SPREAD,
     count_ratio: float | None = 3.0,
     stage_cols: tuple[str, str] | None = None,
     stage_unit: str = "µm",
@@ -424,10 +479,11 @@ def inspect_fovs(
     tuples). ``novelty`` turns on the new-state reason; ``stage_cols`` the
     neighbour reason, on every feature in ``feature_cols``; ``count_ratio=None``
     turns the count reason off. Thresholds are provisional presets: a 10% relative
-    change, a count 3 times the median (or a third of it), 3 SD from the 4
-    nearest fields. ``novelty_cols`` are the columns new states are judged on
-    (default ``feature_cols``), so novelty can read the declared
-    representation while the other reasons read the readout. ``label_col`` (a column of
+    change that is also more than ``influence_spread`` robust SDs from the group's median
+    change (``stands_out``; ``None``: the 10% alone, every group judged), a count 3 times
+    the median (or a third of it), 3 SD from the 4 nearest fields. ``novelty_cols`` are
+    the columns new states are judged on (default ``feature_cols``), so novelty can read
+    the declared representation while the other reasons read the readout. ``label_col`` (a column of
     booleans or 0/1, such as the rare phenotype's label) says how many cells of each new
     state carry the label.
     """
@@ -439,6 +495,7 @@ def inspect_fovs(
         stage_cols,
         neighbour_threshold,
         n_neighbours,
+        influence_spread,
     )
     feature_cols = list(column_names(feature_cols, "feature_cols"))  # read once
     missing = [s.feature for s in summaries if s.feature not in feature_cols]
@@ -458,7 +515,7 @@ def inspect_fovs(
         if absent:
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
     trace = [c for c in (*_TRACE, *(stage_cols or ())) if c in data.fovs.columns]
-    rows, skipped, neighbours_skipped, novelty_skipped = [], [], [], []
+    rows, skipped, neighbours_skipped, novelty_skipped, small = [], [], [], [], []
     checked: set[str] = set()
     n_fovs = n_judged = 0
     for group, both in iter_analysis_groups(data):
@@ -474,7 +531,13 @@ def inspect_fovs(
                 n_judged += len(both.fovs)
         if summaries:
             influential, any_checked = _influence(
-                group_data, summaries, float(influence_threshold), where(group), skipped
+                group_data,
+                summaries,
+                float(influence_threshold),
+                where(group),
+                skipped,
+                small,
+                None if influence_spread is None else float(influence_spread),
             )
             found += influential
             if any_checked:
@@ -495,7 +558,7 @@ def inspect_fovs(
                 float(neighbour_threshold),
                 stage_unit,
             )
-        for entry in (*skipped, *neighbours_skipped, *novelty_skipped):
+        for entry in (*skipped, *neighbours_skipped, *novelty_skipped, *small):
             entry.setdefault("label", group_label(group))  # the group as the summaries name it
         rows += field_rows(group, group_data, found, trace)
     settings = {
@@ -506,6 +569,7 @@ def inspect_fovs(
         if novelty is None
         else novelty_definition(novelty, novelty_cols),
         "influence_threshold": float(influence_threshold),
+        "influence_spread": None if influence_spread is None else float(influence_spread),
         "count_ratio": None if count_ratio is None else float(count_ratio),
         "stage_cols": None if stage_cols is None else list(stage_cols),
         "n_neighbours": n_neighbours,
@@ -515,6 +579,8 @@ def inspect_fovs(
         "skipped_summaries": skipped,
         "skipped_neighbours": neighbours_skipped,
         "skipped_novelty": novelty_skipped,
+        # The groups too small to judge a field's influence in (owner, 2026-10-05).
+        "skipped_small": small,
         # The reasons judged in at least one group, in the order of REASONS.
         "checked": [reason for reason in REASONS if reason in checked],
         "n_fovs": n_fovs,

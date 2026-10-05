@@ -49,6 +49,7 @@ _SKIPPED = (
     ),
     ("skipped_neighbours", "Stage neighbours were not compared in {groups}: {reason}"),
     ("skipped_novelty", "New states were not looked for in {groups}: {reason}"),
+    ("skipped_small", "Influence not judged: {reason} in {groups}"),
 )
 
 
