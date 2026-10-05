@@ -310,6 +310,21 @@ def test_too_few_blocks_are_insufficient_data():
     assert "blocks" in quantity.reason
 
 
+@pytest.mark.parametrize("observed_blocks, available", [(2, False), (3, True)])
+def test_min_fovs_counts_blocks_with_observations(observed_blocks, available):
+    # Regression (#315): five visible blocks, but observations in only two of
+    # them, were enough for min_fovs=3, so two blocks were resampled.
+    rng = np.random.default_rng(0)
+    fovs = pd.DataFrame({"fov": [f"f{i}" for i in range(10)], "block": np.repeat(range(5), 2)})
+    seen = [f"f{i}" for i in range(2 * observed_blocks)]
+    objects = pd.DataFrame({"fov": np.repeat(seen, 5), "feature_a": rng.normal(size=5 * len(seen))})
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=["feature_a"], fov_col="fov")
+    quantity = _block_se(data, min_fovs=3, n=200)
+    assert (quantity.availability.value == "available") is available
+    if not available:
+        assert quantity.reason == "fewer than 3 spatial blocks with observations"
+
+
 def test_block_column_must_exist_and_be_complete():
     data = _data("neighbour_correlation", features=("feature_a",))
     with pytest.raises(ValueError, match="not a column"):
