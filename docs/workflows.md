@@ -91,12 +91,16 @@ covariance of the standardised features within a share you state; 10% is
 offered, with no published meaning). Enter takes each default.
 
 The answers are saved in the folder as `morphocoverage_answers.json`, with a
-checksum of the observation table, before the report runs; the folder then
+checksum of the observation table and one of the FOV table (`None` without
+one), before the report runs; the folder then
 holds `scan.txt`, `report_short.txt` and `report_full.txt`. Run in the same
 folder again, the session shows the saved answers and offers to continue with
 them (straight to the report) or to delete them and start over. Answers saved
-for another table are never reused: the session offers to delete them, or
-stops so you can choose another folder. Extra `Setup` fields go through
+for another table, or with another FOV table or none, are never reused: the
+session offers to delete them, or stops so you can choose another folder.
+Answers saved by an earlier version, which did not check the FOV table, are
+not reused either: the session says so and asks the questions again
+(owner, 2026-10-05). Extra `Setup` fields go through
 `guide(..., n_jobs=4, normalize="control_mean")`; `load_answers(folder)` and
 `answers.setup(scan)` rebuild the `Setup` without the questions.
 
