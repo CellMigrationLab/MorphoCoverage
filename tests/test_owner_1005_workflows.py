@@ -1,10 +1,15 @@
-"""Owner decisions of 2026-10-05 on the workflows: live stops, guided answers, HTML figures.
+"""Owner decisions of 2026-10-05 on the workflows: live stops, HTML figures.
 
 - #85: ``LiveFolder.watch(until_stop=...)`` follows the objective's overall decision;
   ``stop_on="rule"`` keeps the stop on every rule's own verdict.
+- #340: a normalised view, or a rule's label, applies or says why not; any other error
+  raises.
 """
 
 from __future__ import annotations
+
+import json
+import re
 
 import numpy as np
 import pandas as pd
@@ -14,7 +19,17 @@ from morphocoverage import FixedFOVStrategy, ObjectiveConfig
 from morphocoverage.evidence import Component
 from morphocoverage.policies import EffortPolicy
 from morphocoverage.strategies.base import SamplingStrategy
-from morphocoverage.workflows import LiveFolder, Setup, live_session, write_fov
+from morphocoverage.workflows import (
+    LiveFolder,
+    Setup,
+    _html_figures,
+    _html_sections,
+    live_session,
+    report,
+    write_fov,
+)
+from morphocoverage.workflows._html_figures import embeddings, feature_figures
+from morphocoverage.workflows._html_sections import what_checked
 
 SETUP = Setup(readout="x", observation_unit="cell")
 
@@ -93,3 +108,88 @@ def test_85_stop_on_is_checked(tmp_path):
     _fields(tmp_path, 1)
     with pytest.raises(ValueError, match="stop_on"):
         _watch(tmp_path, (FixedFOVStrategy(2),), stop_on="every_rule")
+
+
+# --- #340: the HTML views decide up front whether they apply ------------------------------
+
+
+def _signed_tables():
+    """Two conditions in three repeats; ``speed`` is negative, so it cannot be normalised."""
+    rng = np.random.default_rng(0)
+    rows = []
+    for repeat in ("r1", "r2", "r3"):
+        for condition, shift in (("ctrl", 0.0), ("drug", 2.0)):
+            for field in range(4):
+                for label in range(5):
+                    rows.append(
+                        {
+                            "condition": condition,
+                            "biological_repeat": repeat,
+                            "image_file": f"{condition}_{repeat}_{field}.tif",
+                            "label_id": label + 1,
+                            "area": rng.normal(20 + shift, 2),
+                            "speed": rng.normal(-5, 1),
+                            "aspect": rng.normal(2, 0.2),
+                        }
+                    )
+    objects = pd.DataFrame(rows)
+    return objects, objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+
+
+@pytest.fixture(scope="module")
+def signed_report():
+    objects, fovs = _signed_tables()
+    setup = Setup(
+        readout="area",
+        features=("area", "speed", "aspect"),
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+    )
+    return report(objects, fovs, setup), objects, fovs
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_340_a_negative_control_mean_leaves_the_raw_views_and_says_why(signed_report, tmp_path):
+    result, objects, fovs = signed_report
+    markup, _ = embeddings(result, objects, fovs, tmp_path)
+    data = json.loads(re.search(r'id="embedding-data">(.*?)</script>', markup).group(1))
+    assert data["values"] == ["raw"]
+    assert "not shown: in biological_repeat=r1, the control mean of &#x27;speed&#x27; is" in markup
+    _, specs = feature_figures(result, objects, fovs, tmp_path)
+    assert all(list(spec["views"]) == ["raw"] for spec in specs)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_340_an_unexpected_error_of_a_view_is_not_hidden(signed_report, tmp_path, monkeypatch):
+    result, objects, fovs = signed_report
+    monkeypatch.setattr(_html_figures, "control_mean_problem", lambda *a, **k: None)
+
+    def broken(*args, **kwargs):
+        raise ValueError("an unrelated error")
+
+    monkeypatch.setattr(_html_figures, "normalize_to_control", broken)
+    with pytest.raises(ValueError, match="an unrelated error"):
+        embeddings(result, objects, fovs, tmp_path)
+    drawn = _html_figures.plots
+    monkeypatch.setattr(
+        _html_figures,
+        "plots",
+        lambda o, f, view, **k: broken() if view.normalize else drawn(o, f, view, **k),
+    )
+    with pytest.raises(ValueError, match="an unrelated error"):
+        feature_figures(result, objects, fovs, tmp_path)
+
+
+def test_340_the_rules_line_names_an_other_rule_and_raises_on_a_broken_label(monkeypatch):
+    class Counted:
+        name = "my own rule"
+
+    setup = Setup(readout="x", observation_unit="cell", rules=(FixedFOVStrategy(4), Counted()))
+    assert "Stopping rules checked: fixed 4 fields and my own rule." in what_checked(setup)
+
+    def broken(*args, **kwargs):
+        raise ValueError("a broken label")
+
+    monkeypatch.setattr(_html_sections, "rule_label", broken)
+    with pytest.raises(ValueError, match="a broken label"):
+        what_checked(setup)

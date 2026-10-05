@@ -24,7 +24,7 @@ from .._palette import COLOURS, GREY, condition_palette
 from .._wording import percent
 from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
-from ..normalize import normalize_to_control
+from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_KEYS, PANEL_TITLES
 from ._html_data import data_buttons, download, embedding_data, feature_data, json_island
@@ -104,16 +104,13 @@ def feature_figures(
     legends = legends or {}
     setup = result.setup
     drawn = plots(objects, fovs, setup, ranking=result.discovery)
-    views = _views(setup)
+    checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    views = _views(setup, checked, checked_fovs)
     figures_by_view = {views[0][0]: drawn}
     for key, view in views[1:]:
-        try:
-            figures_by_view[key] = plots(objects, fovs, view, features=list(drawn))
-        except ValueError:
-            views = views[:1]  # a control mean at or below 0: the declared values only
+        figures_by_view[key] = plots(objects, fovs, view, features=list(drawn))
     discovery = result.discovery
     top = discovery.top(len(discovery.ranking)) if discovery is not None else []
-    checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
     prepared = {key: with_share(view.prepared(checked, checked_fovs), view) for key, view in views}
     blocks, names, explained = [], {}, False
     taken: set[str] = set()
@@ -219,15 +216,33 @@ def feature_figures(
     return blocks, specs
 
 
-def _views(setup: Any) -> list[tuple[str, Any]]:
+def _views(setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame) -> list[tuple[str, Any]]:
     """The values the feature figures can show: those the setup declares first, and, when a
-    control condition is declared, the others (raw or normalised to each repeat's control)."""
+    control condition is declared, the others (raw or normalised to each repeat's control,
+    unless ``control_mean_problem`` says why not: ``objects`` and ``fovs`` are checked, as
+    ``plots`` prepares them)."""
     declared = "normalised" if setup.normalize is not None else "raw"
     views = [(declared, setup)]
     if CONDITION_COLUMN not in (setup.control or {}):
         return views
+    if declared == "raw" and _unnormalisable(setup, objects, fovs) is not None:
+        return views  # the declared values only
     other = replace(setup, normalize=None if setup.normalize else "control_mean")
     return [*views, ("raw" if declared == "normalised" else "normalised", other)]
+
+
+def _unnormalisable(setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame) -> str | None:
+    """Why ``setup.prepared`` cannot normalise these checked tables to the control (a repeat
+    without control objects, a control mean zero, negative or undefined), or ``None``; any
+    other error raises."""
+    return control_mean_problem(
+        objects,
+        fovs,
+        feature_cols=list(setup.columns),
+        control=setup.control,
+        repeat_col=setup.repeat_col(fovs),
+        **setup.common,
+    )
 
 
 # The most features a map can be coloured by and a selection described with.
@@ -365,13 +380,12 @@ def embeddings(
     carry = [c for c in ("population", label) if c]
     tables = {"raw": objects}
     control = setup.control
+    unnormalisable = None
     if control is not None and CONDITION_COLUMN in control:
-        try:
-            tables["normalised"] = normalize_to_control(
-                objects, fovs, feature_cols=list(setup.columns), control=control, **setup.common
-            )
-        except ValueError:
-            pass  # a control mean at or below 0: the raw values only
+        arguments = {"feature_cols": list(setup.columns), "control": control, **setup.common}
+        unnormalisable = control_mean_problem(objects, fovs, **arguments)
+        if unnormalisable is None:
+            tables["normalised"] = normalize_to_control(objects, fovs, **arguments)
     embeddings = {
         values: embed(
             table,
@@ -475,9 +489,16 @@ def embeddings(
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
-        "repeats, which the normalised values (each divided by its repeat's control mean) take "
-        "out.</p></div>"
-        '<script type="application/json" id="embedding-data">' + json_island(data) + "</script>"
+        + (
+            "repeats, which the normalised values (each divided by its repeat's control mean) "
+            "take out.</p></div>"
+            if unnormalisable is None
+            else "repeats; values normalised to each repeat's control mean would take it out, "
+            f"but they are not shown: {html.escape(unnormalisable)}.</p></div>"
+        )
+        + '<script type="application/json" id="embedding-data">'
+        + json_island(data)
+        + "</script>"
     )
     return markup, static
 

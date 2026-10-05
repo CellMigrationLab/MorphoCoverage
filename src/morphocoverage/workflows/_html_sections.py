@@ -34,6 +34,7 @@ from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
+from ..strategies.base import SamplingStrategy
 from ..sufficiency_short import rule_tallies
 from ._html_render import in_units
 
@@ -174,11 +175,15 @@ def hidden(status: Status | None, headline: str) -> bool:
 
 
 def _rules(setup: Any, undefined: Sequence[str] = ()) -> str:
-    try:
-        unit = resolve_observation_unit(setup.observation_unit)[0]
-        rules = [rule_label(rule, unit) or rule.name for rule in setup.stopping_rules()]
-    except (AttributeError, TypeError, ValueError):
-        return ""
+    """The stopping rules in words; a rule that is not a ``SamplingStrategy`` (it has no
+    policies to describe) by its name, and any error of a strategy's label raises."""
+    unit = resolve_observation_unit(setup.observation_unit)[0]
+    rules = [
+        (rule_label(rule, unit) or rule.name)
+        if isinstance(rule, SamplingStrategy)
+        else str(getattr(rule, "name", type(rule).__name__))
+        for rule in setup.stopping_rules()
+    ]
     return listing([r for r in rules if r not in undefined], 4)
 
 

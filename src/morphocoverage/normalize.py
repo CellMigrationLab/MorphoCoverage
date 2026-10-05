@@ -109,7 +109,8 @@ def control_means(
     ``{"condition": "MOCK"}``. Without a repeat column (or ``repeat_col=None``)
     the whole table is one repeat, labelled ``None``; a ``repeat_col`` named
     explicitly must be a column. Raises when a repeat has no control objects
-    or a control mean is zero (up to rounding), negative or undefined.
+    or a control mean is zero (up to rounding), negative or undefined
+    (``control_mean_problem`` says so without raising).
 
     Each row holds ``biological_repeat``, ``control_objects`` (the number of control
     objects the means rest on: an object missing a feature's value is left
@@ -120,6 +121,88 @@ def control_means(
     ``repeat`` (a column, a key of ``control``, ``repeat_col``) is read as
     ``biological_repeat``, with a ``DeprecationWarning``.
     """
+    rows, problem = _control_rows(
+        objects,
+        fovs,
+        feature_cols,
+        control,
+        condition_col,
+        repeat_col,
+        fov_col,
+        group_cols,
+        observation_unit,
+    )
+    if problem is None:
+        return pd.DataFrame(rows)
+    label, refused = problem
+    if not refused:
+        raise ValueError(
+            f"no control objects {dict(control)} in {label}: every repeat needs its control "
+            "to be normalised; drop the repeat or turn normalisation off"
+        )
+    listed = ", ".join(f"{column!r} is {reason}" for column, reason in refused)
+    raise ValueError(
+        f"the control mean in {label}: {listed}. Dividing by a zero or undefined mean "
+        "has no meaning and dividing by a negative one flips the sign of the effect: "
+        "leave these features out of normalisation (compare them raw)"
+    )
+
+
+@one_warning
+def control_mean_problem(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    *,
+    feature_cols: Sequence[str],
+    control: Mapping[str, Any],
+    condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
+    repeat_col: str | None = _DEFAULT_REPEAT_COL,
+    fov_col: str | None = None,
+    group_cols: Sequence[str] | None = None,
+    observation_unit: str | None = None,
+) -> str | None:
+    """Why these values cannot be normalised to the control, or ``None`` when they can.
+
+    The first repeat without control objects or with a control mean that is
+    zero, negative or undefined, in words: ``"in biological_repeat=R1, the
+    control mean of 'x' is negative (-0.3)"``, the case ``control_means``
+    raises for. Any other problem of the arguments or the tables raises as
+    there, so a caller can decide up front whether a normalised view applies
+    without hiding another error.
+    """
+    _, problem = _control_rows(
+        objects,
+        fovs,
+        feature_cols,
+        control,
+        condition_col,
+        repeat_col,
+        fov_col,
+        group_cols,
+        observation_unit,
+    )
+    if problem is None:
+        return None
+    label, refused = problem
+    if not refused:
+        return f"{label} has no control objects"
+    listed = listing([f"{column!r} is {reason}" for column, reason in refused])
+    return f"in {label}, the control mean of {listed}"
+
+
+def _control_rows(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    feature_cols: Sequence[str],
+    control: Mapping[str, Any],
+    condition_col: str,
+    repeat_col: str | None,
+    fov_col: str | None,
+    group_cols: Sequence[str] | None,
+    observation_unit: str | None,
+) -> tuple[list[dict[str, Any]], tuple[str, list] | None]:
+    """The rows of ``control_means``, and the first repeat that cannot be normalised (its
+    label, and the refused means: none when it has no control objects), or ``None``."""
     objects, fovs, control, repeat_col, fov_col, group_cols = read_former(
         objects=objects,
         fovs=fovs,
@@ -153,19 +236,11 @@ def control_means(
         chosen = attached.loc[in_repeat & is_control, list(feature_cols)]
         label = f"{repeat_col}={repeat}" if repeat_col else "the whole table"
         if chosen.empty:
-            raise ValueError(
-                f"no control objects {dict(control)} in {label}: every repeat needs its control "
-                "to be normalised; drop the repeat or turn normalisation off"
-            )
+            return rows, (label, [])
         means = chosen.mean(axis=0, skipna=True)
         refused = _refused_means(means, chosen, feature_cols)
         if refused:
-            listed = ", ".join(f"{column!r} is {reason}" for column, reason in refused)
-            raise ValueError(
-                f"the control mean in {label}: {listed}. Dividing by a zero or undefined mean "
-                "has no meaning and dividing by a negative one flips the sign of the effect: "
-                "leave these features out of normalisation (compare them raw)"
-            )
+            return rows, (label, refused)
         with_values = int(chosen.notna().sum(axis=0).min())
         negative = tuple(column for column in feature_cols if (chosen[column] < 0).any())
         rows.append(
@@ -176,7 +251,7 @@ def control_means(
                 **means.to_dict(),
             }
         )
-    return pd.DataFrame(rows)
+    return rows, None
 
 
 def negative_values_sentence(means: pd.DataFrame) -> str | None:
@@ -269,6 +344,7 @@ def normalize_to_control(
 __all__ = [
     "CONTROL_MEAN",
     "METHODS",
+    "control_mean_problem",
     "control_means",
     "negative_values_sentence",
     "normalize_to_control",
