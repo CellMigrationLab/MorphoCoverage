@@ -7,8 +7,13 @@ Euclidean distance to the ``k`` nearest reference observations. The
 threshold is calibrated leaving out one reference group at a time (each
 reference observation scored against the other reference groups, each tested
 observation against all reference groups but one, drawn at random, so both
-see an equally dense reference), or, with a single reference group, leaving
-out one reference field at a time.
+see an equally dense reference), or, with a single reference group, one
+reference field at a time, tested observations included. Calibration and
+scoring leave a group (field) out with the same distribution, uniform over
+the groups (fields): in the threshold, the scores of each left-out group
+weigh the same whatever its observations, a weighted quantile
+(``_weighted_quantile``, ``np.quantile`` itself when the groups are of one
+size). The simulation behind the choice is in ``unusual``'s docstring.
 
 Shared-private: ``reference_sample``, ``score`` and the calibration labels
 ``LEAVE_ONE_GROUP_OUT`` and ``LEAVE_ONE_FIELD_OUT`` are used by ``clustering``.
@@ -85,7 +90,7 @@ def _leave_one_group_out(
     """Reference and tested scores, each against the reference with one group left out.
 
     A reference object is scored against the other reference groups; a tested
-    object against the reference without one group, drawn at random, so both
+    object against the reference without one group, drawn uniformly, so both
     see as many reference groups (as dense a reference) and their scores are
     alike when the tested group is like a reference group.
     """
@@ -111,17 +116,48 @@ def _leave_one_group_out(
 
 
 def _leave_one_field_out(
-    ref: np.ndarray, fov_ids: np.ndarray, tested: np.ndarray, k: int
+    ref: np.ndarray, fov_ids: np.ndarray, tested: np.ndarray, k: int, rng: np.random.Generator
 ) -> tuple[np.ndarray, np.ndarray] | str:
-    """Reference objects scored against other reference fields; tested ones against all."""
+    """Reference and tested scores, each against the reference with one field left out.
+
+    A reference object is scored against the other fields; a tested object
+    against the reference without one field with observations, drawn at
+    random (uniformly), so both see an equally dense reference.
+    """
     tree = cKDTree(ref)
     largest = int(np.bincount(fov_ids).max())
     if len(ref) - largest < k:
         return f"fewer than {k} reference observations outside some reference FOV"
-    distance, index = tree.query(ref, k=min(len(ref), k + largest))
+    neighbours = min(len(ref), k + largest)
+    distance, index = tree.query(ref, k=neighbours)
     other = fov_ids[index] != fov_ids[:, None]
     reference_scores = np.array([d[o][:k].mean() for d, o in zip(distance, other, strict=True)])
-    return reference_scores, _mean_distance(tree, tested, k)
+    if not len(tested):
+        return reference_scores, np.empty(0)
+    # Drawn in the order of the tested values, as in _leave_one_group_out.
+    distinct, of_row = np.unique(tested, axis=0, return_inverse=True)
+    fields = np.unique(fov_ids)
+    left_out = fields[rng.integers(0, len(fields), size=len(distinct))][of_row.reshape(-1)]
+    distance, index = tree.query(tested, k=neighbours)
+    distance = np.asarray(distance).reshape(len(tested), neighbours)
+    other = fov_ids[np.asarray(index).reshape(len(tested), neighbours)] != left_out[:, None]
+    tested_scores = np.array([d[o][:k].mean() for d, o in zip(distance, other, strict=True)])
+    return reference_scores, tested_scores
+
+
+def _weighted_quantile(values: np.ndarray, weights: np.ndarray, q: float) -> float:
+    """The ``q`` quantile of ``values`` weighted by ``weights``.
+
+    ``np.quantile``'s linear interpolation, each sorted value placed at
+    ``(S_i - w_i) / (S_n - w_n)`` with ``S`` the cumulative weights: with equal
+    weights that is ``(i - 1) / (n - 1)``, ``np.quantile`` itself.
+    """
+    if np.all(weights == weights[0]):
+        return float(np.quantile(values, q))
+    order = np.argsort(values, kind="stable")
+    cumulative = np.cumsum(weights[order])
+    positions = (cumulative - weights[order]) / (cumulative[-1] - weights[order][-1])
+    return float(np.interp(q, positions, values[order]))
 
 
 def score(
@@ -137,11 +173,11 @@ def score(
     """Scores of ``tested``, the threshold, the fitted state and how it was calibrated.
 
     The threshold is the ``1 - quantile`` quantile of reference objects scored
-    against the other reference groups, the tested objects being scored
-    against all reference groups but one (``_leave_one_group_out``); with a
-    single reference group, reference objects are scored against the other
-    fields of that group and tested objects against all of it. ``names`` are
-    the feature columns, so a reason (a constant feature) names them.
+    against the other reference groups, each group's scores weighing the same,
+    the tested objects being scored against all reference groups but one, drawn
+    uniformly (``_leave_one_group_out``); with a single reference group, the
+    same with its fields (``_leave_one_field_out``). ``names`` are the feature
+    columns, so a reason (a constant feature) names them.
     """
     columns = tuple(names) if names is not None else tuple(map(str, range(reference.shape[1])))
     fitted = Standardize().fit_matrix(reference, columns)
@@ -155,12 +191,15 @@ def score(
     scored = (
         _leave_one_group_out(ref, group_ids, points, k, rng)
         if several
-        else _leave_one_field_out(ref, fov_ids, points, k)
+        else _leave_one_field_out(ref, fov_ids, points, k, rng)
     )
     if isinstance(scored, str):
         return scored
     reference_scores, tested_scores = scored
-    threshold = float(np.quantile(reference_scores, 1 - quantile))
+    # Every left-out group (field) weighs the same in the calibration, as in the tested draw.
+    units = np.unique(group_ids if several else fov_ids, return_inverse=True)[1].reshape(-1)
+    weights = 1.0 / np.bincount(units)[units]
+    threshold = _weighted_quantile(reference_scores, weights, 1 - quantile)
     scores = np.full(len(tested), np.nan)
     scores[complete] = tested_scores
     calibration = LEAVE_ONE_GROUP_OUT if several else LEAVE_ONE_FIELD_OUT

@@ -972,7 +972,8 @@ the fields, or clustered in a few?
   reach against the other control wells (calibrated leaving one control well
   out since the third audit; each tested object is scored against all
   control wells but one, drawn at random, so both see an equally dense
-  reference). Each well is scored against the control wells other than
+  reference; since 2026-10-05 every control well weighs the same in the
+  threshold, which the numbers below predate). Each well is scored against the control wells other than
   itself. The design follows
   fiberfeatures' pixel-category fit (reference sampling, provenance, a seed
   check), without its scikit-learn Gaussian mixture: rare states are what a
