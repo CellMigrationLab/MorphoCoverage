@@ -277,6 +277,8 @@ def unusual_objects(
     settings = {
         "feature_cols": list(data.feature_cols),
         "reference": dict(reference),
+        # Several controls: each condition against its own (owner, 2026-10-05).
+        "own": dict(own) if own is not None else None,
         "quantile": quantile,
         "n_neighbors": n_neighbors,
         "per_fov": per_fov,

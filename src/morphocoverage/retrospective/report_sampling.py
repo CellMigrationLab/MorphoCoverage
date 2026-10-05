@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import caveat_lines, once
+from .._control import control_name
 from .._style import among, group_label, span, wrap
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
@@ -305,9 +306,14 @@ def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
         if len(ok):
             shares = span([float(v) for v in ok["unusual_share"]], "percent")
             settings = unusual.settings
-            reference = "/".join(str(v) for v in dict(settings["reference"]).values())
+            # Each against its own control with several; names joined by "/", never a tuple.
+            reference = (
+                "each against its own control, farther from it"
+                if settings.get("own")
+                else f"farther from the {control_name(settings['reference'])} reference"
+            )
             share = (
-                f" (farther from the {reference} reference than all but "
+                f" ({reference} than all but "
                 f"{percent(settings['quantile'])} of its {words}; {shares} of each group)"
             )
     lines = []

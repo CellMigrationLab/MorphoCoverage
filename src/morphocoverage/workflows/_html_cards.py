@@ -269,7 +269,7 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
             else f"the biological repeats, {span(held)} per condition"
         )
         head = (
-            f"Compared with {listing(controls, 3)}, the features significant across {across} "
+            f"Compared with {listing(controls, 8)}, the features significant across {across} "
             "(the paired t-test on the repeat means, adjusted p ≤ 0.05):"
         )
     else:
@@ -279,7 +279,7 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
             else f"{span(held)} biological repeats"
         )
         head = (
-            f"Compared with {listing(controls, 3)}: with {have}, "
+            f"Compared with {listing(controls, 8)}: with {have}, "
             f"no feature can be called significant (the test across repeats needs "
             f"{MIN_REPEATS}). The candidates of the {unit}-level screen, exploratory (every "
             f"{unit} an independent draw, so it asks whether these wells differ, not whether the "
@@ -308,7 +308,7 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
     return (
         f'<div class="summary"><p>{annotate(html.escape(head))}</p>'
         f'<ul class="significant">{annotate("".join(bullets))}</ul>'
-        + _not_compared(unpaired, listing(controls, 3), annotate)
+        + _not_compared(unpaired, listing(controls, 8), annotate)
         + "</div>"
     )
 
@@ -328,7 +328,7 @@ def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
     if readings is None or readings.empty:
         return ""
     controls = list(dict.fromkeys(readings["control_condition"].astype(str)))
-    unpaired = _not_compared(unpaired_conditions(contrast), listing(controls, 3), annotate)
+    unpaired = _not_compared(unpaired_conditions(contrast), listing(controls, 8), annotate)
     bullets = []
     for verdict in VERDICTS:
         rows = readings[readings["verdict"] == verdict]
@@ -343,7 +343,7 @@ def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
             f"<li><strong>{html.escape(verdict[:1].upper() + verdict[1:])}</strong>: "
             f"{html.escape(words)}</li>"
         )
-    head = f"{result.setup.readout}, compared with {listing(controls, 3)}, condition by condition:"
+    head = f"{result.setup.readout}, compared with {listing(controls, 8)}, condition by condition:"
     return (
         f'<div class="summary"><p>{annotate(html.escape(head))}</p>'
         f'<ul class="significant">{annotate("".join(bullets))}</ul>{unpaired}</div>'

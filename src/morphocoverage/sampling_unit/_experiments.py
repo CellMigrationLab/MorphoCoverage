@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._control import VS
 from .._seeds import group_key
 from .._wording import listing
 from ..statistics import benjamini_hochberg
@@ -75,7 +76,13 @@ def repeat_experiments(
 
 def not_compared(conditions: list[str], control: str, word: str = "biological repeat") -> str:
     """``Not compared: cond3 (no biological repeat holds both it and ctrl).``: the conditions
-    imaged in no repeat beside the control, which no test of question 9 can include."""
+    imaged in no repeat beside the control, which no test of question 9 can include. A
+    comparison's label names its own reference (``THBS5_SiFBN2 vs THBS5_SiNC``), so it is
+    said alone: ``(no biological repeat holds both)`` (owner, 2026-10-05)."""
+    if conditions and all(VS in str(c) for c in conditions):
+        if len(conditions) == 1:
+            return f"Not compared: {conditions[0]} (no {word} holds both)."
+        return f"Not compared: {listing(conditions, 4)} (for each, no {word} holds both)."
     if len(conditions) == 1:
         return f"Not compared: {conditions[0]} (no {word} holds both it and {control})."
     return f"Not compared: {listing(conditions, 4)} (none shares a {word} with {control})."

@@ -31,7 +31,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines
-from .._control import versus
+from .._control import control_name, versus
 from .._style import SINGLE_LEVEL, among, check_detail, span, table, wrap
 from .._wording import column_word, count, listing, number, percent
 from ..metadata import REPEAT_COLUMN
@@ -85,19 +85,19 @@ def _head(contrast: Any, short: bool) -> str:
     control, repeat_col, shared = settings["control"], settings["repeat_col"], settings.get("unit")
     within = f", within each {column_word(repeat_col)}" if repeat_col else ""
     words = observation_words(settings)[1]
+    # With comparisons each condition is against its own control, named in its rows.
+    against = f"the control ({control_name(control)})" if control else "its own control"
     if short:
-        label = " · ".join(str(v) for v in control.values())
         units = (
             f"{words}, fields and technical repeats (tech.)" if shared else f"{words} and fields"
         )
         return (
-            f"{settings['feature']}, each condition against the control ({label}){within}; the "
+            f"{settings['feature']}, each condition against {against}{within}; the "
             f"fields of a condition's analysis groups are pooled. Cohen's d with {units} as "
             "the unit:"
         )
-    label = " · ".join(str(v) for v in control.values())
     return (
-        f"Feature {settings['feature']}, each condition against the control ({label})"
+        f"Feature {settings['feature']}, each condition against {against}"
         f"{within}. The fields of a condition's analysis groups are pooled for this comparison. "
         f"{words.capitalize()} are compared as Plot&Stats does and, since a "
         "microscope acquires them through fields, with the field as the unit"

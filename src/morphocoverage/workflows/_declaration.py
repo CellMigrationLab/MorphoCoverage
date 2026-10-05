@@ -113,13 +113,14 @@ def _representation(setup: Setup) -> str:
     against = "each condition's own control" if setup.contrast_table is not None else "the control"
     if setup.novelty is None:
         new = "new phenotypes are not assessed (no definition of new: novelty)"
-        if setup.control is None:
+        # A contrast table alone gives own controls: unusual observations read them.
+        if setup.reference_control is None:
             return f"{columns}; {new}, and unusual {units} are not assessed without a control"
         return (
             f"{columns} for unusual {units} (against {against} {units}, their repeats "
             f"pooled); {new}"
         )
-    if setup.control is None:
+    if setup.reference_control is None:
         return (
             f"{columns} for new phenotypes (new: {_new_words(setup)}); "
             f"unusual {units} are not assessed without a control"
