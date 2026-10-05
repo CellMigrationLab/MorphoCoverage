@@ -228,3 +228,20 @@ def test_slice_by_slice_stack_is_revealed_as_one_position():
     assert results[0].acquired_fovs == (("control", "R1", "P1"),)
     assert results[0].result.decision == "continue"
     assert results[1].result.decision == "stop"
+
+
+def test_an_order_column_named_twice_is_refused_by_the_validator():
+    objects = pd.DataFrame({"fov_id": ["F1", "F2"], "area": [1.0, 2.0]})
+    fovs = pd.DataFrame({"fov_id": ["F1", "F2"], "order": [1, 2]})
+    fovs = pd.concat([fovs, fovs[["order"]]], axis=1)
+    with pytest.raises(ValueError) as error:
+        evaluate_acquisition_prefixes(
+            objects,
+            fovs,
+            strategies=[FixedFOVStrategy(2)],
+            feature_cols=["area"],
+            fov_col="fov_id",
+            acquisition_order_col="order",
+            objective=ObjectiveConfig(SamplingObjective.POPULATION),
+        )
+    assert "truth value" not in str(error.value) and "order" in str(error.value).split("\n")[0]
