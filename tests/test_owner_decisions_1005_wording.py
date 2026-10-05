@@ -298,3 +298,38 @@ def test_the_foundation_headline_counts_groups_that_could_not_be_checked_apart()
     assert unit_status(None, None, _spread([], skipped=3))[1] == (
         "descriptor spread not assessed in all 3 groups (fewer than 100 cells)"
     )
+
+
+# --- #150: the between-well spread names what it leaves out -----------------------------------
+
+
+def test_the_between_well_spread_names_the_wells_and_groups_left_out():
+    from test_audit4_h import _WELLS, _report_parts, _tables
+
+    from morphocoverage.workflows._document import _technical_repeats
+
+    columns = ["condition", "biological_repeat", "technical_repeat"]
+    objects, fovs = _tables(_WELLS)
+    results, document = _report_parts(objects, fovs, columns)
+    ordinary = _technical_repeats(document, results).sections["profile"]
+    assert "in 2 condition and repeat groups" in ordinary and "Left out" not in ordinary
+    wells = [
+        ("ctrl", "r1", "A", 6, 10.0, 0.1),
+        ("ctrl", "r1", "B", 6, 14.0, 0.1),
+        ("ctrl", "r1", "C", 1, 8.0, 0.1),
+        ("drug", "r1", "A", 6, 12.0, 0.1),
+        ("drug", "r1", "B", 1, 16.0, 0.1),
+        ("solo", "r1", "A", 6, 12.0, 0.1),
+    ]
+    objects, fovs = _tables(wells)
+    results, document = _report_parts(objects, fovs, columns)
+    profile = " ".join(_technical_repeats(document, results).sections["profile"].split())
+    # The estimate is kept, from the 2 wells of ctrl with 2 or more fields.
+    assert "in 1 condition and repeat group with 2 or more technical repeats" in profile
+    assert (
+        "Left out: technical repeat C of ctrl · repeat r1, with one field, whose field variance "
+        "cannot be estimated; drug · repeat r1, with fewer than 2 technical repeats of 2 or "
+        "more fields." in profile
+    )
+    # A group with one well has nothing between wells: the usual design, not named.
+    assert "solo" not in profile
