@@ -71,7 +71,6 @@ from ._checks import is_integer
 from ._figure_layout import sentences, set_legend
 from ._former_repeat import one_warning, read_former
 from ._palette import (
-    COLOURS,
     FONT,
     GREY,
     INK,
@@ -105,8 +104,6 @@ NAME_CHARACTERS = 30
 GAP = 0.8
 INCHES_PER_SLOT = 0.62
 SUMMARIES: dict[str, Callable[[np.ndarray], float]] = {"median": np.median, "mean": np.mean}
-# One colour per condition (``_palette``); the technical repeats differ by shape.
-PALETTE = COLOURS
 
 
 @dataclass(frozen=True)

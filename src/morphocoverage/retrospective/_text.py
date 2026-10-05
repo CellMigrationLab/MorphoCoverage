@@ -16,7 +16,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._seeds import group_identity  # noqa: F401  (re-exported for the summaries)
 from .._style import group_label, rule_label
 from .._wording import (  # noqa: F401  (re-exported)
     column_word,

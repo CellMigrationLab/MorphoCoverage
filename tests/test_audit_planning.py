@@ -20,7 +20,8 @@ from morphocoverage.retrospective import (
     protocol_reliability,
 )
 from morphocoverage.retrospective._text import median_beyond as _median_beyond
-from morphocoverage.retrospective.effort import _contributions, _se
+from morphocoverage.retrospective.effort import _contributions
+from morphocoverage.retrospective.effort_design import _se
 from morphocoverage.retrospective.frontier import family, frontier
 from morphocoverage.retrospective.frontier_text import _setting
 

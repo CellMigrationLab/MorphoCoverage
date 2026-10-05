@@ -419,7 +419,7 @@ def optimise(
         reasons.update(no_hierarchy_reasons(setup, fovs))
     else:
         groups = results["reliability"].group_cols
-        reason = protocol_reason(setup, hierarchy, strata, groups)
+        reason = protocol_reason(hierarchy, strata, groups)
         if reason is not None:
             reasons["next_time"] = reason
         else:

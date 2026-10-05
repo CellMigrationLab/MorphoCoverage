@@ -97,14 +97,12 @@ from ..data_check import validate_input_tables
 from ..schema import fov_positions
 from ..statistics import design_effect as _design_effect
 from ..statistics import nested_variance_components
-from .effort_design import (  # noqa: F401  (_se, _acquired_se: re-exported for the tests)
-    _acquired_se,
+from .effort_design import (
     _allocation_rows,
     _check_allocations,
     _contributions,
     _design,
     _interval,
-    _se,
 )
 from .effort_text import OBSERVATION, ONE_SAMPLE_PER_REPEAT, SINGLE_REPEAT, effort_summary
 from .hierarchy import SamplingHierarchy

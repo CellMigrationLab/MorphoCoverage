@@ -19,7 +19,8 @@ import morphocoverage.workflows._shared as shared_module
 import morphocoverage.workflows.figures as figures_module
 import morphocoverage.workflows.retrospective as workflow_module
 from morphocoverage import ObjectiveConfig, SamplingObjective
-from morphocoverage.plots import PALETTE, plots_of_data
+from morphocoverage._palette import COLOURS
+from morphocoverage.plots import plots_of_data
 from morphocoverage.sampling_unit import FeatureRanking
 from morphocoverage.schema import validate_input_tables
 from morphocoverage.strategies import FOVBootstrapEstimator
@@ -75,7 +76,7 @@ def test_h1_pooled_repeats_keep_each_well_within_its_repeat(monkeypatch):
 
 
 def test_h5_the_palette_note_and_limit_say_what_is_drawn():
-    assert not any(colour in ("#8C8C8C", "#999999") for colour in PALETTE)
+    assert not any(colour in ("#8C8C8C", "#999999") for colour in COLOURS)
     with pytest.raises(ValueError, match="max_technical can be at most 8"):
         plots_of_data(*_pooled_wells(), features=["x"], n_boot=10, max_technical=9)
     figure = plots_of_data(*_pooled_wells(), features=["x"], n_boot=10, max_technical=1)["x"][0]
@@ -303,3 +304,22 @@ def test_issue_144_the_default_rules_are_declared_as_they_run():
     for unit, sides in ((None, "per object and per field"), ("patch", "per field")):
         text = " ".join(Setup(readout="x", observation_unit=unit).declaration())
         assert f"(the default, rules=None: the mean-precision rule {sides} at 5%)" in text
+
+
+def test_dead_private_surface_stays_removed():
+    """#131 (#152, #203, #229, #246, #258): no unused parameter or re-export."""
+    import inspect
+
+    from morphocoverage.retrospective import _text, effort, report
+    from morphocoverage.retrospective.hierarchy import SamplingHierarchy
+    from morphocoverage.workflows._document import protocol_reason
+
+    assert list(inspect.signature(protocol_reason).parameters) == ["hierarchy", "strata", "groups"]
+    hierarchy = SamplingHierarchy("position_id", "technical_repeat", "biological_repeat")
+    reason = protocol_reason(hierarchy, ["site"], ["condition"])
+    assert "add 'technical_repeat', 'biological_repeat', 'site' to group_cols" in reason
+    assert protocol_reason(hierarchy, [], ["technical_repeat", "biological_repeat"]) is None
+    assert not hasattr(plots_module, "PALETTE")
+    assert not any(hasattr(effort, name) for name in ("_se", "_acquired_se"))
+    assert not hasattr(_text, "group_identity")
+    assert not any(hasattr(report, n) for n in ("_detection_adjusted_bounds", "_false_alarm_rate"))

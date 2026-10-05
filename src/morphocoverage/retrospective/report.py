@@ -50,9 +50,6 @@ questions 4, 5 and 7, ``report_plan``; questions 6, 8 and 9 and the closing,
 ``report_answers``; the declaration, ``workflows``), each caveat once;
 ``summary(detail="full")`` gives every sentence, each section's header with
 its marker.
-
-Shared-private: re-exports ``_detection_adjusted_bounds`` and
-``_false_alarm_rate`` of ``report_profile`` for its callers.
 """
 
 from __future__ import annotations
@@ -92,12 +89,7 @@ from .report_answers import conditions_sections, limits_text, short_section
 from .report_enough import enough_full, enough_short
 from .report_needs import _NEEDS, _SHORT_NEEDS
 from .report_plan import bought_short, effort_short, next_time_short
-from .report_profile import (  # noqa: F401  (private helpers re-exported for callers)
-    _control_rate,
-    _detection_adjusted_bounds,
-    _false_alarm_rate,
-    sampling_profile,
-)
+from .report_profile import _control_rate, sampling_profile
 from .report_sampling import (
     controls_full,
     controls_short,
