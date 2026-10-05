@@ -91,6 +91,19 @@ def test_the_main_population_is_listed_but_not_tested(screen):
     assert main["population"] not in set(populations.enrichment["feature"])
 
 
+def test_a_lean_observation_table_gives_the_same_populations_and_enrichment():
+    """#86: condition and repeats only in the FOV table (a lean table, which the validator
+    attaches) gave no enrichment, as if there were no control, or raised in pooled_columns."""
+    objects, fovs = _screen()
+    setup = _setup(fingerprint=(), rare=None, rare_label=None)
+    full = populations_in_report(objects, fovs, setup)
+    lean = objects.drop(columns=["condition", "biological_repeat", "technical_repeat"])
+    found = populations_in_report(lean, fovs, setup)
+    assert found.populations.table.equals(full.populations.table)
+    assert found.enrichment is not None and len(found.enrichment)
+    pd.testing.assert_frame_equal(found.enrichment, full.enrichment)
+
+
 def test_one_continuum_is_no_population():
     rng = np.random.default_rng(0)
     rows = []

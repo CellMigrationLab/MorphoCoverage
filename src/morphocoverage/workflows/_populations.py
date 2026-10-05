@@ -31,7 +31,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
 from ..sampling_unit._experiments import corrected, experiments
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
-from ..schema import observation_words
+from ..schema import observation_words, validate_input_tables
 from ..statistics import paired_t
 
 if TYPE_CHECKING:
@@ -70,7 +70,9 @@ def populations_in_report(
     )
     if not populations.names:
         return PopulationsResult(populations, None, None, None)
-    complete = objects.loc[~objects[features].isna().any(axis=1)]
+    # The validated observations: group columns only in the FOV table are attached to them.
+    data = validate_input_tables(objects, fovs=fovs, feature_cols=features, **setup.common)
+    complete = data.objects.loc[~data.objects[features].isna().any(axis=1)]
     labels = populations.labels.reindex(complete.index)
     marked = complete.assign(**{name: (labels == name).astype(float) for name in populations.names})
     control = (setup.control or {}).get(CONDITION_COLUMN)

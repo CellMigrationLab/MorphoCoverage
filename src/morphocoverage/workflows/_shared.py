@@ -242,7 +242,9 @@ def pooled_columns(
     explicit = [*(setup.group_cols or ()), *([setup.fov_col] if setup.fov_col else [])]
     objects, table = drop_empty_optional_columns(objects, fovs, explicit)
     assert table is not None
-    groups = list(resolve_group_cols(objects, table, setup.group_cols))
+    # The groups as the FOV table holds them: the validator attaches its group columns to
+    # lean observation tables, so their absence from ``objects`` is no error here.
+    groups = list(resolve_group_cols(table, None, setup.group_cols))
     pooled = []
     for column in columns:
         if column not in table.columns or column in groups:
