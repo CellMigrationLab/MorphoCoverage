@@ -207,7 +207,10 @@ def report(
     unusual observations, novelty, the copy checks and a fingerprint declared on them, in
     the weighted combined space (``_feature_space``); the report's ``setup`` names them.
     """
-    objects, fovs, data_check = check_workflow_inputs(objects, fovs, setup, warn=False)
+    given = feature_tables is not None
+    objects, fovs, data_check = check_workflow_inputs(
+        objects, fovs, setup, warn=False, tables_given=given
+    )
     objects, setup, tables = attached(objects, fovs, setup, feature_tables)
     common = setup.common
     readout = setup.readout

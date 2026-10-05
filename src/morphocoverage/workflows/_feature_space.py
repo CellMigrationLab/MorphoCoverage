@@ -38,7 +38,7 @@ from ..feature_tables import (
 )
 from ..metadata import CONDITION_COLUMN
 from ..separation import Separation, separation
-from ..strategies import SupportNoveltyEstimator
+from ..strategies import SupportNoveltyEstimator, SupportNoveltyStrategy
 from ..transforms import Chain, ColumnWeights
 
 if TYPE_CHECKING:
@@ -70,6 +70,12 @@ def check_feature_tables(setup: Setup) -> None:
                 raise ValueError(f"{column!r} is a column of both {seen[column]!r} and {name!r}")
             seen[column] = name
         tables[name] = columns
+    if tables and any(isinstance(rule, SupportNoveltyStrategy) for rule in setup.rules or ()):
+        # The rules read every column the report gives them, here the tables' unweighted.
+        raise ValueError(
+            "a novelty rule among rules would read the other feature tables unweighted: leave "
+            "it out of rules, and the report judges the novelty bound on the combined space"
+        )
     object.__setattr__(setup, "feature_tables", tables or None)
 
 
@@ -95,8 +101,10 @@ def novelty_space(setup: Setup) -> tuple[SupportNoveltyEstimator | None, list[st
     """The definition of new and the columns it reads: ``Setup.novelty`` on the declared
     features, or with other tables on the weighted combined space (see the module)."""
     novelty = setup.novelty
+    if novelty is None:  # Setup declares features with novelty: none needed without it
+        return None, list(setup.features)
     columns, weights = space(setup, setup.features)
-    if novelty is None or weights is None:
+    if weights is None:
         return novelty, columns
     weighting = ColumnWeights(tuple(weights[c] for c in columns))
     transform = weighting if novelty.transform is None else Chain([novelty.transform, weighting])
@@ -118,7 +126,9 @@ def attached(
         if absent:
             raise ValueError(
                 f"Setup.feature_tables names columns that are not in objects ({absent[:3]}): "
-                "pass the tables themselves, feature_tables={name: table}, as to report()"
+                "pass the tables themselves, feature_tables={name: table}, to report, "
+                "html_report, scan_design or guide, or attach them first: objects = "
+                "attach_feature_tables(objects, fovs, tables).objects"
             )
         return objects, setup, None
     tables = attach_feature_tables(

@@ -18,8 +18,9 @@ from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.separation import separation
 from morphocoverage.transforms import Chain, ColumnWeights, RobustStandardize
-from morphocoverage.workflows import Setup, html_report, report, scan_design
+from morphocoverage.workflows import Setup, html_report, optimise, report, scan_design
 from morphocoverage.workflows._feature_space import attached, novelty_space, space
+from morphocoverage.workflows._shared import check_workflow_inputs
 from morphocoverage.workflows.setup import default_novelty
 
 
@@ -164,6 +165,15 @@ def test_the_setup_names_its_tables_and_refuses_a_clash():
         Setup(readout="area", feature_tables={"combined": ["e0"]})
     with pytest.raises(ValueError, match="of both"):
         Setup(readout="area", feature_tables={"A": ["e0"], "B": ["e0"]})
+    rule = Setup(readout="area", features=("area", "shape"), novelty=default_novelty(("area",)))
+    with pytest.raises(ValueError, match="read the other feature tables unweighted"):
+        Setup(
+            readout="area",
+            features=("area", "shape"),
+            novelty=rule.novelty,
+            rules=(rule.novelty_rule(),),
+            feature_tables={"DINO": ["e0"]},
+        )
 
 
 def test_without_other_tables_nothing_is_weighted():
@@ -174,6 +184,12 @@ def test_without_other_tables_nothing_is_weighted():
         novelty,
         ["area", "shape"],
     )
+
+
+def test_a_readout_alone_with_another_table_has_no_novelty_to_weigh():
+    setup = Setup(readout="area", feature_tables={"DINO": ("e0", "e1")})
+    assert novelty_space(setup) == (None, [])
+    assert space(setup) == (["area", "e0", "e1"], {"area": 1.0, "e0": 0.5**0.5, "e1": 0.5**0.5})
 
 
 def test_novelty_reads_the_weighted_combined_space():
@@ -367,3 +383,12 @@ def test_the_scan_lists_the_tables_before_loaded_correctly_and_names_them_in_the
     (finding,) = [f for f in refused.findings if f.about == "feature_tables"]
     assert finding.status.marker == "❌" and "'sep' lacks a row for 3 observations" in finding.text
     assert "s0" not in refused.objects and refused.settings["feature_tables"] is None
+
+
+def test_a_workflow_without_the_tables_attached_says_how_to_attach_them(combined_report):
+    objects, fovs, sep, noise = _experiment()
+    with pytest.raises(ValueError, match="attach them first"):
+        optimise(objects, fovs, combined_report.setup, fov_counts=[2], reservoir_fraction=0.5)
+    merged = attach_feature_tables(objects, fovs, {"sep": sep, "noise": noise}).objects
+    checked, _, _ = check_workflow_inputs(merged, fovs, combined_report.setup)
+    assert "n5" in checked
