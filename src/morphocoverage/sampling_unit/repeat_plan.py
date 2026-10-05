@@ -35,8 +35,10 @@ fields resampled as acquired, ``contrast_sampling``):
 chance of p <= 0.05 without an effect uses ``between_sd``, ``contrast_cells``).
 
 With one repeat the variation between repeats is unknown: the plan gives the
-fields a side and says so. The variation between repeats estimated from two
-or three repeats is itself uncertain, so the numbers are a guide.
+fields a side and says so. Every repeat compared counts in ``repeats`` and ``d_mean``; the
+rest rests on the repeats with an interval of d, and with fewer than two of them the
+variation between repeats is not estimated (``status``). The variation between repeats
+estimated from two or three repeats is itself uncertain, so the numbers are a guide.
 """
 
 from __future__ import annotations
@@ -145,29 +147,27 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
     """
     if table.empty or "d_low" not in table:
         return pd.DataFrame(columns=PLAN_COLUMNS)
-    usable = table[table["d_low"].notna() & table["d_objects"].notna()]
-    groups = list(usable.groupby(["condition", "control_condition"], sort=False))
-    named = REPEAT if REPEAT in usable else None
+    compared = table[table["d_objects"].notna()]
+    groups = list(compared.groupby(["condition", "control_condition"], sort=False))
+    named = REPEAT if REPEAT in compared else None
     family = experiments(
         {condition: list(block[named]) if named else [0] for (condition, _), block in groups}
     )
     sizes = pd.Series(family).value_counts()
     rows = []
-    for (condition, control), block in groups:
-        d = block["d_objects"].to_numpy(float)
-        d_within = float(np.mean(((block["d_high"] - block["d_low"]) / (2 * _Z)) ** 2))
-        planned_on, values, errors = _test_values(block)
-        within = float(np.mean(errors**2))
-        mean = float(values.mean())
+    for (condition, control), whole in groups:
+        # Every repeat compared counts; the plan rests on those with an interval of d.
+        block = whole[whole["d_low"].notna()]
+        d = whole["d_objects"].to_numpy(float)
         row: dict[str, Any] = {
             "condition": condition,
             "control_condition": control,
             "repeats": len(d),
             "d_mean": float(d.mean()),
             "between_sd": np.nan,
-            "within_se": float(np.sqrt(d_within)),
-            "planned_on": planned_on,
-            "change": _change(table, condition, control) if planned_on != "d" else np.nan,
+            "within_se": np.nan,
+            "planned_on": "d",
+            "change": np.nan,
             "fields_per_repeat": _fields_per_repeat(block),
             "limited_by": "",
             "repeats_needed": np.nan,
@@ -178,7 +178,23 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
         }
         if len(d) < 2:
             row["status"] = "one biological repeat: the variation between repeats is unknown"
-        else:
+        elif len(block) < 2:
+            row["status"] = (
+                f"{len(block)} of {len(d)} repeats with an interval of d (two fields a side): "
+                "the variation between repeats is not estimated"
+            )
+        if not len(block):
+            rows.append(row)
+            continue
+        d_within = float(np.mean(((block["d_high"] - block["d_low"]) / (2 * _Z)) ** 2))
+        planned_on, values, errors = _test_values(block)
+        within = float(np.mean(errors**2))
+        mean = float(values.mean())
+        row["within_se"] = float(np.sqrt(d_within))
+        row["planned_on"] = planned_on
+        row["change"] = _change(table, condition, control) if planned_on != "d" else np.nan
+        if len(block) >= 2:
+            d = block["d_objects"].to_numpy(float)
             row["between_sd"] = float(np.sqrt(max(0.0, float(np.var(d, ddof=1)) - d_within)))
             between = max(0.0, float(np.var(values, ddof=1)) - within)
             row["limited_by"] = "between repeats" if between > within else "within repeats"
