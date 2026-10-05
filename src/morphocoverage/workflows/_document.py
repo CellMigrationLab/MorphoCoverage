@@ -41,7 +41,7 @@ from ..retrospective.report_status import (
 )
 from ..sampling_unit._state_text import clustering_parts
 from ..sampling_unit.repeat_plan_text import field_words
-from ..schema import unit_plural
+from ..schema import observation_words
 from ._declaration import declaration_short
 from ._distribution import with_distribution
 from ._enough_features import default_precision, with_features
@@ -136,7 +136,7 @@ def assemble(results: Mapping[str, Any], setup: Setup) -> MicroscopistReport:
         lines = "\n".join(f"{r.statement} [{r.where}; {r.source}]" for r in rows.itertuples())
         text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
         status, glance = profile_status(rows, [rare])
-        words = unit_plural(rare.settings.get("observation_unit", "object"))
+        words = observation_words(rare.settings)[1]
         brief = [wrap(f"- {line}", 2, hang=4) for line in states_lines(rare, None, words)]
         brief_text = "\n".join([*brief, *caveat_lines(clustering_parts(rare, 2)[1], indent=2)])
         document = with_text(

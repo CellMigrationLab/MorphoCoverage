@@ -236,7 +236,7 @@ def test_h10_df2_plots_give_the_top_places_to_the_best_ranked(monkeypatch):
 
 def test_h12_h13_the_declaration_says_what_is_assessed():
     text = "\n".join(Setup(readout="x").declaration())
-    assert "no feature columns declared, so unusual objects and new phenotypes are not" in text
+    assert "no feature columns declared, so unusual cells and new phenotypes are not" in text
     normalised = Setup(readout="x", control={"condition": "MOCK"}, normalize="control_mean")
     assert "(of the whole table without a repeat column)" in "\n".join(normalised.declaration())
 

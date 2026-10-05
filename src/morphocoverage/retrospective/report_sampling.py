@@ -46,7 +46,7 @@ from ..sampling_unit._unit_text import (
     variability_full,
     variability_parts,
 )
-from ._text import unit_plural
+from ..schema import observation_words
 from .controls_text import control_full, control_parts, named_stratum
 from .effort_text import level_words, share_caveat, unit_word
 
@@ -141,7 +141,7 @@ def clustered_states(clustering: Sequence[Any]) -> tuple[list[str], int, int]:
         if result is None:
             continue
         rows = result.table[result.table["state_objects"] > 0]
-        words = unit_plural(result.settings.get("observation_unit", "object"))
+        words = observation_words(result.settings)[1]
         for state, block in rows.groupby("state", sort=False):
             hits = int((block["p_clustered"] <= 0.05).sum())
             if hits:
@@ -301,11 +301,11 @@ def profile_short(
 ) -> str:
     """Question 3, short (see the module): one line per measured quantity, each caveat once."""
     units = [
-        r.settings.get("observation_unit")
+        observation_words(r.settings)[1]
         for r in (variability, unusual, clustering, effort)
         if r is not None and r.settings.get("observation_unit")
     ]
-    observations = unit_plural(units[0] if units else "object")
+    observations = units[0] if units else observation_words({})[1]
     texts = _fields_line(profile, variability, observations)
     texts += states_lines(clustering, unusual, observations)
     variance, cautions = _variance_line(effort, observations)
@@ -364,15 +364,15 @@ def profile_full(
 
 
 def _unit(*results: Any) -> str:
-    """The observation unit the results declare (``object`` when none does)."""
+    """The observations the results declare, plural (``cells`` when none does)."""
     for result in results:
         if isinstance(result, Sequence):
             found = _unit(*result)
-            if found != "object":
+            if found != observation_words({})[1]:
                 return found
         elif result is not None and result.settings.get("observation_unit"):
-            return str(result.settings["observation_unit"])
-    return "object"
+            return observation_words(result.settings)[1]
+    return observation_words({})[1]
 
 
 def _seen_states(clustering: Sequence[Any], words: str) -> str:
@@ -392,12 +392,12 @@ def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: An
     parts = []
     fields = profile[profile["item"] == "fields against random objects"] if len(profile) else []
     if len(fields):
-        words = unit_plural(_unit(clustering, unusual))
+        words = _unit(clustering, unusual)
         effect = float(fields["value"].iloc[0])
         parts.append(f"whole fields {effect:.1f}x as variable as random {words}")
     parts += names
     if seen and not clustered:
-        words = unit_plural(_unit(clustering, unusual))
+        words = _unit(clustering, unusual)
         where = "the one group seen" if seen == 1 else f"all {seen} groups seen"
         parts.append(f"{_seen_states(clustering, words)} spread like random {words} in {where}")
     # The main answer only: whether the largest share is established and whether the

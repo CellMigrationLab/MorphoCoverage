@@ -19,7 +19,7 @@ import pandas as pd
 from .._caveats import assumption
 from .._style import table, wrap
 from .._wording import change, count, listing, percent
-from ..schema import unit_plural
+from ..schema import observation_words, unit_plural
 from .contrast_sampling import PRACTICAL
 from .repeat_plan import ALPHA, MAX_REPEATS, POWER
 
@@ -69,7 +69,7 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
     plan = _plan(contrast)
     if plan.empty:
         return [], []
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     _, fields = field_words(contrast)
     feature = contrast.settings.get("feature", "the readout")
     n = int(plan["repeats"].max())

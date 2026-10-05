@@ -23,7 +23,7 @@ from ..sampling_unit.distribution import (
     distribution_contrast,
     tests_words,
 )
-from ..schema import unit_plural
+from ..schema import observation_words
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -67,7 +67,7 @@ def split_words(result: DistributionContrast | None, condition: Any) -> str:
     mine = splits[splits["condition"] == condition] if len(splits) else splits
     if mine.empty:
         return ""
-    unit = result.settings.get("observation_unit") or "observation"
+    units = observation_words(result.settings)[1]
     named = [
         f"{r.feature} (bimodality coefficient {r.bimodality:.2f}, the control "
         f"{r.control_bimodality:.2f}, in {r.split_repeats} of {r.repeats} repeats)"
@@ -75,7 +75,7 @@ def split_words(result: DistributionContrast | None, condition: Any) -> str:
     ]
     figures = "its figure" if len(mine) == 1 else "their figures"
     return (
-        f"its {unit_plural(unit)} may split into two groups on {listing(named, 4)}, where "
+        f"its {units} may split into two groups on {listing(named, 4)}, where "
         f"the control's do not (see {figures})"
     )
 

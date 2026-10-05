@@ -76,9 +76,14 @@ def _legends(contrast, readout, unit):
 def test_the_legend_gives_n_the_test_the_family_and_the_change(glioma):
     _, contrast = glioma
     box = _legends(contrast, "Mean Speed", "tracks")["Mean Speed"]
-    assert box.startswith("n = 3 independent biological repeats per sub-experiment (6 in all)")
-    assert "one well per condition in each" in box
-    assert "2 tests in each of 2 sub-experiments, each with its own control" in box
+    # n is the tracks shown, given per condition when the conditions are not compared in the
+    # same repeats (owner, 2026-10-02); the control counted in the 6 repeats it pairs with.
+    assert box.startswith(
+        "n = 590 tracks shown. siCCT7#3: n = 92 tracks from 3 repeats, at least 28 per repeat; "
+    )
+    assert "siCTRL: n = 184 tracks from 6 repeats, at least 22 per repeat. Paired t-test" in box
+    assert "per sub-experiment" not in box and "one well" not in box
+    assert "within each sub-experiment (2 tests in each of 2 sub-experiments" in box
     # The numbers of the table across repeats: the change, the mean d, adjusted p and p.
     assert "siCCT8#5: change ×0.65, d -1.06, adjusted p 0.0506 (p 0.0494)" in box
     assert "adjusted p ≤ 0.05" in box and " q " not in box
@@ -95,8 +100,11 @@ def test_one_repeat_gets_a_descriptive_legend_and_no_test():
         observation_unit="cell",
     )
     box = _legends(one, "Area", "cells")["Area"]
-    assert "n = 1 independent biological repeat" in box
-    assert "there is no test across repeats: describe the result as one experiment" in box
+    assert box.startswith(
+        "n = 70 cells shown, from 1 biological repeat, at least 18 per condition; no test "
+        "across repeats (it needs 3)."
+    )
+    assert "Described as one experiment: " in box
     assert "siCCT8#5: change ×0.82, d -0.48" in box
 
 

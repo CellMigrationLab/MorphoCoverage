@@ -209,7 +209,7 @@ def test_p6_4_the_unseen_bound_is_adjusted_by_the_planted_rate_when_declared():
     controls = _controls(planted, positive=(29, 30), positive_lofo=(29, 30), planted_lofo=(6, 30))
     text = _detection_adjusted_bounds(_sufficiency(), controls)
     low = lower_bound(6, 30, 0.95)
-    assert "for 5 planted positive-control objects" in text
+    assert "for 5 planted positive-control cells" in text
     assert "whole-field phenotypes" not in text
     assert f"up to {percent(min(1.0, 0.1 / low))} of FOVs" in text
     assert f"divided by {percent(low)}" in text
@@ -252,7 +252,7 @@ def test_p6_4_representation_control_measures_the_planted_rate_leaving_one_field
     planted = controls.pooled.set_index("candidate").loc["planted_lofo"]
     assert planted["candidates"] + planted["not_judged"] == 8  # one check per reference field
     text = controls.summary()
-    assert "MOCK fields with 5 KD objects planted" in text
+    assert "MOCK fields with 5 KD cells planted" in text
     assert f"of {int(planted['candidates'])} checks" in text
 
 
@@ -389,7 +389,7 @@ def test_p1_2_empty_positive_fields_are_not_counted_as_misses():
     rates = controls.pooled.set_index("candidate")["rate"]
     assert rates["positive"] == 1.0 and rates["positive_lofo"] == 1.0
     assert controls.settings["positive_empty"] == 3
-    assert "3 positive-control fields without objects were not judged" in controls.summary()
+    assert "3 positive-control fields without cells were not judged" in controls.summary()
 
 
 def test_p1_5_the_rare_field_plan_uses_min_fov_occurrences():

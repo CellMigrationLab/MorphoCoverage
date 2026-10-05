@@ -28,7 +28,7 @@ from .._wording import count, percent
 from ..metadata import REPEAT_COLUMN
 from ..sampling_unit.contrast_sampling import LEVEL, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
-from ..schema import unit_plural
+from ..schema import observation_words
 
 # Contrasts listed in full in the short form; beyond, only those not resolved.
 SHORT_ROWS = 8
@@ -103,7 +103,7 @@ def _rows(rows: pd.DataFrame, fields: str = "fields") -> list[list[str]]:
 
 
 def _columns(contrast: Any) -> list[str]:
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     _, fields = field_words(contrast)
     return [
         "comparison",

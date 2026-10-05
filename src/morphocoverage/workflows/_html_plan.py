@@ -184,9 +184,9 @@ def _tolerances(result: Any) -> str:
 
 def _mean_goal(result: Any, feature: str, counts: list[int], extra: str) -> tuple[str, str]:
     readout = result.setup.readout
+    # The features significant across repeats come first (``_features``): no suffix, which
+    # would read as if optimise planned that significance (ChatGPT audit A1, 2026-10-02).
     option = f"The mean of {feature} in every well"
-    if feature in _significant(result):
-        option += ", significant across repeats"
     if not counts:
         sentence = (
             "These wells hold too few fields for optimise to replay: image more fields per "
@@ -385,7 +385,8 @@ def _group_goals(
         "print(plan.summary())"
     )
     plan_sentence = (
-        f"Once {name} is validated on the images, label its cells with its rule, "
+        f"Once {name} is validated on the images, label its {result.setup.unit_words} with "
+        "its rule, "
         f"{rule_words(row)}, and declare it: optimise says how many fields find it in at "
         f"least {count(OCCURRENCES, 'field')} of every well, in “How many fields next "
         f"time?”. {rarest}"
@@ -412,7 +413,7 @@ def _live_rare(
     label = (
         f"#   field_objects[{name!r}] = {rule_code(terms, 'field_objects')}\n"
         if terms
-        else f"#   field_objects[{name!r}]: each cell's label, True or False\n"
+        else f"#   field_objects[{name!r}]: each {setup.unit_word}'s label, True or False\n"
     )
     code = (
         "from dataclasses import replace\n"
@@ -426,16 +427,18 @@ def _live_rare(
         f"rule = RareIncidenceStrategy({name!r}, prior_a=1.0, prior_b=1.0, max_risk={risk})\n"
         "session = live_session(setup, rules=(rule,),\n"
         '                       objective=ObjectiveConfig("rare_discovery", rare=target))\n\n'
-        "# On the acquisition computer, once per completed field (field_objects: its cells):\n"
+        "# On the acquisition computer, once per completed field "
+        f"(field_objects: its {setup.unit_words}):\n"
         "#   from morphocoverage.workflows import write_fov\n"
         + label
         + f"#   write_fov({LIVE_FOLDER!r}, field_objects, {_meta_comment(fovs)})\n"
         f'LiveFolder({LIVE_FOLDER!r}, session).watch(interval=1.0, until_stop="latest_group")'
     )
     labelling = (
-        f"The acquisition labels each field's cells with {name}'s rule as it writes them."
+        f"The acquisition labels each field's {setup.unit_words} with {name}'s rule as it "
+        "writes them."
         if terms
-        else f"The acquisition writes each cell's {name} label with its field."
+        else f"The acquisition writes each {setup.unit_word}'s {name} label with its field."
     )
     sentence = (
         f"Each well stops once {name} has been seen in {count(OCCURRENCES, 'field')}, or once "
@@ -522,7 +525,8 @@ def _live_mean(result: Any, feature: str, fovs: pd.DataFrame) -> tuple[str, str]
         head
         + "from morphocoverage.workflows import LiveFolder, live_session\n\n"
         + made
-        + "\n# On the acquisition computer, once per completed field (field_objects: its cells):\n"
+        + "\n# On the acquisition computer, once per completed field "
+        f"(field_objects: its {result.setup.unit_words}):\n"
         "#   from morphocoverage.workflows import write_fov\n"
         f"#   write_fov({LIVE_FOLDER!r}, field_objects, {_meta_comment(fovs)})\n"
         f"LiveFolder({LIVE_FOLDER!r}, live_session(setup)).watch(interval=1.0, "

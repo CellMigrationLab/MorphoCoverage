@@ -357,6 +357,7 @@ def condition_contrast(
         "n_draws": n_draws,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
     }
     contrasts = contrasts_of(described)
     if not contrasts:

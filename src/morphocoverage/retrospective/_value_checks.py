@@ -26,7 +26,7 @@ from scipy import stats
 from .._wording import count, listing, percent
 from ..evaluator import iter_analysis_groups
 from ..metadata import TECHNICAL_REPEAT_COLUMN
-from ..schema import ValidatedInput, fov_positions, unit_plural
+from ..schema import ValidatedInput, fov_positions, observation_words
 
 # The fewest fields of two or more observations a group needs for the comparison.
 MIN_FIELDS = 3
@@ -81,7 +81,7 @@ def alike_fields(data: ValidatedInput) -> str | None:
     named = [(f, a, t) for f, (a, t) in found.items() if a and 2 * a >= t]
     if not named:
         return None
-    words = unit_plural(data.observation_unit)
+    words = observation_words(data)[1]
     listed = listing(
         [f"{feature} (in {alike} of {count(tested, word)})" for feature, alike, tested in named],
         _LISTED,
@@ -97,7 +97,7 @@ def alike_fields(data: ValidatedInput) -> str | None:
 def few_values(data: ValidatedInput) -> str | None:
     """The sentence naming the features that take few distinct values (see the module);
     ``None`` when none does."""
-    words = unit_plural(data.observation_unit)
+    words = observation_words(data)[1]
     named = []
     for feature in data.feature_cols:
         values = data.feature_values(feature)

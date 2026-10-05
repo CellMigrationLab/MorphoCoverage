@@ -26,6 +26,7 @@ from ._palette import COLOURS, FONT, INK, style_axes
 from ._wording import count, percent
 from .embedding import Embedding
 from .metadata import CONDITION_COLUMN, sorted_labels
+from .schema import observation_words
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -113,7 +114,7 @@ def embedding_figures(
             f"{len(colours)} conditions are too many to tell apart by colour (at most "
             f"{MAX_CONDITIONS} besides the control); embed a subset of the conditions"
         )
-    unit = embedding.settings["observation_unit"]
+    unit = observation_words(embedding.settings)[0]
     n_features = len(embedding.settings["features"])
     figures: dict[str, Figure] = {}
     figure = Figure(figsize=(7.5, 6.8), layout="constrained")

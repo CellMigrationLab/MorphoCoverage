@@ -23,7 +23,8 @@ from .._style import (
     wrap,
 )
 from .._wording import count, listing, percent
-from ._text import column_word, sample_word, unit_plural, unit_word
+from ..schema import observation_words
+from ._text import column_word, sample_word, unit_word
 from .protocol import FEW_UNITS
 
 if TYPE_CHECKING:
@@ -222,7 +223,7 @@ def _label(result: EffortResult, rows: pd.DataFrame) -> str:
 
 def _words(result: EffortResult) -> dict[str, Any]:
     hierarchy = result.settings.get("hierarchy", {})
-    observations = unit_plural(result.settings.get("observation_unit", "object"))
+    observations = observation_words(result.settings)[1]
     return {
         "feature": result.settings.get("feature", "the measurement"),
         "hierarchy": hierarchy,

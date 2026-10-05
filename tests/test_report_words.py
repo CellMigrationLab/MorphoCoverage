@@ -1,0 +1,173 @@
+"""The report's words for the design and the observations (owner decisions of 2026-10-02):
+the overview says the layout as it is when the conditions are not all in every repeat, the
+words for the observations follow the declared unit (and are cells when none is declared),
+and the plan's options do not read as planning a significance."""
+
+import html
+import re
+import sys
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+from test_html_report import _tables
+
+from morphocoverage.retrospective.overview import dataset_overview
+from morphocoverage.workflows import Setup, html_report, report
+
+LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
+sys.path.insert(0, str(LAB))
+import catalog
+
+REPEATS = ("r1", "r2", "r3", "r4")
+
+
+def _design(plan, seed=0):
+    """Tables of a design: each condition in the repeats ``plan`` gives it, 3 fields of 5."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for condition, held in plan.items():
+        for repeat in held:
+            for field in range(3):
+                for label in range(5):
+                    rows.append(
+                        {
+                            "condition": condition,
+                            "biological_repeat": repeat,
+                            "technical_repeat": "A1",
+                            "image_file": f"{condition}_{repeat}_{field}.tif",
+                            "label_id": label + 1,
+                            "area": rng.normal(20, 2),
+                        }
+                    )
+    objects = pd.DataFrame(rows)
+    keys = ["condition", "biological_repeat", "technical_repeat", "image_file"]
+    return objects, objects[keys].drop_duplicates()
+
+
+def _design_line(plan):
+    objects, fovs = _design(plan)
+    overview = dataset_overview(objects, fovs, feature_cols=["area"], control={"condition": "ctrl"})
+    return overview.short_lines()[2]
+
+
+def test_a_complete_layout_keeps_its_words():
+    line = _design_line({c: REPEATS[:3] for c in ("ctrl", "a", "b")})
+    assert "3 conditions (ctrl, a, b), 3 biological repeats (r1, r2, r3), one well per " in line
+    assert "condition in each repeat (9 wells); each well" in line
+    assert "sub-experiment" not in line and " of the " not in line
+
+
+def test_an_uneven_layout_says_the_repeats_each_condition_holds():
+    """Stress design E2: "one well per condition in each repeat (14 wells)" misread a
+    design in which cond2 and cond4 are not in every repeat."""
+    plan = {"ctrl": REPEATS, "c1": REPEATS[:3], "c2": REPEATS[:2], "c3": REPEATS, "c4": ["r1"]}
+    line = _design_line(plan)
+    assert "; c1 in 3, c2 in 2, c4 in 1 of the 4 repeats; one well per condition in each " in line
+    assert "repeat, 14 wells;" in line
+
+
+def test_a_condition_never_beside_the_control_is_named():
+    """Stress design E4: a condition imaged only in repeats without the control."""
+    plan = {"ctrl": REPEATS[:3], "c1": REPEATS[:3], "c3": ["r5", "r6", "r7"]}
+    line = _design_line(plan)
+    assert "c3 in no repeat with ctrl" in line
+
+
+def test_sub_experiments_are_said_with_their_own_control_and_repeats():
+    """The glioma screen: two sub-experiments, each with its own siCTRL in its own 3
+    repeats, not "5 conditions ... 6 biological repeats ... one well per condition in each
+    repeat"."""
+    data = catalog.load("cct7_cct8_glioma_cdm_tracks")
+    overview = dataset_overview(
+        *data.tables,
+        feature_cols=data.feature_cols,
+        control=data.control,
+        observation_unit=data.observation_unit,
+    )
+    line = overview.short_lines()[2]
+    assert (
+        "; 2 sub-experiments, each of 2 conditions and its own siCTRL in its own 3 biological "
+        "repeats (siCCT7#3 and siCCT7#6; siCCT8#5 and siCCT8#8); one well per condition in "
+        "each repeat, 18 wells;"
+    ) in line
+    full = overview.summary(detail="full")
+    assert "2 sub-experiments, each of 2 conditions" in " ".join(full.split())
+
+
+def _visible(page):
+    """The page's text a reader can see, tooltips included; no scripts, styles or tags."""
+    page = re.sub(r"<script.*?</script>|<style.*?</style>", " ", page, flags=re.DOTALL)
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", page)).split())
+
+
+# "cell" where it is not the report's observations: the papers' titles and journals, the
+# lab's name, and the simulations behind the cell-level test (which simulate cells).
+ALLOWED = (
+    r"J Cell (?:Biol|Sci)",
+    r"Cell Migration Lab",
+    r"in cell biology",
+    r"how many cells to average",
+    r"breast cancer cell invasion",
+    r"30 cells a well",
+    r"0\.5 cell SD",
+    r"times the cells of the others",
+)
+
+
+@pytest.fixture(scope="module")
+def pages(tmp_path_factory):
+    """A report on nuclei and one whose unit is not declared."""
+    objects, fovs = _tables()
+    made = {}
+    for unit in ("nucleus", None):
+        setup = Setup(
+            readout="area",
+            features=("area", "speed", "aspect"),
+            control={"condition": "ctrl"},
+            observation_unit=unit,
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = report(objects, fovs, setup)
+            folder = tmp_path_factory.mktemp(str(unit))
+            page = html_report(result, objects, fovs, folder).read_text()
+        made[unit] = result, page
+    return made
+
+
+def test_a_page_on_nuclei_says_nuclei_never_cells(pages):
+    """Owner, 2026-10-02: "it could be something else segmented in the image"."""
+    _, page = pages["nucleus"]
+    text = _visible(page)
+    stray = re.sub("|".join(ALLOWED), " ", text)
+    found = [m.group(0) for m in re.finditer(r".{0,40}\b[Cc]ells?\b.{0,40}", stray)]
+    assert not found, found
+    for words in (
+        "every nucleus a point",
+        "Are there populations or groups of nuclei?",
+        "Why count fields, and not only nuclei?",
+        "Nucleus-level randomization test",
+        "nucleus-level screen",
+    ):
+        assert words in text, words
+
+
+def test_undeclared_observations_are_called_cells(pages):
+    result, page = pages[None]
+    assert not result.results["overview"].settings["observation_unit_declared"]
+    text = result.summary()
+    assert text.splitlines()[0].startswith("Microscopist's report — 180 cells in 30 fields")
+    assert "10. Groups of cells?" in text and "180 cells (assumed, not declared)" in text
+    assert "every cell a point" in _visible(page)
+
+
+def test_the_plan_options_do_not_read_as_planning_significance(pages):
+    """ChatGPT audit A1: "The mean of Round in every well, significant across repeats" read
+    as if optimise planned the significance; those features come first instead."""
+    _, page = pages["nucleus"]
+    text = _visible(page)
+    assert "The mean of area in every well" in text
+    assert "in every well, significant across repeats" not in text

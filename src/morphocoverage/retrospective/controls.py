@@ -79,10 +79,10 @@ from .._seeds import group_rng
 from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets, restrict_input
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
-from ..schema import ValidatedInput, fov_positions
+from ..schema import ValidatedInput, fov_positions, observation_words
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
-from ._text import unit_plural, where
+from ._text import where
 from .controls_text import control_summary
 
 CANDIDATES = (
@@ -533,13 +533,14 @@ def representation_control(
         "positive_empty": positive_empty,
         "reason": "unusable" if skipped else None,
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
     }
     return ControlResult(table, pooled, status, tuple(pair_cols), settings)
 
 
 def _observations(data: ValidatedInput) -> str:
     """``cells``, ``objects``: the plural of the observation unit."""
-    return unit_plural(data.observation_unit)
+    return observation_words(data)[1]
 
 
 def _draws(

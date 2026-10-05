@@ -242,7 +242,7 @@ def test_i7_the_report_clusters_the_declared_rare_label():
     assert clustering.settings["states"] == [True]
     profile = result.document.sections["profile"]
     assert "Are the state" in profile and result.document.inputs["profile"] == "given"
-    assert "- State objects: clustered in a few fields" in result.document.short["profile"]
+    assert "- State cells: clustered in a few fields" in result.document.short["profile"]
     assert "fov_clustering" in set(result.document.profile["source"])
 
 
@@ -368,7 +368,7 @@ def test_i18_the_unusual_reference_states_that_it_pools_repeats():
     objects, fovs = _acquisition(n_fovs=6, n_objects=4)
     result = report(objects, fovs, _setup(stage_cols=None))
     profile = result.document.sections["profile"]
-    assert "The reference of the unusual objects pools the control objects of 2 repeats" in profile
+    assert "The reference of the unusual cells pools the control cells of 2 repeats" in profile
     assert "their repeats pooled" in " ".join(result.setup.declaration())
 
 

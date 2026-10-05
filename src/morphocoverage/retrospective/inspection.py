@@ -52,10 +52,10 @@ from .._wording import count, ordinal, percent
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..objectives import ObjectiveConfig, SamplingObjective
-from ..schema import ValidatedInput, fov_positions
+from ..schema import ValidatedInput, fov_positions, observation_words
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
-from ._text import unit_plural, where
+from ._text import where
 from .inspection_text import inspection_summary
 
 REASONS = ("new state", "influence", "count", "neighbours")
@@ -192,7 +192,7 @@ def _counts(data: ValidatedInput, ratio: float) -> list[dict]:
     positions = fov_positions(data, data.fovs)
     counts = np.bincount(positions, minlength=len(data.fovs))
     median = float(np.median(counts))
-    unit, words = data.observation_unit, unit_plural(data.observation_unit)
+    unit, words = observation_words(data)
     rows = []
     for fov, held in enumerate(counts):
         if held == 0 and median > 0:
@@ -319,7 +319,7 @@ def _novel(
     if label_col is not None and label_col in data.objects.columns:
         marked = flags & data.objects[label_col].fillna(False).to_numpy(dtype=bool)
         labelled = np.bincount(positions[marked], minlength=len(data.fovs))
-    unit, words = data.observation_unit, unit_plural(data.observation_unit)
+    unit, words = observation_words(data)
 
     def detail(fov: int, held: int) -> str:
         text = f"{count(held, unit, words)} of a state no other field shows"

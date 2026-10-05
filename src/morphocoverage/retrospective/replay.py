@@ -479,6 +479,7 @@ def replay_acquisitions(
         # Readable names for the summaries (``_style.rule_label``).
         "rule_labels": {s.config_id: rule_label(s, data.observation_unit) for s in strategies},
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
         "strategy_kinds": {s.config_id: s.name for s in strategies},
         "objective": objective.objective.value,
         "orders": [{"kind": o.kind, "seed": o.seed} for o in orders],

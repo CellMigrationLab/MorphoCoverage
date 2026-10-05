@@ -158,8 +158,11 @@ will be removed in a later version.
   holds several positions (a `.nd2`, `.czi` or `.lif`), and the table is
   refused: supply `position_id`, one value per stage position.
 - **Declare what a row is.** Pass `observation_unit` (`"cell"`, `"nucleus"`,
-  `"patch"`, ...) when rows are not ordinary objects. Otherwise every sentence
-  says "object" and records that the unit was assumed.
+  `"patch"`, ...) when rows are not ordinary objects. The report's words follow it
+  (tracks, patches, the patch-level test). Otherwise the rows are analysed as
+  generic objects, every result records that the unit was assumed
+  (`observation_unit_declared=False`), and the report calls them cells (owner,
+  2026-10-02: "cells could be the default").
 
 ## Checking your tables
 

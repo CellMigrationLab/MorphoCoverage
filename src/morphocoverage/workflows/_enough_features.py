@@ -233,7 +233,15 @@ def features_table(features: FeatureEnough, word: str = "well", indent: int = 2)
         ]
         for r in features.table.to_dict("records")
     ]
-    columns = ["feature", "compared with the control", "still needed", "own mean"]
+    # Each header says what its column is: the difference from the control shown within
+    # single repeats, and the wells whose own mean meets the precision rule, two different
+    # goals (ChatGPT audit B6, 2026-10-02); "to show the rest" as on the page.
+    columns = [
+        "feature",
+        "difference from the control shown",
+        "to show the rest",
+        f"{word}s whose mean meets the rule",
+    ]
     return table(rows, columns if rule else columns[:3], indent=indent)
 
 
@@ -277,12 +285,14 @@ def features_status(
     if len(small):
         # Beyond PRACTICAL times the fields: these need the most, said before any projection.
         many = count(int(small["too_small"].sum()), "comparison")
+        # The comparisons are summed over the features named: said so (stress test C).
+        over = f" over {count(len(small), 'feature')}" if len(small) > 1 else ""
         beyond = f"even with {PRACTICAL} times the {fields}"
         text += (
             f"; {many} too small to show {beyond}, over all {len(rows)} features"
             if len(small) == len(rows) and len(rows) > 2
             else f"; {listing(list(small['feature'].astype(str)), 3)}: too small to show in "
-            f"{many} {beyond}"
+            f"{many}{over} {beyond}"
         )
     if len(open_):
         worst = open_.loc[open_["fields_high"].idxmax()]
@@ -328,7 +338,7 @@ def with_features(
         return _default_named(document, default)
     status, headline = features_status(features, word, default)
     rule = next((r for r in features.table["precision_rule"] if r), None)
-    own = f"; own mean: the {word}s whose mean meets the {rule}" if rule else ""
+    own = f"; the rule of the last column: the {rule}" if rule else ""
     intro = wrap(
         "Each feature alike, " + count(len(features.table), "feature") + ", ordered as in "
         f"“Do the conditions differ?” (significant across repeats first){own}:",

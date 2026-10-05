@@ -52,7 +52,7 @@ from ..outcomes import RareStateDetected, RelativeMeanError
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
 from ..retrospective.overview import normalized_sentence
-from ..schema import OBJECT_LIKE_UNITS, resolve_observation_unit, unit_plural
+from ..schema import OBJECT_LIKE_UNITS, resolve_observation_unit, unit_words
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator, SupportNoveltyStrategy
 from ..strategies.base import SamplingStrategy
 from ..strategies.support_novelty import UPPER_QUANTITY
@@ -533,18 +533,20 @@ class Setup:
     def declaration(self) -> tuple[str, ...]:
         """What this acquisition was asked to preserve, in sentences, one per target.
 
-        Printed first by the report. Every answer that follows is read against
-        it; a target that is not declared says so, so that "enough" is never
-        read for a target the microscopist did not name. The presets the
-        workflows apply without being asked (``minimum_detection``, the default
-        stopping rules, the positive control's pairing) are printed too.
-        """
+        Printed first by the report, every answer read against it; a target not declared
+        says so, so that "enough" is never read for a target the microscopist did not name.
+        The presets applied without being asked (``minimum_detection``, the default
+        stopping rules, the positive control's pairing) are printed too."""
         return declaration(self)
 
     @property
     def unit_words(self) -> str:
-        """The observation unit in the plural, for sentences (``objects`` when undeclared)."""
-        return unit_plural(resolve_observation_unit(self.observation_unit)[0])
+        """The observations in the plural, for sentences (``cells`` when undeclared)."""
+        return unit_words(self.observation_unit)[1]
+
+    @property
+    def unit_word(self) -> str:  # the singular, ``cell`` when undeclared
+        return unit_words(self.observation_unit)[0]
 
     def novelty_rule(self) -> SupportNoveltyStrategy | None:
         """The novelty-bound rule ``novelty_target`` adds to the report, or ``None``.
@@ -584,10 +586,8 @@ class Setup:
 
     def stopping_rules(self) -> tuple[SamplingStrategy, ...]:
         """``rules``, or the mean-precision rule per observation and per FOV at the first
-        tolerance. The rule per observation averages objects (cells, nuclei): for any other
-        unit (patches, tracks) the default is the rule per FOV only, since the patches cut
-        from one image are far from independent draws and the rule per object is not
-        defined for them (owner, 2026-10-02)."""
+        tolerance; per FOV only for units other than objects (cells, nuclei), since patches
+        or tracks of one image are far from independent draws (owner, 2026-10-02)."""
         if self.rules is not None:
             return self.rules
         target = self.tolerances[0]

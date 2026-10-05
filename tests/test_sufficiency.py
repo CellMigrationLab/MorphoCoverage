@@ -182,7 +182,7 @@ def test_summary_answers_both_questions_in_words():
         assert "fixed 5 fields" in text and "target reached" in text
     # The exact definition of new is in the full form; the short one says it in one line.
     short = " ".join(report.summary().split())
-    assert "'New': at least 3 similar objects that no other field shows" in short
+    assert "'New': at least 3 similar cells that no other field shows" in short
     full = " ".join(report.summary(detail="full").split())
     assert "'New' means a cluster of at least 3 similar observations" in full
     assert "with no other FOV within distance 0.5" in full

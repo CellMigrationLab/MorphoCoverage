@@ -211,6 +211,7 @@ def distribution_contrast(
         "control": dict(control),
         "alpha": alpha,
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
         "repeat_col": repeat_col,
         "families": int(tests["experiment"].nunique()) if len(tests) else 0,
     }
