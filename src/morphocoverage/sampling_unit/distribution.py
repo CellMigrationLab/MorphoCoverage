@@ -32,6 +32,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._checks import is_number
 from .._wording import count
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..statistics import BIMODAL, bimodality_coefficient, excess_kurtosis, paired_t
@@ -175,6 +176,8 @@ def distribution_contrast(
     """Compare each feature's distribution with the control's (see the module); arguments
     follow ``feature_discovery``."""
     features = list(dict.fromkeys(features))
+    if not is_number(alpha) or not 0 < alpha < 1:
+        raise ValueError("alpha must be between 0 and 1")
     data = validated(objects, fovs, features, fov_col, group_cols, observation_unit)
     repeat_col, technical_col = resolve_columns(
         data, condition_col, repeat_col, technical_col, control
