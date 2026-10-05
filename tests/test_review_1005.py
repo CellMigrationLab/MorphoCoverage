@@ -8,6 +8,7 @@ condition in repeats without the control, E5 a condition repeat without the cont
 condition imaged in two sets of repeats), with few fields and cells to stay fast.
 """
 
+import re
 import warnings
 
 import numpy as np
@@ -287,9 +288,11 @@ def test_the_declared_labels_group_is_tested_once_as_the_label(labelled):
     status, headline, text = populations_text(found, setup)
     flat = " ".join(text.split())
     name = own[0]
-    assert f"{name} is the declared rare phenotype, mitotic: most of its cells carry the label" in (
-        flat
-    )
+    said = f"{name} is the declared rare phenotype, mitotic: most of its cells carry the label"
+    # Said once, in the headline (the page's In short); the text gives its numbers only.
+    assert said in headline and said not in flat
+    held = rf"{name}: \d+% of its cells carry the label mitotic, and it holds \d+% of the "
+    assert re.search(held + "labelled ones; not tested again here.", flat)
     assert "its share is compared in “Do the conditions differ?”" in headline
     assert "q " not in headline and status is Status.OK
 

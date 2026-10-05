@@ -27,6 +27,7 @@ from ..retrospective.inspection_text import _fields, _keys
 from ..sampling_unit._experiments import not_compared
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.reading_text import VERDICTS, condition_readings, unpaired_conditions
+from ..schema import observation_words
 from ._distribution import split_words
 from ._enough_features import NOT_YET
 from ._populations import only_labelled
@@ -178,27 +179,28 @@ def _change(row: Any) -> str:
     return change(value, getattr(row, "paired_values", "")) if pd.notna(value) else ""
 
 
-def _significant(row: Any) -> str:
+def _significant(row: Any, unit: str) -> str:
     q = f"adjusted p {p_value(row.q_paired)}" if np.isfinite(row.q_paired) else ""
     size = ", ".join(x for x in (_change(row), q) if x)
     # The direction and its count from the repeats, as the test across repeats reads them.
     word = "higher" if row.higher >= row.lower else "lower"
     return (
         f"{row.feature}: {word} in {max(row.lower, row.higher)} of {row.repeats} "
-        f"repeats ({size}; cell-level d {row.d:+.2f})"
+        f"repeats ({size}; {unit}-level d {row.d:+.2f})"
     )
 
 
-def _candidate(row: Any) -> str:
+def _candidate(row: Any, unit: str) -> str:
     q = p_value(row.q_cells)
     size = f"{_change(row)}, " if _change(row) else ""
-    return f"{row.feature}: {_direction(row)} ({size}cell-level d {row.d:+.2f}, adjusted p {q})"
+    return f"{row.feature}: {_direction(row)} ({size}{unit}-level d {row.d:+.2f}, adjusted p {q})"
 
 
 def _condition_words(
-    condition: Any, rows: Any, beyond: list[str], split: str = ""
+    condition: Any, rows: Any, beyond: list[str], unit: str, split: str = ""
 ) -> tuple[str, str]:
-    """A condition's words and its named features (markup), for its bullet."""
+    """A condition's words and its named features (markup), for its bullet (``unit``: the
+    word for one observation)."""
     rows = rows.assign(_size=rows["d"].abs()).sort_values("_size", ascending=False)
     repeats = int(rows["repeats"].max())
     listed = ""
@@ -207,7 +209,7 @@ def _condition_words(
     if repeats >= MIN_REPEATS:
         if len(confirmed):
             words = count(len(confirmed), "feature")
-            listed = _named(confirmed, _significant)
+            listed = _named(confirmed, lambda row: _significant(row, unit))
         else:
             consistent = candidates[
                 (candidates["lower"] == candidates["repeats"])
@@ -226,12 +228,8 @@ def _condition_words(
         kept = same if repeats > 1 else candidates
         go = "goes" if len(kept) == 1 else "go"
         both = f" that {go} the same way in both repeats" if repeats == 2 else ""
-        words = (
-            f"{count(len(kept), 'candidate')}{both}"
-            if len(kept)
-            else "no candidate in the cell-level screen"
-        )
-        listed = _named(kept, _candidate) if len(kept) else ""
+        words = f"{count(len(kept), 'candidate')}{both}" if len(kept) else _quiet(unit)[1]
+        listed = _named(kept, lambda row: _candidate(row, unit)) if len(kept) else ""
     if beyond:
         words += f"; beyond the mean, the distribution differs for {listing(beyond, 4)}"
     if split:
@@ -239,8 +237,12 @@ def _condition_words(
     return words, listed
 
 
-# A condition with nothing to say beyond these words is one of the quiet ones.
-_QUIET = ("no feature significant across repeats", "no candidate in the cell-level screen")
+def _quiet(unit: str) -> tuple[str, str]:
+    """The words of a condition with nothing to say beyond them, one of the quiet ones
+    (``unit``: the word for one observation)."""
+    return "no feature significant across repeats", f"no candidate in the {unit}-level screen"
+
+
 # From this many quiet conditions on, they share one line (stress test, 2026-10-05: 150
 # bullets saying the same).
 QUIET_FOLDED = 4
@@ -256,6 +258,7 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
     distribution = (getattr(result, "results", {}) or {}).get("distribution")
     differing = distribution.differing() if distribution is not None else None
     controls = list(dict.fromkeys(tests["control_condition"].astype(str)))
+    unit = observation_words(getattr(discovery, "settings", {}))[0]
     # Each condition's own number of repeats: one count when they share it, else the range.
     held = sorted({int(n) for n in tests.groupby("condition", sort=False)["repeats"].max()})
     repeats = held[-1]
@@ -278,8 +281,8 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
         head = (
             f"Compared with {listing(controls, 3)}: with {have}, "
             f"no feature can be called significant (the test across repeats needs "
-            f"{MIN_REPEATS}). The candidates of the cell-level screen, exploratory (every cell "
-            "an independent draw, so it asks whether these wells differ, not whether the "
+            f"{MIN_REPEATS}). The candidates of the {unit}-level screen, exploratory (every "
+            f"{unit} an independent draw, so it asks whether these wells differ, not whether the "
             "difference repeats):"
         )
     bullets, quiet = [], {}
@@ -289,8 +292,8 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
             mine = differing[differing["condition"] == condition]
             beyond = [str(f) for f in mine["feature"]]
         split = split_words(distribution, condition)
-        words, listed = _condition_words(condition, rows, beyond, split)
-        if words in _QUIET and not listed:
+        words, listed = _condition_words(condition, rows, beyond, unit, split)
+        if words in _quiet(unit) and not listed:
             quiet.setdefault(words, []).append(str(condition))
         name = f"<strong>{html.escape(str(condition))}</strong>"
         bullets.append((words, f"<li>{name}: {html.escape(words)}{listed}</li>"))

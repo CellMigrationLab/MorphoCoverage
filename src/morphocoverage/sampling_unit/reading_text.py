@@ -42,6 +42,7 @@ import pandas as pd
 from .._style import wrap
 from .._wording import column_word, count, listing, p_value, percent, percent_fine
 from ..metadata import REPEAT_COLUMN
+from ..schema import observation_words
 from ..statistics import repeat_values
 from ._experiments import bridges, family_words, not_compared
 from .contrast_cells import ALPHA
@@ -160,12 +161,13 @@ def _chance_sentence(chance: str, single: bool = False) -> str:
     return f"with no real effect it gives p ≤ {ALPHA:g} in {chance} of experiments like this one"
 
 
-def _why_raw(row: pd.Series, label: str) -> str:
-    """What the raw pooled test does that the version read does not."""
+def _why_raw(row: pd.Series, label: str, units: str) -> str:
+    """What the raw pooled test does that the version read does not (``units``: the
+    observations' plural word)."""
     if row["other_control_repeats"] > 0:
         return "it pools the control of repeats this condition was not imaged in"
     if label.startswith("balanced"):
-        return "it lets the repeat with most cells weigh more"
+        return f"it lets the repeat with most {units} weigh more"
     return "it keeps a scale shared within each repeat"
 
 
@@ -186,20 +188,21 @@ def _paired(row: pd.Series, n: int, word: str) -> tuple[bool, str]:
     return confirmed, words
 
 
-def _cells(row: pd.Series | None, single: bool = False) -> str:
-    """The cell-level screen in words, with its chance of p <= alpha without an effect."""
+def _cells(row: pd.Series | None, words: tuple[str, str], single: bool = False) -> str:
+    """The cell-level screen in words, with its chance of p <= alpha without an effect
+    (``words``: the observations' singular and plural words)."""
     if row is None:
         return ""
     label, _, q, low, high, _p_value = _cell_version(row)
     if pd.isna(q):
         return ""
     chance = _chance_words(low, high)
-    text = f"cell-level screen (exploratory) q {p_value(q)} ({label}" + (
+    text = f"{words[0]}-level screen (exploratory) q {p_value(q)} ({label}" + (
         f"; {_chance_sentence(chance, single)})" if chance else ")"
     )
     raw = row["q_cells"]
     if label != "raw" and q > ALPHA and pd.notna(raw) and raw <= ALPHA:
-        text += f"; the raw pooled test is not read here: {_why_raw(row, label)}"
+        text += f"; the raw pooled test is not read here: {_why_raw(row, label, words[1])}"
     return text
 
 
@@ -242,6 +245,7 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
         return pd.DataFrame(columns=columns)
     cells = _by_condition(getattr(contrast, "cells", None))
     word = column_word(contrast.settings.get("repeat_col"))
+    words = observation_words(contrast.settings)
     out = []
     for condition, row in rows.iterrows():
         n, lower, higher = int(row["repeats"]), int(row["lower"]), int(row["higher"])
@@ -270,7 +274,7 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
             parts.append(paired)
         left_out = _left_out(contrast, condition, str(row["control_condition"]), word)
         parts[1:1] = [left_out] if left_out else []
-        cell = _cells(cells.loc[condition] if condition in cells.index else None, n == 1)
+        cell = _cells(cells.loc[condition] if condition in cells.index else None, words, n == 1)
         parts += [cell] if cell else []
         reagents = _reagents(contrast, condition, word)
         parts += [reagents] if reagents else []
@@ -298,14 +302,14 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
         control = " · ".join(str(v) for v in contrast.settings["control"].values())
         return [wrap(not_compared(unpaired, control, word), indent, hang=indent + 2)]
     control = listing(sorted(set(map(str, readings["control_condition"]))), 3)
-    unit = contrast.settings["observation_unit"]
+    unit = observation_words(contrast.settings)[0]
     if int(_direction_rows(contrast)["repeats"].max()) == 1:
         # One repeat: no verdict across repeats can occur, so none is explained.
         head = (
             f"Reading, condition by condition, against {control}, in one {word}: the "
             "direction and Cohen's d of that repeat; whether a difference holds across "
             f"repeats needs {MIN_REPEATS} of them (the paired t-test on the repeat means). "
-            f"The cell-level screen (as Plot&Stats, every {unit} an independent draw) is "
+            f"The {unit}-level screen (as Plot&Stats, every {unit} an independent draw) is "
             "exploratory: it finds candidates, not effects that repeat:"
         )
     else:
@@ -316,9 +320,9 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
             f"{family_words(contrast.settings, own=True)}: this is the result to report. Same "
             "direction, not significant: on one side of the control in every repeat without "
             "reaching q ≤ 0.05, a consistent trend and not evidence of no effect (with 3 "
-            "repeats only large, consistent effects reach it). Beside it, the cell-level screen "
-            f"(as Plot&Stats, every {unit} an independent draw) is exploratory: it finds "
-            "candidates, not effects that repeat:"
+            "repeats only large, consistent effects reach it). Beside it, the "
+            f"{unit}-level screen (as Plot&Stats, every {unit} an independent draw) is "
+            "exploratory: it finds candidates, not effects that repeat:"
         )
     design = _design(contrast, control)
     lines = [wrap(design + head, indent, hang=indent + 2)] + [
@@ -432,9 +436,9 @@ def _cells_headline(contrast: Any) -> str:
     chance = _chance_words(min(lows), max(highs)) if lows and highs else ""
     passing = sum(v[2] <= ALPHA for v in tested)
     single = int(_direction_rows(contrast)["repeats"].max()) == 1
-    return f"; exploratory cell-level screen: {passing} of {len(tested)} at q ≤ {ALPHA:g}" + (
-        f" ({_chance_sentence(chance, single)})" if chance else ""
-    )
+    unit = observation_words(contrast.settings)[0]
+    screen = f"; exploratory {unit}-level screen: {passing} of {len(tested)} at q ≤ {ALPHA:g}"
+    return screen + (f" ({_chance_sentence(chance, single)})" if chance else "")
 
 
 __all__ = [

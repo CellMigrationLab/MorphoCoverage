@@ -120,7 +120,6 @@ RESULT_WORDS = {
 _ADJUSTED = (
     (re.compile(r"\bq-values\b"), "adjusted p-values"),
     (re.compile(r"\(q\)"), "(adjusted p)"),
-    (re.compile(r"\bq cell level\b"), "adjusted p, cells"),
     (re.compile(r"\bq repeat means\b"), "adjusted p, repeat means"),
     (re.compile(r"\bq: Benjamini"), "adjusted p: Benjamini"),
     (re.compile(r"Benjamini-Hochberg q\b(?!-)"), "Benjamini-Hochberg adjusted p"),
@@ -136,9 +135,11 @@ _TEXT_NODE = re.compile(r">([^<]+)<")
 _SCRIPT = re.compile(r"(<script\b.*?</script>)", re.DOTALL)
 
 
-# The screen on every observation, as the text report names it: named on the page for the
-# report's observations (``patch-level screen``; owner, 2026-10-02, "cells could be the
-# default").
+# The screen on every observation: the text report names it for the observations
+# ("patch-level screen", the discovery table's "q patch level"); the page's own labels that
+# are written of cells (the glossary, the tab "Cell-level screen") are named here for them
+# too (owner, 2026-10-02, "cells could be the default"). A unit's own word never matches, so
+# nothing is converted twice.
 _SCREEN = re.compile(r"\b([Cc])ell([- ])level\b")
 
 
@@ -151,11 +152,13 @@ def adjusted_p(markup: str, units: str = "cells", one: str = "cell") -> str:
         word = one.capitalize() if match.group(1) == "C" else one
         return f"{word}{match.group(2)}level"
 
+    # The discovery table's column, "q nucleus level" (as the text report writes it).
+    column = re.compile(rf"\bq {re.escape(one)} level\b")
+
     def fix(match: re.Match) -> str:
-        text = match.group(1)
+        text = column.sub(f"adjusted p, {units}", match.group(1))
         for pattern, words in _ADJUSTED:
             text = pattern.sub(words, text)
-        text = text.replace("adjusted p, cells", f"adjusted p, {units}")
         return f">{_SCREEN.sub(screen, text)}<"
 
     parts = _SCRIPT.split(markup)

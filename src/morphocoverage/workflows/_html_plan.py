@@ -386,10 +386,9 @@ def _group_goals(
     )
     plan_sentence = (
         f"Once {name} is validated on the images, label its {result.setup.unit_words} with "
-        "its rule, "
-        f"{rule_words(row)}, and declare it: optimise says how many fields find it in at "
-        f"least {count(OCCURRENCES, 'field')} of every well, in “How many fields next "
-        f"time?”. {rarest}"
+        f"its rule, {rule_words(row, result.setup.unit_words)}, and declare it: optimise says "
+        f"how many fields find it in at least {count(OCCURRENCES, 'field')} of every well, in "
+        f"“How many fields next time?”. {rarest}"
     )
     optimise = [(seen, _panel(plan_sentence, plan_code if counts else ""))]
     live = [_live_rare(result, fovs, name, incidence, where, None, phenotype, terms)]

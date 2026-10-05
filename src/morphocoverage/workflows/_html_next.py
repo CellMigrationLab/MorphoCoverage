@@ -27,6 +27,7 @@ from ..data_check import validate_input_tables
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import traits
+from ..schema import observation_words
 from ._enough_targets import HELD_BACK
 from ._populations import labelled_populations, rule_words, tested_populations
 
@@ -118,11 +119,13 @@ def _repeats_line(discovery: Any) -> str:
     have = " or ".join(str(n) for n in few)
     plural = "s" if few != [1] else ""
     named = "" if len(pilots) == len(counts) else f" for {listing([str(c) for c in pilots], 6)}"
+    unit = observation_words(getattr(discovery, "settings", {}))[0]
     return (
         f"With {have} biological repeat{plural}{named}, no difference can be called "
         f"significant: the test across repeats needs at least {MIN_REPEATS}. Plan at least "
         f"{MIN_REPEATS} (more for small effects), each with its own control; the candidates "
-        "of the cell-level screen, in “Do the conditions differ?”, say which features to watch."
+        f"of the {unit}-level screen, in “Do the conditions differ?”, say which features to "
+        "watch."
     )
 
 
@@ -183,28 +186,29 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
         return ""
     name, share = str(row.name), float(row["share"])
     label = result.setup.rare_label
+    units = result.setup.unit_words
     if _labelled(populations, name, label):
         line = (
             f"Nothing to declare again for {name}: the label {label} already marks its "
-            "cells, and “Did I image enough?” says whether they were seen in enough fields."
+            f"{units}, and “Did I image enough?” says whether they were seen in enough fields."
         )
         return _block([(line, "")])
     fields = _group_fields(result, populations, objects, fovs, name)
-    where = f" (most of its cells are in {', '.join(fields)})" if fields else ""
+    where = f" (most of its {units} are in {', '.join(fields)})" if fields else ""
     validate = (
-        f"First validate {name} ({percent_fine(share)} of the cells; "
+        f"First validate {name} ({percent_fine(share)} of the {units}; "
         f"{traits(row['defining'][:2])}): open the images of its fields{where} and check "
-        "that its cells are one state, not the end of a gradient or an artefact."
+        f"that its {units} are one state, not the end of a gradient or an artefact."
     )
-    rule = rule_words(row)
+    rule = rule_words(row, units)
     study = (
-        f"If it is, label its cells with its rule, {rule}, and declare it as the rare "
+        f"If it is, label its {units} with its rule, {rule}, and declare it as the rare "
         "phenotype: the report then says in “Did I image enough?” whether it was seen in "
         "enough fields of every well. The rule labels new acquisitions the same way; adjust "
         "its thresholds after looking at the images."
         if rule
-        else "If it is, label its cells (the clustering's labels) and declare it as the rare "
-        "phenotype: the report then says in “Did I image enough?” whether it was seen in "
+        else f"If it is, label its {units} (the clustering's labels) and declare it as the "
+        "rare phenotype: the report then says in “Did I image enough?” whether it was seen in "
         "enough fields of every well."
     )
     phenotype = f"{name}: {traits(row['defining'][:2])}"

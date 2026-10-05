@@ -47,6 +47,7 @@ from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
 from .._wording import change, column_word, count, listing, p_value
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
+from ..schema import observation_words
 from ..statistics import cohen_d, paired_t, repeat_values
 from ._common import groups, validated
 from ._experiments import corrected, experiments, not_compared
@@ -289,6 +290,10 @@ class FeatureDiscovery:
         ranked = self.ranking.dropna(subset=["score"])
         return ranked.loc[ranked["confirmed"], "feature"].tolist()
 
+    def _unit(self) -> str:
+        """The word for one observation (``nucleus``; ``cell`` when none was declared)."""
+        return observation_words(self.settings)[0]
+
     def _head(self) -> str:
         n_tests = int(self.tests["p_cells"].notna().sum()) if len(self.tests) else 0
         n = self.settings["n_features"]
@@ -310,8 +315,8 @@ class FeatureDiscovery:
         return (
             f"Which features separate the conditions? {passing} of {count(n, 'feature')} "
             f"{'is a candidate' if passing == 1 else 'are candidates'} in the exploratory "
-            "cell-level screen: they differ for at least one condition (each condition against "
-            "the control, "
+            f"{self._unit()}-level screen: they differ for at least one condition (each "
+            "condition against the control, "
             f"{label}: Cohen's d on the observations normalised to each repeat's control, "
             f"randomization test, q ≤ {alpha:g} after Benjamini-Hochberg within each "
             f"sub-experiment: {family}{self._shuffles()}).{self._unpaired()} Ranked by the "
@@ -369,7 +374,7 @@ class FeatureDiscovery:
             "d",
             "condition",
             "change",
-            "q cell level",
+            f"q {self._unit()} level",
             "q repeat means",
             "repeats",
         ]
@@ -408,10 +413,10 @@ class FeatureDiscovery:
     def _cautions(self) -> list[str]:
         cautions = [
             assumption(
-                "Candidates come from the cell-level test, which treats every observation as "
-                "an independent draw and so finds differences that may not repeat; only the "
-                f"paired t-test on the repeat means ({MIN_REPEATS} or more repeats) decides "
-                "significance."
+                f"Candidates come from the {self._unit()}-level test, which treats every "
+                "observation as an independent draw and so finds differences that may not "
+                f"repeat; only the paired t-test on the repeat means ({MIN_REPEATS} or more "
+                "repeats) decides significance."
             )
         ]
         if len(self.tests) and self.tests["p_paired"].isna().all():
@@ -502,6 +507,7 @@ def feature_discovery(
         "alpha": alpha,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
     }
     contrasts = contrasts_of(described)
     rows = []

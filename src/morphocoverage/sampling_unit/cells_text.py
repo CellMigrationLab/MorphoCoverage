@@ -23,7 +23,7 @@ import pandas as pd
 from .._caveats import assumption
 from .._style import span, table, wrap
 from .._wording import column_word, count, listing, p_value, percent
-from ..schema import unit_plural
+from ..schema import observation_words
 from .contrast_cells import (
     ALPHA,
     BALANCED_DRAWS,
@@ -36,6 +36,11 @@ from .contrast_cells import (
 
 def _cells(contrast: Any) -> pd.DataFrame:
     return getattr(contrast, "cells", pd.DataFrame())
+
+
+def _unit(contrast: Any) -> str:
+    """The word for one observation (``nucleus``; ``cell`` when none was declared)."""
+    return observation_words(contrast.settings)[0]
 
 
 def _test(d: float, p: float, corrected: float) -> str:
@@ -57,7 +62,7 @@ def _chance(row: dict[str, Any], prefix: str = "chance") -> str:
 def _balance(contrast: Any, cells: pd.DataFrame) -> str:
     """The balance check in a sentence."""
     word = column_word(contrast.settings["repeat_col"])
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     unbalanced = cells[cells["unbalanced"]]
     if unbalanced.empty:
         return (
@@ -129,7 +134,7 @@ def _control_only(contrast: Any, cells: pd.DataFrame) -> str:
 def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
     """One sentence per repeat too small to balance to, naming the conditions it concerns."""
     word = column_word(contrast.settings["repeat_col"])
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     flagged = cells[cells["sparse_repeats"].map(len) > 0]
     groups: dict[tuple[tuple[str, ...], int], list[str]] = {}
     for row in flagged.to_dict("records"):
@@ -171,12 +176,12 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
     cells = _cells(contrast)
     if cells.empty or contrast.settings.get("repeat_col") is None:
         return [], []
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     balanced = bool(cells["p_balanced"].notna().any())
     lines = [
         wrap(
-            f"Cell-level screen (exploratory, as in Plot&Stats): Cohen's d on every "
-            f"{contrast.settings['observation_unit']} against the "
+            f"{_unit(contrast).capitalize()}-level screen (exploratory, as in Plot&Stats): "
+            f"Cohen's d on every {_unit(contrast)} against the "
             f"control, the randomization test shuffling the labels over the {words}:",
             indent,
             hang=indent + 2,
@@ -265,11 +270,11 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
 def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
     """The same assumptions in a sentence each, for the short report (the full report and
     docs/condition_tests.md give the formula and the simulations)."""
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     text = (
-        f"The cell-level test treats the {words} as independent, so it asks whether these "
-        "wells differ, not whether the effect repeats. Normalised: each value divided by its "
-        "own repeat's control mean"
+        f"The {_unit(contrast)}-level test treats the {words} as independent, so it asks "
+        "whether these wells differ, not whether the effect repeats. Normalised: each value "
+        "divided by its own repeat's control mean"
     )
     text += (
         f". Balanced: the median over {BALANCED_DRAWS} draws with as many {words} from each repeat."
@@ -281,11 +286,12 @@ def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str
 
 def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
     """The assumptions and limitations of the cell-level test, normalisation and balancing."""
-    words = unit_plural(contrast.settings["observation_unit"])
+    words = observation_words(contrast.settings)[1]
     single = bool(cells["between_sd"].isna().any())
     notes = [
         assumption(
-            f"Cell-level test (Cohen's d, randomization over the {words}): it assumes the "
+            f"{_unit(contrast).capitalize()}-level test (Cohen's d, randomization over the "
+            f"{words}): it assumes the "
             f"{words} are independent draws, so it asks whether these wells differ, not whether "
             "the effect repeats, and it responds with one or two repeats. Limitation: when the "
             f"difference varies between repeats it gives p ≤ {ALPHA:g} without an effect in "
@@ -307,7 +313,8 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
             "removes a scale both wells of a repeat share (staining, imaging) and pairs every "
             "condition with its own repeat's control. It assumes a positive feature on a ratio "
             "scale (not computed when a control mean is 0 or below); it does not remove the part "
-            "of the effect that varies between repeats, so the cell-level chance still applies."
+            "of the effect that varies between repeats, so the "
+            f"{_unit(contrast)}-level chance still applies."
         ),
     ]
     if balanced:
@@ -341,7 +348,7 @@ def cells_headline(contrast: Any) -> str | None:
     if cells.empty or contrast.settings.get("repeat_col") is None:
         return None
     text = (
-        f"cell-level test, raw / normalised: {_passing(cells, 'p_cells')} / "
+        f"{_unit(contrast)}-level test, raw / normalised: {_passing(cells, 'p_cells')} / "
         f"{_passing(cells, 'p_cells_normalised')} of {len(cells)} at q ≤ {ALPHA:g}"
     )
     if cells["p_balanced"].notna().any():
