@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption
-from .._style import table, wrap
+from .._style import span, table, wrap
 from .._wording import column_word, count, listing, p_value, percent
 from ..schema import unit_plural
 from .contrast_cells import (
@@ -63,7 +63,7 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
         return (
             f"Balance: every {word} holds {words} within {percent(IMBALANCE - 1)} of the others, "
             "and each condition is compared with the control of its own repeats, so the test "
-            "is run on the data as provided."
+            "is run on the data as provided." + _control_only(contrast, cells)
         )
     reasons = []
 
@@ -83,11 +83,17 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
         )
     others = unbalanced[unbalanced["other_control_repeats"] > 0]
     if len(others):
-        reasons.append(
-            f"for {which(others)}, the control as provided is pooled from "
-            f"{count(int(others['other_control_repeats'].max()), word)} the condition was not "
-            "imaged in"
-        )
+        # Each condition's own number, in the order named (their range beyond three).
+        held_out = [int(n) for n in others["other_control_repeats"]]
+        if len(set(held_out)) == 1:
+            pooled_from = f"{count(held_out[0], word)} the condition was not imaged in"
+        else:
+            named = len(held_out) <= 3 and len(others) != len(cells)
+            numbers = listing([str(n) for n in held_out]) if named else None
+            pooled_from = f"{word}s the condition was not imaged in " + (
+                f"({numbers} of them)" if numbers else f"({span(held_out)} of them)"
+            )
+        reasons.append(f"for {which(others)}, the control as provided is pooled from {pooled_from}")
     shift = others["control_shift"].max() if len(others) and "control_shift" in others else np.nan
     # A pooled control mixes these levels: the raw test as provided then compares a condition
     # with other repeats' level.
@@ -102,8 +108,22 @@ def _balance(contrast: Any, cells: pd.DataFrame) -> str:
         f"Balance: {'; and '.join(reasons)}; so the test is also given balanced (each "
         f"condition against the control of its own {word}s, the same number of {words} from "
         f"each {word}; the median d and p over {BALANCED_DRAWS} draws), and as provided only "
-        f"where the control comes from the condition's own {word}s." + shifted
+        f"where the control comes from the condition's own {word}s."
+        + shifted
+        + _control_only(contrast, cells)
     )
+
+
+def _control_only(contrast: Any, cells: pd.DataFrame) -> str:
+    """The repeats holding only the control, which no comparison pools; empty without."""
+    repeats = [str(r) for r in contrast.settings.get("control_only_repeats", [])]
+    if not repeats:
+        return ""
+    word = column_word(contrast.settings["repeat_col"])
+    control = listing(sorted(set(map(str, cells["control_condition"]))), 2)
+    which = f"{word} {repeats[0]}" if len(repeats) == 1 else f"{word}s {listing(repeats, 3)}"
+    holds = "holds" if len(repeats) == 1 else "hold"
+    return f" The {control} of {which}, which {holds} no other condition, is in no comparison."
 
 
 def _sparse(contrast: Any, cells: pd.DataFrame) -> list[str]:
@@ -295,7 +315,9 @@ def _notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
             assumption(
                 f"Balanced: the median d and median p over {BALANCED_DRAWS} draws taking the same "
                 f"number of {words} from each repeat, against the control of the condition's own "
-                "repeats; it describes the typical draw and is not the p of one test. In "
+                "repeats; it describes the typical draw and is not the p of one test (where a "
+                "large correction family reruns a p at or below 0.05 with more shuffles, the "
+                "mean p of the two draws at the median d). In "
                 "data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells "
                 "of the others, the test as provided gives 22-46% false positives where equal "
                 "repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control "

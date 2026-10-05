@@ -21,13 +21,15 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._style import Status, group_label
+from .._style import Status, group_label, span
 from .._wording import change, count, listing, p_value
 from ..retrospective.inspection_text import _fields, _keys
+from ..sampling_unit._experiments import not_compared
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
-from ..sampling_unit.reading_text import VERDICTS, condition_readings
+from ..sampling_unit.reading_text import VERDICTS, condition_readings, unpaired_conditions
 from ._distribution import split_words
 from ._enough_features import NOT_YET
+from ._populations import only_labelled
 
 _MARKERS = {status.marker: status for status in Status}
 _MARKER_LINE = re.compile(r"^\s*(✅|⚠️|❌|➖)\s+(.*)$")
@@ -220,7 +222,8 @@ def _condition_bullet(condition: Any, rows: Any, beyond: list[str], split: str =
             | (candidates["higher"] == candidates["repeats"])
         ]
         kept = same if repeats > 1 else candidates
-        both = " that go the same way in both repeats" if repeats == 2 else ""
+        go = "goes" if len(kept) == 1 else "go"
+        both = f" that {go} the same way in both repeats" if repeats == 2 else ""
         words = (
             f"{count(len(kept), 'candidate')}{both}"
             if len(kept)
@@ -244,16 +247,27 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
     distribution = (getattr(result, "results", {}) or {}).get("distribution")
     differing = distribution.differing() if distribution is not None else None
     controls = list(dict.fromkeys(tests["control_condition"].astype(str)))
-    repeats = int(tests["repeats"].max())
+    # Each condition's own number of repeats: one count when they share it, else the range.
+    held = sorted({int(n) for n in tests.groupby("condition", sort=False)["repeats"].max()})
+    repeats = held[-1]
     if repeats >= MIN_REPEATS:
+        across = (
+            f"the {held[0]} biological repeats"
+            if len(held) == 1
+            else f"the biological repeats, {span(held)} per condition"
+        )
         head = (
-            f"Compared with {listing(controls, 3)}, the features significant across the "
-            f"{repeats} biological repeats (the paired t-test on the repeat means, adjusted p "
-            "≤ 0.05):"
+            f"Compared with {listing(controls, 3)}, the features significant across {across} "
+            "(the paired t-test on the repeat means, adjusted p ≤ 0.05):"
         )
     else:
+        have = (
+            count(held[0], "biological repeat")
+            if len(held) == 1
+            else f"{span(held)} biological repeats"
+        )
         head = (
-            f"Compared with {listing(controls, 3)}: with {count(repeats, 'biological repeat')}, "
+            f"Compared with {listing(controls, 3)}: with {have}, "
             f"no feature can be called significant (the test across repeats needs "
             f"{MIN_REPEATS}). The candidates of the cell-level screen, exploratory (every cell "
             "an independent draw, so it asks whether these wells differ, not whether the "
@@ -267,10 +281,20 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
             beyond = [str(f) for f in mine["feature"]]
         split = split_words(distribution, condition)
         bullets.append(_condition_bullet(condition, rows, beyond, split))
+    unpaired = [str(c) for c in getattr(discovery, "settings", {}).get("unpaired", [])]
     return (
         f'<div class="summary"><p>{annotate(html.escape(head))}</p>'
-        f'<ul class="significant">{annotate("".join(bullets))}</ul></div>'
+        f'<ul class="significant">{annotate("".join(bullets))}</ul>'
+        + _not_compared(unpaired, listing(controls, 3), annotate)
+        + "</div>"
     )
+
+
+def _not_compared(unpaired: list[str], control: str, annotate: Callable[[str], str]) -> str:
+    """The conditions no biological repeat holds beside the control, once (empty without)."""
+    if not unpaired:
+        return ""
+    return f"<p>{annotate(html.escape(not_compared(unpaired, control)))}</p>"
 
 
 def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
@@ -281,6 +305,7 @@ def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
     if readings is None or readings.empty:
         return ""
     controls = list(dict.fromkeys(readings["control_condition"].astype(str)))
+    unpaired = _not_compared(unpaired_conditions(contrast), listing(controls, 3), annotate)
     bullets = []
     for verdict in VERDICTS:
         rows = readings[readings["verdict"] == verdict]
@@ -298,18 +323,22 @@ def readout_summary(result: Any, annotate: Callable[[str], str]) -> str:
     head = f"{result.setup.readout}, compared with {listing(controls, 3)}, condition by condition:"
     return (
         f'<div class="summary"><p>{annotate(html.escape(head))}</p>'
-        f'<ul class="significant">{annotate("".join(bullets))}</ul></div>'
+        f'<ul class="significant">{annotate("".join(bullets))}</ul>{unpaired}</div>'
     )
 
 
 def chip_words(result: Any) -> dict[str, str]:
     """The chip words the results decide, by question, where the headline's words could
-    mislead: "Not yet" when no feature has enough fields to compare with the control."""
+    mislead: "Not yet" when no feature has enough fields to compare with the control, "The
+    declared label" when the only group found is the rare label's."""
     words = {}
     features = (getattr(result, "results", {}) or {}).get("enough_features")
     table = getattr(features, "table", None)
     if table is not None and len(table) and (table["verdict"] == NOT_YET).all():
         words["enough"] = "Not yet"
+    # The only group is the declared label's, compared as its share: nothing enriched here.
+    if only_labelled((getattr(result, "results", {}) or {}).get("populations")):
+        words["populations"] = "The declared label"
     return words
 
 

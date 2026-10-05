@@ -451,8 +451,12 @@ acquired:
   the shares (a small share is as steady there as a large one), by the paired
   test across repeats (Benjamini-Hochberg within each sub-experiment); the main
   population is listed but not tested, and a population absent from a condition
-  and its control is not compared. A declared label is matched to the population
-  that holds it. The PCA and UMAP ring each population and group (click its legend
+  and its control in every repeat is not compared (absent from both in some
+  repeats only, it counts as no change there, a log odds ratio of 0, and the
+  repeat stays in n). A declared label is matched to the population that holds
+  it; a group 90% or more of whose cells carry the label is the label's own, and
+  is not tested a second time: its share is compared in "Do the conditions
+  differ?", and the card says so. The PCA and UMAP ring each population and group (click its legend
   entry to hide it), can be coloured by condition, population or any feature, and,
   around points drawn with the lasso, list the conditions and populations they
   come from and the features that set them apart (Cohen's d).

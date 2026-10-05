@@ -359,6 +359,13 @@ def condition_contrast(
         "observation_unit": data.observation_unit,
     }
     contrasts = contrasts_of(described)
+    # Repeats holding only the control: in no comparison, so not in the pooled control.
+    compared = {d["repeat"] for d in described if not d["is_control"]}
+    settings["control_only_repeats"] = (
+        sorted({d["repeat"] for d in described if d["is_control"]} - compared, key=str)
+        if repeat_col is not None
+        else []
+    )
     if not contrasts:
         settings["reason"] = (
             f"Every analysis group is the control {dict(control)}: no other condition to compare."

@@ -38,12 +38,11 @@ from ..schema import unit_plural
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
 from .cells_text import cells_parts
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
-from .reading_text import readings_parts
+from .reading_text import NO_CONTROL, readings_parts
 from .reagents_text import reagents_parts
 from .repeat_plan_text import plan_parts
 from .repeats_text import _range, _repeat_head, _repeat_rows, _repeats, repeat_cautions
 
-NO_CONTROL = "no control group in"
 # Units a side at or below which a d on unit means is not computed: from so few means a d
 # can be very large by chance, so it could not help.
 FEW_UNITS_D = 3
@@ -187,6 +186,9 @@ def _untested(contrast: Any) -> list[str]:
     the usual design, and the test across repeats, when there is one, answers the question."""
     repeat_col = contrast.settings["repeat_col"]
     table_ = contrast.table
+    # A repeat without the control is said once, in the readings ("left out", "Not
+    # compared"), with the conditions it concerns; the others are counted among the rest.
+    table_ = table_[~table_["status"].astype(str).str.startswith(NO_CONTROL)]
     n = len(table_)
     lines: list[str] = []
     untested = table_[table_["status"] != "ok"]

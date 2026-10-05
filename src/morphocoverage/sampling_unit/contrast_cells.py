@@ -37,6 +37,23 @@ only, which balances the other repeats (``balanced_repeats``). The test as
 provided keeps every observation. A sparse repeat on either side is left out of
 both sides, so each condition stays paired with its own repeats' control.
 
+**More permutations where the correction needs them** (owner, 2026-10-02). A
+randomization p from ``B`` shuffles cannot fall below ``1 / (B + 1)``, so with ``K`` tests
+in a family Benjamini-Hochberg cannot give a q below ``K / (B + 1)``: with 210 tests and the
+balanced test's 999 shuffles per draw, three features at that floor got q 0.07, never 0.05,
+whatever their effect. Every test whose p is at most ``ALPHA`` after the first pass is
+therefore rerun with ``B = max(default, ceil(K / ALPHA))`` shuffles (``permutations_for``;
+``K`` the tests of its sub-experiment), so that ``K / (B + 1) < ALPHA``. Only those: the
+threshold of rank ``r`` is ``ALPHA r / K``, at most ``ALPHA``, so a test above it cannot
+pass at any rank, and a smaller p moving never changes the q of a larger one (a q depends
+only on the p-values at or above it). The rerun is seeded from the test's own identity, so
+it does not depend on the order of the tests. The balanced test is rerun on its median
+draws only (``balanced_draws``): the draws at the median ``|d|`` (two for an even number of
+draws), whose mean p replaces the median p. Every draw holds the same numbers of
+observations, so the randomization p falls with ``|d|`` and the median-``|d|`` draws carry
+the median p, up to the Monte Carlo error of the first pass; rerunning all
+``BALANCED_DRAWS`` draws would cost a hundred times as much (``refined``).
+
 It treats observations as independent draws. When the difference varies
 between repeats by ``s`` observation SDs (the variation between repeats that
 ``repeat_plan`` estimates, ``between_sd``), the variance of the mean difference
@@ -67,6 +84,7 @@ count.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import numpy as np
@@ -74,7 +92,7 @@ import pandas as pd
 from scipy import stats
 
 from ..statistics import cohen_d
-from ._experiments import corrected, experiments
+from ._experiments import corrected, experiments, family_sizes
 
 ALPHA = 0.05
 # Balanced resamples per condition, and the shuffles of the randomization test in each.
@@ -121,7 +139,12 @@ CELL_COLUMNS = [
     "chance_balanced_low",
     "chance_balanced_high",
     "experiment",
+    "permutations",
+    "balanced_permutations",
 ]
+# A treated and a control sample a randomization p can be rerun on.
+Pair = tuple[np.ndarray, np.ndarray]
+_P_COLUMNS = ("p_cells", "p_cells_normalised", "p_balanced", "p_balanced_normalised")
 
 
 def effective_per_well(sizes: list[int]) -> float:
@@ -169,23 +192,78 @@ def cell_randomization(
     return float(d), (extreme + 1) / (n_permutations + 1)
 
 
-def balanced_test(
+def balanced_draws(
     treated: list[np.ndarray], control: list[np.ndarray], rng: np.random.Generator
-) -> tuple[float, float, int, int]:
-    """``(median d, median p, cells, control cells)`` over ``BALANCED_DRAWS`` draws taking the
-    same number of observations from every repeat (the fewest any repeat holds); NaN when a
-    repeat holds fewer than 2 on a side."""
+) -> tuple[float, float, int, int, list[Pair]]:
+    """``balanced_test`` and its draws at the median ``|d|`` (two for an even number of
+    draws), which ``refined`` reruns with more shuffles (see the module)."""
     per_t, per_c = min(len(t) for t in treated), min(len(c) for c in control)
     if per_t < 2 or per_c < 2:
-        return np.nan, np.nan, per_t, per_c
-    ds, ps = [], []
+        return np.nan, np.nan, per_t, per_c, []
+    ds, ps, draws = [], [], []
     for _ in range(BALANCED_DRAWS):
         t = np.concatenate([rng.choice(x, per_t, replace=False) for x in treated])
         c = np.concatenate([rng.choice(x, per_c, replace=False) for x in control])
         d, p = cell_randomization(t, c, BALANCED_PERMUTATIONS, rng)
         ds.append(d)
         ps.append(p)
-    return float(np.nanmedian(ds)), float(np.nanmedian(ps)), per_t, per_c
+        draws.append((t, c))
+    sizes = np.abs(np.asarray(ds, dtype=float))
+    order = [int(i) for i in np.argsort(sizes, kind="stable") if np.isfinite(sizes[i])]
+    middle = sorted({order[(len(order) - 1) // 2], order[len(order) // 2]}) if order else []
+    return (
+        float(np.nanmedian(ds)),
+        float(np.nanmedian(ps)),
+        per_t,
+        per_c,
+        [draws[i] for i in middle],
+    )
+
+
+def balanced_test(
+    treated: list[np.ndarray], control: list[np.ndarray], rng: np.random.Generator
+) -> tuple[float, float, int, int]:
+    """``(median d, median p, cells, control cells)`` over ``BALANCED_DRAWS`` draws taking the
+    same number of observations from every repeat (the fewest any repeat holds); NaN when a
+    repeat holds fewer than 2 on a side."""
+    return balanced_draws(treated, control, rng)[:4]
+
+
+def permutations_for(family_size: int, default: int, alpha: float = ALPHA) -> int:
+    """The shuffles a test of a family of ``family_size`` is rerun with when its p is at most
+    ``alpha``: enough that the smallest q, ``K / (B + 1)``, is below ``alpha``, and never
+    fewer than ``default`` (see the module)."""
+    return max(int(default), int(np.ceil(family_size / alpha)))
+
+
+def refined(
+    p_values: pd.Series,
+    family: pd.Series,
+    used: pd.Series,
+    retests: Mapping[Any, list[Pair]],
+    rng_for: Callable[[Any], np.random.Generator],
+    alpha: float = ALPHA,
+) -> tuple[np.ndarray, np.ndarray]:
+    """The p-values once every test at ``p <= alpha`` whose family needs more shuffles than
+    it ``used`` is rerun on its ``retests`` (the mean p over them), and the shuffles behind
+    each p (NaN without one). ``rng_for(index)`` seeds the rerun of the test at ``index``
+    from its identity (see the module)."""
+    sizes = family_sizes(p_values, family)
+    values = p_values.to_numpy(dtype=float).copy()
+    counts = np.where(np.isfinite(values), used.to_numpy(dtype=float), np.nan)
+    for position, index in enumerate(p_values.index):
+        pairs = retests.get(index)
+        if not pairs or not values[position] <= alpha:
+            continue
+        needed = permutations_for(int(sizes[position]), int(counts[position]), alpha)
+        if needed <= counts[position]:
+            continue
+        rng = rng_for(index)
+        values[position] = float(
+            np.mean([cell_randomization(t, c, needed, rng)[1] for t, c in pairs])
+        )
+        counts[position] = needed
+    return values, counts
 
 
 def sparse(sizes: dict[Any, int]) -> list[Any]:
@@ -215,21 +293,23 @@ def _tests(
     kept: list[Any],
     n_permutations: int,
     rng: np.random.Generator,
-) -> tuple[float, float, float, float, int, int]:
-    """``(d, p, d balanced, p balanced, cells, control cells)`` on one set of values: every
-    observation pooled, and the balanced draws over the ``kept`` repeats (none when
-    empty)."""
+) -> tuple[float, float, float, float, int, int, dict[str, list[Pair]]]:
+    """``(d, p, d balanced, p balanced, cells, control cells, retests)`` on one set of
+    values: every observation pooled, and the balanced draws over the ``kept`` repeats (none
+    when empty); ``retests`` holds what ``refined`` reruns, as provided (``"cells"``) and
+    balanced (its median draws)."""
     treated = np.concatenate(list(by_t.values()))
     control = np.concatenate(list(every_control.values()))
     d, p = cell_randomization(treated, control, n_permutations, rng)
     per_t = min(len(x) for x in by_t.values())
     per_c = min(len(x) for x in by_c.values())
     d_bal = p_bal = np.nan
+    middle: list[Pair] = []
     if kept:
-        d_bal, p_bal, per_t, per_c = balanced_test(
+        d_bal, p_bal, per_t, per_c, middle = balanced_draws(
             [by_t[r] for r in kept], [by_c[r] for r in kept], rng
         )
-    return d, p, d_bal, p_bal, per_t, per_c
+    return d, p, d_bal, p_bal, per_t, per_c, {"cells": [(treated, control)], "balanced": middle}
 
 
 def trusted_test(
@@ -252,7 +332,7 @@ def trusted_test(
     kept = [r for r in by_t if r not in small] if unbalanced else []
     scaled = normalised(by_t, every), normalised(by_c, every), normalised(every, every)
     values = scaled if all(x is not None for x in scaled) else (by_t, by_c, every)
-    d, p, d_bal, p_bal, per_t, per_c = _tests(*values, kept, n_permutations, rng)
+    d, p, d_bal, p_bal, per_t, per_c, retests = _tests(*values, kept, n_permutations, rng)
     balanced = bool(kept) and bool(np.isfinite(p_bal))
     return {
         "d": d_bal if balanced else d,
@@ -263,6 +343,9 @@ def trusted_test(
         "control_observations": (
             per_c * len(kept) if balanced else sum(len(x) for x in every.values())
         ),
+        # What refined reruns, and the shuffles behind p (each draw's, when balanced).
+        "retest": retests["balanced" if balanced else "cells"],
+        "permutations": BALANCED_PERMUTATIONS if balanced else n_permutations,
     }
 
 
@@ -280,9 +363,12 @@ def cell_table(
     ``control_by_repeat``: repeat -> values), every control observation of the dataset by
     repeat (``control_all``) and the control label; ``plan`` gives the variation between
     repeats. ``rng_for(condition, values)`` gives the generator of each set of values
-    (``"raw"`` or ``"normalised"``)."""
+    (``"raw"`` or ``"normalised"``; with `` refined`` and the version, the rerun of a small
+    p, ``refined``)."""
     between = plan.set_index("condition")["between_sd"] if len(plan) else pd.Series(dtype=float)
     rows = []
+    # What refined may rerun, per p column: only the tests at p <= ALPHA keep theirs.
+    retests: dict[str, dict[Any, list[Pair]]] = {column: {} for column in _P_COLUMNS}
     for condition, side in pooled.items():
         by_t, by_c, every = (
             side["treated_by_repeat"],
@@ -303,15 +389,24 @@ def cell_table(
         unbalanced = bool(spread > IMBALANCE or others > 0)
         small = sorted(set(sparse(sizes)) | set(sparse(control_sizes)), key=str)
         kept = [r for r in by_t if r not in small] if unbalanced else []
-        d, p, d_bal, p_bal, per_t, per_c = _tests(
+        d, p, d_bal, p_bal, per_t, per_c, raw = _tests(
             by_t, by_c, every, kept, n_permutations, rng_for(condition, "raw")
         )
         scaled = normalised(by_t, every), normalised(by_c, every), normalised(every, every)
         d_n = p_n = d_bal_n = p_bal_n = np.nan
+        scaled_retests: dict[str, list[Pair]] = {}
         if all(x is not None for x in scaled):
-            d_n, p_n, d_bal_n, p_bal_n, _, _ = _tests(
+            d_n, p_n, d_bal_n, p_bal_n, _, _, scaled_retests = _tests(
                 *scaled, kept, n_permutations, rng_for(condition, "normalised")
             )
+        for column, value, pairs in (
+            ("p_cells", p, raw["cells"]),
+            ("p_balanced", p_bal, raw["balanced"]),
+            ("p_cells_normalised", p_n, scaled_retests.get("cells", [])),
+            ("p_balanced_normalised", p_bal_n, scaled_retests.get("balanced", [])),
+        ):
+            if value <= ALPHA:
+                retests[column][condition] = pairs
         s = float(between.get(condition, np.nan)) if condition in between.index else np.nan
         per_well = float(
             np.mean(
@@ -361,9 +456,23 @@ def cell_table(
         {condition: list(side["treated_by_repeat"]) for condition, side in pooled.items()}
     )
     table["experiment"] = table["condition"].map(family)
-    for column in ("p_cells", "p_cells_normalised", "p_balanced", "p_balanced_normalised"):
+    table = table.set_index("condition", drop=False)
+    for column in _P_COLUMNS:
+        balanced = "balanced" in column
+        used = BALANCED_PERMUTATIONS if balanced else n_permutations
+        values = "normalised" if column.endswith("normalised") else "raw"
+        version = "balanced" if balanced else "as provided"
+        table[column], shuffles = refined(
+            table[column],
+            table["experiment"],
+            pd.Series(used, index=table.index),
+            retests[column],
+            lambda condition, v=values, w=version: rng_for(condition, f"{v} refined {w}"),
+        )
+        name = "balanced_permutations" if balanced else "permutations"
+        table[name] = np.fmax(table[name].to_numpy(dtype=float), shuffles)
         table[column.replace("p_", "q_", 1)] = corrected(table[column], table["experiment"])
-    return table
+    return table.reset_index(drop=True)
 
 
 __all__ = [
@@ -375,12 +484,15 @@ __all__ = [
     "MIN_BALANCED",
     "SPARSE",
     "TYPICAL_BETWEEN",
+    "balanced_draws",
     "balanced_test",
     "cell_randomization",
     "cell_table",
     "chance_without_effect",
     "effective_per_well",
     "normalised",
+    "permutations_for",
+    "refined",
     "sparse",
     "trusted_test",
 ]

@@ -77,7 +77,7 @@ def test_with_two_repeats_the_summary_gives_the_candidates_that_agree():
     words = _words(significant_summary(_Result(_tests(2, 1, 1)), str))
     assert "with 2 biological repeats, no feature can be called significant" in words
     # area goes down in one repeat and up in the other: left out.
-    assert "1 candidate that go the same way in both repeats" in words
+    assert "1 candidate that goes the same way in both repeats" in words
     assert "dna: higher" in words and "area" not in words.split("drug")[-1]
 
 

@@ -28,13 +28,11 @@ from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import traits
 from ._enough_targets import HELD_BACK
-from ._populations import rule_words, tested_populations
+from ._populations import labelled_populations, rule_words, tested_populations
 
 # The reservoir optimise holds back to judge each stop, as in docs/workflows.md (one
 # value with the fingerprint's answer, ``_enough_targets.HELD_BACK``).
 RESERVOIR = HELD_BACK
-# A population this labelled is the declared rare label's: not declared again.
-LABELLED = 0.9
 # The fields named to open for a group.
 FIELDS_SHOWN = 3
 _COUNTS = (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96)
@@ -154,10 +152,7 @@ def _chosen_population(populations: Any) -> Any | None:
 def _labelled(populations: Any, name: str, label: str | None) -> bool:
     """Whether ``name`` is the declared rare label's population (most of it labelled)."""
     overlap = getattr(populations, "label", None)
-    if not label or overlap is None or not len(overlap):
-        return False
-    row = overlap[overlap["population"] == name]
-    return bool(len(row)) and float(row["purity"].iloc[0]) >= LABELLED
+    return bool(label) and name in labelled_populations(overlap)
 
 
 def _group_fields(
@@ -190,9 +185,8 @@ def populations_next(result: Any, fovs: pd.DataFrame, objects: pd.DataFrame | No
     label = result.setup.rare_label
     if _labelled(populations, name, label):
         line = (
-            f"{name} is the declared rare phenotype, {label}: most of its cells carry the "
-            "label. Its sampling is answered in “Did I image enough?”, with the label "
-            "itself; nothing to declare again."
+            f"Nothing to declare again for {name}: the label {label} already marks its "
+            "cells, and “Did I image enough?” says whether they were seen in enough fields."
         )
         return _block([(line, "")])
     fields = _group_fields(result, populations, objects, fovs, name)

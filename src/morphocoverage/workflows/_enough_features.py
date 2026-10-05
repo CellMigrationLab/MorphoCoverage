@@ -278,11 +278,14 @@ def features_status(
         # Beyond PRACTICAL times the fields: these need the most, said before any projection.
         many = count(int(small["too_small"].sum()), "comparison")
         beyond = f"even with {PRACTICAL} times the {fields}"
+        # The comparisons are counted over the features named, not per feature.
+        names = list(small["feature"].astype(str))
         text += (
             f"; {many} too small to show {beyond}, over all {len(rows)} features"
             if len(small) == len(rows) and len(rows) > 2
-            else f"; {listing(list(small['feature'].astype(str)), 3)}: too small to show in "
-            f"{many} {beyond}"
+            else f"; {many} of {names[0]} too small to show {beyond}"
+            if len(names) == 1
+            else f"; {many} over {listing(names, 3)} too small to show {beyond}"
         )
     if len(open_):
         worst = open_.loc[open_["fields_high"].idxmax()]
