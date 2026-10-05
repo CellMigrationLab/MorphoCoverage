@@ -7,7 +7,7 @@ answer MorphoCoverage gives on it can be checked against the truth.
 
 - **Design:** 2 conditions × 3 biological repeats × 5 wells × 6 fields, so 180
   fields.
-- **Tables:** in the MorphoBricks format (`docs/data_format.md`):
+- **Tables:** in the MorphoBricks format (`docs/common/data_format.md`):
   - `synthetic_fovs.csv`: one row per acquired field;
   - `synthetic_cells.csv`: one row per cell, 2,421 cells.
 - **Empty fields:** field 4 of every well holds no cell, so 30 fields are

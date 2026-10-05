@@ -1,6 +1,6 @@
 """More fields or more samples? A scalar hierarchical effort projection.
 
-Question P10 of ``docs/questions.md``. For one declared scalar measurement (the
+Question P10 of ``docs/optimise/optimise.md``. For one declared scalar measurement (the
 mean of a feature; a phenotype-state fraction is the mean of a 0/1 feature) and
 a declared ``SamplingHierarchy`` (observation within FOV within sample,
 optionally within biological repeat), it asks where the sampling uncertainty of

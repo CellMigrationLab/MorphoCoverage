@@ -176,7 +176,7 @@ class DesignScan:
         ``goal="averages"`` compares the population averages (the readout's mean);
         ``"fingerprint"`` needs ``fingerprint=(OutcomeCriterion(...), ...)`` and ``"rare"``
         needs ``rare=RareTarget(...)`` in ``fields``, since their tolerances are the user's
-        choice (``docs/workflows.md``). The control must be declared or answered: a guessed
+        choice (``docs/common/setup.md``). The control must be declared or answered: a guessed
         control is never used silently.
         """
         if goal not in GOALS:
@@ -185,7 +185,7 @@ class DesignScan:
         if needed and not fields.get(needed):
             raise ValueError(
                 f"goal={goal!r} needs {needed}=... in the Setup: its tolerance is a scientific "
-                "choice with no default (see docs/workflows.md, 'What must the acquisition "
+                "choice with no default (see docs/common/setup.md, 'What must the acquisition "
                 "preserve?')"
             )
         settings = self.settings

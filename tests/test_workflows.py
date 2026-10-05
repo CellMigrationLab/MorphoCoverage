@@ -1,7 +1,7 @@
 """The workflows (report, optimise, benchmark, live): they run end to end and add nothing.
 
 Constructed data only check that each mode runs, is deterministic and keeps
-its contracts; the real-data runs are in ``docs/workflows.md``.
+its contracts; the real-data run times are in ``docs/report/running_a_report.md``.
 """
 
 from __future__ import annotations
@@ -434,7 +434,7 @@ def test_summary_questions_select_and_reject():
         result.document.summary(["not_a_question"])
 
 
-# --- Regressions from the adversarial review (docs/workflows.md, "Live sources") ---
+# --- Regressions from the adversarial review (docs/live/live_session.md) ---
 
 
 def _simple_session():

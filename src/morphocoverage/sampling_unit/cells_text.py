@@ -271,7 +271,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
 
 def _short_notes(contrast: Any, cells: pd.DataFrame, balanced: bool) -> list[str]:
     """The same assumptions in a sentence each, for the short report (the full report and
-    docs/condition_tests.md give the formula and the simulations)."""
+    docs/report/conditions.md give the formula and the simulations)."""
     words = observation_words(contrast.settings)[1]
     text = (
         f"The {_unit(contrast)}-level test treats the {words} as independent, so it asks "

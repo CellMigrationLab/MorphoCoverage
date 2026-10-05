@@ -2,7 +2,7 @@
 
 ``microscopist_report`` takes the results a user has computed
 (each analysis stays a separate, inspectable call) and orders their plain
-sentences by the questions of ``docs/questions.md``. It opens with the
+sentences by the questions of ``docs/report/questions.md``. It opens with the
 foundation every other answer rests on, then answers the questions in order:
 
 - Foundation: why count fields, and not only objects? (``sampling_unit``:
@@ -194,7 +194,7 @@ class MicroscopistReport:
         section's header with its marker. The dataset overview and the
         declaration of what the acquisition was asked to preserve, when given,
         come first, and the closing section, "What this dataset cannot tell
-        me" (R6 of ``docs/questions.md``), lists every question not assessed
+        me" (R6 of ``docs/report/questions.md``), lists every question not assessed
         with what it needs and the notes to read the answers with, whatever
         ``questions`` selects.
         """

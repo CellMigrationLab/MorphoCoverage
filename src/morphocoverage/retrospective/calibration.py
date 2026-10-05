@@ -1,6 +1,6 @@
 """Stopping-rule calibration: when this rule says stop, how often is that premature?
 
-Question P6 of ``docs/questions.md``. Sequential, because a stopping rule can
+Question P6 of ``docs/optimise/optimise.md``. Sequential, because a stopping rule can
 depend on the order in which FOVs arrive: a random set of 20 FOVs does not say
 whether the rule would already have stopped at 14. On each replayed acquisition
 of ``replay`` (a fixed held-back reservoir per split, several orders of the

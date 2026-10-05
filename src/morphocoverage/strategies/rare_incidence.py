@@ -1,6 +1,6 @@
 """Beta-binomial evidence on a labelled rare state's FOV incidence, with recurrence.
 
-Described in ``docs/architecture.md``. The
+Described in ``docs/common/architecture.md``. The
 objective's ``RareTarget`` states the incidence ``p*`` (``fov_incidence``) at
 which a state must be detected in ``r`` (``min_fov_occurrences``) FOVs. With
 ``x`` of the ``k`` visible FOVs showing the labelled state (acquired FOVs

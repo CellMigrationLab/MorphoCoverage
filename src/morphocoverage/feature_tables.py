@@ -7,7 +7,7 @@ feature tables**, each with a name ("DINOv2", "DINOv3"), so that several models 
 loaded side by side and compared (owner, 2026-10-05). They are never tested feature by
 feature; with the explainable features they make the space of the maps, the populations,
 unusual observations, novelty, the copy checks and the declared fingerprint
-(``workflows``, ``docs/data_format.md``).
+(``workflows``, ``docs/common/data_format.md``).
 
 ``attach_feature_tables`` validates every table against the observation table and returns
 the observation table with every table's columns attached (``FeatureTables``). One row of a

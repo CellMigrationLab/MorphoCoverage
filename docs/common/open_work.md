@@ -7,13 +7,13 @@ first. The question codes are those of [the report](../report/questions.md),
 1. The benchmark behind the remaining **Benchmark** rows: the distribution
    questions of R2, P1 (a method's recommended number against the realized
    need), P10 and O6, which need deeper held-out data. The score and the mean
-   and rare-state rows are done (`docs/benchmarking.md`, "The score").
+   and rare-state rows are done (`docs/optimise/benchmarking.md`, "The score").
 2. A multi-group outcome for the benchmark: whether a treatment comparison
    survives whole-field sampling. Its first part is
    `retrospective.effect_preservation` (owner, 2026-10-05): for one feature,
    how often `k` fields a side preserve each repeat's difference from the
    control, judged on held-back fields, "not evaluable" when those do not
-   establish it (`docs/benchmarking.md`). It is standalone; feeding it to
+   establish it (`docs/optimise/optimise.md`). It is standalone; feeding it to
    `optimise` and the report waits for the owner's decision on the
    multi-group outcome contract, which needs its own contract registry
    (AGENTS.md section 9). The object-count version is
@@ -49,7 +49,7 @@ first. The question codes are those of [the report](../report/questions.md),
     by the user): today allocations are compared at equal total FOVs, which
     is not equal cost, since a sample costs preparation that a field does not.
 11. Excess FOVs beyond the adequacy points in benchmark records, and their
-    aggregation into a regime map (`docs/benchmarking.md`): the adequacy
+    aggregation into a regime map (`docs/optimise/benchmarking.md`): the adequacy
     points exist, the benchmark does not yet report what was imaged past
     them.
 12. A diagnostic of technical drift between repeats, batches or plates: a
@@ -57,7 +57,7 @@ first. The question codes are those of [the report](../report/questions.md),
     shifted fields support each other), and the report says "not assessed".
 13. Uncertainty semantics: a rule that every interval, bound or percentage
     says what it covers and at what unit, a table in
-    `docs/scientific_contract.md` of the five kinds (parameter confidence,
+    `docs/common/scientific_contract.md` of the five kinds (parameter confidence,
     next-field prediction, population tolerance, empirical calibration,
     protocol generalization) with the function behind each, and one
     field-to-field tolerance sentence in the Foundation ("representative
@@ -81,7 +81,7 @@ first. The question codes are those of [the report](../report/questions.md),
     the protocol curve spans more than one unit of it, or "not assessed".
 18. Two process rules for AGENTS.md: a dataset stops being held out for a
     choice once its results influence that choice (section 9 and
-    `docs/benchmarking.md`; no setting has yet been chosen on idr0139), and a
+    `docs/optimise/benchmarking.md`; no setting has yet been chosen on idr0139), and a
     new method names the microscopist's question it improves that the simpler
     tools cannot answer reliably (section 20).
 19. Smaller items left open by the 2026-09-25 audit: advice when missing
@@ -99,4 +99,4 @@ first. The question codes are those of [the report](../report/questions.md),
 21. A calibrated near-duplicate detector (fields whose distributions are
     near-identical but not identical), opt-in and calibrated on imaging
     datasets before any threshold is used; the exact integrity checks are in
-    `docs/integrity.md`.
+    `docs/report/integrity.md`.

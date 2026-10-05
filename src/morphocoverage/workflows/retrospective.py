@@ -2,8 +2,8 @@
 
 Each takes the two linked tables (every acquired FOV, including empty ones,
 and the observations) and a ``Setup``, runs the package's analyses in the
-order of ``docs/questions.md``, and returns every result with a ``summary()``
-in sentences:
+order of ``docs/report/questions.md`` and ``docs/optimise/optimise.md``, and returns every
+result with a ``summary()`` in sentences:
 
 - ``report`` (REPORT: the Foundation, then R1 to R7): fields against objects, the representation
   control, what each rule says, the sampling profile with rare-object

@@ -1,6 +1,6 @@
 # AGENTS.md - MorphoCoverage
 
-> This file is the authoritative engineering context for any AI agent or contributor working in this repository. Read it completely before taking action, and read `docs/project_aim.md` before changing any estimator, scientific claim, validation design, or stopping rule. Prefer repository evidence, tests, and documented scientific contracts over assumptions.
+> This file is the authoritative engineering context for any AI agent or contributor working in this repository. Read it completely before taking action, and read `docs/common/project_aim.md` before changing any estimator, scientific claim, validation design, or stopping rule. Prefer repository evidence, tests, and documented scientific contracts over assumptions.
 
 ## 1. Project identity
 
@@ -27,7 +27,7 @@ The central questions are:
 
 > Is another representative FOV likely to provide enough useful new information to justify acquiring it?
 
-The exact mathematical solution is intentionally unresolved. See `docs/project_aim.md`. The microscopist's questions, grouped by moment of use (REPORT, OPTIMISE, ONLINE) with the information each may use, are listed in `docs/questions.md`, starting with the Foundation: whether the field, not only the object, must be counted as the sampling unit; new analyses should name the question they answer there.
+The exact mathematical solution is intentionally unresolved. See `docs/common/project_aim.md`. The microscopist's questions, grouped by workflow (REPORT, OPTIMISE, LIVE) with the information each may use, are listed in `docs/report/questions.md` (R1-R8, starting with the Foundation: whether the field, not only the object, must be counted as the sampling unit), `docs/optimise/optimise.md` (P1-P10) and `docs/live/live_session.md` (O1-O9), from `docs/README.md`; new analyses should name the question they answer there.
 
 The microscope samples spatial acquisition positions. In MorphoCoverage, **one FOV means one independently selected XY acquisition position**, regardless of how many z-planes, channels, or time points were acquired there. Feature observations such as cells, nuclei, patches, slice-level measurements, embeddings, channels and time points are nested inside that position. Therefore cell/object/plane count alone is not assumed to be an adequate measure of spatial sampling effort.
 
@@ -105,7 +105,7 @@ Scientific rules:
 - owning the user's final biological-condition inference workflow;
 - microscope hardware control.
 
-MorphoCoverage does not replace the user's final biological inference workflow, but the report answers "Do the conditions differ, and how confidently?" (question 9, `sampling_unit.condition_contrast`; owner decisions of 2026-09-26, 2026-09-30 and 2026-10-01; the tests, their assumptions and limitations and the simulation evidence are in `docs/condition_tests.md`). Per condition against the declared control, it gives:
+MorphoCoverage does not replace the user's final biological inference workflow, but the report answers "Do the conditions differ, and how confidently?" (question 9, `sampling_unit.condition_contrast`; owner decisions of 2026-09-26, 2026-09-30 and 2026-10-01; the tests, their assumptions and limitations and the simulation evidence are in `docs/report/conditions.md`). Per condition against the declared control, it gives:
 
 - **across biological repeats**, the repeat as the replicate (SuperPlots): the direction in every repeat, the per-repeat Cohen's d, and from 3 repeats the paired t-test on the repeat means, raw and on the log ratios to the control of the same repeat (`contrast_repeats`); the exact sign-flip test only where it can reach 0.05 after Bonferroni (from 6 repeats, full report);
 - **the lab's Plot&Stats cell-level test**: Cohen's d and a randomization test over the observations pooled as provided, on raw values and on values divided by the mean of the same repeat's control, labelled with its chance of p <= 0.05 without an effect, `2·P(Z > 1.96/√(1 + n·s²/2))` (`n` the observations per well, each repeat weighted by its share; `s` the SD between repeats), checked against `data/simulations/test_choice.py` and `unbalanced.py` (`contrast_cells`). When the repeats are unbalanced (one holds more than 25% more observations than another on a side, or the control is pooled from repeats the condition was not imaged in) it is also given balanced: against the control of the condition's own repeats, one permutation test whose d is the median over 100 draws of the same number of observations from every repeat and whose p shuffles the condition and control labels within each repeat, the same statistic on the same draws for each shuffle, `(extreme + 1) / (B + 1)` (owner, 2026-10-05; before, the median p over the draws, which is not the p of one test). A repeat under a quarter of the median repeat (or with fewer than 5 observations) is named and left out of the balanced test only;
@@ -180,9 +180,9 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 
 **The former name `repeat`.** Tables that still use `repeat` are accepted with one `DeprecationWarning` per call ("'repeat' is the former name of 'biological_repeat'; rename the column ... it will be removed in a later version"), at the input boundary only: `_former_repeat` is called where tables and column arguments enter (the validator, `check_tables`, the workflows, `OnlineSession`, `LiveTables`, `LiveFolder` manifests, and the public functions that read a column argument themselves). A `repeat` column in a table without `biological_repeat` is read as `biological_repeat`; the caller's tables are not modified and results use `biological_repeat`. A table with both columns is refused unless they are identical (then warned about, and `biological_repeat` used). `group_cols`, `fov_col`, `control` and `Setup`/`SamplingHierarchy` fields naming `repeat` are translated the same way. The biological repeat seeds random draws under its former name (`_seeds`), so the renaming changed no result. Near misses of either repeat (`bio_repeat`, `biological repeat`, `Metadata_biological_repeat`, `tec_repeat`, `tech_rep`, `Repeat`, `repeats`, ...) are refused by `metadata.canonical_spelling` with "did you mean ...?", never pooled.
 
-The user-facing description of both tables, every mandatory and optional column, and the validation rules is [`docs/data_format.md`](docs/data_format.md); keep it in step with this section, with `schema.validate_input_tables` and with `data_check.check_tables` (which must accept exactly what the validator accepts). `tests/test_data_check.py` checks that agreement, and `tests/test_docs.py` runs the page's example and checks that every shared column is listed.
+The user-facing description of both tables, every mandatory and optional column, and the validation rules is [`docs/common/data_format.md`](docs/common/data_format.md); keep it in step with this section, with `schema.validate_input_tables` and with `data_check.check_tables` (which must accept exactly what the validator accepts). `tests/test_data_check.py` checks that agreement, and `tests/test_docs.py` runs the page's example and checks that every shared column is listed.
 
-An optional shared column that is empty in every row (`position_id`, `technical_repeat`: `metadata.EMPTY_MEANS_ABSENT`) is read as absent, because producers that write every column, CellPatcher among them, leave it empty when it does not apply; a partly empty one still raises, and one named explicitly in `group_cols`/`fov_col` is kept; when only the observation table's copy is empty, the FOV table's values are used. Group metadata such as `condition`/`biological_repeat` may live only in the FOV table when the supplied FOV identifier (with the other group columns, when field names restart in each repeat) maps unambiguously to one metadata value; the validator then attaches it to observation rows. A MorphoBricks column in the observations but not in the FOV table raises. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/architecture.md` and `docs/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `biological_repeat`, since no dates exist in the source (see its README); its stored files keep the former name `repeat`, which `datasets.load` renames on load.
+An optional shared column that is empty in every row (`position_id`, `technical_repeat`: `metadata.EMPTY_MEANS_ABSENT`) is read as absent, because producers that write every column, CellPatcher among them, leave it empty when it does not apply; a partly empty one still raises, and one named explicitly in `group_cols`/`fov_col` is kept; when only the observation table's copy is empty, the FOV table's values are used. Group metadata such as `condition`/`biological_repeat` may live only in the FOV table when the supplied FOV identifier (with the other group columns, when field names restart in each repeat) maps unambiguously to one metadata value; the validator then attaches it to observation rows. A MorphoBricks column in the observations but not in the FOV table raises. If an FOV identifier is reused across different metadata values, callers must include the grouping columns on the observation rows or use a globally unique FOV identifier. Non-canonical spellings still raise unless named explicitly. Columns MorphoCoverage adds or recognises beyond the shared contract (`fov_id` as a fallback FOV identifier, `label_id`, acquisition order, stage coordinates, area) are documented in `docs/common/architecture.md` and `docs/common/morphobricks_fov_contract.md`. The test data in `data/crick_idr/` uses plate IDs as `biological_repeat`, since no dates exist in the source (see its README); its stored files keep the former name `repeat`, which `datasets.load` renames on load.
 
 ### Outputs
 
@@ -305,7 +305,7 @@ src/morphocoverage/
         overview.py        # what is in the dataset: counts, features, conditions, repeats, technical repeats
         _value_checks.py   # private: checks of the values: fields more alike than chance, features with few distinct values
         _text.py           # private: retrospective wording (samples, units, order phrases); re-exports _wording
-    sampling_unit/         # why count fields? the Foundation and R4 of docs/questions.md
+    sampling_unit/         # why count fields? the Foundation and R4 of docs/report/questions.md
         __init__.py        # the subpackage's public names
         variability.py     # FOV variability: variance components, design effect, unusual FOVs
         object_rules.py    # mean-precision rule and JCS descriptor spread with random objects and whole FOVs
@@ -433,8 +433,15 @@ data/
                            # unusual_calibration.py) and results
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
 
-docs/                      # questions.md (the questions and their status), glossary.md (generated from glossary.py), condition_tests.md (question 9's tests,
-                           # assumptions and limitations), data_format.md, workflows.md, preliminary_findings.md, ...
+docs/                      # README.md: start here, the three workflows and a reading order
+    report/                # REPORT: running_a_report.md, questions.md (R1-R8 in page order), did_i_image_enough.md,
+                           # conditions.md (question 9's tests, several controls), figures.md, feature_tables_and_maps.md,
+                           # integrity.md, objects_or_fields.md
+    optimise/              # OPTIMISE: optimise.md (P1-P10, held-back outcomes), benchmarking.md, sampling_objectives.md
+    live/                  # LIVE: live_session.md (O1-O9), stopping_rules.md, online_acquisition.md
+    common/                # setup.md, data_format.md, glossary.md (generated from glossary.py), project_aim.md,
+                           # scientific_contract.md, architecture.md, morphobricks_fov_contract.md, open_work.md
+    audit/, proposals/, preliminary_findings.md  # records, kept as written
 
 `tests/test_contracts.py` checks that every module under `src/morphocoverage/` is listed above, as it checks section 9's scenarios. A new strategy family goes in its own module under `strategies/` (section 20). Future modules should be added only when the corresponding behavior is implemented and tested. Do not pre-create a `novelty`, `coverage`, or estimator architecture that implicitly selects a scientific solution before comparative validation. Data-preparation scripts live next to their data, not in the package.
 
@@ -601,13 +608,13 @@ For substantive work, report briefly:
 
 ## 17. Sampling objectives, MorphoBricks defaults, and benchmarking
 
-The sampling objective is separate from the mathematical strategy. Its components are the targets the microscopist declares: the population summary, the phenotypic fingerprint (the `distribution` component) and the rare phenotype with an explicit user target. The objectives are `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare) and `all`. A rule with no evidence about a required component is `unsupported` for the objective and never `stop`; its own verdict is `StrategyResult.rule_decision`, which self-assessments, replays and calibrations read (`docs/sampling_objectives.md`).
+The sampling objective is separate from the mathematical strategy. Its components are the targets the microscopist declares: the population summary, the phenotypic fingerprint (the `distribution` component) and the rare phenotype with an explicit user target. The objectives are `population`, `distribution`, `rare_discovery`, `phenotype` (summary and fingerprint), `balanced` (summary and rare) and `all`. A rule with no evidence about a required component is `unsupported` for the objective and never `stop`; its own verdict is `StrategyResult.rule_decision`, which self-assessments, replays and calibrations read (`docs/optimise/sampling_objectives.md`).
 
 MorphoBricks metadata handling is centralized. When available, condition, biological_repeat and technical_repeat are kept as independent analysis groups by default and always remain part of FOV identity, even when pooling; `position_id` is preferred as the spatial FOV identifier and `image_file` is only a fallback when one file equals one position; shared metadata columns such as mask_file and patch_file are preserved as metadata rather than phenotype features. Intentional pooling requires an explicit empty group list or another explicit grouping choice.
 
 Strategies must not reimplement condition/repeat splitting. Each core prospective strategy receives one resolved analysis group at a time, and every result records its group identity, parameters, objective, FOV count, observation count/unit, and measured runtime. Methods that require several groups belong in an explicit planning/comparator layer (as with JCB multi-sample planning), not inside a normal group-local estimator. Retrospective benchmark outcomes may compare groups when the purpose is to test whether a stopping rule preserves the biological analysis. This scope expansion is deliberate: it changes the repository contract so that biological-condition comparisons are permitted **only** as retrospective benchmark outcomes or explicit planning comparators, never as hidden inputs to ordinary prospective estimators.
 
-Scientific and computational benchmarking are separate dimensions. Runtime is first-class because smart microscopy requires a decision before the next acquisition is needed. See docs/sampling_objectives.md, docs/benchmarking.md, and docs/architecture.md.
+Scientific and computational benchmarking are separate dimensions. Runtime is first-class because smart microscopy requires a decision before the next acquisition is needed. See docs/optimise/sampling_objectives.md, docs/optimise/benchmarking.md, and docs/common/architecture.md.
 
 ## 18. MorphoBricks pipeline position
 
@@ -624,7 +631,7 @@ Scientific and computational benchmarking are separate dimensions. Runtime is fi
 | 2 | fiberfeatures (and other extractors, e.g. DINO, Nyxus, CellProfiler) | Feature extraction | https://github.com/CellMigrationLab/fiberfeatures |
 | 3 | MorphoCoverage | FOV-aware sampling adequacy | https://github.com/CellMigrationLab/MorphoCoverage |
 
-Inputs: a phenotype-observation feature table from any step-2 tool, plus a FOV table that lists every acquired spatial position, including positions without observations. Current step-1/step-2 outputs do not yet emit such a table; `docs/morphobricks_fov_contract.md` lists what they need to change.
+Inputs: a phenotype-observation feature table from any step-2 tool, plus a FOV table that lists every acquired spatial position, including positions without observations. Current step-1/step-2 outputs do not yet emit such a table; `docs/common/morphobricks_fov_contract.md` lists what they need to change.
 
 Usage contexts: importable API and notebooks. A CLI is deferred (section 3).
 

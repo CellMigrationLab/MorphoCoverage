@@ -1,8 +1,8 @@
 """Apparent and realized adequacy: when a rule would have stopped, and when it was really enough.
 
-Questions R2 and P4 of ``docs/questions.md``. Four points along one replayed
-acquisition, each a number of FOVs, or ``None`` when not reached within the
-stream:
+Questions R2 (``docs/report/questions.md``) and P4 (``docs/optimise/optimise.md``). Four
+points along one replayed acquisition, each a number of FOVs, or ``None`` when not reached
+within the stream:
 
 - ``first_apparent``: the first evaluated prefix whose decision is stop.
 - ``sustained_apparent``: the earliest prefix from which every later evaluated

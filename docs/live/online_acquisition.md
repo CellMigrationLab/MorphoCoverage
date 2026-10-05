@@ -78,7 +78,7 @@ A field whose observations or `fov_metadata` still name the biological repeat
 `LiveFolder.poll`/`watch` call, whatever the number of fields it adds);
 `group_cols` or `fov_col` naming `repeat` are read the same way. A field that
 holds both names with different values is refused, and the session is left as
-it was (`docs/data_format.md`).
+it was (`docs/common/data_format.md`).
 
 ## Incremental versus recomputed methods
 

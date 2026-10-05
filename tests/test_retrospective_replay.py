@@ -48,7 +48,7 @@ def _replay(scenario, strategies, criteria=(MEAN_A,), **kwargs):
     )
 
 
-# --- The adequacy points (the examples of docs/benchmarking.md) --------------------
+# --- The adequacy points (the examples of docs/live/stopping_rules.md) --------------------
 
 
 def test_apparent_points_follow_the_documented_example():

@@ -1,7 +1,7 @@
 """Sampling reliability: if I acquire ``k`` representative FOVs, how often is that enough?
 
 The strategy-independent answer to "how many FOVs should I image next time?"
-(P1 of ``docs/questions.md``). No
+(P1 of ``docs/optimise/optimise.md``). No
 stopping rule is involved; whether a rule stops at the right time is a
 separate, sequential question.
 

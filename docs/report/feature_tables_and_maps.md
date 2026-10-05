@@ -19,7 +19,7 @@ html_report(result, objects, fovs, "results", feature_tables=tables)
 ```
 
 Each table is checked against the observation table at loading
-([its rules](data_format.md#other-feature-tables-embeddings-beside-the-explainable-features):
+([its rules](../common/data_format.md#other-feature-tables-embeddings-beside-the-explainable-features):
 every observation matched exactly once by the same identity, numeric columns, missing
 values counted, no clashing names, a name of its own), and `result.setup.feature_tables`
 names their columns. They are never tested feature by feature, and there is no

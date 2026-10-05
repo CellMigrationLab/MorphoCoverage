@@ -1,10 +1,10 @@
 # Benchmarking strategies
 
-The questions being benchmarked are the rows marked **Benchmark** in `docs/questions.md` (R2, R3, P1, P5, P6, P10, O6); the other questions are measurements or diagnostics, reported but not ranked.
+The questions being benchmarked are the rows marked **Benchmark** in the question tables of [REPORT](../report/questions.md), [OPTIMISE](optimise.md) and [LIVE](../live/live_session.md) (R2, R3, P1, P5, P6, P10, O6); the other questions are measurements or diagnostics, reported but not ranked.
 
 MorphoCoverage is a method-comparison framework. Candidate strategies must be evaluated using common criteria that are independent of any one strategy's internal score.
 
-The candidate estimators not yet built, with the benchmark requirements they must meet, are listed in [`docs/proposals/candidate_estimators_roadmap.md`](proposals/candidate_estimators_roadmap.md).
+The candidate estimators not yet built, with the benchmark requirements they must meet, are listed in [`docs/proposals/candidate_estimators_roadmap.md`](../proposals/candidate_estimators_roadmap.md).
 
 ## Primary scientific benchmark: deeply sampled real datasets
 
@@ -41,7 +41,7 @@ Synthetic data remain useful for unit tests, explicit counterexamples, and regre
 
 - **Timing.** Every record carries estimator compute time, whole-decision latency up to the stop, and the median and maximum per-step decision latency. Only decisions up to the actual stop contribute to these summaries; later replay steps are retrospective and must not inflate the latency of a microscope that would already have stopped. `run_benchmark(..., incremental=True)` replays incremental estimators FOV by FOV, as online acquisition would. The `Timing` breakdown on each result separates estimator time from framework overhead.
 
-Adequacy points are now defined (`morphocoverage.retrospective.adequacy_points`, below). Not yet implemented: excess FOVs beyond them in benchmark records, and aggregation into a regime map.
+Adequacy points are now defined (`morphocoverage.retrospective.adequacy_points`, in [Stopping rules](../live/stopping_rules.md#does-this-stopping-rule-work-calibration-and-adequacy-points)). Not yet implemented: excess FOVs beyond them in benchmark records, and aggregation into a regime map.
 
 **Registered datasets** (`data/crick_idr/datasets.py`, a `BenchmarkRegistry`). idr0028 (committed subset: 12 wells × 28 FOVs on 3 plates) is the **development** dataset: every preset and definition of new was chosen on it, and it sets no protocol. idr0139 (10 wells × 4 FOVs on one plate, the JCS case study) is registered **held out**: never used to choose a setting, so `check_tuning` refuses a run that claims to be tuned on it. It is shallow (a 2-field reservoir judges 1 or 2 stream fields), so it can refute a development conclusion but not establish a field number; `heldout_idr0139.py` runs that check (`docs/preliminary_findings.md`, entry 7). Deeper held-out data are still needed.
 
@@ -59,7 +59,7 @@ Adequacy points are now defined (`morphocoverage.retrospective.adequacy_points`,
 
 A family is either strategies replayed side by side (`family`) or one replayed configuration re-decided at many thresholds (`sweep`, which uses `redecide` on results kept with `replay_acquisitions(keep_results=True)`, so no estimator runs twice). Each family records how its reservoirs and orders were drawn, and families from replays that drew others are refused rather than scored against these reservoirs.
 
-The benchmark on the committed data is `data/crick_idr/benchmark.py`. Its protocol (`benchmark_protocol.py`: questions, criteria, families and their threshold grids, risk levels, replay design, units) is locked by digest before the first run of each version (`benchmark_protocol.lock`, one line per version), and the runner refuses to run a changed protocol; a change needs a new version. Stage 1 compares each rule per object and per field; stage 2 compares the richer rules with those and with the fixed count, question by question (`docs/questions.md`, the **Benchmark** rows). Results are in `docs/preliminary_findings.md`, entry 8.
+The benchmark on the committed data is `data/crick_idr/benchmark.py`. Its protocol (`benchmark_protocol.py`: questions, criteria, families and their threshold grids, risk levels, replay design, units) is locked by digest before the first run of each version (`benchmark_protocol.lock`, one line per version), and the runner refuses to run a changed protocol; a change needs a new version. Stage 1 compares each rule per object and per field; stage 2 compares the richer rules with those and with the fixed count, question by question (the **Benchmark** rows of the question tables). Results are in `docs/preliminary_findings.md`, entry 8.
 
 ## The `benchmark` workflow: which rule needs the fewest fields for the same risk?
 
@@ -162,7 +162,7 @@ The objective is a regime map: identify when simple current-practice guidance is
 
 ## Computational performance
 
-Runtime is a first-class benchmark because an intended application is smart microscopy. The retrospective analyses are offline, but they should still run in minutes: strategy comparisons, replays, reliability curves and representation controls take `n_jobs` to use several CPUs, and `docs/architecture.md` ("Performance and parallelism") describes what runs in parallel and how the results are kept identical to a serial run.
+Runtime is a first-class benchmark because an intended application is smart microscopy. The retrospective analyses are offline, but they should still run in minutes: strategy comparisons, replays, reliability curves and representation controls take `n_jobs` to use several CPUs, and `docs/common/architecture.md` ("Performance and parallelism") describes what runs in parallel and how the results are kept identical to a serial run.
 
 For every strategy record at least:
 

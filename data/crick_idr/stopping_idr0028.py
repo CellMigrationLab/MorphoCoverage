@@ -1,6 +1,6 @@
 """When would a stopping rule have stopped, and was it enough? Replayed idr0028 acquisitions.
 
-Questions P6, R2 and P4 of ``docs/questions.md``. For
+Questions P6 and P4 (``docs/optimise/optimise.md``) and R2 (``docs/report/questions.md``). For
 each well (28 FOVs), 10 FOVs are held back as a fixed reference per split (5
 splits, the same reservoirs as ``reliability_idr0028.py`` for its first five
 splits). The other 18 are replayed in the recorded order and 10 random orders;

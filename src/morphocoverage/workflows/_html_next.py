@@ -10,7 +10,7 @@ last section (``_html_plan``, which reuses ``fov_counts``, ``_optimise_code`` an
 - ``fields_next``: run the report again without the fields found to be artefacts.
 
 The code reads ``result`` (the ``Report``), ``objects`` and ``fovs``, as named in the
-Python examples of ``docs/workflows.md``.
+Python examples of ``docs/report/running_a_report.md``.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from ..schema import observation_words
 from ._enough_targets import HELD_BACK
 from ._populations import labelled_populations, rule_words, tested_populations
 
-# The reservoir optimise holds back to judge each stop, as in docs/workflows.md (one
+# The reservoir optimise holds back to judge each stop, as in docs/report/questions.md (one
 # value with the fingerprint's answer, ``_enough_targets.HELD_BACK``).
 RESERVOIR = HELD_BACK
 # The fields named to open for a group.

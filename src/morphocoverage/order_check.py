@@ -35,7 +35,7 @@ finds nothing does not show the fields to be representative (a raster over a
 gradient is flagged only once the trend is visible above the noise), so the
 assumption is still stated beside it; without either column it is stated
 alone (``RANDOM_SAMPLE_ASSUMPTION``). Random or dispersed acquisition orders
-remove the problem instead of flagging it (``docs/online.md``).
+remove the problem instead of flagging it (``docs/live/stopping_rules.md``).
 """
 
 from __future__ import annotations

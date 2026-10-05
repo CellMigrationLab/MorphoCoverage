@@ -3,7 +3,8 @@
 Separate from the prospective path (``Estimator -> Evidence -> DecisionPolicy``):
 here, sets of FOVs are judged against FOVs no estimator saw, through
 ``OutcomeMetric`` values and declared ``OutcomeCriterion`` tolerances. See
-``docs/questions.md`` for the questions they answer.
+``docs/report/questions.md`` and ``docs/optimise/optimise.md`` for the questions they
+answer.
 """
 
 from .adequacy import (

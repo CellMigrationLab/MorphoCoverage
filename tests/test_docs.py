@@ -112,3 +112,44 @@ def test_data_format_feature_tables_example_runs_and_prints_what_it_says(tmp_pat
         "('dino_0', 'dino_1', 'dino_2')",
         "(4, 7)",
     ]
+
+
+def _prose(text: str) -> str:
+    """A markdown page without its fenced code blocks and inline code."""
+    text = re.sub(r"^```.*?^```", "", text, flags=re.DOTALL | re.MULTILINE)
+    return re.sub(r"`[^`\n]*`", "", text)
+
+
+def _anchors(page: Path) -> set[str]:
+    """The heading anchors GitHub gives a page: lowercase, punctuation dropped, spaces as
+    hyphens, a repeated heading numbered."""
+    anchors: set[str] = set()
+    text = re.sub(r"^```.*?^```", "", page.read_text(), flags=re.DOTALL | re.MULTILINE)
+    for line in text.split("\n"):
+        heading = re.match(r"#{1,6}\s+(.*)", line)
+        if heading:
+            slug = re.sub(r"[^\w\- ]", "", heading.group(1).strip().lower()).replace(" ", "-")
+            numbered, n = slug, 0
+            while numbered in anchors:
+                n += 1
+                numbered = f"{slug}-{n}"
+            anchors.add(numbered)
+    return anchors
+
+
+def test_every_relative_link_of_the_documentation_points_to_a_file():
+    """Every relative link of README.md, AGENTS.md and docs/**/*.md names a file that exists,
+    and a link to a heading names a heading of that page."""
+    pages = [ROOT / "README.md", ROOT / "AGENTS.md", *sorted((ROOT / "docs").rglob("*.md"))]
+    broken = []
+    for page in pages:
+        for target in re.findall(r"\]\(([^)\s]+)\)", _prose(page.read_text())):
+            if re.match(r"[a-z]+:", target):
+                continue  # https:, mailto:
+            path, _, anchor = target.partition("#")
+            linked = (page.parent / path).resolve() if path else page
+            if not linked.is_file():
+                broken.append(f"{page.relative_to(ROOT)}: {target}")
+            elif anchor and linked.suffix == ".md" and anchor not in _anchors(linked):
+                broken.append(f"{page.relative_to(ROOT)}: {target} (no such heading)")
+    assert not broken, "broken links:\n" + "\n".join(broken)

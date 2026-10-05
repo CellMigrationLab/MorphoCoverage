@@ -1,4 +1,4 @@
-"""The benchmark protocol, fixed before the benchmark is run (``docs/questions.md``).
+"""The benchmark protocol, fixed before the benchmark is run (``docs/optimise/benchmarking.md``).
 
 Everything that decides a result is declared here, before any score exists:
 the datasets and their roles, the questions and their criteria, each rule
@@ -59,7 +59,7 @@ Versions:
   interval is widened for its units and withheld below 5 units. Every
   threshold, grid, split count and seed is that of version 4.
 
-Questions scored (codes of ``docs/questions.md``):
+Questions scored (codes of ``docs/report/questions.md`` and ``docs/optimise/optimise.md``):
 
 - **mean** (R2 average, P5, P6; stage 1): the well mean of the YAP/TAZ ratio
   within 5% and within 2.5% of the held-back fields. Families: the JCB rule

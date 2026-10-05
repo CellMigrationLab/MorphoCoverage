@@ -63,7 +63,7 @@ control" (`plots_of_data(..., value_note=...)` adds any such note). With `folder
 Without `features`, the readout is plotted; given the report's
 discovery (`plots(objects, fovs, setup, ranking=result.discovery)`), the five
 best-ranked features are plotted instead (`top=`): those that pass the cell-level
-gate, largest |d| first, as question 9 describes below, the readout among them
+gate, largest |d| first, as [question 9](conditions.md#many-features) describes, the readout among them
 only when it ranks (and alone when none does: the report is neutral) (`ranking=result.ranking`
 takes the ranking over whole technical repeats instead).
 

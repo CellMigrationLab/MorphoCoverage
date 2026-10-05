@@ -1,4 +1,4 @@
-"""Tests for the assembled microscopist's report (docs/questions.md)."""
+"""Tests for the assembled microscopist's report (docs/report/questions.md)."""
 
 import numpy as np
 import pandas as pd

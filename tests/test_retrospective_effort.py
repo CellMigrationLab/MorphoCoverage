@@ -1,4 +1,4 @@
-"""Tests for the scalar hierarchical effort projection (P10 of docs/questions.md)."""
+"""Tests for the scalar hierarchical effort projection (P10 of docs/optimise/optimise.md)."""
 
 import numpy as np
 import pandas as pd

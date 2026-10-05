@@ -22,14 +22,14 @@ extension, which changes the sampling distribution and needs its own design.
 | O4 | **If the objectives disagree, is that obvious?** For example: "Population summary: stop / Phenotypic fingerprint: continue / Overall: continue". | `results.decision_view` over the rules of one acquisition state, printed by every live update | done; a target no rule decides is printed as such |
 | O5 | **How uncertain is the evidence?** A borderline quantity must not become an unconditional STOP. | upper bounds on some quantities (novelty bound, upper-95 SD) | gap: no margin or "borderline" state in the decision |
 | O6 | **How does this stopping rule perform on previously acquired datasets?** When this exact rule said STOP in replayed deep datasets, how often was it adequate? This is PLAN 6 seen from the microscope. | `stopping_calibration` of the same `config_id` | partial: not attached to the live session. **Benchmark** |
-| O7 | **Can the decision be made fast enough?** Is the analysis faster than the time before the next acquisition? | `Timing` on every result; measured latencies in `docs/online.md` | done |
+| O7 | **Can the decision be made fast enough?** Is the analysis faster than the time before the next acquisition? | `Timing` on every result; measured latencies in [Online acquisition](online_acquisition.md#timing) | done |
 | O8 | **Does it behave correctly in awkward real acquisitions?** Empty FOV, few objects, missing feature values, patches rather than cells, z/c/t of one position, unsupported estimators, a new condition or repeat, changed grouping or FOV identity. | input validation and the session contract; contract tests | done |
 | O9 | **Is there any future-data leakage?** Scaling, PCA, thresholds and other preprocessing must use only FOVs already acquired. | transforms fitted inside `estimate`; the no-future-leakage contract | done |
 
 ## `live_session`
 
 `live_session(setup)` returns an `OnlineSession` for the setup's rules
-([`online.md`](online.md)), under the objective made of the declared targets
+([Online acquisition](online_acquisition.md)), under the objective made of the declared targets
 (`setup.objective()`), or the narrower `objective=` passed (for example
 `ObjectiveConfig("rare_discovery", rare=target)`, to stop on a rare phenotype alone). Each update ends with one view per target: the
 population summary, the phenotypic fingerprint and the rare phenotype, each

@@ -60,7 +60,7 @@ Reading it:
   amount of effort says nothing about what the data show.
 - This is self-assessment of one dataset. It says what each criterion
   concludes, not that the criterion is right; that needs held-out deep data
-  (``docs/benchmarking.md``). The calibration check is the part that tests a
+  (``docs/optimise/benchmarking.md``). The calibration check is the part that tests a
   prediction against this dataset itself.
 """
 

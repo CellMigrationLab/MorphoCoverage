@@ -26,7 +26,7 @@ result = report(scan.objects, scan.fovs, setup)
   and which conditions each holds (one experiment, or separate acquisitions
   sharing the control, as in a screen), the technical repeats, the fields and
   the observations per field, the planes, the targets, the features, the
-  [other feature tables](#other-feature-tables-embeddings) given as
+  [other feature tables](feature_tables_and_maps.md#other-feature-tables-embeddings) given as
   `scan_design(..., feature_tables={"DINOv2": dino})`, each checked (owner,
   2026-10-05: one that cannot be used is a ❌ finding, with why), and the
   observations per condition and repeat. With a FOV table that passes the data
@@ -82,7 +82,7 @@ compared with the same control (owner, 2026-10-05; No is proposed, after a table
 images per condition and biological repeat, when the likeliest control is missing from
 repeats where other conditions are imaged). Yes: the control to log (the scan's
 guess is the default, "no control" is an answer). No: [several
-controls](#several-controls), each with a proposal to confirm: which conditions are
+controls](conditions.md#several-controls), each with a proposal to confirm: which conditions are
 controls (named like one, such as `VEC_SiNC`), the conditions of each with their treatment
 keys (the name without the stem it shares with its control: `THBS5_SiCol6a1` under
 `THBS5_SiNC` is `SiCol6a1`), a parent when a control's name extends another condition's
@@ -201,7 +201,7 @@ the light or dark setting of the viewer, with a switch, and prints with every se
 open.
 
 The glossary of every test, rule and term the page uses, with the papers they
-come from ([`glossary.md`](glossary.md), the same entries), is a drawer on the
+come from ([Glossary](../common/glossary.md), the same entries), is a drawer on the
 side with a search: its tab, the sidebar and every underlined term open it. In
 the answers, the first mention of a term in each section is underlined and shows
 its meaning on hover or focus (`glossary.PHRASES` lists the words matched; terms

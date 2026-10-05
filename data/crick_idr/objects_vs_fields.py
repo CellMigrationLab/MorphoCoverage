@@ -1,6 +1,6 @@
 """Objects or fields? The sampling-unit checks of the report, on the stored datasets.
 
-Runs the report's Foundation (``docs/questions.md``) and the clustering of
+Runs the report's Foundation (``docs/report/questions.md``) and the clustering of
 unusual objects (R4) with ``morphocoverage.sampling_unit``, one analysis group
 per well:
 

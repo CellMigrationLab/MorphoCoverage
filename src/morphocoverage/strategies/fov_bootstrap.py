@@ -1,6 +1,6 @@
 """FOV-bootstrap uncertainty of multivariate population summaries.
 
-Described in ``docs/architecture.md``. How
+Described in ``docs/common/architecture.md``. How
 uncertain is the current estimate of simple population properties when the
 FOV, not the object, is the sampling unit? The visible FOVs are resampled with
 replacement (whole FOVs, including acquired FOVs with no observations), the

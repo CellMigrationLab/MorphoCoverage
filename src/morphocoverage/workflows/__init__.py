@@ -10,7 +10,7 @@ saves the answers in the results folder, and runs the report.
 Declare the dataset once with a ``Setup``, then:
 
 - ``report(objects, fovs, setup)``: REPORT, what the finished acquisition can
-  be trusted for (the Foundation and R1 to R7 of ``docs/questions.md``);
+  be trusted for (the Foundation and R1 to R7 of ``docs/report/questions.md``);
 - ``optimise(objects, fovs, setup, fov_counts=..., reservoir_fraction=...)``:
   OPTIMISE / PLAN, what the next experiment should do;
 - ``live_session(setup)`` with ``LiveFolder(folder, session).watch()`` (files
@@ -36,7 +36,7 @@ default (``Setup.minimum_detection``, the default stopping rules, the
 positive control's pairing, ``protocol_threshold``, ``alphas``) are printed in
 the declaration and the summaries, with the computational settings (orders,
 resamples, grids, the fields held back), and every random procedure is seeded
-from ``Setup.random_state``. See ``docs/workflows.md``.
+from ``Setup.random_state``. See ``docs/README.md``.
 """
 
 from ..feature_tables import FeatureTables, attach_feature_tables

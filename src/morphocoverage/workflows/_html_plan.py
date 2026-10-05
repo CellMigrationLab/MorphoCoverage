@@ -13,7 +13,7 @@ microscope should watch for, and gets the code, filled in with this dataset's va
   field's cells as it writes them.
 
 Each picker is a ``<select>`` showing one panel at a time (``_html_script``). The code reads
-``result`` (the ``Report``), ``objects`` and ``fovs``, as in ``docs/workflows.md``.
+``result`` (the ``Report``), ``objects`` and ``fovs``, as in ``docs/report/running_a_report.md``.
 """
 
 from __future__ import annotations

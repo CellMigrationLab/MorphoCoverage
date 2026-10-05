@@ -1,4 +1,4 @@
-"""Tests for representation controls (R1 of docs/questions.md)."""
+"""Tests for representation controls (R1 of docs/report/questions.md)."""
 
 import numpy as np
 import pandas as pd

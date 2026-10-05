@@ -31,7 +31,7 @@ criterion is named as what it is: an averaging CV of 5% is one standard error
 of 5% of the mean (the paper's criterion), not a bound of ±5% on the mean's
 error; whether the mean was within the declared tolerances is judged on
 held-back fields by `report` and `optimise`. `LiveUpdate.summary(detail="full")` ends with
-that view, one entry per line (`docs/questions.md`, O4); the default short block opens with
+that view, one entry per line ([O4](live_session.md#the-questions)); the default short block opens with
 the field and its decision (`✅ field 8 · MOCK · 1A · B6 — stop: all 3 rules say enough`, `⏳
 continue: ...` with what is not yet met, `⚠️` at a stop the order check flags, `➖` while a
 declared target has no rule), then one table of the rules and, at a stop, each caveat once. `live_session(setup)` runs under

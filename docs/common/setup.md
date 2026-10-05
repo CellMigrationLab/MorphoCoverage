@@ -59,7 +59,7 @@ explicit request. The declaration prints every such preset.
 `RobustStandardize` transform), so a few extreme objects such as clumps or
 debris cannot widen the scale and hide a new state elsewhere. It was chosen
 on idr0028 with the mean and SD, the version behind the numbers of
-[`preliminary_findings.md`](preliminary_findings.md) until they are
+[`preliminary_findings.md`](../preliminary_findings.md) until they are
 regenerated after audit 4. Its radius is `sqrt(len(features))`: with 8 or more standardized
 features two objects of one ordinarily variable state often sit farther
 apart than that, and `Setup` warns (reduce the dimension, for example
@@ -68,7 +68,7 @@ apart than that, and `Setup` warns (reduce the dimension, for example
 `fields_independent` (default `False`) declares that the fields are
 independent draws of their condition. Only then do the condition contrast and
 the feature ranking give a p-value when the fields have no unit to shuffle
-(see question 9 below): fields of one dish or well are not independent draws.
+(see [question 9](../report/conditions.md#within-each-repeat)): fields of one dish or well are not independent draws.
 
 Features measured plane by plane are split before the `Setup`:
 `morphocoverage.planes_as_features` turns `area` into `area_z0`, `area_z1`,
@@ -102,8 +102,8 @@ values too.
 
 ## What must the acquisition preserve?
 
-The `Setup` also declares the target, the front door of
-[`questions.md`](questions.md): there is no "enough" without "enough for
+The `Setup` also declares the target, the front door of every
+workflow: there is no "enough" without "enough for
 what". Three targets can be declared, and each becomes an outcome criterion
 that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
 
@@ -161,7 +161,7 @@ has an "Acquisition order:" line: the order check printed beside every stop
 (with `acquisition_order_col`, a trend of the readout's field means with
 order; with `stage_cols`, alike means in neighbouring fields), or, with
 neither column, that every stop treats the fields as a random sample of the
-well's positions ([`online.md`](online.md#acquisition-order-random-or-dispersed)).
+well's positions ([Stopping rules](../live/stopping_rules.md#acquisition-order-random-or-dispersed)).
 A flagged trend is a caution beside the stop, never a veto; image fields in
 a random or dispersed order.
 
