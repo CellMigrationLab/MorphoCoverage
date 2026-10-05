@@ -554,7 +554,7 @@ def plan_card(
         if notes is None
         else notes
     )
-    counts = fov_counts(fovs)
+    counts = fov_counts(fovs, result.setup.group_cols)
     readout = result.setup.readout
     means = {
         f: _mean_goal(result, f, counts, notes.get("rules", "") if f == readout else "")

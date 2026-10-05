@@ -39,10 +39,13 @@ FIELDS_SHOWN = 3
 _COUNTS = (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96)
 
 
-def fov_counts(fovs: pd.DataFrame) -> list[int]:
+def fov_counts(fovs: pd.DataFrame, group_cols: Sequence[str] | None = None) -> list[int]:
     """Up to 4 field counts optimise can replay: within the fields a well keeps once the
-    reservoir is held back (its median well); empty when wells are too small to plan from."""
-    groups = [c for c in MORPHOBRICKS_GROUP_COLUMNS if c in fovs]
+    reservoir is held back (its median well); empty when wells are too small to plan from.
+    The wells are the analysis groups: ``group_cols`` (``Setup.group_cols``) when set, else
+    the MorphoBricks group columns."""
+    names = MORPHOBRICKS_GROUP_COLUMNS if group_cols is None else group_cols
+    groups = [c for c in names if c in fovs]
     sizes = fovs.groupby(groups, dropna=False).size() if groups else pd.Series([len(fovs)])
     usable = int(np.floor(float(sizes.median()) * (1 - RESERVOIR)))
     counts = [c for c in _COUNTS if c <= usable]
