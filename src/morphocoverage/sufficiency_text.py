@@ -20,6 +20,7 @@ from typing import Any
 import pandas as pd
 
 from ._style import rule_label
+from .bounds import EXTRA_TRIALS_LIMIT
 from ._wording import count, listing, number, percent
 from .evidence import Direction
 from .results import StrategyResult
@@ -259,7 +260,9 @@ def _next_fov_answer(
         extra = row["extra_fovs_to_rule_out_target"]
         rule_out = f"To rule out unseen states in more than {percent(target)} of FOVs"
         lines.append(
-            f"{rule_out}: already reached."
+            f"{rule_out}: more than {_more_fovs(EXTRA_TRIALS_LIMIT)} with nothing new."
+            if pd.isna(extra)
+            else f"{rule_out}: already reached."
             if extra == 0
             else f"{rule_out}: at least {_more_fovs(extra)} with nothing new."
         )
@@ -275,9 +278,12 @@ def _next_fov_answer(
                 if pd.isna(rate)
                 else f"{_more_fovs(rate)} if new FOVs keep appearing at the current rate"
             )
-            lines.append(
-                f"{goal}: at least {_more_fovs(best)} if none shows anything new; {at_rate}."
+            least = (
+                f"more than {_more_fovs(EXTRA_TRIALS_LIMIT)}"
+                if pd.isna(best)
+                else f"at least {_more_fovs(best)}"
             )
+            lines.append(f"{goal}: {least} if none shows anything new; {at_rate}.")
         lines.append(
             f"The bound holds at a number of FOVs fixed in advance, not at the first FOV where "
             f"it passes: stopping there is premature more often than "

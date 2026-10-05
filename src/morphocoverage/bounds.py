@@ -75,6 +75,10 @@ def interval(successes: int, trials: int, confidence: float) -> tuple[float, flo
     return lower_bound(successes, trials, level), upper_bound(successes, trials, level)
 
 
+# The further trials ``extra_trials_for_bound`` searches by default; beyond it, ``None``.
+EXTRA_TRIALS_LIMIT = 100_000
+
+
 def extra_trials_for_bound(
     successes: int,
     trials: int,
@@ -82,7 +86,7 @@ def extra_trials_for_bound(
     confidence: float,
     *,
     keep_rate: bool,
-    limit: int = 100_000,
+    limit: int = EXTRA_TRIALS_LIMIT,
 ) -> int | None:
     """Fewest further trials after which ``upper_bound`` is at most ``target``.
 

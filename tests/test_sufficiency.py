@@ -164,6 +164,16 @@ def test_next_fov_chance_counts_fovs_with_enough_new_cells():
     assert report.enough.empty and report.calibration.empty
 
 
+def test_a_target_beyond_the_projection_range_is_said_not_a_crash():
+    """#136: a target 100000 more FOVs cannot reach left None, and the answer raised TypeError."""
+    report = _novelty_report(novelty_target=1e-6)
+    row = report.next_fov.iloc[0]
+    assert pd.isna(row["extra_fovs_to_rule_out_target"])
+    assert pd.isna(row["extra_fovs_if_nothing_new"])
+    assert row["answer"].count("more than 100000 more FOVs") == 2
+    assert "more than 100000 more fields" in " ".join(report.summary("full").split())
+
+
 def test_new_observations_lists_only_cells_of_new_fovs_without_features():
     new = _novelty_report().new_observations
     assert sorted(new["image_file"].unique()) == ["f3", "f7"] and len(new) == 6
