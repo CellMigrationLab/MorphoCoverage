@@ -39,10 +39,7 @@ pythonpath = ["src"]
 # one worker so module-level data is loaded once. `pytest -n 0` runs serially.
 addopts = "-n auto --dist loadfile -m 'not network'"
 # Tests that download a pinned source (data/lab convert.py) run only on request: `pytest -m network`.
-markers = [
-    "network: downloads from a public repository (deselected by default)",
-    "slow: real-data and whole-report tests; skipped on pull requests, run weekly and on demand",
-]
+markers = ["network: downloads from a public repository (deselected by default)"]
 # Many tests pass no FOV table on purpose; the warning that says so is checked
 # where it matters (tests/test_audit3_a.py) with pytest.warns.
 filterwarnings = ["ignore::morphocoverage.schema.MissingFovTableWarning"]
