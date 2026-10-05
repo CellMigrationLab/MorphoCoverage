@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 from matplotlib.figure import Figure
 
+from .._palette import COLOURS, GREY
 from ..embedding import MIN_FEATURES, embed
 from ..metadata import CONDITION_COLUMN
 from ..plots import plots_of_data
@@ -77,6 +78,8 @@ def plots(
         **settings,
     }
     share = share_column(setup)
+    # Past 12 conditions in one figure, the hits keep a colour (owner, 2026-10-05).
+    options.setdefault("highlight", highlighted(ranking)[0])
     figures = (
         plots_of_data(
             prepared,
@@ -113,25 +116,64 @@ def plots(
 def _add_pairwise(
     figures: dict[str, list[Figure]], prepared: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
 ) -> None:
-    """Every pair of each figure's conditions under it (see ``plots``)."""
+    """Every pair of each figure's conditions under it (see ``plots``), tested on that
+    figure's conditions alone, so the q-values are adjusted over the pairs it shows, as its
+    legend says, and a split figure costs its own pairs only."""
     control = (setup.control or {}).get(CONDITION_COLUMN)
     for feature, parts in figures.items():
-        table = pairwise_contrasts(
-            prepared,
-            fovs,
-            feature=feature,
-            control=control,
-            random_state=setup.random_state,
-            **setup.common,
-        )
         for figure in parts:
             summaries = getattr(figure, "cluster_summaries", None)
             if summaries is None or summaries.empty:
                 continue
             conditions = list(dict.fromkeys(summaries["condition"]))
-            shown = table[table["first"].isin(conditions) & table["second"].isin(conditions)]
-            figure.pairwise = shown.reset_index(drop=True)
-            add_pairwise(figure, shown, conditions)
+            table = pairwise_contrasts(
+                prepared,
+                fovs,
+                feature=feature,
+                conditions=conditions,
+                control=control,
+                random_state=setup.random_state,
+                **setup.common,
+            )
+            figure.pairwise = table.reset_index(drop=True)
+            add_pairwise(figure, table, conditions)
+
+
+def highlighted(ranking: Any, most: int = len(COLOURS) - 1) -> tuple[list[Any], str]:
+    """The conditions a figure of more than 12 keeps in colour beside the control (owner,
+    2026-10-05), at most ``most``, and the words that say which: those significant across
+    repeats on any feature, else the cell-level screen's candidates, else those with the
+    largest effects, each by its largest |d|. None without a discovery."""
+    tests = getattr(ranking, "tests", None)
+    if not isinstance(ranking, FeatureDiscovery) or tests is None or not len(tests):
+        return [], ""
+    order = tests.assign(_size=tests["d"].abs()).sort_values(
+        "_size", ascending=False, kind="stable"
+    )
+    for column, words in (
+        ("confirmed", "significant across repeats"),
+        ("passes", "best-ranked candidates of the cell-level screen"),
+        ("_size", "with the largest effects"),
+    ):
+        mask = order[column].notna() if column == "_size" else order[column].fillna(False)
+        names = list(dict.fromkeys(order.loc[mask.astype(bool), "condition"]))
+        if names:
+            return names[:most], words
+    return [], ""
+
+
+def colour_note(colours: dict[Any, str], words: str) -> str:
+    """What a figure past 12 conditions colours, in a sentence; empty when every condition
+    has its own colour."""
+    greyed = sum(colour == GREY for colour in colours.values())
+    if not greyed:
+        return ""
+    shown = len(colours) - greyed - 1
+    which = f"the {shown} conditions {words}" if shown else "no other condition"
+    return (
+        f"With {len(colours)} conditions, the control and {which} are in colour; "
+        f"the other {greyed} are grey."
+    )
 
 
 def embedding_plots(
@@ -168,7 +210,9 @@ def embedding_plots(
         **settings,
         **setup.common,
     )
-    figures = embedding_figures(embedding, control=setup.control)
+    figures = embedding_figures(
+        embedding, control=setup.control, highlight=highlighted(discovery)[0]
+    )
     if folder is not None:
         target = Path(folder)
         target.mkdir(parents=True, exist_ok=True)
@@ -177,4 +221,4 @@ def embedding_plots(
     return figures
 
 
-__all__ = ["embedding_plots", "plots"]
+__all__ = ["colour_note", "embedding_plots", "highlighted", "plots"]

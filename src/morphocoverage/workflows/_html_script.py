@@ -100,19 +100,31 @@ SCRIPT = """
     var saved = localStorage.getItem('mc-theme');
     if (saved) document.documentElement.setAttribute('data-theme', saved);
   } catch (e) {}
-  // Downloads: every file the page carries, saved from the data inside it.
+  // Downloads: every file the page carries, saved from the data inside it (a PNG from its
+  // image's data); a file past what the page carries opens from the folder beside it.
   var store = document.getElementById('files-data');
   var files = store ? JSON.parse(store.textContent) : {};
   document.addEventListener('click', function (event) {
     var button = event.target.closest('button.dl');
     if (!button) return;
-    var entry = files[button.dataset.file];
+    var path = button.dataset.file, entry = files[path];
     if (!entry) return;
-    var bytes = atob(entry[1]), buffer = new Uint8Array(bytes.length);
+    var link = document.createElement('a'), data = entry[1];
+    link.download = path.split('/').pop();
+    if (data === 'img') {
+      var image = Array.prototype.filter.call(document.querySelectorAll('img[data-file]'),
+        function (node) { return node.dataset.file === path; })[0];
+      data = image && image.src.indexOf('data:') === 0 ? image.src.split(',')[1] : '';
+    }
+    if (!data) {
+      link.href = path; link.target = '_blank'; link.rel = 'noopener';
+      document.body.appendChild(link); link.click(); link.remove();
+      return;
+    }
+    var bytes = atob(data), buffer = new Uint8Array(bytes.length);
     for (var i = 0; i < bytes.length; i++) buffer[i] = bytes.charCodeAt(i);
     var url = URL.createObjectURL(new Blob([buffer], { type: entry[0] }));
-    var link = document.createElement('a');
-    link.href = url; link.download = button.dataset.file.split('/').pop();
+    link.href = url;
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   });
@@ -135,10 +147,12 @@ SCRIPT = """
     frame.appendChild(copy);
     var view = node.viewBox && node.viewBox.baseVal;
     if (view && view.width) {
-      // As large as the window holds, the whole figure in view, and at most 3 times its size.
+      // As large as the window holds, the whole figure in view, and at most 3 times its size;
+      // never smaller than its own size (a large heatmap scrolls in the frame instead).
       var wide = Math.min(innerWidth * 0.9 - 20, (innerHeight * 0.88 - 40) * view.width /
         view.height, view.width * 3);
-      copy.style.width = Math.max(wide, 200) + 'px';
+      copy.style.width = Math.max(wide, view.width, 200) + 'px';
+      copy.style.height = 'auto';
     }
     var text = node.getAttribute('alt') || node.getAttribute('aria-label') || '';
     if (text) {
