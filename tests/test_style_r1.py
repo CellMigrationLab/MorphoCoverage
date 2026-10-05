@@ -274,7 +274,9 @@ def test_question_3_is_a_caution_when_a_state_clusters(states):
     report = microscopist_report(clustering=clustering, unusual=unusual)
     assert report.statuses["profile"] is Status.CAUTION
     assert "state cells clustered in 1 of 2 groups" in report.headlines["profile"]
-    spread = dataclasses.replace(clustering, table=clustering.table.assign(p_clustered=1.0))
+    spread = dataclasses.replace(
+        clustering, table=clustering.table.assign(p_clustered=1.0, q_clustered=1.0)
+    )
     status, _ = profile_status(report.profile, [spread])
     assert status is Status.OK
 

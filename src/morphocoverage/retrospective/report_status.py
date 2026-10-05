@@ -62,7 +62,7 @@ The rules, question by question:
   (``weak_status``), as for questions 4 and 5: a "nothing new" or an
   "enough" cannot exclude a phenotype like the control.
 - **3. What is limiting my sampling?** (``profile_status``): ⚠️ when a
-  labelled state is clustered in a few fields (p <= 0.05) in some group,
+  labelled state is clustered in a few fields (q <= 0.05) in some group,
   when the unusual-object labels are unstable (refits agree on fewer than
   90% of them) in some group, or when the largest source of the variance of
   the mean is not established (few samples, an interval including zero) in
