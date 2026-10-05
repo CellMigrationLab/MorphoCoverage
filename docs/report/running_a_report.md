@@ -80,14 +80,18 @@ the dataset load correctly (if not, it stops); what one row is (owner, 2026-10-0
 here, so the scan's words follow it); whether all the conditions are
 compared with the same control (owner, 2026-10-05; No is proposed, after a table of the
 images per condition and biological repeat, when the likeliest control is missing from
-repeats where other conditions are imaged). Yes: the control to log (the scan's
-guess is the default, "no control" is an answer). No: [several
+repeats where other conditions are imaged). Yes: "Which condition is the control?" (the
+scan's guess is the default, "no control" is an answer). No: [several
 controls](conditions.md#several-controls), each with a proposal to confirm: which conditions are
 controls (named like one, such as `VEC_SiNC`), the conditions of each with their treatment
 keys (the name without the stem it shares with its control: `THBS5_SiCol6a1` under
 `THBS5_SiNC` is `SiCol6a1`), a parent when a control's name extends another condition's
 (`VEC_SiNC` under `VEC`, key `transfection` for an siRNA suffix), and an optional master
-control; the tests these answers give are then listed, one per line with its family. Then
+control, the control imaged in the most biological repeats proposed (ties to the first
+declared). After the conditions of each control, a condition still compared with nothing is
+asked "Which control should THBS5 be compared with?", none by default, so a condition not
+named like a control, such as `VEC`, can become one (owner, 2026-10-05). The tests these
+answers give are then listed, one per line with where it is corrected. Then
 a positive control, a
 condition known to change the phenotype, which checks that the features can see
 a change ("none", the default, leaves that check out; it can be named later,

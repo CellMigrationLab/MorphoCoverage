@@ -93,7 +93,18 @@ the control objects hold negative values but their mean is positive, the
 values are still divided, with a warning that they are then not multiples of
 the control, and the sentence on normalised values says so (`Caution: ...`). The normalised values are used
 only where values are compared across repeats: the outcome criteria judged on
-held-back fields, the condition contrast, the feature ranking and the plots.
+held-back fields, the condition contrast, the feature ranking and the plots. The condition
+contrast reads the raw values and normalises them itself, so its raw columns hold raw values
+and its normalised ones the values divided by the control mean of the same repeat (owner,
+2026-10-05; before, it read the normalised values, so its "raw" d and paired t were the
+normalised ones).
+
+Several controls are declared as `control={"condition": {control: {treatment: condition}
+or [conditions], ...}}`, with `control_parents` and `master_control`
+([conditions.md](../report/conditions.md#several-controls)). One control declared that way,
+as a list, a keyed dict or with itself as the master, and without parents, is
+`{"condition": control}`: the `Setup` reduces it, so the output is identical to the one
+control's (owner, 2026-10-05).
 Every stopping rule runs on the raw values, in `report`, `optimise` and
 `benchmark` as in the live session (which sees one field at a time and has not
 seen the control), so a rule gives the same verdict everywhere; the other
