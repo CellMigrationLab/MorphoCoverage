@@ -11,8 +11,8 @@ FOVs or more samples would help, therefore need the hierarchy declared:
 names. As for FOV identity (AGENTS.md section 19), a unit is identified by its
 own value together with every level outside it: well ``J23`` of plate ``1A``
 and well ``J23`` of plate ``2A`` are two samples. Nesting therefore holds by
-construction; validation checks that every level is present and complete and
-that no FOV is listed twice.
+construction; validation checks that every level is present and complete (no
+missing or blank value) and that no FOV is listed twice.
 
 Uncertainty for statements across samples counts the declared independent
 unit (``biological_repeat`` when given, otherwise ``sample``), never FOVs,
@@ -27,6 +27,7 @@ from typing import Any
 import pandas as pd
 
 from .._former_repeat import read_fields
+from ..metadata import empty_values
 
 
 @dataclass(frozen=True)
@@ -94,8 +95,10 @@ class SamplingHierarchy:
         if missing:
             raise ValueError(f"hierarchy columns missing from the FOV table: {missing}")
         for column in levels:
-            if fovs[column].isna().any():
-                raise ValueError(f"hierarchy column {column!r} contains missing values")
+            # Blank text is missing too, as for the schema's identity columns: several
+            # blank wells would otherwise become one sample.
+            if empty_values(fovs[column]).any():
+                raise ValueError(f"hierarchy column {column!r} contains missing or blank values")
         repeated = fovs.duplicated(subset=levels, keep=False)
         if repeated.any():
             row = fovs.loc[repeated, levels].iloc[0].to_dict()
