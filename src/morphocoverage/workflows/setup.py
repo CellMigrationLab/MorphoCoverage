@@ -24,7 +24,6 @@ in sentences, which the report prints first.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -32,9 +31,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .._checks import check_seed, is_integer, is_number
 from .._former_repeat import read_fields
-from .._parallel import check_n_jobs
 from .._wording import count, rate
 from ..metadata import (
     CONDITION_COLUMN,
@@ -55,7 +52,6 @@ from ..schema import OBJECT_LIKE_UNITS, resolve_observation_unit, unit_words
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator, SupportNoveltyStrategy
 from ..strategies.base import SamplingStrategy
 from ..strategies.support_novelty import UPPER_QUANTITY
-from ..transforms import RobustStandardize, Standardize
 from ._contrasts import (
     check_controls,
     compares,
@@ -69,10 +65,13 @@ from ._contrasts import (
     single_control,
 )
 from ._declaration import declaration
+from ._feature_space import check_feature_tables, table_columns
 from ._setup_parts import (
-    MANY_NOVELTY_FEATURES,
     PositiveControl,
+    check_few_fovs,
+    check_presets,
     default_novelty,
+    warn_novelty_dimension,
 )
 
 
@@ -97,6 +96,10 @@ class Setup:
       condition (``"VEC"`` or ``("VEC", "transfection")``, a treatment key), tested as a
       main verdict; and the control the other controls are compared with on raw values.
     - ``contrasts``: a contrast table (``_control.CONTRAST_COLUMNS``) in its place.
+    - ``feature_tables``: the other feature tables, each name with its columns, such as a
+      DINO embedding (owner, 2026-10-05): never tested feature by feature, they join the
+      explainable features in the maps, populations, unusual observations, novelty, copy
+      checks and fingerprint (``_feature_space``). Set by the workflows' ``feature_tables=``.
     - ``normalize``: ``"control_mean"`` divides every feature (the readout
       included) by the mean of the control condition's observations of the
       same repeat (``normalize_to_control``); needs ``control`` to name the
@@ -207,6 +210,7 @@ class Setup:
     master_control: Any = None
     control_parents: Mapping[Any, Any] | None = None
     contrasts: pd.DataFrame | None = field(default=None, compare=False)
+    feature_tables: Mapping[str, tuple[str, ...]] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.readout, str) or not self.readout:
@@ -269,14 +273,15 @@ class Setup:
                 "a positive control is judged with the definition of new: declare novelty "
                 "(and features), or leave the positive control out"
             )
-        self._check_presets()
-        self._check_few_fovs()
-        self._warn_novelty_dimension()
-        undeclared = sorted(set(self.criterion_columns) - set(self.columns))
+        check_presets(self)
+        check_few_fovs(self)
+        warn_novelty_dimension(self)
+        check_feature_tables(self)
+        undeclared = set(self.criterion_columns) - {*self.columns, *table_columns(self)}
         if undeclared:
             raise ValueError(
-                f"fingerprint criteria read feature columns {undeclared} that are not declared: "
-                "add them to features (or use the readout)"
+                f"fingerprint criteria read feature columns {sorted(undeclared)} that are not "
+                "declared: add them to features (or use the readout or another feature table)"
             )
         names = [c.name for c in self.criteria()]
         if len(set(names)) != len(names):
@@ -308,53 +313,6 @@ class Setup:
         """The readout plus every column a declared criterion reads: what
         ``sampling_reliability`` judges (the rules read ``columns``)."""
         return [self.readout, *(c for c in self.criterion_columns if c != self.readout)]
-
-    def _check_presets(self) -> None:
-        """The novelty target, the detection preset and the computational settings."""
-        target = self.novelty_target
-        if target is not None and (not is_number(target) or not 0 < float(target) < 1):
-            raise ValueError("novelty_target must be a probability between 0 and 1, or None")
-        if target is not None:
-            object.__setattr__(self, "novelty_target", float(target))
-        detection = self.minimum_detection
-        if not is_number(detection) or not 0 < float(detection) <= 1:
-            raise ValueError("minimum_detection must be a share in (0, 1], such as 0.9")
-        object.__setattr__(self, "minimum_detection", float(detection))
-        object.__setattr__(self, "random_state", check_seed(self.random_state))
-        check_n_jobs(self.n_jobs)
-        object.__setattr__(self, "n_jobs", int(self.n_jobs))
-
-    def _warn_novelty_dimension(self) -> None:
-        """Warn when a standardization alone defines "new" on many features (P6-3)."""
-        d = len(self.features)
-        novelty = self.novelty
-        if novelty is None or d < MANY_NOVELTY_FEATURES:
-            return
-        if isinstance(novelty.transform, (Standardize, RobustStandardize)):
-            warnings.warn(
-                f"novelty is judged on {d} standardized features at distance "
-                f"{novelty.epsilon:g}, but two observations of a state varying by one SD per "
-                f"feature sit about {np.sqrt(2 * d):.1f} apart, so small, ordinarily variable "
-                "states are often missed: reduce the dimension (Chain([RobustStandardize(), "
-                "PCA(k)])) or declare fewer features",
-                UserWarning,
-                stacklevel=3,
-            )
-
-    def _check_few_fovs(self) -> None:
-        if self.few_fovs is None:
-            return
-        if self.novelty is None:
-            raise ValueError("few_fovs counts states under the definition of new: declare novelty")
-        if not is_integer(self.few_fovs):
-            raise TypeError("few_fovs must be an integer number of fields")
-        object.__setattr__(self, "few_fovs", int(self.few_fovs))
-        if self.few_fovs <= self.novelty.min_other_fovs:
-            raise ValueError(
-                f"few_fovs ({self.few_fovs}) must exceed the definition of new's min_other_fovs "
-                f"({self.novelty.min_other_fovs}): a state seen in that many other fields is "
-                "already not new"
-            )
 
     @property
     def resolved_few_fovs(self) -> int | None:

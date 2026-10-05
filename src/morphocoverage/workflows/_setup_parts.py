@@ -6,17 +6,23 @@ Shared-private: re-exported by ``workflows.setup``, where they are imported from
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 
+from .._checks import check_seed, is_integer, is_number
 from .._former_repeat import read_fields
+from .._parallel import check_n_jobs
 from ..metadata import REPEAT_COLUMN
 from ..strategies import SupportNoveltyEstimator
-from ..transforms import RobustStandardize
+from ..transforms import RobustStandardize, Standardize
+
+if TYPE_CHECKING:
+    from .setup import Setup
 
 # From this many features on, a radius of sqrt(d) links too few objects of a state.
 MANY_NOVELTY_FEATURES = 8
@@ -75,4 +81,62 @@ class PositiveControl:
         return (REPEAT_COLUMN,) if REPEAT_COLUMN in fovs.columns else ()
 
 
-__all__ = ["MANY_NOVELTY_FEATURES", "PositiveControl", "default_novelty"]
+def check_presets(setup: Setup) -> None:
+    """The novelty target, the detection preset and the computational settings."""
+    target = setup.novelty_target
+    if target is not None and (not is_number(target) or not 0 < float(target) < 1):
+        raise ValueError("novelty_target must be a probability between 0 and 1, or None")
+    if target is not None:
+        object.__setattr__(setup, "novelty_target", float(target))
+    detection = setup.minimum_detection
+    if not is_number(detection) or not 0 < float(detection) <= 1:
+        raise ValueError("minimum_detection must be a share in (0, 1], such as 0.9")
+    object.__setattr__(setup, "minimum_detection", float(detection))
+    object.__setattr__(setup, "random_state", check_seed(setup.random_state))
+    check_n_jobs(setup.n_jobs)
+    object.__setattr__(setup, "n_jobs", int(setup.n_jobs))
+
+
+def warn_novelty_dimension(setup: Setup) -> None:
+    """Warn when a standardization alone defines "new" on many features (P6-3)."""
+    d = len(setup.features)
+    novelty = setup.novelty
+    if novelty is None or d < MANY_NOVELTY_FEATURES:
+        return
+    if isinstance(novelty.transform, (Standardize, RobustStandardize)):
+        warnings.warn(
+            f"novelty is judged on {d} standardized features at distance "
+            f"{novelty.epsilon:g}, but two observations of a state varying by one SD per "
+            f"feature sit about {np.sqrt(2 * d):.1f} apart, so small, ordinarily variable "
+            "states are often missed: reduce the dimension (Chain([RobustStandardize(), "
+            "PCA(k)])) or declare fewer features",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
+def check_few_fovs(setup: Setup) -> None:
+    """``few_fovs``: an integer above the definition of new's ``min_other_fovs``."""
+    if setup.few_fovs is None:
+        return
+    if setup.novelty is None:
+        raise ValueError("few_fovs counts states under the definition of new: declare novelty")
+    if not is_integer(setup.few_fovs):
+        raise TypeError("few_fovs must be an integer number of fields")
+    object.__setattr__(setup, "few_fovs", int(setup.few_fovs))
+    if setup.few_fovs <= setup.novelty.min_other_fovs:
+        raise ValueError(
+            f"few_fovs ({setup.few_fovs}) must exceed the definition of new's min_other_fovs "
+            f"({setup.novelty.min_other_fovs}): a state seen in that many other fields is "
+            "already not new"
+        )
+
+
+__all__ = [
+    "MANY_NOVELTY_FEATURES",
+    "PositiveControl",
+    "check_few_fovs",
+    "check_presets",
+    "default_novelty",
+    "warn_novelty_dimension",
+]

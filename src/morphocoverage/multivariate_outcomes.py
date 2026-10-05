@@ -17,6 +17,9 @@ Shared settings, explicit on every metric:
   units contribute comparably. The reference is fixed for a group, so every
   stop is measured in the same units. A reference feature with zero spread
   makes the outcome undefined.
+- ``weights`` (keyword only, optional): one weight per feature, multiplied in after the
+  scaling, so that several feature tables each carry their weight in the weighted combined
+  space (``feature_tables.table_weights``); enters the parameters only when given.
 
 Metric-specific settings (quantiles, kernel bandwidth, subsample size, number
 of projections, seeds) have no defaults: they define the geometry of the
@@ -124,6 +127,9 @@ def _samples(
         state = fitted[0]
         reference = standardize.apply_matrix(state, reference)
         sample = standardize.apply_matrix(state, sample)
+    if metric.weights is not None:
+        weights = np.asarray(metric.weights)
+        sample, reference = sample * weights, reference * weights
     return sample, reference
 
 
@@ -142,6 +148,7 @@ class _MultivariateOutcome(OutcomeMetric):
     features: tuple[str, ...]
     standardize: bool
     label: str | None = field(default=None, kw_only=True)
+    weights: tuple[float, ...] | None = field(default=None, kw_only=True)
 
     # Short name of the metric family; each subclass sets it.
     family: ClassVar[str]
@@ -151,6 +158,13 @@ class _MultivariateOutcome(OutcomeMetric):
         if not isinstance(self.standardize, bool):
             raise TypeError("standardize must be True or False")
         _check_label(self.label)
+        if self.weights is not None:
+            weights = tuple(float(w) for w in self.weights)
+            if len(weights) != len(self.features) or not all(
+                np.isfinite(w) and w > 0 for w in weights
+            ):
+                raise ValueError("weights must be one positive finite number per feature")
+            object.__setattr__(self, "weights", weights)
 
     @property
     def name(self) -> str:
@@ -168,6 +182,8 @@ class _MultivariateOutcome(OutcomeMetric):
         }
         if self.label is not None:
             settings["label"] = self.label
+        if self.weights is not None:
+            settings["weights"] = list(self.weights)
         return settings
 
 

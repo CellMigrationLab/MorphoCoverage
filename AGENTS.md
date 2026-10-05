@@ -254,6 +254,7 @@ src/morphocoverage/
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     glossary.py            # the report's glossary: every test, rule and term in plain words, with its papers
     embedding.py           # PCA and UMAP of the declared features (embed): coordinates and loadings, no figure
+    feature_tables.py      # other feature tables (a DINO embedding, ...): validated against the observation table, attached as named blocks; their weights in the combined space
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
     _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend
@@ -335,7 +336,8 @@ src/morphocoverage/
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
-        _setup_parts.py    # private: the positive control and the default definition of new, re-exported by setup
+        _setup_parts.py    # private: the positive control, the default definition of new and the presets' checks, re-exported by setup
+        _feature_space.py  # private: the Setup's other feature tables: the weighted combined space, novelty on it, the tables attached
         _contrasts.py      # private: one control or several: the contrast table, own controls, the pooled and figure controls
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions

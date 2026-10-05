@@ -113,6 +113,7 @@ TRANSFORMS_UNDER_CONTRACT: list[transforms.FeatureTransform] = [
     transforms.RobustStandardize(),
     transforms.PCA(1),
     transforms.Chain([transforms.Standardize(), transforms.PCA(2)]),
+    transforms.Chain([transforms.RobustStandardize(), transforms.ColumnWeights((1.0, 0.5))]),
 ]
 TRANSFORM_IDS = [transform.name for transform in TRANSFORMS_UNDER_CONTRACT]
 
