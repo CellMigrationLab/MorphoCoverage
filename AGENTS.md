@@ -408,7 +408,8 @@ data/
                            # dataset; run_lab.py runs the report, FINDINGS.md logs each run (rules in data/lab/README.md:
                            # only pinned public or owner-released sources, never a manuscript)
     morphobricks/          # small tables as the other MorphoBricks tools write them (fiberfeatures_patches.csv), with provenance
-    simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py) and results
+    simulations/           # simulations behind the report's tests and labels (test_choice.py, unbalanced.py,
+                           # unusual_calibration.py) and results
     synthetic/             # a constructed end-to-end dataset with known answers (make_synthetic.py, expected.json)
 
 docs/                      # questions.md (the questions and their status), glossary.md (generated from glossary.py), condition_tests.md (question 9's tests,
