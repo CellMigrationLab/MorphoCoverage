@@ -253,3 +253,31 @@ def test_a_group_the_fingerprint_cannot_be_judged_in_is_named():
     result = SimpleNamespace(setup=setup, results={"fingerprint_precision": precision})
     lines, _ = _targets(result, "well", "field")
     assert lines == ["The fingerprint is within its tolerance in 17 of 17 wells judged."]
+
+
+def test_a_labelled_cell_in_a_crowded_field_finds_its_neighbour_of_another_field():
+    # Regression (#349): only the 64 nearest cells were looked at, so the 5 labelled cells
+    # among 105 alike cells of one field were left out of the share recognized.
+    rng = np.random.default_rng(0)
+    parts = [
+        ("f0", 100, (0, 0), False),
+        ("f0", 5, (0, 0), True),
+        ("f1", 3, (3, 3), True),
+        ("f1", 10, (5, 5), False),
+        ("f2", 10, (5.1, 5), False),
+    ]
+    objects = pd.concat(
+        pd.DataFrame(rng.normal(centre, 0.05, (n, 2)), columns=["x", "y"]).assign(
+            image_file=field, lab=labelled
+        )
+        for field, n, centre, labelled in parts
+    )
+    fovs = pd.DataFrame({"image_file": ["f0", "f1", "f2"]})
+    rare = RareTarget(
+        object_prevalence=0.05, detection_probability=0.95, min_fov_occurrences=1, phenotype="p"
+    )
+    setup = Setup(
+        readout="x", features=("x", "y"), rare=rare, rare_label="lab", observation_unit="cell"
+    )
+    # f0's labelled cells find f1's; f1's find f2's unlabelled cells.
+    assert label_control(objects, fovs, setup).recognized == pytest.approx(5 / 8)
