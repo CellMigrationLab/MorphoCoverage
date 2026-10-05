@@ -38,7 +38,10 @@ result = report(scan.objects, scan.fovs, setup)
   like one: siCTRL, MOCK, DMSO, NT, scramble, vehicle), the biological repeats
   and which conditions each holds (one experiment, or separate acquisitions
   sharing the control, as in a screen), the technical repeats, the fields and
-  the observations per field, the planes, the targets, the features, and the
+  the observations per field, the planes, the targets, the features, the
+  [other feature tables](#other-feature-tables-embeddings) given as
+  `scan_design(..., feature_tables={"DINOv2": dino})`, each checked (owner,
+  2026-10-05: one that cannot be used is a ❌ finding, with why), and the
   observations per condition and repeat. With a FOV table that passes the data
   check, the fields, conditions and repeats are those it lists, a condition or
   repeat held only by empty fields included, with 0 observations.
@@ -80,7 +83,12 @@ session = guide("cells.csv", folder="results")   # paths or DataFrames; asked fo
 ```
 
 or, from a terminal, `python -m morphocoverage.workflows cells.csv [fovs.csv] --folder results`.
-The session loads the tables, scans them and prints the scan, then asks: did
+The session loads the tables; given as paths (asked for, or from a terminal), it then
+asks "Do you have other feature tables for the same observations, e.g. deep-learning
+embeddings such as DINO?" and, for each, a path and a name, checking each against the
+observation table and asking again when one cannot be used (owner, 2026-10-05;
+`guide(..., feature_tables={"DINOv2": dino})` gives them directly). It scans them,
+the other tables listed in the scan, and prints the scan, then asks: did
 the dataset load correctly (if not, it stops); what one row is (owner, 2026-10-05: asked
 here, so the scan's words follow it); whether all the conditions are
 compared with the same control (owner, 2026-10-05; No is proposed, after a table of the
@@ -108,11 +116,12 @@ the answers and stop, as `run_report=False` does. Enter takes each default.
 
 The answers are saved in the folder as `morphocoverage_answers.json`, with a
 checksum of the observation table and one of the FOV table (`None` without
-one), before the report runs; the folder then
+one), and each other feature table's name, path and checksum, before the report runs; the folder then
 holds `scan.txt`, `report_short.txt` and `report_full.txt`. Run in the same
 folder again, the session shows the saved answers and offers to continue with
 them (straight to the report) or to delete them and start over. Answers saved
-for another table, or with another FOV table or none, are never reused: the
+for another table, or with another FOV table or none, or with other feature tables
+(compared by name and checksum), are never reused: the
 session offers to delete them, or stops so you can choose another folder.
 Answers saved by an earlier version, which did not check the FOV table, are
 not reused either: the session says so and asks the questions again
@@ -270,7 +279,10 @@ repeat's median and interval) and `<feature>_pairs.csv` (every pair of
 conditions); for the maps `embedding_<values>.csv` (the PCA and UMAP coordinates
 of every point, with its condition, repeat, field, `observation` (its index in the
 observation table), `label_id` when the table has one, population and standardised
-features) and `pca_loadings_<values>.csv`; for the heatmap `heatmap_d.csv`.
+features) and `pca_loadings_<values>.csv` (with other feature tables
+`embedding_<values>_<table>.csv`, the combined space's table named `Combined`), and
+`separation.csv` (each space's share of neighbours sharing the condition, per biological
+repeat); for the heatmap `heatmap_d.csv`.
 
 The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
 which the page carries (about 1.5 MB, MIT licence), so they work offline. A
@@ -300,7 +312,15 @@ find it again in the table and the image, click a condition in the legend to
 hide it, switch between PCA and UMAP and between raw values and values
 normalised to each repeat's control, and draw around points (the lasso is on) to
 see which conditions they come from: their number, their share of the selection,
-the share chance would give and the ratio of the two. Up to 12 conditions, every
+the share chance would give and the ratio of the two. Under each map, one line says
+how far the conditions separate in it (owner, 2026-10-05): of each observation's 10
+nearest neighbours among the other observations of its biological repeat, the share that
+have its condition, against that condition's share of the repeat (chance), the median over
+the repeats ("DINOv2: 61% of neighbours share the condition, against 13% by chance; median
+over 3 repeats"); a description, with no p-value. With [other feature
+tables](#other-feature-tables-embeddings), a selector switches between a map per table,
+the weighted combined map first, and a table under the maps compares them. Up to 12
+conditions, every
 condition, the control included, has a colour of its own (no grey, hard to see);
 past 12, the control and the conditions significant across repeats (else the
 cell-level screen's best-ranked candidates), at most 11, keep a colour and the
@@ -696,6 +716,51 @@ should I look at?" and in "What this dataset cannot tell me", since every
 other answer still counts them as independent fields; see
 [`integrity.md`](integrity.md).
 
+### Other feature tables: embeddings
+
+The features you test one by one (explainable features, such as the readout and the
+shape and intensity measurements) are the observation table's. Features that are not
+read one by one, such as the embedding of a deep-learning model, come as other feature
+tables, each with a name, so that several models can be compared side by side (owner,
+2026-10-05):
+
+```python
+tables = {"DINOv2": dino_v2, "DINOv3": dino_v3}
+result = report(objects, fovs, setup, feature_tables=tables)
+html_report(result, objects, fovs, "results", feature_tables=tables)
+```
+
+Each table is checked against the observation table at loading
+([its rules](data_format.md#other-feature-tables-embeddings-beside-the-explainable-features):
+every observation matched exactly once by the same identity, numeric columns, missing
+values counted, no clashing names, a name of its own), and `result.setup.feature_tables`
+names their columns. They are never tested feature by feature, and there is no
+whole-embedding test: the discovery, the heatmap, the SuperPlots, "Did I image enough?"
+and the contrasts read the explainable features as before. With the explainable features
+they make:
+
+- the PCA and UMAP: one map per table and a weighted combined map, shown first;
+- the populations, found on the combined space and still named, and given rules, with
+  explainable features;
+- unusual observations, novelty (with the positive control and the fields to inspect)
+  and the copy checks;
+- a fingerprint declared on their columns (the guided session's fingerprint reads the
+  combined space).
+
+In the weighted combined space each column is standardised as each analysis
+standardises it, then each table is weighted so that it carries the explainable
+features' total variance: a table of `p` columns times `sqrt(p_explainable / p)`, MFA's
+equal weight per table with the square root of the number of columns in place of the
+first singular value, so the weights do not depend on the data. The definition of new
+keeps its meaning there with its radius times the square root of the number of tables.
+An other table is never divided by a control (an embedding has no ratio scale), so its
+map is the same in raw and normalised values. On the page, under each map, the share of
+neighbours that share the condition against chance compares the tables: a higher share,
+the conditions sit further apart in that table, by biology or by how the conditions were
+imaged; near chance, that table does not tell them apart here, which does not show them
+alike. The live session and `optimise` read the columns already in `objects`: for them,
+attach the tables first (`attach_feature_tables(objects, fovs, tables).objects`).
+
 ## Plots: every object a point, the interval from fields
 
 ```python
@@ -1081,7 +1146,10 @@ features and 151 conditions about 30 min. The guided session says its estimate
 before it starts. It is approximate, from constructed datasets of 5 to 300
 features and 3 to 151 conditions (2026-10-02 and 2026-10-05), which took 13, 50
 and about 30 min; a busy machine, the novelty question below and many objects
-per field add to it.
+per field add to it. Other feature tables add little, as they are never tested
+feature by feature: on the ECM tables of 2026-10-05 (236 images, 8 conditions, 17
+explainable features and a DINO table of 384), the report and its page took 76 s on 2
+processes, against 65 s without the DINO table.
 
 `Setup.n_jobs` reaches every workflow, the report's replay of the stopping
 rules included (`sufficiency_report(..., n_jobs=)`, since audit 4); results
