@@ -184,7 +184,7 @@ def chip(status: Status | None, key: str = "", answer: str = "", word: str | Non
     if few:
         word = f"No conclusion (n = {few.group(1)})"
     elif key == "populations" and answer.startswith("no group:"):
-        word = "One continuum"
+        word = "No group"
     elif key == "conditions" and status is Status.OK and answer.startswith("beyond the mean"):
         word = "Differs beyond the mean"
     elif key in ("conditions", "populations") and status is Status.CAUTION:

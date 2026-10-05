@@ -463,7 +463,9 @@ acquired:
   cells is the main population (`P1`), the rest of the cells. On constructed data
   this finds no group in a Gaussian, a separate blob as a group its rule finds,
   and the end of a straight line at most as a group; groups overlapping strongly
-  on every feature are not told apart. Each group is listed with its share, the
+  on every feature are not told apart. Without a group the answer is ➖ "No group":
+  no candidate group passed the check on these features, which says nothing of a
+  continuum or of rare states (owner, 2026-10-05). Each group is listed with its share, the
   features that set it apart, its neighbours inside, its rule, and the fields and
   repeats it is seen in; then each condition is compared with its own
   control on its share of cells in it, per biological repeat, on the log odds of

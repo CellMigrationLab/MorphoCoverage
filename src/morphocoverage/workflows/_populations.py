@@ -404,12 +404,17 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         )
         return Status.NOT_ASSESSED, f"not clustered: too few {units}", text
     if not pops.names:
+        # Not finding a group says nothing of a continuum, nor of rare states (#94; owner,
+        # 2026-10-05): ➖, a neutral answer.
         text = wrap(
-            f"{method}: no group; the {units} form one continuum on these features.",
+            f"{method}: no candidate group passed the neighbours-inside check on these "
+            f"features ({percent(settings['purity'])} or more of a cluster's {units}' "
+            f"{settings['neighbours']} nearest neighbours in it).",
             2,
             hang=4,
         )
-        return Status.OK, "no group: one continuum on these features", text
+        headline = "no group: no candidate group passed the check on these features"
+        return Status.NOT_ASSESSED, headline, text
     lines = [wrap(f"{method}: {_found_words(pops)} ({_shares_line(pops, units)}).", 2, hang=4)]
     control = result.control
     heading = f"most different (vs {control})" if control is not None else "most different"

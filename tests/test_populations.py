@@ -106,7 +106,7 @@ def test_a_lean_observation_table_gives_the_same_populations_and_enrichment():
     pd.testing.assert_frame_equal(found.enrichment, full.enrichment)
 
 
-def test_one_continuum_is_no_population():
+def test_no_group_found_is_said_neutrally():
     rng = np.random.default_rng(0)
     rows = []
     for repeat in ("r1", "r2", "r3"):
@@ -128,8 +128,11 @@ def test_one_continuum_is_no_population():
     result = populations_in_report(objects, fovs, setup)
     status, headline, _text = populations_text(result, setup)
     if not result.populations.names:
-        assert status is Status.OK and headline.startswith("no group:")
-        assert chip(status, "populations", headline).endswith("One continuum</span>")
+        # #94 (owner, 2026-10-05): no group found is no evidence of one continuum.
+        assert status is Status.NOT_ASSESSED and headline.startswith("no group:")
+        assert "no candidate group passed the check on these features" in headline
+        assert "continuum" not in headline + _text
+        assert chip(status, "populations", headline).endswith("➖</span> No group</span>")
     else:  # one blob found as one population: nothing enriched
         assert status is not Status.OK
 
@@ -195,3 +198,29 @@ def test_the_maps_ring_populations_colour_by_feature_and_describe_a_selection(sc
     assert len(first["pop"]) == len(first["x"]) and set(first["z"]) == set(FEATURES)
     assert '<select class="colour-by">' in page and '<option value="population">' in page
     assert "Features that set them apart" in page and "circle-open" in page
+
+
+def test_no_group_reads_neutrally_in_the_text_the_chip_and_the_report():
+    """#94 (owner, 2026-10-05): with no group, question 10 says no candidate passed the
+    check, ➖ "No group", never that the cells form one continuum."""
+    from morphocoverage.sampling_unit.populations import _COLUMNS, Populations
+    from morphocoverage.workflows._populations import PopulationsResult
+
+    settings = {
+        "features": list(FEATURES),
+        "map_components": 3,
+        "min_cells": 15,
+        "purity": 0.94,
+        "neighbours": 10,
+        "observations": 500,
+        "clustered": True,
+    }
+    empty = Populations(pd.Series(dtype=object), pd.DataFrame(columns=_COLUMNS), settings)
+    setup = _setup(fingerprint=(), rare=None, rare_label=None)
+    status, headline, text = populations_text(PopulationsResult(empty, None, None, None), setup)
+    assert status is Status.NOT_ASSESSED and status.marker == "➖"
+    assert headline == "no group: no candidate group passed the check on these features"
+    flat = " ".join(text.split())
+    assert "no candidate group passed the neighbours-inside check on these features" in flat
+    assert "continuum" not in flat
+    assert chip(status, "populations", headline).endswith("No group</span>")

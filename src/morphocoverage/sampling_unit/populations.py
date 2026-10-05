@@ -24,7 +24,8 @@ features:
 - a **group** (``G1``, ``G2``, ...): ``PURITY`` or more of its observations' ``NEIGHBOURS``
   nearest neighbours on all the features are in it too (HDBSCAN on a Gaussian or a line
   cuts clusters that fail this);
-- otherwise the cluster is a stretch of one continuum and is not reported.
+- otherwise the cluster is not a group and is not reported; finding no group says
+  nothing of a continuum or of rare states (owner, 2026-10-05).
 
 Whether a group is a separate state or the end of a continuum is not decided here: no test
 of a gap of low density told the two apart reliably at the sizes of an experiment (owner,
@@ -195,7 +196,7 @@ def traits(pairs: Sequence[tuple[str, float]]) -> str:
 
 
 def _kinds(raw: np.ndarray, z: np.ndarray) -> dict[int, tuple[str | None, float]]:
-    """Each cluster's kind (``KINDS``, or ``None``: a stretch of a continuum) and purity
+    """Each cluster's kind (``KINDS``, or ``None``: not a group) and purity
     (see the module)."""
     sizes = pd.Series(raw[raw >= 0]).value_counts()
     judged: dict[int, tuple[str | None, float]] = {}
