@@ -290,8 +290,8 @@ def redundancy_distance(
     the FOV means (``None`` with no ``reason`` when no bin reaches it: fields
     are then alike at every distance measured, up to ``largest_lag``, the
     strongest redundancy). ``pairs_closer`` counts the pairs of fields closer
-    than it. Also reports the smallest lag measured, since nothing is said
-    below it.
+    than it, within the bins. Also reports the smallest lag measured, since
+    nothing is said below it.
 
     The distance is tested against chance: the FOV means are shuffled among
     the group's stage positions ``n_permutations`` times (seeded from
@@ -374,6 +374,7 @@ def redundancy_distance(
         reached = gamma[gamma["gamma"] >= float(share) * variance]
         distance = float(reached["mean_lag"].iloc[0]) if len(reached) else None
         coords = group_data.fovs[list(stage_cols)].to_numpy(dtype=float)[fov_rows]
+        lags = _distances.pdist(coords)
         ordered_means, ordered_coords = _canonical(group_data, fov_rows, means, coords)
         null = _shuffled_distances(
             ordered_means,
@@ -398,8 +399,10 @@ def redundancy_distance(
             {
                 "redundancy_distance": distance,
                 # The pairs of fields behind the point estimate: those closer than it.
+                # Counted pair by pair: the distance is a bin's mean lag, so its own bin
+                # holds closer pairs too.
                 "pairs_closer": (
-                    int(gamma.loc[gamma["mean_lag"] < distance, "n_pairs"].sum())
+                    int(np.sum((lags >= bin_edges[0]) & (lags < distance)))
                     if distance is not None
                     else None
                 ),
