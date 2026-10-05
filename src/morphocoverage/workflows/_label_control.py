@@ -11,6 +11,12 @@ is in neither share (owner, 2026-10-05). Another field, so that cells of one
 field, alike for reasons of that field, do not recognize each other. The check uses
 ``Setup.minimum_detection`` as a positive control does. The features that separate the
 state most are given with their Cohen's d (labelled against the other cells).
+
+A declared label always gets an answer (owner, 2026-10-05): when the check cannot run, the
+answer is "declared, not assessable" (➖) with its ``reason`` (too few labelled cells, no
+unlabelled cell to compare, a missing feature value, no labelled cell with a cell of another
+field) and the denominator it assessed (``assessed``: the labelled cells with a cell of
+another field, every one of them when the check runs).
 """
 
 from __future__ import annotations
@@ -37,7 +43,9 @@ MIN_LABELLED = 5
 
 @dataclass(frozen=True)
 class LabelControl:
-    """The label check (see the module)."""
+    """The label check (see the module): ``reason`` why a declared label was not assessable,
+    empty when it was; ``assessed`` the labelled observations with one of another field, the
+    denominator of ``recognized``."""
 
     label: str
     phenotype: str
@@ -49,6 +57,8 @@ class LabelControl:
     unit: str  # one observation: "cell"
     features: int
     minimum: float
+    assessed: int = 0
+    reason: str = ""
 
 
 def _robust(matrix: np.ndarray) -> np.ndarray:
@@ -59,23 +69,46 @@ def _robust(matrix: np.ndarray) -> np.ndarray:
     return (matrix - median) / scale
 
 
+def _reason(matrix: np.ndarray, marked: np.ndarray, label: str, unit: str) -> str:
+    """Why the check cannot run on these observations, or empty."""
+    missing = int(np.isnan(matrix).any(axis=1).sum())
+    if missing:
+        return f"{count(missing, unit)} with a missing feature value, which has no nearest one"
+    if marked.sum() < MIN_LABELLED:
+        return f"{count(int(marked.sum()), 'labelled ' + unit)}, at least {MIN_LABELLED} needed"
+    if marked.all():
+        return f"every {unit} with a label is {label}, so none to compare"
+    return ""
+
+
 def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> LabelControl | None:
-    """The check, or ``None`` without a label, with too few labelled cells, or with missing
-    feature values."""
+    """The check, or ``None`` without a declared label; a declared label the check cannot
+    assess gets its ``reason``."""
     label = setup.rare_label
     if label is None or label not in objects.columns or setup.rare is None:
         return None
     features = list(setup.columns)
+    unit = setup.observation_unit or "observation"
     data = validate_input_tables(objects, fovs=fovs, feature_cols=features, **setup.common)
     matrix = data.feature_matrix()
-    if np.isnan(matrix).any():
-        return None
     # A missing label is unknown: the cell is in no share, nor anyone's neighbour (owner,
     # 2026-10-05); the standardization, which reads no label, keeps every cell.
     known = data.objects[label].notna().to_numpy()
     marked = data.objects[label][known].to_numpy(dtype=bool)
-    if marked.sum() < MIN_LABELLED or marked.all():
-        return None
+    declared = {
+        "label": label,
+        "phenotype": setup.rare.phenotype,
+        "chance": float(marked.mean()) if len(marked) else np.nan,
+        "labelled": int(marked.sum()),
+        "observations": len(marked),
+        "unit": unit,
+        "features": len(features),
+        "minimum": float(setup.minimum_detection),
+    }
+    reason = _reason(matrix, marked, label, unit)
+    if reason:
+        empty = pd.Series(dtype=float)
+        return LabelControl(recognized=np.nan, separation=empty, reason=reason, **declared)
     positions = fov_positions(data, data.fovs)[known]
     points = _robust(matrix)[known]
     tree = cKDTree(points)
@@ -96,28 +129,36 @@ def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> La
         k = min(2 * k, len(points))
     neighbours = nearest[nearest >= 0]
     recognized = float(marked[neighbours].mean()) if len(neighbours) else np.nan
+    # Every labelled cell of one field only: no other field to recognize it from.
+    reason = "" if len(neighbours) else f"no labelled {unit} has a {unit} of another field"
     values = pd.DataFrame(matrix[known], columns=features)
     inside, outside = values[marked], values[~marked]
     pooled = np.sqrt((inside.var(ddof=1) + outside.var(ddof=1)) / 2)
     separation = ((inside.mean() - outside.mean()) / pooled.replace(0, np.nan)).dropna()
     separation = separation.reindex(separation.abs().sort_values(ascending=False).index)
     return LabelControl(
-        label=label,
-        phenotype=setup.rare.phenotype,
         recognized=recognized,
-        chance=float(marked.mean()),
-        labelled=int(marked.sum()),
-        observations=len(marked),
         separation=separation,
-        unit=setup.observation_unit or "observation",
-        features=len(features),
-        minimum=float(setup.minimum_detection),
+        assessed=len(neighbours),
+        reason=reason,
+        **declared,
     )
 
 
 def label_answer(check: LabelControl) -> tuple[Status, str, str]:
-    """Question 1's status, headline and text (unindented) from the label check."""
+    """Question 1's status, headline and text (unindented) from the label check; ➖ with its
+    reason when the declared label was not assessable."""
     unit, units = check.unit, plural(check.unit)
+    if check.reason:
+        text = (
+            f"Can the features see the labelled state? {check.label.capitalize()} {units}, "
+            f"{check.phenotype}: declared, but not assessable: {check.reason}. Assessed: "
+            f"{check.assessed} of {count(check.labelled, 'labelled ' + unit)}, among "
+            f"{check.observations} with a label. No other positive control was declared, so "
+            "the representation is not checked."
+        )
+        headline = f"{check.label} declared, not assessable: {check.reason}"
+        return Status.NOT_ASSESSED, headline, text
     seen = check.recognized >= check.minimum
     status = Status.OK if seen else Status.CAUTION
     named = [f"{f} (d {d:+.1f})" for f, d in check.separation.head(3).items()]
@@ -133,7 +174,8 @@ def label_answer(check: LabelControl) -> tuple[Status, str, str]:
     text = (
         f"Can the features see the labelled state? {check.label.capitalize()} {units}, "
         f"{check.phenotype}: {count(check.labelled, 'labelled ' + unit)} of "
-        f"{check.observations}. For {percent(check.recognized)} of them, the nearest "
+        f"{check.observations}. For {percent(check.recognized)} of {_assessed(check)}, the "
+        "nearest "
         f"{unit} of another field on the {count(check.features, 'declared feature')} "
         f"(robustly standardized) is labelled too, against {percent(check.chance)} labelled "
         f"overall; {percent(check.minimum)} is asked (minimum_detection): {verdict}. The "
@@ -141,6 +183,13 @@ def label_answer(check: LabelControl) -> tuple[Status, str, str]:
         "declared, so this is the check of the representation."
     )
     return status, headline, text
+
+
+def _assessed(check: LabelControl) -> str:
+    """``them``, or ``the 12 with a cell of another field`` when fewer were assessed."""
+    if check.assessed >= check.labelled:
+        return "them"
+    return f"the {check.assessed} with a {check.unit} of another field"
 
 
 __all__ = ["LabelControl", "label_answer", "label_control", "with_label_check"]

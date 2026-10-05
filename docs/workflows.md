@@ -491,7 +491,12 @@ acquired:
   positive control, is answered by the label: for each labelled cell, whether
   the nearest cell of another field (on the declared features, robustly
   standardized) is labelled too, against the share labelled overall, with
-  `minimum_detection` as for a positive control.
+  `minimum_detection` as for a positive control. Every labelled cell is looked up
+  against its true nearest cell of another field, and the answer gives how many were
+  assessed. A declared label the check cannot assess (fewer than 5 labelled cells, no
+  unlabelled cell to compare, a missing feature value, or no labelled cell with a cell
+  of another field) is answered ➖ "declared, not assessable" with the reason, never
+  as if no label were declared (owner, 2026-10-05).
 
 Every document opens with the declaration (`setup.declaration()`), one
 sentence per target, and a target that is not declared says so, so that an
