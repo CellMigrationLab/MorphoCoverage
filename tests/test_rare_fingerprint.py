@@ -220,3 +220,36 @@ def test_the_targets_have_their_own_tabs_after_the_features(screen, tmp_path):
         fingerprint
     )
     assert "Optimise judges it" not in card and "held-back" not in card
+
+
+def test_a_group_the_fingerprint_cannot_be_judged_in_is_named():
+    # Regression (#333): a well with fewer than 4 fields left the tally, so the fingerprint
+    # read "within it in 17 of 17 wells" and "in every well" with 18 wells declared.
+    from types import SimpleNamespace
+
+    from morphocoverage.workflows._enough_targets import (
+        fingerprint_lines,
+        fingerprint_precision,
+        targets_status,
+    )
+    from morphocoverage.workflows._html_enough import _targets
+
+    objects, fovs = _screen()
+    small = fovs["image_file"].str.startswith("arrest_2026_01_05_C1_")
+    drop = set(fovs.loc[small, "image_file"].iloc[3:])
+    fovs = fovs[~fovs["image_file"].isin(drop)]
+    objects = objects[~objects["image_file"].isin(drop)]
+    criterion = OutcomeCriterion(
+        QuantileError(FEATURES, True, quantiles=(0.5,)), 10.0, "lower_is_better", "loose"
+    )
+    setup = _setup(fingerprint=(criterion,))
+    precision = fingerprint_precision(objects, fovs, setup)
+    assert precision["met"].isna().sum() == 1 and precision["met"].dropna().all()
+    text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields")).split())
+    assert "within it in 17 of 17 wells: enough. Not judged in 1 well: fewer than 4" in text
+    assert targets_status(None, precision, setup)[1] == [
+        "the fingerprint within its tolerance in 17 of 17 judged"
+    ]
+    result = SimpleNamespace(setup=setup, results={"fingerprint_precision": precision})
+    lines, _ = _targets(result, "well", "field")
+    assert lines == ["The fingerprint is within its tolerance in 17 of 17 wells judged."]

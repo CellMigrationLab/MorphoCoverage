@@ -254,8 +254,11 @@ def _targets(result: Any, word: str, field: str) -> tuple[list[str], list[tuple[
         for criterion in criteria:
             own = judged[judged["criterion"] == criterion]
             met = int(own["met"].sum())
+            every = (precision["criterion"] == criterion).sum() == len(own)
             within = (
-                f"in every {word}" if met == len(own) else f"in {met} of {count(len(own), word)}"
+                f"in every {word}"
+                if met == len(own) and every
+                else f"in {met} of {count(len(own), word)}" + ("" if every else " judged")
             )
             named = "" if len(criteria) == 1 else f", {criterion},"
             lines.append(f"The fingerprint{named} is within its tolerance {within}.")
