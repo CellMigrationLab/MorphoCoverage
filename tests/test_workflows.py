@@ -375,6 +375,10 @@ def test_write_fov_refuses_changed_manifest_columns_and_reserved_names(tmp_path)
     with pytest.raises(ValueError, match=OBJECTS_FILE):
         write_fov(tmp_path, pd.DataFrame({READOUT: [1.0]}), {OBJECTS_FILE: "x"})
     assert not list((tmp_path / "objects").glob(".*.tmp"))
+    # The refused field left no object file, so the corrected retry gets the next name.
+    assert [p.name for p in (tmp_path / "objects").iterdir()] == ["fov_000001.csv"]
+    retried = write_fov(tmp_path, pd.DataFrame({READOUT: [1.0]}), {"position_id": "b"})
+    assert retried.name == "fov_000002.csv"
 
 
 def test_live_tables_buffers_objects_until_their_fov_row():

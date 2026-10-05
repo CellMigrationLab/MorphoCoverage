@@ -52,6 +52,13 @@ def write_fov(
     stem = name if name is not None else f"fov_{count + 1:06d}"
     relative = f"{OBJECTS_DIR}/{stem}{suffix}"
     target = folder / relative
+    row = {**metadata, OBJECTS_FILE: relative}
+    new_manifest = header is None  # absent, or an empty file: the header comes first
+    if header is None:
+        header = list(row)
+    elif set(header) != set(row):
+        # Checked before the object file is written, so a corrected retry finds no orphan.
+        raise ValueError(f"manifest columns are {header}; this field has {list(row)}")
     if target.exists():
         raise FileExistsError(f"{target} exists; every field needs its own object file")
     temporary = target.with_name(f".{target.name}.tmp")
@@ -66,12 +73,6 @@ def write_fov(
     else:
         raise ValueError("suffix must be .csv, .csv.gz or .parquet")
     os.replace(temporary, target)
-    row = {**metadata, OBJECTS_FILE: relative}
-    new_manifest = header is None  # absent, or an empty file: the header comes first
-    if header is None:
-        header = list(row)
-    elif set(header) != set(row):
-        raise ValueError(f"manifest columns are {header}; this field has {list(row)}")
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=header, lineterminator="\n")
     if new_manifest:
