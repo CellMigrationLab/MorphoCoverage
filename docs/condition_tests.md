@@ -47,7 +47,9 @@ kind one Benjamini-Hochberg family:
   p <= 0.05 in about 5% of experiments (`tests/test_comparisons.py` simulates it).
 - **`vs_master_raw`**: a control against the master control, the paired t-test on each
   repeat's difference of the means, in the repeats holding both. It assumes the experiments
-  were imaged and processed alike, so a difference here may be a batch between them.
+  were imaged and processed alike, so a difference here may be a batch between them; when
+  two controls' medians of an intensity differ 2-fold or more the report says so, and names
+  the rows that join them (owner, 2026-10-05; `workflows._acquisition_gap`).
 
 The sign-flip test is given where it can reach 0.05 once corrected (`_reach`). The code is
 `sampling_unit.contrast_across`, its words `across_text`, and the table `_control`.

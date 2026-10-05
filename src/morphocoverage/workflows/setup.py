@@ -96,6 +96,9 @@ class Setup:
       condition (``"VEC"`` or ``("VEC", "transfection")``, a treatment key), tested as a
       main verdict; and the control the other controls are compared with on raw values.
     - ``contrasts``: a contrast table (``_control.CONTRAST_COLUMNS``) in its place.
+    - ``intensity_features``: with several controls, declared columns compared between the
+      controls for an acquisition gap, beside every declared column whose name contains
+      "intensity" (``_acquisition_gap``, owner 2026-10-05).
     - ``feature_tables``: the other feature tables, each name with its columns, such as a
       DINO embedding (owner, 2026-10-05): never tested feature by feature, they join the
       explainable features in the maps, populations, unusual observations, novelty, copy
@@ -211,11 +214,12 @@ class Setup:
     control_parents: Mapping[Any, Any] | None = None
     contrasts: pd.DataFrame | None = field(default=None, compare=False)
     feature_tables: Mapping[str, tuple[str, ...]] | None = None
+    intensity_features: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.readout, str) or not self.readout:
             raise TypeError("readout must be one column name")
-        for name in ("features", "tolerances", "effort_strata"):
+        for name in ("features", "tolerances", "effort_strata", "intensity_features"):
             value = getattr(self, name)
             if value is None and name == "effort_strata":
                 continue  # one stratum per condition (resolved_effort_strata)
@@ -277,6 +281,8 @@ class Setup:
         check_few_fovs(self)
         warn_novelty_dimension(self)
         check_feature_tables(self)
+        if set(self.intensity_features) - set(self.columns):
+            raise ValueError("intensity_features must be declared columns (readout or features)")
         undeclared = set(self.criterion_columns) - {*self.columns, *table_columns(self)}
         if undeclared:
             raise ValueError(

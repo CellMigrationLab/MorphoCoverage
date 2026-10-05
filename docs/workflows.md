@@ -483,6 +483,16 @@ on the raw values. The tests read the raw values and each normalises to its own 
 Unusual observations and the population enrichment take each condition's own control as the
 reference; the object rules, clustering and a positive control take every control pooled.
 
+**Controls apart in intensity** (owner, 2026-10-05). Raw comparisons across experiments, and
+maps on raw values, assume the experiments were imaged and processed alike. So the controls
+are compared with each other on every declared column whose name contains "intensity" (any
+case) and on those listed in `Setup(intensity_features=...)`: when two controls' medians, over
+all their observations, differ 2-fold or more (`_acquisition_gap.GAP_FOLD`), the report says
+so with one ⚠️ caution among the checks of the values ("Controls apart in intensity: VEC_SiNC
+and VEC differ 13-fold in median Intensity (mean); ...") and in "Do the conditions differ?",
+and names each `across_normalised` or `vs_master_raw` row that joins two such controls under
+its table. With one control nothing is compared.
+
 ### Normalising to the control
 
 `normalize="control_mean"` divides every declared column (the readout and

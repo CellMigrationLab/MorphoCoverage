@@ -74,6 +74,7 @@ from ..sampling_unit import (
 )
 from ..schema import resolve_observation_unit
 from ..sufficiency import sufficiency_report
+from ._acquisition_gap import with_gap_caution, with_gaps
 from ._distribution import distribution_by_feature
 from ._document import (
     assemble,
@@ -276,6 +277,7 @@ def report(
     # normalises to its own reference); the populations read the figures' values.
     compared = setup.compared_values(objects, fovs)
     results.update(conditions(compared, fovs, setup, reasons))
+    gaps = with_gaps(results, objects, fovs, setup)  # several controls apart in intensity
     if "contrast" in results:
         # Question 2 for every feature alike: the report is neutral (owner, 2026-10-01).
         results["enough_features"] = enough_by_feature(
@@ -342,7 +344,7 @@ def report(
         "permuted_orders": REPORT_ORDERS,
         "random_state": setup.random_state,
     }
-    document = with_reasons(assemble(results, setup), reasons)
+    document = with_gap_caution(with_reasons(assemble(results, setup), reasons), gaps)
     unlabelled = unlabelled_note(objects, setup)
     if unlabelled:
         # Said once, where the label is used: the notes every answer is read with.
