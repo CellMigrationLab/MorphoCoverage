@@ -143,6 +143,23 @@ def test_fields_with_a_missing_pairing_value_are_refused_not_dropped():
         _control(objects, fovs, BOTH, pair_cols=["plate"])
 
 
+def test_a_generator_of_features_is_read_once():
+    # The settings text used to consume it before validation (#222).
+    objects, fovs = _plate(plates=("P1",))
+    listed = _control(objects, fovs, BOTH, draws=3)
+    generated = representation_control(
+        objects,
+        fovs,
+        feature_cols=(c for c in FEATURES),
+        novelty=NOVELTY,
+        control=BOTH,
+        pair_cols=["biological_repeat"],
+        fovs_seen=6,
+        draws=3,
+    )
+    pd.testing.assert_frame_equal(listed.table, generated.table)
+
+
 def test_adding_a_plate_does_not_change_another_plates_rates():
     objects, fovs = _plate()
     one = fovs[fovs["biological_repeat"] == "P1"]

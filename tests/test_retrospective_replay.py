@@ -166,6 +166,27 @@ def test_recorded_order_follows_the_acquisition_order_column():
         _replay("homogeneous", [FixedFOVStrategy(4)], orders=[AcquisitionOrder.recorded()])
 
 
+def test_a_generator_of_features_is_read_once():
+    # The order column's role check used to consume it before validation (#222).
+    built = SCENARIOS["homogeneous"]()
+    settings = {
+        "strategies": [FixedFOVStrategy(4)],
+        "criteria": [MEAN_A],
+        "objective": POPULATION,
+        "reservoir_fraction": 0.3,
+        "acquisition_order_col": "acquisition_order",
+        "n_splits": 1,
+    }
+    listed = replay_acquisitions(
+        built.objects, built.fovs, feature_cols=list(FEATURE_COLS), **settings
+    )
+    generated = replay_acquisitions(
+        built.objects, built.fovs, feature_cols=(c for c in FEATURE_COLS), **settings
+    )
+    pd.testing.assert_frame_equal(listed.decisions, generated.decisions)
+    pd.testing.assert_frame_equal(listed.outcomes, generated.outcomes)
+
+
 def test_default_orders_and_determinism():
     first = _replay("homogeneous", [FixedFOVStrategy(4)])
     assert set(first.decisions["order"]) == {"permuted"}

@@ -51,6 +51,7 @@ from .._style import group_label
 from .._wording import count, ordinal, percent
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
+from ..metadata import column_names
 from ..objectives import ObjectiveConfig, SamplingObjective
 from ..schema import ValidatedInput, fov_positions, observation_words
 from ..strategies.support_novelty import FOV_QUANTITY, SupportNoveltyEstimator
@@ -437,10 +438,10 @@ def inspect_fovs(
         neighbour_threshold,
         n_neighbours,
     )
+    feature_cols = list(column_names(feature_cols, "feature_cols"))  # read once
     missing = [s.feature for s in summaries if s.feature not in feature_cols]
     if missing:
         raise ValueError(f"summary features must be among feature_cols: {missing}")
-    feature_cols = list(feature_cols)
     novelty_cols = feature_cols if novelty_cols is None else list(novelty_cols)
     data = validate_input_tables(
         objects,

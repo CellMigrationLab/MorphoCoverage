@@ -54,6 +54,7 @@ from .._style import rule_label
 from ..benchmark import AcquisitionOrder, permuted_fovs
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
+from ..metadata import column_names
 from ..objectives import ObjectiveConfig
 from ..schema import ValidatedInput
 from ..sequential import (
@@ -409,6 +410,7 @@ def replay_acquisitions(
     )
     # numpy integers are accepted and recorded as the Python values they hold.
     n_splits, min_fovs, random_state = int(n_splits), int(min_fovs), int(random_state)
+    feature_cols = column_names(feature_cols, "feature_cols")  # read once: may be a generator
     if acquisition_order_col is not None and acquisition_order_col in feature_cols:
         raise ValueError("acquisition order cannot also be a phenotype feature")
     data = validate_input_tables(
