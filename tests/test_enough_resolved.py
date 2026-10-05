@@ -45,6 +45,20 @@ def test_a_moderate_difference_gets_the_fields_that_would_resolve_it():
     assert 10 < row["fields_to_resolve"] <= PRACTICAL * 10
 
 
+def test_the_fields_to_resolve_count_the_fields_without_observations():
+    """The projection counted only the fields with observations, so a side where half the
+    fields acquired were empty was told half the fields it would acquire (#289)."""
+    rng = np.random.default_rng(3)
+    t, c = _fields(rng, 10, 0.8, per_field=1), _fields(rng, 10, 0.0, per_field=1)
+    d = cohen_d(np.concatenate(t[0]), np.concatenate(c[0]))
+    row = sampling_row(t, c, d, np.random.default_rng(2))
+    empty = [np.empty(0)] * 10
+    halved = sampling_row([t[0] + empty], [c[0] + empty], d, np.random.default_rng(2))
+    assert halved["d_low"] == row["d_low"] and halved["d_high"] == row["d_high"]
+    assert halved["fields_to_resolve"] == pytest.approx(2 * row["fields_to_resolve"], abs=1)
+    assert halved["too_small"] == row["too_small"]
+
+
 def test_too_few_fields_give_no_answer():
     rng = np.random.default_rng(0)
     row = sampling_row(_fields(rng, 1, 2.0), _fields(rng, 5, 0.0), 2.0, rng)
