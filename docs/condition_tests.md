@@ -47,8 +47,11 @@ test twice. The first is as provided. The second is balanced: each condition
 against the control of its own repeats, with the same number of observations
 drawn from every repeat, as the median d and median p over 100 draws. Across
 the draws every observation is used, each repeat weighing the same in each.
-When the control is pooled from other repeats and no balanced test can be formed
+When the control is pooled from other repeats, the test as provided is not
+reported for that condition, and when no balanced test can be formed either
 (every repeat of the condition too small), the condition gets no cell-level number.
+A test not reported leaves the Benjamini-Hochberg family of its sub-experiment:
+the q-values are corrected over the tests reported only (owner, 2026-10-05).
 
 **Permutations.** The randomization p is `(extreme + 1) / (B + 1)` over `B`
 shuffles: 2000 for the readout's test as provided, 9999 in the feature screen,

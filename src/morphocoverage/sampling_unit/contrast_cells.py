@@ -6,7 +6,10 @@ d on the observations, with a randomization test that shuffles the condition
 labels over the observations (``n_permutations``, ``(extreme + 1) / (n + 1)``),
 Benjamini-Hochberg corrected within each sub-experiment (``_experiments``; the ``q_``
 columns). It asks whether these wells differ,
-and it is the only test that responds with one or two biological repeats.
+and it is the only test that responds with one or two biological repeats. A test as provided
+whose control pools repeats the condition was not imaged in is withheld from the report, so
+it has no q and leaves the family: the q-values are corrected over the tests reported
+(owner, 2026-10-05).
 
 Every number is given on the raw values and on the **normalised** values: each
 value divided by the mean of the control of its own repeat (the control's
@@ -461,13 +464,17 @@ def cell_table(
     )
     table["experiment"] = table["condition"].map(family)
     table = table.set_index("condition", drop=False)
+    # A test as provided whose control pools repeats the condition lacks is withheld, so it
+    # leaves the correction family: q only over the tests reported (owner, 2026-10-05).
+    withheld = table["other_control_repeats"] > 0
     for column in _P_COLUMNS:
         balanced = "balanced" in column
         used = BALANCED_PERMUTATIONS if balanced else n_permutations
         values = "normalised" if column.endswith("normalised") else "raw"
         version = "balanced" if balanced else "as provided"
-        table[column], shuffles = refined(
-            table[column],
+        out = withheld if not balanced else pd.Series(False, index=table.index)
+        p_values, shuffles = refined(
+            table[column].where(~out),
             table["experiment"],
             pd.Series(used, index=table.index),
             retests[column],
@@ -475,7 +482,11 @@ def cell_table(
         )
         name = "balanced_permutations" if balanced else "permutations"
         table[name] = np.fmax(table[name].to_numpy(dtype=float), shuffles)
-        table[column.replace("p_", "q_", 1)] = corrected(table[column], table["experiment"])
+        table[column.replace("p_", "q_", 1)] = corrected(
+            pd.Series(p_values, index=table.index), table["experiment"]
+        )
+        # A withheld test keeps its p, for inspection only: it has no q.
+        table[column] = np.where(out, table[column], p_values)
     return table.reset_index(drop=True)
 
 

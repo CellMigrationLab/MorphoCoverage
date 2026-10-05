@@ -141,6 +141,28 @@ def test_with_nothing_to_balance_a_control_from_other_repeats_gives_no_number():
     assert np.isfinite(own["p"]) and not own["balanced"]
 
 
+def test_a_withheld_test_leaves_the_correction_family():
+    """#292: KD2 is imaged in repeats 1-2 of the control's 1-3, so its test as provided pools a
+    repeat it lacks and is withheld. It shares the sub-experiment with KD, but leaves its
+    family: KD's q as provided is corrected over the one test reported, as without KD2, and
+    KD2's has no q. Its balanced test, against its own repeats, stays in that family
+    (owner, 2026-10-05)."""
+    control = {"1": 40, "2": 40, "3": 40}
+    kd = _side({"1": (40, 0.6), "2": (40, 0.6), "3": (40, 0.6)}, control)
+    kd2 = _side({"1": (40, 0.1), "2": (40, 0.1)}, {"1": 40, "2": 40})
+    kd2["control_all"] = kd["control_all"]
+    both = _cells(KD=kd, KD2=kd2)
+    alone = _cells(KD=kd)
+    assert both.loc["KD", "experiment"] == both.loc["KD2", "experiment"]
+    assert both.loc["KD2", "other_control_repeats"] == 1
+    for version in ("cells", "cells_normalised"):
+        assert np.isnan(both.loc["KD2", f"q_{version}"])
+        assert np.isfinite(both.loc["KD2", f"p_{version}"])
+        assert both.loc["KD", f"q_{version}"] == both.loc["KD", f"p_{version}"]
+        assert both.loc["KD", f"q_{version}"] == alone.loc["KD", f"q_{version}"]
+    assert np.isfinite(both.loc["KD2", "q_balanced"])
+
+
 @pytest.fixture(scope="module")
 def screen():
     data = catalog.load("cct8_filopodia_screen")

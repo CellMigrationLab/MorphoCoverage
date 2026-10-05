@@ -207,7 +207,8 @@ def _cells(row: pd.Series | None, words: tuple[str, str], single: bool = False) 
     text = f"{words[0]}-level screen (exploratory) q {p_value(q)} ({label}" + (
         f"; {_chance_sentence(chance, single)})" if chance else ")"
     )
-    raw = row["q_cells"]
+    # A withheld test as provided has no q (contrast_cells): its p says whether to explain.
+    raw = row["p_cells"] if row["other_control_repeats"] > 0 else row["q_cells"]
     if label != "raw" and q > ALPHA and pd.notna(raw) and raw <= ALPHA:
         text += f"; the raw pooled test is not read here: {_why_raw(row, label, words[1])}"
     return text
