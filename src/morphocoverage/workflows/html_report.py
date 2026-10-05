@@ -350,7 +350,8 @@ def html_report(
     """Write ``folder/report.html`` and its figures (see the module); returns the page's path.
 
     ``objects`` and ``fovs`` are the tables the ``report`` was run on; ``attach`` are more files
-    the page carries for download (the design scan, the saved answers).
+    the page carries for download (the design scan, the saved answers): one not found is named
+    in the Files card, and two of one name are both carried (``_html_data.page_files``).
     """
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
@@ -501,7 +502,7 @@ def html_report(
     if result.discovery is not None and len(result.discovery.tests):
         texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
     files, images = page_files(folder, texts, [Path(p) for p in attach], started)
-    cards.append(files_card(files))
+    cards.append(files_card(files, attach))
     # The page names the q-value the adjusted p (owner, 2026-10-02); then each PNG it
     # carries is given its data, once (past the budget it stays a link, _html_data).
     cards = [inline_images(adjusted_p(card, units, one), images) for card in cards]
@@ -569,7 +570,8 @@ def _settings(result: Report) -> str:
 
 def zip_results(folder: str | Path, *, since: float | None = None) -> Path:
     """Every file of ``folder`` (its subfolders included) in ``folder/<name>.zip``, for
-    archiving or sending as one file; a zip already there is replaced, never included. With
+    archiving or sending as one file; that zip, when already there, is replaced, never
+    included, and any other zip (an attachment) is included. With
     ``since`` (a ``time.time()``), the figures modified before it are an earlier run's,
     left out as the page leaves them out."""
     import zipfile
@@ -579,7 +581,7 @@ def zip_results(folder: str | Path, *, since: float | None = None) -> Path:
     figures = folder / "figures"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(folder.rglob("*")):
-            if not path.is_file() or path.suffix == ".zip":
+            if not path.is_file() or path == target:
                 continue
             if since is not None and path.parent == figures and path.stat().st_mtime < since:
                 continue

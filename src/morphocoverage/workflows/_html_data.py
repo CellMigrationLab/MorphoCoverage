@@ -64,7 +64,9 @@ def page_files(
     """Every file the page carries or links to, by the path it is saved under: the figures
     this run wrote in ``folder/figures`` (modified at or after ``since``, so an older run's
     are left out), the ``texts`` written here, and the ``attach`` files; each
-    ``[type, base64, bytes]``. The texts and attachments are always carried; the figures'
+    ``[type, base64, bytes]``. The texts and attachments are always carried, an attachment
+    whose name is taken as ``<name>_2`` (``_3``, ...), a missing one not (``files_card`` says
+    so); the figures'
     files, smallest first, while all of it stays within ``budget``, the others linked
     (``LINKED``: the page's button opens ``figures/<name>``). A PNG carried is written once,
     as its image's data (``IN_IMAGE``); the second value maps those paths to their base64."""
@@ -73,12 +75,10 @@ def page_files(
         mime = _TYPES.get(Path(name).suffix, "text/plain")
         data = text.encode("utf-8")
         files[name] = [mime, base64.b64encode(data).decode(), len(data)]
-    for path in attach:
-        path = Path(path)
-        if path.exists():
-            mime = _TYPES.get(path.suffix, "application/octet-stream")
-            data = path.read_bytes()
-            files[path.name] = [mime, base64.b64encode(data).decode(), len(data)]
+    for path in dict.fromkeys(Path(p).resolve() for p in attach if Path(p).is_file()):
+        mime = _TYPES.get(path.suffix, "application/octet-stream")
+        data = path.read_bytes()
+        files[_free_name(path, files)] = [mime, base64.b64encode(data).decode(), len(data)]
     used = sum(entry[2] for entry in files.values())
     figures = [
         path
@@ -101,6 +101,16 @@ def page_files(
     return {**dict(sorted(carried.items())), **files}, images
 
 
+def _free_name(path: Path, files: dict[str, list[Any]]) -> str:
+    """``path``'s name, or ``<stem>_2<suffix>`` (``_3``, ...) when a file carried has it, so
+    two attachments of one name are both carried."""
+    name, number = path.name, 1
+    while name in files:
+        number += 1
+        name = f"{path.stem}_{number}{path.suffix}"
+    return name
+
+
 def inline_images(markup: str, images: dict[str, str]) -> str:
     """Each carried PNG's ``<img src="figures/...">`` given its data, so the page shows it
     without the folder; a PNG past the budget keeps its relative path."""
@@ -109,9 +119,9 @@ def inline_images(markup: str, images: dict[str, str]) -> str:
     return markup
 
 
-def files_card(files: dict[str, list[Any]]) -> str:
+def files_card(files: dict[str, list[Any]], attach: Sequence[str | Path] = ()) -> str:
     """The card listing every file the page carries or links to, each with its size and
-    save button."""
+    save button; a line names the ``attach`` files that were not found."""
     rows = "".join(
         f'<tr><td>{html.escape(name)}</td><td class="num">'
         f"{entry[2] / 1024:.0f} kB</td><td>{download(name, 'Save')}</td></tr>"
@@ -127,6 +137,10 @@ def files_card(files: dict[str, list[Any]]) -> str:
         f"{len(linked)} largest, {sum(linked) / 1024**2:.0f} MB, open from the figures folder "
         "beside it, which the zip holds too, so keep the page with its folder."
     )
+    missing = list(dict.fromkeys(str(p) for p in attach if not Path(p).is_file()))
+    if missing:
+        names = html.escape(", ".join(missing))
+        note += f'</p><p class="note">Not found, so not attached: {names}.'
     return (
         f'<section class="card" id="files"><h2>Files</h2><p class="note">{note}</p>'
         '<div class="table-wrap"><table class="sortable"><thead><tr><th>file</th><th>size</th>'

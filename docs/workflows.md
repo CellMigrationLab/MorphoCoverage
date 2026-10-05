@@ -293,8 +293,10 @@ its meaning on hover or focus (`glossary.PHRASES` lists the words matched; terms
 inside tables are left plain, explained by the sentences around them). A Files
 section holds every figure (PNG and PDF), both text reports, the feature table
 as CSV and, from the guided session, the design scan and the saved answers, each
-saved with its button, so the page alone is the file to share. The guided
-session also zips the whole folder (`zip_results(folder)`: `<folder>.zip`) for
+saved with its button, so the page alone is the file to share. A file passed in
+`attach=` that is not found is named there, and two of one name are both carried,
+the second as `<name>_2`. The guided session also zips the whole folder
+(`zip_results(folder)`: `<folder>.zip`, any other zip in it included) for
 archiving, without the figures an earlier session left in `figures/` (`since=`).
 
 ## Declare the dataset

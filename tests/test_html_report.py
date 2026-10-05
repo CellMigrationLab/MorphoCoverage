@@ -317,3 +317,37 @@ def test_the_interactive_figures_draw_the_static_figures_numbers(tmp_path):
     assert 'class="pl-pair"' in page and "The static figure (as in the PDF)" in page
     # Its caption says how the interactive figure is coloured.
     assert "a point in its condition&#x27;s colour" in page
+
+
+def test_a_missing_attachment_is_named_and_two_of_one_name_are_both_carried(tmp_path):
+    """#366/#339: no requested attachment is dropped or overwritten without a word."""
+    from morphocoverage.workflows._html_data import files_card, page_files
+
+    (tmp_path / "figures").mkdir()
+    first, second = tmp_path / "a" / "scan.txt", tmp_path / "b" / "scan.txt"
+    for path, text in ((first, "first"), (second, "second")):
+        path.parent.mkdir()
+        path.write_text(text)
+    taken = tmp_path / "report_short.txt"
+    taken.write_text("attached")
+    missing = tmp_path / "answers.json"
+    attach = [first, second, first, taken, missing]
+    files, _ = page_files(tmp_path, {"report_short.txt": "text"}, attach, time.time())
+    carried = {name: base64.b64decode(entry[1]).decode() for name, entry in files.items()}
+    assert carried == {
+        "report_short.txt": "text",
+        "scan.txt": "first",
+        "scan_2.txt": "second",
+        "report_short_2.txt": "attached",
+    }
+    card = files_card(files, attach)
+    assert card.count("Not found, so not attached") == 1 and "answers.json" in card
+    assert "Not found" not in files_card(files, attach[:-1])
+
+
+def test_the_zip_leaves_out_only_itself(tmp_path):
+    folder = tmp_path / "results"
+    folder.mkdir()
+    (folder / "source_data.zip").write_bytes(b"zip")
+    with zipfile.ZipFile(zip_results(folder)) as opened:
+        assert opened.namelist() == ["results/source_data.zip"]
