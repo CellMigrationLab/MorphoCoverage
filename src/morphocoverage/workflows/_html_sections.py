@@ -29,9 +29,9 @@ import numpy as np
 from .._style import Status, rule_label
 from .._wording import count, listing, p_value, rate, shortened
 from ..retrospective.report import QUESTIONS, questions_for, short_questions_for
-from ..retrospective.report_resolved import _needing, _table, _unassessed
+from ..retrospective.report_resolved import _needing, _table, _unassessed, between_wells
 from ..retrospective.report_status import group_word
-from ..sampling_unit.contrast_sampling import PRACTICAL
+from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
 from ..sufficiency_short import rule_tallies
@@ -275,6 +275,11 @@ def _resolution(contrast: Any, single_repeat: bool = False) -> list[str]:
             f"In {count(small, 'comparison')} the difference is so small that even {PRACTICAL} "
             f"times the {fields} would not show it within one repeat; that is not evidence of "
             "no effect."
+        )
+    wells = int(between_wells(rows).sum())
+    if wells:
+        lines.append(
+            f"In {count(wells, 'comparison')} more {fields} will not resolve it: {MORE_WELLS}."
         )
     if _unassessed(rows):
         lines.append(

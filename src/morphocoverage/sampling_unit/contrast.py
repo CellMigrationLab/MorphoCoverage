@@ -132,8 +132,10 @@ class ConditionContrast:
       the effect sizes are computed either way); and for question 2, whether the
       fields acquired resolve the difference (``contrast_sampling``: ``d_low``
       and ``d_high``, the 95% bootstrap interval of ``d_objects`` over whole
-      fields; ``resolved``; ``fields_to_resolve`` per side when not;
-      ``too_small`` when that is beyond a practical number of fields).
+      fields; ``resolved``; ``fields_to_resolve`` per side when not, from the
+      interval's part within wells; ``too_small`` when that is beyond a practical
+      number of fields; ``between_wells`` when the part between wells alone is as
+      wide as the difference, ``between_share`` that part's share).
     - ``effects``: one row per repeat, condition, sampling and object count:
       the median and interquartile band of the JCS effect size over the draws,
       the share of draws with the sign of ``effect_full``, and for whole
@@ -549,6 +551,8 @@ _NO_TEST = {
     "resolved": False,
     "fields_to_resolve": np.nan,
     "too_small": False,
+    "between_wells": False,
+    "between_share": np.nan,
     "difference_se": np.nan,
     "log_ratio_se": np.nan,
 }

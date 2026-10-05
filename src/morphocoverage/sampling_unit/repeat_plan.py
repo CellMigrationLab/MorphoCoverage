@@ -7,9 +7,11 @@ of ``condition_contrast`` (their Cohen's d and its bootstrap interval from the
 fields resampled as acquired, ``contrast_sampling``):
 
 - **the fields a side per repeat**: the most any repeat needs to resolve the
-  difference within it, projected from its interval (fewer than acquired
+  difference within it, projected from the part of its interval within wells
+  (``contrast_sampling.projected_fields``, owner 2026-10-05: fewer than acquired
   where it is resolved, more where it is not); ``inf`` when some repeat's
-  difference is too small to settle;
+  difference is too small to settle, or its wells differ too much for more fields
+  to resolve it;
 - **what limits it**: the sampling error within a repeat against the variation between
   repeats (the repeat values' spread beyond that sampling error, which more fields cannot
   reduce; it needs two repeats), on the values the paired t-test compares (below). When the
@@ -52,7 +54,7 @@ from scipy import stats
 from ..metadata import REPEAT_COLUMN as REPEAT
 from ..statistics import repeat_values
 from ._experiments import experiments
-from .contrast_sampling import PRACTICAL
+from .contrast_sampling import PRACTICAL, projected_fields
 
 ALPHA = 0.05
 POWER = 0.8
@@ -102,15 +104,19 @@ def repeats_needed(delta: float, sd: float, alpha: float, power: float = POWER) 
 
 def _fields_per_repeat(block: pd.DataFrame) -> float:
     """The most fields a side any repeat needs to resolve its difference: the fields at which
-    its interval's half-width, shrinking as ``1 / sqrt(fields)``, falls below |d| (fewer than
-    acquired where it is resolved); ``inf`` when a repeat's difference is too small to settle
-    with ``PRACTICAL`` times its fields."""
+    its interval's half-width falls below |d|, from its part within wells
+    (``projected_fields``; fewer than acquired where it is resolved); ``inf`` when a repeat's
+    difference is too small to settle with ``PRACTICAL`` times its fields, or the part
+    between wells alone is as wide as |d|."""
     needed = []
     for row in block.to_dict("records"):
         fields = float(min(row["fields"], row["control_fields"]))
-        half, d = (row["d_high"] - row["d_low"]) / 2, abs(row["d_objects"])
-        projected = fields * (half / d) ** 2 if d else np.inf
-        needed.append(np.inf if projected > PRACTICAL * fields else max(2.0, np.ceil(projected)))
+        share = row.get("between_share", 0.0)
+        projected, between = projected_fields(
+            fields, abs(row["d_objects"]), row["d_low"], row["d_high"], share
+        )
+        too_many = between or projected > PRACTICAL * fields
+        needed.append(np.inf if too_many else max(2.0, np.ceil(projected)))
     return max(needed) if needed else np.nan
 
 

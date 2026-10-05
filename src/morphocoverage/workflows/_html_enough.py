@@ -33,12 +33,13 @@ from ..retrospective.report_resolved import (
     SHORT_ROWS,
     _needing,
     _table,
+    between_wells,
     has_resolution,
     resolved_parts,
 )
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
-from ..sampling_unit.contrast_sampling import PRACTICAL
+from ..sampling_unit.contrast_sampling import MORE_WELLS, PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
 from ..sufficiency_short import rule_tallies, uniformity_assumption
 from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
@@ -97,10 +98,16 @@ def _rest(rows: pd.DataFrame, fields: str) -> str:
     """What the comparisons not shown are: ``most of the others are too small ...``."""
     unshown = int((rows["comparisons"] - rows["shown"]).sum())
     small, need = int(rows["too_small"].sum()), int(rows["needing"].sum())
+    wells = int(rows["between_wells"].sum()) if "between_wells" in rows else 0
     beyond = f"too small to show even with {PRACTICAL} times the {fields}"
     if not unshown:
         return ""
-    for part, said in ((small, f"are {beyond}"), (need, f"would show with more {fields}")):
+    said_of = (
+        (small, f"are {beyond}"),
+        (need, f"would show with more {fields}"),
+        (wells, f"need {MORE_WELLS}, not more {fields}"),
+    )
+    for part, said in said_of:
         if part == unshown:
             return f"; the others {said}"
         if 2 * part > unshown:
@@ -180,6 +187,9 @@ def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
     small = int(rows["too_small"].sum())
     if small:
         parts.append(f"{small} too small even with {PRACTICAL} times the {fields}")
+    wells = int(between_wells(rows).sum())
+    if wells:
+        parts.append(f"{wells} {MORE_WELLS}")
     return "; ".join(parts) or "–"
 
 
@@ -361,6 +371,9 @@ def _single_answer(contrast: Any, fields: str, repeats: int) -> str:
             f"{small} {verb} too small to show even with {PRACTICAL} times the {fields}, which "
             "is not evidence of no effect"
         )
+    wells = int(between_wells(rows).sum())
+    if wells:
+        parts.append(f"{wells} that more {fields} will not resolve: {MORE_WELLS}")
     return "; ".join(parts) + "."
 
 
