@@ -360,6 +360,23 @@ def test_unusual_objects_use_only_the_explicit_features_and_are_deterministic():
     pd.testing.assert_series_equal(first.distances, again.distances)
 
 
+def test_unusual_labels_do_not_depend_on_row_order_when_observations_tie():
+    """Identical observations in different fields (discrete features) used to swap their
+    left-out reference group, and so their scores, when the rows were reordered (#282)."""
+    objects, fovs, _ = _with_planted(n_planted=0)
+    objects[["x", "y"]] = objects[["x", "y"]].round()
+
+    def scored(table):
+        result = unusual_objects(
+            table, fovs, feature_cols=["x", "y"], reference={"condition": "ctrl"}, quantile=0.05
+        )
+        return result.distances.sort_index(), result.labels.sort_index()
+
+    shuffled = scored(objects.sample(frac=1, random_state=7))
+    for first, again in zip(scored(objects), shuffled, strict=True):
+        pd.testing.assert_series_equal(first, again)
+
+
 def test_unusual_labels_feed_fov_clustering():
     objects, fovs, _ = _with_planted()
     labels = unusual_objects(
