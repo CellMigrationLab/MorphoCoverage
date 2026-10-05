@@ -101,12 +101,21 @@ def _selection(answer: str, options: Sequence[Any]) -> list[Any] | str:
     return [options[i] for i in sorted(chosen)]
 
 
-def choose_many(ask: Ask, say: Say, prompt: str, options: Sequence[Any]) -> list[Any]:
-    """Several of ``options``: ``all`` (the default), numbers, ranges or names."""
+def choose_many(
+    ask: Ask, say: Say, prompt: str, options: Sequence[Any], default: Sequence[Any] | None = None
+) -> list[Any]:
+    """Several of ``options``: numbers, ranges or names; Enter takes ``default`` (all of them
+    when ``None``)."""
     say(f"{prompt}\n{_numbered(options, None)}")
-    say("  Enter 'all' (the default), numbers and ranges (1,3-5), or names separated by commas.")
+    if default is None:
+        hint = "'all' (the default)"
+    else:
+        hint = f"'all'; Enter takes {listing([str(d) for d in default], 6)}"
+    say(f"  Enter {hint}, numbers and ranges (1,3-5), or names separated by commas.")
     while True:
         answer = ask("> ").strip()
+        if not answer and default is not None:
+            return list(default)
         selected = _selection(answer or "all", options)
         if isinstance(selected, list):
             return selected
@@ -159,7 +168,9 @@ def ask_positive(ask: Ask, say: Say, scan: Any, control: dict[str, Any] | None) 
     can check that the features see a change at all (question 1). ``None`` for none."""
     if control is None:
         return None
-    others = [c for c in scan.design["conditions"] if c != control.get("condition")]
+    named = control.get("condition")
+    controls = set(named) if isinstance(named, dict) else {named}  # several, or one
+    others = [c for c in scan.design["conditions"] if c not in controls]
     if not others:
         return None
     none = "none"
@@ -172,11 +183,59 @@ def ask_positive(ask: Ask, say: Say, scan: Any, control: dict[str, Any] | None) 
     return None if choice == none else {"condition": choice}
 
 
+# The aim in plain words (owner, 2026-10-05); the stored values stay the keys of AIMS.
+AIM_QUESTION = (
+    "Do you want to know whether the average of each feature differs, whether the whole "
+    "distribution differs (shape, spread, tails), or both?"
+)
+AIM_LABELS = {
+    "population": "the average",
+    "fingerprint": "the whole distribution (shape, spread, tails)",
+    "both": "both",
+}
+
+
 def ask_aim(ask: Ask, say: Say) -> str:
-    """``population``, ``fingerprint`` or ``both``."""
+    """``population`` (the average), ``fingerprint`` (the whole distribution) or ``both``."""
     aims = list(AIMS)
-    labels = [f"{key}: {AIM_TEXT[key]}" for key in aims]
-    return choose(ask, say, "What is your aim?", aims, aims[0], labels)
+    return choose(ask, say, AIM_QUESTION, aims, aims[0], [AIM_LABELS[a] for a in aims])
+
+
+def label_columns(objects: Any, taken: Sequence[str]) -> list[str]:
+    """The columns of ``objects`` (not in ``taken``) holding true/false or 0/1 for every row
+    that has a value, both values present: candidate labels of a phenotype."""
+    found = []
+    for column in objects.columns:
+        if column in taken:
+            continue
+        values = objects[column].dropna()
+        if values.empty:
+            continue
+        boolean = str(values.dtype) == "bool" or set(values.unique()) <= {0, 1}
+        if boolean and values.astype(bool).nunique() == 2:
+            found.append(column)
+    return found
+
+
+def ask_rare_label(ask: Ask, say: Say, candidates: Sequence[str]) -> str | None:
+    """An optional column marking a phenotype of interest (``Setup.rare_label``); ``None``
+    without one, or when no column holds true/false or 0/1."""
+    if not candidates:
+        return None
+    none = "none"
+    prompt = (
+        "Is there a column that marks a phenotype you care about (true/false per cell, e.g. "
+        "mitotic)?"
+    )
+    choice = choose(ask, say, prompt, [*candidates, none], none)
+    return None if choice == none else choice
+
+
+def ask_run(ask: Ask, say: Say) -> bool:
+    """Whether to run the report now (the default) or save the answers and stop."""
+    options = ["run now", "save and stop"]
+    prompt = "Run the report now, or save the answers and stop?"
+    return choose(ask, say, prompt, options, options[0]) == options[0]
 
 
 def ask_features(ask: Ask, say: Say, candidates: Sequence[str]) -> list[str]:
@@ -208,6 +267,8 @@ def ask_tolerance(ask: Ask, say: Say, features: Sequence[str]) -> float:
 
 __all__ = [
     "AIMS",
+    "AIM_LABELS",
+    "AIM_QUESTION",
     "AIM_TEXT",
     "Ask",
     "Say",
@@ -215,11 +276,14 @@ __all__ = [
     "ask_control",
     "ask_features",
     "ask_positive",
+    "ask_rare_label",
     "ask_readout",
+    "ask_run",
     "ask_tolerance",
     "ask_unit",
     "choose",
     "choose_many",
+    "label_columns",
     "number",
     "text",
     "yes_no",

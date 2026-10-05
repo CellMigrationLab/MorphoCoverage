@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._control import control_text, group_matches
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
 from ..schema import ValidatedInput
@@ -55,8 +56,7 @@ def matching_groups(
         missing = [c for c in selector if c not in data.fovs.columns]
         if missing:
             raise ValueError(f"{name} names columns absent from the FOV table: {missing}")
-        values = data.fovs[list(selector)].drop_duplicates()
-        if len(values) == 1 and all(values.iloc[0][c] == v for c, v in selector.items()):
+        if group_matches(data.fovs, selector):  # a tuple accepts any of its values
             chosen.append(group)
     if not chosen:
         raise ValueError(no_match_message(all_groups, selector, name))
@@ -79,7 +79,8 @@ def no_match_message(
         }
     )
     return (
-        f"no analysis group matches {name} {dict(selector)}; {column!r} holds {present[:8]} "
+        f"no analysis group matches {name} {control_text(selector)}; {column!r} holds "
+        f"{present[:8]} "
         "(values are matched exactly, case and spaces included)"
     )
 

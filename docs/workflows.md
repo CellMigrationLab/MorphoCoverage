@@ -81,16 +81,30 @@ session = guide("cells.csv", folder="results")   # paths or DataFrames; asked fo
 
 or, from a terminal, `python -m morphocoverage.workflows cells.csv [fovs.csv] --folder results`.
 The session loads the tables, scans them and prints the scan, then asks: did
-the dataset load correctly (if not, it stops); the control to log (the scan's
-guess is the default, "no control" is an answer); a positive control, a
+the dataset load correctly (if not, it stops); what one row is (owner, 2026-10-05: asked
+here, so the scan's words follow it); whether all the conditions are
+compared with the same control (owner, 2026-10-05; No is proposed, after a table of the
+images per condition and biological repeat, when the likeliest control is missing from
+repeats where other conditions are imaged). Yes: the control to log (the scan's
+guess is the default, "no control" is an answer). No: [several
+controls](#several-controls), each with a proposal to confirm: which conditions are
+controls (named like one, such as `VEC_SiNC`), the conditions of each with their treatment
+keys (the name without the stem it shares with its control: `THBS5_SiCol6a1` under
+`THBS5_SiNC` is `SiCol6a1`), a parent when a control's name extends another condition's
+(`VEC_SiNC` under `VEC`, key `transfection` for an siRNA suffix), and an optional master
+control; the tests these answers give are then listed, one per line with its family. Then
+a positive control, a
 condition known to change the phenotype, which checks that the features can see
 a change ("none", the default, leaves that check out; it can be named later,
-whenever such a condition was imaged); the aim (population
-averages, a phenotypic fingerprint, or both); the features to assess
-(several by number, range or name, or all the numeric columns); the readout
-among them; what one row is; and, for a fingerprint, its tolerance (the
-covariance of the standardised features within a share you state; 10% is
-offered, with no published meaning). Enter takes each default.
+whenever such a condition was imaged); whether you want to know if the average of each
+feature differs, the whole distribution (shape, spread, tails), or both; the features to
+assess (several by number, range or name, or all the numeric columns); the readout among
+them; an optional column that marks a phenotype you care about (true/false or 0/1 per cell,
+such as mitotic: `Setup.rare_label`, its share taken as the rare target's prevalence, to be
+seen in 3 fields with 95% chance); and, for the whole distribution, its tolerance (the
+covariance of the standardised features within a share you state; 10% is offered, with no
+published meaning). Last, it asks whether to run the report now (the default) or to save
+the answers and stop, as `run_report=False` does. Enter takes each default.
 
 The answers are saved in the folder as `morphocoverage_answers.json`, with a
 checksum of the observation table and one of the FOV table (`None` without
@@ -378,6 +392,70 @@ Features measured plane by plane are split before the `Setup`:
 `morphocoverage.planes_as_features` turns `area` into `area_z0`, `area_z1`,
 ... (objects matched by `label_id`), and those names are the `readout` and
 `features` declared here ([`data_format.md`](data_format.md#features-measured-per-plane)).
+
+### Several controls
+
+One control is declared as `control={"condition": "siCTRL"}`, and every condition is
+compared with it within each biological repeat, as always. A dataset of several experiments,
+each with its own control, declares the controls, each mapping a treatment key to its
+condition (a plain list of conditions is accepted too, with no keys), and optionally the
+parents of the controls (any condition, with an optional treatment key) and a master control
+(owner, 2026-10-05):
+
+```python
+setup = Setup(
+    readout="Order",
+    control={
+        "condition": {
+            "VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1", "SiFBN2": "VEC_SiFBN2"},
+            "THBS5_SiNC": {"SiCol6a1": "THBS5_SiCol6a1", "SiFBN2": "THBS5_SiFBN2"},
+            "VEC": {"THBS5": "THBS5"},
+        }
+    },
+    control_parents={"VEC_SiNC": ("VEC", "transfection"), "THBS5_SiNC": ("THBS5", "transfection")},
+    master_control="VEC_SiNC",
+)
+```
+
+A condition belongs to one control at most, a treatment key names one condition of a
+control, a parent may be any condition (a member of another control included) but the links
+may not form a cycle, and every condition named must be in the data; each is refused with a
+message otherwise. The declaration gives the **contrast table** (`Setup.contrast_table`), one
+row per test, shown in the report and saved as `contrasts.csv`:
+
+- `own_control`, **the main verdicts**: each condition against its own control, and each
+  control against its parent, raw and normalised, paired per biological repeat, exactly as
+  with one control (the paired test across repeats, the cell-level screen, the per-repeat d,
+  "Did I image enough?", the feature discovery and the heatmap use these rows only),
+  Benjamini-Hochberg within each sub-experiment as before. A row reads
+  `THBS5_SiCol6a1 vs THBS5_SiNC`.
+- `across_normalised`: two links with the same treatment key under different controls (or
+  parents): the two conditions each normalised to its own control, in every repeat holding all
+  four the difference of their log ratios, paired across those repeats
+  (`SiCol6a1 effect: THBS5_SiCol6a1/THBS5_SiNC vs VEC_SiCol6a1/VEC_SiNC`); a list of
+  conditions gives no such row. One Benjamini-Hochberg family.
+- `vs_master_raw`, only with a master: each other control against it on the raw values, in
+  the repeats holding both, unless a parent link joins them already
+  (`THBS5_SiNC vs VEC_SiNC (raw)`). The report gives the master's repeats once and says that
+  raw comparisons across experiments assume the experiments were imaged and processed alike.
+  One Benjamini-Hochberg family.
+
+For the ECM design above that is 7 + 3 + 1 = 11 rows per feature. The secondary rows are
+tested on the repeat means, with no cell-level test; a row held in fewer than 3 repeats is
+named once as not compared, and where a mean is not positive (a signed feature) the raw
+differences are compared instead of log ratios, and the table says so for that feature.
+`Setup(contrasts=table)` takes a table of the same columns (`kind`, `condition`,
+`reference`, `condition_control`, `reference_control`, `family`, `label`) in place of the
+generated one.
+
+Only the statistics read the controls: the figures, the PCA and UMAP, the population
+detection and the SuperPlots show every condition under its own name. With `normalize`, the
+normalised views show each condition divided by its own control's mean in its repeat, a
+control by its parent's (else its own, so 1); a condition held in a repeat without its own
+control is left out there, and the report names it once. Levels across experiments are read
+on the raw values. The tests read the raw values and each normalises to its own control.
+Unusual observations and the population enrichment take each condition's own control as the
+reference; the object rules, clustering and a positive control take every control pooled.
 
 ### Normalising to the control
 

@@ -319,7 +319,7 @@ def benchmark(
     # The rules on the raw values, as live; the criteria on the normalised ones.
     replay = replay_rules(
         objects,
-        setup.prepared(objects, fovs),
+        setup.compared_values(objects, fovs),
         fovs,
         setup,
         strategies=[f.strategy for f in families],

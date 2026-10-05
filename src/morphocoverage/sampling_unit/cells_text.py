@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption
+from .._control import versus
 from .._style import span, table, wrap
 from .._wording import column_word, count, listing, p_value, percent
 from ..schema import observation_words
@@ -196,7 +197,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
     ]
     as_provided = [
         [
-            f"{row['condition']} vs {row['control_condition']}",
+            versus(row["condition"], row["control_condition"]),
             _test(row["d_cells"], row["p_cells"], row["q_cells"]),
             _test(
                 row["d_cells_normalised"],
@@ -234,7 +235,7 @@ def cells_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[lis
         rows = []
         for row in cells[cells["p_balanced"].notna()].to_dict("records"):
             values = [
-                f"{row['condition']} vs {row['control_condition']}",
+                versus(row["condition"], row["control_condition"]),
                 _test(row["d_balanced"], row["p_balanced"], row["q_balanced"]),
                 _test(
                     row["d_balanced_normalised"],

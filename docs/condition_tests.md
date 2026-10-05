@@ -30,6 +30,28 @@ unchanged; pooled over repeats it does not. The paired t on normalised values
 is run on the log of each repeat's ratio of the condition's mean to the
 control's.
 
+## Several controls
+
+With several declared controls (owner, 2026-10-05; [`workflows.md`](workflows.md#several-controls))
+the tests are the rows of the contrast table. The main verdicts (`own_control`: each condition
+against its own control, each control against its parent) are the three answers below, per
+row, labelled `condition vs control` and corrected within each sub-experiment as with one
+control. The secondary rows are tested on the repeat means, without a cell-level test, each
+kind one Benjamini-Hochberg family:
+
+- **`across_normalised`**: the same treatment in two experiments, each condition normalised to
+  its own control: the paired t-test on each repeat's
+  `log(mean(a) / mean(control of a)) - log(mean(b) / mean(control of b))`, in the repeats
+  holding all four (raw differences of differences where a mean is not positive). Shifts the
+  four conditions of a repeat share cancel, so without a difference of effects it gives
+  p <= 0.05 in about 5% of experiments (`tests/test_comparisons.py` simulates it).
+- **`vs_master_raw`**: a control against the master control, the paired t-test on each
+  repeat's difference of the means, in the repeats holding both. It assumes the experiments
+  were imaged and processed alike, so a difference here may be a batch between them.
+
+The sign-flip test is given where it can reach 0.05 once corrected (`_reach`). The code is
+`sampling_unit.contrast_across`, its words `across_text`, and the table `_control`.
+
 ## The three answers
 
 | | What it asks | What it treats as the replicate | Responds with |

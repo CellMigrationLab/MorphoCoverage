@@ -44,6 +44,7 @@ import pandas as pd
 
 from .._caveats import assumption, caveat_lines
 from .._checks import is_number
+from .._control import check_comparisons, compared_name, control_text
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import check_detail, span, table, wrap
@@ -112,10 +113,12 @@ TEST_COLUMNS = [
 def _pooled(
     all_groups: list, described: list, contrasts: list, feature: str, technical_col: str | None
 ) -> dict[Any, dict[str, Any]]:
-    """Per condition, its observations and its own control's per repeat, and every control
-    observation of the dataset per repeat (as ``condition_contrast`` pools them)."""
+    """Per condition (or comparison), its observations and its own control's per repeat, and
+    every observation of that control (a comparison's reference) per repeat, as
+    ``condition_contrast`` pools them."""
     pooled: dict[Any, dict[str, Any]] = {}
-    every: dict[Any, np.ndarray] = {}
+    every: dict[Any, dict[Any, np.ndarray]] = {}
+    pairs = getattr(described, "comparisons", None) or {}
     for repeat, condition in contrasts:
         treated, controls = sides(described, repeat, condition)
         if not controls:
@@ -126,15 +129,21 @@ def _pooled(
         c_values = np.concatenate([f for u in c_units for f in u])
         if not len(t_values) or not len(c_values):
             continue
-        every.setdefault(repeat, c_values)
+        reference = pairs[condition][1] if pairs else None
+        every.setdefault(reference, {}).setdefault(repeat, c_values)
         side = pooled.setdefault(
             condition,
-            {"by_t": {}, "by_c": {}, "control_condition": control_label(described, controls)},
+            {
+                "by_t": {},
+                "by_c": {},
+                "control_condition": control_label(described, controls),
+                "reference": reference,
+            },
         )
         side["by_t"][repeat] = t_values
         side["by_c"][repeat] = c_values
     for side in pooled.values():
-        side["every"] = every
+        side["every"] = every[side["reference"]]
     return pooled
 
 
@@ -311,7 +320,11 @@ class FeatureDiscovery:
         if not n_tests:
             return f"Which features separate the conditions? None of the {n} could be tested."
         passing = int(self.ranking["score"].notna().sum())
-        label = " · ".join(str(v) for v in self.settings["control"].values())
+        against = (
+            "its own control"
+            if self.settings.get("comparisons")
+            else f"the control, {compared_name(self.settings)}"
+        )
         # The correction family, said as counted: the tests of each sub-experiment.
         tested = self.tests[self.tests["p_cells"].notna()]
         sizes = tested.groupby("experiment").size() if "experiment" in tested else []
@@ -326,8 +339,8 @@ class FeatureDiscovery:
             f"Which features separate the conditions? {passing} of {count(n, 'feature')} "
             f"{'is a candidate' if passing == 1 else 'are candidates'} in the exploratory "
             f"{self._unit()}-level screen: they differ for at least one condition (each "
-            "condition against the control, "
-            f"{label}: Cohen's d on the observations normalised to each repeat's control, "
+            f"condition against {against}: Cohen's d on the observations normalised to each "
+            "repeat's control, "
             f"randomization test, q ≤ {alpha:g} after Benjamini-Hochberg within each "
             f"sub-experiment: {family}{self._shuffles()}).{self._unpaired()} Ranked by the "
             "largest difference "
@@ -358,7 +371,9 @@ class FeatureDiscovery:
         unpaired = [str(c) for c in self.settings.get("unpaired", [])]
         if not unpaired:
             return ""
-        label = " · ".join(str(v) for v in self.settings["control"].values())
+        label = (
+            "its own control" if self.settings.get("comparisons") else compared_name(self.settings)
+        )
         return " " + not_compared(unpaired, label, column_word(self.settings["repeat_col"]))
 
     def _table(self, max_rows: int, indent: int) -> list[str]:
@@ -483,7 +498,7 @@ def feature_discovery(
     fovs: pd.DataFrame,
     *,
     features: Sequence[str],
-    control: Mapping[str, Any],
+    control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
     repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
@@ -493,6 +508,7 @@ def feature_discovery(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    comparisons: Sequence[tuple[Any, Any]] | None = None,
 ) -> FeatureDiscovery:
     """Rank ``features`` by the cell-level gate, with the paired test beside it (see the
     module). Arguments follow ``condition_contrast``."""
@@ -500,8 +516,10 @@ def feature_discovery(
     features = list(dict.fromkeys(features))
     if not features:
         raise ValueError("features must name at least one column")
+    if comparisons is not None:
+        comparisons = check_comparisons(comparisons)
     n_permutations, random_state = check_arguments(
-        control, condition_col, n_permutations, random_state, False
+        control, condition_col, n_permutations, random_state, False, comparisons
     )
     if not is_number(alpha) or not 0 < alpha < 1:
         raise ValueError("alpha must be between 0 and 1")
@@ -510,11 +528,12 @@ def feature_discovery(
         data, condition_col, repeat_col, technical_col, control
     )
     all_groups = groups(data)
-    described = describe_groups(all_groups, condition_col, repeat_col, control)
+    described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     settings: dict[str, Any] = {
         "features": features,
         "n_features": len(features),
-        "control": dict(control),
+        "control": dict(control or {}),
+        "comparisons": list(comparisons or []),
         "condition_col": condition_col,
         "repeat_col": repeat_col,
         "n_permutations": n_permutations,
@@ -541,7 +560,7 @@ def feature_discovery(
         c for c in dict.fromkeys(condition for _, condition in contrasts) if c not in held
     ]
     if not rows:
-        settings["reason"] = f"No condition to compare with the control {dict(control)}."
+        settings["reason"] = f"No condition to compare with the control {control_text(control)}."
         return FeatureDiscovery(pd.DataFrame(columns=TEST_COLUMNS), pd.DataFrame(), settings)
     tests = pd.DataFrame(rows).reindex(columns=TEST_COLUMNS)
     tests["experiment"] = tests["condition"].map(experiments(held))

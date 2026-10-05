@@ -47,6 +47,7 @@ from .._wording import listing
 from ..embedding import MIN_FEATURES
 from ..glossary import GLOSSARY, PHRASES, slug
 from ..retrospective.report import LIMITS_TITLE
+from ..sampling_unit.across_text import across_parts
 from ..sampling_unit.reading_text import readings_parts
 from ..sufficiency_short import rule_tallies
 from ._html_cards import (
@@ -291,6 +292,9 @@ def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -
             f"<h3>Every feature against the control</h3>{grid}{unranked}"
             f'<p class="tools">{data_buttons(files)}</p>'
         )
+    across = across_parts(contrast, indent=0) if contrast is not None else []
+    if across:  # several controls: the secondary rows, the contrast table (owner, 2026-10-05)
+        extra += "<h3>Compared across experiments</h3>" + _html("\n".join(across))
     if feature_blocks:
         ranked = result.discovery is not None and len(result.discovery.top())
         extra += (
@@ -501,6 +505,8 @@ def html_report(
     }
     if result.discovery is not None and len(result.discovery.tests):
         texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
+    if result.setup.contrast_table is not None:  # one row per test (owner, 2026-10-05)
+        texts["contrasts.csv"] = result.setup.contrast_table.to_csv(index=False)
     files, images = page_files(folder, texts, [Path(p) for p in attach], started)
     cards.append(files_card(files, attach))
     # The page names the q-value the adjusted p (owner, 2026-10-02); then each PNG it

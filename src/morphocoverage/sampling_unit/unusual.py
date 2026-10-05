@@ -131,6 +131,7 @@ def unusual_objects(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    own: Mapping[Any, Any] | None = None,
 ) -> UnusualObjects:
     """Label observations that lie outside a declared reference population.
 
@@ -143,7 +144,9 @@ def unusual_objects(
     ``objects`` (its index is kept). ``seed_checks`` refits with the
     next seeds and reports how much the labels agree. ``within_experiment`` scores each
     group against the reference groups of its own sub-experiment only (the biological
-    repeats its conditions share, ``_experiments.repeat_experiments``).
+    repeats its conditions share, ``_experiments.repeat_experiments``). ``own`` maps each
+    condition to its own control (several declared controls, owner 2026-10-05): a group is
+    then scored against its own control's groups only, among ``reference``'s.
     """
     (reference,) = read_former(reference=reference)
     if not 0 < quantile < 1:
@@ -185,11 +188,13 @@ def unusual_objects(
         else {}
     )
     for g_index, (group, _) in enumerate(all_groups):
+        target = None if own is None else own.get(group.get(CONDITION_COLUMN))
         others = [
             g
             for g in reference_groups
             if group_key(g) != group_key(group)
             and same_experiment(block, g.get(REPEAT_COLUMN), group.get(REPEAT_COLUMN))
+            and (own is None or g.get(CONDITION_COLUMN) == target)
         ]
         row: dict[str, Any] = {**group, "reference_groups": [dict(g) for g in others]}
         mine = positions_all[observation_group == g_index]

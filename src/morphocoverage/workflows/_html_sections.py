@@ -36,6 +36,7 @@ from ..sampling_unit.repeat_plan_text import field_words
 from ..schema import resolve_observation_unit
 from ..strategies.base import SamplingStrategy
 from ..sufficiency_short import rule_tallies
+from ._contrasts import controls_sentence
 from ._html_render import in_units
 
 ORDER = (
@@ -195,8 +196,11 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
     features = tuple(setup.columns)
     if len(features) > 1:
         lines.append(f"Features: {count(len(features), 'feature')} ({listing(list(features), 6)}).")
-    control = (setup.control or {}).get("condition")
-    if control is not None:
+    control = (setup.single_control or {}).get("condition")
+    several = controls_sentence(setup)
+    if several:  # several controls, each with its conditions (owner, 2026-10-05)
+        lines.append(f"{several}.")
+    elif control is not None:
         lines.append(
             f"Negative control: {control}; every condition is compared with it, within each "
             "biological repeat."
@@ -215,11 +219,17 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
     if setup.fingerprint:
         named = "; ".join(c.description or c.name for c in setup.fingerprint)
         lines.append(f"Fingerprint: {named}.")
-    lines.append(
-        "Values: divided by each repeat's control mean."
-        if setup.normalize
-        else "Values: as measured (the tests between conditions also use them normalised)."
-    )
+    if several and setup.normalize:
+        lines.append(
+            "Values: each condition divided by its own control's mean in its repeat for the "
+            "figures; levels across experiments are read on the raw values."
+        )
+    else:
+        lines.append(
+            "Values: divided by each repeat's control mean."
+            if setup.normalize
+            else "Values: as measured (the tests between conditions also use them normalised)."
+        )
     rules = _rules(setup, undefined)
     if rules:
         lines.append(f"Stopping rules checked: {rules}.")

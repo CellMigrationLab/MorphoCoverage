@@ -61,6 +61,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed, is_integer, is_number
+from .._control import check_comparisons
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from .._style import DASH, table, wrap
@@ -71,6 +72,7 @@ from ..sampling_unit._units import (
     contrasts_of,
     control_label,
     describe_groups,
+    reference_of,
     resolve_columns,
     side_units,
     sides,
@@ -350,6 +352,7 @@ def effect_preservation(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     setup: Any = None,
+    comparisons: Sequence[tuple[Any, Any]] | None = None,
 ) -> EffectPreservation:
     """How often ``k`` fields a side preserve each repeat's difference from the control.
 
@@ -361,9 +364,13 @@ def effect_preservation(
     ``fov_col``, ``group_cols``, ``observation_unit`` and ``random_state``.
     ``fov_counts`` are the fields a side ``k``; ``tolerance`` is how far, in
     units of d, a reduced d may lie from the held-back one and still preserve
-    it. See the module for the design; nothing here feeds ``optimise``.
+    it. ``comparisons`` (or the setup's, when ``control`` is not passed) replace the control
+    by ``(condition, reference)`` pairs, each a row label ``condition vs reference``. See
+    the module for the design; nothing here feeds ``optimise``.
     """
     feature = _from_setup(setup, "feature", feature, "readout")
+    if comparisons is None and control is None:
+        comparisons = getattr(setup, "comparisons", None)
     control = _from_setup(setup, "control", control, "control")
     fov_col = _from_setup(setup, "fov_col", fov_col, "fov_col")
     group_cols = _from_setup(setup, "group_cols", group_cols, "group_cols")
@@ -372,10 +379,12 @@ def effect_preservation(
     random_state = check_seed(0 if random_state is None else random_state)
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
-    if not isinstance(control, Mapping) or not control:
-        raise ValueError("control must be a non-empty mapping of FOV-table column to value")
+    if comparisons is not None:
+        comparisons = check_comparisons(comparisons)
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
-    if condition_col not in control:
+    if comparisons is None and (not isinstance(control, Mapping) or not control):
+        raise ValueError("control must be a non-empty mapping of FOV-table column to value")
+    if comparisons is None and condition_col not in control:
         raise ValueError(f"control must name the condition column {condition_col!r}")
     counts, n_draws, n_splits, fraction, tolerance = _check_settings(
         fov_counts, n_draws, n_splits, reservoir_fraction, tolerance
@@ -385,10 +394,11 @@ def effect_preservation(
         data, condition_col, repeat_col, technical_col, control
     )
     all_groups = groups(data)
-    described = describe_groups(all_groups, condition_col, repeat_col, control)
+    described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     settings = {
         "feature": feature,
-        "control": dict(control),
+        "control": dict(control or {}),
+        "comparisons": list(comparisons or []),
         "condition_col": condition_col,
         "repeat_col": repeat_col,
         "technical_col": technical_col,
@@ -407,7 +417,8 @@ def effect_preservation(
         base = {
             REPEAT_COLUMN: repeat,
             "condition": condition,
-            "control_condition": control_label(described, controls) or str(control[condition_col]),
+            "control_condition": control_label(described, controls)
+            or reference_of(described, condition, control, condition_col),
         }
         if not controls:
             rows += [{**base, "fovs": k, "status": NO_CONTROL} for k in counts]
@@ -444,8 +455,9 @@ def _summary(result: EffectPreservation) -> str:
     if frame.empty:
         return f"{title}\nEvery analysis group is the control: no condition to compare."
     control = ", ".join(str(v) for v in settings["control"].values())
+    against = "its own control" if settings.get("comparisons") else f"the control {control}"
     intro = (
-        f"Per {column_word(REPEAT_COLUMN)}, each condition against the control {control}: k "
+        f"Per {column_word(REPEAT_COLUMN)}, each condition against {against}: k "
         f"fields a side drawn at random from the fields not held back "
         f"({count(settings['n_draws'], 'draw')} in each of "
         f"{count(settings['n_splits'], 'split')}), against Cohen's d of the held-back fields, "

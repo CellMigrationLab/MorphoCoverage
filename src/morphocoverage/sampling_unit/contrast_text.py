@@ -31,11 +31,13 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines
+from .._control import versus
 from .._style import SINGLE_LEVEL, among, check_detail, span, table, wrap
 from .._wording import column_word, count, listing, number, percent
 from ..metadata import REPEAT_COLUMN
 from ..schema import observation_words
 from ._units import FIELD, NOT_INDEPENDENT, UNKNOWN_WELLS_ADVICE, opposite_signs
+from .across_text import across_parts
 from .cells_text import cells_parts
 from .object_rules import RANDOM_OBJECTS, WHOLE_FOVS
 from .reading_text import NO_CONTROL, readings_parts
@@ -70,7 +72,7 @@ def _short_statistic(value: float) -> str:
 def _name(row: dict[str, Any], repeat_col: str | None) -> str:
     """``LATS1 vs MOCK, repeat 1A``: the contrast, and its repeat when repeats are kept
     apart."""
-    name = f"{row['condition']} vs {row['control_condition']}"
+    name = versus(row["condition"], row["control_condition"])
     # CellPatcher's "single" names a folder level the data did not have: no repeat to name.
     if not repeat_col or str(row[REPEAT_COLUMN]) == SINGLE_LEVEL:
         return name
@@ -345,7 +347,7 @@ def contrast_parts(contrast: Any, indent: int = 0) -> tuple[list[str], list[str]
     # Across repeats the reading and the tables answer; the JCS draws stay in the full report.
     lines += [] if across else _draws_short(contrast, indent)
     planned, plan_notes = plan_parts(contrast, indent)
-    lines += planned
+    lines += planned + across_parts(contrast, indent)
     side_notes = (reagents_parts(contrast, indent)[1] if across else []) + cell_notes
     return lines, [
         *repeat_cautions(contrast, full=False),
@@ -484,7 +486,7 @@ def _full(contrast: Any) -> str:
         draws, names = _draw_rows(contrast)
         lines.append(table(draws, names))
     planned, plan_notes = plan_parts(contrast, 0, full=True)
-    lines += planned
+    lines += planned + across_parts(contrast, 0)
     agree_notes = reagents_parts(contrast, 0)[1]
     cell_notes = cells_parts(contrast, 0, full=True)[1]
     cautions = [

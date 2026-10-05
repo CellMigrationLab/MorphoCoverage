@@ -10,7 +10,8 @@ reason then says what this does to the result: the condition's change against th
 (a fold change, or the difference of the means where a mean is not positive) and the paired
 t-test's p, with the field and without it. A control field (a field of the declared
 control's groups) moves every condition compared with it in its repeat: the condition whose
-change it moves most is named.
+change it moves most is named. With declared comparisons a field moves each comparison its
+condition is in, as the condition or as the reference (owner, 2026-10-05).
 
 A relative change needs a positive scale: a readout with negative values (standardised,
 centred), or a mean of 0, is not checked, as ``inspect_fovs`` skips it, and the report says
@@ -28,6 +29,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .._control import comparison_label
 from .._wording import change, p_value, percent
 from ..data_check import validate_input_tables
 from ..evaluator import iter_analysis_groups
@@ -95,10 +97,32 @@ def _sums(data: ValidatedInput, readout: str) -> tuple[np.ndarray, np.ndarray]:
     return sums, counts
 
 
+def _sides(
+    group_data: ValidatedInput, condition: Any, in_repeat: pd.DataFrame, setup: Any
+) -> tuple[pd.DataFrame, list[str]]:
+    """The contrast rows of this repeat a group's fields move, and the side each is on
+    (``mean``: the group's condition is compared; ``control_mean``: it is the control).
+    With the declared control, a control group moves every condition of its repeat; with
+    comparisons, a condition's group moves each comparison it is in, on either side (its
+    mean, the same observations, is one on both)."""
+    comparisons = getattr(setup, "comparisons", None)
+    if comparisons:
+        subjects = {comparison_label(c, r): c for c, r in comparisons}
+        mine = in_repeat["condition"].map(subjects) == condition
+        reference = in_repeat["control_condition"] == str(condition)
+        rows = in_repeat[mine | reference]
+        return rows, ["mean" if m else "control_mean" for m in mine[mine | reference]]
+    if _is_control(group_data, setup.control or {}):
+        # Every condition compared with the control in this repeat.
+        return in_repeat, ["control_mean"] * len(in_repeat)
+    rows = in_repeat[in_repeat["condition"] == condition].head(1)
+    return rows, ["mean"] * len(rows)
+
+
 def _is_control(group_data: ValidatedInput, control: Mapping[str, Any]) -> bool:
     """Whether the group belongs to the declared control (every control column matches)."""
     columns = [c for c in control if c in group_data.fovs.columns]
-    if len(columns) < len(control) or group_data.fovs.empty:
+    if not control or len(columns) < len(control) or group_data.fovs.empty:
         return False
     values = group_data.fovs[columns].drop_duplicates()
     return len(values) == 1 and all(values.iloc[0][c] == v for c, v in control.items())
@@ -115,19 +139,14 @@ def _found(
     """The influence rows of one analysis group's fields (see the module); a mean of 0 has
     no relative change and goes in ``skipped``, as ``inspect_fovs`` records it."""
     condition, repeat = group.get(CONDITION_COLUMN), group.get(REPEAT_COLUMN)
-    in_repeat = table[table[REPEAT_COLUMN] == repeat]
-    if _is_control(group_data, setup.control):
-        # Every condition compared with the control in this repeat.
-        column, size, rows = "control_mean", "control_observations", in_repeat
-    else:
-        column, size = "mean", "observations"
-        rows = in_repeat[in_repeat["condition"] == condition].head(1)
+    rows, columns = _sides(group_data, condition, table[table[REPEAT_COLUMN] == repeat], setup)
     if rows.empty:
         return []
     readout = setup.readout
     sums, counts = _sums(group_data, readout)
     unit = group_data.observation_unit or "observation"
-    mean, total = float(rows[column].iloc[0]), float(rows[size].iloc[0])
+    size = "observations" if columns[0] == "mean" else "control_observations"
+    mean, total = float(rows[columns[0]].iloc[0]), float(rows[size].iloc[0])
     if not mean > 0:
         skipped.append({"group": where(group), "summary": f"mean of {readout}", "reason": _ZERO})
         return []
@@ -141,17 +160,19 @@ def _found(
             continue
         # The condition whose change the field moves most (itself, for a treated field).
         effects = [
-            (*_effect(table[table["condition"] == r.condition], repeat, column, without), i)
+            (*_effect(table[table["condition"] == r.condition], repeat, columns[i], without), i)
             for i, r in enumerate(rows.itertuples())
         ]
         _, effect, best = max(effects, key=lambda item: item[0])
-        named = rows["condition"].iloc[best]
+        named, column = rows["condition"].iloc[best], columns[best]
         side = f"{named}'s mean" if column == "mean" else "the control's mean"
         whose = (
             "its change against the control"
             if column == "mean"
             else (f"{named}'s change against it")
         )
+        if getattr(setup, "comparisons", None):  # the row names the comparison
+            side, whose = f"{condition}'s mean", f"the change of {named}"
         found.append(
             {
                 "position": int(position),

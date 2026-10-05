@@ -40,10 +40,10 @@ def distribution_by_feature(
 ) -> DistributionContrast | None:
     """The comparison of the declared features' distributions, or ``None`` without a
     fingerprint, a control or several conditions."""
-    if not setup.fingerprint or setup.control is None:
+    if not setup.fingerprint or not setup.compares:
         return None
     result = distribution_contrast(
-        objects, fovs, features=setup.columns, control=setup.control, **setup.common
+        objects, fovs, features=setup.columns, **setup.contrast_arguments, **setup.common
     )
     return result if result.n_tests else None
 

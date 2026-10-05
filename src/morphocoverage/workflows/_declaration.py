@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .._caveats import assumption, caveat_lines
+from .._control import control_text
 from .._style import rule_label, wrap
 from .._wording import count, listing, percent, rate
 from ..evidence import Component
@@ -26,6 +27,7 @@ from ..retrospective.replay import strategy_label
 from ..schema import resolve_observation_unit
 from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy
+from ._contrasts import controls_sentence
 
 if TYPE_CHECKING:
     from .setup import Setup
@@ -58,17 +60,27 @@ def declaration(setup: Setup) -> tuple[str, ...]:
             "says whether a rare state was sampled enough."
         )
     lines.append(f"Representation: readout {setup.readout}; {_representation(setup)}.")
+    controls = controls_sentence(setup)
+    if controls:  # several controls (owner, 2026-10-05)
+        lines.append(f"{controls}.")
     if setup.novelty is not None:
         lines.append(_novelty(setup))
     if setup.positive is not None:
         lines.append(_positive(setup))
     lines.append(_rules(setup))
     lines.append(_order(setup))
-    if setup.normalize is not None:
+    if setup.normalize is not None and controls:
+        lines.append(
+            f"Values: every declared feature divided by the mean of each condition's own "
+            f"control {units} of the same repeat (a control by its parent's), for the plots and "
+            "the populations; the raw values are where levels across experiments are read, "
+            "and the tests read them, each normalising to its own control."
+        )
+    elif setup.normalize is not None:
         lines.append(
             "Values: every declared feature divided by the mean of the control "
-            f"{dict(setup.control or {})} {units} of the same repeat (of the whole table "
-            "without a repeat column) for the outcomes judged on held-back fields, the "
+            f"{control_text(setup.reference_control)} {units} of the same repeat (of the whole "
+            "table without a repeat column) for the outcomes judged on held-back fields, the "
             "condition contrast, the feature ranking and the plots; every stopping rule "
             "runs on the raw values, in the report, optimise and benchmark as in the live "
             "decision, and so do the other analyses."
@@ -94,12 +106,13 @@ def _representation(setup: Setup) -> str:
             f"no feature columns declared, so unusual {units} and new phenotypes are not assessed"
         )
     columns = count(len(setup.features), "declared feature column")
+    against = "each condition's own control" if setup.contrast_table is not None else "the control"
     if setup.novelty is None:
         new = "new phenotypes are not assessed (no definition of new: novelty)"
         if setup.control is None:
             return f"{columns}; {new}, and unusual {units} are not assessed without a control"
         return (
-            f"{columns} for unusual {units} (against the control {units}, their repeats "
+            f"{columns} for unusual {units} (against {against} {units}, their repeats "
             f"pooled); {new}"
         )
     if setup.control is None:
@@ -108,7 +121,7 @@ def _representation(setup: Setup) -> str:
             f"unusual {units} are not assessed without a control"
         )
     return (
-        f"{columns} for unusual {units} (against the control {units}, their repeats pooled) "
+        f"{columns} for unusual {units} (against {against} {units}, their repeats pooled) "
         f"and new phenotypes (new: {_new_words(setup)})"
     )
 
@@ -175,7 +188,8 @@ def _positive(setup: Setup) -> str:
         )
     return (
         f"Positive control: fields of {dict(positive.selector)} judged against the control "
-        f"{dict(setup.control or {})} after {count(positive.fovs_seen, 'reference field')}, "
+        f"{control_text(setup.reference_control)} after "
+        f"{count(positive.fovs_seen, 'reference field')}, "
         f"{paired}. If fewer than {percent(setup.minimum_detection)} of its checks are "
         "recognized (minimum_detection, a provisional preset), every adequacy answer carries "
         "a warning."
@@ -390,6 +404,8 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     lines += [rare] if rare else []
     cautions += rare_cautions
     lines.append(f"Representation: readout {setup.readout}; {_representation(setup)}.")
+    controls = controls_sentence(setup)
+    lines += [f"{controls}."] if controls else []
     if setup.novelty is not None:
         lines.append(_novelty_short(setup))
     if setup.positive is not None:
@@ -397,7 +413,8 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
         pooled = positive.pair_cols is not None and not positive.pair_cols
         lines.append(
             f"Positive control: fields of {dict(positive.selector)} against the control "
-            f"{dict(setup.control or {})}; below {percent(setup.minimum_detection)} recognized "
+            f"{control_text(setup.reference_control)}; below "
+            f"{percent(setup.minimum_detection)} recognized "
             "(minimum_detection, a provisional preset) every adequacy answer is warned."
         )
         if pooled:
@@ -425,7 +442,13 @@ def declaration_short(setup: Setup, indent: int = 2) -> str:
     order, order_cautions = _order_short(setup)
     lines += [order] if order else []
     cautions += order_cautions
-    if setup.normalize is not None:
+    if setup.normalize is not None and controls:
+        lines.append(
+            "Values: each condition divided by its own control's mean in the same repeat for "
+            "the plots and the populations; levels across experiments are read on the raw "
+            "values, which the tests and the stopping rules read."
+        )
+    elif setup.normalize is not None:
         lines.append(
             "Values: features divided by the control mean of the same repeat for the held-back "
             "outcomes, the contrast, the ranking and the plots; the stopping rules read the "

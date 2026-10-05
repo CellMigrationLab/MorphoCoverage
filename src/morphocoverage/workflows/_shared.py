@@ -28,6 +28,7 @@ from typing import Any
 
 import pandas as pd
 
+from .._control import not_found
 from .._former_repeat import renamed_tables
 from .._wording import count
 from ..benchmark import AcquisitionOrder
@@ -56,6 +57,7 @@ from ..schema import ValidatedInput
 from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
+from ._contrasts import declared_conditions
 from ._document import pooling_reason
 from ._rare_share import compared_columns, share_column, with_share
 from .setup import Setup, default_novelty
@@ -132,8 +134,14 @@ def check_workflow_inputs(
                 f"{sorted(map(str, labels.unique()))[:5]}"
             )
     check = _check_tables(
-        objects, fovs, feature_cols=setup.columns, control=setup.control, **setup.common
+        objects, fovs, feature_cols=setup.columns, control=setup.reference_control, **setup.common
     )
+    declared = declared_conditions(setup)  # several controls and their conditions
+    if declared:
+        present = list(fovs.get(CONDITION_COLUMN, pd.Series()).unique())
+        problem = not_found([tuple(declared)], present)
+        if problem:
+            raise ValueError(problem.replace("the comparisons name", "the controls name"))
     # The declared design the summaries state anyway (an assumed unit, empty fields) is not
     # repeated as a warning at every call.
     likely_mistakes = [p for p in check.warnings if not _states_the_design(p)]
@@ -360,11 +368,12 @@ def control_checks(
     observation per field (``per_field=False``) neither applies (their fields
     are their observations), so neither is run.
     """
-    assert setup.control is not None
+    reference = setup.reference_control
+    assert reference is not None
     if not per_field:
         return {}
     common = setup.common
-    pooled = pooled_columns(objects, fovs, setup, list(setup.control))
+    pooled = pooled_columns(objects, fovs, setup, list(reference))
     if pooled:
         reasons["unit"] = pooling_reason(
             "the object-rule check against the control is", setup, pooled
@@ -380,7 +389,7 @@ def control_checks(
             fovs,
             feature=setup.readout,
             targets=setup.tolerances,
-            control=setup.control,
+            control=reference,
             random_state=setup.random_state,
             **common,
         )
@@ -390,7 +399,8 @@ def control_checks(
             objects,
             fovs,
             feature_cols=list(setup.features),
-            reference=setup.control,
+            reference=reference,
+            own=setup.own_references,  # several controls: each against its own
             random_state=setup.random_state,
             **common,
         )
@@ -407,7 +417,7 @@ def control_checks(
             states=[True],
             random_state=setup.random_state,
             min_objects_per_fov=novelty.min_novel_observations,
-            reference=setup.control,
+            reference=reference,
             **common,
         )
     return results
@@ -437,10 +447,10 @@ def rare_clustering(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> 
 def conditions(
     objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup, reasons: dict[str, str]
 ) -> dict[str, Any]:
-    """R7: each condition against the control, per repeat, on the prepared values."""
-    contrasted = setup.control is not None and CONDITION_COLUMN in setup.control
+    """R7: each condition against the control (or each declared comparison), per repeat, on
+    the values ``Setup.compared_values`` gives."""
     if not (
-        contrasted and CONDITION_COLUMN in fovs.columns and fovs[CONDITION_COLUMN].nunique() > 1
+        setup.compares and CONDITION_COLUMN in fovs.columns and fovs[CONDITION_COLUMN].nunique() > 1
     ):
         return {}
     pooled = pooled_columns(objects, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
@@ -454,9 +464,14 @@ def conditions(
             objects,
             fovs,
             feature=setup.readout,
-            control=setup.control,
             random_state=setup.random_state,
             fields_independent=setup.fields_independent,
+            # One control, or the contrast table: its main verdicts and its secondary rows.
+            **(
+                {"control": setup.control}
+                if setup.contrast_table is None
+                else {"contrasts": setup.contrast_table}
+            ),
             **setup.common,
         )
     }
@@ -467,8 +482,8 @@ def conditions(
             shared,
             fovs,
             features=compared,
-            control=setup.control,
             random_state=setup.random_state,
+            **setup.contrast_arguments,
             **setup.common,
         )
         # The headline counts the share apart from the features (report_status_conditions).
@@ -483,9 +498,9 @@ def conditions(
             shared,
             fovs,
             features=compared,
-            control=setup.control,
             random_state=setup.random_state,
             fields_independent=setup.fields_independent,
+            **setup.contrast_arguments,
             **setup.common,
         )
     return results

@@ -57,7 +57,7 @@ def fingerprint_precision(
     if not criteria:
         return None
     data = validate_input_tables(
-        setup.prepared(objects, fovs),
+        setup.compared_values(objects, fovs),
         fovs=fovs,
         feature_cols=setup.judged_columns,
         **setup.common,

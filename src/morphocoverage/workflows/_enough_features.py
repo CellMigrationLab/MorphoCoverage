@@ -166,7 +166,7 @@ def _contrast(prepared: pd.DataFrame, fovs: pd.DataFrame, feature: str, setup: S
         prepared,
         fovs,
         feature=feature,
-        control=setup.control,
+        **setup.contrast_arguments,
         random_state=setup.random_state,
         fields_independent=setup.fields_independent,
         object_counts=(),
@@ -186,7 +186,7 @@ def enough_by_feature(
     no control; ``prepared`` holds the values the contrasts read (normalised as declared),
     ``objects`` the raw ones the rules read."""
     features = list(setup.columns)
-    if len(features) < 2 or setup.control is None:
+    if len(features) < 2 or not setup.compares:
         return None
     ordered = _order(features, discovery)
     # One light contrast per feature, in worker processes when the setup allows them.
