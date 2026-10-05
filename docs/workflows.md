@@ -446,8 +446,11 @@ acquired:
   may split into two groups on a feature where the control's do not (Sarle's
   bimodality coefficient above 5/9 for the condition without a heavy tail, excess
   kurtosis at most 2, since a skewed single-peaked feature reaches 5/9 too, and
-  below 5/9 for the control, in at least half of its repeats), the summary says
-  so and points to its figure: described, not tested.
+  below 5/9 for the control, in at least half of its repeats that can be assessed),
+  the summary says so and points to its figure: described, not tested. A repeat
+  whose coefficient is undefined, with fewer than 4 cells on a side or no spread,
+  leaves the denominator and is named ("1 repeat not assessed: 3 cells"), and a
+  condition with no repeat assessed is said not assessed (owner, 2026-10-05).
 - **"Are there populations or groups of cells?"** (question 10, in every report) finds
   groups of cells that sit together on all the declared features, from every
   condition pooled. The candidates are the clusters of HDBSCAN (scikit-learn) on a
