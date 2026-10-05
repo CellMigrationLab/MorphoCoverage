@@ -35,13 +35,14 @@ reader live in ``workflows._manifest``). ``LiveFolder.poll()`` reads the
 manifest lines added since the last poll (it keeps its byte offset and
 ignores a last line that is not yet terminated), reads each new field's
 object file, and returns one update per field; ``watch()`` repeats the poll
-every ``interval`` seconds, and with ``until_stop`` returns once every rule
-says stop in every group seen so far (``"latest_group"``: in the latest
-field's group). The manifest may only grow: one rewritten, truncated or
-replaced under the watcher (its first bytes are no longer the ones read)
-raises, rather than skipping fields. A line identical to one already read (an
-acquisition retry) is skipped with a warning; a line naming an accepted field
-with another object file raises, naming both lines.
+every ``interval`` seconds, and with ``until_stop`` returns once the
+objective's overall decision is stop in every group seen so far
+(``"latest_group"``: in the latest field's group). The manifest may only
+grow: one rewritten, truncated or replaced under the watcher (its first
+bytes are no longer the ones read) raises, rather than skipping fields. A
+line identical to one already read (an acquisition retry) is skipped with a
+warning; a line naming an accepted field with another object file raises,
+naming both lines.
 
 **Checks on the fields.** Each field passes the session's validation and,
 as ``check_tables`` warns, a warning for rows that are exact copies of
@@ -86,7 +87,7 @@ from ..metadata import (
 from ..objectives import ObjectiveConfig
 from ..online import OnlineSession
 from ..order_check import OrderCheck
-from ..results import Decision, StrategyResult
+from ..results import Decision, StrategyResult, _target_decisions
 from ..strategies.base import SamplingStrategy
 from ._live_order import _CheckedSession, _order_check
 from ._live_text import live_summary
@@ -319,19 +320,24 @@ class LiveFolder:
         max_fovs: int | None = None,
         until_stop: bool | str = False,
         on_update: Callable[[LiveUpdate], None] | None = print_update,
+        stop_on: str = "decision",
     ) -> list[LiveUpdate]:
         """Poll every ``interval`` seconds until ``timeout``, ``max_fovs`` or ``until_stop``.
 
-        ``until_stop=True`` (or ``"all_groups"``) returns once every rule says
-        stop in every group seen so far, each group judged by its latest field:
-        on a plate acquired well by well in turn, the watch goes on while any
-        well still needs fields. ``until_stop="latest_group"`` returns as soon
-        as every rule says stop in the latest field's group (one well done).
+        ``until_stop=True`` (or ``"all_groups"``) returns once a group is done in
+        every group seen so far, each group judged by its latest field: on a
+        plate acquired well by well in turn, the watch goes on while any well
+        still needs fields. ``until_stop="latest_group"`` returns as soon as the
+        latest field's group is done (one well done).
 
-        "Says stop" is each rule's own verdict (``StrategyResult.rule_decision``),
-        as in the replays: a rule that has no evidence about a declared target
-        still stops when its own criterion is met, and the decision view of each
-        update says which targets no rule decides.
+        A group is done when the objective's overall decision is stop, the last
+        line of the update's decision view (``stop_on="decision"``, the default,
+        as in ``benchmark``): a declared target that no rule decides, or one
+        still continuing or undefined, keeps the watch going, so the watch and
+        the live text agree (owner, 2026-10-05; from 2026-09-26 it read each
+        rule's own verdict). ``stop_on="rule"`` is the lower-level stop when
+        every rule's own verdict (``StrategyResult.rule_decision``) is stop,
+        whatever the targets it does not decide.
 
         The condition is checked after each field, and fields are added one at a
         time: when it is met, the fields still waiting in the folder (a backlog,
@@ -345,18 +351,19 @@ class LiveFolder:
             raise ValueError("interval must be positive")
         if until_stop not in (False, True, "all_groups", "latest_group"):
             raise ValueError("until_stop must be False, True, 'all_groups' or 'latest_group'")
+        if stop_on not in ("decision", "rule"):
+            raise ValueError(f"stop_on must be 'decision' or 'rule', not {stop_on!r}")
         started = time.monotonic()
         seen: list[LiveUpdate] = []
-        latest: dict[tuple, bool] = {}  # each group's latest field: every rule says stop
+        latest: dict[tuple, bool] = {}  # each group's latest field: done
         try:
             while True:
                 for update in self._fields():
                     seen.append(update)
                     if on_update is not None:
                         on_update(update)
-                    stopped = [r.rule_decision == Decision.STOP for r in update.results]
                     group = tuple(update.results[0].group.items()) if update.results else ()
-                    latest[group] = bool(stopped) and all(stopped)
+                    latest[group] = _done(update.results, stop_on)
                     if until_stop == "latest_group" and latest[group]:
                         return seen
                     if until_stop in (True, "all_groups") and all(latest.values()):
@@ -368,6 +375,15 @@ class LiveFolder:
                 time.sleep(interval)
         except KeyboardInterrupt:
             return seen
+
+
+def _done(results: Sequence[StrategyResult], stop_on: str) -> bool:
+    """Whether one field's results end its group's acquisition (see ``LiveFolder.watch``)."""
+    if not results:
+        return False
+    if stop_on == "rule":
+        return all(r.rule_decision is Decision.STOP for r in results)
+    return _target_decisions(results)[-1].decision is Decision.STOP
 
 
 class LiveTables:

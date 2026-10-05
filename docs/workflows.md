@@ -800,11 +800,16 @@ live = LiveFolder(folder, live_session(setup))
 live.watch(interval=1.0, until_stop=True)    # or live.poll() from your own loop
 ```
 
-`until_stop=True` returns once every rule says stop in every group seen so
-far, each group judged by its latest field: on a plate acquired well by well,
-the watch goes on while any well still needs fields.
+`until_stop=True` returns once the objective's overall decision is stop in
+every group seen so far, each group judged by its latest field: on a plate
+acquired well by well, the watch goes on while any well still needs fields.
 `until_stop="latest_group"` returns as soon as the latest field's group is
-done. Fields are added one at a time, so a backlog stops at the stop: the
+done. The overall decision is the last line of each update's view, as in
+`benchmark`: a declared target that no rule decides is unsupported and keeps
+the watch going, so the watch never stops while the view says otherwise
+(owner, 2026-10-05; before, the watch read each rule's own verdict).
+`watch(..., stop_on="rule")` is the lower-level stop when every rule's own
+verdict is stop, whatever the targets it does not decide. Fields are added one at a time, so a backlog stops at the stop: the
 fields still waiting in the folder are not added, and the next `poll` or
 `watch` reads them.
 
