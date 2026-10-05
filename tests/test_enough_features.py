@@ -103,7 +103,18 @@ def test_the_table_drops_the_precision_column_with_no_rule(result):
     features = result.results["enough_features"]
     table = features.table.assign(precision_rule=None, precision_met=float("nan"))
     text = features_table(FeatureEnough(table, features.contrasts, {}), "group")
-    assert "own mean" not in text and "still needed" in text
+    assert "meets the rule" not in text and "to show the rest" in text
+
+
+def test_the_columns_say_what_each_is(result):
+    """ "compared with the control" beside "own mean" read as contradictory ("enough: shown in
+    6 of 6" beside "0 of 9 wells", ChatGPT audit B6): each header names its goal."""
+    text = features_table(result.results["enough_features"], "group")
+    head = text.splitlines()[0]
+    for words in ("difference from the control shown", "to show the rest"):
+        assert words in head
+    assert "groups whose mean meets the rule" in head
+    assert "compared with the control" not in head and "own mean" not in head
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -189,7 +200,7 @@ def test_a_repeat_the_folders_did_not_have_is_not_named():
 
 def test_the_rule_is_named_once_above_the_table(result):
     short = " ".join(result.document.short["enough"].split())
-    own = "first); own mean: the groups whose mean meets the mean-precision rule, per cell"
+    own = "first); the rule of the last column: the mean-precision rule, per cell"
     assert own in short
     assert "own mean (" not in short
 
@@ -311,3 +322,16 @@ def test_with_one_feature_the_card_has_the_same_layout_and_one_table(tmp_path):
     assert "Enough to pin down each group's own mean of area?" in words
     assert words.count("Assumptions") == 1 and "stopping rules" not in words.lower()
     assert "What to do next" not in words
+
+
+def test_comparisons_too_small_are_counted_over_the_features_they_sum(result):
+    """Stress test C: "solidity, area, perimeter and 1 more: too small to show in 10
+    comparisons" summed over 4 features while each has 6: the headline says over how many."""
+    features = result.results["enough_features"]
+    table = features.table.assign(too_small=[2, 3] + [0] * (len(features.table) - 2))
+    _, text = features_status(FeatureEnough(table, features.contrasts, {}), "group")
+    names = list(table["feature"][:2])
+    assert f"{names[0]} and {names[1]}: too small to show in 5 comparisons over 2 features" in text
+    one = features.table.assign(too_small=[2] + [0] * (len(features.table) - 1))
+    _, text = features_status(FeatureEnough(one, features.contrasts, {}), "group")
+    assert f"{names[0]}: too small to show in 2 comparisons even" in text

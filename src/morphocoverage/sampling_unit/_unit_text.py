@@ -26,7 +26,7 @@ import pandas as pd
 from .._caveats import caveat_lines
 from .._style import among, group_columns, group_label, span, table, wrap
 from .._wording import column_word, count, listing, number, percent, percent_fine, rate
-from ..schema import unit_plural
+from ..schema import observation_words
 
 
 def _present(value: Any) -> bool:
@@ -105,7 +105,7 @@ def _variability_cautions(result: Any, rows: list[dict], words: str) -> list[str
 
 def variability_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]]:
     """The short form of ``fov_variability``: one answer sentence, one table of the groups."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     rows, ok = _variability_rows(result)
     feature = result.settings["feature"]
@@ -152,7 +152,7 @@ def variability_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str
 
 def variability_full(result: Any, indent: int = 0) -> str:
     """Every number of ``fov_variability``, one row per group."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     rows, _ = _variability_rows(result)
     head = (
@@ -230,7 +230,7 @@ def _rule_cautions(result: Any, rows: list[dict]) -> list[str]:
 
 def object_rule_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]]:
     """The short form of ``object_rule_check``: one row per target, ranges over the groups."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     rows = result.table.to_dict("records")
     ok = [r for r in rows if r["status"] == "ok"]
@@ -289,7 +289,7 @@ def object_rule_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str
 
 def object_rule_full(result: Any, indent: int = 0) -> str:
     """Every number of ``object_rule_check``, one row per group and target."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     rows = result.table.to_dict("records")
     ok = [r for r in rows if r["status"] == "ok"]
@@ -386,7 +386,7 @@ def _spread_head(result: Any, words: str) -> str:
 
 def descriptor_spread_parts(result: Any, indent: int = 0) -> tuple[list[str], list[str]]:
     """The short form of ``descriptor_spread_check``: one row per descriptor over the groups."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     rows = result.at_threshold
     lines = [wrap(f"{_spread_head(result, words)}:", indent, hang=indent + 2)]
@@ -422,12 +422,12 @@ def descriptor_spread_parts(result: Any, indent: int = 0) -> tuple[list[str], li
 def descriptor_spread_full(result: Any, indent: int = 0) -> str:
     """Every number of ``descriptor_spread_check``: one row per group, one column per
     descriptor (the spread ratio, and from how many objects whole fields match)."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     rows = result.at_threshold
     lines = [
         wrap(
-            f"{_spread_head(result, words)}; analysis groups: {group_columns(keys)}. Each cell: "
+            f"{_spread_head(result, words)}; analysis groups: {group_columns(keys)}. Each entry: "
             f"the spread ratio (whole fields over random {words}) and, in brackets, the smallest "
             f"sample of {words} from which whole fields stay within the random-{words} spread "
             "(not by: never, up to the largest sample tried).",

@@ -52,7 +52,7 @@ from ..sampling_unit import (
     object_rule_check,
     unusual_objects,
 )
-from ..schema import ValidatedInput, resolve_observation_unit
+from ..schema import ValidatedInput
 from ..strategies import FixedFOVStrategy
 from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
@@ -314,8 +314,7 @@ def one_per_field_reasons(setup: Setup) -> dict[str, str]:
     by question (``with_reasons``): fields and observations coincide, so their difference
     cannot be measured, and a new state needing several similar observations in one field
     cannot occur."""
-    unit = resolve_observation_unit(setup.observation_unit)[0]
-    words = setup.unit_words
+    unit, words = setup.unit_word, setup.unit_words
     reasons = {
         "unit": (
             f"not applicable: each field holds one {unit}, so fields and {words} coincide and "

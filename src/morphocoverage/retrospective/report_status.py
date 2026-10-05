@@ -153,7 +153,7 @@ from .._integrity_text import rows_only
 from .._style import Status, among, worst
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
-from ..schema import unit_plural
+from ..schema import observation_words
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
 from .calibration import PREMATURE_CAUTION
@@ -266,7 +266,7 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
         groups = variability.groups
         ok = groups[groups["status"] == "ok"]
         if len(ok):
-            words = unit_plural(variability.settings.get("observation_unit", "object"))
+            words = observation_words(variability.settings)[1]
             effect = statistics.median(ok["design_effect"].astype(float))
             parts.append(
                 f"a mean from whole fields varies {effect:.1f}x as much as from random "
@@ -318,7 +318,7 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
         if declared:
             return Status.CAUTION, "a control was declared, but could not be judged"
         return Status.NOT_ASSESSED, "no positive control declared"
-    words = unit_plural(controls.settings.get("observation_unit", "object"))
+    words = observation_words(controls.settings)[1]
     control = controls.settings.get("control") or {}
     planted = control.get("planted_objects")
     kind = "planted" if planted and _rate(controls, "planted") is not None else "positive"

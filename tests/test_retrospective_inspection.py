@@ -81,7 +81,7 @@ def test_empty_fields_and_neighbour_differences_are_traceable():
     result = _inspect(objects, fovs, stage_cols=("stage_x", "stage_y"), summaries=[])
     rows = result.fovs.set_index(["image_file", "reason"])
     assert rows.loc[("f15", "count"), "observations"] == 0
-    assert "no objects" in rows.loc[("f15", "count"), "detail"]
+    assert "no cells" in rows.loc[("f15", "count"), "detail"]
     assert "above its 4 nearest fields" in rows.loc[("f18", "neighbours"), "detail"]
     assert rows.loc[("f18", "neighbours"), "stage_x"] == 300.0
     text = result.summary(detail="full")

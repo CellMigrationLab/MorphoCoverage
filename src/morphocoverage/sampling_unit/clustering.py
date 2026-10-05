@@ -211,6 +211,7 @@ def fov_clustering(
         "n_permutations": n_permutations,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
         "min_objects_per_fov": m,
         "min_fov_occurrences": k,
         "reference": None if reference is None else dict(reference),

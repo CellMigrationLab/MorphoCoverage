@@ -32,7 +32,7 @@ from .._caveats import assumption
 from .._style import among, group_columns, group_label, span, table, wrap
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
-from ..schema import unit_plural
+from ..schema import observation_words
 from ._outliers import LEAVE_ONE_FIELD_OUT
 
 # Seed-check agreement below which the labels are called unstable (as in fiberfeatures).
@@ -74,12 +74,14 @@ def _unusual_head(result: Any, words: str) -> str:
     )
 
 
-# What the reference cannot show: a state the control already holds.
-_BLIND_SPOT = assumption(
-    "A state the reference already holds, at any share, is not unusual: only its share can "
-    "change, and the populations (“Are there populations or groups of cells?”) compare each "
-    "condition's share of such a state with its control's."
-)
+def _blind_spot(words: str) -> Any:
+    """What the reference cannot show: a state the control already holds (``words``: the
+    observations, plural)."""
+    return assumption(
+        "A state the reference already holds, at any share, is not unusual: only its share "
+        f"can change, and the populations (“Are there groups of {words}?”) compare each "
+        "condition's share of such a state with its control's."
+    )
 
 
 def _unusual_cautions(result: Any, words: str) -> list[str]:
@@ -117,7 +119,7 @@ def unusual_parts(
     result: Any, indent: int = 0, *, with_table: bool = True
 ) -> tuple[list[str], list[str]]:
     """The short form of ``unusual_objects``: the definition, the groups in one table."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     ok = [r for r in result.groups.to_dict("records") if r["status"] == "ok"]
     lines = [wrap(_unusual_head(result, words), indent, hang=indent + 2)]
@@ -144,12 +146,12 @@ def unusual_parts(
                 hang=indent + 2,
             )
         )
-    return lines, [*_unusual_cautions(result, words), _BLIND_SPOT]
+    return lines, [*_unusual_cautions(result, words), _blind_spot(words)]
 
 
 def unusual_full(result: Any, indent: int = 0) -> str:
     """Every number of ``unusual_objects``, one row per group."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     rows = result.groups.to_dict("records")
     lines = [
@@ -358,7 +360,7 @@ def clustering_parts(
 ) -> tuple[list[str], list[str]]:
     """The state clustering: per state one answer sentence and one table of the groups where
     it was seen; the technical repeats holding it. ``(lines, cautions)``, under ``indent``."""
-    words = unit_plural(result.settings["observation_unit"])
+    words = observation_words(result.settings)[1]
     keys = list(result.group_cols)
     lines = []
     for state, block in result.table.groupby("state", sort=False):

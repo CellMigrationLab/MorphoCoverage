@@ -154,7 +154,7 @@ def test_fields_without_observations_count_as_acquired_effort():
     assert se_empty == pytest.approx(se)
     level = empty.components.iloc[0]
     assert level["fovs"] == 38 and level["fovs_with_observations"] == 36
-    assert "2 of 38 acquired fields had no objects" in empty.summary()
+    assert "2 of 38 acquired fields had no cells" in empty.summary()
 
 
 def test_empty_fields_do_not_shrink_the_projected_error_or_design_effect():

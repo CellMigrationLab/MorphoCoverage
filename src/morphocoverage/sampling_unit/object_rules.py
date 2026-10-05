@@ -70,7 +70,7 @@ from .._seeds import group_key, group_rng
 from .._style import check_detail, group_label
 from .._wording import column_word, where
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
-from ..schema import ValidatedInput, fov_values, unit_plural
+from ..schema import ValidatedInput, fov_values, observation_words
 from ..statistics import (
     describe,
     field_sample,
@@ -282,7 +282,7 @@ def object_rule_check(
     n_draws = as_count(n_draws, "n_draws", 2)
     random_state = check_seed(random_state)
     data = validated(objects, fovs, [feature], fov_col, group_cols, observation_unit)
-    words = unit_plural(data.observation_unit)
+    words = observation_words(data)[1]
     all_groups = groups(data)
     if repeat_col is not None and repeat_col not in data.fovs.columns:
         if repeat_col != REPEAT_COLUMN:
@@ -372,6 +372,7 @@ def object_rule_check(
         "n_draws": n_draws,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
     }
     return ObjectRuleCheck(pd.DataFrame(rows), tuple(data.group_cols), settings)
 
@@ -478,6 +479,7 @@ def descriptor_spread_check(
         "n_draws": n_draws,
         "random_state": random_state,
         "observation_unit": data.observation_unit,
+        "observation_unit_declared": data.observation_unit_declared,
         "skipped_groups": skipped,
     }
     return DescriptorSpreadCheck(

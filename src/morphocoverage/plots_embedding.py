@@ -28,6 +28,7 @@ from ._palette import COLOURS, FONT, GREY, INK, condition_palette, style_axes
 from ._wording import count, percent
 from .embedding import Embedding
 from .metadata import CONDITION_COLUMN, sorted_labels
+from .schema import observation_words
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -129,7 +130,7 @@ def embedding_figures(
     points = embedding.points
     control_value = dict(control or {}).get(CONDITION_COLUMN)
     colours = _colours(points, control_value, highlight)
-    unit = embedding.settings["observation_unit"]
+    unit = observation_words(embedding.settings)[0]
     n_features = len(embedding.settings["features"])
     figures: dict[str, Figure] = {}
     figure = Figure(figsize=(7.5, 6.8), layout="constrained")

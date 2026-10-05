@@ -367,7 +367,8 @@ def test_the_full_answer_keeps_every_number_of_every_answer():
     assert "nothing new (≤20%)" in short and "fixed 4 fields" in short
     assert short.count("treat fields as independent, representative draws") == 1
     # Short: what counts as new in one plain line; its exact definition in the full form.
-    assert "Seen in few fields:" in short and "'New': at least 3 similar objects" in short
+    # Undeclared observations are called cells (owner, 2026-10-02).
+    assert "Seen in few fields:" in short and "'New': at least 3 similar cells" in short
     assert "'New' means" not in short and "'New' means" in full
     with pytest.raises(ValueError, match="detail"):
         report.summary(detail="everything")

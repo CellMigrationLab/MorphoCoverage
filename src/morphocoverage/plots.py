@@ -91,7 +91,7 @@ from .metadata import (
     empty_values,
     sorted_labels,
 )
-from .schema import ValidatedInput, fov_positions, fov_values
+from .schema import ValidatedInput, fov_positions, fov_values, observation_words
 from .statistics import bootstrap_nested
 
 MAX_CONDITIONS = 12
@@ -539,7 +539,7 @@ def plots_of_data(
                 else ""
             )
             words = title(
-                feature, part, layout, data.observation_unit, summary, confidence, clusters
+                feature, part, layout, observation_words(data)[0], summary, confidence, clusters
             )
             # The feature on top; what the figure shows is its legend, at the bottom.
             pad = 22 + (3.5 * longest if slant else 0)  # above the slanted names

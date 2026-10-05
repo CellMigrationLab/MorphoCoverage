@@ -203,7 +203,7 @@ def test_the_jcb_check_full_keeps_every_number_and_the_short_names_misses(unit):
         ):
             assert value in full
     short = _flat(result.summary())
-    assert "the mean of all MOCK objects of the same biological repeat" in short
+    assert "the mean of all MOCK cells of the same biological repeat" in short
     missed = ok[~ok["meets_target"].astype(bool)]
     # A strong field effect: the rule's promise breaks with whole fields.
     assert len(missed) and "misses its target with whole fields" in short
@@ -248,14 +248,14 @@ def test_a_stratum_not_judged_is_named_by_its_column_and_value():
     result = _control(objects, fovs)
     status, headline = controls_status(result, minimum_detection=0.01)
     assert status is Status.CAUTION
-    assert "not judged in biological repeat P2 (no positive-control field with objects)" in headline
+    assert "not judged in biological repeat P2 (no positive-control field with cells)" in headline
     assert "Not judged after 6 reference fields in biological repeat P2" in _flat(result.summary())
 
 
 def test_clustering_short_answers_per_state_and_full_keeps_every_number(states):
     clustering, _ = states
     short = _flat(clustering.summary())
-    assert "Are the state objects spread over the fields?" in short
+    assert "Are the state cells spread over the fields?" in short
     assert "in 1 of 2 groups where seen (MOCK · repeat r1)" in short
     full = clustering.summary(detail="full")
     for row in clustering.table[clustering.table["state_objects"] > 0].to_dict("records"):
@@ -273,7 +273,7 @@ def test_question_3_is_a_caution_when_a_state_clusters(states):
     clustering, unusual = states
     report = microscopist_report(clustering=clustering, unusual=unusual)
     assert report.statuses["profile"] is Status.CAUTION
-    assert "state objects clustered in 1 of 2 groups" in report.headlines["profile"]
+    assert "state cells clustered in 1 of 2 groups" in report.headlines["profile"]
     spread = dataclasses.replace(clustering, table=clustering.table.assign(p_clustered=1.0))
     status, _ = profile_status(report.profile, [spread])
     assert status is Status.OK

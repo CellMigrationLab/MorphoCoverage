@@ -73,7 +73,7 @@ from ._html_next import fields_next, populations_next
 from ._html_plan import PLAN_TITLE, plan_card
 from ._html_plotly import plotly_js
 from ._html_plotly_script import PLOTLY_SCRIPT
-from ._html_render import Terms, adjusted_p, chip, text_html
+from ._html_render import Terms, adjusted_p, chip, in_units, text_html
 from ._html_script import SCRIPT
 from ._html_sections import (
     INTROS,
@@ -84,6 +84,7 @@ from ._html_sections import (
     hidden,
     intros_for,
     not_declared,
+    titles_for,
     unnumbered,
     what_checked,
 )
@@ -99,6 +100,7 @@ def _on_page(term: Any, text: str) -> bool:
     of its phrases, whole."""
     name = re.sub(r"\s*\(.*\)$", "", term.name)
     words = (name, *PHRASES.get(term.name, ()))
+    words = (*words, *(_words(w) for w in words))
     return any(re.search(rf"(?<![\w-]){re.escape(w.lower())}(?![\w-])", text) for w in words)
 
 
@@ -133,9 +135,10 @@ def _glossary_drawer(page: str) -> str:
             else html.escape(r.text)
             for r in term.references
         )
+        name, meaning, where = (_words(t) for t in (term.name, term.meaning, term.where))
         parts.append(
-            f'<dt id="{slug(term)}">{html.escape(term.name)}</dt><dd>{html.escape(term.meaning)}'
-            f'<span class="where">Where: {_unnumbered(html.escape(term.where))}.</span>'
+            f'<dt id="{slug(term)}">{html.escape(name)}</dt><dd>{html.escape(meaning)}'
+            f'<span class="where">Where: {_unnumbered(html.escape(where))}.</span>'
             + (f'<span class="refs">See: {refs}</span>' if refs else "")
             + "</dd>"
         )
@@ -148,12 +151,17 @@ _INTROS: dict[str, str] = dict(INTROS)
 # The chip words the results decide (``chip_words``) and the report's observations, set
 # per page like the intros.
 _WORDS: dict[str, str] = {}
-_UNITS = {"words": "cells"}
+_UNITS = {"words": "cells", "one": "cell"}
+
+
+def _words(text: str) -> str:
+    """``text``, written of cells, in this page's words for its observations."""
+    return in_units(text, _UNITS["words"], _UNITS["one"])
 
 
 def _unnumbered(markup: str) -> str:
     """``unnumbered`` in this page's words for its observations."""
-    return unnumbered(markup, _UNITS["words"])
+    return unnumbered(markup, _UNITS["words"], _UNITS["one"])
 
 
 def _html(text: str) -> str:
@@ -257,11 +265,12 @@ def _fields_card(result: Report, status: Status | None, short: str, full: str) -
 def _dataset_card(result: Report, viz: str, static: list[str]) -> str:
     """Every feature at once: the interactive PCA and UMAP, the static figures folded."""
     body = (
-        f"<p>All {len(result.setup.columns)} features at once, every cell a point.</p>{viz}"
+        f"<p>All {len(result.setup.columns)} features at once, every "
+        f"{result.setup.unit_word} a point.</p>{viz}"
         "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
         f'<div class="figures">{"".join(static)}</div></details>'
     )
-    return _card("dataset", TITLES["dataset"], "", body)
+    return _card("dataset", _words(TITLES["dataset"]), "", body)
 
 
 def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -> str:
@@ -271,7 +280,7 @@ def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -
     if contrast is not None and len(contrast.table):
         conditions = list(dict.fromkeys(contrast.table["condition"]))
     extra = ""
-    grid = heatmap(result.discovery, conditions)
+    grid = heatmap(result.discovery, conditions, result.setup.unit_word)
     if grid:
         files = heatmap_data(result.discovery, folder)
         # The features no condition makes a candidate, under the heatmap (owner, 2026-10-02).
@@ -348,11 +357,12 @@ def html_report(
     folder = Path(folder)
     # The "?" help in the report's words for its observations (tracks, patches).
     _INTROS.clear()
-    one = result.setup.observation_unit or "object"
-    _INTROS.update(intros_for(result.setup.unit_words, one, **enough_help(result)))
+    units, one = result.setup.unit_words, result.setup.unit_word
+    _INTROS.update(intros_for(units, one, **enough_help(result)))
     _WORDS.clear()
     _WORDS.update(chip_words(result))
-    _UNITS["words"] = result.setup.unit_words
+    _UNITS.update(words=units, one=one)
+    _TERMS.use(units, one)
     figures = folder / "figures"
     figures.mkdir(parents=True, exist_ok=True)
     # Allow for file systems that store modification times to the second.
@@ -360,14 +370,15 @@ def html_report(
     doc = result.document
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        legends = {f: _TERMS.annotate(html.escape(t)) for f, t in figure_legends(result).items()}
+        legends = figure_legends(result, objects, fovs)
+        legends = {f: _TERMS.annotate(html.escape(t)) for f, t in legends.items()}
         feature_blocks, specs = feature_figures(result, objects, fovs, figures, legends)
         viz, static = ("", [])
         if len(result.setup.columns) >= MIN_FEATURES:
             viz, static = embeddings(result, objects, fovs, figures)
     statuses, headlines = doc.statuses, doc.headlines
-    # The Foundation's title names the report's own observations (tracks, patches).
-    titles = {**TITLES, "unit": f"Why count fields, and not only {result.setup.unit_words}?"}
+    # The titles name the report's own observations (tracks, patches).
+    titles = titles_for(units, one)
     keys = [
         k
         for k in ORDER
@@ -486,7 +497,7 @@ def html_report(
     cards.append(files_card(files))
     # The page names the q-value the adjusted p (owner, 2026-10-02); then each PNG it
     # carries is given its data, once (past the budget it stays a link, _html_data).
-    cards = [inline_images(adjusted_p(card), images) for card in cards]
+    cards = [inline_images(adjusted_p(card, units, one), images) for card in cards]
     inside = (
         "every figure and file is inside this page (Files)"
         if all(entry[1] != LINKED for entry in files.values())
@@ -506,7 +517,7 @@ def html_report(
         + "<footer>"
         + html.escape(_settings(result))
         + "</footer></main></div>"
-        + adjusted_p(_glossary_drawer(subtitle + "".join(cards)))
+        + adjusted_p(_glossary_drawer(subtitle + "".join(cards)), units, one)
         + '<script type="application/json" id="files-data">'
         + json_island(files)
         + f"</script><script>{SCRIPT}</script>"

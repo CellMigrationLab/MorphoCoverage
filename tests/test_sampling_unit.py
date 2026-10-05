@@ -426,7 +426,8 @@ def test_the_report_opens_with_the_sampling_unit_and_profiles_clustering():
     text = report.summary(detail="full")
     unit = text.split("1. Can these features")[0]
     marker = report.statuses["unit"].marker
-    assert unit.startswith(f"{marker} Foundation: why count fields, and not only objects?")
+    # Undeclared observations are called cells (owner, 2026-10-02).
+    assert unit.startswith(f"{marker} Foundation: why count fields, and not only cells?")
     assert "How variable are the fields?" in unit
     assert "Would the mean-precision object-count rule hold" in unit
     items = set(report.profile["item"])

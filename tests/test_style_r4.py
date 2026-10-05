@@ -288,7 +288,7 @@ def plan():
 
 def test_plan_has_its_own_title_and_the_rule_check_at_a_glance(plan):
     short = plan.summary()
-    assert short.startswith("Plan for the next experiment — 768 objects in 64 fields")
+    assert short.startswith("Plan for the next experiment — 768 cells in 64 fields")
     status, answer = calibration_status(plan.results["calibration"])
     glance = short.split("\n\n")[1]
     assert f"{status.marker} {CALIBRATION_SHORT}" in glance

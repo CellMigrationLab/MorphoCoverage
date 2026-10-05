@@ -317,7 +317,11 @@ setup = Setup(
 ```
 
 Every field left at `None` switches off the analyses that need it. The report
-then says "Not assessed" and names what would be needed. The stopping rules
+then says "Not assessed" and names what would be needed. `observation_unit`
+names what a row is, and the report's words follow it: "every patch a point",
+"Are there groups of tracks?", the nucleus-level test (`Setup.unit_words`,
+`Setup.unit_word`); left at `None`, the rows are analysed as generic objects
+(`observation_unit_declared=False`) and the report calls them cells. The stopping rules
 default to the mean-precision rule (upper-95 SD, first tolerance), per object and per
 field; pass `rules=(...)` to assess others. `random_state` (default 0) seeds
 every random procedure the workflows run, the report's random orders

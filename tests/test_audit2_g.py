@@ -111,9 +111,9 @@ def test_g2_samples_and_units_are_counted_among_those_with_observations():
     assert not result.comparisons["resolved"].any()
     text = _full(result)
     assert "cannot tell from these data (only 3 samples)" in text
-    assert "5 of 8 samples held no objects with a value" in text
+    assert "5 of 8 samples held no cells with a value" in text
     short = " ".join(result.summary().split())
-    assert "only 3 samples" in short and "5 of 8 samples held no objects with a value" in short
+    assert "only 3 samples" in short and "5 of 8 samples held no cells with a value" in short
 
 
 def test_g3_the_repeat_is_left_out_for_the_reason_that_holds():
@@ -127,7 +127,7 @@ def test_g3_the_repeat_is_left_out_for_the_reason_that_holds():
     assert row["repeat_dropped_reason"] == "single repeat"
     assert (row["repeats"], row["repeats_acquired"]) == (1, 2)
     text = result.summary()
-    assert "Only one of the 2 biological repeats here holds objects" in text
+    assert "Only one of the 2 biological repeats here holds cells" in text
     assert "Every repeat holds a single sample" not in text
 
 
@@ -314,8 +314,8 @@ def test_g12_a_planting_that_cannot_happen_is_said():
         "no positive-control field holds 30 objects to plant (the largest holds 25)"
         in (gaps[0]["reason"])
     )
-    assert "Planted objects: not measured in biological repeat P1" in result.summary()
-    assert "Planted objects: not measured in biological repeat P2" in result.summary()
+    assert "Planted cells: not measured in biological repeat P1" in result.summary()
+    assert "Planted cells: not measured in biological repeat P2" in result.summary()
 
 
 def test_g13_the_chance_expectation_uses_the_leave_one_field_out_rate():

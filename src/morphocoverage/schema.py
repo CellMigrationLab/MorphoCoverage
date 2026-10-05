@@ -17,6 +17,7 @@ import sys
 import warnings
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -70,6 +71,34 @@ _UNIT_ALIASES = {
 # Assumed when the caller does not say what a row is. Results record that the
 # unit was assumed (``observation_unit_declared=False``), never silently.
 DEFAULT_OBSERVATION_UNIT = "object"
+
+
+# The words for observations whose unit was not declared (owner, 2026-10-02: "cells could
+# be the default"): the report calls them cells, while the analysis still treats them as
+# generic objects (``DEFAULT_OBSERVATION_UNIT``, ``observation_unit_declared=False``).
+DEFAULT_UNIT_WORD = "cell"
+
+
+def unit_words(observation_unit: str | None, declared: bool = True) -> tuple[str, str]:
+    """The observations in words, singular and plural (``nucleus``, ``nuclei``): the
+    declared unit's, or ``cell`` and ``cells`` when none was declared (``None``, or
+    ``declared=False`` for a validated input's assumed unit)."""
+    if observation_unit is None or not declared:
+        return DEFAULT_UNIT_WORD, unit_plural(DEFAULT_UNIT_WORD)
+    unit = normalize_observation_unit(observation_unit)
+    return unit, unit_plural(unit)
+
+
+def observation_words(settings: Any) -> tuple[str, str]:
+    """``unit_words`` of a result's ``settings``, or of an object with those attributes."""
+    if not isinstance(settings, dict):
+        settings = {
+            "observation_unit": getattr(settings, "observation_unit", None),
+            "observation_unit_declared": getattr(settings, "observation_unit_declared", True),
+        }
+    return unit_words(
+        settings.get("observation_unit"), bool(settings.get("observation_unit_declared", True))
+    )
 
 
 def unit_plural(observation_unit: str) -> str:
@@ -562,8 +591,10 @@ __all__ = [
     "fov_positions",
     "fov_table_from_observations",
     "normalize_observation_unit",
+    "observation_words",
     "plane_features",
     "resolve_observation_unit",
     "unhashable_values",
     "unit_plural",
+    "unit_words",
 ]
