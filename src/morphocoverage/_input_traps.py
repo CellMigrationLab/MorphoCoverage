@@ -35,8 +35,8 @@ from .metadata import (
 
 # Files that usually hold several stage positions (series, scenes, points).
 CONTAINER_EXTENSIONS = (".nd2", ".czi", ".lif", ".vsi", ".ims", ".oib", ".lsm")
-# A plate well: a row letter (A to AF) and a column number, zero-padded or not.
-_WELL = re.compile(r"(?:A[A-F]|[A-P])0*\d{1,2}", re.IGNORECASE)
+# A plate well: a row (A to Z, then AA to AF on 1536 wells) and a column, zero-padded or not.
+_WELL = re.compile(r"(A[A-F]|[A-Z])0*\d{1,2}", re.IGNORECASE)
 
 
 class InvalidRowsWarning(UserWarning):
@@ -231,7 +231,7 @@ def _check_well_names(
         return
     names = pairs[TECHNICAL_REPEAT_COLUMN]
     wells = names.map(lambda v: isinstance(v, str) and _WELL.fullmatch(v.strip()) is not None)
-    rows = {v.strip()[0].casefold() for v in names[wells]}
+    rows = {_WELL.fullmatch(v.strip()).group(1).casefold() for v in names[wells]}
     if not wells.all() or len(rows) < 2:
         return
     shared = pairs.duplicated([*within, TECHNICAL_REPEAT_COLUMN], keep=False)

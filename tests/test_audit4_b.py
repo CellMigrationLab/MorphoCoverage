@@ -376,3 +376,16 @@ def test_p9_10_control_first_then_sorted_whatever_the_row_order():
     assert layout.conditions == ["mock", "a_drug"]
     assert layout.repeats == ["2026_01_01", "2026_01_02"]
     assert _layout(data, "condition", "biological_repeat", None, 6).conditions == ["a_drug", "mock"]
+
+
+def test_issue_160_one_well_in_two_conditions_is_seen_on_a_1536_well_plate():
+    for control, drug in (("R", "S"), ("AA", "AB")):
+        cells, fovs = _tables()
+        for table in (cells, fovs):
+            well = table["technical_repeat"].replace({"C02": "B02"})
+            rows = well.str[0].map({"B": control, "C": drug})
+            table["technical_repeat"] = rows + well.str[1:]
+        assert {"R02", "AA02"} & set(fovs["technical_repeat"])
+        accepted, check = _agree(cells, fovs)
+        assert accepted
+        assert any("plate well is named in several conditions" in t for t in _titles(check))
