@@ -104,6 +104,18 @@ def _number(value: float) -> str:
     return f"{value:.2f}"
 
 
+def not_judged(rows: pd.DataFrame, word: str, fields: str) -> str:
+    """That the fingerprint could not be judged in some groups of ``rows`` (one criterion),
+    so a tally over the judged groups does not read as every group; empty otherwise."""
+    missing = int(rows["met"].isna().sum())
+    if not missing:
+        return ""
+    return (
+        f"Not judged in {count(missing, word)}: fewer than {MIN_FIELDS} {fields}, or no "
+        "random half its error is defined on."
+    )
+
+
 def held_back_note(judged: pd.DataFrame, word: str, fields: str) -> str:
     """That optimise's held-back fields cannot confirm the fingerprint target, when their own
     error exceeds the tolerance in every group; empty otherwise. Said in the text report and,
@@ -146,7 +158,8 @@ def fingerprint_lines(
                 f"({span(judged['fields'].astype(float))} acquired)."
             )
         note = held_back_note(judged, word, fields) if held_back else ""
-        lines.append(wrap(f"{text} {note}".rstrip(), 2, hang=4))
+        said = (text, not_judged(rows, word, fields), note)
+        lines.append(wrap(" ".join(part for part in said if part), 2, hang=4))
     return lines
 
 
@@ -189,7 +202,9 @@ def targets_status(
         judged = precision[precision["met"].notna()]
         if len(judged):
             met = int(judged["met"].sum())
-            parts.append(f"the fingerprint within its tolerance in {met} of {len(judged)}")
+            # Groups it could not be judged in are not counted: say the tally is of the judged.
+            of = f"{len(judged)} judged" if len(judged) < len(precision) else f"{len(judged)}"
+            parts.append(f"the fingerprint within its tolerance in {met} of {of}")
             statuses.append(Status.OK if met == len(judged) else Status.CAUTION)
     return statuses, parts
 
@@ -241,6 +256,7 @@ __all__ = [
     "fingerprint_lines",
     "fingerprint_precision",
     "held_back_note",
+    "not_judged",
     "rare_lines",
     "with_targets",
 ]

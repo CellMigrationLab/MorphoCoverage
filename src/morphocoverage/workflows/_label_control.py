@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
     from .setup import Setup
 
-# Neighbours looked up per labelled cell before the first one of another field is taken.
+# Neighbours first looked up per labelled cell for the nearest one of another field.
 NEIGHBOURS = 64
 MIN_LABELLED = 5
 
@@ -75,15 +75,23 @@ def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> La
     positions = fov_positions(data, data.fovs)
     points = _robust(matrix)
     tree = cKDTree(points)
+    own = positions[marked]
+    nearest = np.full(len(own), -1)
+    todo = np.arange(len(own))
     k = min(NEIGHBOURS, len(points))
-    _, found = tree.query(points[marked], k=k)
-    found = np.atleast_2d(found)
-    own = positions[marked][:, None]
-    other = positions[found] != own
-    first = np.where(other.any(axis=1), other.argmax(axis=1), -1)
-    usable = first >= 0
-    neighbours = found[np.arange(len(found)), np.maximum(first, 0)][usable]
-    recognized = float(marked[neighbours].mean()) if usable.any() else np.nan
+    # A cell with k closer cells of its own field is looked up again with twice k, so
+    # crowded fields keep their labelled cells (every cell of one field: none is found).
+    while len(todo):
+        found = np.atleast_2d(tree.query(points[marked][todo], k=k)[1])
+        other = positions[found] != own[todo][:, None]
+        hit = other.any(axis=1)
+        nearest[todo[hit]] = found[hit, other[hit].argmax(axis=1)]
+        todo = todo[~hit]
+        if k == len(points):
+            break
+        k = min(2 * k, len(points))
+    neighbours = nearest[nearest >= 0]
+    recognized = float(marked[neighbours].mean()) if len(neighbours) else np.nan
     values = pd.DataFrame(matrix, columns=features)
     inside, outside = values[marked], values[~marked]
     pooled = np.sqrt((inside.var(ddof=1) + outside.var(ddof=1)) / 2)

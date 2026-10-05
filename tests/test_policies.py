@@ -352,6 +352,8 @@ def test_strategy_name_defaults_to_its_parts():
     assert strategy.name == "averaging_cv_object+threshold:averaging_cv"
     with pytest.raises(ValueError, match="at least one"):
         SamplingStrategy()
+    with pytest.raises(ValueError, match="at least one"):  # a name is no component (#323)
+        SamplingStrategy([], [], name="empty")
     with pytest.raises(TypeError, match="not an Estimator"):
         SamplingStrategy([ThresholdPolicy("q", 1.0)])
 

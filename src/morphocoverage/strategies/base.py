@@ -120,11 +120,11 @@ class SamplingStrategy:
         for policy in self._policies:
             if not isinstance(policy, DecisionPolicy):
                 raise TypeError(f"{policy!r} is not a DecisionPolicy")
+        if not self._estimators and not self._policies:
+            raise ValueError("a strategy needs at least one estimator or policy")
         self._name = name or "+".join(
             [e.name for e in self._estimators] + [p.name for p in self._policies]
         )
-        if not self._name:
-            raise ValueError("a strategy needs at least one estimator or policy")
 
     @property
     def name(self) -> str:
