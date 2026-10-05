@@ -456,3 +456,18 @@ def test_a_weak_representation_marks_the_control_and_the_adequacy_answers():
     relaxed = microscopist_report(controls=controls, sufficiency=sufficiency, minimum_detection=0.1)
     assert relaxed.statuses["enough"] is not Status.PROBLEM
     assert relaxed.statuses["controls"] is not Status.PROBLEM
+
+
+def test_issue_168_a_number_in_scientific_notation_is_one_number():
+    from morphocoverage._style import varying_numbers
+
+    texts = [
+        "related (Spearman rho 0.61, p = 2.3e-05, over 40 fields)",
+        "related (Spearman rho 0.55, p = 0.0012, over 40 fields)",
+    ]
+    assert len({number_pattern(t) for t in texts}) == 1
+    merged = merge_numbers(texts)
+    assert merged == "related (Spearman rho 0.55 to 0.61, p = 2.3e-05 to 0.0012, over 40 fields)"
+    assert varying_numbers(texts)[0] == "Spearman rho 0.61, p = 2.3e-05"
+    assert merge_numbers(["shift +0.29 SD", "shift +0.51 SD"]) == "shift +0.29 to +0.51 SD"
+    assert merge_numbers(["68-88% of 1E+06", "70-90% of 1E+06"]) == "68 to 70-88 to 90% of 1E+06"

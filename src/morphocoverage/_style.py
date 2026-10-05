@@ -449,8 +449,8 @@ def wrap(text: str, indent: int | str = 0, *, hang: int | str | None = None) -> 
     return "\n".join(lines)
 
 
-# A number in running text: not the tail of a word or of a range such as "68-88%".
-_NUMBER = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?")
+# A number in running text (signed, 2.3e-05 as one): not the tail of a word or of "68-88%".
+_NUMBER = re.compile(r"(?<![\w.])[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
 
 
 def merge_numbers(texts: Sequence[str]) -> str:
