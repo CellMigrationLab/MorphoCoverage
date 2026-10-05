@@ -105,6 +105,14 @@ def _unusual_cautions(result: Any, words: str) -> list[str]:
             f"unusual {words} in {among(len(unstable), len(agreements))} ({named}; below "
             f"{percent(SEED_AGREEMENT_WARNING)}): treat those labels as unstable"
         )
+    failing = [r for r in ok if _present(r.get("seed_failures")) and r["seed_failures"]]
+    if failing:
+        failed = sum(int(r["seed_failures"]) for r in failing)
+        named = listing([_group(r, keys) for r in failing], limit=3)
+        cautions.append(
+            f"{count(failed, 'refit')} with other reference samples failed in {named}, so "
+            f"those labels may depend on the sample: {failing[0]['seed_failure']}"
+        )
     single = [r for r in ok if r.get("calibration") == LEAVE_ONE_FIELD_OUT]
     if single:
         cautions.append(
