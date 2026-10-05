@@ -40,7 +40,7 @@ from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
-from ..sufficiency_short import rule_tallies, uniformity_assumption
+from ..sufficiency_short import field_bound_assumption, rule_tallies, uniformity_assumption
 from ._enough_features import ENOUGH, NOT_YET, PARTLY, FeatureEnough
 from ._enough_targets import fingerprint_lines, rare_lines
 from ._html_render import text_html
@@ -283,8 +283,12 @@ def _assumptions(contrast: Any, sufficiency: Any, labels: set[str]) -> str:
         unit = getattr(sufficiency, "observation_unit", None) or "object"
         for tally in rule_tallies(sufficiency):
             own = final[final["config_id"].eq(tally["config_id"])]
-            if tally["label"] in labels and own["assumes_spatial_uniformity"].astype(bool).any():
+            if tally["label"] not in labels:
+                continue
+            if own["assumes_spatial_uniformity"].astype(bool).any():
                 notes.append(uniformity_assumption(tally["label"], unit))
+            if bound := field_bound_assumption(tally["label"], own):
+                notes.append(bound)
     return text_html("\n".join(caveat_lines(notes, indent=0)))
 
 

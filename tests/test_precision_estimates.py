@@ -220,3 +220,32 @@ def test_the_wells_not_judged_are_named_with_each_reason():
         f"{len(halves)} with no defined error on {span(shares, 'percent')} of the random "
         "halves, more than 10%."
     )
+
+
+def test_the_report_states_the_field_bounds_simulated_coverage():
+    # #97 (owner, 2026-10-05): where the report gives the per-field upper-95 rule, it says how
+    # often its bootstrap bound covered the truth in simulations; the point rule has no bound.
+    from scenarios import FEATURE_COLS, SCENARIOS
+
+    from morphocoverage.benchmark import AcquisitionOrder
+    from morphocoverage.strategies import ScalarPrecisionStrategy
+    from morphocoverage.sufficiency import sufficiency_report
+
+    built = SCENARIOS["homogeneous"]()
+    sentence = (
+        "in simulations its upper bound, a bootstrap of whole fields, covered the true "
+        "averaging error about 85-95% of the time with uneven field sizes and 93-99% with "
+        "Poisson sizes"
+    )
+    for sd, said in (("upper_95", True), ("point", False)):
+        report = sufficiency_report(
+            built.objects,
+            built.fovs,
+            feature_cols=list(FEATURE_COLS),
+            strategies=[ScalarPrecisionStrategy("feature_a", 0.05, "fov", sd)],
+            objective=ObjectiveConfig(SamplingObjective.POPULATION),
+            orders=[AcquisitionOrder.permuted(0)],
+        )
+        for detail in ("short", "full"):
+            text = " ".join(report.summary(detail).split())
+            assert (sentence in text) is said, (sd, detail)
