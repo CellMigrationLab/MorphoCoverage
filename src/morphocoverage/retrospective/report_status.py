@@ -414,9 +414,11 @@ def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = Non
         return Status.NOT_ASSESSED, "not assessed"
     late = premature is not None and premature > PREMATURE_CAUTION
     held = (
-        f"held-back fields: some rules stopped too early (up to {percent(premature)})"
-        if premature is not None
-        else ""
+        ""
+        if premature is None
+        else "held-back fields: no rule stopped too early"
+        if premature == 0
+        else f"held-back fields: some rules stopped too early (up to {percent(premature)})"
     )
     data = [t for t in tallies if t["data_rule"]]
     if not data:

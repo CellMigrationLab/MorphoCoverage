@@ -9,6 +9,7 @@ each must contain.
 """
 
 import re
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -335,6 +336,18 @@ def test_question_2_is_fine_only_when_every_rule_is_met_everywhere():
     # A fixed amount of effort says nothing about the data: never a plain "fine".
     assert enough_status(_groups_report([FixedFOVStrategy(2)]))[0] is Status.CAUTION
     assert enough_status(None)[0] is Status.NOT_ASSESSED
+
+
+def test_a_calibration_alone_with_no_premature_stop_says_so():
+    """#271: no stop lost a criterion, so no rule "stopped too early (up to 0%)"."""
+    none = SimpleNamespace(table=pd.DataFrame({"not_preserved_at_stop": [0.0, 0.0]}))
+    assert enough_status(None, none) == (
+        Status.OK,
+        "held-back fields: no rule stopped too early",
+    )
+    some = SimpleNamespace(table=pd.DataFrame({"not_preserved_at_stop": [0.3, 0.0]}))
+    status, text = enough_status(None, some)
+    assert status is Status.CAUTION and "some rules stopped too early (up to 30%)" in text
 
 
 def test_the_short_answer_has_the_verdicts_and_each_caveat_once():
