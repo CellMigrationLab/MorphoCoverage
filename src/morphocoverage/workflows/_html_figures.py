@@ -24,9 +24,10 @@ from .._palette import COLOURS, GREY, condition_palette
 from .._wording import percent
 from ..embedding import Embedding, embed
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
-from ..normalize import normalize_to_control
+from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_KEYS, PANEL_TITLES
+from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
 from ._html_data import data_buttons, download, embedding_data, feature_data, json_island
 from ._html_plotly import feature_specs, interactive_caption
 from ._populations import population_of
@@ -104,16 +105,13 @@ def feature_figures(
     legends = legends or {}
     setup = result.setup
     drawn = plots(objects, fovs, setup, ranking=result.discovery)
-    views = _views(setup)
+    checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
+    views = _views(setup, checked, checked_fovs)
     figures_by_view = {views[0][0]: drawn}
     for key, view in views[1:]:
-        try:
-            figures_by_view[key] = plots(objects, fovs, view, features=list(drawn))
-        except ValueError:
-            views = views[:1]  # a control mean at or below 0: the declared values only
+        figures_by_view[key] = plots(objects, fovs, view, features=list(drawn))
     discovery = result.discovery
     top = discovery.top(len(discovery.ranking)) if discovery is not None else []
-    checked, checked_fovs, _ = check_workflow_inputs(objects, fovs, setup)
     prepared = {key: with_share(view.prepared(checked, checked_fovs), view) for key, view in views}
     blocks, names, explained = [], {}, False
     taken: set[str] = set()
@@ -219,15 +217,33 @@ def feature_figures(
     return blocks, specs
 
 
-def _views(setup: Any) -> list[tuple[str, Any]]:
+def _views(setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame) -> list[tuple[str, Any]]:
     """The values the feature figures can show: those the setup declares first, and, when a
-    control condition is declared, the others (raw or normalised to each repeat's control)."""
+    control condition is declared, the others (raw or normalised to each repeat's control,
+    unless ``control_mean_problem`` says why not: ``objects`` and ``fovs`` are checked, as
+    ``plots`` prepares them)."""
     declared = "normalised" if setup.normalize is not None else "raw"
     views = [(declared, setup)]
     if CONDITION_COLUMN not in (setup.control or {}):
         return views
+    if declared == "raw" and _unnormalisable(setup, objects, fovs) is not None:
+        return views  # the declared values only
     other = replace(setup, normalize=None if setup.normalize else "control_mean")
     return [*views, ("raw" if declared == "normalised" else "normalised", other)]
+
+
+def _unnormalisable(setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame) -> str | None:
+    """Why ``setup.prepared`` cannot normalise these checked tables to the control (a repeat
+    without control objects, a control mean zero, negative or undefined), or ``None``; any
+    other error raises."""
+    return control_mean_problem(
+        objects,
+        fovs,
+        feature_cols=list(setup.columns),
+        control=setup.control,
+        repeat_col=setup.repeat_col(fovs),
+        **setup.common,
+    )
 
 
 # The most features a map can be coloured by and a selection described with.
@@ -268,12 +284,47 @@ def _ids(values: pd.Series) -> list[Any]:
     return ids
 
 
+# The strongest loadings named under the PCA for each axis (#75).
+TOP_LOADINGS = 3
+
+
+def _held(result: Report) -> str:
+    """How many PCs hold ``VARIANCE`` of the variance of the declared values, as the
+    populations counted them (``populations._components``), as a clause; empty without."""
+    found = result.results.get("populations")
+    if found is None:
+        return ""
+    k = found.populations.settings.get("components")
+    if not k:
+        return ""
+    many = f"{k} or more" if k >= MAX_COMPONENTS else str(k)
+    return f", {many} PCs hold {percent(VARIANCE)} of it"
+
+
+def _loading_lines(loadings: pd.DataFrame, explained: tuple[float, float]) -> list[str]:
+    """One line per shown PC: its ``TOP_LOADINGS`` largest loadings by size, with signs on
+    the axis as drawn (a PC that holds no variance is left out)."""
+    lines = []
+    sides = ((1, explained[0], "to the right"), (2, explained[1], "towards the top"))
+    for axis, share, side in sides:
+        if share <= 0:
+            continue
+        column = loadings[f"pc{axis}"]
+        strongest = column.abs().sort_values(ascending=False, kind="stable").index
+        named = ", ".join(
+            f"{loadings.at[i, 'feature']} {column[i]:+.2f}" for i in strongest[:TOP_LOADINGS]
+        )
+        lines.append(f"PC{axis}, strongest loadings: {named}; a feature with + is higher {side}.")
+    return lines
+
+
 def _set(
     embedding: Embedding,
     method: str,
     order: dict,
     values: str,
     extras: tuple[list[str], list[str], str | None] = ([], [], None),
+    held: str = "",
 ) -> dict[str, Any] | None:
     x, y = (f"{method}1", f"{method}2")
     points = embedding.points.dropna(subset=[x, y])
@@ -295,20 +346,22 @@ def _set(
         first, second = embedding.explained
         loadings = embedding.loadings
         shown = loadings[loadings["top"]]
+        drawn = "the loadings of the best-ranked features"
         if shown.empty:
             size = np.hypot(loadings["pc1"], loadings["pc2"])
             shown = loadings.loc[size.sort_values(ascending=False).index[:5]]
+            drawn = f"the {len(shown)} largest loadings, as no feature ranks"
         reach = 0.8 * float(np.nanmax(np.hypot(points[x], points[y])) or 1.0)
         longest = float(np.hypot(shown["pc1"], shown["pc2"]).max()) or 1.0
         arrows = [
             [r.feature, round(r.pc1 / longest * reach, 3), round(r.pc2 / longest * reach, 3)]
             for r in shown.itertuples()
         ]
-        caption = (
+        head = (
             f"PCA of {n} standardised features ({values} values): PC1 {percent(first)} and "
-            f"PC2 {percent(second)} of the variance; arrows: the loadings of the best-ranked "
-            "features."
+            f"PC2 {percent(second)} of the variance{held}; arrows: {drawn}."
         )
+        caption = "\n".join([head, *_loading_lines(loadings, embedding.explained)])
         labels_xy = (f"PC1 ({percent(first)})", f"PC2 ({percent(second)})")
     else:
         arrows = []
@@ -382,13 +435,12 @@ def embeddings(
     carry = [c for c in ("population", label) if c]
     tables = {"raw": objects}
     control = setup.control
+    unnormalisable = None
     if control is not None and CONDITION_COLUMN in control:
-        try:
-            tables["normalised"] = normalize_to_control(
-                objects, fovs, feature_cols=list(setup.columns), control=control, **setup.common
-            )
-        except ValueError:
-            pass  # a control mean at or below 0: the raw values only
+        arguments = {"feature_cols": list(setup.columns), "control": control, **setup.common}
+        unnormalisable = control_mean_problem(objects, fovs, **arguments)
+        if unnormalisable is None:
+            tables["normalised"] = normalize_to_control(objects, fovs, **arguments)
     embeddings = {
         values: embed(
             table,
@@ -423,9 +475,19 @@ def embeddings(
         if CONDITION_COLUMN in first
         else [len(first)]
     )
+    # The populations counted the PCs of the declared values: said on their set only.
+    declared = "normalised" if setup.normalize is not None else "raw"
+    held = _held(result)
     sets = {
         values: {
-            method: _set(embedding, short, order, values, (features, populations, label))
+            method: _set(
+                embedding,
+                short,
+                order,
+                values,
+                (features, populations, label),
+                held if values == declared else "",
+            )
             for method, short in (("PCA", "pc"), ("UMAP", "umap"))
         }
         for values, embedding in embeddings.items()
@@ -487,14 +549,21 @@ def embeddings(
         "feature to see where its high and low values sit; ◯ rings a population.</span></div>"
         '<div class="viz-body"><div class="pl-embed"></div>'
         '<div class="selection" aria-live="polite"></div></div>'
-        '<p class="caption note"></p>'
+        '<p class="caption note" style="white-space: pre-line"></p>'
         + (f'<p class="note">{html.escape(note)}</p>' if note else "")
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
-        "repeats, which the normalised values (each divided by its repeat's control mean) take "
-        "out.</p></div>"
-        '<script type="application/json" id="embedding-data">' + json_island(data) + "</script>"
+        + (
+            "repeats, which the normalised values (each divided by its repeat's control mean) "
+            "take out.</p></div>"
+            if unnormalisable is None
+            else "repeats; values normalised to each repeat's control mean would take it out, "
+            f"but they are not shown: {html.escape(unnormalisable)}.</p></div>"
+        )
+        + '<script type="application/json" id="embedding-data">'
+        + json_island(data)
+        + "</script>"
     )
     return markup, static
 

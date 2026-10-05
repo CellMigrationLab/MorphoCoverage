@@ -206,3 +206,73 @@ def test_the_session_ends_with_the_report_saved(tmp_path):
     assert result.report is not None
     save_answers(tmp_path, result.answers)
     assert load_answers(tmp_path).readout == "area"
+
+
+POPULATION = ["y", "", "", "", "all", "", ""]  # loaded, control, positive, aim, features, ...
+
+
+def _fields(objects):
+    """The FOV table of ``objects``: one row per field with its condition and repeat."""
+    columns = ["image_file", "condition", "biological_repeat"]
+    return objects[columns].drop_duplicates().reset_index(drop=True)
+
+
+def _guided(objects, fovs, folder, answers):
+    script = Script(answers)
+    result = guide(objects, fovs, folder=folder, ask=script.ask, say=script.say, run_report=False)
+    return result, script
+
+
+def test_357_saved_answers_need_the_same_fov_table_too(tmp_path):
+    cells = _cells()
+    fovs = _fields(cells)
+    _guided(cells, fovs, tmp_path, POPULATION)
+    saved = json.loads((tmp_path / ANSWERS_FILE).read_text())
+    assert saved["version"] == 2 and saved["dataset"]["fovs_checksum"] == table_checksum(fovs)
+    _, script = _guided(cells, fovs.copy(), tmp_path, [""])
+    assert "were found for this table" in script.text
+    moved = fovs.copy()
+    moved.loc[0, "biological_repeat"] = "2026_02_01"
+    empty = pd.concat([fovs, fovs.iloc[[0]].assign(image_file="empty.tif")], ignore_index=True)
+    for other in (moved, empty, None):
+        result, script = _guided(cells, other, tmp_path, ["n"])
+        assert "cannot be reused for this one" in script.text
+        assert result.stopped.endswith("choose another folder for this table")
+
+
+def test_357_answers_saved_without_a_fov_table_are_not_reused_with_one(tmp_path):
+    cells = _cells()
+    _guided(cells, None, tmp_path, POPULATION)
+    assert load_answers(tmp_path).dataset["fovs_checksum"] is None
+    result, script = _guided(cells, _fields(cells), tmp_path, ["n"])
+    assert "cannot be reused for this one" in script.text and result.stopped
+
+
+def test_357_the_same_tables_under_other_paths_are_the_same_dataset(tmp_path):
+    cells = _cells()
+    paths = []
+    for name in ("a", "b"):
+        folder = tmp_path / name
+        folder.mkdir()
+        cells.to_csv(folder / "cells.csv", index=False)
+        _fields(cells).to_csv(folder / "fovs.csv", index=False)
+        paths.append((folder / "cells.csv", folder / "fovs.csv"))
+    results = tmp_path / "results"
+    _guided(*paths[0], results, POPULATION)
+    result, script = _guided(*paths[1], results, [""])
+    assert "were found for this table" in script.text and result.answers is not None
+
+
+def test_357_answers_of_an_earlier_version_are_asked_again_once(tmp_path):
+    cells = _cells()
+    _guided(cells, None, tmp_path, POPULATION)
+    path = tmp_path / ANSWERS_FILE
+    old = json.loads(path.read_text())
+    old["version"] = 1
+    del old["dataset"]["fovs_checksum"]
+    path.write_text(json.dumps(old))
+    result, script = _guided(cells, None, tmp_path, POPULATION)
+    assert "saved by an earlier version, which did not check the FOV table" in script.text
+    assert result.answers is not None and load_answers(tmp_path).version == 2
+    _, script = _guided(cells, None, tmp_path, [""])
+    assert "were found for this table" in script.text

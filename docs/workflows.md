@@ -93,12 +93,16 @@ covariance of the standardised features within a share you state; 10% is
 offered, with no published meaning). Enter takes each default.
 
 The answers are saved in the folder as `morphocoverage_answers.json`, with a
-checksum of the observation table, before the report runs; the folder then
+checksum of the observation table and one of the FOV table (`None` without
+one), before the report runs; the folder then
 holds `scan.txt`, `report_short.txt` and `report_full.txt`. Run in the same
 folder again, the session shows the saved answers and offers to continue with
 them (straight to the report) or to delete them and start over. Answers saved
-for another table are never reused: the session offers to delete them, or
-stops so you can choose another folder. Extra `Setup` fields go through
+for another table, or with another FOV table or none, are never reused: the
+session offers to delete them, or stops so you can choose another folder.
+Answers saved by an earlier version, which did not check the FOV table, are
+not reused either: the session says so and asks the questions again
+(owner, 2026-10-05). Extra `Setup` fields go through
 `guide(..., n_jobs=4, normalize="control_mean")`; `load_answers(folder)` and
 `answers.setup(scan)` rebuild the `Setup` without the questions.
 
@@ -686,6 +690,11 @@ loadings, so the axes read in features; and a UMAP (`umap-learn`, seeded by
 of every condition). Both describe, they do not test: a separation is a
 pattern to read with question 9's tests, and on raw values a separation can
 be a batch between repeats, which `normalize="control_mean"` takes out.
+Under the page's PCA, one line per axis names its three strongest loadings
+with their signs on the axis as drawn, whatever the ranking, and the caption
+says how many PCs hold 90% of the variance (counted by the populations) and
+which arrows are drawn: the best-ranked features, or without a ranking the
+five largest loadings.
 
 When `control` names a condition and the FOV table holds other conditions,
 the report also answers question 9, "Do the conditions differ, and how
@@ -850,11 +859,16 @@ live = LiveFolder(folder, live_session(setup))
 live.watch(interval=1.0, until_stop=True)    # or live.poll() from your own loop
 ```
 
-`until_stop=True` returns once every rule says stop in every group seen so
-far, each group judged by its latest field: on a plate acquired well by well,
-the watch goes on while any well still needs fields.
+`until_stop=True` returns once the objective's overall decision is stop in
+every group seen so far, each group judged by its latest field: on a plate
+acquired well by well, the watch goes on while any well still needs fields.
 `until_stop="latest_group"` returns as soon as the latest field's group is
-done. Fields are added one at a time, so a backlog stops at the stop: the
+done. The overall decision is the last line of each update's view, as in
+`benchmark`: a declared target that no rule decides is unsupported and keeps
+the watch going, so the watch never stops while the view says otherwise
+(owner, 2026-10-05; before, the watch read each rule's own verdict).
+`watch(..., stop_on="rule")` is the lower-level stop when every rule's own
+verdict is stop, whatever the targets it does not decide. Fields are added one at a time, so a backlog stops at the stop: the
 fields still waiting in the folder are not added, and the next `poll` or
 `watch` reads them.
 

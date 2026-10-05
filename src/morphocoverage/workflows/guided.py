@@ -4,9 +4,11 @@
 
 1. **Load** the observation table (and the FOV table, when there is one), from a path or
    a DataFrame, and choose the **results folder**.
-2. If the folder already holds saved answers (``ANSWERS_FILE``) for the same table, offer
-   to **continue** with them or to **delete them and start over**; answers saved for
-   another table are never reused.
+2. If the folder already holds saved answers (``ANSWERS_FILE``) for the same tables (the
+   observation table and the FOV table, or no FOV table, by their checksums), offer to
+   **continue** with them or to **delete them and start over**; answers saved for other
+   tables are never reused, nor answers saved by an earlier version, which did not check
+   the FOV table (the questions are asked again; owner, 2026-10-05).
 3. **Scan** the design (``scan_design``) and print what it found; the scan is saved as
    ``scan.txt``.
 4. **Ask**: did the dataset load correctly (if not, stop and fix the tables); the control
@@ -57,7 +59,7 @@ from .scan import DesignScan, scan_design
 from .setup import PositiveControl, Setup, default_novelty
 
 ANSWERS_FILE = "morphocoverage_answers.json"
-ANSWERS_VERSION = 1
+ANSWERS_VERSION = 2  # 2: the FOV table's checksum (owner, 2026-10-05)
 DEFAULT_FOLDER = "morphocoverage_results"
 # The reference fields seen before a positive-control field is judged (PositiveControl).
 POSITIVE_FIELDS = 10
@@ -86,7 +88,7 @@ def rough_runtime(n_features: int, n_conditions: int, n_jobs: int = 4) -> float:
 
 def table_checksum(table: pd.DataFrame) -> str:
     """A short checksum of a table's columns and values, so saved answers are reused only for
-    the table they were given for."""
+    the tables they were given for."""
     digest = hashlib.sha256("\x1f".join(map(str, table.columns)).encode())
     digest.update(pd.util.hash_pandas_object(table, index=False).to_numpy().tobytes())
     return digest.hexdigest()[:16]
@@ -99,7 +101,8 @@ class Answers:
     ``aim`` is ``"population"``, ``"fingerprint"`` or ``"both"``; ``control`` is
     ``{"condition": ...}`` or ``None``; ``fingerprint_tolerance`` is the share the covariance
     of the standardised features must stay within (``None`` for the population aim);
-    ``dataset`` records the tables the answers were given for (paths, rows, checksum).
+    ``dataset`` records the tables the answers were given for: paths, rows, the observation
+    table's ``checksum`` and the FOV table's ``fovs_checksum`` (``None`` without one).
     """
 
     loaded_correctly: bool
@@ -247,8 +250,23 @@ def _load(
         "fovs": fovs_path,
         "rows": len(objects),
         "checksum": table_checksum(objects),
+        "fovs_checksum": None if fovs is None else table_checksum(fovs),
     }
     return objects, fovs, dataset
+
+
+# The dataset entries that must match for saved answers to be reused (paths are provenance).
+_IDENTITY = ("checksum", "fovs_checksum")
+
+
+def _earlier_version(path: Path) -> bool:
+    """Whether ``path`` holds answers saved by an earlier ``ANSWERS_VERSION``."""
+    try:
+        data = json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False
+    version = data.get("version") if isinstance(data, dict) else None
+    return isinstance(version, int) and version < ANSWERS_VERSION
 
 
 def _saved(
@@ -257,6 +275,12 @@ def _saved(
     """Saved answers to continue with (or ``None`` after starting over), and the reason to
     stop when the user keeps a file that cannot be used."""
     path = folder / ANSWERS_FILE
+    if _earlier_version(path):
+        say(
+            f"{path} holds answers saved by an earlier version, which did not check the FOV "
+            "table; the questions are asked again."
+        )
+        return None, None
     try:
         saved = load_answers(folder)
     except (ValueError, TypeError) as error:
@@ -265,7 +289,7 @@ def _saved(
     else:
         if saved is None:
             return None, None
-        usable = saved.dataset.get("checksum") == dataset["checksum"]
+        usable = all(saved.dataset.get(key, "missing") == dataset[key] for key in _IDENTITY)
     if saved is not None and usable:
         say(f"Answers saved on {saved.saved or 'an earlier session'} were found for this table:")
         say("\n".join(f"  {line}" for line in saved.lines()))
