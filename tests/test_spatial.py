@@ -78,11 +78,25 @@ def test_fov_means_skip_empty_fovs_and_refuse_missing_values():
         (np.array([0.0, np.nan]), np.zeros((2, 2)), [0, 1]),
         (np.zeros(2), np.zeros((2, 2)), [1, 0]),
         (np.zeros(2), np.zeros((2, 2)), [0]),
+        (np.zeros(2), np.zeros((2, 2)), [0, np.nan, 10]),
+        (np.zeros(2), np.zeros((2, 2)), [0, 1, np.nan]),
+        (np.zeros(2), np.zeros((2, 2)), [np.nan, 1, 2]),
+        (np.zeros(2), np.zeros((2, 2)), [-np.inf, 1]),
+        (np.zeros(2), np.zeros((2, 2)), [0, np.inf, 10]),
     ],
 )
 def test_invalid_input_is_refused(values, coords, edges):
     with pytest.raises(ValueError):
         empirical_semivariogram(values, coords, edges)
+
+
+def test_an_infinite_last_edge_is_an_open_last_bin():
+    """#124: only a NaN-free, increasing edge list is accepted; the last edge may be infinite."""
+    table = empirical_semivariogram(
+        np.array([0.0, 1.0, 3.0]), np.array([[0, 0], [1, 0], [9, 0]]), [0, 5, np.inf]
+    )
+    assert table["n_pairs"].tolist() == [1, 2]
+    assert table["lag_high"].tolist() == [5.0, np.inf]
 
 
 def test_fields_of_different_groups_are_never_paired():
