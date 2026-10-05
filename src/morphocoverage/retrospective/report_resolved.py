@@ -25,6 +25,7 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption
+from .._control import versus
 from .._style import SINGLE_LEVEL, Status, table, wrap
 from .._wording import count, percent
 from ..metadata import REPEAT_COLUMN
@@ -101,7 +102,7 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
 
 
 def _name(row: dict[str, Any]) -> str:
-    name = f"{row['condition']} vs {row['control_condition']}"
+    name = versus(row["condition"], row["control_condition"])
     repeat = row.get(REPEAT_COLUMN)
     # CellPatcher's "single" names a folder level the data did not have: no repeat to name.
     if repeat is None or pd.isna(repeat) or str(repeat) == SINGLE_LEVEL:

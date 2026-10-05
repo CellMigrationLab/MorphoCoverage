@@ -79,6 +79,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count
+from .._control import check_comparisons, comparison_pairs, control_text
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from ..metadata import (
@@ -97,6 +98,7 @@ from ._units import (
     control_label,
     describe_groups,
     randomization_test,
+    reference_of,
     resolve_columns,
     resolve_unit,
     separation_d,
@@ -105,6 +107,7 @@ from ._units import (
     unit_means,
 )
 from .contrast_cells import CELL_COLUMNS, cell_table
+from .contrast_relative import RELATIVE_COLUMNS, check_relative, relative_table
 from .contrast_repeats import REPEAT_COLUMNS, TARGET_COLUMNS, across_repeats, reagent_agreement
 from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
 from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
@@ -185,6 +188,8 @@ class ConditionContrast:
     plan: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=PLAN_COLUMNS))
     targets: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=TARGET_COLUMNS))
     cells: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=CELL_COLUMNS))
+    # Two conditions each over its own reference (contrast_relative).
+    relative: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=RELATIVE_COLUMNS))
 
     def summary(self, detail: str = "short") -> str:
         """The contrasts in a table and the draws in another, each caveat once
@@ -291,7 +296,7 @@ def condition_contrast(
     fovs: pd.DataFrame,
     *,
     feature: str,
-    control: Mapping[str, Any],
+    control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
     repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
@@ -305,6 +310,8 @@ def condition_contrast(
     fields_independent: bool = False,
     target_col: str | None = TARGET_COLUMN,
     cell_test: bool = True,
+    comparisons: Sequence[tuple[Any, Any]] | None = None,
+    relative: Sequence[tuple[Any, ...]] | None = None,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
@@ -328,13 +335,21 @@ def condition_contrast(
     FOV table has it): the reagents of one target are then said to agree or
     not across the repeats. ``cell_test=False`` leaves out the cell-level test
     (``cells`` empty), the slow part, when only the sampling of each feature is
-    asked ("Did I image enough?" per feature).
+    asked ("Did I image enough?" per feature). ``comparisons``, ``(condition, reference)``
+    pairs, replace the single control (which may then be ``None``): each pair is compared
+    per repeat, its rows labelled ``condition vs reference`` in the ``condition`` column
+    (``_control``, owner 2026-10-05); the cell-level test pools each reference's own
+    observations. ``relative`` tuples ``(a, ref_a, b, ref_b)`` compare two conditions each
+    normalised to its own reference, across the repeats (``contrast_relative``).
     """
+    relative = check_relative(relative) if relative is not None else ()
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
+    if comparisons is not None:
+        comparisons = check_comparisons(comparisons)
     n_permutations, random_state = check_arguments(
-        control, condition_col, n_permutations, random_state, fields_independent
+        control, condition_col, n_permutations, random_state, fields_independent, comparisons
     )
     n_draws = as_count(n_draws, "n_draws", 2)
     counts = sorted({as_count(n, "object_counts", 2) for n in object_counts})
@@ -343,11 +358,12 @@ def condition_contrast(
         data, condition_col, repeat_col, technical_col, control
     )
     all_groups = groups(data)
-    described = describe_groups(all_groups, condition_col, repeat_col, control)
+    described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     unit, unit_note = resolve_unit(data, described, condition_col, repeat_col, technical_col)
     settings = {
         "feature": feature,
-        "control": dict(control),
+        "control": dict(control or {}),
+        "comparisons": list(comparisons or []),
         "condition_col": condition_col,
         "repeat_col": repeat_col,
         "technical_col": technical_col,
@@ -371,7 +387,8 @@ def condition_contrast(
     )
     if not contrasts:
         settings["reason"] = (
-            f"Every analysis group is the control {dict(control)}: no other condition to compare."
+            f"Every analysis group is the control {control_text(control)}: no other condition "
+            "to compare."
         )
         return ConditionContrast(pd.DataFrame(), pd.DataFrame(), settings)
 
@@ -379,13 +396,15 @@ def condition_contrast(
     # The cell-level test pools every repeat as provided: each condition's observations, and
     # every control observation once per repeat.
     pooled: dict[Any, dict[str, Any]] = {}
-    control_cells: dict[Any, np.ndarray] = {}
+    # Each reference's observations by repeat (one reference with a single control).
+    control_cells: dict[Any, dict[Any, np.ndarray]] = {}
     for repeat, condition in contrasts:
         treated, controls = sides(described, repeat, condition)
         base = {
             REPEAT_COLUMN: repeat,
             "condition": condition,
-            "control_condition": control_label(described, controls) or str(control[condition_col]),
+            "control_condition": control_label(described, controls)
+            or reference_of(described, condition, control, condition_col),
         }
         if not controls:
             rows.append({**base, **_NO_TEST, "status": f"{NO_CONTROL} {repeat_col}={repeat}"})
@@ -419,13 +438,15 @@ def condition_contrast(
             "p_bonferroni": np.nan,
             "effect_full": jcs_effect_size(t_objects, c_objects),
         }
-        control_cells.setdefault(repeat, c_objects)
+        reference = reference_of(described, condition, control, condition_col)
+        control_cells.setdefault(reference, {}).setdefault(repeat, c_objects)
         side = pooled.setdefault(
             condition,
             {
                 "treated_by_repeat": {},
                 "control_by_repeat": {},
                 "control_condition": base["control_condition"],
+                "reference": reference,
             },
         )
         side["treated_by_repeat"][repeat] = t_objects
@@ -446,10 +467,20 @@ def condition_contrast(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
     repeats = across_repeats(table, repeat_col, random_state)
+    repeats, between = relative_table(
+        repeats, table, (all_groups, described, feature, technical_col), relative, random_state
+    )
     plan = repeat_plan(table) if repeat_col is not None else pd.DataFrame(columns=PLAN_COLUMNS)
-    agreement = reagent_agreement(table, _targets(fovs, condition_col, target_col))
+    targets = _targets(fovs, condition_col, target_col)
+    if comparisons is not None:  # a comparison's target is its condition's
+        targets = {
+            label: targets[pair[0]]
+            for label, pair in comparison_pairs(comparisons).items()
+            if pair[0] in targets
+        }
+    agreement = reagent_agreement(table, targets)
     for side in pooled.values():
-        side["control_all"] = control_cells
+        side["control_all"] = control_cells[side["reference"]]
     cells = (
         cell_table(
             pooled,
@@ -464,7 +495,7 @@ def condition_contrast(
     )
     settings["target_col"] = target_col if len(agreement) else None
     return ConditionContrast(
-        table, pd.DataFrame(effect_rows), settings, repeats, plan, agreement, cells
+        table, pd.DataFrame(effect_rows), settings, repeats, plan, agreement, cells, between
     )
 
 

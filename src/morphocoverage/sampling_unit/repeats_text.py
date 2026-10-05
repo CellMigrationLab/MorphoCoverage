@@ -16,6 +16,7 @@ from typing import Any
 import pandas as pd
 
 from .._caveats import assumption
+from .._control import versus
 from .._style import span
 from .._wording import column_word, count, listing, p_value
 from ..schema import observation_words
@@ -63,7 +64,7 @@ def _repeat_rows(contrast: Any, full: bool = False) -> tuple[list[list[str]], li
             if pd.isna(row["d_mean"])
             else f"{row['d_mean']:+.2f} ({_range(pd.Series([row['d_min'], row['d_max']]))})"
         )
-        cells = [f"{row['condition']} vs {row['control_condition']}", _direction(row), d]
+        cells = [versus(row["condition"], row["control_condition"]), _direction(row), d]
         if tested:
             cells.append(_p_cell(row["p_paired_t"], row["q_paired_t"]))
             cells.append(_p_cell(row["p_paired_t_normalised"], row["q_paired_t_normalised"]))

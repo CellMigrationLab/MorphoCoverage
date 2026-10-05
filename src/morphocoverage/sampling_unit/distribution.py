@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import is_number
+from .._control import check_comparisons
 from .._wording import count, listing, plural
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, TECHNICAL_REPEAT_COLUMN
 from ..schema import observation_words
@@ -259,7 +260,7 @@ def distribution_contrast(
     fovs: pd.DataFrame,
     *,
     features: Sequence[str],
-    control: Mapping[str, Any],
+    control: Mapping[str, Any] | None = None,
     condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
     repeat_col: str | None = MORPHOBRICKS_GROUP_COLUMNS[1],
     technical_col: str | None = TECHNICAL_REPEAT_COLUMN,
@@ -267,9 +268,12 @@ def distribution_contrast(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    comparisons: Sequence[tuple[Any, Any]] | None = None,
 ) -> DistributionContrast:
     """Compare each feature's distribution with the control's (see the module); arguments
-    follow ``feature_discovery``."""
+    follow ``feature_discovery`` (``comparisons``: each condition against its reference)."""
+    if comparisons is not None:
+        comparisons = check_comparisons(comparisons)
     features = list(dict.fromkeys(features))
     if not is_number(alpha) or not 0 < alpha < 1:
         raise ValueError("alpha must be between 0 and 1")
@@ -278,7 +282,7 @@ def distribution_contrast(
         data, condition_col, repeat_col, technical_col, control
     )
     all_groups = groups(data)
-    described = describe_groups(all_groups, condition_col, repeat_col, control)
+    described = describe_groups(all_groups, condition_col, repeat_col, control, comparisons)
     contrasts = contrasts_of(described)
     rows, held, shapes = [], {}, []
     for feature in features:
@@ -308,7 +312,8 @@ def distribution_contrast(
         tests["q"] = corrected(tests["p"], tests["experiment"])
     settings = {
         "features": features,
-        "control": dict(control),
+        "control": dict(control or {}),
+        "comparisons": list(comparisons or []),
         "alpha": alpha,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,

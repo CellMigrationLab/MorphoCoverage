@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from .._caveats import assumption
+from .._control import versus
 from .._style import table, wrap
 from .._wording import change, count, listing, percent
 from ..schema import observation_words, unit_plural
@@ -113,7 +114,7 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
     for row in plan.to_dict("records"):
         rows.append(
             [
-                f"{row['condition']} vs {row['control_condition']}",
+                versus(row["condition"], row["control_condition"]),
                 change_cell(row),
                 f"{row['d_mean']:+.2f}",
                 _repeats_cell(row["repeats_needed"]),
