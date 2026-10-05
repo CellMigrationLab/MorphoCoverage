@@ -117,7 +117,10 @@ def _new_words(setup: Setup) -> str:
     """What counts as new, plainly: ``at least 3 similar cells that no other field shows``."""
     least = getattr(setup.novelty, "min_novel_observations", None)
     similar = f"at least {least} similar {setup.unit_words}" if least else "similar observations"
-    return f"{similar} that no other field shows"
+    others = getattr(setup.novelty, "min_other_fovs", 1)
+    if others == 1:
+        return f"{similar} that no other field shows"
+    return f"{similar} that fewer than {count(others, 'other field')} show"
 
 
 def _novelty(setup: Setup) -> str:
@@ -187,8 +190,13 @@ def _rules(setup: Setup) -> str:
         limit=10,
     )
     if setup.rules is None:
+        # Per field only for units other than objects (Setup.stopping_rules).
+        sides = " and ".join(
+            f"per {unit if rule.resampling_unit == 'object' else 'field'}"
+            for rule in setup.stopping_rules()
+        )
         named += (
-            f" (the default, rules=None: the mean-precision rule per {unit} and per field at "
+            f" (the default, rules=None: the mean-precision rule {sides} at "
             f"{rate(setup.tolerances[0])})"
         )
     else:
