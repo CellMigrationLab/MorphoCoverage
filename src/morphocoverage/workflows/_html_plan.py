@@ -126,17 +126,18 @@ def _incidence(
 ) -> tuple[float, str] | None:
     """The share of fields holding at least one labelled observation in the condition where
     it is rarest (the hardest well to find it in) and that condition; ``None`` when no field
-    holds it."""
+    holds it. Every acquired field counts, a field without observations as one without it."""
     data = validate_input_tables(
         objects, fovs=fovs, feature_cols=list(result.setup.columns)[:1], **result.setup.common
     )
     key = [c for c in data.fov_key if c in data.objects]
-    if "condition" not in data.objects or not key:
+    if "condition" not in key:
         return None
     flags = labelled.reindex(data.objects.index).fillna(False).astype(bool)
-    frame = data.objects[key].astype(str).assign(_held=flags.to_numpy())
-    fields = frame.groupby(key, sort=False)["_held"].any()
-    by = fields.groupby(level="condition").mean()
+    held = pd.MultiIndex.from_frame(data.objects.loc[flags.to_numpy(), key].astype(str))
+    fields = data.fovs[key].astype(str)
+    fields = fields.assign(_held=pd.MultiIndex.from_frame(fields).isin(held))
+    by = fields.groupby("condition", sort=False)["_held"].mean()
     by = by[by > 0]
     if by.empty:
         return None
@@ -442,7 +443,7 @@ def _live_rare(
     sentence = (
         f"Each well stops once {name} has been seen in {count(OCCURRENCES, 'field')}, or once "
         f"enough fields without it show it in fewer than {percent_fine(incidence)} of fields, "
-        f"as in {where}, where it is rarest here; the risk of stopping too early is "
+        f"as in {where}, where it is rarest here; the posterior risk of stopping too early is "
         f"{rate(risk)}. {labelling}"
     )
     return f"…{name} has been seen in {count(OCCURRENCES, 'field')}", _panel(sentence, code)
