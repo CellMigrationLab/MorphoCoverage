@@ -58,7 +58,15 @@ from ._html_cards import (
     readout_summary,
     significant_summary,
 )
-from ._html_data import data_buttons, files_card, heatmap_data, json_island, page_files
+from ._html_data import (
+    LINKED,
+    data_buttons,
+    files_card,
+    heatmap_data,
+    inline_images,
+    json_island,
+    page_files,
+)
 from ._html_enough import enough_body, enough_help
 from ._html_figures import embeddings, feature_figures
 from ._html_next import fields_next, populations_next
@@ -474,10 +482,16 @@ def html_report(
     }
     if result.discovery is not None and len(result.discovery.tests):
         texts["feature_discovery.csv"] = result.discovery.tests.to_csv(index=False)
-    files = page_files(folder, texts, [Path(p) for p in attach], started)
+    files, images = page_files(folder, texts, [Path(p) for p in attach], started)
     cards.append(files_card(files))
-    # The page names the q-value the adjusted p (owner, 2026-10-02).
-    cards = [adjusted_p(card) for card in cards]
+    # The page names the q-value the adjusted p (owner, 2026-10-02); then each PNG it
+    # carries is given its data, once (past the budget it stays a link, _html_data).
+    cards = [inline_images(adjusted_p(card), images) for card in cards]
+    inside = (
+        "every figure and file is inside this page (Files)"
+        if all(entry[1] != LINKED for entry in files.values())
+        else "the larger files open from the figures folder beside it (Files)"
+    )
     stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     page = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -487,7 +501,7 @@ def html_report(
         '<header class="top"><button type="button" class="theme-toggle">Light / dark</button>'
         f'<h1>{html.escape(title)}</h1><p class="sub">{html.escape(subtitle)}</p>'
         f'<p class="meta">Generated {stamp} by MorphoCoverage. The same answers as the text '
-        "report; every figure and file is inside this page (Files).</p></header>"
+        f"report; {inside}.</p></header>"
         + "".join(cards)
         + "<footer>"
         + html.escape(_settings(result))

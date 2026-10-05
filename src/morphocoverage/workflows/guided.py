@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import warnings
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -43,10 +44,12 @@ from typing import Any
 
 import pandas as pd
 
-from .._wording import percent
+from .._wording import count, duration, percent
+from ..metadata import CONDITION_COLUMN
 from ..multivariate_outcomes import CovarianceError
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
+from ._html_data import EMBED_BUDGET
 from .html_report import html_report, zip_results
 from .retrospective import Report, report
 from .scan import DesignScan, scan_design
@@ -57,6 +60,27 @@ ANSWERS_VERSION = 1
 DEFAULT_FOLDER = "morphocoverage_results"
 # The reference fields seen before a positive-control field is judged (PositiveControl).
 POSITIVE_FIELDS = 10
+# A rough runtime of report() and html_report() together (owner, 2026-10-05: "acceptable,
+# say it up front"), from the stress runs of 2026-10-02 and 2026-10-05 on 4 cores (5 to 300
+# features, 3 to 151 conditions): seconds per feature and condition (the tests), per
+# condition (the page's figures) and for the UMAP and the rest.
+SECONDS_PER_PAIR = 0.6
+SECONDS_PER_CONDITION = 8.0
+SECONDS_FIXED = 60.0
+
+
+def rough_runtime(n_features: int, n_conditions: int, n_jobs: int = 4) -> float:
+    """The seconds a report and its page take, roughly: ``SECONDS_PER_PAIR`` for each
+    feature and condition on 4 cores (fewer cores slower), ``SECONDS_PER_CONDITION`` for
+    each condition and ``SECONDS_FIXED``."""
+    cores = (os.cpu_count() or 1) if n_jobs < 1 else n_jobs
+    per_pair = SECONDS_PER_PAIR * 4 / max(1, min(cores, 4))
+    conditions = max(1, n_conditions)
+    return (
+        per_pair * max(1, n_features) * conditions
+        + SECONDS_PER_CONDITION * conditions
+        + SECONDS_FIXED
+    )
 
 
 def table_checksum(table: pd.DataFrame) -> str:
@@ -331,7 +355,15 @@ def guide(
     setup = answers.setup(scan, **setup_fields)
     if not run_report:
         return GuidedResult(folder, scan, answers, setup, None)
-    say("Running the report...")
+    fields = scan.fovs
+    conditions = int(fields[CONDITION_COLUMN].nunique()) if CONDITION_COLUMN in fields else 1
+    cores = setup.n_jobs if setup.n_jobs > 0 else os.cpu_count() or 1
+    estimate = rough_runtime(len(setup.columns), conditions, setup.n_jobs)
+    say(
+        f"Running the report for {count(len(setup.columns), 'feature')} and "
+        f"{count(conditions, 'condition')}; on {count(cores, 'core')} this takes roughly "
+        f"{duration(estimate)}..."
+    )
     result = report(scan.objects, scan.fovs, setup, integrity=True)
     (folder / "report_short.txt").write_text(result.summary() + "\n")
     (folder / "report_full.txt").write_text(result.summary(detail="full") + "\n")
@@ -341,8 +373,9 @@ def guide(
     )
     archive = zip_results(folder)
     say(
-        f"Saved in {folder}: {page.name}, one file to open with a double click (every figure "
-        "and file is inside it, to share as it is); scan.txt, report_short.txt, "
+        f"Saved in {folder}: {page.name}, one file to open with a double click (it carries "
+        f"its figures and files up to {EMBED_BUDGET // 1024**2} MB, to share as it is; past "
+        "that the largest open from figures/); scan.txt, report_short.txt, "
         f"report_full.txt, {ANSWERS_FILE}, the figures in figures/ as PNG and PDF; and all of "
         f"it in {archive.name}, to archive or send as one file."
     )

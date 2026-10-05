@@ -139,17 +139,19 @@ def embed(
     scores, loadings, explained = _pca(z)
     meta = data.fovs.iloc[positions[complete]].reset_index(drop=True)
     columns = [c for c in (CONDITION_COLUMN, REPEAT_COLUMN) if c in meta]
-    points = pd.DataFrame({c: meta[c].to_numpy() for c in columns})
+    # Every column at once: inserted one by one, hundreds of features fragment the frame.
+    built: dict[str, Any] = {c: meta[c].to_numpy() for c in columns}
     if data.fov_col in meta and data.fov_col not in columns:
-        points["field"] = meta[data.fov_col].to_numpy()
+        built["field"] = meta[data.fov_col].to_numpy()
     kept_rows = data.objects.loc[complete]
     for column in carry:
         if column in kept_rows:
-            points[column] = kept_rows[column].to_numpy()
+            built[column] = kept_rows[column].to_numpy()
     for i, feature in enumerate(kept_features):
-        points[f"z:{feature}"] = z[:, i]
-    points["pc1"], points["pc2"] = scores[:, 0], scores[:, 1]
-    points["umap1"] = points["umap2"] = np.nan
+        built[f"z:{feature}"] = z[:, i]
+    built["pc1"], built["pc2"] = scores[:, 0], scores[:, 1]
+    built["umap1"], built["umap2"] = np.full(len(z), np.nan), np.full(len(z), np.nan)
+    points = pd.DataFrame(built, index=pd.RangeIndex(len(z)))
     sampled = 0
     if umap:
         conditions = (

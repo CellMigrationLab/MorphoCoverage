@@ -70,9 +70,20 @@ from matplotlib.figure import Figure
 from ._checks import is_integer
 from ._figure_layout import sentences, set_legend
 from ._former_repeat import one_warning, read_former
-from ._palette import COLOURS, FONT, INK, MARKERS, MUTED, OTHER_MARKER, style_axes
+from ._palette import (
+    COLOURS,
+    FONT,
+    GREY,
+    INK,
+    MARKERS,
+    MUTED,
+    OTHER_MARKER,
+    condition_palette,
+    style_axes,
+)
 from ._plots_text import legend, title
 from ._seeds import group_rng
+from ._wording import shortened
 from .data_check import validate_input_tables
 from .metadata import (
     MORPHOBRICKS_GROUP_COLUMNS,
@@ -87,6 +98,8 @@ MAX_CONDITIONS = 12
 MAX_REPEATS = 8
 MAX_TECHNICAL = 8
 MAX_FEATURES = 24
+# The longest condition name written in full under the plot.
+NAME_CHARACTERS = 30
 # The x axis: one slot per biological repeat, a gap between conditions, and the inches a
 # slot takes.
 GAP = 0.8
@@ -355,6 +368,7 @@ def plots_of_data(
     observation_unit: str | None = None,
     value_note: str | None = None,
     control: Mapping[str, Any] | None = None,
+    highlight: Sequence[Any] = (),
 ) -> dict[str, list[Figure]]:
     """One or more figures per feature (see the module); keys are the feature names.
 
@@ -371,6 +385,10 @@ def plots_of_data(
     ``value_note`` is added to the value axis label, for example
     ``"relative to control"`` for normalised values. Conditions are drawn in
     sorted order, the ``control`` condition (``{"condition": "MOCK"}``) first.
+    Each figure colours its own conditions (``_palette.condition_palette``, the control in
+    the first colour): past 12 in one figure, only the control and the ``highlight``
+    conditions keep a colour, the others are grey and the legend says so. Each carries its
+    colours as ``colours``.
     """
     (repeat_col,) = read_former(repeat_col=repeat_col)  # the former name ``repeat``
     if not (features := list(features)):
@@ -407,7 +425,6 @@ def plots_of_data(
     first = dict(control or {}).get(condition_col) if condition_col is not None else None
     layout = _layout(data, condition_col, repeat_col, technical_col, max_repeats, first)
     shapes = MARKERS[:max_technical]
-    colours = {c: COLOURS[i % len(COLOURS)] for i, c in enumerate(layout.conditions)}
     meta = _field_metadata(
         data,
         [layout.condition_col, layout.repeat_col, layout.technical_col, *layout.pooled_cols],
@@ -430,6 +447,8 @@ def plots_of_data(
         size = -(-len(rest) // -(-len(rest) // room))
         for start in range(0, len(rest), size):
             chunk = lead + rest[start : start + size]
+            # Each part its own colours, the control's first (owner, 2026-10-05).
+            colours = condition_palette(chunk, first, highlight)
             # Each condition is as wide as the repeats it holds: a slot of 1 per repeat, a gap
             # of GAP between conditions, so repeats imaged for other conditions take no room.
             present = [
@@ -486,18 +505,28 @@ def plots_of_data(
             many = len(chunk) > 4
             ax.set_xticks([b + max(len(p), 1) / 2 for b, p in zip(starts, present, strict=True)])
             ax.set_xlim(-0.4, span + 0.4)
+            # A long name is cut (the figure's data holds it whole), so the plot keeps its room.
             ax.set_xticklabels(
-                ["all fields" if c is None else str(c) for c in chunk],
+                ["all fields" if c is None else shortened(c, NAME_CHARACTERS) for c in chunk],
                 rotation=30 if many else 0,
                 ha="right" if many else "center",
             )
+            # Slanted when a repeat's name is wider than its slot, so neighbours never run
+            # into each other ("2026_03_022026_03_09"); about 0.075 in a character at 9.5 pt.
+            longest = max((len(label) for _, label in repeat_labels), default=0)
+            slot = (figure.get_size_inches()[0] - 1.3) / (span + 0.8)
+            slant = 0.075 * longest > 0.9 * slot
             for x, label in repeat_labels:
                 ax.annotate(
                     label,
                     (x, 1.0),
                     xycoords=("data", "axes fraction"),
-                    ha="center",
+                    xytext=(-3, 3) if slant else (0, 0),
+                    textcoords="offset points",
+                    ha="left" if slant else "center",
                     va="bottom",
+                    rotation=40 if slant else 0,
+                    rotation_mode="anchor",
                     fontsize=9.5,
                     color=MUTED,
                 )
@@ -513,13 +542,21 @@ def plots_of_data(
                 feature, part, layout, data.observation_unit, summary, confidence, clusters
             )
             # The feature on top; what the figure shows is its legend, at the bottom.
-            ax.set_title(f"{feature}{part}", fontsize=13, weight="bold", loc="left", pad=22)
+            pad = 22 + (3.5 * longest if slant else 0)  # above the slanted names
+            ax.set_title(f"{feature}{part}", fontsize=13, weight="bold", loc="left", pad=pad)
             legend(ax, layout, shapes, n_technical)
             style_axes(ax)
             ax.tick_params(axis="x", labelsize=FONT + 1)
             figure.tight_layout()
+            greyed = sum(colour == GREY for colour in colours.values())
+            if greyed:
+                words += (
+                    f"\nin colour the control and the highlighted conditions; the other "
+                    f"{greyed} in grey"
+                )
             figure.cluster_summaries = pd.DataFrame(summaries)
             figure.caption = words
+            figure.colours = colours
             set_legend(figure, [sentences(words)])
             figures[feature].append(figure)
     return figures

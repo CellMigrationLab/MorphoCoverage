@@ -110,7 +110,10 @@ html_report(result, objects, fovs, "results")   # results/report.html, results/f
 ```
 
 `report.html` is one file that opens in any browser, offline, and can be
-emailed or archived as it is; the guided session writes it too. It reads in the
+emailed or archived as it is; the guided session writes it too. It carries its
+figures and data files up to about 25 MB in all; past that, as with hundreds of
+conditions, the largest open from `figures/` beside it, so keep the page with its
+folder (or send the zip). It reads in the
 order a user acts on it, with titles instead of the text report's question
 numbers: the data, the fields to check (quality control), with three or more
 features the whole dataset at once (the PCA and UMAP), whether there are distinct
@@ -254,7 +257,7 @@ every observation). Under it, as in Plot&Stats, the matrix of every pair of
 conditions in two panels: (B) Cohen's d below the diagonal (the row's condition
 minus the column's) and above it the randomization test on d, every observation of
 the two conditions shuffled as Plot&Stats does, Benjamini-Hochberg corrected over
-the pairs; (C) the paired t-test on the repeats' means, its uncorrected p below the
+the pairs of that figure (a split figure tests its own conditions); (C) the paired t-test on the repeats' means, its uncorrected p below the
 diagonal and its Benjamini-Hochberg q above (with 3 repeats that imaged both; it
 holds its false-positive rate but has little power on three). A pair imaged in
 different repeats is marked †, since the batch is in its difference
@@ -265,8 +268,16 @@ point for its condition, repeat and field, click a condition in the legend to
 hide it, switch between PCA and UMAP and between raw values and values
 normalised to each repeat's control, and draw around points (the lasso is on) to
 see which conditions they come from: their number, their share of the selection,
-the share chance would give and the ratio of the two. Every condition, the
-control included, has a colour of its own (no grey, hard to see). Every figure
+the share chance would give and the ratio of the two. Up to 12 conditions, every
+condition, the control included, has a colour of its own (no grey, hard to see);
+past 12, the control and the conditions significant across repeats (else the
+cell-level screen's best-ranked candidates), at most 11, keep a colour and the
+others are grey, which the caption says, and "Find a condition" highlights any
+one (each part of a split feature figure colours its own conditions, the control
+always blue). Long names are cut with an ellipsis in the matrices, the heatmap
+and the legends, whole on hover and in the CSV; the heatmap keeps its cells
+readable and scrolls sideways, its rows the conditions when they outnumber the
+features. Every figure
 is also saved in `figures/` as PNG and as PDF (vector, for papers). On a wide
 screen the page uses the width, the feature figures two to a row. The page
 follows the light or dark setting of the viewer, with a switch, and prints with
@@ -616,7 +627,7 @@ takes the ranking over whole technical repeats instead).
 
 With three or more features, `embedding_plots(objects, fovs, setup,
 discovery=result.discovery, folder=...)` draws two overviews of all of them,
-coloured by condition (the control in the first colour, no grey) on the same values as the plots: a
+coloured by condition (the control in the first colour, no grey; past 12 conditions only the control and the discovery's hits keep a colour) on the same values as the plots: a
 PCA of the robustly standardised features, each axis labelled with its share
 of the variance and the best-ranked features drawn as arrows of their
 loadings, so the axes read in features; and a UMAP (`umap-learn`, seeded by
@@ -915,6 +926,16 @@ features, 4 workers. They are approximate and predate audit 4.
 | `report` | defaults | about 45 s |
 | `optimise` | `fov_counts=[2, 4, 8, 12]` | about 20 s |
 | `benchmark` | `n_boot=200` | about 85 s |
+
+**Before a run, roughly.** `report` and `html_report` together take about
+0.6 s per feature and condition on 4 cores (the tests), about 8 s per condition
+(the page's figures) and about a minute for the UMAP and the rest: 300 features
+and 3 conditions about 10 min, 100 features and 41 conditions about 45 min, 5
+features and 151 conditions about 30 min. The guided session says its estimate
+before it starts. It is approximate, from constructed datasets of 5 to 300
+features and 3 to 151 conditions (2026-10-02 and 2026-10-05), which took 13, 50
+and about 30 min; a busy machine, the novelty question below and many objects
+per field add to it.
 
 `Setup.n_jobs` reaches every workflow, the report's replay of the stopping
 rules included (`sufficiency_report(..., n_jobs=)`, since audit 4); results

@@ -26,7 +26,7 @@ from typing import Any
 import numpy as np
 
 from .._style import Status, rule_label
-from .._wording import count, listing, p_value, rate
+from .._wording import count, listing, p_value, rate, shortened
 from ..retrospective.report import QUESTIONS, SHORT_QUESTIONS
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_sampling import PRACTICAL
@@ -364,58 +364,72 @@ def _colour(d: float) -> tuple[str, str]:
     return "#" + "".join(f"{v:02x}" for v in rgb), text
 
 
+# The longest name the heatmap writes in full; the cell's hover and the CSV hold it whole.
+HEATMAP_NAME = 30
+
+
+def _label(x: float, y: float, name: Any, css: str, extra: str = "") -> str:
+    """A heatmap label, cut to ``HEATMAP_NAME`` characters, the full name on hover."""
+    full = html.escape(str(name))
+    return (
+        f'<g><title>{full}</title><text class="{css}" x="{x}" y="{y}"{extra}>'
+        f"{html.escape(shortened(name, HEATMAP_NAME))}</text></g>"
+    )
+
+
 def heatmap(discovery: Any, conditions: list[Any]) -> str:
-    """Cohen's d of every feature (rows, best-ranked first) and condition (columns) against
-    the control, as an SVG; ● a candidate at the cell level, ✓ also confirmed across
-    repeats. Empty without tests."""
+    """Cohen's d of every feature (best-ranked first) and condition against the control, as
+    an SVG at a readable size that scrolls sideways rather than shrinks: the features are the
+    rows, or the conditions when there are more of them than features (owner, 2026-10-05);
+    ● a candidate at the cell level, ✓ also confirmed across repeats. Empty without tests."""
     if discovery is None or discovery.tests is None or not len(discovery.tests):
         return ""
     tests = discovery.tests
     features = list(discovery.ranking["feature"])
     present = set(tests["condition"])
     columns = [c for c in conditions if c in present] or sorted(present, key=str)
-    # The column labels slant up to the right: room above and beside for the longest, and
-    # for each axis's title (the rows' turned up its left side).
-    longest = max(len(str(c)) for c in columns)
-    title = 22
-    cell_w, cell_h = 72, 24
-    left = title + 10 + 7 * max(len(str(f)) for f in features)
-    top = title + 24 + round(4.2 * longest)
-    width = left + cell_w * len(columns) + 10 + round(5.8 * longest)
-    height = top + cell_h * len(features) + 10
     named = tests["control_condition"].dropna() if "control_condition" in tests else []
     controls = sorted({str(c) for c in named})
     against = controls[0] if len(controls) == 1 else "its control"
-    middle_x = left + cell_w * len(columns) / 2
-    middle_y = top + cell_h * len(features) / 2
+    condition_title = f"condition, against {html.escape(against)}"
+    feature_title = "feature, best-ranked first"
+    transposed = len(columns) > len(features)
+    rows, cols = (columns, features) if transposed else (features, columns)
+    row_title, col_title = (
+        (condition_title, feature_title) if transposed else (feature_title, condition_title)
+    )
+    # The column labels slant up to the right: room above and beside for the longest, and
+    # for each axis's title (the rows' turned up its left side).
+    longest = max(len(shortened(c, HEATMAP_NAME)) for c in cols)
+    title = 22
+    cell_w, cell_h = 72, 24
+    left = title + 10 + 7 * max(len(shortened(r, HEATMAP_NAME)) for r in rows)
+    top = title + 24 + round(4.2 * longest)
+    width = left + cell_w * len(cols) + 10 + round(5.8 * longest)
+    height = top + cell_h * len(rows) + 10
+    middle_x = left + cell_w * len(cols) / 2
+    middle_y = top + cell_h * len(rows) / 2
     parts = [
         (
             f'<svg class="heatmap" viewBox="0 0 {width} {height}" width="{width}" '
-            'role="img" aria-label="Cohen\'s d of every feature against the control">'
+            f'height="{height}" role="img" '
+            'aria-label="Cohen\'s d of every feature against the control">'
         ),
-        (
-            f'<text class="hm-axis" x="{middle_x}" y="16" text-anchor="middle">'
-            f"condition, against {html.escape(against)}</text>"
-        ),
+        (f'<text class="hm-axis" x="{middle_x}" y="16" text-anchor="middle">{col_title}</text>'),
         (
             f'<text class="hm-axis" x="16" y="{middle_y}" text-anchor="middle" '
-            f'transform="rotate(-90 16 {middle_y})">feature, best-ranked first</text>'
+            f'transform="rotate(-90 16 {middle_y})">{row_title}</text>'
         ),
     ]
-    for j, condition in enumerate(columns):
+    for j, name in enumerate(cols):
         x = left + j * cell_w + cell_w / 2
-        parts.append(
-            f'<text class="hm-col" x="{x}" y="{top - 8}" transform="rotate(-35 {x} {top - 8})">'
-            f"{html.escape(str(condition))}</text>"
-        )
+        parts.append(_label(x, top - 8, name, "hm-col", f' transform="rotate(-35 {x} {top - 8})"'))
     lookup = {(r.feature, r.condition): r for r in tests.itertuples()}
-    for i, feature in enumerate(features):
+    for i, name in enumerate(rows):
         y = top + i * cell_h
-        parts.append(
-            f'<text class="hm-row" x="{left - 8}" y="{y + cell_h / 2 + 4}" text-anchor="end">'
-            f"{html.escape(str(feature))}</text>"
-        )
-        for j, condition in enumerate(columns):
+        parts.append(_label(left - 8, y + cell_h / 2 + 4, name, "hm-row", ' text-anchor="end"'))
+        for j, other in enumerate(cols):
+            feature, condition = (other, name) if transposed else (name, other)
             row = lookup.get((feature, condition))
             d = float(row.d) if row is not None and row.d == row.d else float("nan")
             fill, ink = _colour(d)
@@ -446,7 +460,8 @@ def heatmap(discovery: Any, conditions: list[Any]) -> str:
         "q ≤ 0.05, exploratory. ✓ also significant across repeats: the paired t-test on "
         "the repeat means, q ≤ 0.05. Hover a cell for its q-values.</p>"
     )
-    return f'{legend}<div class="table-wrap">{"".join(parts)}</div>'
+    # Scrolls sideways at its own size instead of shrinking to the page (owner, 2026-10-05).
+    return f'{legend}<div class="heatmap-scroll">{"".join(parts)}</div>'
 
 
 __all__ = [

@@ -164,7 +164,11 @@ def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
         counts = sorted(Counter(int(v) for v in needing["fields_to_resolve"]).items())
         (first, n), more = counts[0], counts[1:]
         verb = "needs" if n == 1 else "need"
-        items = [f"{n} {verb} about {first}", *(f"{k} about {v}" for v, k in more)]
+        if len(counts) > 3:
+            # Many conditions: a range, not a run-on list of counts.
+            items = [f"{len(needing)} need about {first}-{counts[-1][0]}"]
+        else:
+            items = [f"{n} {verb} about {first}", *(f"{k} about {v}" for v, k in more)]
         their = "its" if len(needing) == 1 else "their"
         where = "" if repeats == 1 else f" in {their} repeat"
         parts.append(f"{listing(items, len(items))} {fields} a side{where}")
