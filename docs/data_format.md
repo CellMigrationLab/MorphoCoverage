@@ -107,7 +107,8 @@ will be removed in a later version.
 - **Each column name once.** A table with two columns of the same name (as
   `pd.concat(axis=1)` can make) raises before anything else, and so does a
   column named twice in `feature_cols` or `group_cols`. Features are an
-  ordered list, not a set (whose order changes between runs), and must be real
+  ordered list, not a set (whose order changes between runs) or a mapping (whose
+  keys alone would be read), and must be real
   numbers (complex values raise).
 - **One row per field.** Every field appears once in the FOV table, and
   every observation's field must be listed there.
