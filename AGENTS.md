@@ -169,7 +169,7 @@ Where practical, preserve compatibility with MorphoBricks metadata names such as
 | --- | --- | --- |
 | `condition` | string, always | Default analysis group; always part of FOV identity. |
 | `biological_repeat` | string, always (`YYYY_MM_DD`, or `single`) | Default analysis group; always part of FOV identity. Any label is accepted; the format is not enforced. Formerly `repeat`, which is read as `biological_repeat` with a `DeprecationWarning` (below). |
-| `technical_repeat` | string, optional | The technical repeat within a biological repeat (a well, a dish, a coverslip); never a biological repeat. When present: a default analysis group and part of FOV identity, counted in the report's overview, the colour of the plots' points and the unit their intervals and the condition contrast and feature ranking resample or shuffle first (the contrast and the ranking take the FOV table's column whatever `group_cols` says), and the sample level of the hierarchy `Setup` derives for "more fields or more technical repeats?". Identified with its `condition` and `biological_repeat`, so well `J23` of two plates is two technical repeats. |
+| `technical_repeat` | string, optional | The technical repeat within a biological repeat (a well, a dish, a coverslip); never a biological repeat. When present: a default analysis group and part of FOV identity, counted in the report's overview, the shape of the plots' points and the unit their intervals and the condition contrast and feature ranking resample or shuffle first (the contrast and the ranking take the FOV table's column whatever `group_cols` says), and the sample level of the hierarchy `Setup` derives for "more fields or more technical repeats?". Identified with its `condition` and `biological_repeat`, so well `J23` of two plates is two technical repeats. |
 | `image_file` | string, always | Storage provenance; fallback FOV identifier only when one file = one spatial position. |
 | `position_id` | string, when needed | Preferred explicit spatial-position identifier when files/planes/scenes do not map 1:1 to FOVs. |
 | `z` or `z0`/`z1`, `c`, `t` | integer, 0-based, when a position has several planes, channels or time points | Within-FOV coordinates: never FOVs, never features (section 20, multidimensional acquisition rule). |
@@ -551,6 +551,8 @@ pytest
 python -m ruff check src tests data
 python -m ruff format --check src tests data
 ```
+
+The whole suite runs locally before every push. On GitHub a pull request runs only lint, formatting, the install, the import and the guard tests, and the whole suite runs on demand from the Actions tab (`.github/workflows/tests.yml`, owner 2026-10-05).
 
 Never claim a command passed unless it actually ran successfully.
 

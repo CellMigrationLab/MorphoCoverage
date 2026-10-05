@@ -5,7 +5,10 @@ acquired field of this dataset and the declared control groups. This page lists 
 questions, R1 to R8 with the Foundation, then walks through the HTML page section by
 section, in the order a reader meets them. How to run the report is in [Running a
 report](running_a_report.md); what the codes and the status words mean is in [the
-documentation's start page](../README.md#reading-the-question-tables).
+documentation's start page](../README.md#reading-the-question-tables). The text report
+numbers its answers: the Foundation, 1 (R1), 2 (R2 and R3), 3 (R4), 6 (R5), 9 (R7), 10 (R8)
+and the closing "What this dataset cannot tell me" (R6); its 4, 5, 7 and 8 are planning
+questions of [optimise](../optimise/optimise.md).
 
 ## The questions
 
@@ -179,7 +182,7 @@ the page shows.
 
 ### Did I image enough?
 
-Question 2, and the next-field question 3: [Did I image enough?](did_i_image_enough.md).
+Question 2, R2 with the next-field question R3: [Did I image enough?](did_i_image_enough.md).
 
 ### What limits the sampling? Why count fields?
 
@@ -187,6 +190,8 @@ The sampling profile (R4) and the Foundation above. Their results on the committ
 data, in plain language, are in [Objects or fields?](objects_or_fields.md).
 
 ### Can these features detect what I care about?
+
+`representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's "expected by chance" clause and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
 
 With a label and no positive control, question 1 is answered by the label: for each labelled cell, whether
 the nearest cell of another field (on the declared features, robustly
@@ -197,8 +202,6 @@ assessed. A declared label the check cannot assess (fewer than 5 labelled cells,
 unlabelled cell to compare, a missing feature value, or no labelled cell with a cell
 of another field) is answered ➖ "declared, not assessable" with the reason, never
 as if no label were declared (owner, 2026-10-05).
-
-`representation_control` judges declared positive-control FOVs (and positive cells planted into reference FOVs) against random reference FOVs holding observations, paired within `pair_cols`: detection and false-alarm rates, "positive only" without a reference, "not assessed" without a control. It also measures both rates leaving one field out within the analysis groups of the inspection (`lofo_group_cols`), which the report's "expected by chance" clause and its detection-adjusted bound read, pooled over the strata of `pair_cols` and said so ("pooled over all plates", owner, 2026-10-05).
 
 ### What to do next
 

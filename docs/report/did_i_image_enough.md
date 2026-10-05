@@ -2,8 +2,8 @@
 
 Question 2 of the report asks whether the fields acquired were enough for what you
 declared: the difference from the control, the mean of each feature, a rare phenotype,
-a fingerprint. Question 3 asks whether one more field would likely have shown something
-new. This page gives the answer on the page and in the text report, then the function
+a fingerprint, and whether one more field would likely have shown something new (R2 and
+R3 of [the report's questions](questions.md)). This page gives the answer on the page and in the text report, then the function
 behind the stopping rules and the next field, `sufficiency_report`.
 
 ## On the page

@@ -63,7 +63,7 @@ first. The question codes are those of [the report](../report/questions.md),
     field-to-field tolerance sentence in the Foundation ("representative
     fields here span X to Y"). Most sentences already say it; the rule is not
     written.
-14. The ONLINE wording rule: every live sentence names a bound as a nominal
+14. The LIVE wording rule: every live sentence names a bound as a nominal
     per-look bound and a stopping risk as empirically calibrated, since
     checking a fixed-sample bound after every field does not keep its nominal
     coverage (with O6).

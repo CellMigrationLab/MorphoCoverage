@@ -1,6 +1,8 @@
 # Online microscope use
 
-MorphoCoverage can run prospectively without a completed acquisition.
+MorphoCoverage can run prospectively without a completed acquisition. This page is the
+contract underneath the [live session](live_session.md): read it when you drive
+`OnlineSession` from your own acquisition loop, or need to know what one update may hold.
 
 `OnlineSession` receives exactly one newly acquired spatial FOV/position at a
 time. It uses the same `SamplingStrategy`, estimators, evidence and decision

@@ -5,10 +5,10 @@ and the observations) and a ``Setup``, runs the package's analyses in the
 order of ``docs/report/questions.md`` and ``docs/optimise/optimise.md``, and returns every
 result with a ``summary()`` in sentences:
 
-- ``report`` (REPORT: the Foundation, then R1 to R7): fields against objects, the representation
+- ``report`` (REPORT: the Foundation, then R1 to R8): fields against objects, the representation
   control, what each rule says, the sampling profile with rare-object
-  clustering, the fields to inspect, and each condition against the control;
-- ``optimise`` (OPTIMISE / PLAN): how often ``k`` random fields preserve the
+  clustering, the fields to inspect, each condition against the control, and the populations;
+- ``optimise`` (OPTIMISE): how often ``k`` random fields preserve the
   readout in held-back fields, across samples, what the extra fields bought,
   how reliable each stopping rule was, more fields or more samples, and the
   order of acquisition;

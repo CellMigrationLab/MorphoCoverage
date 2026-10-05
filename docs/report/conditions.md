@@ -267,17 +267,21 @@ the report also answers question 9, "Do the conditions differ, and how
 confidently?": each condition against the control, per repeat, with Cohen's
 d and the JCS effect size computed on objects (the numbers of the lab's
 Plot&Stats notebook) and with the field as the unit, and a randomization test
-that shuffles condition labels over whole units when each side has at least
-two. The unit is the FOV table's `technical_repeat` column, whatever
+that shuffles condition labels over whole units. The unit is the FOV table's `technical_repeat` column, whatever
 `group_cols` says; without it, a group column beyond condition and repeat
 (a `well` column in `group_cols`) when some condition of a repeat holds more
 than one of its values. Over wells the p-value is coarser: with 2 wells a
-side it cannot go below 1/3. A side with a single unit gets no test, since
+side it cannot go below 1/3. A test that the design cannot make informative is
+not run and not flagged: the randomization test runs only when its smallest p can
+reach 0.05 after the Bonferroni correction over the contrasts, 4 units a side for
+one contrast (`sampling_unit._reach`), so one well per condition and repeat, the
+usual design, gets none. A side with a single unit gets no test, since
 its fields cannot stand in for wells, and its effect sizes are still
 reported. **Without a unit there is no p-value**, unless
 `Setup(fields_independent=True)` declares the fields independent draws;
 whole fields are then shuffled and the section says the p-value treats them
-so. A d computed from three or fewer unit means is marked unstable. The
+so. A d on technical-repeat means is computed only when each side holds 4
+or more, since from fewer means a d can be very large by chance. The
 whole-field draws of the JCS effect size take whole technical repeats with
 replacement when both sides have them; otherwise they resample these fields
 only, and their "same sign in X% of draws" is not a confidence in the effect.
