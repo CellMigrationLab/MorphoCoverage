@@ -172,7 +172,13 @@ PLOTLY_SCRIPT = r"""
   // A matrix writes a name of up to 24 characters in full; a longer one ends in an ellipsis,
   // the full name in the hover (as in the static figure). Functions, not variables: the
   // figures above are drawn before a variable here would be set.
-  function cutName(s, most) { return s.length > most ? s.slice(0, most - 1) + '\u2026' : s; }
+  // Cut in the middle, as _wording.shortened: names of a series often differ at their end.
+  function cutName(s, most) {
+    if (s.length <= most) return s;
+    var head = Math.floor((most - 1) * 3 / 5), tail = most - 1 - head;
+    return s.slice(0, head).replace(/\s+$/, '') + '\u2026' +
+      s.slice(s.length - tail).replace(/^\s+/, '');
+  }
   function shortName(s) { return cutName(s, 24); }
   function matrix(node, pw, panel, t, labels) {
     var n = pw.names.length, longest = Math.max.apply(null, pw.names.map(function (s) {

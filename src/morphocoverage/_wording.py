@@ -161,10 +161,16 @@ def ordinal(n: int) -> str:
 
 
 def shortened(name: object, most: int = 30) -> str:
-    """``name`` as a label of at most ``most`` characters, cut with an ellipsis; the full
-    name goes where the label is hovered and in the CSV."""
+    """``name`` as a label of at most ``most`` characters, cut in the middle with an ellipsis
+    (its start and its end kept); the full name goes where the label is hovered and in the
+    CSV."""
     text = str(name)
-    return text if len(text) <= most else text[: most - 1].rstrip() + "…"
+    if len(text) <= most:
+        return text
+    # Cut in the middle: names of a series often differ only at their end (siRNA lots, wells).
+    head = (most - 1) * 3 // 5
+    tail = most - 1 - head
+    return text[:head].rstrip() + "…" + text[len(text) - tail :].lstrip()
 
 
 def column_word(column: object) -> str:

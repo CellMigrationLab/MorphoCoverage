@@ -222,7 +222,9 @@ def test_the_heatmap_scrolls_shortens_long_names_and_turns_when_conditions_outnu
     rows = re.findall(r'class="hm-row"[^>]*>([^<]*)<', svg)
     columns = re.findall(r'class="hm-col"[^>]*>([^<]*)<', svg)
     assert columns == ["area", "speed"] and rows[1:] == conditions[1:]
-    assert rows[0] == shortened(long, 30) and len(rows[0]) == 30 and rows[0].endswith("…")
+    assert rows[0] == shortened(long, 30) and len(rows[0]) == 30 and "…" in rows[0]
+    # Cut in the middle: names of a series that differ only at their end stay apart.
+    assert rows[0].endswith(long[-5:])
     assert f"<title>{long}</title>" in svg
     # The axis titles follow their axes.
     titles = re.findall(r'class="hm-axis"[^>]*>([^<]*)<', svg)
