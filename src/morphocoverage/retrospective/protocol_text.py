@@ -409,6 +409,9 @@ def protocol_summary(result: ProtocolResult, detail: str = "short") -> str:
         lines, cautions = protocol_full_parts(result)
     else:
         lines, cautions = protocol_short_parts(result, indent=0)
+    if not lines:
+        # Every sample skipped upstream (or none given): say so, never an empty answer.
+        return "Not assessed: no sample had a reliability curve to count."
     return "\n".join([*lines, *caveat_lines(cautions, indent=0, detail=detail)])
 
 

@@ -202,3 +202,14 @@ def test_pooling_and_sample_identity_must_be_declared():
         )
     pooled = protocol_reliability(two, HIERARCHY, threshold=0.9, strata=[])
     assert "all samples" in pooled.summary()
+
+
+def test_a_protocol_with_no_sample_curve_says_it_is_not_assessed():
+    """#248: every sample skipped upstream gives no row, and an explicit answer, not ''."""
+    curve = _curve(PLATES)
+    empty = ReliabilityResult(curve.curve.iloc[:0], pd.DataFrame(), curve.group_cols, {})
+    result = protocol_reliability(empty, HIERARCHY, threshold=0.9, strata=["condition"])
+    assert result.table.empty
+    for detail in ("short", "full"):
+        assert result.summary(detail) == "Not assessed: no sample had a reliability curve to count."
+    assert result.summary() != _protocol().summary()
