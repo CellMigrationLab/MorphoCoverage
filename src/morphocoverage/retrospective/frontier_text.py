@@ -36,6 +36,16 @@ def _number(value: float) -> str:
     return f"{0.0 if value == 0 else value:.1f}"
 
 
+def _risk(row: object) -> str:
+    """``4%``, or ``0% of the 4 of 10 runs judged`` when some runs could not be judged
+    (outcome undefined): they are left out of the risk, so its denominator is said."""
+    judged, runs = getattr(row, "judged", None), getattr(row, "runs", None)
+    text = percent(row.risk)
+    if judged is None or runs is None or pd.isna(judged) or int(judged) >= int(runs):
+        return text
+    return f"{text} of the {int(judged)} of {int(runs)} runs judged"
+
+
 def _lapse(row: object) -> str | None:
     """``met this risk at 2 (risk 0%) but not from there on: ...``, or None if it never met it."""
     met = getattr(row, "met_setting", None)
@@ -73,7 +83,7 @@ def _unscored(rows: pd.DataFrame, base: object) -> list[str]:
         else:
             lines.append(
                 f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
-                f"(risk {percent(row.risk)}), with no fixed count to compare."
+                f"(risk {_risk(row)}), with no fixed count to compare."
             )
     return lines
 
@@ -170,9 +180,7 @@ def _full_lines(rows: pd.DataFrame, units: int) -> list[str]:
         else f", {_number(base['effort'])} on average as some acquisitions had fewer"
     )
     needed = fields(int(base["setting"]))
-    lines = [
-        f"  a fixed number of fields needed {needed}{mean_effort} (risk {percent(base['risk'])})."
-    ]
+    lines = [f"  a fixed number of fields needed {needed}{mean_effort} (risk {_risk(base)})."]
     for row in rows[rows["family"] != BASELINE].itertuples(index=False):
         if row.effort is None or pd.isna(row.effort):
             lines.append(_not_chosen(row))
@@ -195,7 +203,7 @@ def _full_lines(rows: pd.DataFrame, units: int) -> list[str]:
         )
         lines.append(
             f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
-            f"(risk {percent(row.risk)}); it {verdict}{interval}{adaptive}."
+            f"(risk {_risk(row)}); it {verdict}{interval}{adaptive}."
         )
     return lines
 
@@ -238,7 +246,7 @@ def _short_rows(rows: pd.DataFrame, units: int) -> tuple[list[list[str]], list[s
             cell, note = "no fixed count to compare", None
         else:
             cell, note = _against(row, units)
-        table_rows.append([name, number(row.effort), percent(row.risk), cell])
+        table_rows.append([name, number(row.effort), _risk(row), cell])
         if note:
             notes.append(f"{row.family}: {note}")
     return table_rows, notes
@@ -254,7 +262,7 @@ def _baseline_text(rows: pd.DataFrame) -> str:
             else f", {_number(base['effort'])} on average"
         )
         needed = fields(int(base["setting"]))
-        return f"a fixed count needs {needed}{mean} (risk {percent(base['risk'])})"
+        return f"a fixed count needs {needed}{mean} (risk {_risk(base)})"
     lapse = _lapse(next(rows[rows["family"] == BASELINE].itertuples(index=False)))
     if lapse is not None:
         return f"a fixed count {lapse}; no rule is scored against it"
@@ -276,6 +284,9 @@ def level_status(rows: pd.DataFrame, units: int) -> tuple[Status, str]:
     if not _scored(base):
         return Status.NOT_ASSESSED, "not scored (a fixed count never met it lastingly)"
     fixed = fields(int(base["setting"]))
+    if (rows["family"] == BASELINE).all():
+        # No family given: no rule was tested, so none can be said not to get there.
+        return Status.NOT_ASSESSED, f"no rule family given; a fixed {fixed} got there"
     best = _best(rows)
     if best is None:
         return Status.OK, f"no rule got there; a fixed {fixed} did"
@@ -299,7 +310,7 @@ def frontier_status(result: FrontierResult) -> tuple[Status, str]:
     """The criterion's status and one-line answer, over its risk levels.
 
     Per risk level: ➖ when a fixed count never met it lastingly (no rule is
-    scored); ✅ when the family that saves most does so with an interval
+    scored) or no rule family was given; ✅ when the family that saves most does so with an interval
     above 0, or when no family saves fields (the null result) with an
     interval; ⚠️ when the best saving is not resolved (its interval includes
     0) or has no interval (fewer than ``FEW_UNITS`` units, or too few

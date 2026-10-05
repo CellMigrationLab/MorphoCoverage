@@ -176,6 +176,12 @@ def test_leave_one_unit_out_chooses_on_the_others():
     assert check.loc["P2", "chosen_fovs"] == 5 and check.loc["P2", "adequate"] == 0
     # Chosen on P2 alone, 10 fields; P1 is served.
     assert check.loc["P1", "chosen_fovs"] == 10 and check.loc["P1", "adequate"] == 2
+    # #250: the counts chosen differ by the plate left out, and the text says them.
+    full = " ".join(_protocol(hard_plate).summary("full").split())
+    assert "(5-10 fields, by the plate left out)" in full
+    assert "2 of 4 (at 5-10 fields)" in " ".join(_protocol(hard_plate).summary().split())
+    same = {key: {5: 0.95, 10: 0.99} for key in hard_plate}
+    assert "on the other plates (5 fields) and" in " ".join(_protocol(same).summary("full").split())
 
 
 def test_pooling_and_sample_identity_must_be_declared():
@@ -202,3 +208,14 @@ def test_pooling_and_sample_identity_must_be_declared():
         )
     pooled = protocol_reliability(two, HIERARCHY, threshold=0.9, strata=[])
     assert "all samples" in pooled.summary()
+
+
+def test_a_protocol_with_no_sample_curve_says_it_is_not_assessed():
+    """#248: every sample skipped upstream gives no row, and an explicit answer, not ''."""
+    curve = _curve(PLATES)
+    empty = ReliabilityResult(curve.curve.iloc[:0], pd.DataFrame(), curve.group_cols, {})
+    result = protocol_reliability(empty, HIERARCHY, threshold=0.9, strata=["condition"])
+    assert result.table.empty
+    for detail in ("short", "full"):
+        assert result.summary(detail) == "Not assessed: no sample had a reliability curve to count."
+    assert result.summary() != _protocol().summary()

@@ -13,6 +13,7 @@ from morphocoverage import (
     SamplingObjective,
     ScalarPrecisionStrategy,
 )
+from morphocoverage._style import Status
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.evidence import Component, Direction, Evidence, Quantity
 from morphocoverage.outcomes import RareStateDetected, RelativeMeanError
@@ -27,6 +28,7 @@ from morphocoverage.retrospective.frontier import (
     sweep,
     transfer,
 )
+from morphocoverage.retrospective.frontier_text import frontier_status
 from morphocoverage.strategies.base import Estimator, SamplingStrategy
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -215,6 +217,11 @@ def test_outcomes_that_cannot_be_judged_are_counted_not_scored():
     result = frontier(replay, [], criterion=criterion.name, alphas=[0.1], unit_cols=[])
     row = result.curve.set_index("setting").loc[10]
     assert 0 < row["judged"] < row["runs"]
+    # #249: the chosen risk carries its denominator, and the summary says it.
+    base = result.scores.iloc[0]
+    assert 0 < base["judged"] < base["runs"]
+    said = f"of the {int(base['judged'])} of {int(base['runs'])} runs judged"
+    assert said in " ".join(result.summary().split())
 
 
 def test_families_from_replays_with_other_streams_are_refused(mixed):
@@ -277,6 +284,11 @@ def test_invalid_requests_are_refused(mixed):
         frontier(replay, [], criterion=MEAN.name, alphas=[1.5], unit_cols=[])
     with pytest.raises(ValueError, match="not group columns"):
         frontier(replay, [], criterion=MEAN.name, alphas=[0.1], unit_cols=["well"])
+    # #247: with no family no rule was tested, so none can be said not to get there.
+    status, text = frontier_status(
+        frontier(replay, [], criterion=MEAN.name, alphas=[0.1], unit_cols=[])
+    )
+    assert status is Status.NOT_ASSESSED and "no rule family given" in text
     renamed = family(replay, BASELINE, {_oracle(2, 12).config_id: 12})
     with pytest.raises(ValueError, match="baseline's name"):
         frontier(replay, [renamed], criterion=MEAN.name, alphas=[0.1], unit_cols=[])

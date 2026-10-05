@@ -396,7 +396,14 @@ def readings_headline(contrast: Any) -> str | None:
         return None
     word = column_word(contrast.settings.get("repeat_col"))
     feature = contrast.settings["feature"]
-    n_repeats = int(_direction_rows(contrast)["repeats"].max())
+    held = _direction_rows(contrast)["repeats"].astype(int)
+    n_repeats = int(held.max())
+    # Each condition's own repeats: one count when they share it, else the range.
+    each = (
+        count(n_repeats, word)
+        if held.min() == n_repeats
+        else f"{held.min()}-{count(n_repeats, word)}"
+    )
     table = getattr(contrast, "table", pd.DataFrame())
     repeat_col = contrast.settings.get("repeat_col")
     total = int(table[repeat_col].nunique()) if repeat_col in table else n_repeats
@@ -422,9 +429,9 @@ def readings_headline(contrast: Any) -> str | None:
         )
     else:
         text = f"{feature}, {count(len(readings), 'condition')} " + (
-            f"across {count(n_repeats, word)}: "
+            f"across {each}: "
             if total <= n_repeats
-            else f"against the control, each in {count(n_repeats, word)} ({total} in all): "
+            else f"against the control, each in {each} ({total} in all): "
         )
     text += "; ".join(groups)
     if n_repeats < MIN_REPEATS:

@@ -164,3 +164,17 @@ def test_the_short_note_names_the_q_the_readings_use():
     )
     readings = condition_readings(_contrast([_row("B", 3, 0, 0.01, np.nan)]))
     assert "(raw values)" in readings["reading"].iloc[0]
+
+
+def test_conditions_compared_in_different_numbers_of_repeats_give_the_range():
+    """#275: A compared in 4 repeats and B in 2 are not "across 4 biological repeats"."""
+    from morphocoverage.retrospective.report_status_conditions import across_headline
+
+    contrast = _contrast([_row("A", 0, 4, 0.01, 0.01, n=4), _row("B", 0, 2, None, None, n=2)])
+    contrast.settings["feature"] = "area"
+    assert readings_headline(contrast).startswith("area, 2 conditions across 2-4 biological")
+    head = across_headline(contrast.repeats.assign(p_paired_t=np.nan), "biological_repeat")
+    assert head.startswith("2 conditions across 2-4 biological repeats:")
+    same = _contrast([_row("A", 0, 3, 0.01, 0.01), _row("B", 3, 0, 0.01, 0.01)])
+    same.settings["feature"] = "area"
+    assert readings_headline(same).startswith("area, 2 conditions across 3 biological repeats")

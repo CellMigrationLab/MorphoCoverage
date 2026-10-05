@@ -29,6 +29,7 @@ import numpy as np
 from .._style import Status, rule_label
 from .._wording import count, listing, p_value, rate, shortened
 from ..retrospective.report import QUESTIONS, questions_for, short_questions_for
+from ..retrospective.report_resolved import _needing, _table, _unassessed
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
@@ -245,17 +246,14 @@ def not_declared(setup: Any) -> list[str]:
 def _resolution(contrast: Any, single_repeat: bool = False) -> list[str]:
     """Whether the fields acquired show each comparison, and what more would show the others;
     what a comparison is and that it is per repeat are said once, in the card's "?"."""
-    rows = getattr(contrast, "table", None)
-    if rows is None or rows.empty or "d_low" not in rows:
-        return []
-    rows = rows[rows["d_low"].notna()]
+    rows = _table(contrast)
     if rows.empty:
         return []
     _, fields = field_words(contrast)
     resolved = int(rows["resolved"].sum())
     small = int(rows["too_small"].sum())
-    needing = rows[~rows["resolved"] & ~rows["too_small"]]
-    verdict = "Yes" if needing.empty and not small else ("Partly" if resolved else "Not yet")
+    needing = _needing(rows)
+    verdict = "Yes" if resolved == len(rows) else ("Partly" if resolved else "Not yet")
     where = "the biological repeat" if single_repeat else "each biological repeat"
     lines = [
         (
@@ -277,6 +275,11 @@ def _resolution(contrast: Any, single_repeat: bool = False) -> list[str]:
             f"In {count(small, 'comparison')} the difference is so small that even {PRACTICAL} "
             f"times the {fields} would not show it within one repeat; that is not evidence of "
             "no effect."
+        )
+    if _unassessed(rows):
+        lines.append(
+            f"In {count(_unassessed(rows), 'comparison')} there are too few {fields} for an "
+            "interval: not assessed."
         )
     return lines
 

@@ -59,16 +59,21 @@ def _reliability_status(reliability: Any) -> Answer:
     total = len(reached) + len(missed)
     groups = len(curve[keys].drop_duplicates()) if keys else 1
     where = f"in {among(groups, groups)}" if groups > 1 else "in the group"
+    # Groups too small to hold fields back are counted apart, neither reached nor missed.
+    skipped = len(getattr(reliability, "skipped", ()))
+    if skipped:
+        where = f"in the {count(groups, 'group')} assessed"
+    apart = f"; {skipped} more not assessed (too few fields)" if skipped else ""
     share = percent(RELIABLE_SHARE)
     if not reached:
-        return Status.PROBLEM, f"{share} of acquisitions enough {where} for no target"
+        return Status.PROBLEM, f"{share} of acquisitions enough {where} for no target{apart}"
     text = (
         f"{fields(max(reached))}: {share} of acquisitions enough {where} for "
         f"{among(len(reached), total, 'target')}"
     )
     if missed:
         text += f"; not for {listing(missed, limit=2)}"
-    return Status.CAUTION, f"{text}; not checked across samples"
+    return Status.CAUTION, f"{text}{apart}; not checked across samples"
 
 
 def next_time_status(reliability: Any, protocol: Any) -> Answer:

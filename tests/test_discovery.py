@@ -157,3 +157,28 @@ def test_an_embedding_needs_three_features_that_vary():
     objects, fovs = _tables()
     with pytest.raises(ValueError, match="at least 3 features that vary"):
         embed(objects, fovs, features=["area", "noise", "flat"], umap=False)
+
+
+def test_question_9_is_not_assessed_without_a_comparison_or_a_test_across_repeats():
+    """#274: the cell-level screen's candidates alone (two repeats, no contrast) and a
+    contrast with no condition to compare are no answer, never ✅."""
+    from morphocoverage._style import Status
+    from morphocoverage.retrospective.report_status import conditions_status
+    from morphocoverage.sampling_unit.contrast import condition_contrast
+
+    objects, fovs = _tables(n_repeats=2)
+    status, headline = conditions_status(None, None, _discovery(objects, fovs))
+    assert status is Status.NOT_ASSESSED and "no test across repeats: n = 2" in headline
+    alone = objects["condition"] == "ctrl"
+    contrast = condition_contrast(
+        objects[alone],
+        fovs[fovs["condition"] == "ctrl"],
+        feature="area",
+        control={"condition": "ctrl"},
+    )
+    assert conditions_status(contrast, None) == (
+        Status.NOT_ASSESSED,
+        "no condition to compare with the control",
+    )
+    # Three repeats: the test across repeats answers, as before.
+    assert conditions_status(None, None, _discovery(*_tables()))[0] is Status.OK

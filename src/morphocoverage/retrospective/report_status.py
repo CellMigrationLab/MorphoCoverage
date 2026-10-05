@@ -76,11 +76,11 @@ The rules, question by question:
   over the criteria that reached one. ❌ when no criterion reached one and
   some samples needed more fields than could be judged; ⚠️ when some criteria
   did not reach one (not reached; not shown: every unserved sample capped
-  by its held-back fields; or not judged at any depth) or fewer than
-  ``FEW_UNITS`` (5) independent units stand behind the counts; ✅
-  otherwise. Reliability curves alone (no protocol): the fewest listed
-  fields from which ``RELIABLE_SHARE`` (90%) of random acquisitions were
-  enough in every group, per criterion; ❌ when no
+  by its held-back fields; or not judged at any depth); ✅ otherwise, fewer
+  than ``FEW_UNITS`` (5) independent units behind the counts being said in
+  the headline, not flagged (a usual design). Reliability curves alone (no
+  protocol): the fewest listed fields from which ``RELIABLE_SHARE`` (90%) of
+  random acquisitions were enough in every group, per criterion; ❌ when no
   criterion reached it, ⚠️ otherwise, since nothing was checked across
   samples (a count that served these samples is not yet a protocol).
 - **5. What did the extra fields buy?** (``bought_status``): over the
@@ -94,9 +94,10 @@ The rules, question by question:
   reason could be judged anywhere; ✅ when none is listed and every reason
   turned on was judged.
 - **7. More fields or more samples?** (``effort_status``): ⚠️ when the
-  comparison cannot tell in some stratum (too few samples, or no
-  allocation's interval excludes no change), ✅ when a better split of the
-  same total of fields is resolved in every stratum. The headline names the
+  comparison cannot tell in some stratum although ``FEW_UNITS`` (5) or more
+  samples stand behind it, ✅ when a better split of the same total of
+  fields is resolved in every stratum, or when fewer samples (the design)
+  leave it not established, said in the headline. The headline names the
   samples per stratum and in how many strata most of the variance of the
   mean lies between samples.
 - **8. Could I have sampled more efficiently?** (``order_status``): ⚠️ when
@@ -414,9 +415,11 @@ def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = Non
         return Status.NOT_ASSESSED, "not assessed"
     late = premature is not None and premature > PREMATURE_CAUTION
     held = (
-        f"held-back fields: some rules stopped too early (up to {percent(premature)})"
-        if premature is not None
-        else ""
+        ""
+        if premature is None
+        else "held-back fields: no rule stopped too early"
+        if premature == 0
+        else f"held-back fields: some rules stopped too early (up to {percent(premature)})"
     )
     data = [t for t in tallies if t["data_rule"]]
     if not data:

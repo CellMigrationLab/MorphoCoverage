@@ -29,7 +29,13 @@ from .._caveats import caveat_lines
 from .._style import table
 from .._wording import count, listing, plural
 from ..metadata import REPEAT_COLUMN
-from ..retrospective.report_resolved import SHORT_ROWS, has_resolution, resolved_parts
+from ..retrospective.report_resolved import (
+    SHORT_ROWS,
+    _needing,
+    _table,
+    has_resolution,
+    resolved_parts,
+)
 from ..retrospective.report_status import group_word
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.contrast_sampling import PRACTICAL
@@ -49,9 +55,8 @@ _NAMED = 7
 
 
 def _rows(contrast: Any) -> pd.DataFrame:
-    """The comparisons with an answer (an interval was computed)."""
-    rows = contrast.table
-    return rows[rows["d_low"].notna()]
+    """Every comparison, those without an interval included (``report_resolved``)."""
+    return _table(contrast)
 
 
 def repeats_seen(contrast: Any) -> int:
@@ -158,7 +163,7 @@ def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
     cells``, how many comparisons each count covers (with one biological repeat, no repeat
     to name); ``–`` when every one is shown."""
     rows = _rows(contrast)
-    needing = rows[~rows["resolved"] & ~rows["too_small"]]
+    needing = _needing(rows)
     parts = []
     if len(needing):
         counts = sorted(Counter(int(v) for v in needing["fields_to_resolve"]).items())
@@ -340,7 +345,7 @@ def _single_answer(contrast: Any, fields: str, repeats: int) -> str:
     if resolved == n:
         return f"{head} in every comparison, all {n}." if n > 1 else f"{head}."
     parts = [f"{head} in {resolved} of {count(n, 'comparison')}"]
-    needing = rows[~rows["resolved"] & ~rows["too_small"]]
+    needing = _needing(rows)
     if len(needing):
         values = needing["fields_to_resolve"].astype(float)
         low, high = int(values.min()), int(values.max())
