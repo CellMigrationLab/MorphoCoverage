@@ -18,11 +18,12 @@ Tests, each at alpha = 0.05:
   shuffled over the cells (``N_PERM``), on raw values and on values normalised to the mean of
   the same repeat's control (each repeat's control too, the extra control repeats included);
 - ``balanced`` / ``balanced_norm``: the package's balanced test
-  (``morphocoverage.sampling_unit.contrast_cells``): each condition against the control of its
-  own repeats, the repeats too small to balance to left out (``sparse``), the same number of
-  cells from every repeat kept (the fewest), the median p over ``BALANCED_DRAWS`` draws. For
-  speed each draw's p is the cell t-test's, which in ``test_choice.csv`` gives the
-  randomization test's rate within 1 point in every setting;
+  (``morphocoverage.sampling_unit.contrast_cells.balanced_draws``): each condition against the
+  control of its own repeats, the repeats too small to balance to left out (``sparse``), d the
+  median over ``BALANCED_DRAWS`` draws of the same number of cells from every repeat (the
+  fewest), p from the labels shuffled within each repeat (one permutation test, owner,
+  2026-10-05; ``results/unbalanced.csv`` predates it: its balanced columns are the median
+  t-test p over the draws, 12-14% at s = 0.25 where the permutation test gives 15-19%);
 - ``paired_t`` / ``paired_t_ratio``: the paired t-test on the repeat means and on the log ratios
   to the control, one value per repeat whatever its cells (the extra control repeats unpaired,
   so not used).
@@ -55,7 +56,7 @@ from scipy import stats
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_choice import ALPHA, BATCH_SD, GAIN_SD, LEVEL, N_PERM, N_SIMS, cohen_d
 
-from morphocoverage.sampling_unit.contrast_cells import BALANCED_DRAWS, sparse
+from morphocoverage.sampling_unit.contrast_cells import balanced_draws, sparse
 
 REPEATS = 3
 SCENARIOS = {
@@ -111,32 +112,18 @@ def randomization(rng, treated, control):
     return float(d), (np.sum(null >= abs(d) - 1e-12) + 1) / (N_PERM + 1)
 
 
-def balanced(rng, treated, control):
-    """``(median d, median p)`` over ``BALANCED_DRAWS`` draws of the same number of cells from
-    every repeat that is not too small to balance to (the package's ``sparse``)."""
+def balanced(rng, treated, control, normalise=False):
+    """``(d, p)`` of the package's balanced permutation test over the repeats that are not
+    too small to balance to (the package's ``sparse``), normalised to each repeat's control
+    when asked."""
     small = set(sparse(dict(enumerate(map(len, treated))))) | set(
         sparse(dict(enumerate(map(len, control))))
     )
     kept = [r for r in range(len(treated)) if r not in small]
-    per_t = min(len(treated[r]) for r in kept)
-    per_c = min(len(control[r]) for r in kept)
-    picks_t = np.concatenate(
-        [
-            treated[r][np.argsort(rng.random((BALANCED_DRAWS, len(treated[r]))), axis=1)[:, :per_t]]
-            for r in kept
-        ],
-        axis=1,
-    )
-    picks_c = np.concatenate(
-        [
-            control[r][np.argsort(rng.random((BALANCED_DRAWS, len(control[r]))), axis=1)[:, :per_c]]
-            for r in kept
-        ],
-        axis=1,
-    )
-    d = cohen_d(picks_t, picks_c)
-    p = stats.ttest_ind(picks_t, picks_c, axis=1).pvalue
-    return float(np.median(d)), float(np.median(p))
+    d, p = balanced_draws([treated[r] for r in kept], [control[r] for r in kept], rng, normalise)[
+        :2
+    ]
+    return float(d), float(p)
 
 
 def tests(rng, control, treated, extra):
@@ -150,7 +137,7 @@ def tests(rng, control, treated, extra):
     d, out["pooled_norm"] = randomization(rng, np.concatenate(norm_t), np.concatenate(norm_every))
     out["d_pooled_norm"] = d
     out["d_balanced"], out["balanced"] = balanced(rng, treated, control)
-    out["d_balanced_norm"], out["balanced_norm"] = balanced(rng, norm_t, norm_c)
+    out["d_balanced_norm"], out["balanced_norm"] = balanced(rng, treated, control, True)
     means_t = np.array([t.mean() for t in treated])
     means_c = np.array([c.mean() for c in control])
     out["paired_t"] = stats.ttest_1samp(means_t - means_c, 0.0).pvalue

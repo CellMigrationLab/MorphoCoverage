@@ -8,10 +8,12 @@ import pandas as pd
 import pytest
 
 from morphocoverage.retrospective.report_status import conditions_status
+from morphocoverage.sampling_unit import contrast_cells
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.contrast_cells import (
     ALPHA,
     MIN_BALANCED,
+    balanced_draws,
     cell_randomization,
     cell_table,
     chance_without_effect,
@@ -139,6 +141,30 @@ def test_with_nothing_to_balance_a_control_from_other_repeats_gives_no_number():
     # A control from the condition's own repeats keeps its test as provided.
     own = trusted_test(*sides[:2], sides[1], 199, np.random.default_rng(0))
     assert np.isfinite(own["p"]) and not own["balanced"]
+
+
+def test_the_balanced_permutation_p_is_calibrated_without_an_effect(monkeypatch):
+    """#89: the balanced p is one permutation test (labels shuffled within each repeat, the
+    statistic on balanced draws), so without an effect it gives p <= 0.05 in 5% of
+    experiments, within Monte Carlo error, on raw and on normalised values. 800 experiments
+    of 3 repeats holding 36/12/12 cells against 20 a repeat, with a gain and a level per
+    repeat that both wells share (owner, 2026-10-05)."""
+    monkeypatch.setattr(contrast_cells, "BALANCED_DRAWS", 10)
+    monkeypatch.setattr(contrast_cells, "BALANCED_PERMUTATIONS", 99)
+    rng = np.random.default_rng(7)
+    experiments = 800
+    hits = {False: 0, True: 0}
+    for _ in range(experiments):
+        treated, control = [], []
+        for cells in (36, 12, 12):
+            gain, level = np.exp(rng.normal(0, 0.2)), 10 + rng.normal(0, 1)
+            treated.append(gain * (level + rng.normal(0, 1, cells)))
+            control.append(gain * (level + rng.normal(0, 1, 20)))
+        for scale in hits:
+            hits[scale] += balanced_draws(treated, control, rng, scale)[1] <= ALPHA
+    error = 3 * np.sqrt(ALPHA * (1 - ALPHA) / experiments)
+    for count in hits.values():
+        assert abs(count / experiments - ALPHA) < error
 
 
 def test_a_withheld_test_leaves_the_correction_family():
