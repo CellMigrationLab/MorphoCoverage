@@ -176,6 +176,9 @@ def _paired(row: pd.Series, n: int, word: str) -> tuple[bool, str]:
     q, p, which = row["q_paired_t_normalised"], row.get("p_paired_t_normalised"), "normalised"
     if pd.isna(q):
         q, p, which = row["q_paired_t"], row.get("p_paired_t"), "raw"
+    if pd.isna(q) and n >= MIN_REPEATS:
+        # Enough repeats, but their values are all equal (``paired_t``): no spread to test.
+        return False, f"no paired test: the change is the same in every {word}"
     if pd.isna(q):
         return False, f"the paired test needs {count(MIN_REPEATS, word)}"
     confirmed = bool(q <= ALPHA)

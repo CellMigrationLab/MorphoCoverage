@@ -73,6 +73,15 @@ def test_the_normalised_paired_test_is_read_and_a_disagreeing_raw_one_named():
     assert "paired t-test on the 3 repeat means q 0.010; on raw values q 0.20" in text
 
 
+def test_three_equal_repeat_changes_are_not_read_as_too_few_repeats():
+    """#90: with 3 repeats whose changes are all equal (0 for a label absent from both sides)
+    the paired test has no spread; the reading said it needs 3 repeats."""
+    readings = condition_readings(_contrast([_row("A", 0, 0, np.nan, np.nan)]))
+    [text] = readings["reading"]
+    assert "needs 3" not in text
+    assert "no paired test: the change is the same in every biological repeat" in text
+
+
 def test_one_repeat_is_its_own_verdict():
     readings = condition_readings(_contrast([_row("A", 1, 0, np.nan, np.nan, n=1)]))
     assert readings["verdict"].iloc[0] == ONE_REPEAT
