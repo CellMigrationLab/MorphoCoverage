@@ -4,6 +4,8 @@
   ``stop_on="rule"`` keeps the stop on every rule's own verdict.
 - #340: a normalised view, or a rule's label, applies or says why not; any other error
   raises.
+- #75: under the PCA, each axis's strongest loadings, and the PCs that hold 90% of the
+  variance.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import pandas as pd
 import pytest
 
 from morphocoverage import FixedFOVStrategy, ObjectiveConfig
+from morphocoverage.embedding import embed
 from morphocoverage.evidence import Component
 from morphocoverage.policies import EffortPolicy
 from morphocoverage.strategies.base import SamplingStrategy
@@ -193,3 +196,71 @@ def test_340_the_rules_line_names_an_other_rule_and_raises_on_a_broken_label(mon
     monkeypatch.setattr(_html_sections, "rule_label", broken)
     with pytest.raises(ValueError, match="a broken label"):
         what_checked(setup)
+
+
+# --- #75: the PCA axes in features ------------------------------------------------------
+
+
+def _shared_axis_tables(conditions=("ctrl", "drug")):
+    """``a`` and ``b`` share one strong axis, ``e`` and ``g`` are noise, ``flat`` is constant."""
+    rng = np.random.default_rng(1)
+    n = 240
+    shared = rng.normal(0, 1, n)
+    objects = pd.DataFrame(
+        {
+            "condition": np.repeat(conditions, n // 2),
+            "biological_repeat": "r1",
+            "image_file": [f"f{i // 10}.tif" for i in range(n)],
+            "a": shared + rng.normal(0, 0.1, n),
+            "b": -shared + rng.normal(0, 0.1, n),
+            "e": rng.normal(0, 1, n),
+            "g": rng.normal(0, 1, n),
+            "flat": 1.0,
+        }
+    )
+    return objects, objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+
+
+def _pca_caption(objects, fovs, top=(), held=""):
+    embedding = embed(objects, fovs, features=["a", "b", "e", "g", "flat"], top=top, umap=False)
+    return _html_figures._set(embedding, "pc", {"ctrl": 0, "drug": 1}, "raw", held=held)[
+        "caption"
+    ], embedding
+
+
+def test_75_each_axis_names_its_strongest_loadings_and_the_arrows_their_kind():
+    caption, embedding = _pca_caption(*_shared_axis_tables())
+    head, pc1, pc2 = caption.split("\n")
+    assert "arrows: the 4 largest loadings, as no feature ranks." in head
+    assert pc1.startswith("PC1, strongest loadings: ") and pc2.startswith("PC2, strongest")
+    assert pc1.endswith("a feature with + is higher to the right.")
+    assert pc2.endswith("a feature with + is higher towards the top.")
+    named = [part.split()[0] for part in pc1.split(": ")[1].split(";")[0].split(", ")]
+    assert named[:2] in (["a", "b"], ["b", "a"]) and len(named) == 3
+    assert "flat" not in caption
+    # Signs as drawn: a and b on opposite sides of PC1, as in the loadings.
+    loadings = embedding.loadings.set_index("feature")
+    assert f"a {loadings.at['a', 'pc1']:+.2f}" in pc1 and f"b {loadings.at['b', 'pc1']:+.2f}" in pc1
+    ranked, _ = _pca_caption(*_shared_axis_tables(), top=("e",), held=", 3 PCs hold 90% of it")
+    assert "of the variance, 3 PCs hold 90% of it; arrows: the loadings of the best-ranked" in (
+        ranked
+    )
+    assert ranked.split("\n")[1:] == [pc1, pc2]  # the ranking does not change the loadings
+
+
+def test_75_the_condition_labels_do_not_change_the_loadings():
+    caption, _ = _pca_caption(*_shared_axis_tables())
+    relabelled, _ = _pca_caption(*_shared_axis_tables(("drug", "ctrl")))
+    assert caption == relabelled
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_75_the_page_counts_the_pcs_that_hold_90_percent(signed_report, tmp_path):
+    result, objects, fovs = signed_report
+    markup, _ = embeddings(result, objects, fovs, tmp_path)
+    data = json.loads(re.search(r'id="embedding-data">(.*?)</script>', markup).group(1))
+    caption = data["sets"]["raw"]["PCA"]["caption"]
+    k = result.results["populations"].populations.settings["components"]
+    assert f"of the variance, {k} PCs hold 90% of it; arrows: " in caption
+    assert caption.count("strongest loadings: ") == 2
+    assert 'class="caption note" style="white-space: pre-line"' in markup

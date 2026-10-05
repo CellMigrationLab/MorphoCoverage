@@ -27,6 +27,7 @@ from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, sorted_labels
 from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_KEYS, PANEL_TITLES
+from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
 from ._html_data import data_buttons, download, embedding_data, feature_data, json_island
 from ._html_plotly import feature_specs, interactive_caption
 from ._populations import population_of
@@ -266,12 +267,47 @@ def _extras(
     return extra
 
 
+# The strongest loadings named under the PCA for each axis (#75).
+TOP_LOADINGS = 3
+
+
+def _held(result: Report) -> str:
+    """How many PCs hold ``VARIANCE`` of the variance of the declared values, as the
+    populations counted them (``populations._components``), as a clause; empty without."""
+    found = result.results.get("populations")
+    if found is None:
+        return ""
+    k = found.populations.settings.get("components")
+    if not k:
+        return ""
+    many = f"{k} or more" if k >= MAX_COMPONENTS else str(k)
+    return f", {many} PCs hold {percent(VARIANCE)} of it"
+
+
+def _loading_lines(loadings: pd.DataFrame, explained: tuple[float, float]) -> list[str]:
+    """One line per shown PC: its ``TOP_LOADINGS`` largest loadings by size, with signs on
+    the axis as drawn (a PC that holds no variance is left out)."""
+    lines = []
+    sides = ((1, explained[0], "to the right"), (2, explained[1], "towards the top"))
+    for axis, share, side in sides:
+        if share <= 0:
+            continue
+        column = loadings[f"pc{axis}"]
+        strongest = column.abs().sort_values(ascending=False, kind="stable").index
+        named = ", ".join(
+            f"{loadings.at[i, 'feature']} {column[i]:+.2f}" for i in strongest[:TOP_LOADINGS]
+        )
+        lines.append(f"PC{axis}, strongest loadings: {named}; a feature with + is higher {side}.")
+    return lines
+
+
 def _set(
     embedding: Embedding,
     method: str,
     order: dict,
     values: str,
     extras: tuple[list[str], list[str], str | None] = ([], [], None),
+    held: str = "",
 ) -> dict[str, Any] | None:
     x, y = (f"{method}1", f"{method}2")
     points = embedding.points.dropna(subset=[x, y])
@@ -293,20 +329,22 @@ def _set(
         first, second = embedding.explained
         loadings = embedding.loadings
         shown = loadings[loadings["top"]]
+        drawn = "the loadings of the best-ranked features"
         if shown.empty:
             size = np.hypot(loadings["pc1"], loadings["pc2"])
             shown = loadings.loc[size.sort_values(ascending=False).index[:5]]
+            drawn = f"the {len(shown)} largest loadings, as no feature ranks"
         reach = 0.8 * float(np.nanmax(np.hypot(points[x], points[y])) or 1.0)
         longest = float(np.hypot(shown["pc1"], shown["pc2"]).max()) or 1.0
         arrows = [
             [r.feature, round(r.pc1 / longest * reach, 3), round(r.pc2 / longest * reach, 3)]
             for r in shown.itertuples()
         ]
-        caption = (
+        head = (
             f"PCA of {n} standardised features ({values} values): PC1 {percent(first)} and "
-            f"PC2 {percent(second)} of the variance; arrows: the loadings of the best-ranked "
-            "features."
+            f"PC2 {percent(second)} of the variance{held}; arrows: {drawn}."
         )
+        caption = "\n".join([head, *_loading_lines(loadings, embedding.explained)])
         labels_xy = (f"PC1 ({percent(first)})", f"PC2 ({percent(second)})")
     else:
         arrows = []
@@ -420,9 +458,19 @@ def embeddings(
         if CONDITION_COLUMN in first
         else [len(first)]
     )
+    # The populations counted the PCs of the declared values: said on their set only.
+    declared = "normalised" if setup.normalize is not None else "raw"
+    held = _held(result)
     sets = {
         values: {
-            method: _set(embedding, short, order, values, (features, populations, label))
+            method: _set(
+                embedding,
+                short,
+                order,
+                values,
+                (features, populations, label),
+                held if values == declared else "",
+            )
             for method, short in (("PCA", "pc"), ("UMAP", "umap"))
         }
         for values, embedding in embeddings.items()
@@ -484,7 +532,7 @@ def embeddings(
         "feature to see where its high and low values sit; ◯ rings a population.</span></div>"
         '<div class="viz-body"><div class="pl-embed"></div>'
         '<div class="selection" aria-live="polite"></div></div>'
-        '<p class="caption note"></p>'
+        '<p class="caption note" style="white-space: pre-line"></p>'
         + (f'<p class="note">{html.escape(note)}</p>' if note else "")
         + f'<p class="tools">Data behind the maps: {data_buttons(data_files)}</p>'
         '<p class="note">Both describe, they do not test: a separation is a pattern to read '

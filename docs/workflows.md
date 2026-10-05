@@ -643,6 +643,11 @@ loadings, so the axes read in features; and a UMAP (`umap-learn`, seeded by
 of every condition). Both describe, they do not test: a separation is a
 pattern to read with question 9's tests, and on raw values a separation can
 be a batch between repeats, which `normalize="control_mean"` takes out.
+Under the page's PCA, one line per axis names its three strongest loadings
+with their signs on the axis as drawn, whatever the ranking, and the caption
+says how many PCs hold 90% of the variance (counted by the populations) and
+which arrows are drawn: the best-ranked features, or without a ranking the
+five largest loadings.
 
 When `control` names a condition and the FOV table holds other conditions,
 the report also answers question 9, "Do the conditions differ, and how
