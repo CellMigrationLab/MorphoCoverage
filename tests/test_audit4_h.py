@@ -459,3 +459,21 @@ def test_issue_148_a_caution_answering_a_question_not_assessed_raises_its_status
     assert added("a caution about these data", "populations") is Status.OK
     assert added("a caution", status=Status.PROBLEM) is Status.PROBLEM
     assert added(assumption("a standing note")) is Status.OK
+
+
+def test_issue_151_the_coverage_note_names_only_the_analyses_that_ran():
+    from morphocoverage.strategies import FixedFOVStrategy
+
+    setup = Setup(readout="x", features=("x", "y"))
+    (note, *_) = coverage_notes({"variability": object()}, setup)
+    assert "only, so a heavy tail or a between-well spread in the other declared features (y)" in (
+        " ".join(note.split())
+    )
+    assert "enter" not in note and "novelty" not in note
+    ran = {"variability": object(), "unusual": object(), "ranking": object()}
+    (note, *_) = coverage_notes(ran, setup)
+    assert "(y) enter the unusual cells and the feature ranking, so" in " ".join(note.split())
+    custom = Setup(readout="x", features=("x", "y"), rules=(FixedFOVStrategy(4),))
+    (note, *_) = coverage_notes(ran, custom)
+    assert "stopping rule" not in note
+    assert "The Foundation and the inspection's influence" in note
