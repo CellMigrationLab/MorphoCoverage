@@ -17,6 +17,7 @@ from morphocoverage.sampling_unit.contrast_sampling import (
     projected_fields,
     sampling_row,
 )
+from morphocoverage.sampling_unit.repeat_plan import repeat_plan
 from morphocoverage.sampling_unit.repeat_plan_text import plan_parts
 from morphocoverage.statistics import cohen_d
 from morphocoverage.workflows._html_sections import _resolution
@@ -259,3 +260,23 @@ def test_the_report_says_plainly_when_more_wells_not_fields_would_resolve_it():
     # The plan's fields a side per repeat take the same projection.
     plan = " ".join(" ".join(plan_parts(contrast, full=True)[0]).split())
     assert plan.endswith("more wells or biological repeats")
+
+
+def test_twice_the_fields_do_not_reduce_the_repeats_needed_when_the_wells_blur_it():
+    """#96: the plan halved the whole sampling error of each repeat with twice the fields,
+    so a wells-limited difference read "more wells or biological repeats" for the fields
+    and 29 repeats with twice the fields. Only the part within wells halves now: the two
+    repeat counts agree."""
+    contrast = condition_contrast(
+        *_blurred_by_wells(), feature="x", control={"condition": "control"}, n_draws=5
+    )
+    [row] = contrast.plan.to_dict("records")
+    assert np.isinf(row["fields_per_repeat"])
+    assert row["repeats_needed_twice_fields"] == row["repeats_needed"]
+    # Without a part between wells, twice the fields halve the whole error, as before.
+    table = contrast.table.assign(between_share=0.0)
+    [old] = repeat_plan(table).to_dict("records")
+    assert old["repeats_needed_twice_fields"] < old["repeats_needed"]
+    # All between wells: twice the fields change nothing, whatever the counts.
+    [same] = repeat_plan(contrast.table.assign(between_share=1.0)).to_dict("records")
+    assert same["repeats_needed_twice_fields"] == same["repeats_needed"]

@@ -21,7 +21,9 @@ fields resampled as acquired, ``contrast_sampling``):
   column stays for the advice of "Did I image enough?" (``_html_sections``);
 - **the repeats needed**: the fewest biological repeats (at most ``MAX_REPEATS``)
   for which a paired t-test on the repeat values reaches ``power`` at the
-  correction the report uses, with the fields acquired and with twice as many.
+  correction the report uses, with the fields acquired and with twice as many (which
+  halve only the part of the sampling error within wells, ``between_share``; owner,
+  2026-10-05).
   The values are the test's (``contrast_repeats``): the log of each repeat's ratio of the
   condition's mean to the control's when every mean is positive (``planned_on``
   ``"log ratio"``, the change a fold change ``change``), else the difference of the means
@@ -195,6 +197,14 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
         d_within = float(np.mean(((block["d_high"] - block["d_low"]) / (2 * _Z)) ** 2))
         planned_on, values, errors = _test_values(block)
         within = float(np.mean(errors**2))
+        # Twice the fields halve only the part of each repeat's sampling error within wells
+        # (``between_share``, owner 2026-10-05, #96); the part between wells stays.
+        shares = (
+            block["between_share"].fillna(0.0).to_numpy(float)
+            if "between_share" in block
+            else np.zeros(len(block))
+        )
+        within_twice = float(np.mean(errors**2 * (shares + (1 - shares) / 2)))
         mean = float(values.mean())
         row["within_se"] = float(np.sqrt(d_within))
         row["planned_on"] = planned_on
@@ -204,8 +214,11 @@ def repeat_plan(table: pd.DataFrame, alpha: float = ALPHA, power: float = POWER)
             row["between_sd"] = float(np.sqrt(max(0.0, float(np.var(d, ddof=1)) - d_within)))
             between = max(0.0, float(np.var(values, ddof=1)) - within)
             row["limited_by"] = "between repeats" if between > within else "within repeats"
-            for column, factor in (("repeats_needed", 1), ("repeats_needed_twice_fields", 2)):
-                sd = float(np.sqrt(between + within / factor))
+            for column, error in (
+                ("repeats_needed", within),
+                ("repeats_needed_twice_fields", within_twice),
+            ):
+                sd = float(np.sqrt(between + error))
                 row[column] = repeats_needed(mean, sd, row["alpha_planned"], power)
         rows.append(row)
     return pd.DataFrame(rows, columns=PLAN_COLUMNS)

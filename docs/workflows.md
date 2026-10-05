@@ -200,7 +200,8 @@ which more fields of the same wells do not reduce, and a part within wells, whic
 shrinks as 1/fields. When the part between wells alone is as wide as the difference,
 the answer is that more fields will not resolve it: more wells or biological repeats.
 With one well a side the interval holds no variation between wells, and the
-projection is from its fields alone. Then one feature at a time,
+projection is from its fields alone. The plan's repeats needed with twice the fields halve
+only that part within wells too. Then one feature at a time,
 as tabs: its comparisons, the precision of each well's own mean and its table within
 each repeat; the rare phenotype and the fingerprint have their own tabs after the
 features. What every tab would repeat (that this is per repeat, what each well's own
