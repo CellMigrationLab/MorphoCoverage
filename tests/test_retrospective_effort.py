@@ -238,7 +238,7 @@ def test_blank_sample_labels_are_refused_rather_than_pooled_into_one_sample(blan
     rng = np.random.default_rng(3)
     objects, fovs = _simulate(rng, TRUTH, 3, 4, 3, 5)
     fovs.loc[fovs["well"].isin(["W2", "W3"]), "well"] = blank
-    with pytest.raises(ValueError, match="'well' contains missing or blank values"):
+    with pytest.raises(ValueError, match="'well' contains missing values or blank text"):
         effort_projection(
             objects.drop(columns="well"),
             fovs,

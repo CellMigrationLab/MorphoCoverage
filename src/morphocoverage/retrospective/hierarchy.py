@@ -98,7 +98,9 @@ class SamplingHierarchy:
             # Blank text is missing too, as for the schema's identity columns: several
             # blank wells would otherwise become one sample.
             if empty_values(fovs[column]).any():
-                raise ValueError(f"hierarchy column {column!r} contains missing or blank values")
+                raise ValueError(
+                    f"hierarchy column {column!r} contains missing values or blank text"
+                )
         repeated = fovs.duplicated(subset=levels, keep=False)
         if repeated.any():
             row = fovs.loc[repeated, levels].iloc[0].to_dict()
