@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import html
 import json
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -208,8 +209,14 @@ def feature_data(
     return files
 
 
+def _stem(key: str) -> str:
+    """``raw, DINO`` as a file name: ``raw_DINO``."""
+    return re.sub(r"[^\w.-]+", "_", key)
+
+
 def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[str, str]]:
-    """Every point of the PCA and UMAP, and the loadings, per kind of values."""
+    """Every point of the PCA and UMAP, and the loadings, per kind of values (and feature
+    table, ``raw, DINO``)."""
     files = []
     for values, embedding in embeddings.items():
         points = embedding.points.rename(
@@ -218,11 +225,11 @@ def embedding_data(embeddings: Mapping[str, Any], folder: Path) -> list[tuple[st
         first = [c for c in ("PC1", "PC2", "UMAP1", "UMAP2") if c in points]
         points = points[first + [c for c in points.columns if c not in first]]
         label = f"Points, {values} (CSV)" if len(embeddings) > 1 else "Points (CSV)"
-        files.append((write_csv(points, folder, f"embedding_{values}.csv"), label))
+        files.append((write_csv(points, folder, f"embedding_{_stem(values)}.csv"), label))
     for values, embedding in embeddings.items():
         loadings = embedding.loadings.rename(columns={"pc1": "PC1", "pc2": "PC2", "top": "arrow"})
         label = f"Loadings, {values} (CSV)" if len(embeddings) > 1 else "Loadings (CSV)"
-        files.append((write_csv(loadings, folder, f"pca_loadings_{values}.csv"), label))
+        files.append((write_csv(loadings, folder, f"pca_loadings_{_stem(values)}.csv"), label))
     return files
 
 

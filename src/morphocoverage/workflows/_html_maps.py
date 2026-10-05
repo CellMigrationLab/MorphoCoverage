@@ -55,12 +55,12 @@ def _extras(
         extra["pop"] = [index.get(v, -1) for v in points["population"]]
     if label and label in points:
         extra["lab"] = [int(bool(v)) if pd.notna(v) else 0 for v in points[label]]
-    # A feature some point lacks (an observation missing it, on another table's map) is not
-    # offered for colouring there.
+    # On another table's map, an observation the explainable map left out (a missing value)
+    # has none (null): drawn grey when the map is coloured by a feature.
     extra["z"] = {
-        f: [round(float(v), 2) for v in points[f"z:{f}"]]
+        f: [round(float(v), 2) if pd.notna(v) else None for v in points[f"z:{f}"]]
         for f in features
-        if f"z:{f}" in points and points[f"z:{f}"].notna().all()
+        if f"z:{f}" in points
     }
     return extra
 
@@ -396,23 +396,24 @@ def embeddings(
     }
     # Each map once in the files: an other table's is the same in both values.
     taken: set[str] = set()
-    stems = {space: file_stem(space, taken) for space in spaces[1:]}
-    files = {
-        values if space == spaces[0] else f"{values}_{stems[space]}": embedding
+    stems = {space: file_stem(space, taken) for space in spaces}
+    shown = [
+        (values, space, embedding)
         for values, view in maps.items()
         for space, embedding in view.items()
         if values == "raw" or space not in (setup.feature_tables or {})
-    }
-    data_files = embedding_data(files, folder)
+    ]
+    data_files = embedding_data(
+        {f"{values}, {s}" if several else values: e for values, s, e in shown}, folder
+    )
     comparison = _comparison(separations[declared]) if several else ""
     if separations[declared] is not None:
         path = write_csv(separations[declared].table, folder, "separation.csv")
         data_files.append((path, "Neighbours sharing the condition, per repeat (CSV)"))
     static = []
-    for key, embedding in files.items():
+    for values, space, embedding in shown:
         drawn = embedding_figures(embedding, control=control, highlight=hits)
-        values, _, stem = key.partition("_")
-        space = next((s for s, x in stems.items() if x == stem), spaces[0])
+        key = f"{values}_{stems[space]}" if several else values
         for method, figure in drawn.items():
             name = f"{method}_{key}"
             caption = f"{method.upper()}, {values}" + (f", {space}" if several else "")
