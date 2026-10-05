@@ -438,3 +438,24 @@ def test_p9_4_effort_intervals_do_not_depend_on_the_row_order_of_the_tables():
         objects.sample(frac=1, random_state=1), fovs.sample(frac=1, random_state=2)
     )
     pd.testing.assert_frame_equal(first, shuffled, check_exact=False, rtol=1e-9)
+
+
+def test_issue_148_a_caution_answering_a_question_not_assessed_raises_its_status():
+    from morphocoverage._caveats import assumption, caveat_lines
+    from morphocoverage._style import Status
+    from morphocoverage.workflows._document import with_text
+
+    def added(text: str, key: str = "profile", status: Status = Status.OK) -> Status:
+        document = MicroscopistReport(
+            sections={key: "  needs it"},
+            profile=pd.DataFrame(),
+            inputs={key: "not assessed"},
+            statuses={key: Status.NOT_ASSESSED},
+        )
+        short = "\n".join(caveat_lines([text], indent=2))
+        return with_text(document, key, text, status=status, short_text=short).statuses[key]
+
+    assert added("a caution about these data") is Status.CAUTION
+    assert added("a caution about these data", "populations") is Status.OK
+    assert added("a caution", status=Status.PROBLEM) is Status.PROBLEM
+    assert added(assumption("a standing note")) is Status.OK

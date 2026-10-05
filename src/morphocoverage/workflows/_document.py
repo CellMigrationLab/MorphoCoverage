@@ -408,7 +408,7 @@ def with_text(
         short.pop(key, None)
         if short_text is not None:
             short[key] = short_text
-        statuses[key] = status
+        statuses[key] = caveat_status(status, short.get(key, sections[key]), key)
         headlines[key] = headline or text.split(". ")[0].split("\n")[0].rstrip(".")
     else:
         # One "Assumptions:" block per section, at its end; a caution raises the status.
