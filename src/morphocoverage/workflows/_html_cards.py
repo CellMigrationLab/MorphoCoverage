@@ -195,10 +195,12 @@ def _candidate(row: Any) -> str:
     return f"{row.feature}: {_direction(row)} ({size}cell-level d {row.d:+.2f}, adjusted p {q})"
 
 
-def _condition_bullet(condition: Any, rows: Any, beyond: list[str], split: str = "") -> str:
+def _condition_words(
+    condition: Any, rows: Any, beyond: list[str], split: str = ""
+) -> tuple[str, str]:
+    """A condition's words and its named features (markup), for its bullet."""
     rows = rows.assign(_size=rows["d"].abs()).sort_values("_size", ascending=False)
     repeats = int(rows["repeats"].max())
-    name = f"<strong>{html.escape(str(condition))}</strong>"
     listed = ""
     confirmed = rows[rows["confirmed"].fillna(False).astype(bool)]
     candidates = rows[rows["passes"].fillna(False).astype(bool)]
@@ -234,7 +236,14 @@ def _condition_bullet(condition: Any, rows: Any, beyond: list[str], split: str =
         words += f"; beyond the mean, the distribution differs for {listing(beyond, 4)}"
     if split:
         words += f"; {split}"
-    return f"<li>{name}: {html.escape(words)}{listed}</li>"
+    return words, listed
+
+
+# A condition with nothing to say beyond these words is one of the quiet ones.
+_QUIET = ("no feature significant across repeats", "no candidate in the cell-level screen")
+# From this many quiet conditions on, they share one line (stress test, 2026-10-05: 150
+# bullets saying the same).
+QUIET_FOLDED = 4
 
 
 def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
@@ -273,14 +282,25 @@ def significant_summary(result: Any, annotate: Callable[[str], str]) -> str:
             "an independent draw, so it asks whether these wells differ, not whether the "
             "difference repeats):"
         )
-    bullets = []
+    bullets, quiet = [], {}
     for condition, rows in tests.groupby("condition", sort=False):
         beyond = []
         if differing is not None and len(differing):
             mine = differing[differing["condition"] == condition]
             beyond = [str(f) for f in mine["feature"]]
         split = split_words(distribution, condition)
-        bullets.append(_condition_bullet(condition, rows, beyond, split))
+        words, listed = _condition_words(condition, rows, beyond, split)
+        if words in _QUIET and not listed:
+            quiet.setdefault(words, []).append(str(condition))
+        name = f"<strong>{html.escape(str(condition))}</strong>"
+        bullets.append((words, f"<li>{name}: {html.escape(words)}{listed}</li>"))
+    folded = {w for w, names in quiet.items() if len(names) >= QUIET_FOLDED}
+    bullets = [b for w, b in bullets if w not in folded] + [
+        f"<li><strong>{count(len(quiet[w]), 'condition')}</strong>: {html.escape(w)} "
+        f"({html.escape(listing(quiet[w], 6))})</li>"
+        for w in quiet
+        if w in folded
+    ]
     unpaired = [str(c) for c in getattr(discovery, "settings", {}).get("unpaired", [])]
     return (
         f'<div class="summary"><p>{annotate(html.escape(head))}</p>'

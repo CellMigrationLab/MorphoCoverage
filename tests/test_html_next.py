@@ -194,3 +194,29 @@ def test_the_integrity_fields_are_listed_in_the_code_with_the_others():
     assert _field_values("condition=a", key) is None
     code = html.unescape(fields_next([("a", "1", "w", "f1"), ("a", "1", "w", "f1")], key))
     assert code.count("('a', '1', 'w', 'f1')") == 1 and "# ..." not in code
+
+
+def test_conditions_with_nothing_to_say_share_one_line():
+    """With many conditions, those with no feature significant and no trend share a line
+    (stress test, 2026-10-05: 150 bullets saying the same)."""
+    rows = []
+    for k in range(6):
+        for feature in ("area", "dna"):
+            rows.append(
+                {
+                    "feature": feature,
+                    "condition": f"siGENE{k:03d}",
+                    "control_condition": "ctrl",
+                    "repeats": 3,
+                    "lower": 1,
+                    "higher": 2,
+                    "d": 0.1,
+                    "passes": False,
+                    "q_cells": 0.6,
+                    "q_paired": 0.7,
+                    "confirmed": k == 0 and feature == "area",
+                }
+            )
+    words = _words(significant_summary(_Result(pd.DataFrame(rows)), str))
+    assert "5 conditions : no feature significant across repeats (siGENE001" in words
+    assert words.count("siGENE000") == 1 and "1 feature" in words
