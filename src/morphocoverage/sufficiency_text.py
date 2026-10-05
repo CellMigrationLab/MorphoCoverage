@@ -19,9 +19,10 @@ from typing import Any
 
 import pandas as pd
 
+from ._caveats import _sentence, is_assumption
 from ._style import rule_label
-from .bounds import EXTRA_TRIALS_LIMIT
 from ._wording import count, listing, number, percent
+from .bounds import EXTRA_TRIALS_LIMIT
 from .evidence import Direction
 from .results import StrategyResult
 from .strategies.support_novelty import SupportNoveltyEstimator
@@ -97,9 +98,12 @@ def _enough_answer(final: Mapping[str, Any], stops: Sequence[Mapping[str, Any]])
         head = f"{criterion}: yes, its threshold was met by the {acquired} acquired FOVs"
     if final.get("assumes_spatial_uniformity"):
         head += " (treats observations as independent draws: assumes a spatially uniform sample)"
-    # The rule's own caveats (FOV size related to FOV mean, SD above 50% CV) follow its answer.
-    warnings = final.get("warnings")
-    caution = f" Caution: {warnings}." if isinstance(warnings, str) and warnings else ""
+    # The rule's own caveats (FOV size related to FOV mean, SD above 50% CV) follow its answer;
+    # a standing assumption among them is stated, never called a caution (_caveats).
+    listed = tuple(final.get("warning_list") or ())
+    warnings = "; ".join(text for text in listed if not is_assumption(text))
+    caution = f" Caution: {warnings}." if warnings else ""
+    caution += "".join(f" {_sentence(text)}" for text in listed if is_assumption(text))
     ever_met = any(int(row["orders"]) > int(row["never_stopped"]) for row in stops)
     # Beside every stop, what it rests on: the order check, or the random-sample assumption.
     caution += _order_sentence(final) if final["verdict"] == "stop" or ever_met else ""

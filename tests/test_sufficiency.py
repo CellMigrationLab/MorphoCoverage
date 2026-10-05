@@ -118,6 +118,26 @@ def test_an_acquisition_without_fovs_is_refused_whatever_its_groups(groups, nove
         )
 
 
+def test_a_rules_standing_assumption_is_not_called_a_caution():
+    """#139: the plateau rule's standing assumption read "Caution:" in the answer column."""
+    from morphocoverage._caveats import assumption
+    from morphocoverage.strategies import DescriptorPlateauStrategy
+    from morphocoverage.sufficiency_text import _enough_answer
+
+    rule = DescriptorPlateauStrategy("feature_a", 0.05, 3, ORDER_COL)
+    answer = _report("homogeneous", [rule]).enough["answer"].iloc[0]
+    assert "Caution" not in answer and " The tolerance bounds how much the descriptors" in answer
+    row = {
+        "strategy": "custom",
+        "config_id": "c",
+        "policies": "",
+        "n_fovs": 5,
+        "verdict": "continue",
+        "warning_list": ("measured here", assumption("true of every dataset")),
+    }
+    assert _enough_answer(row, []).endswith(" Caution: measured here. True of every dataset.")
+
+
 def _novel_acquisition(n_fovs=12, state_fovs=(3, 7), outlier_fovs=(5,)):
     """Common cells everywhere; its own 3-cell state in ``state_fovs``, one odd cell elsewhere."""
     rng = np.random.default_rng(0)
