@@ -35,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 import warnings
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -368,10 +369,12 @@ def guide(
     (folder / "report_short.txt").write_text(result.summary() + "\n")
     (folder / "report_full.txt").write_text(result.summary(detail="full") + "\n")
     say(result.summary())
+    # The figures an earlier session left in figures/ are not this report's.
+    started = time.time() - 1
     page = html_report(
         result, scan.objects, scan.fovs, folder, attach=[folder / "scan.txt", folder / ANSWERS_FILE]
     )
-    archive = zip_results(folder)
+    archive = zip_results(folder, since=started)
     say(
         f"Saved in {folder}: {page.name}, one file to open with a double click (it carries "
         f"its figures and files up to {EMBED_BUDGET // 1024**2} MB, to share as it is; past "

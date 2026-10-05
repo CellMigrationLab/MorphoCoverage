@@ -567,17 +567,23 @@ def _settings(result: Report) -> str:
     return text if text.startswith("Settings") else ""
 
 
-def zip_results(folder: str | Path) -> Path:
+def zip_results(folder: str | Path, *, since: float | None = None) -> Path:
     """Every file of ``folder`` (its subfolders included) in ``folder/<name>.zip``, for
-    archiving or sending as one file; a zip already there is replaced, never included."""
+    archiving or sending as one file; a zip already there is replaced, never included. With
+    ``since`` (a ``time.time()``), the figures modified before it are an earlier run's,
+    left out as the page leaves them out."""
     import zipfile
 
     folder = Path(folder)
     target = folder / f"{folder.name}.zip"
+    figures = folder / "figures"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(folder.rglob("*")):
-            if path.is_file() and path.suffix != ".zip":
-                archive.write(path, Path(folder.name) / path.relative_to(folder))
+            if not path.is_file() or path.suffix == ".zip":
+                continue
+            if since is not None and path.parent == figures and path.stat().st_mtime < since:
+                continue
+            archive.write(path, Path(folder.name) / path.relative_to(folder))
     return target
 
 

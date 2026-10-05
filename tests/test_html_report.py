@@ -2,7 +2,9 @@
 
 import base64
 import json
+import os
 import re
+import time
 import zipfile
 from pathlib import Path
 
@@ -146,6 +148,11 @@ def test_zip_holds_every_file_of_the_folder(tmp_path):
     archive = zip_results(folder)
     zip_results(folder)  # a second zip replaces the first, never contains it
     with zipfile.ZipFile(archive) as opened:
+        assert sorted(opened.namelist()) == ["results/figures/a.png", "results/report.html"]
+    # A figure an earlier run left is not this report's: left out with since.
+    (folder / "figures" / "old.png").write_bytes(b"png")
+    os.utime(folder / "figures" / "old.png", (time.time() - 3600,) * 2)
+    with zipfile.ZipFile(zip_results(folder, since=time.time() - 60)) as opened:
         assert sorted(opened.namelist()) == ["results/figures/a.png", "results/report.html"]
 
 

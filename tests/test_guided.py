@@ -2,6 +2,9 @@
 (workflows.guided)."""
 
 import json
+import os
+import time
+import zipfile
 
 import numpy as np
 import pandas as pd
@@ -178,7 +181,15 @@ def test_an_unreadable_answers_file_is_offered_for_deletion(tmp_path):
 
 
 def test_the_session_ends_with_the_report_saved(tmp_path):
+    # A figure of an earlier session in this folder is not this report's.
+    (tmp_path / "figures").mkdir()
+    (tmp_path / "figures" / "stale.png").write_bytes(b"png")
+    os.utime(tmp_path / "figures" / "stale.png", (time.time() - 3600,) * 2)
     result, script = _run(_cells(), tmp_path, ["y", "", "", "", "all", "", ""])
+    with zipfile.ZipFile(tmp_path / f"{tmp_path.name}.zip") as archive:
+        names = archive.namelist()
+    assert f"{tmp_path.name}/figures/area.png" in names
+    assert f"{tmp_path.name}/figures/stale.png" not in names
     for name in ("scan.txt", "report_short.txt", "report_full.txt", ANSWERS_FILE):
         assert (tmp_path / name).exists()
     # The page, with the readout and the best-ranked features, then the PCA and UMAP of all
