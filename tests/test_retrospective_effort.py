@@ -229,3 +229,21 @@ def test_invalid_declarations_are_refused():
     assert (
         "Every biological repeat holds a single sample here" in short and "only 3 samples" in short
     )
+
+
+@pytest.mark.parametrize("blank", ["", "   ", None])
+def test_blank_sample_labels_are_refused_rather_than_pooled_into_one_sample(blank):
+    # Several wells with a blank label would otherwise become one sample, and
+    # change the sample count and the variance components (#240).
+    rng = np.random.default_rng(3)
+    objects, fovs = _simulate(rng, TRUTH, 3, 4, 3, 5)
+    fovs.loc[fovs["well"].isin(["W2", "W3"]), "well"] = blank
+    with pytest.raises(ValueError, match="'well' contains missing values or blank text"):
+        effort_projection(
+            objects.drop(columns="well"),
+            fovs,
+            feature="x",
+            hierarchy=SamplingHierarchy("image_file", "well", "biological_repeat"),
+            strata=[],
+            n_boot=20,
+        )

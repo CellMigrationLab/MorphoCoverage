@@ -127,6 +127,10 @@ def family(replay: ReplayResult, name: str, settings: Mapping[str, Any]) -> pd.D
     missing = set(settings) - set(replay.decisions["config_id"])
     if missing:
         raise ValueError(f"configurations not in the replay: {sorted(missing)}")
+    # Two rules at one setting would merge into one that stops at the earlier stop.
+    shared = pd.Series(list(settings.values()), dtype=object)
+    if shared.duplicated().any():
+        raise ValueError(f"settings must differ between configurations: {settings}")
     rows = replay.decisions[replay.decisions["config_id"].isin(list(settings))].copy()
     rows["family"] = name
     rows["setting"] = rows["config_id"].map(dict(settings))

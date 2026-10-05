@@ -134,6 +134,32 @@ def test_missing_values_leave_checks_unjudged_instead_of_crashing():
     assert result.table["not_judged"].sum() > 0
 
 
+def test_fields_with_a_missing_pairing_value_are_refused_not_dropped():
+    # Equality never matches a missing value: plate P2's fields would vanish and be
+    # reported as a stratum with no positive-control field (#227).
+    objects, fovs = _plate()
+    fovs["plate"] = fovs["biological_repeat"].where(fovs["biological_repeat"] == "P1")
+    with pytest.raises(ValueError, match=r"pair_cols \['plate'\] have missing values"):
+        _control(objects, fovs, BOTH, pair_cols=["plate"])
+
+
+def test_a_generator_of_features_is_read_once():
+    # The settings text used to consume it before validation (#222).
+    objects, fovs = _plate(plates=("P1",))
+    listed = _control(objects, fovs, BOTH, draws=3)
+    generated = representation_control(
+        objects,
+        fovs,
+        feature_cols=(c for c in FEATURES),
+        novelty=NOVELTY,
+        control=BOTH,
+        pair_cols=["biological_repeat"],
+        fovs_seen=6,
+        draws=3,
+    )
+    pd.testing.assert_frame_equal(listed.table, generated.table)
+
+
 def test_adding_a_plate_does_not_change_another_plates_rates():
     objects, fovs = _plate()
     one = fovs[fovs["biological_repeat"] == "P1"]

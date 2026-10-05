@@ -144,3 +144,38 @@ def test_redundancy_distance_is_found_where_neighbours_are_alike():
         bin_edges=[0, 150, 300, 600, 1200, 2500],
     ).iloc[0]
     assert uniform["redundancy_distance"] == pytest.approx(uniform["smallest_lag"])
+
+
+def test_pairs_closer_counts_every_pair_closer_than_the_distance():
+    # The distance is the mean lag of its bin, so that bin also holds closer pairs (#239).
+    objects, fovs = _gradient()
+    edges = [0, 250, 450, 650, 850, 1100, 2500]
+    row = redundancy_distance(
+        objects, fovs, feature_cols=["feature_a"], stage_cols=STAGE, bin_edges=edges
+    ).iloc[0]
+    xy = fovs[list(STAGE)].to_numpy(dtype=float)
+    lags = np.hypot(*(xy[:, None, :] - xy[None, :, :]).transpose(2, 0, 1))[np.triu_indices(60, 1)]
+    closer = int(np.sum(lags < row["redundancy_distance"]))
+    assert row["pairs_closer"] == closer
+    assert np.any((lags < row["redundancy_distance"]) & (lags >= 450))
+
+
+def test_one_stage_axis_given_twice_is_refused():
+    # ("stage_x", "stage_x") would run as a diagonal line: fake 2-D geometry (#232).
+    objects, fovs = _gradient()
+    twice = ("stage_x", "stage_x")
+    with pytest.raises(ValueError, match="not one axis twice"):
+        redundancy_distance(
+            objects, fovs, feature_cols=["feature_a"], stage_cols=twice, bin_edges=[0, 2500]
+        )
+    with pytest.raises(ValueError, match="not one axis twice"):
+        replay_acquisitions(
+            objects,
+            fovs,
+            feature_cols=["feature_a"],
+            strategies=[FixedFOVStrategy(4)],
+            criteria=[OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better")],
+            objective=POPULATION,
+            reservoir_fraction=0.3,
+            stage_cols=twice,
+        )

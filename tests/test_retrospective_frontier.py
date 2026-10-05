@@ -282,6 +282,15 @@ def test_invalid_requests_are_refused(mixed):
         frontier(replay, [renamed], criterion=MEAN.name, alphas=[0.1], unit_cols=[])
 
 
+def test_two_configurations_at_one_setting_are_refused(mixed):
+    # Merged, they would stop at the earlier of the two stops: a rule never replayed (#230).
+    oracles = [_oracle(2, 4), _oracle(2, 16)]
+    replay = _replay(*mixed, oracles, orders=1, splits=1)
+    with pytest.raises(ValueError, match="settings must differ"):
+        family(replay, "oracle", {s.config_id: 0.1 for s in oracles})
+    family(replay, "oracle", {s.config_id: s.estimators[0].hard for s in oracles})
+
+
 def test_the_interval_reads_in_the_direction_of_the_verdict():
     # fields_saved and its interval are negative when a rule costs fields; the sentence
     # "costs 1.3 more fields" must not be followed by an interval of -1.3 to -1.2.

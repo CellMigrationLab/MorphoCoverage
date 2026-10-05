@@ -194,3 +194,23 @@ def test_a_group_whose_stage_neighbours_cannot_be_compared_says_so():
     ]
     assert "Stage neighbours were not compared" in result.summary()
     assert "neighbour" not in set(result.fovs["reason"])
+
+
+def test_a_generator_of_features_is_read_once():
+    # The summaries' membership check used to consume it before validation (#222).
+    objects, fovs = _acquisition()
+    listed = _inspect(objects, fovs)
+    generated = inspect_fovs(
+        objects,
+        fovs,
+        feature_cols=(c for c in FEATURES),
+        summaries=[Summary("feature_b", 0.97)],
+        novelty=NOVELTY,
+    )
+    pd.testing.assert_frame_equal(listed.fovs, generated.fovs)
+
+
+def test_one_stage_axis_given_twice_is_refused():
+    # The neighbours of a diagonal line are not those of the stage (#232).
+    with pytest.raises(ValueError, match="not one axis twice"):
+        _inspect(*_acquisition(), stage_cols=("stage_x", "stage_x"))
