@@ -213,3 +213,27 @@ def test_the_fields_are_those_of_the_fov_table_empty_ones_included():
     assert scan_design(objects).design["fields"] == 54
     # No observation at all: zero fields, not a crash.
     assert scan_design(objects.iloc[:0]).design["per_field"] == (0, 0.0, 0)
+
+
+def test_a_condition_or_repeat_held_only_by_empty_fields_is_counted():
+    """The conditions and repeats are those of the FOV table, as its fields are (#363)."""
+    objects = _usual()
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    extra = [
+        {"condition": "drugC", "biological_repeat": "2026_01_01", "image_file": "c.tif"},
+        {"condition": "siCTRL", "biological_repeat": "2026_04_01", "image_file": "r.tif"},
+    ]
+    fovs = pd.concat([fovs, pd.DataFrame(extra)], ignore_index=True)
+    scan = scan_design(objects, fovs, control={"condition": "siCTRL"})
+    assert scan.design["fields"] == len(fovs) == 56
+    assert scan.design["conditions"] == ["siCTRL", "drugA", "drugB", "drugC"]
+    assert scan.design["repeats"][-1] == "2026_04_01" and len(scan.design["repeats"]) == 4
+    # Acquired but empty is 0 observations; never acquired stays blank.
+    assert scan.layout.loc["drugC", "2026_01_01"] == 0
+    assert scan.layout.loc["siCTRL", "2026_04_01"] == 0
+    assert pd.isna(scan.layout.loc["drugC", "2026_02_01"])
+    text = _flat(scan.summary())
+    assert "Conditions: siCTRL (the control), drugA, drugB and drugC." in text
+    assert "2026_04_01: the control only" in text
+    # Without the FOV table, only what the observations hold.
+    assert scan_design(objects).design["conditions"] == ["siCTRL", "drugA", "drugB"]

@@ -39,7 +39,9 @@ result = report(scan.objects, scan.fovs, setup)
   and which conditions each holds (one experiment, or separate acquisitions
   sharing the control, as in a screen), the technical repeats, the fields and
   the observations per field, the planes, the targets, the features, and the
-  observations per condition and repeat.
+  observations per condition and repeat. With a FOV table that passes the data
+  check, the fields, conditions and repeats are those it lists, a condition or
+  repeat held only by empty fields included, with 0 observations.
 - **Loaded correctly?** The data check (`check_tables`), the copy checks
   (`integrity_checks`: a field read twice, rows pasted into another field,
   a change of units), declared features holding one value in every row, and
