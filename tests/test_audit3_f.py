@@ -157,6 +157,7 @@ def _ninety_percent_result():
                 "status": "preserved" if draw < 9 else "not_preserved",
                 "reservoir_fovs": 4,
                 "stream_fovs": 8,
+                "holdout": f"{well}-{split}",
             }
             for well in ("A1", "A2")
             for split in range(9)
