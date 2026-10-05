@@ -145,6 +145,27 @@ def test_above_the_sample_size_every_cell_still_gets_a_population():
     assert full.settings["sampled"] == len(objects)
 
 
+def test_the_smallest_cluster_is_a_share_of_the_sample_not_of_the_whole_table():
+    """#87: the default min_cells was 0.5% of every observation, applied to the sample, so a
+    table ten times larger than max_points lost the planted mitoses (5%) altogether."""
+    tables = [_screen(seed) for seed in range(10)]
+    objects = pd.concat(
+        [o.assign(image_file=f"s{s}_" + o["image_file"]) for s, (o, _) in enumerate(tables)],
+        ignore_index=True,
+    )
+    fovs = pd.concat(
+        [f.assign(image_file=f"s{s}_" + f["image_file"]) for s, (_, f) in enumerate(tables)],
+        ignore_index=True,
+    )
+    found = find_populations(
+        objects, fovs, features=FEATURES, observation_unit="cell", max_points=500
+    )
+    assert len(found.table)
+    small = found.table.sort_values("share").iloc[0]["population"]
+    assert (found.labels[objects["mitotic"]] == small).mean() > 0.9
+    assert found.settings["sampled"] <= 501 and found.settings["min_cells"] == 15
+
+
 def test_the_points_carry_their_population_and_feature_values():
     objects, fovs = _screen()
     marked = objects.assign(population=np.where(objects["mitotic"], "P2", "P1"))
