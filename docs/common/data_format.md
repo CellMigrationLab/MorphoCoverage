@@ -265,7 +265,16 @@ Porosity (mean) = 1 − HDM: one measurement counted 4 times in each test
 family; keep one of them." Nothing is dropped or merged and no statistic
 changes: declare the features again with one of each group. Constant
 features are left to the few-distinct-values check, and other feature tables
-are not compared, since their dimensions are expected to correlate.
+are not compared, since their dimensions are expected to correlate. With
+several controls the check also runs within each experiment: a control, the
+conditions declared under it and its parent when one is linked. A relation
+found in some experiments but not on all rows is said once, naming where it
+holds: "in VEC and THBS5 only, Porosity (mean) = 1 − HDM; elsewhere they are
+not one measurement, so the experiments may have been processed
+differently." One that holds in every experiment, with other coefficients
+in each, is said as such. One that holds on all rows is said once, not again per
+experiment, and an experiment with fewer than 10 rows where both values are
+finite is not checked for that pair (owner, 2026-10-05).
 
 ## Minimal example
 

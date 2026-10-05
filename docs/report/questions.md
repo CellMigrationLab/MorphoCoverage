@@ -102,7 +102,9 @@ its observations, or that takes at most 25 values with the most common holding a
 kept in the analysis but named; and **duplicated or derived features**, declared features
 that repeat one measurement, one row per group: copies, exact affine relations such as
 1 − x or a change of units, and near copies at |r| ≥ 0.999, so that one measurement counts
-several times in each test family; nothing is dropped, keep one of them, owner 2026-10-05)
+several times in each test family, and with several controls also within each
+experiment, a relation found there only named with where it holds; nothing is dropped,
+keep one of them, owner 2026-10-05)
 and a line naming what
 was not declared and so not checked; the tables, what was checked (the
 declaration in short lines) and the declaration in full are under "Show more".

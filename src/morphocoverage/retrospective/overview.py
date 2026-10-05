@@ -29,6 +29,7 @@ from .._style import table as style_table
 from .._wording import column_word, count, listing
 from ..data_check import DataCheck, Problem, validate_input_tables
 from ..metadata import (
+    CONDITION_COLUMN,
     MORPHOBRICKS_GROUP_COLUMNS,
     TECHNICAL_REPEAT_COLUMN,
     WITHIN_FOV_METADATA_COLUMNS,
@@ -378,9 +379,12 @@ def dataset_overview(
     control: Mapping[str, Any] | None = None,
     data_check: DataCheck | None = None,
     feature_tables: Sequence[str] = (),
+    control_experiments: Mapping[Any, Sequence[Any]] | None = None,
 ) -> DatasetOverview:
     """Count what the tables hold (see the module). ``normalized`` is a sentence to print, and
     so is each of ``feature_tables`` (the other feature tables, ``workflows._feature_space``).
+    ``control_experiments`` (each of several controls' conditions) also checks the features
+    for duplicated or derived columns within each experiment (``_feature_relations``).
 
     Each column argument is used when the FOV table has it; a technical
     repeat is counted within its condition and repeat (well J23 of two
@@ -457,7 +461,7 @@ def dataset_overview(
         "data_checked": data_check is not None,
     }
     warnings = tuple(data_check.warnings) if data_check is not None else ()
-    checks = value_checks(data)
+    checks = value_checks(data, control_experiments, condition_col or CONDITION_COLUMN)
     return DatasetOverview(counts, layout, tuple(data.feature_cols), settings, warnings, checks)
 
 

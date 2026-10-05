@@ -106,7 +106,9 @@ def test_the_report_says_the_gap_where_the_data_and_the_comparisons_are(gap_repo
     overview = _flat(short[: short.index("What this acquisition was asked to preserve")])
     assert "⚠️ Controls apart in intensity: " in overview
     glance = _flat(short[: short.index("What is in the dataset")])
-    assert "values: controls apart in intensity" in glance
+    # The fixture's intensity is 160 x area in the dim experiment (VEC, THBS5): an exact
+    # relation within that experiment, named too (owner, 2026-10-05).
+    assert "values: duplicated or derived features and controls apart in intensity" in glance
     section = _flat(short[short.index("9. Do the conditions differ, and") :])
     assert f"⚠️ {gap_caution(gap_report.results['contrast'].settings['acquisition_gaps'])}" in (
         section
