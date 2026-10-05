@@ -18,8 +18,10 @@ from morphocoverage.sampling_unit.contrast_cells import (
     effective_per_well,
     normalised,
     sparse,
+    trusted_test,
 )
 from morphocoverage.sampling_unit.contrast_repeats import across_repeats
+from morphocoverage.sampling_unit.reading_text import _cell_version
 
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
@@ -122,6 +124,21 @@ def test_with_every_repeat_sparse_nothing_is_balanced():
     tiny = _side({"1": (4, 0.5), "2": (3, 0.5)}, {"1": 4, "2": 3}, 1)
     row = _cells(KD=tiny).loc["KD"]
     assert row["unbalanced"] and row["balanced_repeats"] == 0 and np.isnan(row["p_balanced"])
+
+
+def test_with_nothing_to_balance_a_control_from_other_repeats_gives_no_number():
+    """The table withholds the test as provided when its control pools a repeat the condition
+    lacks; with no balanced test to read instead, the reading and the feature screen used to
+    read that test (#292)."""
+    tiny = _side({"1": (4, 0.5), "2": (3, 0.5)}, {"1": 4, "2": 3}, 1)
+    row = _cells(KD=tiny).loc["KD"]
+    assert row["p_cells_normalised"] < 1 and _cell_version(row)[0] == ""
+    sides = tiny["treated_by_repeat"], tiny["control_by_repeat"], tiny["control_all"]
+    test = trusted_test(*sides, 199, np.random.default_rng(0))
+    assert np.isnan(test["d"]) and np.isnan(test["p"])
+    # A control from the condition's own repeats keeps its test as provided.
+    own = trusted_test(*sides[:2], sides[1], 199, np.random.default_rng(0))
+    assert np.isfinite(own["p"]) and not own["balanced"]
 
 
 @pytest.fixture(scope="module")

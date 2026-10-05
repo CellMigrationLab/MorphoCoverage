@@ -75,6 +75,19 @@ def test_a_consistent_difference_passes_both_gates_and_noise_neither():
     )
 
 
+def test_a_condition_with_nothing_to_balance_against_a_pooled_control_is_not_tested():
+    """'drug' holds 4 cells in one of the control's three repeats: as provided its control
+    pools the other two, and its one repeat is too small to balance, so no gate (#292)."""
+    objects, _ = _tables()
+    later = (objects["condition"] == "drug") & (objects["biological_repeat"] != "r0")
+    objects.loc[later, "condition"] = "other"
+    objects = objects.drop(objects.index[objects["condition"] == "drug"][4:])
+    fovs = objects[["condition", "biological_repeat", "position_id"]]
+    tests = _discovery(objects, fovs, features=("area",)).tests.set_index("condition")
+    assert np.isnan(tests.loc["drug", "p_cells"]) and np.isfinite(tests.loc["other", "p_cells"])
+    assert tests.loc["drug", "status"].startswith("its control would include repeats")
+
+
 def test_unbalanced_repeats_use_the_balanced_test():
     result = _discovery(*_tables(unbalanced=True))
     row = result.tests.set_index("feature").loc["area"]

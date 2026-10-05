@@ -129,12 +129,16 @@ def _cell_version(row: pd.Series) -> tuple[str, float, float, float, float, floa
     uncorrected p."""
     chance = (row["chance_low"], row["chance_high"])
     balanced = (row.get("chance_balanced_low", np.nan), row.get("chance_balanced_high", np.nan))
-    for label, d, p, limits in (
+    versions = [
         ("balanced, normalised", "d_balanced_normalised", "p_balanced_normalised", balanced),
         ("balanced", "d_balanced", "p_balanced", balanced),
         ("normalised", "d_cells_normalised", "p_cells_normalised", chance),
         ("raw", "d_cells", "p_cells", chance),
-    ):
+    ]
+    # As provided, a control pooled from repeats the condition was not imaged in gets no
+    # number (cells_text): only the balanced test, against its own repeats' control.
+    pooled = row.get("other_control_repeats", 0) > 0
+    for label, d, p, limits in versions[:2] if pooled else versions:
         if pd.notna(row.get(p)):
             q = float(row[p.replace("p_", "q_", 1)])
             return label, float(row[d]), q, *map(float, limits), float(row[p])

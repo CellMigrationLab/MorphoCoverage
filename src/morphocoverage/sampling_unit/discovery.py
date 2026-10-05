@@ -68,6 +68,10 @@ GATE_ALPHA = 0.05
 TOP_FEATURES = 5
 MAX_ROWS_LISTED = 24
 N_PERMUTATIONS = 9999
+# Why a condition was not tested: as provided its control would pool other repeats, and no
+# balanced test could be formed (contrast_cells.trusted_test); several reasons over conditions.
+POOLED_CONTROL = "its control would include repeats the condition was not imaged in"
+UNTESTED = "no condition could be tested"
 TEST_COLUMNS = [
     "feature",
     "condition",
@@ -192,6 +196,8 @@ def _row(
         return {**row, "d": np.nan, "p_cells": np.nan, "status": "one value everywhere"}, []
     test = trusted_test(by_t, by_c, side["every"], n_permutations, rng)
     retest = test["retest"] if test["p"] <= alpha else []
+    if not np.isfinite(test["p"]) and len(side["every"]) > len(by_c):
+        row["status"] = POOLED_CONTROL
     return {
         **row,
         "observations": test["observations"],
@@ -402,10 +408,14 @@ class FeatureDiscovery:
                 f"Not a candidate for any condition ({count(len(failing), 'feature')}): "
                 f"{listing(failing, limit)}."
             )
-        untested = unranked.loc[unranked["tests"] == 0, "feature"].tolist()
-        if untested:
+        # The features no condition could be tested for, by why (each condition's status).
+        why: dict[str, list[str]] = {}
+        for feature in unranked.loc[unranked["tests"] == 0, "feature"]:
+            reasons = set(self.tests.loc[self.tests["feature"] == feature, "status"])
+            why.setdefault(reasons.pop() if len(reasons) == 1 else UNTESTED, []).append(feature)
+        for reason, untested in why.items():
             lines.append(
-                f"Not tested ({count(len(untested), 'feature')}, one value everywhere): "
+                f"Not tested ({count(len(untested), 'feature')}, {reason}): "
                 f"{listing(untested, limit)}."
             )
         return lines
