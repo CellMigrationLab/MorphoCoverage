@@ -320,6 +320,8 @@ def redundancy_distance(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
+    if len(stage_cols) != 2 or stage_cols[0] == stage_cols[1]:
+        raise ValueError("stage_cols must be two different columns (x, y), not one axis twice")
     for column in stage_cols:
         if column not in data.fovs.columns:
             raise ValueError(f"{column!r} is not a column of the FOV table")

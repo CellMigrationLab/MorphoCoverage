@@ -158,3 +158,24 @@ def test_pairs_closer_counts_every_pair_closer_than_the_distance():
     closer = int(np.sum(lags < row["redundancy_distance"]))
     assert row["pairs_closer"] == closer
     assert np.any((lags < row["redundancy_distance"]) & (lags >= 450))
+
+
+def test_one_stage_axis_given_twice_is_refused():
+    # ("stage_x", "stage_x") would run as a diagonal line: fake 2-D geometry (#232).
+    objects, fovs = _gradient()
+    twice = ("stage_x", "stage_x")
+    with pytest.raises(ValueError, match="not one axis twice"):
+        redundancy_distance(
+            objects, fovs, feature_cols=["feature_a"], stage_cols=twice, bin_edges=[0, 2500]
+        )
+    with pytest.raises(ValueError, match="not one axis twice"):
+        replay_acquisitions(
+            objects,
+            fovs,
+            feature_cols=["feature_a"],
+            strategies=[FixedFOVStrategy(4)],
+            criteria=[OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better")],
+            objective=POPULATION,
+            reservoir_fraction=0.3,
+            stage_cols=twice,
+        )

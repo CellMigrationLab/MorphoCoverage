@@ -208,3 +208,9 @@ def test_a_generator_of_features_is_read_once():
         novelty=NOVELTY,
     )
     pd.testing.assert_frame_equal(listed.fovs, generated.fovs)
+
+
+def test_one_stage_axis_given_twice_is_refused():
+    # The neighbours of a diagonal line are not those of the stage (#232).
+    with pytest.raises(ValueError, match="not one axis twice"):
+        _inspect(*_acquisition(), stage_cols=("stage_x", "stage_x"))

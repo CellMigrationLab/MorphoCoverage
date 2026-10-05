@@ -363,6 +363,8 @@ def _check(
         raise ValueError("n_neighbours must be a positive integer")
     if stage is not None and (len(stage) != 2 or not all(isinstance(c, str) for c in stage)):
         raise TypeError("stage_cols must be two column names (x, y)")
+    if stage is not None and stage[0] == stage[1]:
+        raise ValueError("stage_cols must be two different columns (x, y), not one axis twice")
     return summaries
 
 

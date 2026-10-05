@@ -428,6 +428,8 @@ def replay_acquisitions(
     if stage_cols is not None:
         if len(stage_cols) != 2:
             raise TypeError("stage_cols must be two column names (x, y)")
+        if stage_cols[0] == stage_cols[1]:
+            raise ValueError("stage_cols must be two different columns (x, y), not one axis twice")
         absent = [c for c in stage_cols if c not in data.fovs.columns]
         if absent:
             raise ValueError(f"stage columns missing from the FOV table: {absent}")
