@@ -26,11 +26,18 @@ Answer = tuple[Status, str]
 def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
     """``12 conditions across 3 biological repeats: 12 on one side of the control in every
     repeat (8 lower, 4 higher); 0 of 12 significant on the repeat means (paired t, ...)``."""
-    n_repeats = int(across["repeats"].max())
+    held = across["repeats"].astype(int)
+    word = column_word(repeat_col)
+    # Each condition's own repeats: one count when they share it, else the range.
+    each = (
+        count(int(held.max()), word)
+        if held.min() == held.max()
+        else f"{held.min()}-{count(int(held.max()), word)}"
+    )
     lower = int((across["lower"] == across["repeats"]).sum())
     higher = int((across["higher"] == across["repeats"]).sum())
     text = (
-        f"{count(len(across), 'condition')} across {count(n_repeats, column_word(repeat_col))}: "
+        f"{count(len(across), 'condition')} across {each}: "
         f"{lower + higher} in the same direction in every repeat"
     )
     if lower + higher:
