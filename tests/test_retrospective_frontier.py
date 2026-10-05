@@ -217,6 +217,11 @@ def test_outcomes_that_cannot_be_judged_are_counted_not_scored():
     result = frontier(replay, [], criterion=criterion.name, alphas=[0.1], unit_cols=[])
     row = result.curve.set_index("setting").loc[10]
     assert 0 < row["judged"] < row["runs"]
+    # #249: the chosen risk carries its denominator, and the summary says it.
+    base = result.scores.iloc[0]
+    assert 0 < base["judged"] < base["runs"]
+    said = f"of the {int(base['judged'])} of {int(base['runs'])} runs judged"
+    assert said in " ".join(result.summary().split())
 
 
 def test_families_from_replays_with_other_streams_are_refused(mixed):

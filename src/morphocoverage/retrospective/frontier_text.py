@@ -36,6 +36,16 @@ def _number(value: float) -> str:
     return f"{0.0 if value == 0 else value:.1f}"
 
 
+def _risk(row: object) -> str:
+    """``4%``, or ``0% of the 4 of 10 runs judged`` when some runs could not be judged
+    (outcome undefined): they are left out of the risk, so its denominator is said."""
+    judged, runs = getattr(row, "judged", None), getattr(row, "runs", None)
+    text = percent(row.risk)
+    if judged is None or runs is None or pd.isna(judged) or int(judged) >= int(runs):
+        return text
+    return f"{text} of the {int(judged)} of {int(runs)} runs judged"
+
+
 def _lapse(row: object) -> str | None:
     """``met this risk at 2 (risk 0%) but not from there on: ...``, or None if it never met it."""
     met = getattr(row, "met_setting", None)
@@ -73,7 +83,7 @@ def _unscored(rows: pd.DataFrame, base: object) -> list[str]:
         else:
             lines.append(
                 f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
-                f"(risk {percent(row.risk)}), with no fixed count to compare."
+                f"(risk {_risk(row)}), with no fixed count to compare."
             )
     return lines
 
@@ -170,9 +180,7 @@ def _full_lines(rows: pd.DataFrame, units: int) -> list[str]:
         else f", {_number(base['effort'])} on average as some acquisitions had fewer"
     )
     needed = fields(int(base["setting"]))
-    lines = [
-        f"  a fixed number of fields needed {needed}{mean_effort} (risk {percent(base['risk'])})."
-    ]
+    lines = [f"  a fixed number of fields needed {needed}{mean_effort} (risk {_risk(base)})."]
     for row in rows[rows["family"] != BASELINE].itertuples(index=False):
         if row.effort is None or pd.isna(row.effort):
             lines.append(_not_chosen(row))
@@ -195,7 +203,7 @@ def _full_lines(rows: pd.DataFrame, units: int) -> list[str]:
         )
         lines.append(
             f"  {row.family} at {_setting(row.setting)}: {fields(row.effort)} on average "
-            f"(risk {percent(row.risk)}); it {verdict}{interval}{adaptive}."
+            f"(risk {_risk(row)}); it {verdict}{interval}{adaptive}."
         )
     return lines
 
@@ -238,7 +246,7 @@ def _short_rows(rows: pd.DataFrame, units: int) -> tuple[list[list[str]], list[s
             cell, note = "no fixed count to compare", None
         else:
             cell, note = _against(row, units)
-        table_rows.append([name, number(row.effort), percent(row.risk), cell])
+        table_rows.append([name, number(row.effort), _risk(row), cell])
         if note:
             notes.append(f"{row.family}: {note}")
     return table_rows, notes
@@ -254,7 +262,7 @@ def _baseline_text(rows: pd.DataFrame) -> str:
             else f", {_number(base['effort'])} on average"
         )
         needed = fields(int(base["setting"]))
-        return f"a fixed count needs {needed}{mean} (risk {percent(base['risk'])})"
+        return f"a fixed count needs {needed}{mean} (risk {_risk(base)})"
     lapse = _lapse(next(rows[rows["family"] == BASELINE].itertuples(index=False)))
     if lapse is not None:
         return f"a fixed count {lapse}; no rule is scored against it"
