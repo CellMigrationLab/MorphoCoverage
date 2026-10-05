@@ -165,3 +165,24 @@ def test_the_morphobricks_technical_repeat_is_the_default_colour_and_bootstrap_u
     assert legend.get_title().get_text().startswith("well,\nin order")
     labels = [t.get_text() for t in legend.get_texts()]
     assert labels == ["1st", "2nd"]
+
+
+def test_a_field_without_observations_must_have_its_condition_in_the_fov_table():
+    """#200: a layout column only the observations carry cannot place an empty field, which
+    is refused rather than left out of the resampling."""
+    rng = np.random.default_rng(0)
+    objects = pd.DataFrame(
+        {
+            "position_id": np.repeat(["a", "b", "c", "d"], 5),
+            "treatment": np.repeat(["X", "X", "Y", "Y"], 5),
+            "f": rng.normal(size=20),
+        }
+    )
+    fovs = pd.DataFrame({"position_id": ["a", "b", "c", "d", "e"]})
+    arguments = {"features": ["f"], "condition_col": "treatment", "repeat_col": None}
+    with pytest.raises(ValueError, match="add 'treatment' to the FOV table"):
+        plots_of_data(objects, fovs, **arguments)
+    fovs["treatment"] = ["X", "X", "Y", "Y", "Y"]
+    assert len(plots_of_data(objects, fovs, **arguments)["f"]) == 1
+    # Every field holds observations: the observations' values place them, as before.
+    assert plots_of_data(objects, fovs.iloc[:4].drop(columns="treatment"), **arguments)["f"]

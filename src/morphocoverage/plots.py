@@ -134,8 +134,8 @@ def _field_metadata(data: ValidatedInput, columns: Sequence[str | None]) -> pd.D
 
     A column only the observations carry is taken from each field's
     observations, which must agree; a field without observations then has no
-    value there and cannot be placed in a cluster. A missing value in the
-    FOV table, or in the observations, raises: that field cannot be placed.
+    value there and raises, as the validator does for a group column. A missing
+    value in the FOV table, or in the observations, raises: that field cannot be placed.
     """
     fields = data.fovs.reset_index(drop=True)
     positions = fov_positions(data, data.fovs)
@@ -158,7 +158,14 @@ def _field_metadata(data: ValidatedInput, columns: Sequence[str | None]) -> pd.D
                 f"{column!r} varies within a field's observations; a field lies in one "
                 "cluster, so give each field one value (in the FOV table)"
             )
-        meta[column] = by_field.first().reindex(meta.index).to_numpy()
+        placed = by_field.first().reindex(meta.index)
+        if placed.isna().any():
+            raise ValueError(
+                f"{int(placed.isna().sum())} fields without observations have no {column!r} "
+                f"value, since only the observations carry it; add {column!r} to the FOV "
+                "table, so fields without observations keep their place"
+            )
+        meta[column] = placed.to_numpy()
     return meta
 
 
