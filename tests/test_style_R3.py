@@ -139,7 +139,7 @@ def test_the_contrasts_are_one_table_each_caveat_once_and_every_number_in_full()
         objects, fovs, feature="x", control=CONTROL, n_permutations=400, n_draws=5
     )
     short = result.summary()
-    header = r"contrast\s+fields\s+objects\s+tech\.\s+d on objects\s+d on field means"
+    header = r"contrast\s+fields\s+cells\s+tech\.\s+d on cells\s+d on field means"
     assert re.search(header, short)
     assert _flat(short).count("compare means") == 1
     assert _flat(short).count("drawn with replacement") == 1

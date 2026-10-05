@@ -403,7 +403,7 @@ def test_h19_an_untested_contrast_keeps_its_effect_sizes():
     assert len(result.effects) == 4
     text = " ".join(result.summary().split())
     assert "No well-level test within a repeat in the contrast: only one technical repeat" in text
-    assert "d objects" in text and "JCS effect size" in text
+    assert "d on cells" in text and "JCS effect size" in text
 
 
 def test_j1_groups_whose_seeds_collide_are_still_told_apart():
