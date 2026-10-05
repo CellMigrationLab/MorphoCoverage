@@ -407,7 +407,10 @@ that `optimise` and `benchmark` judge on held-back fields (`setup.criteria()`):
 - **a rare phenotype**: `rare=RareTarget(...)` (its definition, its object
   prevalence and/or field incidence, the detection probability, the fields it
   must be seen in) and, when an independent label exists, `rare_label`, the
-  object column (booleans or 0/1) that marks it. With the label, held-back
+  object column (booleans or 0/1) that marks it; a missing value is unknown, never a
+  negative: the cell is left out of every share's numerator and denominator (the label
+  check, the groups, the share compared, the plan, the fields holding it), and the report's
+  notes count such cells once (owner, 2026-10-05). With the label, held-back
   fields judge whether `k` fields showed the state; without it the target is
   stated and planned for (the binomial field count at the declared incidence)
   but not judged. Object prevalence is never converted to field incidence.

@@ -360,6 +360,7 @@ src/morphocoverage/
         _rare_share.py     # private: the labelled rare state's share, compared like a feature
         _label_control.py  # private: the rare label as a positive control of the features (question 1)
         _populations.py    # private: question 10, the populations and each condition's enrichment across repeats
+        _population_rule_words.py  # private: a group's feature rule in words (fitted on all cells; its procedure checked on held-out fields)
         _result_influence.py  # private: the fields whose removal moves the result (the repeat means the paired test compares)
         figures.py         # plots: the readout and the best-ranked features, from a Setup
         live.py            # live_session; LiveFolder (files) and LiveTables (in memory)

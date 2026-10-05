@@ -126,17 +126,26 @@ def _incidence(
 ) -> tuple[float, str] | None:
     """The share of fields holding at least one labelled observation in the condition where
     it is rarest (the hardest well to find it in) and that condition; ``None`` when no field
-    holds it. Every acquired field counts, a field without observations as one without it."""
+    holds it. Every acquired field counts, a field without observations as one without it; a
+    missing label is unknown (owner, 2026-10-05), so a field whose observations all lack one
+    was not looked at and is left out, as ``fov_clustering`` does."""
     data = validate_input_tables(
         objects, fovs=fovs, feature_cols=list(result.setup.columns)[:1], **result.setup.common
     )
     key = [c for c in data.fov_key if c in data.objects]
     if "condition" not in key:
         return None
-    flags = labelled.reindex(data.objects.index).fillna(False).astype(bool)
-    held = pd.MultiIndex.from_frame(data.objects.loc[flags.to_numpy(), key].astype(str))
+    flags = labelled.reindex(data.objects.index)
+    known = flags.notna().to_numpy()
+    positive = known & (flags.where(flags.notna(), False).astype(bool)).to_numpy()
+    observed = data.objects[key].astype(str)
+    held = pd.MultiIndex.from_frame(observed.loc[positive])
+    unknown = pd.MultiIndex.from_frame(observed).difference(
+        pd.MultiIndex.from_frame(observed.loc[known])
+    )
     fields = data.fovs[key].astype(str)
-    fields = fields.assign(_held=pd.MultiIndex.from_frame(fields).isin(held))
+    index = pd.MultiIndex.from_frame(fields)
+    fields = fields.assign(_held=index.isin(held))[~index.isin(unknown)]
     by = fields.groupby("condition", sort=False)["_held"].mean()
     by = by[by > 0]
     if by.empty:
@@ -484,8 +493,7 @@ def _declared_goals(
             )
         )
         if objects is not None and label in objects:
-            flags = objects[label].fillna(False).astype(bool)
-            found = _incidence(result, objects, fovs, flags)
+            found = _incidence(result, objects, fovs, objects[label])
             if found is not None:
                 incidence, where = found
                 declared = setup.rare.fov_incidence

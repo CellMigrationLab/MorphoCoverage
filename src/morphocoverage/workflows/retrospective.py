@@ -88,6 +88,7 @@ from ._enough_features import enough_by_feature
 from ._enough_targets import fingerprint_precision
 from ._label_control import label_control
 from ._populations import populations_in_report
+from ._rare_share import unlabelled_note
 from ._result_influence import influence_on_result, with_result_influence
 from ._shared import (
     check_workflow_inputs,
@@ -310,6 +311,10 @@ def report(
         "random_state": setup.random_state,
     }
     document = with_reasons(assemble(results, setup), reasons)
+    unlabelled = unlabelled_note(objects, setup)
+    if unlabelled:
+        # Said once, where the label is used: the notes every answer is read with.
+        document = replace(document, notes=(*document.notes, unlabelled))
     return Report(results, document, setup, reasons, settings)
 
 

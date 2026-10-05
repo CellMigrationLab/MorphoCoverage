@@ -8,6 +8,11 @@ shares, and the heatmap and ranking show it. The column is named ``"<label> shar
 Its figures plot one point per field, the field's share (``share_by_field``): a cell is in
 the state or not, so its 0 or 1 says nothing a reader can see (owner, 2026-10-02); the tests
 keep the cells.
+
+A missing label is unknown, never negative (owner, 2026-10-05): it stays missing in the share
+column, so every mean, test and field share leaves the cell out of both its numerator and
+its denominator, as the label check, the populations, the plan and the clustering in few
+fields do. ``unlabelled_note`` says how many cells that is, once, among the report's notes.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from .._wording import count
 from ..data_check import validate_input_tables
 
 if TYPE_CHECKING:
@@ -42,6 +48,22 @@ def with_share(objects: pd.DataFrame, setup: Setup) -> pd.DataFrame:
     return objects.assign(**{share: objects[setup.rare_label].astype(float)})
 
 
+def unlabelled_note(objects: pd.DataFrame, setup: Setup) -> str | None:
+    """The report's one note on the observations without a label, or ``None`` when every
+    observation carries one (or no label is declared)."""
+    label = setup.rare_label
+    if label is None or label not in objects.columns:
+        return None
+    missing = int(objects[label].isna().sum())
+    if not missing:
+        return None
+    return (
+        f"{count(missing, setup.unit_word)} of {len(objects)} carry no {label} label: unknown, "
+        f"not negative, so they are left out of every share of labelled {setup.unit_words} "
+        "(numerator and denominator)."
+    )
+
+
 def share_by_field(prepared: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> pd.DataFrame:
     """One row per field holding cells: its FOV key and its share of cells in the state
     (``prepared`` carries the share column, ``with_share``)."""
@@ -61,4 +83,11 @@ def plotted_values(
     return share_by_field(prepared, fovs, setup)
 
 
-__all__ = ["compared_columns", "plotted_values", "share_by_field", "share_column", "with_share"]
+__all__ = [
+    "compared_columns",
+    "plotted_values",
+    "share_by_field",
+    "share_column",
+    "unlabelled_note",
+    "with_share",
+]

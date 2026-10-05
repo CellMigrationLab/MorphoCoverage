@@ -12,7 +12,8 @@ population, holding most cells, is listed but not tested, its share being all bu
 complement of the others'; a repeat where the group is absent from both sides counts as no
 change (owner, 2026-10-02). A declared rare label is matched to the group that holds it,
 and a group most of whose cells carry it (``LABELLED``) is the label's own: its share is
-compared in question 9, so it is not tested again here (owner, 2026-10-02).
+compared in question 9, so it is not tested again here (owner, 2026-10-02). A cell whose
+label is missing is unknown: out of both shares of the overlap (owner, 2026-10-05).
 Each group is a candidate to validate on the images, given with the rule on the features
 that picks out its cells (``sampling_unit._population_rule``).
 """
@@ -33,6 +34,7 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
 from ..schema import observation_words, validate_input_tables
 from ..statistics import paired_t
+from ._population_rule_words import rule_cell, rule_words
 
 if TYPE_CHECKING:
     from ..retrospective import MicroscopistReport
@@ -83,10 +85,12 @@ def populations_in_report(
     pooled = pooled_columns(marked, fovs, setup, [CONDITION_COLUMN, REPEAT_COLUMN])
     label = None
     if setup.rare_label is not None and setup.rare_label in complete:
-        flag = complete[setup.rare_label].fillna(False).astype(bool)
+        # A missing label is unknown, out of both shares (owner, 2026-10-05).
+        known = complete[setup.rare_label].notna()
+        flag = complete[setup.rare_label].where(known, False).astype(bool)
         rows = []
         for name in populations.names:
-            inside = labels == name
+            inside = (labels == name) & known
             if flag.sum() and inside.sum():
                 rows.append(
                     {
@@ -343,39 +347,6 @@ def _found_words(pops: Populations) -> str:
     return f"{count(groups, 'group')} of {units} to validate on the images"
 
 
-def _rule_cell(row: Any) -> str:
-    """``AR > 3.18 and MinFeret ≤ 17.7 (91%, 97%)`` for the table, ``(91%, 97%, cells held
-    out)`` for a group in one field; ``–`` without a rule."""
-    if not row.rule:
-        return "–"
-    if pd.isna(row.rule_recall):
-        return row.rule
-    cells = ", cells held out" if row.rule_held_out == "cells" else ""
-    return f"{row.rule} ({percent(row.rule_recall)}, {percent(row.rule_precision)}{cells})"
-
-
-def rule_words(row: Any, units: str) -> str:
-    """``picked by AR > 3.18 and MinFeret ≤ 17.7, fitted on all the cells; the procedure,
-    refitted with whole fields held out, finds 91% of the group's cells in them, 97% of those
-    it picks being in it``, or empty without a rule (``units``: the observations' plural
-    word). The numbers describe the procedure, not the thresholds shown (owner, 2026-10-05)."""
-    if not row["rule"]:
-        return ""
-    if pd.isna(row["rule_recall"]):
-        return f"picked by {row['rule']}"
-    held = (
-        f"refitted with {units} held out (the group is in one field), finds "
-        f"{percent(row['rule_recall'])} of its {units}"
-        if row.get("rule_held_out") == "cells"
-        else "refitted with whole fields held out, finds "
-        f"{percent(row['rule_recall'])} of the group's {units} in them"
-    )
-    return (
-        f"picked by {row['rule']}, fitted on all the {units}; the procedure, {held}, "
-        f"{percent(row['rule_precision'])} of those it picks being in it"
-    )
-
-
 def _shares_line(pops: Populations, units: str) -> str:
     """``P1 91%, P2 3.4%, G1 20%; 6% in none``: each one's share and the unassigned."""
     shares = ", ".join(f"{r.population} {percent_fine(r.share)}" for r in pops.table.itertuples())
@@ -427,7 +398,7 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
             f"{r.observations} ({percent_fine(r.share)})",
             defined_by(r.defining[:2]) or "–",
             percent(r.purity) if pd.notna(r.purity) else "–",
-            _rule_cell(r),
+            rule_cell(r),
             r.fields,
             percent(r.largest_field),
             r.repeats,

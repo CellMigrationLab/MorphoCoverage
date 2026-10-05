@@ -6,7 +6,8 @@ were told apart by another channel, so the features should place them together. 
 labelled cell, the nearest cell of another field (on the declared features, each robustly
 standardized: median and MAD over all cells) is looked up: the share of those neighbours
 that are labelled says how well the features see the state, against the share labelled
-overall (what a feature set blind to it gives). Another field, so that cells of one
+overall (what a feature set blind to it gives). A cell whose label is missing is unknown: it
+is in neither share (owner, 2026-10-05). Another field, so that cells of one
 field, alike for reasons of that field, do not recognize each other. The check uses
 ``Setup.minimum_detection`` as a positive control does. The features that separate the
 state most are given with their Cohen's d (labelled against the other cells).
@@ -69,11 +70,14 @@ def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> La
     matrix = data.feature_matrix()
     if np.isnan(matrix).any():
         return None
-    marked = data.objects[label].fillna(False).to_numpy(dtype=bool)
+    # A missing label is unknown: the cell is in no share, nor anyone's neighbour (owner,
+    # 2026-10-05); the standardization, which reads no label, keeps every cell.
+    known = data.objects[label].notna().to_numpy()
+    marked = data.objects[label][known].to_numpy(dtype=bool)
     if marked.sum() < MIN_LABELLED or marked.all():
         return None
-    positions = fov_positions(data, data.fovs)
-    points = _robust(matrix)
+    positions = fov_positions(data, data.fovs)[known]
+    points = _robust(matrix)[known]
     tree = cKDTree(points)
     own = positions[marked]
     nearest = np.full(len(own), -1)
@@ -92,7 +96,7 @@ def label_control(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> La
         k = min(2 * k, len(points))
     neighbours = nearest[nearest >= 0]
     recognized = float(marked[neighbours].mean()) if len(neighbours) else np.nan
-    values = pd.DataFrame(matrix, columns=features)
+    values = pd.DataFrame(matrix[known], columns=features)
     inside, outside = values[marked], values[~marked]
     pooled = np.sqrt((inside.var(ddof=1) + outside.var(ddof=1)) / 2)
     separation = ((inside.mean() - outside.mean()) / pooled.replace(0, np.nan)).dropna()
