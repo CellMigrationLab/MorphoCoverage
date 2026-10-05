@@ -8,9 +8,9 @@ The precision of each group's own mean (the stopping rules) follows as a
 secondary line.
 
 - ``resolved_headline``: the "At a glance" words and status: ✅ when every
-  difference is resolved or too small to settle with a practical number of
-  fields; ⚠️ when some would be resolved with more fields (the advice says how
-  many a side). Differences too small to settle are described, not flagged.
+  difference is resolved; ⚠️ when any is not (owner, 2026-10-01): some would be
+  resolved with more fields (the advice says how many a side), are too small to
+  settle with a practical number of fields, or have too few fields for an interval.
 - ``resolved_parts``: the short section: one sentence, the contrasts not
   resolved in a table (all contrasts when there are few), and the notes.
 - ``resolved_full``: every contrast with its interval.
