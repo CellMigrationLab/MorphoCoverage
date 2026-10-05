@@ -115,6 +115,8 @@ MorphoCoverage does not replace the user's final biological inference workflow, 
 - planning the next experiment at the design the user ran (`repeat_plan`; see "Pilots get advice", section 3);
 - **with several features, which of them separate the conditions** (`discovery`, owner decision of 2026-10-01): every feature and condition by the cell-level test in the version the readings trust most (normalised, balanced when unbalanced), Benjamini-Hochberg over all of them within each sub-experiment as the discovery gate, ranked by |d|; the paired t on the repeat means, corrected the same way, beside it as the second gate ("significant across repeats"), and the direction in each repeat. The plots draw the best-ranked (`plots(..., ranking=report.discovery)`), and `embedding_plots` the PCA (the best-ranked as arrows) and UMAP of all the features. The ranking over whole technical repeats (`ranking`) is shown only when there are wells to shuffle.
 
+**Several controls** (owner, 2026-10-05): `Setup(control={"condition": {control: {treatment: condition, ...} or [conditions], ...}}, control_parents={control: parent or (parent, treatment)}, master_control=...)` declares several experiments; one control is unchanged. The declaration generates one **contrast table** (`workflows/_contrasts`; columns `_control.CONTRAST_COLUMNS`), one row per test, shown in question 9 and saved as `contrasts.csv`; `Setup(contrasts=table)` takes one in its place. `own_control` rows (each condition against its own control, each control against its parent) are the main verdicts: the tests above, the cell-level test, "Did I image enough?", the discovery and the heatmap use them only (pairs resolved by `sampling_unit._groups`). The secondary rows are tested on the repeat means, no cell-level test, each kind one Benjamini-Hochberg family (`sampling_unit.contrast_across`, words in `across_text`): `across_normalised` (the same treatment key under different controls, each condition normalised to its own control: the difference of the log ratios per repeat holding all four) and `vs_master_raw` (with a master, each other control against it on raw values, unless a parent link joins them; the master's repeats and the assumption that experiments were imaged and processed alike said once); a row held in fewer than 3 repeats is named once as not compared. Figures, PCA/UMAP, population detection and SuperPlots show every condition; normalised views divide each condition by its own control (a control by its parent, else 1), the conditions left out named once; unusual observations and population enrichment use each condition's own control, the object rules, clustering and the positive control every control pooled.
+
 The cell-level test answers whether these wells differ, not whether the effect repeats: its false-positive chance is always printed beside it, and only the paired test across repeats confirms a difference. With a control, question 2 asks whether the fields acquired resolve the difference from the control in each repeat (`contrast_sampling`: a bootstrap over wells and fields as acquired, empty fields included, and the fields a side a resolution would need, projected from the part of the interval within wells; when the part between wells alone is as wide as the difference, "more fields will not resolve it: more wells or biological repeats", owner 2026-10-05).
 
 It may also use condition-level analyses (effect sizes, phenotype-frequency differences, treatment rankings, classification or retrieval) as **retrospective benchmark outcomes**, to test whether a stopping rule preserves the biological conclusion that the full acquisition supports. A strategy can preserve a centroid or a distribution distance and still erase a treatment-specific minority state that decides the result. Such outcomes are computed on held-out or full data after the stop, are never inputs to a prospective estimator, and do not turn the package into a hypothesis-testing tool. It may also use **multi-group planning comparators** (such as the JCB multi-sample planning path) when these are needed to evaluate sampling adequacy. Core prospective estimators remain group-local unless a method is explicitly implemented as a separate multi-group planning step.
@@ -200,6 +202,7 @@ MorphoCoverage currently produces in-memory result objects (`StrategyResult`, `S
 src/morphocoverage/
     __init__.py            # public API (__all__); changes need approval (section 15)
     metadata.py            # MorphoBricks column resolution: FOV key, groups, spellings (the one resolver)
+    _control.py            # private: the control resolved in one place: control rows, pooled controls, labels, the contrast table's columns
     _spelling.py           # private: typing errors of a name (edits), for metadata's near-miss spellings
     schema.py              # ValidatedInput and linked-table validation
     _plane_rules.py        # private: the plane rule (z/c/t planes are not fields, never features)
@@ -303,6 +306,8 @@ src/morphocoverage/
         contrast.py        # each condition against the control: per repeat, across repeats, cell-level; question 9
         contrast_text.py   # its words: the readings first, then a table per contrast and per draw size, each caveat once
         contrast_repeats.py  # across biological repeats: direction, per-repeat d, paired t raw and normalised, sign-flip
+        contrast_across.py # the contrast table's secondary rows: each normalised to its own control, controls against the master raw
+        across_text.py     # its words: "Compared across experiments", the two tables
         repeats_text.py    # its words: the across-repeat table and its notes
         contrast_cells.py  # the Plot&Stats cell-level test, raw and normalised, its balance check and balanced version
         cells_text.py      # its words: the balance line, the tables, the false-positive chance, the notes
@@ -320,6 +325,7 @@ src/morphocoverage/
         populations.py     # question 10: groups of every cell pooled (HDBSCAN on a UMAP, kept when their neighbours on all features are inside)
         _population_rule.py  # private: the simplest feature rule that picks out a group (a depth-2 balanced tree, fitted on all cells), its procedure checked on held-out fields
         _units.py          # private: sides, units and the randomization test shared by contrast and ranking
+        _groups.py         # private: the analysis groups and each comparison's two sides (one control, or (condition, control) pairs)
         unusual.py         # unusual (out-of-distribution) objects against a declared reference (unusual_objects)
         clustering.py      # state clustering by FOV: are rare or unusual objects spread over the fields or clustered
         _outliers.py       # private: the distances and leave-one-group-out thresholds behind unusual_objects
@@ -329,6 +335,8 @@ src/morphocoverage/
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
+        _setup_parts.py    # private: the positive control and the default definition of new, re-exported by setup
+        _contrasts.py      # private: one control or several: the contrast table, own controls, the pooled and figure controls
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
         _scan_text.py      # private: the scan in sentences (DesignScan.summary)

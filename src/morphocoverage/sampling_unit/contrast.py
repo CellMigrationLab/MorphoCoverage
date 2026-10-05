@@ -79,7 +79,13 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count
-from .._control import check_comparisons, comparison_pairs, control_text
+from .._control import (
+    check_comparisons,
+    check_contrast_table,
+    comparison_pairs,
+    control_text,
+    own_pairs,
+)
 from .._former_repeat import one_warning, read_former
 from .._seeds import group_rng
 from ..metadata import (
@@ -106,8 +112,8 @@ from ._units import (
     sides,
     unit_means,
 )
+from .contrast_across import ACROSS_COLUMNS, across_table
 from .contrast_cells import CELL_COLUMNS, cell_table
-from .contrast_relative import RELATIVE_COLUMNS, check_relative, relative_table
 from .contrast_repeats import REPEAT_COLUMNS, TARGET_COLUMNS, across_repeats, reagent_agreement
 from .contrast_sampling import SAMPLING_COLUMNS, sampling_row
 from .contrast_text import FEW_UNITS_D, NO_CONTROL, contrast_summary
@@ -188,8 +194,8 @@ class ConditionContrast:
     plan: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=PLAN_COLUMNS))
     targets: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=TARGET_COLUMNS))
     cells: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=CELL_COLUMNS))
-    # Two conditions each over its own reference (contrast_relative).
-    relative: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=RELATIVE_COLUMNS))
+    # The comparisons across experiments (contrast_across).
+    across: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=ACROSS_COLUMNS))
 
     def summary(self, detail: str = "short") -> str:
         """The contrasts in a table and the draws in another, each caveat once
@@ -311,7 +317,7 @@ def condition_contrast(
     target_col: str | None = TARGET_COLUMN,
     cell_test: bool = True,
     comparisons: Sequence[tuple[Any, Any]] | None = None,
-    relative: Sequence[tuple[Any, ...]] | None = None,
+    contrasts: pd.DataFrame | None = None,
 ) -> ConditionContrast:
     """Each condition against the control condition, per repeat, with objects and with fields.
 
@@ -339,10 +345,12 @@ def condition_contrast(
     pairs, replace the single control (which may then be ``None``): each pair is compared
     per repeat, its rows labelled ``condition vs reference`` in the ``condition`` column
     (``_control``, owner 2026-10-05); the cell-level test pools each reference's own
-    observations. ``relative`` tuples ``(a, ref_a, b, ref_b)`` compare two conditions each
-    normalised to its own reference, across the repeats (``contrast_relative``).
+    observations. ``contrasts``, a contrast table (``_control.CONTRAST_COLUMNS``), gives
+    the comparisons (its ``own_control`` rows) and the secondary rows, tested on the repeat
+    means (``contrast_across``, the table ``across``).
     """
-    relative = check_relative(relative) if relative is not None else ()
+    declared = None if contrasts is None else check_contrast_table(contrasts)
+    comparisons = comparisons if declared is None else own_pairs(declared)
     control, repeat_col = read_former(control=control, repeat_col=repeat_col)
     if not isinstance(feature, str) or not feature:
         raise TypeError("feature must be one column name")
@@ -467,9 +475,8 @@ def condition_contrast(
         tested, np.minimum(1.0, table["p_value"] * int(tested.sum())), np.nan
     )
     repeats = across_repeats(table, repeat_col, random_state)
-    repeats, between = relative_table(
-        repeats, table, (all_groups, described, feature, technical_col), relative, random_state
-    )
+    between = across_table((all_groups, described, feature, technical_col), declared, random_state)
+    settings.update(between.attrs)  # the contrast table and the master's repeats
     plan = repeat_plan(table) if repeat_col is not None else pd.DataFrame(columns=PLAN_COLUMNS)
     targets = _targets(fovs, condition_col, target_col)
     if comparisons is not None:  # a comparison's target is its condition's

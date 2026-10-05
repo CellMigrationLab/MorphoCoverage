@@ -2,9 +2,11 @@
 
 Two matrices (``VEC``, ``THBS5``) by four siRNA levels (none, ``SiNC``, ``SiCol6a1``,
 ``SiFBN2``): eight conditions, ``VEC``, ``VEC_SiNC``, ..., ``THBS5_SiFBN2``, in six biological
-repeats ``R1``-``R6``, two wells of three fields each, unevenly: ``THBS5_SiFBN2`` was not
-imaged in R6 and ``VEC`` not in R5. ``effects`` adds a log shift to a condition's ``area``
-and its value to ``order``.
+repeats ``R1``-``R6``, two wells of three fields each, unevenly: ``VEC`` and ``THBS5`` were
+imaged in R1-R3 only, R5 holds no control (neither ``VEC_SiNC`` nor ``THBS5_SiNC``) and
+``THBS5_SiFBN2`` was not imaged in R6. ``effects`` adds a log shift to a condition's ``area``
+and its value to ``order``. ``CONTROLS``, ``PARENTS`` and ``MASTER`` declare the controls
+as the owner did.
 """
 
 from __future__ import annotations
@@ -17,7 +19,21 @@ import pandas as pd
 MATRICES = ("VEC", "THBS5")
 SIRNAS = ("none", "SiNC", "SiCol6a1", "SiFBN2")
 REPEATS = tuple(f"R{r}" for r in range(1, 7))
-MISSING = (("THBS5_SiFBN2", "R6"), ("VEC", "R5"))
+MISSING = (
+    *((c, r) for c in ("VEC", "THBS5") for r in ("R4", "R5", "R6")),
+    ("VEC_SiNC", "R5"),
+    ("THBS5_SiNC", "R5"),
+    ("THBS5_SiFBN2", "R6"),
+)
+CONTROLS = {
+    "condition": {
+        "VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1", "SiFBN2": "VEC_SiFBN2"},
+        "THBS5_SiNC": {"SiCol6a1": "THBS5_SiCol6a1", "SiFBN2": "THBS5_SiFBN2"},
+        "VEC": {"THBS5": "THBS5"},
+    }
+}
+PARENTS = {"VEC_SiNC": ("VEC", "transfection"), "THBS5_SiNC": ("THBS5", "transfection")}
+MASTER = "VEC_SiNC"
 
 
 def name(matrix: str, sirna: str) -> str:

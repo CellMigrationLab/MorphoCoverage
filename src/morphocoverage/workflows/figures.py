@@ -75,7 +75,7 @@ def plots(
         "value_note": settings.pop(
             "value_note", None if setup.normalize is None else "relative to control"
         ),
-        "control": settings.pop("control", setup.control),
+        "control": settings.pop("control", setup.figure_control),
         **settings,
     }
     share = share_column(setup)
@@ -135,7 +135,7 @@ def _add_pairwise(
     """Every pair of each figure's conditions under it (see ``plots``), tested on that
     figure's conditions alone, so the q-values are adjusted over the pairs it shows, as its
     legend says, and a split figure costs its own pairs only."""
-    control = (setup.control or {}).get(CONDITION_COLUMN)
+    control = (setup.figure_control or {}).get(CONDITION_COLUMN)
     for feature, parts in figures.items():
         for figure in parts:
             summaries = getattr(figure, "cluster_summaries", None)
@@ -227,7 +227,7 @@ def embedding_plots(
         **setup.common,
     )
     figures = embedding_figures(
-        embedding, control=setup.control, highlight=highlighted(discovery)[0]
+        embedding, control=setup.figure_control, highlight=highlighted(discovery)[0]
     )
     if folder is not None:
         target = Path(folder)

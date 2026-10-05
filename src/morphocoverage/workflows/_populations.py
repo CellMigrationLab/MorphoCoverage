@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from .._control import comparison_label
 from .._style import Status, table, wrap
 from .._wording import count, listing, p_value, percent, percent_fine
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
@@ -77,7 +78,9 @@ def populations_in_report(
     complete = data.objects.loc[~data.objects[features].isna().any(axis=1)]
     labels = populations.labels.reindex(complete.index)
     marked = complete.assign(**{name: (labels == name).astype(float) for name in populations.names})
-    control = (setup.control or {}).get(CONDITION_COLUMN)
+    control = (setup.single_control or {}).get(CONDITION_COLUMN)
+    if setup.comparisons is not None:  # several controls: each condition against its own
+        control = setup.comparisons
     enrichment = None
     several = CONDITION_COLUMN in marked and marked[CONDITION_COLUMN].nunique() > 1
     from ._shared import pooled_columns  # _shared imports the assembly, which imports this
@@ -150,20 +153,25 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
     repeat, on the log-odds scale (a population and its complement alike, a small share as
     steady as a large one), tested across the repeats: the one-sample t-test on the log odds
     ratios, Benjamini-Hochberg within each sub-experiment over every population and
-    condition (``_experiments``)."""
+    condition (``_experiments``). ``control`` is the control condition, or with several
+    controls the ``(condition, control)`` pairs: each condition against its own, its rows
+    labelled ``condition vs control`` (owner, 2026-10-05)."""
     repeat = REPEAT_COLUMN if REPEAT_COLUMN in marked else None
     keys = [CONDITION_COLUMN, *([repeat] if repeat else [])]
     # Without a group to test (the declared label's only), the counts are of an empty column.
     counts = marked.assign(_none=0.0).groupby(keys, dropna=False)[names or ["_none"]]
     counts = counts.agg(["sum", "count"])
-    conditions = [c for c in pd.unique(marked[CONDITION_COLUMN]) if c != control]
+    if isinstance(control, tuple):
+        pairs = [(comparison_label(c, r), c, r) for c, r in control]
+    else:
+        pairs = [(c, c, control) for c in pd.unique(marked[CONDITION_COLUMN]) if c != control]
     rows, held, unpaired = [], {}, []
-    for condition in conditions:
+    for label, condition, own in pairs:
         repeats = (
             [
                 r
                 for r in pd.unique(marked[repeat])
-                if (condition, r) in counts.index and (control, r) in counts.index
+                if (condition, r) in counts.index and (own, r) in counts.index
             ]
             if repeat
             else [None]
@@ -171,15 +179,15 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
         if not repeat and not ((condition,) in counts.index or condition in counts.index):
             continue
         if not repeats:
-            unpaired.append(condition)
+            unpaired.append(label)
             continue
-        held[condition] = set(repeats)
+        held[label] = set(repeats)
         for name in names:
             ratios = []
             sides = {"t": [0.0, 0.0], "c": [0.0, 0.0]}  # cells in it, cells, on each side
             for r in repeats:
                 t = counts.loc[(condition, r) if repeat else condition, name]
-                c = counts.loc[(control, r) if repeat else control, name]
+                c = counts.loc[(own, r) if repeat else own, name]
                 ratios.append(_log_odds_ratio(t, c))
                 sides["t"] = [sides["t"][0] + t["sum"], sides["t"][1] + t["count"]]
                 sides["c"] = [sides["c"][0] + c["sum"], sides["c"][1] + c["count"]]
@@ -192,7 +200,7 @@ def enrichment_tests(marked: pd.DataFrame, names: list[str], control: Any) -> pd
             rows.append(
                 {
                     "feature": name,
-                    "condition": condition,
+                    "condition": label,
                     "repeats": len(ratios),
                     # The sides as the test reads them (the sign of each repeat's ratio).
                     "higher": int((ratios > 0).sum()),
@@ -388,6 +396,8 @@ def populations_text(result: PopulationsResult, setup: Setup) -> tuple[Status, s
         return Status.NOT_ASSESSED, headline, text
     lines = [wrap(f"{method}: {_found_words(pops)} ({_shares_line(pops, units)}).", 2, hang=4)]
     control = result.control
+    if isinstance(control, tuple):  # several controls: each condition against its own
+        control = "its control"
     heading = f"most different (vs {control})" if control is not None else "most different"
     tested = set(tested_populations(pops))
     own = set(labelled_populations(result.label))

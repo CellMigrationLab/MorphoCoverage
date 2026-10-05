@@ -28,6 +28,7 @@ from ..normalize import control_mean_problem, normalize_to_control
 from ..plots_embedding import embedding_figures
 from ..plots_pairwise import PAIR_NOTE, PAIRED_NOTE, PANEL_KEYS, PANEL_TITLES
 from ..sampling_unit.populations import MAX_COMPONENTS, VARIANCE
+from ._contrasts import left_out_sentence, normalisation_problem
 from ._html_data import data_buttons, download, embedding_data, feature_data, json_island
 from ._html_plotly import feature_specs, interactive_caption
 from ._populations import population_of
@@ -197,7 +198,7 @@ def feature_figures(
                 'loading="lazy"></figure>'
                 "</details></div>"
             )
-    control = (setup.control or {}).get(CONDITION_COLUMN)
+    control = (setup.figure_control or {}).get(CONDITION_COLUMN)
     colours = condition_colours(objects, fovs, control, highlighted(result.discovery)[0])
     by_view = {}
     for key, view in views:
@@ -224,7 +225,7 @@ def _views(setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame) -> list[tuple[
     ``plots`` prepares them)."""
     declared = "normalised" if setup.normalize is not None else "raw"
     views = [(declared, setup)]
-    if CONDITION_COLUMN not in (setup.control or {}):
+    if CONDITION_COLUMN not in (setup.figure_control or {}):
         return views
     if declared == "raw" and _unnormalisable(setup, objects, fovs) is not None:
         return views  # the declared values only
@@ -236,6 +237,8 @@ def _unnormalisable(setup: Any, objects: pd.DataFrame, fovs: pd.DataFrame) -> st
     """Why ``setup.prepared`` cannot normalise these checked tables to the control (a repeat
     without control objects, a control mean zero, negative or undefined), or ``None``; any
     other error raises."""
+    if setup.own_references is not None:  # several controls: each to its own
+        return normalisation_problem(setup, objects, fovs)
     return control_mean_problem(
         objects,
         fovs,
@@ -434,13 +437,19 @@ def embeddings(
     label = setup.rare_label if setup.rare_label in objects else None
     carry = [c for c in ("population", label) if c]
     tables = {"raw": objects}
-    control = setup.control
+    control = setup.figure_control
     unnormalisable = None
     if control is not None and CONDITION_COLUMN in control:
-        arguments = {"feature_cols": list(setup.columns), "control": control, **setup.common}
-        unnormalisable = control_mean_problem(objects, fovs, **arguments)
-        if unnormalisable is None:
-            tables["normalised"] = normalize_to_control(objects, fovs, **arguments)
+        if setup.own_references is None:
+            arguments = {"feature_cols": list(setup.columns), "control": control, **setup.common}
+            unnormalisable = control_mean_problem(objects, fovs, **arguments)
+            if unnormalisable is None:
+                tables["normalised"] = normalize_to_control(objects, fovs, **arguments)
+        else:  # several controls: each condition to its own
+            unnormalisable = normalisation_problem(setup, objects, fovs)
+            if unnormalisable is None:
+                normalised = replace(setup, normalize="control_mean")
+                tables["normalised"] = normalised.prepared(objects, fovs)
     embeddings = {
         values: embed(
             table,
@@ -555,8 +564,7 @@ def embeddings(
         '<p class="note">Both describe, they do not test: a separation is a pattern to read '
         "with the tests between conditions. On raw values a separation can be a batch between "
         + (
-            "repeats, which the normalised values (each divided by its repeat's control mean) "
-            "take out.</p></div>"
+            f"repeats, which the normalised values ({_divided(setup, fovs)}) take out.</p></div>"
             if unnormalisable is None
             else "repeats; values normalised to each repeat's control mean would take it out, "
             f"but they are not shown: {html.escape(unnormalisable)}.</p></div>"
@@ -566,6 +574,18 @@ def embeddings(
         + "</script>"
     )
     return markup, static
+
+
+def _divided(setup: Any, fovs: pd.DataFrame) -> str:
+    """How the normalised values are divided; with several controls, each condition by its
+    own control, the conditions left out named once (owner, 2026-10-05)."""
+    if setup.own_references is None:
+        return "each divided by its repeat's control mean"
+    left = left_out_sentence(setup, fovs)
+    return (
+        "each condition divided by its own control's mean in its repeat, the raw values being "
+        f"where levels across experiments are read{'; ' + left if left else ''}"
+    )
 
 
 __all__ = [

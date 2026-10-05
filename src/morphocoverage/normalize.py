@@ -19,6 +19,9 @@ sign of every value, so a treated mean above its control would read as below
 it (a signed feature such as a velocity or a log-ratio is compared raw). A
 repeat column named explicitly but absent from the tables raises too, rather
 than pooling the repeats; only the default ``"biological_repeat"`` may be absent.
+With ``leave_out_missing=True`` a repeat without control objects is not normalised
+instead: its values are NaN, so the normalised views leave it out (the figures of a
+dataset with several references, normalised to one of them, owner 2026-10-05).
 
 A signed feature whose control mean happens to be positive is still
 normalised, but ``normalize_to_control`` warns (``UserWarning``) whenever the
@@ -41,6 +44,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ._control import control_mask, control_text
 from ._former_repeat import one_warning, read_former
 from ._wording import listing
 from .data_check import validate_input_tables
@@ -102,6 +106,7 @@ def control_means(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    leave_out_missing: bool = False,
 ) -> pd.DataFrame:
     """The mean of every feature over the control condition's objects, one row per repeat.
 
@@ -131,14 +136,15 @@ def control_means(
         fov_col,
         group_cols,
         observation_unit,
+        leave_out_missing,
     )
     if problem is None:
         return pd.DataFrame(rows)
     label, refused = problem
     if not refused:
         raise ValueError(
-            f"no control objects {dict(control)} in {label}: every repeat needs its control "
-            "to be normalised; drop the repeat or turn normalisation off"
+            f"no control objects {control_text(control)} in {label}: every repeat needs its "
+            "control to be normalised; drop the repeat or turn normalisation off"
         )
     listed = ", ".join(f"{column!r} is {reason}" for column, reason in refused)
     raise ValueError(
@@ -160,6 +166,7 @@ def control_mean_problem(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    leave_out_missing: bool = False,
 ) -> str | None:
     """Why these values cannot be normalised to the control, or ``None`` when they can.
 
@@ -180,6 +187,7 @@ def control_mean_problem(
         fov_col,
         group_cols,
         observation_unit,
+        leave_out_missing,
     )
     if problem is None:
         return None
@@ -200,6 +208,7 @@ def _control_rows(
     fov_col: str | None,
     group_cols: Sequence[str] | None,
     observation_unit: str | None,
+    leave_out_missing: bool = False,
 ) -> tuple[list[dict[str, Any]], tuple[str, list] | None]:
     """The rows of ``control_means``, and the first repeat that cannot be normalised (its
     label, and the refused means: none when it has no control objects), or ``None``."""
@@ -226,15 +235,15 @@ def _control_rows(
         if column not in attached.columns:
             raise ValueError(f"control names a column absent from the tables: {column!r}")
     repeat_col = _repeat_column(repeat_col, attached.columns)
-    is_control = np.ones(len(attached), dtype=bool)
-    for column, value in control.items():
-        is_control &= attached[column].to_numpy() == value
+    is_control = control_mask(attached, control)
     repeats = attached[repeat_col] if repeat_col else pd.Series([None] * len(attached))
     rows = []
     for repeat in dict.fromkeys(repeats.tolist()):
         in_repeat = repeats.to_numpy() == repeat if repeat is not None else np.ones_like(is_control)
         chosen = attached.loc[in_repeat & is_control, list(feature_cols)]
         label = f"{repeat_col}={repeat}" if repeat_col else "the whole table"
+        if chosen.empty and leave_out_missing:
+            continue  # left out of the normalised values (NaN), as the caller asked
         if chosen.empty:
             return rows, (label, [])
         means = chosen.mean(axis=0, skipna=True)
@@ -251,6 +260,8 @@ def _control_rows(
                 **means.to_dict(),
             }
         )
+    if not rows:
+        return rows, ("every repeat", [])
     return rows, None
 
 
@@ -283,6 +294,7 @@ def normalize_to_control(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    leave_out_missing: bool = False,
 ) -> pd.DataFrame:
     """A copy of ``objects`` with each feature divided by its repeat's control mean.
 
@@ -312,6 +324,7 @@ def normalize_to_control(
         fov_col=fov_col,
         group_cols=group_cols,
         observation_unit=observation_unit,
+        leave_out_missing=leave_out_missing,
     )
     data = validate_input_tables(
         objects,
@@ -330,7 +343,8 @@ def normalize_to_control(
         divisors = means.iloc[[0] * len(objects)][list(feature_cols)].to_numpy()
     else:
         by_repeat = means.set_index(REPEAT_COLUMN)[list(feature_cols)]
-        divisors = by_repeat.loc[attached[repeat_col].tolist()].to_numpy()
+        # A repeat left out (``leave_out_missing``) has no divisor: its values are NaN.
+        divisors = by_repeat.reindex(attached[repeat_col].tolist()).to_numpy()
     values = objects[list(feature_cols)].to_numpy(dtype=float) / divisors
     normalized[list(feature_cols)] = values
     note = negative_values_sentence(means)
@@ -341,6 +355,66 @@ def normalize_to_control(
     return normalized
 
 
+def normalize_to_own(
+    objects: pd.DataFrame,
+    fovs: pd.DataFrame,
+    *,
+    feature_cols: Sequence[str],
+    own: Mapping[Any, Any],
+    condition_col: str = MORPHOBRICKS_GROUP_COLUMNS[0],
+    repeat_col: str | None = _DEFAULT_REPEAT_COL,
+    fov_col: str | None = None,
+    group_cols: Sequence[str] | None = None,
+    observation_unit: str | None = None,
+) -> pd.DataFrame:
+    """A copy of ``objects`` with each condition divided by the mean of its OWN control in
+    its repeat (``own`` maps a condition to its control; a control mapped to itself reads 1),
+    with several declared controls (owner, 2026-10-05). A condition ``own`` does not name,
+    or held in a repeat without its control, is NaN there. Each control's means are
+    ``control_means`` (its errors and cautions); the row order and index are kept."""
+    data = validate_input_tables(
+        objects,
+        fovs=fovs,
+        feature_cols=list(feature_cols),
+        fov_col=fov_col,
+        group_cols=group_cols,
+        observation_unit=observation_unit,
+    )
+    attached = data.objects
+    if len(attached) != len(objects):
+        raise ValueError("validation changed the number of object rows; cannot align the values")
+    repeat_col = _repeat_column(repeat_col, attached.columns)
+    repeats = attached[repeat_col].tolist() if repeat_col else [None] * len(attached)
+    divisors = np.full((len(objects), len(feature_cols)), np.nan)
+    conditions = attached[condition_col].to_numpy()
+    notes = []
+    for reference in dict.fromkeys(own.values()):
+        means = control_means(
+            objects,
+            fovs,
+            feature_cols=feature_cols,
+            control={condition_col: reference},
+            condition_col=condition_col,
+            repeat_col=repeat_col,
+            fov_col=fov_col,
+            group_cols=group_cols,
+            observation_unit=observation_unit,
+            leave_out_missing=True,
+        )
+        notes += [negative_values_sentence(means)]
+        by_repeat = means.set_index(REPEAT_COLUMN)[list(feature_cols)]
+        mine = np.isin(conditions, [c for c, r in own.items() if r == reference])
+        rows = [repeats[i] for i in np.flatnonzero(mine)]
+        divisors[mine] = by_repeat.reindex(rows).to_numpy()
+    normalized = objects.copy()
+    normalized[list(feature_cols)] = objects[list(feature_cols)].to_numpy(dtype=float) / divisors
+    note = next((n for n in notes if n), None)
+    if note is not None:
+        normalized.attrs["normalization_note"] = note
+        warnings.warn(f"normalize_to_own: {note}.", UserWarning, stacklevel=2)
+    return normalized
+
+
 __all__ = [
     "CONTROL_MEAN",
     "METHODS",
@@ -348,4 +422,5 @@ __all__ = [
     "control_means",
     "negative_values_sentence",
     "normalize_to_control",
+    "normalize_to_own",
 ]

@@ -168,7 +168,7 @@ class FeatureRanking:
             f"Which features separate the conditions? Each of the "
             f"{self.settings['n_features']} declared features, "
             + (
-                "each declared comparison of a condition with its reference"
+                "each condition against its own control"
                 if self.settings.get("comparisons")
                 else f"every condition against the control {control}"
             )
@@ -200,7 +200,7 @@ class FeatureRanking:
             f"Which features separate the conditions? {passing} of {count(n, 'feature')} pass "
             f"the gate (q <= {self.settings['alpha']:g}, Benjamini-Hochberg over "
             f"{count(n_tests, 'test')}: Cohen's d on field means, each condition against "
-            + ("its reference" if self.settings.get("comparisons") else f"the control ({label})")
+            + ("its own control" if self.settings.get("comparisons") else f"the control ({label})")
             + f", and a randomization test over whole {self._units()}), ranked "
             f"by |d| (capped at {EFFECT_CAP:g}):"
         )

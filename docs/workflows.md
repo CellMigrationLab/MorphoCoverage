@@ -379,6 +379,70 @@ Features measured plane by plane are split before the `Setup`:
 ... (objects matched by `label_id`), and those names are the `readout` and
 `features` declared here ([`data_format.md`](data_format.md#features-measured-per-plane)).
 
+### Several controls
+
+One control is declared as `control={"condition": "siCTRL"}`, and every condition is
+compared with it within each biological repeat, as always. A dataset of several experiments,
+each with its own control, declares the controls, each mapping a treatment key to its
+condition (a plain list of conditions is accepted too, with no keys), and optionally the
+parents of the controls (any condition, with an optional treatment key) and a master control
+(owner, 2026-10-05):
+
+```python
+setup = Setup(
+    readout="Order",
+    control={
+        "condition": {
+            "VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1", "SiFBN2": "VEC_SiFBN2"},
+            "THBS5_SiNC": {"SiCol6a1": "THBS5_SiCol6a1", "SiFBN2": "THBS5_SiFBN2"},
+            "VEC": {"THBS5": "THBS5"},
+        }
+    },
+    control_parents={"VEC_SiNC": ("VEC", "transfection"), "THBS5_SiNC": ("THBS5", "transfection")},
+    master_control="VEC_SiNC",
+)
+```
+
+A condition belongs to one control at most, a treatment key names one condition of a
+control, a parent may be any condition (a member of another control included) but the links
+may not form a cycle, and every condition named must be in the data; each is refused with a
+message otherwise. The declaration gives the **contrast table** (`Setup.contrast_table`), one
+row per test, shown in the report and saved as `contrasts.csv`:
+
+- `own_control`, **the main verdicts**: each condition against its own control, and each
+  control against its parent, raw and normalised, paired per biological repeat, exactly as
+  with one control (the paired test across repeats, the cell-level screen, the per-repeat d,
+  "Did I image enough?", the feature discovery and the heatmap use these rows only),
+  Benjamini-Hochberg within each sub-experiment as before. A row reads
+  `THBS5_SiCol6a1 vs THBS5_SiNC`.
+- `across_normalised`: two links with the same treatment key under different controls (or
+  parents): the two conditions each normalised to its own control, in every repeat holding all
+  four the difference of their log ratios, paired across those repeats
+  (`SiCol6a1 effect: THBS5_SiCol6a1/THBS5_SiNC vs VEC_SiCol6a1/VEC_SiNC`); a list of
+  conditions gives no such row. One Benjamini-Hochberg family.
+- `vs_master_raw`, only with a master: each other control against it on the raw values, in
+  the repeats holding both, unless a parent link joins them already
+  (`THBS5_SiNC vs VEC_SiNC (raw)`). The report gives the master's repeats once and says that
+  raw comparisons across experiments assume the experiments were imaged and processed alike.
+  One Benjamini-Hochberg family.
+
+For the ECM design above that is 7 + 3 + 1 = 11 rows per feature. The secondary rows are
+tested on the repeat means, with no cell-level test; a row held in fewer than 3 repeats is
+named once as not compared, and where a mean is not positive (a signed feature) the raw
+differences are compared instead of log ratios, and the table says so for that feature.
+`Setup(contrasts=table)` takes a table of the same columns (`kind`, `condition`,
+`reference`, `condition_control`, `reference_control`, `family`, `label`) in place of the
+generated one.
+
+Only the statistics read the controls: the figures, the PCA and UMAP, the population
+detection and the SuperPlots show every condition under its own name. With `normalize`, the
+normalised views show each condition divided by its own control's mean in its repeat, a
+control by its parent's (else its own, so 1); a condition held in a repeat without its own
+control is left out there, and the report names it once. Levels across experiments are read
+on the raw values. The tests read the raw values and each normalises to its own control.
+Unusual observations and the population enrichment take each condition's own control as the
+reference; the object rules, clustering and a positive control take every control pooled.
+
 ### Normalising to the control
 
 `normalize="control_mean"` divides every declared column (the readout and

@@ -203,14 +203,14 @@ def report(
             fovs,
             feature_cols=setup.columns,
             normalized=setup.normalized_sentence(fovs, objects),
-            control=setup.control,
+            control=setup.single_control,
             data_check=data_check,
             **common,
         ),
     }
     if per_field:
         results["variability"] = fov_variability(objects, fovs, feature=readout, **common)
-    if setup.control is not None:
+    if setup.reference_control is not None:
         results.update(control_checks(objects, fovs, setup, reasons, per_field))
     if setup.positive is None and setup.rare_label is not None:
         # The labelled rare state is a positive control of its own (owner, 2026-10-02).
@@ -224,7 +224,7 @@ def report(
             novelty=setup.novelty,
             control=RepresentationControl(
                 positive=positive.selector,
-                reference=setup.control,
+                reference=setup.reference_control,
                 planted_objects=positive.planted_objects,
             ),
             pair_cols=list(positive.resolved_pair_cols(fovs)),
@@ -246,11 +246,14 @@ def report(
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     prepared = setup.prepared(objects, fovs)
-    results.update(conditions(prepared, fovs, setup, reasons))
+    # The tests read the normalised values, or with comparisons the raw ones (each test
+    # normalises to its own reference); the populations read the figures' values.
+    compared = setup.compared_values(objects, fovs)
+    results.update(conditions(compared, fovs, setup, reasons))
     if "contrast" in results:
         # Question 2 for every feature alike: the report is neutral (owner, 2026-10-01).
         results["enough_features"] = enough_by_feature(
-            objects, fovs, prepared, setup, results.get("discovery")
+            objects, fovs, compared, setup, results.get("discovery")
         )
         results["distribution"] = distribution_by_feature(objects, fovs, setup)
     if setup.fingerprint:
@@ -404,7 +407,7 @@ def optimise(
     criteria = setup.criteria()
     hierarchy = setup.resolved_hierarchy(objects, fovs)
     strata = setup.resolved_effort_strata(fovs)
-    prepared = setup.prepared(objects, fovs)
+    prepared = setup.compared_values(objects, fovs)
     reasons: dict[str, str] = {}
     results: dict[str, Any] = {}
     results["reliability"] = sampling_reliability(

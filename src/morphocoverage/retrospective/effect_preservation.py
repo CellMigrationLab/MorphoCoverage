@@ -455,7 +455,7 @@ def _summary(result: EffectPreservation) -> str:
     if frame.empty:
         return f"{title}\nEvery analysis group is the control: no condition to compare."
     control = ", ".join(str(v) for v in settings["control"].values())
-    against = "its reference" if settings.get("comparisons") else f"the control {control}"
+    against = "its own control" if settings.get("comparisons") else f"the control {control}"
     intro = (
         f"Per {column_word(REPEAT_COLUMN)}, each condition against {against}: k "
         f"fields a side drawn at random from the fields not held back "

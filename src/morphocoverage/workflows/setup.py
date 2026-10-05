@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -46,17 +46,28 @@ from ..metadata import (
     resolve_fov_col,
 )
 from ..normalize import METHODS as NORMALIZATIONS
-from ..normalize import control_means, negative_values_sentence, normalize_to_control
+from ..normalize import normalize_to_control, normalize_to_own
 from ..objectives import ObjectiveConfig, RareTarget, SamplingObjective
 from ..outcomes import RareStateDetected, RelativeMeanError
 from ..retrospective.criteria import OutcomeCriterion
 from ..retrospective.hierarchy import SamplingHierarchy
-from ..retrospective.overview import normalized_sentence
 from ..schema import OBJECT_LIKE_UNITS, resolve_observation_unit, unit_words
 from ..strategies import ScalarPrecisionStrategy, SupportNoveltyEstimator, SupportNoveltyStrategy
 from ..strategies.base import SamplingStrategy
 from ..strategies.support_novelty import UPPER_QUANTITY
 from ..transforms import RobustStandardize, Standardize
+from ._contrasts import (
+    check_controls,
+    compares,
+    comparisons,
+    contrast_arguments,
+    contrast_table,
+    figure_control,
+    normalized_text,
+    own_references,
+    reference_control,
+    single_control,
+)
 from ._declaration import declaration
 from ._setup_parts import (
     MANY_NOVELTY_FEATURES,
@@ -77,7 +88,15 @@ class Setup:
       Foundation's JCB object-rule check (``object_rule_check``; the stopping rules use each
       group's own mean), its observations the reference for unusual
       observations (without it they are not assessed), and, with ``normalize``,
-      the divisor of the normalised values.
+      the divisor of the normalised values. Several controls, each mapping a treatment
+      key to its condition (or listing them), owner 2026-10-05: ``{"condition":
+      {"VEC_SiNC": {"SiCol6a1": "VEC_SiCol6a1"}, "VEC": {"THBS5": "THBS5"}}}``; each
+      condition is tested against its own control, and the contrast table adds the
+      comparisons across experiments (``_contrasts``).
+    - ``control_parents``, ``master_control``: with several controls, a control's parent
+      condition (``"VEC"`` or ``("VEC", "transfection")``, a treatment key), tested as a
+      main verdict; and the control the other controls are compared with on raw values.
+    - ``contrasts``: a contrast table (``_control.CONTRAST_COLUMNS``) in its place.
     - ``normalize``: ``"control_mean"`` divides every feature (the readout
       included) by the mean of the control condition's observations of the
       same repeat (``normalize_to_control``); needs ``control`` to name the
@@ -185,6 +204,9 @@ class Setup:
     n_jobs: int = 1
     minimum_detection: float = 0.9
     fields_independent: bool = False
+    master_control: Any = None
+    control_parents: Mapping[Any, Any] | None = None
+    contrasts: pd.DataFrame | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.readout, str) or not self.readout:
@@ -222,14 +244,16 @@ class Setup:
             raise ValueError("tolerances must be fractions between 0 and 1, such as 0.05")
         if self.control is not None and (not isinstance(self.control, Mapping) or not self.control):
             raise TypeError("control must map FOV-table columns to values")
+        check_controls(self)
         if self.positive is not None and not isinstance(self.positive, PositiveControl):
             raise TypeError("positive must be a PositiveControl")
-        if self.positive is not None and self.control is None:
+        if self.positive is not None and self.reference_control is None:
             raise ValueError("a positive control is checked against the control: declare both")
         if self.normalize is not None:
             if self.normalize not in NORMALIZATIONS:
                 raise ValueError(f"normalize must be one of {list(NORMALIZATIONS)} or None")
-            if self.control is None or MORPHOBRICKS_GROUP_COLUMNS[0] not in self.control:
+            chosen = self.figure_control
+            if chosen is None or MORPHOBRICKS_GROUP_COLUMNS[0] not in chosen:
                 raise ValueError(
                     "normalize needs control to name the condition column, for example "
                     "control={'condition': 'MOCK'}"
@@ -346,10 +370,14 @@ class Setup:
         With ``normalize="control_mean"`` every declared column is divided by
         its repeat's control mean; otherwise ``objects`` is returned unchanged.
         A repeat without a control raises (``normalize_to_control``). The
-        stopping rules and the other analyses read the raw values, as live.
+        stopping rules and the other analyses read the raw values, as live. With several
+        controls, each condition over its own control (``normalize_to_own``), for figures.
         """
         if self.normalize is None:
             return objects
+        if (own := self.own_references) is not None:
+            kept = {"repeat_col": self.repeat_col(fovs), "own": own, **self.common}
+            return normalize_to_own(objects, fovs, feature_cols=self.columns, **kept)
         assert self.control is not None
         return normalize_to_control(
             objects,
@@ -359,6 +387,50 @@ class Setup:
             repeat_col=self.repeat_col(fovs),
             **self.common,
         )
+
+    def compared_values(self, objects: pd.DataFrame, fovs: pd.DataFrame) -> pd.DataFrame:
+        """What the tests read: ``prepared``, or raw values with a contrast table."""
+        return objects if self.comparisons is not None else self.prepared(objects, fovs)
+
+    @property
+    def contrast_table(self) -> pd.DataFrame | None:
+        """``contrasts``, else the table several controls generate, else ``None``."""
+        return contrast_table(self)
+
+    @property
+    def comparisons(self) -> tuple[tuple[Any, Any], ...] | None:
+        """The main verdicts as ``(condition, control)`` pairs; ``None`` with one control."""
+        return comparisons(self)
+
+    @property
+    def own_references(self) -> dict[Any, Any] | None:
+        """Each condition's own control (a control's parent, else itself), or ``None``."""
+        return own_references(self)
+
+    @property
+    def compares(self) -> bool:
+        """Whether conditions are compared: a control on the condition, or contrasts."""
+        return compares(self)
+
+    @property
+    def contrast_arguments(self) -> dict[str, Any]:
+        """``control``, or the main verdicts' ``comparisons``, as the analyses take them."""
+        return contrast_arguments(self)
+
+    @property
+    def reference_control(self) -> Mapping[str, Any] | None:
+        """The control, or every own control pooled (``_contrasts``)."""
+        return reference_control(self)
+
+    @property
+    def figure_control(self) -> Mapping[str, Any] | None:
+        """What figures draw first: the control, or the master (else the first declared)."""
+        return figure_control(self)
+
+    @property
+    def single_control(self) -> Mapping[str, Any] | None:
+        """The control when there is one and no contrast table, else ``None``."""
+        return single_control(self)
 
     def repeat_col(self, fovs: pd.DataFrame) -> str | None:
         """The repeat column when the FOV table has one."""
@@ -406,31 +478,9 @@ class Setup:
     def normalized_sentence(
         self, fovs: pd.DataFrame, objects: pd.DataFrame | None = None
     ) -> str | None:
-        """How the values are normalised and what reads them, or ``None`` when they are not.
-
-        With ``objects``, also the caution when the control holds negative
-        values of a feature (``normalize.negative_values_sentence``).
-        """
-        if self.normalize is None:
-            return None
-        assert self.control is not None
-        text = (
-            f"{normalized_sentence(self.control, self.repeat_col(fovs))}, for the outcomes "
-            "judged on held-back fields, the condition contrast, the feature ranking and the "
-            "plots; the stopping rules and the other analyses read the raw values"
-        )
-        if objects is not None:
-            means = control_means(
-                objects,
-                fovs,
-                feature_cols=self.columns,
-                control=self.control,
-                repeat_col=self.repeat_col(fovs),
-                **self.common,
-            )
-            note = negative_values_sentence(means)
-            text += f". Caution: {note}" if note else ""
-        return text
+        """How the values are normalised and what reads them, or ``None`` when they are not;
+        with ``objects``, the caution when the control holds negative values."""
+        return normalized_text(self, fovs, objects)
 
     def objective(self) -> ObjectiveConfig:
         """The objective whose components are the declared targets.

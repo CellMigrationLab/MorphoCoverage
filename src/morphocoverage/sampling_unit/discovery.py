@@ -321,7 +321,7 @@ class FeatureDiscovery:
             return f"Which features separate the conditions? None of the {n} could be tested."
         passing = int(self.ranking["score"].notna().sum())
         against = (
-            "its reference"
+            "its own control"
             if self.settings.get("comparisons")
             else f"the control, {compared_name(self.settings)}"
         )
@@ -372,7 +372,7 @@ class FeatureDiscovery:
         if not unpaired:
             return ""
         label = (
-            "its reference" if self.settings.get("comparisons") else compared_name(self.settings)
+            "its own control" if self.settings.get("comparisons") else compared_name(self.settings)
         )
         return " " + not_compared(unpaired, label, column_word(self.settings["repeat_col"]))
 
