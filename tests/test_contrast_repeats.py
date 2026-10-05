@@ -43,6 +43,7 @@ def test_the_sign_flip_floor_counts_only_differences_that_are_not_zero():
     [row] = across_repeats(_table(list(differences)), "biological_repeat", 0).to_dict("records")
     assert np.isnan(row["p_sign_flip"]) and row["p_sign_flip_floor"] == pytest.approx(2 / 32)
 
+
 def _table(differences, control=10.0):
     return pd.DataFrame(
         {
