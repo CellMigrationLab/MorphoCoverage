@@ -32,12 +32,14 @@ from .._style import among, group_label, span, wrap
 from .._wording import count, listing, percent
 from ..metadata import TECHNICAL_REPEAT_COLUMN
 from ..sampling_unit._state_text import (
+    CLUSTER_ALPHA,
     SEED_AGREEMENT_WARNING,
     clustering_parts,
     state_words,
     unusual_full,
     unusual_parts,
 )
+from ..sampling_unit._state_text import clustered as clustered_rows
 from ..sampling_unit._unit_text import (
     descriptor_spread_full,
     descriptor_spread_parts,
@@ -198,7 +200,7 @@ def clustered_states(clustering: Sequence[Any]) -> tuple[list[str], int, int]:
         rows = result.table[result.table["state_objects"] > 0]
         words = observation_words(result.settings)[1]
         for state, block in rows.groupby("state", sort=False):
-            hits = int((block["p_clustered"] <= 0.05).sum())
+            hits = int(clustered_rows(block).sum())
             if hits:
                 word = "technical repeat" if TECHNICAL_REPEAT_COLUMN in result.group_cols else ""
                 names.append(
@@ -313,12 +315,12 @@ def states_lines(clustering: Any, unusual: Any, words: str) -> list[str]:
         seen = block[block["state_objects"] > 0]
         if not len(seen):
             continue
-        hits = seen[seen["p_clustered"] <= 0.05]
+        hits = seen[clustered_rows(seen)]
         named = [group_label({k: r[k] for k in keys}) for r in hits.to_dict("records")]
         where = f" ({listing(named, limit=3)})" if named else ""
         text = (
-            f"clustered in a few fields (p ≤ 0.05) in {len(hits)} of the {len(seen)} groups "
-            f"where seen{where}"
+            f"clustered in a few fields (q ≤ {CLUSTER_ALPHA:g}) in {len(hits)} of the "
+            f"{len(seen)} groups where seen{where}"
         )
         factor = (
             pd.to_numeric(hits["fovs_needed"], errors="coerce")

@@ -9,7 +9,8 @@ the declared control, pooled over the biological repeats:
 
 - **The gate (discovery)**: the cell-level randomization test (``contrast_cells``) in the
   version the readings trust most, on values normalised to each repeat's control when
-  every control mean is positive and balanced over the repeats when they are not; its
+  every control mean is positive and balanced over the repeats when they are not (one
+  permutation test with labels shuffled within each repeat, owner, 2026-10-05); its
   p-values are Benjamini-Hochberg corrected over every feature and condition of a
   sub-experiment (``_experiments``), and a test passes when ``q <= alpha`` (a candidate).
   A feature's score is the largest |d| among its passing contrasts (capped at
@@ -175,7 +176,7 @@ def _row(
     n_permutations: int,
     rng: np.random.Generator,
     alpha: float = GATE_ALPHA,
-) -> tuple[dict[str, Any], list]:
+) -> tuple[dict[str, Any], Any]:
     """One test's row, and what ``contrast_cells.refined`` reruns when its p is at most
     ``alpha`` (empty otherwise, so only those samples are kept)."""
     by_t, by_c = side["by_t"], side["by_c"]
@@ -524,7 +525,7 @@ def feature_discovery(
     }
     contrasts = contrasts_of(described)
     rows = []
-    retests: dict[int, list] = {}  # what refined may rerun, by row
+    retests: dict[int, Any] = {}  # what refined may rerun, by row
     held: dict[Any, set] = {}  # the repeats each condition is compared in
     for feature in features:
         pooled = _pooled(all_groups, described, contrasts, feature, technical_col)

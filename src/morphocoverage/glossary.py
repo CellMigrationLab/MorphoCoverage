@@ -194,8 +194,8 @@ GLOSSARY: tuple[Term, ...] = (
         "Do the conditions differ?",
         "Balanced test",
         "The cell-level test when the repeats hold different numbers of cells: each draw takes "
-        "the same number from every repeat, so none weighs more; the median d and p over 100 "
-        "draws.",
+        "the same number from every repeat, so none weighs more; d is the median over 100 "
+        "draws, and p comes from the labels shuffled within each repeat, one permutation test.",
         "Do the conditions differ?",
     ),
     Term(

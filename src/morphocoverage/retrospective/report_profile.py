@@ -28,6 +28,8 @@ import pandas as pd
 
 from .._wording import count, number, percent
 from ..bounds import lower_bound, upper_bound
+from ..sampling_unit._state_text import CLUSTER_ALPHA
+from ..sampling_unit._state_text import clustered as clustered_rows
 from ..schema import observation_words
 from ..sufficiency import SufficiencyReport
 from .controls import ControlResult
@@ -247,10 +249,11 @@ def _clustering_rows(clustering: FOVClustering | None, observations: str) -> lis
         seen = block[block["state_objects"] > 0]
         if not len(seen):
             continue
-        clustered = seen[seen["p_clustered"] <= 0.05]
+        clustered = seen[clustered_rows(seen)]
         statement = (
-            f"{clustering.state_name(state)}: clustered in a few fields (p <= 0.05) in "
-            f"{len(clustered)} of the {len(seen)} groups where it was seen"
+            f"{clustering.state_name(state)}: clustered in a few fields "
+            f"(q <= {CLUSTER_ALPHA:g}) in {len(clustered)} of the {len(seen)} groups where it was "
+            "seen"
         )
         # Fields holding the state (at least m of its objects, for unusual labels);
         # a group where no field holds it has no field count to compare.

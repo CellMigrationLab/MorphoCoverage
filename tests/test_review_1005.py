@@ -160,17 +160,18 @@ def test_only_a_small_p_is_rerun_seeded_by_its_own_identity():
     assert again[-1] == values[0]
 
 
-def test_the_balanced_test_is_rerun_on_its_median_draws():
+def test_the_balanced_test_is_rerun_with_more_labellings():
+    """#89: the balanced test is one permutation test; its rerun draws new labellings and
+    keeps the observed statistic, so its p moves to the finer grid of ``B`` and its d stays."""
     rng = np.random.default_rng(1)
-    treated = [rng.normal(0.4, 1, 30) for _ in range(3)]
+    treated = [rng.normal(0.8, 1, n) for n in (60, 30, 30)]
     control = [rng.normal(0, 1, 30) for _ in range(3)]
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(contrast_cells, "BALANCED_DRAWS", 5)
-        d, _, _, _, middle = balanced_draws(treated, control, np.random.default_rng(2))
-    # One draw for an odd number: the one at the median d, whose d is the median d.
-    [(t, c)] = middle
-    assert len(t) == 90 and len(c) == 90
-    assert cell_randomization(t, c, 9, np.random.default_rng(0))[0] == pytest.approx(d)
+        d, p, per_t, per_c, rerun = balanced_draws(treated, control, np.random.default_rng(2))
+        assert (per_t, per_c) == (30, 30) and d > 0.5
+        assert p == pytest.approx(1 / (contrast_cells.BALANCED_PERMUTATIONS + 1))
+        assert rerun(1999, np.random.default_rng(3)) == pytest.approx(1 / 2000)
 
 
 def test_the_screen_reruns_its_small_p_values_and_says_so(designs):

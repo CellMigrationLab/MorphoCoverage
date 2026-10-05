@@ -323,6 +323,42 @@ def test_a_states_p_value_depends_neither_on_the_other_states_nor_on_the_row_ord
     assert p_values(objects, ["rare"]) == {"rare": first["rare"]}
 
 
+def test_clustered_is_called_at_q_corrected_over_every_group_and_state():
+    """#287: 20 groups with a state spread at random and one clustered in one field. A raw
+    p <= 0.05 among the null groups is not called clustered; the q is Benjamini-Hochberg over
+    the 21 tests of the analysis, in the table and in the answer (owner, 2026-10-05)."""
+    rng = np.random.default_rng(5)
+    rows, fields = [], []
+    for group in range(21):
+        for j in range(10):
+            image = f"c{group}_f{j}"
+            fields.append(
+                {"condition": f"c{group}", "biological_repeat": "r1", "image_file": image}
+            )
+            for i in range(10):
+                state = j == 0 and i < 8 if group == 20 else bool(rng.random() < 0.1)
+                rows.append(
+                    {"condition": f"c{group}", "biological_repeat": "r1", "image_file": image}
+                    | {"state": state}
+                )
+    result = fov_clustering(
+        pd.DataFrame(rows),
+        pd.DataFrame(fields),
+        label_col="state",
+        states=[True],
+        n_permutations=999,
+    )
+    table = result.table
+    expected = stats.false_discovery_control(table["p_clustered"].astype(float), method="bh")
+    np.testing.assert_allclose(table["q_clustered"], expected)
+    null = table[table["condition"] != "c20"]
+    assert (null["p_clustered"] <= 0.05).any() and (null["q_clustered"] > 0.05).all()
+    assert table.loc[table["condition"] == "c20", "q_clustered"].iloc[0] <= 0.05
+    text = " ".join(result.summary().split())
+    assert "q ≤ 0.05 after Benjamini-Hochberg over the 21 tests" in text
+    assert "in 1 of 21 groups where seen (c20 · repeat r1)" in text
+
+
 @pytest.mark.parametrize(
     ("states", "message"),
     [("rare", "must be a list"), ([], "must be a list"), (["rare", "rare"], "twice")],
