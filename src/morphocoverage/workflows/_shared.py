@@ -59,6 +59,7 @@ from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._contrasts import declared_conditions
 from ._document import pooling_reason
+from ._feature_space import attached, space
 from ._rare_share import compared_columns, share_column, with_share
 from .setup import Setup, default_novelty
 
@@ -95,7 +96,7 @@ def orders(
 
 
 def check_workflow_inputs(
-    objects: Any, fovs: Any, setup: Any, *, warn: bool = True
+    objects: Any, fovs: Any, setup: Any, *, warn: bool = True, tables_given: bool = False
 ) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck]:
     """Refuse inputs the workflows cannot use, before any analysis runs, and check the rest.
 
@@ -119,6 +120,8 @@ def check_workflow_inputs(
     if not isinstance(setup, Setup):
         raise TypeError("setup must be a morphocoverage.workflows.Setup")
     objects, fovs = renamed_tables(objects, fovs)
+    if not tables_given:  # the other feature tables a Setup names must be attached already
+        attached(objects, fovs, setup, None)
     if setup.rare_label is not None and setup.rare_label not in objects.columns:
         raise ValueError(
             f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
@@ -395,13 +398,16 @@ def control_checks(
         )
     }
     if setup.features:
+        # With other feature tables, on the weighted combined space (owner, 2026-10-05).
+        columns, weights = space(setup, setup.features)
         unusual = unusual_objects(
             objects,
             fovs,
-            feature_cols=list(setup.features),
+            feature_cols=columns,
             reference=reference,
             own=setup.own_references,  # several controls: each against its own
             random_state=setup.random_state,
+            weights=weights,
             **common,
         )
         results["unusual"] = unusual

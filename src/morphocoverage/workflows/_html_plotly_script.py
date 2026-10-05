@@ -245,15 +245,19 @@ PLOTLY_SCRIPT = r"""
   }
   document.querySelectorAll('.viz[data-viz]').forEach(function (viz) {
     if (!data) return;
+    // With other feature tables, a map per table, the combined one first (data.tables).
     var state = { method: data.methods[0], values: data.values[0], colour: 'condition',
-      pick: null };
+      pick: null, table: data.tables ? data.tables[0] : null };
     var node = viz.querySelector('.pl-embed'), panel = viz.querySelector('.selection');
     var menu = viz.querySelector('select.colour-by'), find = viz.querySelector('input.find');
     // Past 12 conditions most are grey: the legend names the coloured ones, and the search
     // highlights the condition picked.
     var many = data.colours.indexOf(data.grey) >= 0;
     var height = 600;
-    function current() { return data.sets[state.values][state.method]; }
+    function current() {
+      var sets = data.sets[state.values];
+      return (data.tables ? sets[state.table] : sets)[state.method];
+    }
     function hiddenConditions() {
       var hidden = {};
       if (state.colour !== 'condition') return hidden;
@@ -270,10 +274,15 @@ PLOTLY_SCRIPT = r"""
       data.features.forEach(function (f) {
         var z = set.z[f]; if (!z) return;
         var a = 0, b = 0, na = 0, nb = 0, va = 0, vb = 0;
-        z.forEach(function (v, i) { if (mine[i]) { a += v; na++; } else { b += v; nb++; } });
+        // A point without the value (null, on another table's map) is left out.
+        z.forEach(function (v, i) {
+          if (v === null) return;
+          if (mine[i]) { a += v; na++; } else { b += v; nb++; }
+        });
         if (na < 2 || nb < 2) return;
         a /= na; b /= nb;
         z.forEach(function (v, i) {
+          if (v === null) return;
           if (mine[i]) va += (v - a) * (v - a); else vb += (v - b) * (v - b);
         });
         var sd = Math.sqrt((va / (na - 1) + vb / (nb - 1)) / 2);
@@ -399,7 +408,9 @@ PLOTLY_SCRIPT = r"""
       }
       if (state.colour !== 'condition' && set.z && set.z[state.colour]) {
         var all = set.x.map(function (_, i) { return i; }), z = set.z[state.colour];
-        var sorted = z.slice().sort(function (a, b) { return a - b; });
+        var sorted = z.filter(function (v) { return v !== null; }).sort(function (a, b) {
+          return a - b;
+        });
         return [scatter(escape(state.colour), all, { color: z, colorscale: 'Viridis',
           cmin: quantile(sorted, 0.02), cmax: quantile(sorted, 0.98), size: 7, opacity: 0.8,
           colorbar: { title: { text: escape(state.colour) + ' (SD)' }, thickness: 14 } },

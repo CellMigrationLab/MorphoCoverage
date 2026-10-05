@@ -296,6 +296,17 @@ GLOSSARY: tuple[Term, ...] = (
         (UMAP,),
     ),
     Term(
+        "Figures",
+        "Other feature tables and the combined map",
+        "Features not read one by one, such as a deep-learning embedding, loaded as named "
+        "tables beside the explainable features and never tested feature by feature. Each has "
+        "its own map; the combined map weighs every table as much as the explainable features. "
+        "Under each map, the share of each cell's 10 nearest neighbours in its biological "
+        "repeat that have its condition, against chance: how far the conditions separate in "
+        "that table. Describes, does not test.",
+        "The whole dataset at once",
+    ),
+    Term(
         "The data",
         "Integrity checks",
         "Exact checks for accidents of image analysis: a field exported twice, rows pasted into "
@@ -357,6 +368,7 @@ PHRASES: dict[str, tuple[str, ...]] = {
     "JCS effect size": ("JCS effect size",),
     "PCA and loadings": ("PCA", "loadings"),
     "UMAP": ("UMAP",),
+    "Other feature tables and the combined map": ("other feature tables", "combined map"),
     "Integrity checks": ("integrity",),
     "Unusual cells and 'nothing new'": ("unusual", "nothing new"),
     "Positive control (representation)": ("positive control",),

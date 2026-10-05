@@ -104,6 +104,8 @@ def _design_lines(scan: Any) -> list[str]:
     lines = ["What the dataset is"]
     sentences = [_conditions_line(scan), *repeat_lines(scan), technical_line(scan)]
     sentences += [fields_line(scan), _targets_line(scan), _features_line(scan)]
+    # The other feature tables, checked, before "Loaded correctly?" (owner, 2026-10-05).
+    sentences += [f"Other feature table {line}" for line in scan.design.get("feature_tables", [])]
     for axis, (low, high) in scan.design["planes"].items():
         sentences.append(f"{axis!r}: {low} to {high} planes per field, one field each.")
     for sentence in sentences:

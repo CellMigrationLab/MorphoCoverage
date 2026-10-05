@@ -64,7 +64,7 @@ Scientific rules:
 - **Pilots get advice, not verdicts.** A dataset of one or two biological repeats gets every answer its design supports, the cell-level test leading question 9, and what to change next time within the design the user ran (fields a side per repeat, technical repeats per condition), never a blanket "image 5-6 repeats". The repeats a paired test would need lead the plan, at 0.05/m with m the conditions of the sub-experiment, the correction the verdict uses at most (owner, 2026-10-01; before, full report only at 0.05).
 - **Permit null results.** Do not optimize validation, examples, or documentation to guarantee that MorphoCoverage outperforms fixed cells/FOVs or scalar precision rules.
 - **FOV/spatial position is the primary acquisition/resampling unit.** Never bootstrap, permute, or sequentially reveal individual objects, z-planes, channels, or time points as independent FOVs. All observations from one position must enter together.
-- **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly. Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
+- **Never infer feature columns from all numeric columns.** Feature columns must be supplied explicitly; an other feature table, passed by name, declares every column but its identity columns (section 5, owner 2026-10-05). Numeric metadata such as IDs, stage positions, acquisition order, pixel size, or timepoints must never silently enter phenotype space.
 - **Feature rows are generic observations, not necessarily cells.** Record `observation_unit` (for example `cell`, `nucleus`, `patch`, `slice`, `fov_summary`); labels are normalized to lowercase singular form, so `Cells` and `nuclei` mean `cell` and `nucleus`. When no unit is given, rows are assumed to be objects and every result records `observation_unit_declared=False`; the report's words then call them cells (`schema.unit_words`, owner 2026-10-02: "cells could be the default"), and with a declared unit every word for the observations, the cell-level test's name included ("patch-level"), is the unit's (`Setup.unit_words`/`unit_word`, `observation_words` of a result's settings). FOV count and observation count are different quantities. Object/cell-specific scientific rules must not silently reinterpret arbitrary observations as cells.
 - **Missing phenotype values are allowed at the input boundary.** NaN is preserved; infinity is rejected. The framework never silently imputes or drops missing values. Every estimator/transform that uses affected features must state its missing-data behavior explicitly.
 - **Metadata is not phenotype.** Grouping/acquisition columns such as condition, biological repeat, batch, well, sample, acquisition identifiers, and within-position `z`, `c`, `t` metadata must not enter the phenotype matrix when they encode acquisition dimensions. Feature columns are explicit, so callers must omit such metadata from `feature_cols`; validation refuses `z`, `z0`, `z1`, `c` and `t` there, and a feature measured per plane becomes one feature per plane only on explicit request (`planes_as_features`).
@@ -154,6 +154,10 @@ Optional:
 - object/label/patch identifiers and z/c/t coordinates for traceability.
 
 The backwards-compatible API argument is still named `objects`, but `ValidatedInput.observations` and `n_observations` are the canonical generic semantics.
+
+### Other feature tables
+
+Optional, by name, for the same observations (owner, 2026-10-05): features that are not read one by one, such as a deep-learning embedding ("DINOv2", "DINOv3"), so several models can be compared side by side. The observation table holds the explainable features, tested one by one as before; the other tables are never tested feature by feature and there is no whole-embedding test. With the explainable features they make the PCA/UMAP (one map per table and a weighted combined map, first), the populations (named and given rules with explainable features), unusual observations, novelty, the copy checks and a fingerprint declared on them, in the weighted combined space: each column standardised as each analysis does, each table of `p` columns times `sqrt(p_explainable / p)` so every table carries the explainable features' total variance (MFA-style, by the square root of the number of columns rather than the first singular value, so the weights do not depend on the data); novelty's radius times the square root of the number of tables. A descriptive separation score per table (`separation`: per biological repeat, the share of each observation's 10 nearest neighbours with its condition against chance, the median over repeats; no p-value) is a line under each map and a comparison table on the page. They are passed as `feature_tables={name: table}` to `report`, `html_report`, `scan_design` and `guide` and checked at loading by `attach_feature_tables` (`feature_tables.py`): each row identified as the observation table identifies an observation (the FOV key columns it holds, then `label_id` and `z`/`z0`/`z1`/`c`/`t` when present), every observation matched exactly once, every other column numeric (the table is the explicit declaration of its features; metadata names are refused), no infinite value, missing values counted and kept, no column shared with the observation table or another table, a non-empty name of its own (`explainable` and `combined` are reserved); every problem raised at once. `Setup.feature_tables` records each table's columns. They are never divided by a control.
 
 MorphoCoverage must be able to consume output derived from CellPatcher or any feature-extraction repo without importing those packages.
 
@@ -254,6 +258,8 @@ src/morphocoverage/
     plots.py               # PlotsOfData-style figures, intervals from resampling whole fields (matplotlib)
     glossary.py            # the report's glossary: every test, rule and term in plain words, with its papers
     embedding.py           # PCA and UMAP of the declared features (embed): coordinates and loadings, no figure
+    feature_tables.py      # other feature tables (a DINO embedding, ...): validated against the observation table, attached as named blocks; their weights in the combined space
+    separation.py          # how far the conditions separate in a feature space: the share of each observation's neighbours with its condition against chance, per repeat (descriptive)
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
     _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend
@@ -335,7 +341,8 @@ src/morphocoverage/
     workflows/             # a new dataset in a few lines: report, optimise, benchmark, live
         __init__.py        # the subpackage's public names
         setup.py           # Setup: every scientific choice of the workflows, declared once
-        _setup_parts.py    # private: the positive control and the default definition of new, re-exported by setup
+        _setup_parts.py    # private: the positive control, the default definition of new and the presets' checks, re-exported by setup
+        _feature_space.py  # private: the Setup's other feature tables: the weighted combined space, novelty on it, the tables attached
         _contrasts.py      # private: one control or several: the contrast table, own controls, the pooled and figure controls
         scan.py            # scan_design, DesignScan: the design and how it was loaded, before any analysis
         _scan_rules.py     # private: the scan's findings, the columns that would say more, the questions
@@ -343,7 +350,8 @@ src/morphocoverage/
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
         _html_render.py    # private: the report's text as HTML, glossary term links, status chips
         _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
-        _html_figures.py   # private: figures as PNG/PDF, PCA/UMAP data and markup, palette
+        _html_figures.py   # private: the feature figures as PNG/PDF, palette
+        _html_maps.py      # private: the PCA/UMAP data and markup, a map per feature table and the combined one, with the neighbours line under each
         _html_plotly.py    # private: plotly.js (assets/) and the feature figures' data for it
         _html_plotly_script.py  # private: the script drawing the Plotly figures
         _html_style.py     # private: the page's style sheet (light/dark, drawer, lightbox)
@@ -359,6 +367,7 @@ src/morphocoverage/
         guided.py          # guide, Answers: load, scan, ask, save the answers (continue or start over), report
         _guided_ask.py     # private: the guided session's questions and how each answer is read
         _guided_controls.py  # private: its control gate: one control, or several with their conditions, parents and master
+        _guided_tables.py  # private: its other feature tables: asked for at load with a path and a name, checked, saved with their checksums
         __main__.py        # python -m morphocoverage.workflows: the guided session from a terminal
         _declaration.py    # private: the Setup's declaration in sentences, every preset printed
         retrospective.py   # report, optimise, document: the analyses in question order

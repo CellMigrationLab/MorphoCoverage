@@ -132,6 +132,7 @@ def unusual_objects(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     own: Mapping[Any, Any] | None = None,
+    weights: Mapping[str, float] | None = None,
 ) -> UnusualObjects:
     """Label observations that lie outside a declared reference population.
 
@@ -146,7 +147,9 @@ def unusual_objects(
     group against the reference groups of its own sub-experiment only (the biological
     repeats its conditions share, ``_experiments.repeat_experiments``). ``own`` maps each
     condition to its own control (several declared controls, owner 2026-10-05): a group is
-    then scored against its own control's groups only, among ``reference``'s.
+    then scored against its own control's groups only, among ``reference``'s. ``weights``
+    multiply the standardised features, a weight per feature (the others 1): the weighted
+    combined space of several feature tables (``feature_tables.table_weights``).
     """
     (reference,) = read_former(reference=reference)
     if not 0 < quantile < 1:
@@ -160,6 +163,7 @@ def unusual_objects(
     reference_groups = matching_groups(all_groups, reference, "reference")
     by_key = {group_key(g): d for g, d in all_groups}
     matrix = data.feature_matrix()
+    scale = np.array([float(weights.get(c, 1.0)) for c in data.feature_cols]) if weights else None
     positions_all = np.arange(len(data.objects))
     labels = np.full(len(data.objects), np.nan)
     distances = np.full(len(data.objects), np.nan)
@@ -222,6 +226,7 @@ def unusual_objects(
                     quantile,
                     rng,
                     data.feature_cols,
+                    scale,
                 )
             )
         if isinstance(results[0], str):
@@ -279,6 +284,7 @@ def unusual_objects(
         "seed_checks": seed_checks,
         "within_experiment": bool(within_experiment and len(set(block.values())) > 1),
         "transform": Standardize().describe(),
+        "weights": dict(weights) if weights else None,
         "distance": "mean Euclidean distance to the n_neighbors nearest reference observations",
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,

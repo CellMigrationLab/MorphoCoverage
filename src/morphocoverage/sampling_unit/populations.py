@@ -50,7 +50,7 @@ fields are listed so they can be opened).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -58,7 +58,7 @@ import numpy as np
 import pandas as pd
 
 from .._checks import as_count, check_seed
-from ..embedding import _sample, _standardised
+from ..embedding import _sample, _standardised, weighted
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
 from ..schema import fov_positions, validate_input_tables
 from ..statistics import cohen_d
@@ -254,9 +254,14 @@ def find_populations(
     fov_col: str | None = None,
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
+    weights: Mapping[str, float] | None = None,
+    named_by: Sequence[str] | None = None,
 ) -> Populations:
     """The main population and the groups of ``features`` over every observation (see the
-    module)."""
+    module). ``weights`` weigh the standardised features, as ``embed`` takes them (the
+    combined space of several feature tables); ``named_by`` are the features a group's
+    description and rule may name (default all), the explainable ones when there are other
+    tables (owner, 2026-10-05)."""
     features = list(dict.fromkeys(features))
     max_points = as_count(max_points, "max_points", 100)
     random_state = check_seed(random_state)
@@ -272,7 +277,10 @@ def find_populations(
     complete = ~np.isnan(matrix).any(axis=1)
     z, varies = _standardised(matrix[complete])
     kept = [f for f, v in zip(features, varies, strict=True) if v]
+    z = weighted(z, kept, weights)
     values = matrix[complete][:, np.flatnonzero(varies)]
+    named = [i for i, f in enumerate(kept) if named_by is None or f in set(named_by)]
+    named = named or list(range(len(kept)))
     n = int(complete.sum())
     size = as_count(min_cells, "min_cells", 2) if min_cells is not None else None
     points, k = _components(z) if len(kept) else (np.zeros((n, 1)), 0)
@@ -305,10 +313,12 @@ def find_populations(
     for cluster, name in names.items():
         member = raw == cluster
         kind, purity = judged[cluster]
-        pairs = _defining(z, member, kept)
+        pairs = _defining(z[:, named], member, [kept[i] for i in named])
         # The rule on the features in their own units, for a group (the main one is the rest).
         rule = (
-            population_rule(values, member, kept, random_state, groups=keys)
+            population_rule(
+                values[:, named], member, [kept[i] for i in named], random_state, groups=keys
+            )
             if kind == "group"
             else Rule((), np.nan, np.nan)
         )
@@ -351,6 +361,8 @@ def find_populations(
         "random_state": random_state,
         "observation_unit": data.observation_unit,
         "observation_unit_declared": data.observation_unit_declared,
+        "weights": dict(weights) if weights else None,
+        "named_by": [kept[i] for i in named],
     }
     return Populations(labels, table, settings)
 

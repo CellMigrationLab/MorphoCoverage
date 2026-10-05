@@ -169,6 +169,7 @@ def score(
     quantile: float,
     rng: np.random.Generator,
     names: Sequence[str] | None = None,
+    weights: np.ndarray | None = None,
 ) -> tuple[np.ndarray, float, dict[str, Any], str] | str:
     """Scores of ``tested``, the threshold, the fitted state and how it was calibrated.
 
@@ -177,7 +178,8 @@ def score(
     the tested objects being scored against all reference groups but one, drawn
     uniformly (``_leave_one_group_out``); with a single reference group, the
     same with its fields (``_leave_one_field_out``). ``names`` are the feature
-    columns, so a reason (a constant feature) names them.
+    columns, so a reason (a constant feature) names them; ``weights`` multiply the standardised
+    features (the weighted combined space of several feature tables).
     """
     columns = tuple(names) if names is not None else tuple(map(str, range(reference.shape[1])))
     fitted = Standardize().fit_matrix(reference, columns)
@@ -187,6 +189,8 @@ def score(
     ref = Standardize().apply_matrix(state, reference)
     complete = ~np.isnan(tested).any(axis=1)
     points = Standardize().apply_matrix(state, tested[complete])
+    if weights is not None:
+        ref, points = ref * weights, points * weights
     several = len(np.unique(group_ids)) > 1
     scored = (
         _leave_one_group_out(ref, group_ids, points, k, rng)

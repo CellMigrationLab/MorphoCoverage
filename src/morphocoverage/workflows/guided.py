@@ -3,14 +3,18 @@
 ``guide()`` walks a user through a dataset in this order:
 
 1. **Load** the observation table (and the FOV table, when there is one), from a path or
-   a DataFrame, and choose the **results folder**.
+   a DataFrame; with paths (asked or given), ask too for **other feature tables** for the same
+   observations (a DINO embedding, owner 2026-10-05: each with a path and a name, checked
+   against the observation table, ``_guided_tables``; or ``guide(feature_tables=...)``);
+   and choose the **results folder**.
 2. If the folder already holds saved answers (``ANSWERS_FILE``) for the same tables (the
    observation table and the FOV table, or no FOV table, by their checksums), offer to
    **continue** with them or to **delete them and start over**; answers saved for other
-   tables are never reused, nor answers saved by an earlier version, which did not check
-   the FOV table (the questions are asked again; owner, 2026-10-05).
-3. **Scan** the design (``scan_design``) and print what it found; the scan is saved as
-   ``scan.txt``.
+   tables (the other feature tables by name and checksum included) are never reused, nor
+   answers saved by an earlier version, which did not check the FOV table (the questions are
+   asked again; owner, 2026-10-05).
+3. **Scan** the design (``scan_design``, the other feature tables listed with it) and print
+   what it found; the scan is saved as ``scan.txt``.
 4. **Ask** (owner, 2026-10-05, for the order and the wording): did the dataset load
    correctly (if not, stop and fix the tables); what one row is, when not declared (the scan
    is redone with it, its words follow the unit); whether all the conditions are compared
@@ -48,7 +52,7 @@ import json
 import os
 import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,12 +61,14 @@ from typing import Any
 import pandas as pd
 
 from .._wording import count, duration, percent
+from ..feature_tables import table_weights
 from ..metadata import CONDITION_COLUMN
 from ..multivariate_outcomes import CovarianceError
 from ..objectives import RareTarget
 from ..retrospective.criteria import OutcomeCriterion
 from . import _guided_ask as q
 from ._guided_controls import ask_controls, contrast_lines
+from ._guided_tables import Tables, ask_tables, entries, identity, read_tables
 from ._html_data import EMBED_BUDGET
 from .html_report import html_report, zip_results
 from .retrospective import Report, report
@@ -151,17 +157,27 @@ class Answers:
         if self.aim != "population" and self.fingerprint_tolerance is None:
             raise ValueError(f"aim={self.aim!r} needs fingerprint_tolerance")
 
-    def fingerprint(self) -> tuple[OutcomeCriterion, ...]:
-        """The fingerprint criterion the answers declare (none for the population aim)."""
+    def fingerprint(
+        self, tables: Mapping[str, Sequence[str]] | None = None
+    ) -> tuple[OutcomeCriterion, ...]:
+        """The fingerprint criterion the answers declare (none for the population aim); with
+        other feature tables (``tables``: each name and its columns), on the weighted combined
+        space (``feature_tables.table_weights``, owner 2026-10-05)."""
         if self.aim == "population":
             return ()
         tolerance = float(self.fingerprint_tolerance)
+        weights = table_weights(tables, len(self.features)) if tables else {}
+        columns = (*self.features, *weights)
+        metric = CovarianceError(
+            columns, True, weights=tuple(weights.get(c, 1.0) for c in columns) if tables else None
+        )
+        others = " and the other feature tables, each weighing as much," if tables else ""
         return (
             OutcomeCriterion(
-                CovarianceError(tuple(self.features), True),
+                metric,
                 tolerance,
                 "lower_is_better",
-                f"the covariance of the standardised features within {percent(tolerance)}",
+                f"the covariance of the standardised features{others} within {percent(tolerance)}",
             ),
         )
 
@@ -177,7 +193,7 @@ class Answers:
             "observation_unit": self.observation_unit,
         }
         if goal == "fingerprint":
-            values["fingerprint"] = self.fingerprint()
+            values["fingerprint"] = self.fingerprint(scan.settings.get("feature_tables"))
         if goal == "fingerprint" or self.positive is not None:
             # A positive control is judged by the definition of new.
             values["novelty"] = default_novelty(tuple(self.features))
@@ -223,6 +239,12 @@ class Answers:
             f"Readout: {self.readout}.",
             f"One row is a {self.observation_unit}.",
         ]
+        tables = [
+            f"{e['name']} ({e['path'] or 'a DataFrame'})"
+            for e in self.dataset.get("feature_tables") or []
+        ]
+        if tables:
+            lines.append(f"Other feature tables: {', '.join(tables)}.")
         if self.positive is not None:
             lines.append(f"Positive control: {self.positive['condition']}.")
         if self.rare_label is not None:
@@ -291,7 +313,10 @@ def _load(
     say: q.Say,
     objects: pd.DataFrame | str | Path | None,
     fovs: pd.DataFrame | str | Path | None,
-) -> tuple[pd.DataFrame, pd.DataFrame | None, dict[str, Any]]:
+    given: Mapping[str, Any] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame | None, Tables, dict[str, Any]]:
+    # Interactive (paths asked or given, as from a terminal): the other tables are asked too.
+    asked = not isinstance(objects, pd.DataFrame)
     if objects is None:
         path = q.text(ask, "Path to the observation table (one row per cell, track, ...):")
         objects = path
@@ -300,14 +325,17 @@ def _load(
     objects, objects_path = _read(objects, "observation table")
     fovs, fovs_path = _read(fovs, "FOV table")
     say(f"Loaded {len(objects)} rows and {len(objects.columns)} columns.")
+    # Other feature tables: asked for with the paths, else as given (owner, 2026-10-05).
+    tables = ask_tables(ask, say, objects, fovs) if asked and given is None else read_tables(given)
     dataset = {
         "objects": objects_path,
         "fovs": fovs_path,
         "rows": len(objects),
         "checksum": table_checksum(objects),
         "fovs_checksum": None if fovs is None else table_checksum(fovs),
+        "feature_tables": entries(tables),
     }
-    return objects, fovs, dataset
+    return objects, fovs, tables, dataset
 
 
 # The dataset entries that must match for saved answers to be reused (paths are provenance).
@@ -345,6 +373,7 @@ def _saved(
         if saved is None:
             return None, None
         usable = all(saved.dataset.get(key, "missing") == dataset[key] for key in _IDENTITY)
+        usable = usable and identity(saved.dataset) == identity(dataset)
     if saved is not None and usable:
         say(f"Answers saved on {saved.saved or 'an earlier session'} were found for this table:")
         say("\n".join(f"  {line}" for line in saved.lines()))
@@ -418,6 +447,7 @@ def guide(
     ask: Callable[[str], str] = input,
     say: Callable[[str], None] = print,
     run_report: bool = True,
+    feature_tables: Mapping[str, pd.DataFrame | str | Path] | None = None,
     **setup_fields: Any,
 ) -> GuidedResult:
     """Run the guided session (see the module) and return what it produced.
@@ -425,9 +455,11 @@ def guide(
     ``objects`` and ``fovs`` are DataFrames or CSV paths (asked for when ``objects`` is
     ``None``); ``folder`` is the results folder (asked for when ``None``). ``setup_fields``
     go to the ``Setup`` (``n_jobs=4``, ``normalize="control_mean"``). With
-    ``run_report=False`` the session stops after saving the answers.
+    ``run_report=False`` the session stops after saving the answers. ``feature_tables`` are
+    other feature tables by name (DataFrames or CSV paths), asked for when the tables are paths.
     """
-    objects, fovs, dataset = _load(ask, say, objects, fovs)
+    objects, fovs, tables, dataset = _load(ask, say, objects, fovs, feature_tables)
+    others = {name: table for name, (table, _) in tables.items()} or None
     if folder is None:
         folder = q.text(ask, "Folder for the results:", DEFAULT_FOLDER)
     folder = Path(folder).expanduser()
@@ -437,13 +469,13 @@ def guide(
         say(f"Stopped: {stop}.")
         return GuidedResult(folder, None, None, None, None, stop)
     observation_unit = answers.observation_unit if answers else None
-    scan = scan_design(objects, fovs, observation_unit=observation_unit)
+    scan = scan_design(objects, fovs, observation_unit=observation_unit, feature_tables=others)
     (folder / "scan.txt").write_text(scan.summary() + "\n")
     if answers is None:
         say(scan.summary(questions=False))
 
         def rescan(unit: str) -> DesignScan:
-            again = scan_design(objects, fovs, observation_unit=unit)
+            again = scan_design(objects, fovs, observation_unit=unit, feature_tables=others)
             (folder / "scan.txt").write_text(again.summary() + "\n")
             return again
 

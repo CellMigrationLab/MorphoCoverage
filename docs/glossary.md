@@ -131,6 +131,10 @@ Every test, rule and term the report uses, in plain words, with where it appears
 *Where:* The whole dataset at once.
 *See:* [McInnes L, Healy J, Melville J. UMAP: Uniform Manifold Approximation and Projection for dimension reduction. arXiv:1802.03426. 2018.](https://arxiv.org/abs/1802.03426)
 
+**Other feature tables and the combined map.** Features not read one by one, such as a deep-learning embedding, loaded as named tables beside the explainable features and never tested feature by feature. Each has its own map; the combined map weighs every table as much as the explainable features. Under each map, the share of each cell's 10 nearest neighbours in its biological repeat that have its condition, against chance: how far the conditions separate in that table. Describes, does not test.
+
+*Where:* The whole dataset at once.
+
 ## The data
 
 **Integrity checks.** Exact checks for accidents of image analysis: a field exported twice, rows pasted into another field, a change of units, a summary written twice. A finding is structure to inspect, not a judgement.
