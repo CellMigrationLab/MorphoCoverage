@@ -255,6 +255,7 @@ src/morphocoverage/
     glossary.py            # the report's glossary: every test, rule and term in plain words, with its papers
     embedding.py           # PCA and UMAP of the declared features (embed): coordinates and loadings, no figure
     feature_tables.py      # other feature tables (a DINO embedding, ...): validated against the observation table, attached as named blocks; their weights in the combined space
+    separation.py          # how far the conditions separate in a feature space: the share of each observation's neighbours with its condition against chance, per repeat (descriptive)
     plots_embedding.py     # the PCA biplot (the top features as arrows) and the UMAP, coloured by condition
     plots_pairwise.py      # every pair of conditions: signed d and the paired test, the panel under a plot
     _plots_text.py         # private: a plot's title (what is plotted, what the interval resamples), legend

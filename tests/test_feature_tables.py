@@ -1,6 +1,8 @@
 """Other feature tables (owner, 2026-10-05): validated against the observation table, attached
 as named blocks, weighted in the combined space; every failure has its message."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -13,8 +15,9 @@ from morphocoverage.feature_tables import (
 )
 from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.retrospective.criteria import OutcomeCriterion
+from morphocoverage.separation import separation
 from morphocoverage.transforms import Chain, ColumnWeights, RobustStandardize
-from morphocoverage.workflows import Setup
+from morphocoverage.workflows import Setup, report
 from morphocoverage.workflows._feature_space import attached, novelty_space, space
 from morphocoverage.workflows.setup import default_novelty
 
@@ -209,3 +212,112 @@ def test_the_workflows_attach_the_tables_and_name_them_in_the_setup():
     with pytest.raises(ValueError, match="pass the tables themselves"):
         attached(objects, fovs, named, None)
     assert attached(merged, fovs, named, None)[0] is merged
+
+
+# --- The workflows on the weighted combined space ------------------------------------------
+
+
+def _experiment(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Three conditions, three repeats, four fields of 12 cells; three explainable features
+    with a small shift, an embedding whose blocks separate the conditions (``sep``) and one
+    of noise (``noise``)."""
+    rng = np.random.default_rng(seed)
+    rows = [
+        {
+            "condition": c,
+            "biological_repeat": r,
+            "image_file": f"{c}_{f}.tif",
+            "label_id": k,
+            "f1": rng.normal(shift),
+            "f2": rng.normal(),
+            "f3": rng.normal(shift),
+        }
+        for c, shift in (("ctrl", 0.0), ("a", 0.3), ("b", -0.3))
+        for r in ("R1", "R2", "R3")
+        for f in range(4)
+        for k in range(1, 13)
+    ]
+    objects = pd.DataFrame(rows)
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    key = objects[["condition", "biological_repeat", "image_file", "label_id"]]
+    centre = objects["condition"].map({"ctrl": 0, "a": 1, "b": 2})
+    sep = key.assign(
+        **{f"s{j}": rng.normal(size=len(key)) + 3.0 * (centre == j % 3) for j in range(6)}
+    )
+    noise = key.assign(**{f"n{j}": rng.normal(size=len(key)) for j in range(6)})
+    return objects, fovs.reset_index(drop=True), sep, noise
+
+
+def test_the_separation_score_orders_a_separating_table_above_noise():
+    objects, fovs, sep, noise = _experiment()
+    merged = attach_feature_tables(objects, fovs, {"sep": sep, "noise": noise}).objects
+    scores = separation(
+        merged,
+        fovs,
+        spaces={"sep": list(sep.columns[4:]), "noise": list(noise.columns[4:])},
+    )
+    by_space = scores.spaces.set_index("space")
+    # 47 other cells of the same condition among the 143 others of a repeat: chance 47/143.
+    assert by_space.loc["noise", "chance"] == pytest.approx(47 / 143)
+    assert by_space.loc["sep", "share"] > 0.9
+    assert by_space.loc["noise", "share"] < 0.4
+    assert scores.table["k"].eq(10).all() and len(scores.table) == 6
+    assert scores.line("sep").startswith("sep: 9") and "by chance; median over 3 repeats" in (
+        scores.line("sep")
+    )
+    rows = [line.split()[0] for line in scores.comparison().splitlines()]
+    assert rows.index("sep") < rows.index("noise")  # the most separating first
+
+
+def test_a_repeat_of_one_condition_is_not_scored():
+    objects, fovs, sep, _ = _experiment()
+    keep = objects["condition"].eq("ctrl").to_numpy()
+    merged = attach_feature_tables(objects, fovs, {"sep": sep}).objects[keep]
+    scores = separation(merged, fovs[fovs["condition"] == "ctrl"], spaces={"sep": ["s0", "s1"]})
+    assert scores.spaces.loc[0, "single"] == 3
+    assert scores.line("sep") == "sep: not scored, as no biological repeat holds two conditions."
+
+
+@pytest.fixture(scope="module")
+def combined_report():
+    objects, fovs, sep, noise = _experiment()
+    setup = Setup(
+        readout="f1",
+        features=("f1", "f2", "f3"),
+        control={"condition": "ctrl"},
+        observation_unit="cell",
+    )
+    tables = {"sep": sep, "noise": noise}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        return report(objects, fovs, setup, integrity=True, feature_tables=tables)
+
+
+def test_the_report_names_the_tables_and_tests_only_the_explainable_features(combined_report):
+    setup = combined_report.setup
+    assert setup.feature_tables == {
+        "sep": tuple(f"s{j}" for j in range(6)),
+        "noise": tuple(f"n{j}" for j in range(6)),
+    }
+    assert set(combined_report.discovery.ranking["feature"]) == {"f1", "f2", "f3"}
+    text = combined_report.summary()
+    assert "sep: 6 feature columns, every observation matched once" in text
+    assert "weight per column: sep 0.71, noise 0.71" in text
+
+
+def test_the_distance_analyses_read_the_weighted_combined_space(combined_report):
+    results = combined_report.results
+    tables = [*(f"s{j}" for j in range(6)), *(f"n{j}" for j in range(6))]
+    unusual = results["unusual"].settings
+    assert unusual["feature_cols"] == ["f1", "f2", "f3", *tables]
+    assert unusual["weights"]["s0"] == pytest.approx(np.sqrt(3 / 6))
+    populations = results["populations"].populations.settings
+    assert populations["weights"]["n5"] == pytest.approx(np.sqrt(3 / 6))
+    # The groups are named and their rules written with the explainable features only.
+    assert populations["named_by"] == ["f1", "f2", "f3"]
+    assert set(results["integrity"].settings["feature_cols"]) >= set(tables)
+    spaces = results["separation"].spaces.set_index("space")
+    assert list(spaces.index) == ["Combined", "Explainable", "sep", "noise"]
+    assert (
+        spaces.loc["sep", "share"] > spaces.loc["Combined", "share"] > spaces.loc["noise", "share"]
+    )

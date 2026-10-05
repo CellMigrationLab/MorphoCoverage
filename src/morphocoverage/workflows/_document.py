@@ -61,6 +61,7 @@ _EXTRA_RESULTS = (
     "fingerprint_precision",
     "label_control",
     "populations",
+    "separation",
 )
 
 

@@ -22,17 +22,22 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
+from .._wording import count
 from ..feature_tables import (
+    COMBINED,
+    EXPLAINABLE,
     RESERVED_NAMES,
     FeatureTables,
     attach_feature_tables,
     table_weights,
 )
+from ..metadata import CONDITION_COLUMN
+from ..separation import Separation, separation
 from ..strategies import SupportNoveltyEstimator
 from ..transforms import Chain, ColumnWeights
 
@@ -128,48 +133,66 @@ def attached(
     return tables.objects, replace(setup, feature_tables=tables.columns), tables
 
 
-def table_lines(tables: FeatureTables | None, setup: Setup) -> list[str]:
-    """The overview's sentences on the other tables, or none without them."""
-    if tables is None:
+def table_lines(setup: Setup, tables: FeatureTables | None = None) -> list[str]:
+    """The overview's sentences on the other tables (what ``tables`` checked, when given),
+    none without them."""
+    if not setup.feature_tables:
         return []
-    weights = table_weights(tables.columns, len(setup.columns))
-    lines = tables.lines()
-    shares = ", ".join(
-        f"{name} {weights[columns[0]]:.2f}" for name, columns in tables.columns.items()
+    declared = setup.feature_tables
+    weights = table_weights(declared, len(setup.columns))
+    lines = (
+        tables.lines()
+        if tables is not None
+        else [f"{name}: {count(len(c), 'feature column')}." for name, c in declared.items()]
     )
+    shares = ", ".join(f"{name} {weights[c[0]]:.2f}" for name, c in declared.items())
     lines.append(
-        "Not tested feature by feature; with the explainable features they make the maps, the "
-        "populations, unusual observations, novelty, the copy checks and the fingerprint, in a "
-        f"combined space where every table weighs as much as the explainable one (weight per "
-        f"column: {shares})."
+        "Other feature tables are not tested feature by feature; with the explainable features "
+        "they make the maps, the populations, unusual observations, novelty, the copy checks "
+        "and a fingerprint declared on them, in a combined space where every table weighs as "
+        f"much as the explainable one (weight per column: {shares})."
     )
     return lines
 
 
-def table_names(setup: Setup) -> list[str]:
-    """The other tables' names, in the order declared."""
-    return list(setup.feature_tables or {})
-
-
-def describe(setup: Setup) -> dict[str, Any]:
-    """The other tables as provenance: names, column counts and weights."""
+def space_names(setup: Setup) -> dict[str, tuple[list[str], dict[str, float] | None]]:
+    """Each feature space of the maps and the separation score, by the name the page shows:
+    with other tables the combined space first, then the explainable features and each
+    table; without them, the declared features alone."""
+    if not setup.feature_tables:
+        return {"Features": (list(setup.columns), None)}
     columns, weights = space(setup)
-    if weights is None:
-        return {}
-    return {
-        "tables": {name: len(c) for name, c in (setup.feature_tables or {}).items()},
-        "weights": {name: weights[c[0]] for name, c in (setup.feature_tables or {}).items()},
-        "columns": len(columns),
-    }
+    spaces = {COMBINED.capitalize(): (columns, weights)}
+    spaces[EXPLAINABLE.capitalize()] = (list(setup.columns), None)
+    spaces.update({name: (list(c), None) for name, c in setup.feature_tables.items()})
+    return spaces
+
+
+def separation_in_report(
+    objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup
+) -> Separation | None:
+    """The separation of the conditions in each space (``space_names``), on the values the
+    figures read; ``None`` with one condition or no condition column."""
+    if CONDITION_COLUMN not in fovs or fovs[CONDITION_COLUMN].nunique() < 2:
+        return None
+    spaces = space_names(setup)
+    return separation(
+        objects,
+        fovs,
+        spaces={name: columns for name, (columns, _) in spaces.items()},
+        weights={name: weights for name, (_, weights) in spaces.items()},
+        random_state=setup.random_state,
+        **setup.common,
+    )
 
 
 __all__ = [
     "attached",
     "check_feature_tables",
-    "describe",
     "novelty_space",
+    "separation_in_report",
     "space",
+    "space_names",
     "table_columns",
     "table_lines",
-    "table_names",
 ]

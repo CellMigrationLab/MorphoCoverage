@@ -106,6 +106,9 @@ def _representation(setup: Setup) -> str:
             f"no feature columns declared, so unusual {units} and new phenotypes are not assessed"
         )
     columns = count(len(setup.features), "declared feature column")
+    if setup.feature_tables:  # owner, 2026-10-05: the other tables join them, weighted
+        names = ", ".join(setup.feature_tables)
+        columns += f" with the other feature tables {names}, each weighing as much as them"
     against = "each condition's own control" if setup.contrast_table is not None else "the control"
     if setup.novelty is None:
         new = "new phenotypes are not assessed (no definition of new: novelty)"

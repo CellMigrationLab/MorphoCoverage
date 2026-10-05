@@ -59,6 +59,7 @@ from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._contrasts import declared_conditions
 from ._document import pooling_reason
+from ._feature_space import space
 from ._rare_share import compared_columns, share_column, with_share
 from .setup import Setup, default_novelty
 
@@ -395,13 +396,16 @@ def control_checks(
         )
     }
     if setup.features:
+        # With other feature tables, on the weighted combined space (owner, 2026-10-05).
+        columns, weights = space(setup, setup.features)
         unusual = unusual_objects(
             objects,
             fovs,
-            feature_cols=list(setup.features),
+            feature_cols=columns,
             reference=reference,
             own=setup.own_references,  # several controls: each against its own
             random_state=setup.random_state,
+            weights=weights,
             **common,
         )
         results["unusual"] = unusual

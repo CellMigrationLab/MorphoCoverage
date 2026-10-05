@@ -35,6 +35,7 @@ from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.populations import Populations, defined_by, find_populations, traits
 from ..schema import observation_words, validate_input_tables
 from ..statistics import paired_t
+from ._feature_space import space
 from ._population_rule_words import rule_cell, rule_words
 
 if TYPE_CHECKING:
@@ -65,11 +66,19 @@ def populations_in_report(
 ) -> PopulationsResult | None:
     """The populations and their enrichment (see the module), or ``None`` with fewer than
     two features."""
-    features = list(setup.columns)
+    # With other feature tables, on the weighted combined space, the groups named by the
+    # explainable features (owner, 2026-10-05).
+    features, weights = space(setup)
     if len(features) < 2:
         return None
     populations = find_populations(
-        objects, fovs, features=features, random_state=setup.random_state, **setup.common
+        objects,
+        fovs,
+        features=features,
+        random_state=setup.random_state,
+        weights=weights,
+        named_by=setup.columns,
+        **setup.common,
     )
     if not populations.names:
         return PopulationsResult(populations, None, None, None)
