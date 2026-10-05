@@ -445,7 +445,8 @@ PLOTLY_SCRIPT = r"""
       var layout = merge(base(t), {
         height: viz.classList.contains('full') ? Math.max(height, innerHeight - 200) : height,
         margin: { l: 70, r: 16, t: 16, b: 60 }, dragmode: 'lasso', hovermode: 'closest',
-        legend: { orientation: 'h', y: -0.12, font: { size: 14 } },
+        // Under the x axis's title, never over it.
+        legend: { orientation: 'h', yanchor: 'top', y: -0.2, font: { size: 14 } },
         xaxis: { title: { text: escape(set.xlabel) }, gridcolor: t.grid, zeroline: false },
         yaxis: { title: { text: escape(set.ylabel) }, gridcolor: t.grid, zeroline: false },
         annotations: annotations
