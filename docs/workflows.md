@@ -747,9 +747,12 @@ print(bench.summary(detail="full"))           # every rule in sentences
 
 Each criterion opens with its marker: ✅ when the rule that saves most
 fields does so with an interval above 0, or when no rule beats the fixed
-count (the null result) with an interval; ⚠️ when the best saving is not
+count (the null result) with an interval; ⚠️ when the largest saving is not
 resolved or has no interval; ➖ when a fixed count never met the risk level
-lastingly, so no rule is scored.
+lastingly, so no rule is scored. With several rules, the one that saves most
+is picked after looking at every rule's own interval: the headline says it
+"saves the most here", a description of these data, not a test of the best
+rule (owner, 2026-10-05).
 
 `default_families(setup.readout)` holds the rule families and threshold grids
 of the locked protocol (version 5, whose grids are those of versions 1 to 4): the mean-precision rule and the JCS descriptor

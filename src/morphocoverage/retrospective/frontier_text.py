@@ -290,6 +290,10 @@ def level_status(rows: pd.DataFrame, units: int) -> tuple[Status, str]:
     best = _best(rows)
     if best is None:
         return Status.OK, f"no rule got there; a fixed {fixed} did"
+    # Picked after looking at every family: described as the most saved here, not tested as
+    # the best family (owner, 2026-10-05).
+    scored = rows[(rows["family"] != BASELINE) & rows["effort"].notna()]
+    most = " the most here," if scored["family"].nunique() > 1 else ""
     saved = float(best.fields_saved)
     low = getattr(best, "saved_low", None)
     has_interval = units >= FEW_UNITS and not (low is None or pd.isna(low))
@@ -298,9 +302,9 @@ def level_status(rows: pd.DataFrame, units: int) -> tuple[Status, str]:
         has_interval = False
     if saved > 0.05:
         if has_interval and low > 0:
-            return Status.OK, f"{best.family} saves {_number(saved)} of {fixed}"
+            return Status.OK, f"{best.family} saves{most} {_number(saved)} of {fixed}"
         why = "not resolved" if has_interval else "no interval"
-        return Status.CAUTION, f"{best.family} may save {_number(saved)} fields ({why})"
+        return Status.CAUTION, f"{best.family} may save{most} {_number(saved)} fields ({why})"
     if not has_interval:
         return Status.CAUTION, f"no rule beats a fixed {fixed} (no interval)"
     return Status.OK, f"no rule beats a fixed {fixed}"
@@ -310,9 +314,9 @@ def frontier_status(result: FrontierResult) -> tuple[Status, str]:
     """The criterion's status and one-line answer, over its risk levels.
 
     Per risk level: ➖ when a fixed count never met it lastingly (no rule is
-    scored) or no rule family was given; ✅ when the family that saves most does so with an interval
-    above 0, or when no family saves fields (the null result) with an
-    interval; ⚠️ when the best saving is not resolved (its interval includes
+    scored) or no rule family was given; ✅ when the family that saves most here does so with an
+    interval above 0, or when no family saves fields (the null result) with an
+    interval; ⚠️ when the largest saving is not resolved (its interval includes
     0) or has no interval (fewer than ``FEW_UNITS`` units, or too few
     resamples reached the level). The worst over the levels; levels with the
     same phrase are named once.
