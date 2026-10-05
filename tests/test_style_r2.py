@@ -36,6 +36,7 @@ from morphocoverage.retrospective.report_status import (
     effort_status,
     next_time_status,
 )
+from morphocoverage.retrospective.spatial import EfficiencyResult
 
 MEAN_A = OutcomeCriterion(RelativeMeanError("feature_a"), 0.05, "lower_is_better", "the mean")
 MEAN_B = OutcomeCriterion(RelativeMeanError("feature_b"), 0.05, "lower_is_better", "mean b")
@@ -211,6 +212,34 @@ def test_bought_marker_reads_the_confirmed_runs():
     never = result.realized.assign(sustained_realized=pd.array([None] * len(result.realized)))
     lost = AdequacyResult(result.apparent, never, result.group_cols, result.settings)
     assert bought_status(lost)[0] is Status.CAUTION
+
+
+def test_a_group_with_no_judged_run_is_said_out_of_the_range():
+    """#245: the realized ranges and the order ranges say how many groups were not judged."""
+    result = _adequacy()
+    keys = list(result.group_cols)
+    realized = result.realized.copy()
+    first = tuple(realized[keys].drop_duplicates().iloc[0])
+    realized.loc[realized[keys].apply(tuple, axis=1) == first, "judged_fovs"] = 0
+    short = AdequacyResult(result.apparent, realized, result.group_cols, result.settings)
+    assert "; not judged in 1 " in short.summary()
+    assert "not judged in" not in result.summary()
+    rows = [
+        {
+            "g": g,
+            "order": "permuted",
+            "runs": 2,
+            "unjudged": u,
+            "reached": 1.0,
+            "median_fovs": m,
+            "median_travel": 100.0,
+            "stream_fovs": 10,
+            "longest_stream_fovs": 10,
+        }
+        for g, u, m in (("a", 0, 3.0), ("b", 0, 5.0), ("c", 2, None))
+    ]
+    text = EfficiencyResult(pd.DataFrame(), pd.DataFrame(rows), ("g",), {}).summary()
+    assert "3-5 (not judged in 1 group)" in " ".join(text.split())
 
 
 # --- 7. More fields or more samples? ------------------------------------------------
