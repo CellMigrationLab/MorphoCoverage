@@ -147,6 +147,24 @@ def test_pooling_weights_groups_by_usable_draws():
     assert pooled["bound_held"] == pytest.approx(0.875)
 
 
+def test_pooling_counts_the_groups_without_usable_draws():
+    table = pd.DataFrame(
+        {
+            "fovs_imaged": [5, 5, 5],
+            "draws": [30, 10, 0],
+            "unavailable_draws": [0, 20, 30],
+            "predicted": [0.2, 0.6, None],
+            "actual": [0.1, 0.5, None],
+            "bound": [0.5, 0.9, None],
+            "bound_held": [1.0, 0.5, None],
+        }
+    )
+    pooled = pool_calibration(table).iloc[0]
+    assert pooled["groups"] == 2 and pooled["groups_without_draws"] == 1
+    assert pooled["draws"] == 40 and pooled["unavailable_draws"] == 50
+    assert pooled["predicted"] == pytest.approx(0.3)
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

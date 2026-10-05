@@ -219,16 +219,23 @@ def _skipped_row(group: dict, k: int, total: int) -> dict:
 
 
 def pool_calibration(table: pd.DataFrame) -> pd.DataFrame:
-    """Calibration over all groups, per FOV count, weighting groups by usable draws."""
+    """Calibration over all groups, per FOV count, weighting groups by usable draws.
+
+    ``groups`` counts the groups with usable draws and ``groups_without_draws`` the others,
+    which the means leave out; ``unavailable_draws`` is summed when the table has it.
+    """
     rows = []
-    for k, runs in table.groupby("fovs_imaged", sort=True):
-        runs = runs[runs["draws"] > 0]
+    for k, attempted in table.groupby("fovs_imaged", sort=True):
+        runs = attempted[attempted["draws"] > 0]
         weights = runs["draws"].to_numpy(dtype=float)
         row = {
             "fovs_imaged": int(k),
             "groups": len(runs),
+            "groups_without_draws": len(attempted) - len(runs),
             "draws": int(weights.sum()),
         }
+        if "unavailable_draws" in attempted:
+            row["unavailable_draws"] = int(attempted["unavailable_draws"].sum())
         for column in ("predicted", "actual", "bound", "bound_held"):
             values = runs[column].to_numpy(dtype=float)
             row[column] = float(np.average(values, weights=weights)) if len(runs) else None

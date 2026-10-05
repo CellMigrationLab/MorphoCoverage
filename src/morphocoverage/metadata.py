@@ -11,7 +11,7 @@ by ``schema``, and by ``_data_rules`` with its own names).
 from __future__ import annotations
 
 import re
-from collections.abc import Hashable, Iterable, Sequence
+from collections.abc import Hashable, Iterable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -63,8 +63,8 @@ def column_names(columns: object, name: str) -> tuple | None:
     Any iterable of names works (a list, a generator, a ``pd.Index``, a numpy
     array), and is read exactly once, so a generator is not consumed by a first
     look and then seen as empty (which would pool every group). A single string
-    is refused rather than read letter by letter, as is anything that is not a
-    collection of hashable names.
+    is refused rather than read letter by letter, as is a mapping (whose keys
+    alone would be read) and anything that is not a collection of hashable names.
     """
     if columns is None:
         return None
@@ -80,6 +80,8 @@ def column_names(columns: object, name: str) -> tuple | None:
             f"{name} must be an ordered sequence of column names, not a set, whose order "
             f"changes between runs; pass a list, e.g. {name}=sorted(...)"
         )
+    if isinstance(columns, Mapping):  # its keys alone: {"area": False} would select "area"
+        raise TypeError(f"{name} must be a sequence of column names, not a mapping")
     if not isinstance(columns, Iterable):
         raise TypeError(f"{name} must be a sequence of column names, not {type(columns).__name__}")
     # numpy names (from an array) as Python ones, so group labels print as plain names.
