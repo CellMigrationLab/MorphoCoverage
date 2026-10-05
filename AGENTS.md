@@ -346,7 +346,8 @@ src/morphocoverage/
         html_report.py     # html_report, zip_results: the report as one HTML page carrying every file; the folder zipped
         _html_render.py    # private: the report's text as HTML, glossary term links, status chips
         _html_sections.py  # private: the page's order, titles, plain answers, heatmap, no numbers
-        _html_figures.py   # private: figures as PNG/PDF, PCA/UMAP data and markup, palette
+        _html_figures.py   # private: the feature figures as PNG/PDF, palette
+        _html_maps.py      # private: the PCA/UMAP data and markup, a map per feature table and the combined one, with the neighbours line under each
         _html_plotly.py    # private: plotly.js (assets/) and the feature figures' data for it
         _html_plotly_script.py  # private: the script drawing the Plotly figures
         _html_style.py     # private: the page's style sheet (light/dark, drawer, lightbox)

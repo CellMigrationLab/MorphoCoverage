@@ -245,15 +245,19 @@ PLOTLY_SCRIPT = r"""
   }
   document.querySelectorAll('.viz[data-viz]').forEach(function (viz) {
     if (!data) return;
+    // With other feature tables, a map per table, the combined one first (data.tables).
     var state = { method: data.methods[0], values: data.values[0], colour: 'condition',
-      pick: null };
+      pick: null, table: data.tables ? data.tables[0] : null };
     var node = viz.querySelector('.pl-embed'), panel = viz.querySelector('.selection');
     var menu = viz.querySelector('select.colour-by'), find = viz.querySelector('input.find');
     // Past 12 conditions most are grey: the legend names the coloured ones, and the search
     // highlights the condition picked.
     var many = data.colours.indexOf(data.grey) >= 0;
     var height = 600;
-    function current() { return data.sets[state.values][state.method]; }
+    function current() {
+      var sets = data.sets[state.values];
+      return (data.tables ? sets[state.table] : sets)[state.method];
+    }
     function hiddenConditions() {
       var hidden = {};
       if (state.colour !== 'condition') return hidden;

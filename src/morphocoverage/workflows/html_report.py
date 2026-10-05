@@ -35,7 +35,7 @@ import html
 import re
 import time
 import warnings
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -50,6 +50,7 @@ from ..retrospective.report import LIMITS_TITLE
 from ..sampling_unit.across_text import across_parts
 from ..sampling_unit.reading_text import readings_parts
 from ..sufficiency_short import rule_tallies
+from ._feature_space import attached, space
 from ._html_cards import (
     check_rows,
     chip_words,
@@ -69,7 +70,8 @@ from ._html_data import (
     page_files,
 )
 from ._html_enough import enough_body, enough_help
-from ._html_figures import embeddings, feature_figures
+from ._html_figures import feature_figures
+from ._html_maps import embeddings, maps_body
 from ._html_next import fields_next, populations_next
 from ._html_plan import PLAN_TITLE, plan_card
 from ._html_plotly import plotly_js
@@ -265,13 +267,7 @@ def _fields_card(result: Report, status: Status | None, short: str, full: str) -
 
 def _dataset_card(result: Report, viz: str, static: list[str]) -> str:
     """Every feature at once: the interactive PCA and UMAP, the static figures folded."""
-    body = (
-        f"<p>All {len(result.setup.columns)} features at once, every "
-        f"{result.setup.unit_word} a point.</p>{viz}"
-        "<details><summary>Static PCA and UMAP (PNG and PDF)</summary>"
-        f'<div class="figures">{"".join(static)}</div></details>'
-    )
-    return _card("dataset", _words(TITLES["dataset"]), "", body)
+    return _card("dataset", _words(TITLES["dataset"]), "", maps_body(result.setup, viz, static))
 
 
 def _condition_extras(result: Report, feature_blocks: list[str], folder: Path) -> str:
@@ -350,12 +346,14 @@ def html_report(
     *,
     title: str = "MorphoCoverage report",
     attach: Sequence[str | Path] = (),
+    feature_tables: Mapping[str, pd.DataFrame] | None = None,
 ) -> Path:
     """Write ``folder/report.html`` and its figures (see the module); returns the page's path.
 
     ``objects`` and ``fovs`` are the tables the ``report`` was run on; ``attach`` are more files
     the page carries for download (the design scan, the saved answers): one not found is named
     in the Files card, and two of one name are both carried (``_html_data.page_files``).
+    ``feature_tables`` are the other feature tables given to ``report``, attached again here.
     """
     if not isinstance(result, Report):
         raise TypeError("result must be the Report that report() returned")
@@ -366,6 +364,7 @@ def html_report(
             f"objects and fovs must be the tables the report was run on ({counts['objects']} "
             f"observations, {counts['fields']} fields), not {len(objects)} rows and {len(fovs)}"
         )
+    objects = attached(objects, fovs, result.setup, feature_tables)[0]
     folder = Path(folder)
     # The "?" help in the report's words for its observations (tracks, patches).
     _INTROS.clear()
@@ -386,7 +385,7 @@ def html_report(
         legends = {f: _TERMS.annotate(html.escape(t)) for f, t in legends.items()}
         feature_blocks, specs = feature_figures(result, objects, fovs, figures, legends)
         viz, static = ("", [])
-        if len(result.setup.columns) >= MIN_FEATURES:
+        if len(space(result.setup)[0]) >= MIN_FEATURES:
             viz, static = embeddings(result, objects, fovs, figures)
     statuses, headlines = doc.statuses, doc.headlines
     # The titles name the report's own observations (tracks, patches).

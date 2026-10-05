@@ -1,6 +1,7 @@
 """Other feature tables (owner, 2026-10-05): validated against the observation table, attached
 as named blocks, weighted in the combined space; every failure has its message."""
 
+import json
 import warnings
 
 import numpy as np
@@ -17,7 +18,7 @@ from morphocoverage.multivariate_outcomes import CovarianceError
 from morphocoverage.retrospective.criteria import OutcomeCriterion
 from morphocoverage.separation import separation
 from morphocoverage.transforms import Chain, ColumnWeights, RobustStandardize
-from morphocoverage.workflows import Setup, report
+from morphocoverage.workflows import Setup, html_report, report
 from morphocoverage.workflows._feature_space import attached, novelty_space, space
 from morphocoverage.workflows.setup import default_novelty
 
@@ -321,3 +322,32 @@ def test_the_distance_analyses_read_the_weighted_combined_space(combined_report)
     assert (
         spaces.loc["sep", "share"] > spaces.loc["Combined", "share"] > spaces.loc["noise", "share"]
     )
+
+
+def _page_data(page) -> dict:
+    text = page.read_text()
+    start = text.index('id="embedding-data">') + len('id="embedding-data">')
+    return json.loads(text[start : text.index("</script>", start)]), text
+
+
+def test_the_page_draws_a_map_per_table_the_combined_one_first(combined_report, tmp_path):
+    objects, fovs, sep, noise = _experiment()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        page = html_report(
+            combined_report, objects, fovs, tmp_path, feature_tables={"sep": sep, "noise": noise}
+        )
+    data, text = _page_data(page)
+    assert data["tables"] == ["Combined", "Explainable", "sep", "noise"]
+    assert set(data["sets"]["raw"]) == set(data["tables"])
+    combined = data["sets"]["raw"]["Combined"]["PCA"]["caption"]
+    assert "each table weighted to the explainable features' total variance" in combined
+    assert combined.splitlines()[-1].startswith("Combined: ")
+    assert data["sets"]["raw"]["sep"]["UMAP"]["caption"].splitlines()[-1].startswith("sep: 9")
+    # The explainable features colour every map, an other table's included.
+    assert set(data["sets"]["raw"]["noise"]["PCA"]["z"]) == {"f1", "f2", "f3"}
+    assert 'aria-label="Feature table"' in text
+    assert "How far the conditions separate in each feature table" in text
+    assert (tmp_path / "figures" / "pca_raw_sep.png").exists()
+    with pytest.raises(ValueError, match="pass the tables themselves"):
+        html_report(combined_report, objects, fovs, tmp_path)

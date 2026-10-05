@@ -26,12 +26,14 @@ from morphocoverage.workflows import (
     LiveFolder,
     Setup,
     _html_figures,
+    _html_maps,
     _html_sections,
     live_session,
     report,
     write_fov,
 )
-from morphocoverage.workflows._html_figures import embeddings, feature_figures
+from morphocoverage.workflows._html_figures import feature_figures
+from morphocoverage.workflows._html_maps import embeddings
 from morphocoverage.workflows._html_sections import what_checked
 
 SETUP = Setup(readout="x", observation_unit="cell")
@@ -165,12 +167,13 @@ def test_340_a_negative_control_mean_leaves_the_raw_views_and_says_why(signed_re
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_340_an_unexpected_error_of_a_view_is_not_hidden(signed_report, tmp_path, monkeypatch):
     result, objects, fovs = signed_report
+    monkeypatch.setattr(_html_maps, "control_mean_problem", lambda *a, **k: None)
     monkeypatch.setattr(_html_figures, "control_mean_problem", lambda *a, **k: None)
 
     def broken(*args, **kwargs):
         raise ValueError("an unrelated error")
 
-    monkeypatch.setattr(_html_figures, "normalize_to_control", broken)
+    monkeypatch.setattr(_html_maps, "normalize_to_control", broken)
     with pytest.raises(ValueError, match="an unrelated error"):
         embeddings(result, objects, fovs, tmp_path)
     drawn = _html_figures.plots
@@ -223,7 +226,7 @@ def _shared_axis_tables(conditions=("ctrl", "drug")):
 
 def _pca_caption(objects, fovs, top=(), held=""):
     embedding = embed(objects, fovs, features=["a", "b", "e", "g", "flat"], top=top, umap=False)
-    return _html_figures._set(embedding, "pc", {"ctrl": 0, "drug": 1}, "raw", held=held)[
+    return _html_maps._set(embedding, "pc", {"ctrl": 0, "drug": 1}, "raw", held=held)[
         "caption"
     ], embedding
 

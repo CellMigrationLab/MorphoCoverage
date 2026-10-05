@@ -128,12 +128,14 @@ def embed(
     group_cols: Sequence[str] | None = None,
     observation_unit: str | None = None,
     weights: Mapping[str, float] | None = None,
+    standardised: Sequence[str] | None = None,
 ) -> Embedding:
     """PCA (and, with ``umap``, UMAP) of ``features`` (see the module); needs at least
     ``MIN_FEATURES`` features that vary. ``carry`` are observation columns copied onto the
     points (a population, a label); the points also hold each feature's standardised value
-    (``z:<feature>``), for colouring the maps and describing a selection; ``weights`` weigh
-    the standardised features (see the module)."""
+    (``z:<feature>``), for colouring the maps and describing a selection (of the features in
+    ``standardised`` only, when given); ``weights`` weigh the standardised features (see the
+    module)."""
     features = list(dict.fromkeys(features))
     max_points = as_count(max_points, "max_points", 10)
     n_neighbors = as_count(n_neighbors, "n_neighbors", 2)
@@ -172,8 +174,10 @@ def embed(
     for column in carry:
         if column in kept_rows:
             built[column] = kept_rows[column].to_numpy()
+    carried = set(kept_features if standardised is None else standardised)
     for i, feature in enumerate(kept_features):
-        built[f"z:{feature}"] = z[:, i]
+        if feature in carried:
+            built[f"z:{feature}"] = z[:, i]
     built["pc1"], built["pc2"] = scores[:, 0], scores[:, 1]
     built["umap1"], built["umap2"] = np.full(len(z), np.nan), np.full(len(z), np.nan)
     points = pd.DataFrame(built, index=pd.RangeIndex(len(z)))
