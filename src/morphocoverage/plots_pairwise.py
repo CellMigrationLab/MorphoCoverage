@@ -13,7 +13,10 @@ under each plot: the effect size and the test, in one matrix.
   correct over every feature and condition, and the figure's note says so. The paired
   t-test on the repeats' means is kept beside it (``p_paired``, for pairs imaged in
   ``MIN_REPEATS`` shared repeats). Pairs without the control are not the declared
-  comparisons: they describe, as the notebook's do.
+  comparisons: they describe, as the notebook's do. With several controls, the normalised
+  values divide each condition by its own control, so only two conditions normalised to the
+  same control are compared there; the other pairs are marked ≠, "different references: not
+  compared" (owner, 2026-10-05).
 - ``add_pairwise``: the matrix drawn under a ``plots.plots_of_data`` figure, the figure made
   taller for it: the lower-left triangle holds d (blue lower, red higher, full colour at
   ``D_CAP``), the upper-right triangle the q-value (green and bold at or below ``ALPHA``,
@@ -29,7 +32,7 @@ for the readout); the paired test holds its rate but needs the repeats.
 from __future__ import annotations
 
 import textwrap
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from itertools import combinations
 from typing import TYPE_CHECKING, Any
 
@@ -91,6 +94,19 @@ PAIR_NOTE = (
     "conditions were imaged in different repeats (two sub-experiments): d describes, and "
     "they are not tested, since the difference between their repeats would be in it."
 )
+# Several controls (owner, 2026-10-05): each condition is normalised to its own control, so
+# in the normalised values only two conditions normalised to the same control are compared.
+APART = "different references: not compared"
+APART_MARK = "≠"
+PAIR_NOTE_SEVERAL = PAIR_NOTE.replace(
+    "the row and the column of the control answer the question",
+    "the pair of a condition and its own control answers the question",
+).replace(
+    "they are not tested, since the difference between their repeats would be in it.",
+    "they are not tested, since the difference between their repeats would be in it. "
+    f"{APART_MARK}: in the normalised values, two conditions normalised to different "
+    "controls, so not compared there; the raw values compare them.",
+)
 PAIRED_NOTE = (
     f"{PAIRED_READING} The paired t-test on the biological repeats' means: each condition's "
     "mean paired with the other's in every repeat that imaged both (on the log ratios when "
@@ -147,10 +163,13 @@ def pairwise_contrasts(
     observation_unit: str | None = None,
     n_permutations: int = N_PERMUTATIONS,
     random_state: int = 0,
+    references: Mapping[Any, Any] | None = None,
 ) -> pd.DataFrame:
     """One row per pair of ``conditions`` (all, the ``control`` first, by default); see the
     module. ``first`` and ``second`` follow the order of the conditions; each pair's shuffles
-    are seeded from ``random_state``, the feature and the pair."""
+    are seeded from ``random_state``, the feature and the pair. ``references``, each
+    condition's own control when the values are normalised to it (several controls): a pair
+    of conditions normalised to different controls gets no d and no test (``APART``)."""
     # Zero shuffles would give every pair p = 1 as if the test had run.
     n_permutations = as_count(n_permutations, "n_permutations")
     random_state = check_seed(random_state)
@@ -182,6 +201,9 @@ def pairwise_contrasts(
     for first, second in combinations(order, 2):
         a, b = by_condition.get(first), by_condition.get(second)
         if a is None or b is None:
+            continue
+        if references is not None and references.get(first) != references.get(second):
+            rows.append(_apart(feature, first, second, a, b))
             continue
         repeats_a = {r: g.to_numpy() for r, g in a.groupby("repeat", sort=False)["value"]}
         repeats_b = {r: g.to_numpy() for r, g in b.groupby("repeat", sort=False)["value"]}
@@ -221,6 +243,24 @@ def pairwise_contrasts(
     for p_column, q_column in (("p", "q"), ("p_paired", "q_paired")):
         table[q_column] = benjamini_hochberg(table[p_column].to_numpy(float)) if len(table) else []
     return table[PAIR_COLUMNS]
+
+
+def _apart(feature: str, first: Any, second: Any, a: pd.DataFrame, b: pd.DataFrame) -> dict:
+    """A pair normalised to different controls: counted, not compared (``APART``)."""
+    shared = len(set(a["repeat"]) & set(b["repeat"]))
+    return {
+        "feature": feature,
+        "first": first,
+        "second": second,
+        "d": np.nan,
+        "observations": len(a),
+        "second_observations": len(b),
+        "shared_repeats": shared,
+        "p": np.nan,
+        "p_paired": np.nan,
+        "paired_values": "",
+        "status": APART,
+    }
 
 
 def _mix(start: tuple, end: tuple, share: float) -> tuple[float, float, float]:
@@ -265,6 +305,8 @@ def _ink(colour: tuple[float, float, float]) -> str:
 
 def _cells_d(pair: Any, row: Any) -> tuple[str, tuple, str]:
     """Panel B, lower left: d of the row's condition minus the column's."""
+    if pair.status == APART:
+        return APART_MARK, d_colour(np.nan), "normal"
     d = pair.d if pair.first == row else -pair.d
     text = "–" if not np.isfinite(d) else f"{d:+.2f}"
     if np.isfinite(d) and pair.shared_repeats == 0:
@@ -343,11 +385,13 @@ def _matrix(
     ax.set_title(_title(panel, side), fontsize=9.5, loc="left", color=MUTED, pad=8)
 
 
-def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any]) -> None:
+def add_pairwise(
+    figure: Figure, table: pd.DataFrame, conditions: Sequence[Any], several: bool = False
+) -> None:
     """Panels B (d and the randomization test) and C (the paired t-test on the repeats'
     means) under the figure's plot, side by side when the figure is wide enough, else one
-    under the other; the legend says what each shows. Nothing with fewer than two
-    conditions."""
+    under the other; the legend says what each shows (``several``: with several controls,
+    ``PAIR_NOTE_SEVERAL``). Nothing with fewer than two conditions."""
     conditions = list(conditions)
     n = len(conditions)
     if n < 2 or table.empty:
@@ -379,7 +423,8 @@ def add_pairwise(figure: Figure, table: pd.DataFrame, conditions: Sequence[Any])
     panel_letter(figure.axes[0], "A", pad=22)
     panel_letter(ax_b, "B", pad=8)
     panel_letter(ax_c, "C", pad=8)
-    set_legend(figure, [sentences(caption), PAIR_NOTE, PAIRED_NOTE])
+    note = PAIR_NOTE_SEVERAL if several else PAIR_NOTE
+    set_legend(figure, [sentences(caption), note, PAIRED_NOTE])
 
 
 def _square(x: float, y: float, colour: tuple[float, float, float]) -> FancyBboxPatch:
@@ -397,11 +442,14 @@ def _square(x: float, y: float, colour: tuple[float, float, float]) -> FancyBbox
 
 __all__ = [
     "ALPHA",
+    "APART",
+    "APART_MARK",
     "D_CAP",
     "N_PERMUTATIONS",
     "PAIRED_NOTE",
     "PAIR_COLUMNS",
     "PAIR_NOTE",
+    "PAIR_NOTE_SEVERAL",
     "PANEL_KEYS",
     "add_pairwise",
     "d_colour",

@@ -132,3 +132,48 @@ def test_no_shuffle_count_or_seed_gives_a_p_without_a_test(setting, value):
         objects, fovs, feature="area", control="ctrl", n_permutations=np.int64(99)
     )
     assert table["p"].notna().any()
+
+
+def test_pairs_normalised_to_different_controls_are_not_compared():
+    """Several controls (owner, 2026-10-05): the normalised values divide each condition by
+    its own control, so two conditions normalised to different controls are not compared."""
+    from ecm_design import CONTROLS, MASTER, PARENTS, tables
+
+    from morphocoverage.plots_pairwise import APART, APART_MARK, PAIR_NOTE_SEVERAL
+
+    objects, fovs = tables()
+    own = Setup(
+        readout="area", control=CONTROLS, control_parents=PARENTS, master_control=MASTER
+    ).own_references
+    table = pairwise_contrasts(
+        objects, fovs, feature="area", n_permutations=99, references=own
+    ).set_index(["first", "second"])
+    apart = table.loc[("THBS5_SiFBN2", "THBS5_SiNC")]
+    assert apart["status"] == APART and np.isnan(apart["d"]) and np.isnan(apart["p"])
+    assert np.isnan(apart["p_paired"])
+    same = table.loc[("VEC_SiCol6a1", "VEC_SiFBN2")]  # both over VEC_SiNC
+    assert same["status"] == "ok" and np.isfinite(same["p"])
+    assert table.loc[("THBS5", "VEC"), "status"] == "ok"  # both over VEC
+    # The q-values are adjusted over the pairs compared only.
+    tested = table["p"].notna()
+    assert table.loc[tested, "q"].tolist() == pytest.approx(
+        benjamini_hochberg(table.loc[tested, "p"].to_numpy())
+    )
+    # In the report's figures: the normalised values only, and the legend says so.
+    setup = Setup(
+        readout="area",
+        control=CONTROLS,
+        control_parents=PARENTS,
+        master_control=MASTER,
+        normalize="control_mean",
+        observation_unit="cell",
+    )
+    figure = plots(objects, fovs, setup)["area"][0]
+    statuses = dict(
+        zip(zip(figure.pairwise["first"], figure.pairwise["second"]), figure.pairwise["status"])
+    )
+    assert APART in statuses.values()
+    assert "the pair of a condition and its own control answers the question" in (PAIR_NOTE_SEVERAL)
+    assert f"{APART_MARK}: in the normalised values" in PAIR_NOTE_SEVERAL
+    raw = plots(objects, fovs, Setup(readout="area", control=CONTROLS, observation_unit="cell"))
+    assert APART not in set(raw["area"][0].pairwise["status"])

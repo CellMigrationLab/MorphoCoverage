@@ -134,8 +134,12 @@ def _add_pairwise(
 ) -> None:
     """Every pair of each figure's conditions under it (see ``plots``), tested on that
     figure's conditions alone, so the q-values are adjusted over the pairs it shows, as its
-    legend says, and a split figure costs its own pairs only."""
+    legend says, and a split figure costs its own pairs only. With several controls, the
+    normalised values compare only the conditions normalised to the same control (owner,
+    2026-10-05)."""
     control = (setup.figure_control or {}).get(CONDITION_COLUMN)
+    own = setup.own_references
+    references = own if setup.normalize is not None else None
     for feature, parts in figures.items():
         for figure in parts:
             summaries = getattr(figure, "cluster_summaries", None)
@@ -149,10 +153,11 @@ def _add_pairwise(
                 conditions=conditions,
                 control=control,
                 random_state=setup.random_state,
+                references=references,
                 **setup.common,
             )
             figure.pairwise = table.reset_index(drop=True)
-            add_pairwise(figure, table, conditions)
+            add_pairwise(figure, table, conditions, several=own is not None)
 
 
 def highlighted(ranking: Any, most: int = len(COLOURS) - 1) -> tuple[list[Any], str]:

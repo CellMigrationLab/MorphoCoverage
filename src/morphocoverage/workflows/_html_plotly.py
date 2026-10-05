@@ -26,7 +26,7 @@ import pandas as pd
 from .._palette import COLOURS
 from ..data_check import validate_input_tables
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN, TECHNICAL_REPEAT_COLUMN
-from ..plots_pairwise import ALPHA, D_CAP, format_p, p_shade
+from ..plots_pairwise import ALPHA, APART, APART_MARK, D_CAP, format_p, p_shade
 from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..schema import fov_positions
 from ._rare_share import plotted_values
@@ -80,6 +80,11 @@ def _pairwise(table: pd.DataFrame, names: list[Any]) -> dict[str, Any] | None:
         for j, column in enumerate(names):
             pair = lookup.get((row, column)) or lookup.get((column, row))
             if i == j or pair is None:
+                continue
+            if pair.status == APART:  # normalised to different controls
+                d[i][j], p[i][j] = (0.0, None) if i > j else (None, 0.0)
+                text[i][j] = APART_MARK if i > j else "–"
+                hover[i][j] = f"{row} and {column}: normalised to different controls, {APART}"
                 continue
             if i > j:
                 value = pair.d if pair.first == row else -pair.d
@@ -141,6 +146,9 @@ def _paired_panel(lookup: dict, names: list[Any]) -> dict[str, Any]:
             target = lower if i > j else upper
             target[i][j] = round(p_shade(value), 3) if np.isfinite(value) else 0.0
             text[i][j] = format_p(value) if np.isfinite(value) else "–"
+            if pair.status == APART:
+                hover[i][j] = f"{row} and {column}: normalised to different controls, {APART}"
+                continue
             what = (
                 "p, uncorrected"
                 if i > j
