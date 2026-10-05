@@ -153,6 +153,22 @@ def test_embedding_places_every_complete_observation(tmp_path):
     assert list(embedding_figures(again)) == ["pca"]
 
 
+def test_each_point_carries_its_observation_and_label_id():
+    """#74: a point is found again by its index in the observation table and its label."""
+    objects, fovs = _tables()
+    objects = objects.assign(label_id=np.arange(len(objects)) % 7 + 1)
+    objects.index = [f"cell {i}" for i in range(len(objects))][::-1]
+    objects = objects.sample(frac=1, random_state=0)
+    objects.loc[objects.index[3], "noise"] = np.nan
+    points = embed(objects, fovs, features=["area", "noise", "aspect"], umap=False).points
+    kept = objects.drop(index=objects.index[3])
+    assert points["observation"].tolist() == kept.index.tolist()
+    assert points["label_id"].tolist() == kept["label_id"].tolist()
+    # Without a label_id column, the index alone.
+    plain = embed(objects.drop(columns="label_id"), fovs, features=["area", "noise", "aspect"])
+    assert "label_id" not in plain.points and "observation" in plain.points
+
+
 def test_an_embedding_needs_three_features_that_vary():
     objects, fovs = _tables()
     with pytest.raises(ValueError, match="at least 3 features that vary"):

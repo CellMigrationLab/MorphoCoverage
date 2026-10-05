@@ -39,7 +39,9 @@ result = report(scan.objects, scan.fovs, setup)
   and which conditions each holds (one experiment, or separate acquisitions
   sharing the control, as in a screen), the technical repeats, the fields and
   the observations per field, the planes, the targets, the features, and the
-  observations per condition and repeat.
+  observations per condition and repeat. With a FOV table that passes the data
+  check, the fields, conditions and repeats are those it lists, a condition or
+  repeat held only by empty fields included, with 0 observations.
 - **Loaded correctly?** The data check (`check_tables`), the copy checks
   (`integrity_checks`: a field read twice, rows pasted into another field,
   a change of units), declared features holding one value in every row, and
@@ -248,7 +250,8 @@ feature figure `<feature>_data.csv` (every observation, raw and normalised, with
 its condition, repeats and field), `<feature>_repeats.csv` (each biological
 repeat's median and interval) and `<feature>_pairs.csv` (every pair of
 conditions); for the maps `embedding_<values>.csv` (the PCA and UMAP coordinates
-of every point, with its condition, repeat, field, population and standardised
+of every point, with its condition, repeat, field, `observation` (its index in the
+observation table), `label_id` when the table has one, population and standardised
 features) and `pca_loadings_<values>.csv`; for the heatmap `heatmap_d.csv`.
 
 The feature figures and the PCA and UMAP are interactive, drawn by plotly.js,
@@ -274,7 +277,8 @@ different repeats is marked †, since the batch is in its difference
 (`plots_pairwise`). The words are a legend under the panels, "(A)", "(B)", "(C)",
 as in a paper. The static figure (PNG and PDF, for papers) is folded
 under each, with the same matrix under the plot. On the PCA and UMAP, hover a
-point for its condition, repeat and field, click a condition in the legend to
+point for its condition, repeat and field, and its observation and `label_id` to
+find it again in the table and the image, click a condition in the legend to
 hide it, switch between PCA and UMAP and between raw values and values
 normalised to each repeat's control, and draw around points (the lasso is on) to
 see which conditions they come from: their number, their share of the selection,
@@ -301,8 +305,10 @@ its meaning on hover or focus (`glossary.PHRASES` lists the words matched; terms
 inside tables are left plain, explained by the sentences around them). A Files
 section holds every figure (PNG and PDF), both text reports, the feature table
 as CSV and, from the guided session, the design scan and the saved answers, each
-saved with its button, so the page alone is the file to share. The guided
-session also zips the whole folder (`zip_results(folder)`: `<folder>.zip`) for
+saved with its button, so the page alone is the file to share. A file passed in
+`attach=` that is not found is named there, and two of one name are both carried,
+the second as `<name>_2`. The guided session also zips the whole folder
+(`zip_results(folder)`: `<folder>.zip`, any other zip in it included) for
 archiving, without the figures an earlier session left in `figures/` (`since=`).
 
 ## Declare the dataset

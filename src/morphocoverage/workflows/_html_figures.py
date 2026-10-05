@@ -238,8 +238,11 @@ def _extras(
     points: pd.DataFrame, features: list[str], populations: list[str], label: str | None
 ) -> dict[str, Any]:
     """Per point: its population (an index into ``populations``, -1 none), whether it carries
-    the label, and its standardised value of each feature (2 decimals)."""
-    extra: dict[str, Any] = {}
+    the label, its standardised value of each feature (2 decimals), and its ``observation``
+    and ``label_id`` (``obs``, ``lid``), which its hover names (#74)."""
+    extra: dict[str, Any] = {"obs": _ids(points["observation"])} if "observation" in points else {}
+    if "label_id" in points:
+        extra["lid"] = _ids(points["label_id"])
     if populations and "population" in points:
         index = {name: i for i, name in enumerate(populations)}
         extra["pop"] = [index.get(v, -1) for v in points["population"]]
@@ -249,6 +252,20 @@ def _extras(
         f: [round(float(v), 2) for v in points[f"z:{f}"]] for f in features if f"z:{f}" in points
     }
     return extra
+
+
+def _ids(values: pd.Series) -> list[Any]:
+    """Identifiers as the page's JSON holds them: a whole number as an int, anything else as
+    its text, a missing one as ``None``."""
+    ids: list[Any] = []
+    for value in values.tolist():
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            ids.append(None)
+        elif isinstance(value, int | float) and float(value).is_integer():
+            ids.append(int(value))
+        else:
+            ids.append(str(value))
+    return ids
 
 
 def _set(

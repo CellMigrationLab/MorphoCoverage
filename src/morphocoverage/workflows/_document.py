@@ -534,7 +534,7 @@ def plan_settings(settings: Mapping[str, Any]) -> str:
 
 
 def protocol_reason(
-    setup: Setup, hierarchy: SamplingHierarchy, strata: Sequence[str], groups: Sequence[str]
+    hierarchy: SamplingHierarchy, strata: Sequence[str], groups: Sequence[str]
 ) -> str | None:
     """Why protocol reliability cannot run on these analysis groups, or ``None``."""
     levels = [c for c in hierarchy.unit_key(hierarchy.sample) if c not in groups]

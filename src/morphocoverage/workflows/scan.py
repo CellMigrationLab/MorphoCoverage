@@ -324,10 +324,13 @@ def _design(
     control_declared: bool,
     fovs: pd.DataFrame | None = None,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
-    """The facts of the design and the observations per condition and repeat."""
+    """The facts of the design and the observations per condition and repeat; with the FOV
+    table (``fovs``), its conditions and repeats, those held only by empty fields included."""
     design: dict[str, Any] = {"observations": len(objects)}
     has_condition = column_has_values(objects, CONDITION_COLUMN)
     has_repeat = column_has_values(objects, REPEAT_COLUMN)
+    listed = fovs is not None and set(fov_key) <= set(fovs.columns)
+    groups = fovs if listed else objects
     fields, *per_field = (
         _per_field(objects, fov_key, fovs) if fov_key else (len(objects), 1, 1.0, 1)
     )
@@ -335,21 +338,19 @@ def _design(
     conditions: list[Any] = []
     design["control_guesses"], design["control_guess"] = [], None
     if has_condition:
-        guesses = _control_guess(list(dict.fromkeys(objects[CONDITION_COLUMN])))
+        guesses = _control_guess(list(dict.fromkeys(groups[CONDITION_COLUMN])))
         design["control_guesses"] = guesses
         design["control_guess"] = (
             control if control_declared else (guesses[0] if len(guesses) == 1 else None)
         )
         first = control if control_declared else design["control_guess"]
-        conditions = sorted_labels(objects[CONDITION_COLUMN], first)
+        conditions = sorted_labels(groups[CONDITION_COLUMN], first)
     design["conditions"] = conditions
     design["control"] = control if control_declared else None
-    design["repeats"] = sorted_labels(objects[REPEAT_COLUMN]) if has_repeat else []
+    design["repeats"] = sorted_labels(groups[REPEAT_COLUMN]) if has_repeat else []
     keys = [c for c, has in ((CONDITION_COLUMN, has_condition), (REPEAT_COLUMN, has_repeat)) if has]
     design["technical"] = _technical(objects, keys)
-    design["repeat_sets"] = (
-        _repeat_sets(objects, conditions) if has_condition and has_repeat else []
-    )
+    design["repeat_sets"] = _repeat_sets(groups, conditions) if has_condition and has_repeat else []
     planes = {}
     for axis in WITHIN_FOV_METADATA_COLUMNS:
         if column_has_values(objects, axis) and fov_key:
@@ -373,7 +374,19 @@ def _design(
         layout = layout.to_frame("observations")
     else:
         layout = pd.DataFrame()
+    if listed and not layout.empty:
+        # A condition and repeat whose fields are all empty holds 0 observations, not none.
+        layout = layout.where(_layout(fovs, layout).isna(), layout.fillna(0))
     return design, layout
+
+
+def _layout(table: pd.DataFrame, like: pd.DataFrame) -> pd.DataFrame:
+    """The rows of ``table`` per condition (and repeat), shaped as the layout ``like``."""
+    if list(like.columns) == ["observations"]:
+        counts = table.groupby(CONDITION_COLUMN, sort=False).size().to_frame("observations")
+    else:
+        counts = table.groupby([CONDITION_COLUMN, REPEAT_COLUMN], sort=False).size().unstack()
+    return counts.reindex(index=like.index, columns=like.columns)
 
 
 def _balance(layout: pd.DataFrame, repeats: list[Any]) -> list[dict[str, Any]]:

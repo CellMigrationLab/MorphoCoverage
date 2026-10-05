@@ -303,7 +303,8 @@ def repeat_lines(scan: DesignScan) -> list[str]:
     for entry in sets:
         held = [c for c in entry["conditions"] if c != control]
         shared = " with the control" if control in entry["conditions"] else ""
-        lines.append(f"  {listing(entry['repeats'], 4)}: {listing(held, 6)}{shared}")
+        what = f"{listing(held, 6)}{shared}" if held else "the control only"
+        lines.append(f"  {listing(entry['repeats'], 4)}: {what}")
     held_in = scan.layout.notna().sum(axis=1)
     single = [c for c in design["conditions"] if held_in.get(c, 0) == 1]
     if single:

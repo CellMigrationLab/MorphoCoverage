@@ -10,7 +10,7 @@ from morphocoverage.retrospective import (
     effort_projection,
     nested_variance_components,
 )
-from morphocoverage.retrospective.effort import _se
+from morphocoverage.retrospective.effort_design import _se
 
 
 def _simulate(rng, components, repeats, samples, fovs, cells, balanced=True):

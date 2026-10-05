@@ -7,9 +7,9 @@ samples, repeats and fields count as acquired; an allocation is projected as
 balanced (every sample with as many fields and observations), and compared
 with the acquired allocation made balanced. See ``effort`` for the formulas.
 
-Shared-private: ``_acquired_se``, ``_allocation_rows``, ``_check_allocations``,
-``_contributions``, ``_design``, ``_interval`` and ``_se`` (used by ``effort``);
-``between_technical_repeats`` (used by ``workflows._document``).
+Shared-private: ``_allocation_rows``, ``_check_allocations``, ``_contributions``,
+``_design`` and ``_interval`` (used by ``effort``); ``between_technical_repeats`` (used by
+``workflows._document``).
 """
 
 from __future__ import annotations
