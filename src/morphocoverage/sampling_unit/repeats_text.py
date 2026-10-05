@@ -125,12 +125,25 @@ def repeat_cautions(contrast: Any, full: bool = True) -> list[str]:
             )
         )
     if repeats["p_paired_t"].notna().any() and not full:
+        # As ``reading_text._paired``: the normalised q, the raw q where there is none.
+        raw = repeats["p_paired_t"].notna() & repeats["q_paired_t_normalised"].isna()
+        used = (
+            "the raw q: a repeat mean is not positive, so there is no ratio to the control"
+            if raw[repeats["p_paired_t"].notna()].all()
+            else "the normalised q"
+            + (
+                f", the raw q for {listing([str(c) for c in repeats.loc[raw, 'condition']], 3)}"
+                " where a repeat mean is not positive"
+                if raw.any()
+                else ""
+            )
+        )
         notes.append(
             assumption(
                 f"The paired t-test on the repeat means treats each {word} as one replicate: "
                 f"it keeps false positives at 5%, but with 3 {word}s only large, consistent "
                 f"effects reach q ≤ 0.05. q: Benjamini-Hochberg {family_words(contrast.settings)}; "
-                "'significant across repeats' uses the normalised q."
+                f"'significant across repeats' uses {used}."
             )
         )
     elif repeats["p_paired_t"].notna().any():
