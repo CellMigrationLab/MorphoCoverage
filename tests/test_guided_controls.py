@@ -51,7 +51,9 @@ def test_one_control_keeps_the_single_control_question(tmp_path):
     assert "Are all your conditions compared with the same control?" in " ".join(script.prompts)
     assert result.answers.control == {"condition": "siCTRL"}
     assert result.setup.contrast_table is None
-    assert "Each condition against siCTRL" in script.text
+    assert "Each condition against siCTRL, within each biological repeat." in script.text
+    assert "one family" not in script.text and "want to log" not in script.text
+    assert "Which condition is the control?" in script.text
     assert "The images per condition" not in script.text
 
 
@@ -78,7 +80,10 @@ def test_several_controls_are_proposed_confirmed_and_saved(tmp_path):
     assert len(guided) == 11
     # The contrast table is shown, one test per line, with its family.
     assert "transfection effect: THBS5_SiNC/THBS5 vs VEC_SiNC/VEC" in script.text
-    assert "(family vs_master_raw)" in script.text
+    assert "corrected in the family vs_master_raw" in script.text
+    assert "THBS5 vs VEC: against its own control, the main verdict, corrected within its" in (
+        script.text
+    )
     # Saved and read back, the declaration is the same.
     save_answers(tmp_path, answers)
     again = load_answers(tmp_path)
@@ -119,3 +124,38 @@ def test_the_session_can_stop_before_the_report(tmp_path):
     assert result.report is None and result.answers is not None
     assert "Stopped with the answers saved" in script.text
     assert "Run the report now, or save the answers and stop?" in script.text
+
+
+# loaded; unit; one control? (No); the controls proposed (THBS5_SiNC, VEC_SiNC); the
+# conditions of THBS5_SiNC, its keys, those of VEC_SiNC, its keys; THBS5, compared with
+# nothing yet: VEC; THBS5_SiNC under THBS5, its key; VEC_SiNC under VEC, its key; the master
+# (THBS5_SiNC proposed, a tie with VEC_SiNC); then the positive control, aim, features and
+# readout.
+PROPOSED = ["y", "", "", "", "", "", "", "", "VEC", "", "", "", "", "VEC_SiNC", "", "", "", ""]
+
+
+def test_a_condition_compared_with_nothing_is_asked_for_its_control(tmp_path):
+    objects, fovs = tables()
+    result, script = _guide(objects, fovs, tmp_path, PROPOSED)
+    assert "Which control should THBS5 be compared with?" in script.text
+    # VEC, not named like a control, becomes THBS5's: the owner's declaration.
+    assert result.answers.control["condition"]["VEC"] == {"THBS5": "THBS5"}
+    assert "Which control should VEC be compared with?" not in script.text
+    master = script.text[script.text.index("(the master)") :]
+    assert "THBS5_SiNC  (default)" in master.split("\n4.")[0]
+    owner = Setup(readout="area", control=CONTROLS, control_parents=PARENTS, master_control=MASTER)
+    assert sorted(result.setup.contrast_table["label"]) == sorted(owner.contrast_table["label"])
+
+
+def test_the_master_proposed_is_the_control_imaged_in_most_repeats(tmp_path):
+    from types import SimpleNamespace
+
+    from morphocoverage.workflows._guided_controls import most_imaged
+
+    _, fovs = tables()
+    scan = SimpleNamespace(fovs=fovs)
+    # VEC in 3 repeats, the SiNC controls in 5: a tie goes to the first declared.
+    assert most_imaged(scan, ["VEC", "VEC_SiNC", "THBS5_SiNC"]) == "VEC_SiNC"
+    assert most_imaged(scan, ["THBS5_SiNC", "VEC_SiNC"]) == "THBS5_SiNC"
+    fewer = fovs[~((fovs["condition"] == "THBS5_SiNC") & (fovs["biological_repeat"] == "R1"))]
+    assert most_imaged(SimpleNamespace(fovs=fewer), ["THBS5_SiNC", "VEC_SiNC"]) == "VEC_SiNC"
