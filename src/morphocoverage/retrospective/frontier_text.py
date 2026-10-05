@@ -276,6 +276,9 @@ def level_status(rows: pd.DataFrame, units: int) -> tuple[Status, str]:
     if not _scored(base):
         return Status.NOT_ASSESSED, "not scored (a fixed count never met it lastingly)"
     fixed = fields(int(base["setting"]))
+    if (rows["family"] == BASELINE).all():
+        # No family given: no rule was tested, so none can be said not to get there.
+        return Status.NOT_ASSESSED, f"no rule family given; a fixed {fixed} got there"
     best = _best(rows)
     if best is None:
         return Status.OK, f"no rule got there; a fixed {fixed} did"
@@ -299,7 +302,7 @@ def frontier_status(result: FrontierResult) -> tuple[Status, str]:
     """The criterion's status and one-line answer, over its risk levels.
 
     Per risk level: ➖ when a fixed count never met it lastingly (no rule is
-    scored); ✅ when the family that saves most does so with an interval
+    scored) or no rule family was given; ✅ when the family that saves most does so with an interval
     above 0, or when no family saves fields (the null result) with an
     interval; ⚠️ when the best saving is not resolved (its interval includes
     0) or has no interval (fewer than ``FEW_UNITS`` units, or too few

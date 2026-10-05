@@ -13,6 +13,7 @@ from morphocoverage import (
     SamplingObjective,
     ScalarPrecisionStrategy,
 )
+from morphocoverage._style import Status
 from morphocoverage.benchmark import AcquisitionOrder
 from morphocoverage.evidence import Component, Direction, Evidence, Quantity
 from morphocoverage.outcomes import RareStateDetected, RelativeMeanError
@@ -27,6 +28,7 @@ from morphocoverage.retrospective.frontier import (
     sweep,
     transfer,
 )
+from morphocoverage.retrospective.frontier_text import frontier_status
 from morphocoverage.strategies.base import Estimator, SamplingStrategy
 
 POPULATION = ObjectiveConfig(SamplingObjective.POPULATION)
@@ -277,6 +279,11 @@ def test_invalid_requests_are_refused(mixed):
         frontier(replay, [], criterion=MEAN.name, alphas=[1.5], unit_cols=[])
     with pytest.raises(ValueError, match="not group columns"):
         frontier(replay, [], criterion=MEAN.name, alphas=[0.1], unit_cols=["well"])
+    # #247: with no family no rule was tested, so none can be said not to get there.
+    status, text = frontier_status(
+        frontier(replay, [], criterion=MEAN.name, alphas=[0.1], unit_cols=[])
+    )
+    assert status is Status.NOT_ASSESSED and "no rule family given" in text
     renamed = family(replay, BASELINE, {_oracle(2, 12).config_id: 12})
     with pytest.raises(ValueError, match="baseline's name"):
         frontier(replay, [renamed], criterion=MEAN.name, alphas=[0.1], unit_cols=[])
