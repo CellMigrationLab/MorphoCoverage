@@ -8,10 +8,12 @@ import pytest
 
 from morphocoverage._style import CAUTION, Status
 from morphocoverage.retrospective.report_enough import enough_short
+from morphocoverage.retrospective.report_resolved import resolved_full
 from morphocoverage.retrospective.report_status import enough_status
 from morphocoverage.sampling_unit.contrast import condition_contrast
 from morphocoverage.sampling_unit.contrast_sampling import PRACTICAL, sampling_row
 from morphocoverage.statistics import cohen_d
+from morphocoverage.workflows._html_sections import _resolution
 
 LAB = Path(__file__).resolve().parents[1] / "data" / "lab"
 sys.path.insert(0, str(LAB))
@@ -80,6 +82,26 @@ def test_every_difference_resolved_is_ok_and_the_precision_cautions_stay_in_the_
         "to compare with the control, within single repeats: shown in 2 of 2 comparisons"
     )
     assert CAUTION not in enough_short(None, None, None, contrast=contrast)
+
+
+def test_a_comparison_without_an_interval_stays_in_the_count():
+    """#252: one repeat's treated well imaged in one field has no interval; it is still a
+    comparison, said not assessed, never dropped from the denominator."""
+    objects, fovs = _technical(*_two_conditions(shift=2.0, field_sd=0.3, n_wells=1))
+    one = (fovs["condition"] == "treated") & (fovs["biological_repeat"] == "R2")
+    fovs = fovs[~one | fovs["image_file"].str.endswith("_f0")]
+    objects = objects[objects["image_file"].isin(fovs["image_file"])]
+    contrast = condition_contrast(
+        objects, fovs, feature="x", control={"condition": "control"}, n_draws=5
+    )
+    status, headline = enough_status(None, None, contrast)
+    assert status is Status.CAUTION
+    assert "shown in 1 of 2 comparisons" in headline
+    assert "1 not assessed (too few fields for an interval)" in headline
+    full = " ".join(resolved_full(contrast).split())
+    assert "repeat R2 1 vs 12 +1.70 not assessed: too few fields" in full
+    page = " ".join(_resolution(contrast))
+    assert "Partly" in page and "in 1 of 2 comparisons" in page and "not assessed" in page
 
 
 @pytest.mark.parametrize("dataset_id", ["cct8_filopodia_screen"])

@@ -35,7 +35,7 @@ import pandas as pd
 from .._parallel import check_n_jobs, map_units
 from .._style import Status, table, wrap
 from .._wording import count, listing
-from ..retrospective.report_resolved import has_resolution, resolved_full
+from ..retrospective.report_resolved import _needing, _table, has_resolution, resolved_full
 from ..sampling_unit.contrast import condition_contrast
 from ..sampling_unit.contrast_sampling import PRACTICAL
 from ..sampling_unit.repeat_plan_text import field_words
@@ -131,10 +131,10 @@ def _precision(
 
 
 def _row(feature: str, contrast: Any, tally: dict[str, Any] | None) -> dict[str, Any]:
-    rows = contrast.table[contrast.table["d_low"].notna()] if has_resolution(contrast) else []
+    rows = _table(contrast)
     shown = int(rows["resolved"].sum()) if len(rows) else 0
     small = int(rows["too_small"].sum()) if len(rows) else 0
-    needing = rows[~rows["resolved"] & ~rows["too_small"]] if len(rows) else rows
+    needing = _needing(rows) if len(rows) else rows
     counts = needing["fields_to_resolve"].astype(float) if len(needing) else pd.Series([])
     verdict = ENOUGH if len(rows) and shown == len(rows) else PARTLY if shown else NOT_YET
     return {
