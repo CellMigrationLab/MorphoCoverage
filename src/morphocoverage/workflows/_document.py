@@ -335,13 +335,20 @@ def coverage_notes(results: Mapping[str, Any], setup: Setup) -> list[str]:
     notes = []
     others = [f for f in setup.features if f != setup.readout]
     if others and "variability" in results:
+        # The analyses that ran; rules of the caller's own may read every declared column.
+        found = (setup.novelty, *(results.get(k) for k in ("controls", "unusual", "ranking")))
+        names = ("novelty", "the representation control", "the unusual", "the feature ranking")
+        uses = [n for n, r in zip(names, found, strict=True) if r is not None]
+        uses = listing([f"{n} {setup.unit_words}" if n == "the unusual" else n for n in uses])
+        spread = "a heavy tail or a between-well spread in"
+        rest = f"the other declared features ({listing(others)})"
+        rest = f"; {rest} enter {uses}, so {spread} them" if uses else f", so {spread} {rest}"
+        rules = setup.rules is None
         notes.append(
             assumption(
-                f"The Foundation, the stopping rules and the inspection's influence and neighbour "
-                f"reasons read the readout ({setup.readout}) only; the other declared features "
-                f"({listing(others)}) enter novelty, the representation control, the unusual "
-                f"{setup.unit_words} and the feature ranking, so a heavy tail or a between-well "
-                "spread in them is not judged by any stopping rule."
+                f"The Foundation{', the stopping rules' if rules else ''} and the inspection's "
+                f"influence and neighbour reasons read the readout ({setup.readout}) only"
+                f"{rest} is not judged by {'any stopping rule' if rules else 'them'}."
             )
         )
     # Options left at their defaults: what they leave unassessed, as notes, not cautions.
@@ -408,7 +415,7 @@ def with_text(
         short.pop(key, None)
         if short_text is not None:
             short[key] = short_text
-        statuses[key] = status
+        statuses[key] = caveat_status(status, short.get(key, sections[key]), key)
         headlines[key] = headline or text.split(". ")[0].split("\n")[0].rstrip(".")
     else:
         # One "Assumptions:" block per section, at its end; a caution raises the status.

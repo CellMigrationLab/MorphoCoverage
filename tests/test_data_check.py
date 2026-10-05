@@ -173,3 +173,22 @@ def test_check_tables_and_the_validator_agree_on_every_scenario(name):
         assert not check_tables(objects, fovs, **arguments).ok, label
         with pytest.raises((ValueError, TypeError)):
             validate_input_tables(objects, fovs=fovs, **arguments)
+
+
+def test_issue_157_labels_are_matched_loosely_by_their_exact_value():
+    from morphocoverage._data_rules import _loose
+
+    assert _loose("1") == _loose("01") == _loose("1.0") == _loose(1) == _loose(" 1 ")
+    assert _loose("B02") == _loose("b2")
+    assert _loose("9007199254740992") != _loose("9007199254740993")
+    assert _loose("1e999") != _loose("2e999")
+    fovs = pd.DataFrame(
+        {
+            "condition": ["a", "a"],
+            "biological_repeat": ["r", "r"],
+            "technical_repeat": ["9007199254740992", "9007199254740993"],
+            "image_file": ["f1.tif", "f2.tif"],
+        }
+    )
+    check = check_tables(fovs.assign(x=[1.0, 2.0]), fovs, feature_cols=["x"])
+    assert not any("differ only in spaces" in p.title for p in check.warnings)
