@@ -73,6 +73,15 @@ def test_the_normalised_paired_test_is_read_and_a_disagreeing_raw_one_named():
     assert "paired t-test on the 3 repeat means q 0.010; on raw values q 0.20" in text
 
 
+def test_three_equal_repeat_changes_are_not_read_as_too_few_repeats():
+    """#90: with 3 repeats whose changes are all equal (0 for a label absent from both sides)
+    the paired test has no spread; the reading said it needs 3 repeats."""
+    readings = condition_readings(_contrast([_row("A", 0, 0, np.nan, np.nan)]))
+    [text] = readings["reading"]
+    assert "needs 3" not in text
+    assert "no paired test: the change is the same in every biological repeat" in text
+
+
 def test_one_repeat_is_its_own_verdict():
     readings = condition_readings(_contrast([_row("A", 1, 0, np.nan, np.nan, n=1)]))
     assert readings["verdict"].iloc[0] == ONE_REPEAT
@@ -134,3 +143,38 @@ def test_a_pilot_headline_counts_the_cell_level_test():
         "; exploratory cell-level screen: 0 of 2 at q ≤ 0.05 (one repeat cannot show how much"
         in headline
     )
+
+
+def test_the_short_note_names_the_q_the_readings_use():
+    """#313: the note said 'significant across repeats' uses the normalised q even where a
+    repeat mean is not positive and the reading uses the raw one."""
+    from morphocoverage.sampling_unit.repeats_text import repeat_cautions
+
+    def note(*rows):
+        frame = pd.DataFrame(rows).assign(status="ok", p_paired_t=0.1, p_sign_flip=np.nan)
+        [text] = repeat_cautions(_contrast(frame), full=False)
+        return " ".join(text.split())
+
+    assert note(_row("A", 3, 0, 0.1, 0.1)).endswith("uses the normalised q.")
+    assert note(_row("A", 3, 0, 0.1, np.nan)).endswith(
+        "uses the raw q: a repeat mean is not positive, so there is no ratio to the control."
+    )
+    assert note(_row("A", 3, 0, 0.1, 0.1), _row("B", 3, 0, 0.1, np.nan)).endswith(
+        "uses the normalised q, the raw q for B where a repeat mean is not positive."
+    )
+    readings = condition_readings(_contrast([_row("B", 3, 0, 0.01, np.nan)]))
+    assert "(raw values)" in readings["reading"].iloc[0]
+
+
+def test_conditions_compared_in_different_numbers_of_repeats_give_the_range():
+    """#275: A compared in 4 repeats and B in 2 are not "across 4 biological repeats"."""
+    from morphocoverage.retrospective.report_status_conditions import across_headline
+
+    contrast = _contrast([_row("A", 0, 4, 0.01, 0.01, n=4), _row("B", 0, 2, None, None, n=2)])
+    contrast.settings["feature"] = "area"
+    assert readings_headline(contrast).startswith("area, 2 conditions across 2-4 biological")
+    head = across_headline(contrast.repeats.assign(p_paired_t=np.nan), "biological_repeat")
+    assert head.startswith("2 conditions across 2-4 biological repeats:")
+    same = _contrast([_row("A", 0, 3, 0.01, 0.01), _row("B", 3, 0, 0.01, 0.01)])
+    same.settings["feature"] = "area"
+    assert readings_headline(same).startswith("area, 2 conditions across 3 biological repeats")

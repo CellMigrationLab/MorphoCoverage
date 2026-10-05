@@ -9,6 +9,7 @@ each must contain.
 """
 
 import re
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -337,6 +338,18 @@ def test_question_2_is_fine_only_when_every_rule_is_met_everywhere():
     assert enough_status(None)[0] is Status.NOT_ASSESSED
 
 
+def test_a_calibration_alone_with_no_premature_stop_says_so():
+    """#271: no stop lost a criterion, so no rule "stopped too early (up to 0%)"."""
+    none = SimpleNamespace(table=pd.DataFrame({"not_preserved_at_stop": [0.0, 0.0]}))
+    assert enough_status(None, none) == (
+        Status.OK,
+        "held-back fields: no rule stopped too early",
+    )
+    some = SimpleNamespace(table=pd.DataFrame({"not_preserved_at_stop": [0.3, 0.0]}))
+    status, text = enough_status(None, some)
+    assert status is Status.CAUTION and "some rules stopped too early (up to 30%)" in text
+
+
 def test_the_short_answer_has_the_verdicts_and_each_caveat_once():
     report = _groups_report(
         [FixedFOVStrategy(2), ScalarPrecisionStrategy("feature_a", 0.5, "fov", "point")]
@@ -456,3 +469,18 @@ def test_a_weak_representation_marks_the_control_and_the_adequacy_answers():
     relaxed = microscopist_report(controls=controls, sufficiency=sufficiency, minimum_detection=0.1)
     assert relaxed.statuses["enough"] is not Status.PROBLEM
     assert relaxed.statuses["controls"] is not Status.PROBLEM
+
+
+def test_issue_168_a_number_in_scientific_notation_is_one_number():
+    from morphocoverage._style import varying_numbers
+
+    texts = [
+        "related (Spearman rho 0.61, p = 2.3e-05, over 40 fields)",
+        "related (Spearman rho 0.55, p = 0.0012, over 40 fields)",
+    ]
+    assert len({number_pattern(t) for t in texts}) == 1
+    merged = merge_numbers(texts)
+    assert merged == "related (Spearman rho 0.55 to 0.61, p = 2.3e-05 to 0.0012, over 40 fields)"
+    assert varying_numbers(texts)[0] == "Spearman rho 0.61, p = 2.3e-05"
+    assert merge_numbers(["shift +0.29 SD", "shift +0.51 SD"]) == "shift +0.29 to +0.51 SD"
+    assert merge_numbers(["68-88% of 1E+06", "70-90% of 1E+06"]) == "68 to 70-88 to 90% of 1E+06"

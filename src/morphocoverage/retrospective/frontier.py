@@ -127,6 +127,10 @@ def family(replay: ReplayResult, name: str, settings: Mapping[str, Any]) -> pd.D
     missing = set(settings) - set(replay.decisions["config_id"])
     if missing:
         raise ValueError(f"configurations not in the replay: {sorted(missing)}")
+    # Two rules at one setting would merge into one that stops at the earlier stop.
+    shared = pd.Series(list(settings.values()), dtype=object)
+    if shared.duplicated().any():
+        raise ValueError(f"settings must differ between configurations: {settings}")
     rows = replay.decisions[replay.decisions["config_id"].isin(list(settings))].copy()
     rows["family"] = name
     rows["setting"] = rows["config_id"].map(dict(settings))
@@ -309,8 +313,8 @@ class FrontierResult:
       ``risk`` (share of judged runs not preserved), ``judged`` runs and the
       share ``never_stopped``. The baseline family is ``"fixed fields"``.
     - ``scores``: per family and ``alpha``, the chosen ``setting``, its
-      ``effort`` and ``risk``, the baseline's ``baseline_effort``, the
-      ``fields_saved`` with ``saved_low`` / ``saved_high`` and
+      ``effort`` and ``risk`` (over its ``judged`` of ``runs``), the
+      baseline's ``baseline_effort``, the ``fields_saved`` with ``saved_low`` / ``saved_high`` and
       ``saved_reached`` (the share of unit resamples in which both reached
       ``alpha``; below ``MIN_BOOT_SUCCESS`` there is no interval, nor with
       fewer than ``FEW_UNITS`` units; the interval is widened for the number
@@ -415,6 +419,9 @@ def frontier(
                 "setting": None if chosen is None else chosen["setting"],
                 "effort": None if chosen is None else float(chosen["effort"]),
                 "risk": None if chosen is None else float(chosen["risk"]),
+                # The risk's denominator: the runs whose outcome could be judged, of all.
+                "judged": None if chosen is None else int(chosen["judged"]),
+                "runs": None if chosen is None else int(chosen["runs"]),
                 "baseline_setting": None if base is None else base["setting"],
                 "baseline_effort": None if base is None else float(base["effort"]),
             }

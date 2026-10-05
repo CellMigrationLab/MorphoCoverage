@@ -89,8 +89,8 @@ def sign_flip_test(
     """``(p, floor, exact)``: the two-sided sign-flip test of paired differences.
 
     Every sign assignment is enumerated up to ``2 ** 16`` of them (p exact, never below
-    ``floor = 2 / 2 ** n`` when no difference is 0); beyond, ``n_draws`` random
-    assignments, p as ``(extreme + 1) / (n_draws + 1)``.
+    ``floor = 2 / 2 ** m``, ``m`` the differences that are not 0, since a 0 flips to itself);
+    beyond, ``n_draws`` random assignments, p as ``(extreme + 1) / (n_draws + 1)``.
     """
     n = len(differences)
     observed = abs(differences.mean())
@@ -101,7 +101,7 @@ def sign_flip_test(
         signs = np.array(list(product((1.0, -1.0), repeat=n)))
         flipped = np.abs((signs * differences).mean(axis=1))
         p = float(np.mean(flipped >= observed - tolerance))
-        return p, 2.0 / 2**n, True
+        return p, min(1.0, 2.0 / 2 ** int(np.count_nonzero(differences))), True
     signs = rng.choice((1.0, -1.0), size=(n_draws, n))
     extreme = int((np.abs((signs * differences).mean(axis=1)) >= observed - tolerance).sum())
     return (extreme + 1) / (n_draws + 1), 1.0 / (n_draws + 1), False

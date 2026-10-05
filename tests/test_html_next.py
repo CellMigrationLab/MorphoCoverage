@@ -171,6 +171,22 @@ def test_too_few_fields_per_well_give_no_counts_to_replay():
     assert len(counts) == 4 and max(counts) <= 26
 
 
+def test_field_counts_are_planned_in_the_setup_analysis_groups():
+    # Regression (#341): the wells were always the MorphoBricks columns, so a custom group
+    # column was pooled and group_cols that pool the technical repeat were split.
+    fovs = pd.DataFrame(
+        {
+            "condition": ["a"] * 24,
+            "technical_repeat": ["w1", "w2", "w3"] * 8,
+            "plate": ["p1", "p2"] * 12,
+            "image_file": [str(i) for i in range(24)],
+        }
+    )
+    assert fov_counts(fovs) == [2, 3, 4]  # wells of 8 fields
+    assert fov_counts(fovs, ("condition",)) == [2, 4, 6, 12]  # the 24 fields pooled
+    assert fov_counts(fovs, ("condition", "plate")) == [2, 3, 4, 6]  # plates of 12
+
+
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_with_one_feature_the_summary_gives_the_conditions_by_verdict():
     from morphocoverage.workflows._html_cards import readout_summary

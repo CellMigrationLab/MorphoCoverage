@@ -13,7 +13,8 @@ control's groups) moves every condition compared with it in its repeat: the cond
 change it moves most is named.
 
 A relative change needs a positive scale: a readout with negative values (standardised,
-centred) is not checked, as ``inspect_fovs`` skips it, and the report says so once.
+centred), or a mean of 0, is not checked, as ``inspect_fovs`` skips it, and the report says
+so once.
 Without biological repeats kept apart there is no test across repeats to sway, and the
 report keeps the field-weighted check (``influence_on_result``).
 """
@@ -39,6 +40,7 @@ from ..statistics import paired_t, repeat_values
 
 THRESHOLD = 0.10
 _NEGATIVE = "has negative values, so a relative change is undefined"
+_ZERO = "is 0 here, so a relative change is undefined"
 
 
 def influence_on_result(contrast: Any) -> bool:
@@ -108,8 +110,10 @@ def _found(
     table: pd.DataFrame,
     setup: Any,
     threshold: float,
+    skipped: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """The influence rows of one analysis group's fields (see the module)."""
+    """The influence rows of one analysis group's fields (see the module); a mean of 0 has
+    no relative change and goes in ``skipped``, as ``inspect_fovs`` records it."""
     condition, repeat = group.get(CONDITION_COLUMN), group.get(REPEAT_COLUMN)
     in_repeat = table[table[REPEAT_COLUMN] == repeat]
     if _is_control(group_data, setup.control):
@@ -124,9 +128,12 @@ def _found(
     sums, counts = _sums(group_data, readout)
     unit = group_data.observation_unit or "observation"
     mean, total = float(rows[column].iloc[0]), float(rows[size].iloc[0])
+    if not mean > 0:
+        skipped.append({"group": where(group), "summary": f"mean of {readout}", "reason": _ZERO})
+        return []
     found = []
     for position in np.flatnonzero(counts):
-        if not mean > 0 or total - counts[position] < 1:
+        if total - counts[position] < 1:
             continue
         without = (mean * total - sums[position]) / (total - counts[position])
         moved = (without - mean) / mean
@@ -186,7 +193,7 @@ def with_result_influence(
                 {"group": where(group), "summary": f"mean of {setup.readout}", "reason": _NEGATIVE}
             )
             continue
-        found = _found(group, group_data, table, setup, threshold)
+        found = _found(group, group_data, table, setup, threshold, skipped)
         rows += field_rows(group, group_data, found, trace)
     frame = pd.concat([inspection.fovs, pd.DataFrame(rows)], ignore_index=True)
     checked = list(inspection.settings.get("checked", []))

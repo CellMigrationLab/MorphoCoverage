@@ -10,10 +10,11 @@ asked after (``workflows/_populations``, with the paired test across repeats).
 does), embeds them with UMAP in ``MAP_COMPONENTS`` dimensions (``min_dist`` 0, as
 umap-learn advises for clustering) and clusters the embedding with HDBSCAN (scikit-learn):
 dense groups of any shape, the observations between them left unassigned. A cluster needs
-at least ``min_cells`` observations (default ``MIN_SHARE`` of them, and never fewer than
-``MIN_CELLS``). Above ``max_points`` observations, both run on a seeded sample of the same
-share of every condition, and every other observation takes the cluster of its nearest
-sampled neighbour (on the principal components holding ``VARIANCE`` of the variance).
+at least ``min_cells`` of the observations clustered (default ``MIN_SHARE`` of them, and
+never fewer than ``MIN_CELLS``). Above ``max_points`` observations, both run on a seeded
+sample of the same share of every condition, and every other observation takes the cluster
+of its nearest sampled neighbour (on the principal components holding ``VARIANCE`` of the
+variance).
 
 UMAP evens out density, so a cluster on it is a candidate, judged on all the standardised
 features:
@@ -255,11 +256,13 @@ def find_populations(
     values = matrix[complete][:, np.flatnonzero(varies)]
     n = int(complete.sum())
     size = as_count(min_cells, "min_cells", 2) if min_cells is not None else None
-    size = size or max(MIN_CELLS, round(MIN_SHARE * n))
     points, k = _components(z) if len(kept) else (np.zeros((n, 1)), 0)
     meta = data.fovs.iloc[fov_positions(data, data.fovs)[complete]].reset_index(drop=True)
     conditions = meta[CONDITION_COLUMN].to_numpy() if CONDITION_COLUMN in meta else np.zeros(n)
     sample = _sample(conditions, max_points, np.random.default_rng(random_state))
+    # A share of the observations clustered, not of all of them: above ``max_points`` a
+    # share of the whole table would grow past what the sample can hold.
+    size = size or max(MIN_CELLS, round(MIN_SHARE * len(sample)))
     raw = np.full(n, -1)
     # Too few observations (or no feature that varies) for two clusters of ``size``: not
     # clustered, which is not a continuum.

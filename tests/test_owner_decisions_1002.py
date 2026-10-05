@@ -177,6 +177,30 @@ def test_a_condition_that_splits_its_cells_is_said_to():
     assert split_words(result, "ctrl") == ""
 
 
+def test_the_distribution_families_are_counted_as_corrected():
+    """#302: families of 4 and 8 tests read as "6 tests in each of 2 sub-experiments"."""
+    from morphocoverage.sampling_unit.distribution import DistributionContrast, tests_words
+
+    def result(sizes):
+        experiment = [e for e, n in enumerate(sizes, start=1) for _ in range(n)]
+        tests = pd.DataFrame({"p": 0.5, "experiment": experiment})
+        return DistributionContrast(tests, {"families": len(sizes)})
+
+    assert tests_words(result([4, 8])) == "4-8 tests in each of 2 sub-experiments"
+    assert tests_words(result([4, 4])) == "4 tests in each of 2 sub-experiments"
+    assert tests_words(result([8])) == "8 tests"
+
+
+@pytest.mark.parametrize("alpha", [5, 0, 1, -0.1, float("nan"), True, "0.05"])
+def test_the_distribution_gate_refuses_an_alpha_that_is_not_a_probability(alpha):
+    """#310: alpha=5 (meant as 5%) passed every finite q without a word."""
+    objects, fovs = _three()
+    with pytest.raises(ValueError, match="alpha must be between 0 and 1"):
+        distribution_contrast(
+            objects, fovs, features=["x"], control={"condition": "ctrl"}, alpha=alpha
+        )
+
+
 def test_the_labelled_share_is_plotted_per_field():
     objects, fovs = _three()
     objects["mitotic"] = np.random.default_rng(1).random(len(objects)) < 0.2

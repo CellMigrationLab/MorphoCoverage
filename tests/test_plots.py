@@ -70,6 +70,22 @@ def test_one_figure_per_feature_with_points_summary_and_interval():
     assert "its shape the well" in title
 
 
+def test_each_part_of_a_split_figure_describes_its_own_wells():
+    """#179: both parts read the wells of all 14 conditions, not those they show."""
+    objects, fovs = _tables(n_conditions=14, n_repeats=1, n_fields=4)
+    first = sorted(fovs["condition"].unique())[:7]  # the conditions of the first part
+    two = fovs["condition"].isin(first) & fovs["image_file"].str.endswith(("f2", "f3"))
+    fovs.loc[two, "well"] = "w2"
+    objects["well"] = objects["image_file"].map(dict(zip(fovs["image_file"], fovs["well"])))
+    parts = plots_of_data(
+        objects, fovs, features=["x"], n_boot=20, group_cols=GROUPS, technical_col="well"
+    )["x"]
+    assert "whole wells with their fields (2 per repeat)\n" in parts[0].caption
+    assert "one well" not in parts[0].caption and parts[0].axes[0].get_legend() is not None
+    assert "resampling its fields (one well per repeat)" in parts[1].caption
+    assert "2-3 wells" not in parts[1].caption and parts[1].axes[0].get_legend() is None
+
+
 def test_many_conditions_split_and_many_repeats_are_pooled():
     objects, fovs = _tables(n_conditions=14, n_repeats=1, n_fields=2)
     figures = plots_of_data(
@@ -165,3 +181,24 @@ def test_the_morphobricks_technical_repeat_is_the_default_colour_and_bootstrap_u
     assert legend.get_title().get_text().startswith("well,\nin order")
     labels = [t.get_text() for t in legend.get_texts()]
     assert labels == ["1st", "2nd"]
+
+
+def test_a_field_without_observations_must_have_its_condition_in_the_fov_table():
+    """#200: a layout column only the observations carry cannot place an empty field, which
+    is refused rather than left out of the resampling."""
+    rng = np.random.default_rng(0)
+    objects = pd.DataFrame(
+        {
+            "position_id": np.repeat(["a", "b", "c", "d"], 5),
+            "treatment": np.repeat(["X", "X", "Y", "Y"], 5),
+            "f": rng.normal(size=20),
+        }
+    )
+    fovs = pd.DataFrame({"position_id": ["a", "b", "c", "d", "e"]})
+    arguments = {"features": ["f"], "condition_col": "treatment", "repeat_col": None}
+    with pytest.raises(ValueError, match="add 'treatment' to the FOV table"):
+        plots_of_data(objects, fovs, **arguments)
+    fovs["treatment"] = ["X", "X", "Y", "Y", "Y"]
+    assert len(plots_of_data(objects, fovs, **arguments)["f"]) == 1
+    # Every field holds observations: the observations' values place them, as before.
+    assert plots_of_data(objects, fovs.iloc[:4].drop(columns="treatment"), **arguments)["f"]

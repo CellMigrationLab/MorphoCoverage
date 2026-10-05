@@ -185,6 +185,11 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     assert merged.startswith(opening) and DECLARATION_TITLE in merged
     with pytest.raises(ValueError, match="rare_label"):
         report(objects.drop(columns="state"), fovs, setup)
+    # Regression (#344): a label coded 0/2 was True where it was cast to bool and another
+    # state where it was compared with True; text labels failed converting to float.
+    for coded in (objects["state"].astype(int) * 2, np.where(objects["state"], "yes", "no")):
+        with pytest.raises(ValueError, match="rare_label 'state' must hold booleans or 0/1"):
+            report(objects.assign(state=coded), fovs, setup)
 
 
 def test_report_answers_the_report_questions_and_leaves_the_rest_out():
@@ -375,6 +380,10 @@ def test_write_fov_refuses_changed_manifest_columns_and_reserved_names(tmp_path)
     with pytest.raises(ValueError, match=OBJECTS_FILE):
         write_fov(tmp_path, pd.DataFrame({READOUT: [1.0]}), {OBJECTS_FILE: "x"})
     assert not list((tmp_path / "objects").glob(".*.tmp"))
+    # The refused field left no object file, so the corrected retry gets the next name.
+    assert [p.name for p in (tmp_path / "objects").iterdir()] == ["fov_000001.csv"]
+    retried = write_fov(tmp_path, pd.DataFrame({READOUT: [1.0]}), {"position_id": "b"})
+    assert retried.name == "fov_000002.csv"
 
 
 def test_live_tables_buffers_objects_until_their_fov_row():
@@ -597,3 +606,19 @@ def test_an_empty_technical_repeat_column_derives_no_hierarchy_and_reports_none(
     update = tables.update(objects[objects["image_file"] == first["image_file"].iloc[0]], first)
     assert "technical_repeat" not in tables.key
     assert update is not None
+
+
+def test_saved_figures_stay_in_the_folder_and_never_share_a_file(tmp_path):
+    from morphocoverage.workflows import plots
+    from morphocoverage.workflows.figures import _file_name
+
+    objects, fovs = _acquisition(n_fovs=4, n_objects=5)
+    objects = objects.rename(columns={"feature_a": "a/b", "feature_b": "../outside"})
+    setup = Setup(readout="a/b", features=("a/b", "../outside"))
+    folder = tmp_path / "figures"
+    plots(objects, fovs, setup, features=["a/b", "../outside"], folder=folder, n_boot=5)
+    assert sorted(p.name for p in tmp_path.rglob("*.png")) == [".._outside.png", "a_b.png"]
+    assert all(p.parent == folder for p in tmp_path.rglob("*.png"))
+    taken: set[str] = set()
+    names = [_file_name(name, taken) for name in ("x_1", "x_2", "x_1", "X_2", "")]
+    assert names == ["x_1", "x_2", "x_1_2", "X_2_2", "feature"]

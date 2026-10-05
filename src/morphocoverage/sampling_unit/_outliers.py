@@ -98,9 +98,10 @@ def _leave_one_group_out(
             return f"fewer than {k} reference observations outside some reference group"
         trees.append(cKDTree(ref[~inside]))
         reference_scores[inside] = _mean_distance(trees[-1], ref[inside], k)
-    # Assigned in the order of the tested values, so the row order never changes them.
-    left_out = np.empty(len(tested), dtype=np.int64)
-    left_out[_by_values(tested)] = rng.integers(0, len(groups), size=len(tested))
+    # Assigned in the order of the tested values, so the row order never changes them;
+    # identical observations share one draw, since their order is the row order.
+    distinct, of_row = np.unique(tested, axis=0, return_inverse=True)
+    left_out = rng.integers(0, len(groups), size=len(distinct))[of_row.reshape(-1)]
     scores = np.empty(len(tested))
     for index, tree in enumerate(trees):
         chosen = left_out == index

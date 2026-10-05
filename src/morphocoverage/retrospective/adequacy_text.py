@@ -198,11 +198,14 @@ def adequacy_short_parts(result: AdequacyResult, indent: int = 2) -> tuple[list[
             own = everything[everything["order"] == order]
             per_group = [rows_of(own, group) for group in groups]
             per_group = [g[~_unjudged(g)] for g in per_group if len(g)]
+            # A group with no judged run is out of the range: said in the row.
+            out = sum(not len(g) for g in per_group)
             per_group = [g for g in per_group if len(g)]
+            first = _cell([median_beyond(g["first_realized"]) for g in per_group])
             rows.append(
                 [
                     _ORDER_ROWS.get(order, order),
-                    _cell([median_beyond(g["first_realized"]) for g in per_group]),
+                    f"{first}; not judged in {out}" if out else first,
                     _cell([median_beyond(g["sustained_realized"]) for g in per_group]),
                     _cell([_tail_value(g["sustained_realized"]) for g in per_group]),
                 ]

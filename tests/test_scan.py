@@ -199,3 +199,17 @@ def test_the_full_summary_adds_the_checks_as_they_print():
     full = scan.summary(detail="full")
     assert "MorphoCoverage data check" in full
     assert full.startswith(scan.summary().split("\n")[0])
+
+
+def test_the_fields_are_those_of_the_fov_table_empty_ones_included():
+    objects = _usual()
+    fovs = objects[["condition", "biological_repeat", "image_file"]].drop_duplicates()
+    empty = {"condition": "siCTRL", "biological_repeat": "2026_01_01", "image_file": "e.tif"}
+    fovs = pd.concat([fovs, pd.DataFrame([empty])], ignore_index=True)
+    scan = scan_design(objects, fovs)
+    assert scan.design["fields"] == len(fovs) == 55
+    assert scan.design["per_field"] == (0, 10.0, 10)
+    assert "55 fields, 0-10 observations per field (median 10)." in scan.summary()
+    assert scan_design(objects).design["fields"] == 54
+    # No observation at all: zero fields, not a crash.
+    assert scan_design(objects.iloc[:0]).design["per_field"] == (0, 0.0, 0)

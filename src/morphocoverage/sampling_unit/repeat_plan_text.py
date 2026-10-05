@@ -115,7 +115,19 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
         f"{fields} a side per repeat",
     ]
     lines.append(table(rows, columns, indent=indent + 2))
-    single = plan[plan["status"] != "ok"]
+    single = plan[plan["status"].str.startswith("one biological repeat")]
+    # Imaged in several repeats, but fewer than two with an interval of d (``repeat_plan``).
+    unestimated = plan[(plan["status"] != "ok") & ~plan.index.isin(single.index)]
+    if len(unestimated):
+        lines.append(
+            wrap(
+                f"{listing(list(unestimated['condition']), 3)}: fewer than two of the repeats "
+                f"have two {fields} a side or more, so the variation between repeats is not "
+                "estimated.",
+                indent,
+                hang=indent + 2,
+            )
+        )
     if len(single):
         lines.append(
             wrap(

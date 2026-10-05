@@ -26,11 +26,18 @@ Answer = tuple[Status, str]
 def across_headline(across: pd.DataFrame, repeat_col: str | None) -> str:
     """``12 conditions across 3 biological repeats: 12 on one side of the control in every
     repeat (8 lower, 4 higher); 0 of 12 significant on the repeat means (paired t, ...)``."""
-    n_repeats = int(across["repeats"].max())
+    held = across["repeats"].astype(int)
+    word = column_word(repeat_col)
+    # Each condition's own repeats: one count when they share it, else the range.
+    each = (
+        count(int(held.max()), word)
+        if held.min() == held.max()
+        else f"{held.min()}-{count(int(held.max()), word)}"
+    )
     lower = int((across["lower"] == across["repeats"]).sum())
     higher = int((across["higher"] == across["repeats"]).sum())
     text = (
-        f"{count(len(across), 'condition')} across {count(n_repeats, column_word(repeat_col))}: "
+        f"{count(len(across), 'condition')} across {each}: "
         f"{lower + higher} in the same direction in every repeat"
     )
     if lower + higher:
@@ -114,6 +121,7 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             status = Status.CAUTION
             parts.append("opposite signs between repeats")
     elif contrast is not None:
+        status = Status.NOT_ASSESSED
         parts.append("no condition to compare with the control")
     if discovery is not None and len(discovery.ranking):
         passing = int(discovery.ranking["score"].notna().sum())
@@ -143,6 +151,9 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         )
         if across and not significant:
             status = Status.CAUTION
+        elif not across and contrast is None:
+            # The cell-level screen's candidates alone are hypotheses, no answer yet.
+            status = Status.NOT_ASSESSED
         return status, "; ".join(parts)
     if trend:
         status = Status.CAUTION
@@ -159,6 +170,8 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             limited or (contrast is not None and across_tested(contrast))
         ):
             status = Status.CAUTION
+    if not parts:
+        return Status.NOT_ASSESSED, "not assessed"
     return status, "; ".join(parts)
 
 

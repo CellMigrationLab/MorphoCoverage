@@ -342,8 +342,14 @@ class SupportNoveltyEstimator(Estimator):
         transform that cannot be fitted on ``visible``. It does not refit the
         leave-one-FOV-out folds, so it can return flags where ``estimate`` on
         ``visible`` is insufficient because one fold could not be fitted;
-        callers check ``estimate`` first.
+        callers check ``estimate`` first. Both inputs must have the same feature
+        columns in the same order, the coordinates the distances are taken in.
         """
+        if tuple(new.feature_cols) != tuple(visible.feature_cols):
+            raise ValueError(
+                f"new has feature columns {list(new.feature_cols)}, visible "
+                f"{list(visible.feature_cols)}: novelty needs the same columns in the same order"
+            )
         reference = visible.feature_matrix()
         queries = new.feature_matrix()
         if np.isnan(reference).any() or np.isnan(queries).any():

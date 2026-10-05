@@ -99,3 +99,41 @@ def test_a_condition_with_two_targets_is_refused(screen):
         condition_contrast(
             objects, fovs, feature="Filopodia number", control=data.control, observation_unit="cell"
         )
+
+
+def test_reagents_that_share_no_repeat_are_not_compared():
+    """#307: two reagents of KD in different repeats read "on one side in none of 0" and
+    counted against agreement in the headline."""
+    from types import SimpleNamespace
+
+    from morphocoverage.sampling_unit.reading_text import condition_readings
+    from morphocoverage.sampling_unit.reagents_text import reagents_headline, reagents_parts
+
+    apart = _table([(-1, -1), (-1, -1)])
+    apart = apart[~((apart["condition"] == "siKD#2") & (apart["biological_repeat"] == "r0"))]
+    apart = apart[~((apart["condition"] == "siKD#1") & (apart["biological_repeat"] == "r1"))]
+    agreeing = _table([(-1, -1), (-1, -2)]).replace({"siKD#1": "siB#1", "siKD#2": "siB#2"})
+    targets = {**TARGETS, "siB#1": "B", "siB#2": "B"}
+    rows = reagent_agreement(pd.concat([apart, agreeing]), targets)
+    assert rows.set_index("target").loc["KD", "repeats"] == 0
+    contrast = SimpleNamespace(
+        targets=rows,
+        settings={"repeat_col": "biological_repeat", "observation_unit": "cell"},
+        repeats=pd.DataFrame(
+            [{"condition": "siKD#1", "control_condition": "CTRL", "repeats": 1, "lower": 1}]
+            + [{"condition": "siB#1", "control_condition": "CTRL", "repeats": 2, "lower": 2}],
+        ).assign(
+            higher=0, d_mean=-1.0, q_paired_t=float("nan"), q_paired_t_normalised=float("nan")
+        ),
+        table=pd.DataFrame(),
+        cells=pd.DataFrame(),
+    )
+    lines, _ = reagents_parts(contrast)
+    assert "not compared: no repeat holds them all" in "\n".join(lines)
+    assert reagents_headline(contrast) == (
+        "the reagents of a target go the same way in every repeat for 1 of 1 target "
+        "(described, not tested; 1 more with no repeat holding all its reagents)"
+    )
+    readings = condition_readings(contrast).set_index("condition")["reading"]
+    assert "siKD#2 (KD) not imaged in the same biological repeat" in readings["siKD#1"]
+    assert "siB#2 (B) agrees in 2 of 2 biological repeats" in readings["siB#1"]

@@ -114,6 +114,8 @@ def test_live_on_a_group_stops_on_the_group_alone(plain, monkeypatch):
     choices = _choices(plan_card(result, objects, fovs, str), "plan-live")
     name, panel = next(iter(choices.items()))
     assert "has been seen in 3 fields" in name
+    # max_risk is a posterior risk, not the false-stop rate at 3 occurrences (#345, in #343).
+    assert "the posterior risk of stopping too early is 5%" in re.sub(r"\s+", " ", panel)
     exec(_code(panel), {"result": result, "objects": objects, "fovs": fovs})  # noqa: S102
     session = _Folder.seen["session"]
     assert _Folder.seen["watch"]["until_stop"] == "latest_group"
@@ -248,3 +250,31 @@ def test_a_pilot_condition_is_named_and_the_others_still_planned(plain):
     listed = {c for _, c in re.findall(r"<tr><td>(.*?)</td><td>(.*?)</td>", panel)}
     assert "narrow" not in listed
     assert listed or "Every condition with 3 or more repeats is significant" in words
+
+
+def test_the_incidence_counts_the_fields_without_observations():
+    # Regression (#343): fields with no observation had no object row and left the
+    # denominator, so the share of fields holding the label, and the plan, came out higher.
+    from types import SimpleNamespace
+
+    import pandas as pd
+
+    from morphocoverage.workflows._html_plan import _incidence
+
+    objects, fovs = _screen()
+    empty = (
+        fovs.groupby("condition", sort=False)
+        .head(12)
+        .assign(image_file=lambda t: t["image_file"].str.replace(".tif", "_empty.tif"))
+    )
+    every = pd.concat([fovs, empty], ignore_index=True)
+    result = SimpleNamespace(setup=_setup(fingerprint=(), rare=None, rare_label=None))
+    incidence, where = _incidence(result, objects, every, objects["mitotic"])
+    held = objects.groupby("image_file")["mitotic"].any()
+    shares = (
+        every.assign(held=every["image_file"].map(held).fillna(False).astype(bool))
+        .groupby("condition")["held"]
+        .mean()
+    )
+    assert where == shares.idxmin() and incidence == pytest.approx(shares.min())
+    assert incidence < _incidence(result, objects, fovs, objects["mitotic"])[0]

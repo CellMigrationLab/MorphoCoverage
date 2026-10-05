@@ -2,7 +2,9 @@
 
 import base64
 import json
+import os
 import re
+import time
 import zipfile
 from pathlib import Path
 
@@ -123,6 +125,11 @@ def test_the_page_holds_every_answer_and_its_figures(tmp_path):
     assert 'class="term"' in page and 'id="g-mean-precision-rule"' in page
     with pytest.raises(TypeError, match="Report"):
         html_report("not a report", objects, fovs, tmp_path)
+    # Figures from other tables than the answers' are refused.
+    with pytest.raises(ValueError, match="the tables the report was run on"):
+        html_report(result, objects.iloc[1:], fovs, tmp_path)
+    with pytest.raises(ValueError, match="the tables the report was run on"):
+        html_report(result, objects, fovs.iloc[1:], tmp_path)
 
 
 def test_docs_glossary_is_the_rendering_of_the_glossary():
@@ -141,6 +148,11 @@ def test_zip_holds_every_file_of_the_folder(tmp_path):
     archive = zip_results(folder)
     zip_results(folder)  # a second zip replaces the first, never contains it
     with zipfile.ZipFile(archive) as opened:
+        assert sorted(opened.namelist()) == ["results/figures/a.png", "results/report.html"]
+    # A figure an earlier run left is not this report's: left out with since.
+    (folder / "figures" / "old.png").write_bytes(b"png")
+    os.utime(folder / "figures" / "old.png", (time.time() - 3600,) * 2)
+    with zipfile.ZipFile(zip_results(folder, since=time.time() - 60)) as opened:
         assert sorted(opened.namelist()) == ["results/figures/a.png", "results/report.html"]
 
 

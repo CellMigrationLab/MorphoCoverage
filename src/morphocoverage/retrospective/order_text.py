@@ -120,12 +120,16 @@ def _order_rows(result: Any, unit: str) -> list[list[str]]:
     timed = "median_time" in frame and frame["median_time"].notna().any()
     for order in dict.fromkeys(frame["order"]):
         own = frame[frame["order"] == order]
+        every = len(own)
         own = own[own["unjudged"].fillna(0) < own["runs"]] if "unjudged" in own else own
         reached = own[own["median_fovs"].notna()]
         never = len(own) - len(reached)
         fields = span(reached["median_fovs"]) if len(reached) else "never"
         if never and len(reached):
             fields += f" (never in {count(never, 'group')})"
+        # A group with no judged run is out of the range: said in the row.
+        if every > len(own):
+            fields += f" (not judged in {count(every - len(own), 'group')})"
         travel = reached["median_travel"].dropna()
         distance = "–"
         if len(travel):

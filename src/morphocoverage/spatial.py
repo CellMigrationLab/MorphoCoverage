@@ -54,8 +54,12 @@ def empirical_semivariogram(
             "values and coords must be finite: an infinite stage coordinate or value has no "
             "distance to the other FOVs; correct or drop that FOV"
         )
-    if edges.ndim != 1 or len(edges) < 2 or np.any(np.diff(edges) <= 0) or edges[0] < 0:
-        raise ValueError("bin_edges must be at least two increasing non-negative distances")
+    # Written as "not (... > 0)" so that a NaN edge, for which every comparison is False, fails.
+    if edges.ndim != 1 or len(edges) < 2 or not np.all(np.diff(edges) > 0) or not edges[0] >= 0:
+        raise ValueError(
+            "bin_edges must be at least two increasing non-negative distances, none missing "
+            "(only the last may be infinite)"
+        )
     lags = distance.pdist(coords)
     half_squared = 0.5 * distance.pdist(values, "sqeuclidean") / values.shape[1]
     bins = np.searchsorted(edges, lags, side="right") - 1

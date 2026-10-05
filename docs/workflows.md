@@ -293,7 +293,7 @@ section holds every figure (PNG and PDF), both text reports, the feature table
 as CSV and, from the guided session, the design scan and the saved answers, each
 saved with its button, so the page alone is the file to share. The guided
 session also zips the whole folder (`zip_results(folder)`: `<folder>.zip`) for
-archiving.
+archiving, without the figures an earlier session left in `figures/` (`since=`).
 
 ## Declare the dataset
 

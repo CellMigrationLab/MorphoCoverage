@@ -18,7 +18,8 @@ each draw. From the draws:
   repeats compares (``repeat_plan`` plans on them);
 - **fields to resolve it**: when not resolved, the fields per side at which
   the interval's half-width, shrinking as ``1 / sqrt(fields)``, would fall
-  below |d| (a projection from these fields, not a promise). Beyond
+  below |d| (a projection from these fields, not a promise), counted as
+  acquired: fields without observations included, at the share seen. Beyond
   ``PRACTICAL`` times the fields acquired, the difference is called too small
   to settle with more fields of these wells: it is described, not flagged.
 
@@ -115,9 +116,12 @@ def sampling_row(
         row["log_ratio_se"] = float(np.std(ratios, ddof=1))
     if not resolved:
         half = (high - low) / 2
-        needed = n_fields * (half / abs(d)) ** 2 if d else np.inf
+        # In fields acquired: the draws hold the fields with observations, and empty ones
+        # come at the share these sides show.
+        acquired = min(sum(len(u) for u in t_units), sum(len(u) for u in c_units))
+        needed = acquired * (half / abs(d)) ** 2 if d else np.inf
         row["fields_to_resolve"] = float(np.ceil(needed)) if np.isfinite(needed) else np.inf
-        row["too_small"] = bool(needed > PRACTICAL * n_fields)
+        row["too_small"] = bool(needed > PRACTICAL * acquired)
     return row
 
 

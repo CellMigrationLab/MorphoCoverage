@@ -220,3 +220,107 @@ def test_the_targets_have_their_own_tabs_after_the_features(screen, tmp_path):
         fingerprint
     )
     assert "Optimise judges it" not in card and "held-back" not in card
+
+
+def test_issue_145_a_comparison_not_tested_is_not_called_not_significant():
+    from morphocoverage.workflows._distribution import distribution_headline, distribution_text
+
+    objects, fovs = _screen()
+    dropped = "narrow_2026_01_19"
+    objects = objects[~objects["image_file"].str.startswith(dropped)]
+    fovs = fovs[~fovs["image_file"].str.startswith(dropped)]
+    result = distribution_contrast(
+        objects, fovs, features=FEATURES, control={"condition": "siCTRL"}
+    )
+    assert result.tests.query("condition == 'narrow'")["q"].isna().all()
+    paragraph = distribution_text(result)
+    line = " ".join(paragraph.split("- narrow — ")[1].split("\n    condition")[0].split())
+    assert line.startswith("the same way in every repeat, not tested (fewer than 3 repeats): ")
+    assert "not significant" not in line and "q –" not in line
+    assert "    narrow  " in paragraph  # its values are in the table
+    assert "not significant" not in distribution_headline(result)
+
+
+def test_issue_147_the_table_keeps_the_smallest_q_when_it_is_cut():
+    from morphocoverage.sampling_unit.distribution import STATISTICS, DistributionContrast
+    from morphocoverage.workflows._distribution import MAX_ROWS, distribution_text
+
+    rows = []
+    # Sub-experiment 1: 30 features, each p 0.01 on one statistic (q 0.04 after BH over 120).
+    for i in range(30):
+        for statistic, p in zip(STATISTICS, (0.01, 0.9, 0.9, 0.9), strict=True):
+            rows.append(("A", f"f{i:02d}", statistic, p, 0.04 if p < 0.5 else 0.9, 1))
+    # Sub-experiment 2: a larger p but a smaller q (0.02 over 4 tests).
+    for statistic in STATISTICS:
+        rows.append(("B", "g", statistic, 0.02, 0.02, 2))
+    tests = pd.DataFrame(
+        rows, columns=["condition", "feature", "statistic", "p", "q", "experiment"]
+    )
+    tests = tests.assign(repeats=3, lower=0, higher=3, mean=0.1, low=0.0, high=0.2)
+    settings = {"alpha": 0.05, "families": 2, "observation_unit": "cell"}
+    text = distribution_text(DistributionContrast(tests, settings))
+    table = text.split("90% shift")[1]
+    assert table.split("\n")[1].split()[:2] == ["B", "g"]
+    assert table.count(" (q ") == 4 * MAX_ROWS
+    assert "and 7 more features" in text
+
+
+def test_a_group_the_fingerprint_cannot_be_judged_in_is_named():
+    # Regression (#333): a well with fewer than 4 fields left the tally, so the fingerprint
+    # read "within it in 17 of 17 wells" and "in every well" with 18 wells declared.
+    from types import SimpleNamespace
+
+    from morphocoverage.workflows._enough_targets import (
+        fingerprint_lines,
+        fingerprint_precision,
+        targets_status,
+    )
+    from morphocoverage.workflows._html_enough import _targets
+
+    objects, fovs = _screen()
+    small = fovs["image_file"].str.startswith("arrest_2026_01_05_C1_")
+    drop = set(fovs.loc[small, "image_file"].iloc[3:])
+    fovs = fovs[~fovs["image_file"].isin(drop)]
+    objects = objects[~objects["image_file"].isin(drop)]
+    criterion = OutcomeCriterion(
+        QuantileError(FEATURES, True, quantiles=(0.5,)), 10.0, "lower_is_better", "loose"
+    )
+    setup = _setup(fingerprint=(criterion,))
+    precision = fingerprint_precision(objects, fovs, setup)
+    assert precision["met"].isna().sum() == 1 and precision["met"].dropna().all()
+    text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields")).split())
+    assert "within it in 17 of 17 wells: enough. Not judged in 1 well: fewer than 4" in text
+    assert targets_status(None, precision, setup)[1] == [
+        "the fingerprint within its tolerance in 17 of 17 judged"
+    ]
+    result = SimpleNamespace(setup=setup, results={"fingerprint_precision": precision})
+    lines, _ = _targets(result, "well", "field")
+    assert lines == ["The fingerprint is within its tolerance in 17 of 17 wells judged."]
+
+
+def test_a_labelled_cell_in_a_crowded_field_finds_its_neighbour_of_another_field():
+    # Regression (#349): only the 64 nearest cells were looked at, so the 5 labelled cells
+    # among 105 alike cells of one field were left out of the share recognized.
+    rng = np.random.default_rng(0)
+    parts = [
+        ("f0", 100, (0, 0), False),
+        ("f0", 5, (0, 0), True),
+        ("f1", 3, (3, 3), True),
+        ("f1", 10, (5, 5), False),
+        ("f2", 10, (5.1, 5), False),
+    ]
+    objects = pd.concat(
+        pd.DataFrame(rng.normal(centre, 0.05, (n, 2)), columns=["x", "y"]).assign(
+            image_file=field, lab=labelled
+        )
+        for field, n, centre, labelled in parts
+    )
+    fovs = pd.DataFrame({"image_file": ["f0", "f1", "f2"]})
+    rare = RareTarget(
+        object_prevalence=0.05, detection_probability=0.95, min_fov_occurrences=1, phenotype="p"
+    )
+    setup = Setup(
+        readout="x", features=("x", "y"), rare=rare, rare_label="lab", observation_unit="cell"
+    )
+    # f0's labelled cells find f1's; f1's find f2's unlabelled cells.
+    assert label_control(objects, fovs, setup).recognized == pytest.approx(5 / 8)

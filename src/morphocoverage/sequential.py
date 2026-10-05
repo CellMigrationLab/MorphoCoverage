@@ -142,6 +142,8 @@ def _evaluate_prefixes(
         group_cols=group_cols,
         observation_unit=observation_unit,
     )
+    # The values after validation, which refuses a column named twice before it is read.
+    _check_order_values(data.fovs, acquisition_order_col)
     strategy_list = list(strategies)
     groups = list(iter_analysis_groups(data))
     _check_min_fovs(groups, min_fovs)
@@ -228,14 +230,14 @@ def _replay_unit(
 def _check_order_column(
     fovs: pd.DataFrame, order_col: str, feature_cols: Sequence[str] | None
 ) -> None:
-    """The acquisition-order column exists, is complete and is not a phenotype feature."""
+    """The acquisition-order column exists and is not a phenotype feature (its values are
+    checked by ``_check_order_values`` once the tables are validated)."""
     if not isinstance(fovs, pd.DataFrame):
         raise TypeError("fovs must be a pandas DataFrame")
     if order_col not in fovs.columns:
         raise ValueError(f"fovs is missing required columns: {[order_col]}")
     if feature_cols is not None and order_col in feature_cols:
         raise ValueError("acquisition order cannot also be a phenotype feature")
-    _check_order_values(fovs, order_col)
 
 
 def _check_order_values(fovs: pd.DataFrame, order_col: str) -> None:

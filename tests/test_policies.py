@@ -250,6 +250,19 @@ def test_decision_view_shows_every_target_and_the_overall():
         decision_view([mean, _result(POPULATION, population_cv=0.5)])
 
 
+def test_a_rare_rule_beside_another_objective_adds_no_rare_caveat_to_its_stop():
+    from morphocoverage.results import decision_view
+
+    view = decision_view(
+        [_result(POPULATION, population_cv=0.5), _result(POPULATION, rare_miss=0.5)]
+    )
+    assert "Rare phenotype: stop (1 rule)" in view
+    assert "exchangeable" not in view.split("Overall")[1]
+    balanced = decision_view([_result(BALANCED, population_cv=0.5, rare_miss=0.5)])
+    assert "exchangeable" in balanced.split("Overall")[1]
+    assert "exchangeable" in decision_view([_result(RARE, rare_miss=0.5)]).split("Overall")[1]
+
+
 def test_non_required_components_are_reported_but_do_not_decide():
     decision, components = _combined(POPULATION, population_cv=2.0, rare_miss=0.5)
     assert decision is Decision.CONTINUE
@@ -339,6 +352,8 @@ def test_strategy_name_defaults_to_its_parts():
     assert strategy.name == "averaging_cv_object+threshold:averaging_cv"
     with pytest.raises(ValueError, match="at least one"):
         SamplingStrategy()
+    with pytest.raises(ValueError, match="at least one"):  # a name is no component (#323)
+        SamplingStrategy([], [], name="empty")
     with pytest.raises(TypeError, match="not an Estimator"):
         SamplingStrategy([ThresholdPolicy("q", 1.0)])
 

@@ -18,6 +18,7 @@ import pandas as pd
 
 from .._style import Status, table, wrap
 from .._wording import count, listing, p_value
+from ..sampling_unit.contrast_repeats import MIN_REPEATS
 from ..sampling_unit.distribution import (
     DistributionContrast,
     distribution_contrast,
@@ -47,11 +48,13 @@ def distribution_by_feature(
     return result if result.n_tests else None
 
 
-def _consistent(rows: pd.DataFrame) -> pd.DataFrame:
-    """Statistics on one side of the control in every repeat, not significant."""
+def _consistent(rows: pd.DataFrame, tested: bool = True) -> pd.DataFrame:
+    """Statistics on one side of the control in every repeat, tested and not significant
+    (or, with ``tested=False``, not tested: fewer than ``MIN_REPEATS`` usable repeats)."""
     alpha = 0.05
     same = (rows["lower"] == rows["repeats"]) | (rows["higher"] == rows["repeats"])
-    return rows[same & (rows["repeats"] > 1) & ~(rows["q"] <= alpha)]
+    kept = rows["q"].notna() if tested else rows["q"].isna()
+    return rows[same & (rows["repeats"] > 1) & kept & ~(rows["q"] <= alpha)]
 
 
 def _named(rows: pd.DataFrame) -> list[str]:
@@ -84,6 +87,8 @@ def _condition_line(condition: Any, rows: pd.DataFrame, result: DistributionCont
     significant = rows[rows["q"] <= 0.05]
     trend = _consistent(rows)
     trend = trend[~trend["feature"].isin(significant["feature"])]
+    untested = _consistent(rows, tested=False)
+    untested = untested[~untested["feature"].isin([*significant["feature"], *trend["feature"]])]
     parts = []
     split = split_words(result, condition)
     if split:
@@ -92,6 +97,13 @@ def _condition_line(condition: Any, rows: pd.DataFrame, result: DistributionCont
         parts.append("differs beyond the mean: " + listing(_named(significant), 6))
     if len(trend):
         parts.append("the same way in every repeat, not significant: " + listing(_named(trend), 6))
+    if len(untested):
+        best = untested.drop_duplicates("feature")
+        named = [f"{r.feature} ({_NAMES[r.statistic]})" for r in best.itertuples()]
+        parts.append(
+            f"the same way in every repeat, not tested (fewer than {MIN_REPEATS} repeats): "
+            + listing(named, 6)
+        )
     return f"- {condition} — " + ("; ".join(parts) if parts else "no difference beyond the mean")
 
 
@@ -105,7 +117,9 @@ def _cell(row: pd.Series, statistic: str) -> str:
 def distribution_text(result: DistributionContrast, unit: str = "cells") -> str:
     """The paragraph of question 9 (see the module)."""
     tests = result.tests
-    repeats = int(tests["repeats"].max())
+    tested = tests.loc[tests["p"].notna(), "repeats"]
+    low, high = int(tested.min()), int(tested.max())
+    repeats = str(low) if low == high else f"{low} to {high}"
     intro = wrap(
         f"{HEAD} (the fingerprint is declared): does each feature's distribution differ from "
         f"the control's? Per biological repeat against its own control, on its {unit}: the "
@@ -119,10 +133,10 @@ def distribution_text(result: DistributionContrast, unit: str = "cells") -> str:
     lines = [intro]
     for condition, rows in tests.groupby("condition", sort=False):
         lines.append(wrap(_condition_line(condition, rows, result), 4, hang=6))
-    grid = tests.pivot_table(
-        index=["condition", "feature"], columns="statistic", values="p", aggfunc="first", sort=False
-    )
-    order = grid.min(axis=1).sort_values().index[:MAX_ROWS]
+    # The strongest corrected evidence first (q, then p; untested last), so a cut at
+    # MAX_ROWS never drops a smaller q of another sub-experiment for a smaller raw p.
+    grid = tests.groupby(["condition", "feature"], sort=False)[["q", "p"]].min()
+    order = grid.sort_values(["q", "p"], kind="stable").index[:MAX_ROWS]
     keyed = tests.set_index(["condition", "feature", "statistic"])
     rows = [
         [condition, feature, *(_cell(keyed.loc[(condition, feature, s)], s) for s in _NAMES)]
@@ -157,6 +171,13 @@ def distribution_headline(result: DistributionContrast) -> str:
     if len(trend):
         conditions = listing(list(dict.fromkeys(trend["condition"].astype(str))), 4)
         return f"beyond the mean, the same way in every repeat for {conditions}, not significant"
+    untested = _consistent(result.tests, tested=False)
+    if len(untested):
+        conditions = listing(list(dict.fromkeys(untested["condition"].astype(str))), 4)
+        return (
+            f"beyond the mean, the same way in every repeat for {conditions}, not tested "
+            f"(fewer than {MIN_REPEATS} repeats)"
+        )
     return "beyond the mean, no difference in the distributions"
 
 

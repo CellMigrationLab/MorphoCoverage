@@ -122,6 +122,15 @@ def check_workflow_inputs(
             f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
             "phenotype cannot be judged on held-back fields without its labels"
         )
+    if setup.rare_label is not None:
+        # The analyses read the label as True/False: any other value ("no", 2) would be
+        # True for some of them and another state for others.
+        labels = objects[setup.rare_label].dropna()
+        if not (pd.api.types.is_bool_dtype(labels) or set(labels.unique()) <= {0, 1}):
+            raise ValueError(
+                f"rare_label {setup.rare_label!r} must hold booleans or 0/1, got "
+                f"{sorted(map(str, labels.unique()))[:5]}"
+            )
     check = _check_tables(
         objects, fovs, feature_cols=setup.columns, control=setup.control, **setup.common
     )
@@ -242,7 +251,9 @@ def pooled_columns(
     explicit = [*(setup.group_cols or ()), *([setup.fov_col] if setup.fov_col else [])]
     objects, table = drop_empty_optional_columns(objects, fovs, explicit)
     assert table is not None
-    groups = list(resolve_group_cols(objects, table, setup.group_cols))
+    # The groups as the FOV table holds them: the validator attaches its group columns to
+    # lean observation tables, so their absence from ``objects`` is no error here.
+    groups = list(resolve_group_cols(table, None, setup.group_cols))
     pooled = []
     for column in columns:
         if column not in table.columns or column in groups:

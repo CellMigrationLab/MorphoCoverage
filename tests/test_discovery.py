@@ -75,6 +75,29 @@ def test_a_consistent_difference_passes_both_gates_and_noise_neither():
     )
 
 
+def test_a_condition_with_nothing_to_balance_against_a_pooled_control_is_not_tested():
+    """'drug' holds 4 cells in one of the control's three repeats: as provided its control
+    pools the other two, and its one repeat is too small to balance, so no gate (#292)."""
+    objects, _ = _tables()
+    later = (objects["condition"] == "drug") & (objects["biological_repeat"] != "r0")
+    objects.loc[later, "condition"] = "other"
+    objects = objects.drop(objects.index[objects["condition"] == "drug"][4:])
+    fovs = objects[["condition", "biological_repeat", "position_id"]]
+    tests = _discovery(objects, fovs, features=("area",)).tests.set_index("condition")
+    assert np.isnan(tests.loc["drug", "p_cells"]) and np.isfinite(tests.loc["other", "p_cells"])
+    assert tests.loc["drug", "status"].startswith("its control would include repeats")
+
+
+def test_a_perfect_separation_is_not_called_one_value_everywhere():
+    """Control 0 and drug 1 in every cell: no Cohen's d, so no test, and the feature was
+    listed as holding one value everywhere (#297)."""
+    objects, fovs = _tables()
+    objects["flag"] = (objects["condition"] == "drug").astype(float)
+    text = " ".join(_discovery(objects, fovs, features=("area", "flag", "flat")).summary().split())
+    assert "Not tested (1 feature, no spread within the condition and the control): flag." in text
+    assert "Not tested (1 feature, one value everywhere): flat." in text
+
+
 def test_unbalanced_repeats_use_the_balanced_test():
     result = _discovery(*_tables(unbalanced=True))
     row = result.tests.set_index("feature").loc["area"]
@@ -134,3 +157,28 @@ def test_an_embedding_needs_three_features_that_vary():
     objects, fovs = _tables()
     with pytest.raises(ValueError, match="at least 3 features that vary"):
         embed(objects, fovs, features=["area", "noise", "flat"], umap=False)
+
+
+def test_question_9_is_not_assessed_without_a_comparison_or_a_test_across_repeats():
+    """#274: the cell-level screen's candidates alone (two repeats, no contrast) and a
+    contrast with no condition to compare are no answer, never ✅."""
+    from morphocoverage._style import Status
+    from morphocoverage.retrospective.report_status import conditions_status
+    from morphocoverage.sampling_unit.contrast import condition_contrast
+
+    objects, fovs = _tables(n_repeats=2)
+    status, headline = conditions_status(None, None, _discovery(objects, fovs))
+    assert status is Status.NOT_ASSESSED and "no test across repeats: n = 2" in headline
+    alone = objects["condition"] == "ctrl"
+    contrast = condition_contrast(
+        objects[alone],
+        fovs[fovs["condition"] == "ctrl"],
+        feature="area",
+        control={"condition": "ctrl"},
+    )
+    assert conditions_status(contrast, None) == (
+        Status.NOT_ASSESSED,
+        "no condition to compare with the control",
+    )
+    # Three repeats: the test across repeats answers, as before.
+    assert conditions_status(None, None, _discovery(*_tables()))[0] is Status.OK

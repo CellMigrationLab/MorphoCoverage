@@ -129,12 +129,16 @@ def _cell_version(row: pd.Series) -> tuple[str, float, float, float, float, floa
     uncorrected p."""
     chance = (row["chance_low"], row["chance_high"])
     balanced = (row.get("chance_balanced_low", np.nan), row.get("chance_balanced_high", np.nan))
-    for label, d, p, limits in (
+    versions = [
         ("balanced, normalised", "d_balanced_normalised", "p_balanced_normalised", balanced),
         ("balanced", "d_balanced", "p_balanced", balanced),
         ("normalised", "d_cells_normalised", "p_cells_normalised", chance),
         ("raw", "d_cells", "p_cells", chance),
-    ):
+    ]
+    # As provided, a control pooled from repeats the condition was not imaged in gets no
+    # number (cells_text): only the balanced test, against its own repeats' control.
+    pooled = row.get("other_control_repeats", 0) > 0
+    for label, d, p, limits in versions[:2] if pooled else versions:
         if pd.notna(row.get(p)):
             q = float(row[p.replace("p_", "q_", 1)])
             return label, float(row[d]), q, *map(float, limits), float(row[p])
@@ -176,6 +180,9 @@ def _paired(row: pd.Series, n: int, word: str) -> tuple[bool, str]:
     q, p, which = row["q_paired_t_normalised"], row.get("p_paired_t_normalised"), "normalised"
     if pd.isna(q):
         q, p, which = row["q_paired_t"], row.get("p_paired_t"), "raw"
+    if pd.isna(q) and n >= MIN_REPEATS:
+        # Enough repeats, but their values are all equal (``paired_t``): no spread to test.
+        return False, f"no paired test: the change is the same in every {word}"
     if pd.isna(q):
         return False, f"the paired test needs {count(MIN_REPEATS, word)}"
     confirmed = bool(q <= ALPHA)
@@ -229,6 +236,8 @@ def _reagents(contrast: Any, condition: Any, word: str) -> str:
         if condition in row["reagents"]:
             others = [r for r in row["reagents"] if r != condition]
             verb = "agrees" if len(others) == 1 else "agree"
+            if not row["repeats"]:
+                return f"{listing(others, 2)} ({row['target']}) not imaged in the same {word}"
             return (
                 f"{listing(others, 2)} ({row['target']}) {verb} in {row['agree']} of "
                 f"{count(int(row['repeats']), word)}"
@@ -387,7 +396,14 @@ def readings_headline(contrast: Any) -> str | None:
         return None
     word = column_word(contrast.settings.get("repeat_col"))
     feature = contrast.settings["feature"]
-    n_repeats = int(_direction_rows(contrast)["repeats"].max())
+    held = _direction_rows(contrast)["repeats"].astype(int)
+    n_repeats = int(held.max())
+    # Each condition's own repeats: one count when they share it, else the range.
+    each = (
+        count(n_repeats, word)
+        if held.min() == n_repeats
+        else f"{held.min()}-{count(n_repeats, word)}"
+    )
     table = getattr(contrast, "table", pd.DataFrame())
     repeat_col = contrast.settings.get("repeat_col")
     total = int(table[repeat_col].nunique()) if repeat_col in table else n_repeats
@@ -413,9 +429,9 @@ def readings_headline(contrast: Any) -> str | None:
         )
     else:
         text = f"{feature}, {count(len(readings), 'condition')} " + (
-            f"across {count(n_repeats, word)}: "
+            f"across {each}: "
             if total <= n_repeats
-            else f"against the control, each in {count(n_repeats, word)} ({total} in all): "
+            else f"against the control, each in {each} ({total} in all): "
         )
     text += "; ".join(groups)
     if n_repeats < MIN_REPEATS:

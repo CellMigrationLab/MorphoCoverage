@@ -55,7 +55,7 @@ which no setting here removes:
   resampled, so correlation within a block is kept (a spatial block bootstrap).
   Blocks should be at least as large as the correlation length;
   correlation between blocks is still ignored, and ``min_fovs`` then also
-  requires that many blocks;
+  requires that many blocks with observations;
 - the value depends on feature scale, so ``transform`` is explicit (``None``
   means raw feature units). The transform is fitted once on the visible data
   and held fixed across resamples.
@@ -371,10 +371,13 @@ class FOVBootstrapEstimator(Estimator):
         if never:
             quantity = Quantity.not_applicable(never, **_meta(units, self.summary))
             return Evidence(self._every(quantity), {**diagnostics, "undefined_reason": never})
+        # Blocks without observations add nothing to resample: min_fovs counts the
+        # blocks that hold observations, as it counts FOVs with observations.
+        resampled = self._resampled_units(data, positions)
         if with_observations < self.min_fovs:
             reason = f"fewer than {self.min_fovs} visible FOVs with observations"
-        elif blocks is not None and blocks < self.min_fovs:
-            reason = f"fewer than {self.min_fovs} visible spatial blocks"
+        elif blocks is not None and resampled < self.min_fovs:
+            reason = f"fewer than {self.min_fovs} spatial blocks with observations"
         elif values is None:
             reason = f"the transform could not be fitted: {diagnostics['transform']['reason']}"
         elif constant := _constant_features(data, positions, self.summary):
@@ -382,9 +385,6 @@ class FOVBootstrapEstimator(Estimator):
             reason = f"no spread {where} of {listing(constant, limit=5)} so far"
         else:
             reason = None
-        resampled = self._resampled_units(data, positions)
-        if reason is None and resampled < 2:
-            reason = "fewer than 2 spatial blocks with observations"
         if reason is not None:
             diagnostics["undefined_reason"] = reason
             return Evidence(

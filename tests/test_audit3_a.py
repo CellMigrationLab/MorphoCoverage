@@ -325,6 +325,16 @@ def test_a11_a_set_of_columns_is_refused():
         validate_input_tables(cells, fovs=fovs, feature_cols={"area"})
 
 
+def test_a11_a_mapping_of_columns_is_refused_not_read_as_its_keys():
+    cells, fovs = _tables()
+    for arguments in ({"feature_cols": {"area": False}}, {"group_cols": {"condition": 1}}):
+        arguments = {"feature_cols": ["area"], **arguments}
+        accepted, check = _agree(cells, fovs, **arguments)
+        assert not accepted and "is not a list of column names." in _titles(check)[0]
+        with pytest.raises(TypeError, match="not a mapping"):
+            validate_input_tables(cells, fovs=fovs, **arguments)
+
+
 def test_a12_a_group_column_named_twice_is_refused():
     cells, fovs = _tables()
     accepted, check = _agree(cells, fovs, group_cols=["condition", "condition"])

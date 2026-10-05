@@ -288,9 +288,18 @@ def _repeat_sets(objects: pd.DataFrame, conditions: list[Any]) -> list[dict[str,
     ]
 
 
-def _per_field(objects: pd.DataFrame, key: list[str]) -> tuple[int, float, int]:
-    sizes = objects.groupby(key, sort=False, dropna=False).size()
-    return int(sizes.min()), float(sizes.median()), int(sizes.max())
+def _per_field(
+    objects: pd.DataFrame, key: list[str], fovs: pd.DataFrame | None = None
+) -> tuple[int, int, float, int]:
+    """The fields and the observations per field (fewest, median, most); with the FOV table,
+    every field it lists, an empty one as 0, as the report counts them."""
+    sizes = objects.groupby(key, sort=False, dropna=False).size().rename("n").reset_index()
+    if fovs is not None and set(key) <= set(fovs.columns):
+        sizes = fovs[key].drop_duplicates().merge(sizes, on=key, how="left").fillna({"n": 0})
+    if sizes.empty:
+        return 0, 0, 0.0, 0
+    n = sizes["n"]
+    return len(sizes), int(n.min()), float(n.median()), int(n.max())
 
 
 def _technical(objects: pd.DataFrame, keys: list[str]) -> dict[str, Any] | None:
@@ -309,14 +318,20 @@ def _technical(objects: pd.DataFrame, keys: list[str]) -> dict[str, Any] | None:
 
 
 def _design(
-    objects: pd.DataFrame, fov_key: list[str], control: Any, control_declared: bool
+    objects: pd.DataFrame,
+    fov_key: list[str],
+    control: Any,
+    control_declared: bool,
+    fovs: pd.DataFrame | None = None,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     """The facts of the design and the observations per condition and repeat."""
     design: dict[str, Any] = {"observations": len(objects)}
     has_condition = column_has_values(objects, CONDITION_COLUMN)
     has_repeat = column_has_values(objects, REPEAT_COLUMN)
-    design["fields"] = len(objects[fov_key].drop_duplicates()) if fov_key else len(objects)
-    design["per_field"] = _per_field(objects, fov_key) if fov_key else (1, 1.0, 1)
+    fields, *per_field = (
+        _per_field(objects, fov_key, fovs) if fov_key else (len(objects), 1, 1.0, 1)
+    )
+    design["fields"], design["per_field"] = fields, tuple(per_field)
     conditions: list[Any] = []
     design["control_guesses"], design["control_guess"] = [], None
     if has_condition:
@@ -471,7 +486,9 @@ def scan_design(
             fov_col=found_fov,
             observation_unit=observation_unit,
         )
-    design, layout = _design(objects, fov_key, control_value, control_declared)
+    # A FOV table that passed the data check lists every field acquired, empty ones included.
+    listed = fovs if fovs_given and data_check.ok else None
+    design, layout = _design(objects, fov_key, control_value, control_declared, listed)
     design["balance"] = _balance(layout, design["repeats"])
     design["constant"] = _constant(objects, features) if data_check.ok and features_declared else []
     columns = [*objects.columns, *(fovs.columns if fovs is not None else ())]

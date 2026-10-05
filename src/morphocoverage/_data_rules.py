@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
+from decimal import Decimal
 from typing import Any
 
 import numpy as np
@@ -342,8 +343,9 @@ def _loose(value: Any) -> str:
     by its value."""
     text = str(value).strip().casefold()
     try:
-        return repr(float(text))
-    except ValueError:
+        # Exact: through a binary float, distinct IDs past 2**53 (or 1e999 and 2e999) would match.
+        return str(Decimal(text).normalize())
+    except (ArithmeticError, ValueError):
         return re.sub(r"^([a-z]+)0+(?=\d)", r"\1", text)
 
 

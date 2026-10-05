@@ -24,6 +24,8 @@ def _targets(contrast: Any) -> pd.DataFrame:
 
 def _agree(row: dict[str, Any]) -> str:
     n, agree, direction = int(row["repeats"]), int(row["agree"]), row["direction"]
+    if not n:
+        return "not compared: no repeat holds them all"
     if direction in ("lower", "higher"):
         return f"all {direction} in {agree} of {n}"
     if direction == "mixed":
@@ -61,6 +63,9 @@ def reagents_headline(contrast: Any) -> str | None:
     """``the reagents of a target go the same way in every repeat for 5 of 6 targets
     (described, not tested)``, or ``None`` without targets."""
     targets = _targets(contrast)
+    # A target whose reagents share no repeat is not compared, so not counted against them.
+    unassessed = int((targets["repeats"] == 0).sum()) if len(targets) else 0
+    targets = targets[targets["repeats"] > 0] if len(targets) else targets
     if targets.empty:
         return None
     every = int(
@@ -71,7 +76,8 @@ def reagents_headline(contrast: Any) -> str | None:
     )
     return (
         f"the reagents of a target go the same way in every repeat for {every} of "
-        f"{count(len(targets), 'target')} (described, not tested)"
+        f"{count(len(targets), 'target')} (described, not tested"
+        + (f"; {unassessed} more with no repeat holding all its reagents)" if unassessed else ")")
     )
 
 

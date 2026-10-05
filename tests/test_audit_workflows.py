@@ -283,3 +283,23 @@ def test_df3_question_7_reads_the_raw_values_with_their_variance_between_repeats
     pd.testing.assert_frame_equal(
         plan.results["effort"].components, raw.results["effort"].components
     )
+
+
+def test_issue_143_the_declaration_states_the_support_that_makes_a_state_new():
+    from dataclasses import replace
+
+    from morphocoverage.workflows import default_novelty
+    from morphocoverage.workflows._declaration import declaration_short
+
+    novelty = default_novelty(FEATURE_COLS)
+    for others, words in ((1, "no other field shows"), (3, "fewer than 3 other fields show")):
+        setup = _setup(novelty=replace(novelty, min_other_fovs=others))
+        short = " ".join(declaration_short(setup).split())
+        assert f"at least 3 similar cells that {words}" in " ".join(setup.declaration())
+        assert f"at least 3 similar cells that {words}" in short
+
+
+def test_issue_144_the_default_rules_are_declared_as_they_run():
+    for unit, sides in ((None, "per object and per field"), ("patch", "per field")):
+        text = " ".join(Setup(readout="x", observation_unit=unit).declaration())
+        assert f"(the default, rules=None: the mean-precision rule {sides} at 5%)" in text

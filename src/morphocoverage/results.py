@@ -446,9 +446,9 @@ def _target_decisions(
         combined = combine_decisions(overall)
         final = _word(combined)
         if combined is Decision.STOP:
-            rare = any(
-                r.component_decisions.get(Component.RARE.value) is Decision.STOP for r in results
-            )
+            # The overall stop rests on the rare phenotype only when the objective requires
+            # it; a rare rule shown beside another objective keeps its caveat out of it.
+            rare = Component.RARE in required
             final += f"; {stop_caution(order_check, rare=rare)}"
     text = f"Overall ({objective.objective.value} objective): {final}"
     return [*entries, _TargetDecision(None, combined, text)]

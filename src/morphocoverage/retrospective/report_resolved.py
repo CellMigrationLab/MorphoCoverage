@@ -8,9 +8,9 @@ The precision of each group's own mean (the stopping rules) follows as a
 secondary line.
 
 - ``resolved_headline``: the "At a glance" words and status: ✅ when every
-  difference is resolved or too small to settle with a practical number of
-  fields; ⚠️ when some would be resolved with more fields (the advice says how
-  many a side). Differences too small to settle are described, not flagged.
+  difference is resolved; ⚠️ when any is not (owner, 2026-10-01): some would be
+  resolved with more fields (the advice says how many a side), are too small to
+  settle with a practical number of fields, or have too few fields for an interval.
 - ``resolved_parts``: the short section: one sentence, the contrasts not
   resolved in a table (all contrasts when there are few), and the notes.
 - ``resolved_full``: every contrast with its interval.
@@ -35,11 +35,15 @@ SHORT_ROWS = 8
 
 
 def _table(contrast: Any) -> pd.DataFrame:
-    """The contrasts with a resolution answer (an interval was computed)."""
+    """Every comparison with the control of its repeat (fields on both sides), those without
+    an interval (too few fields) included, so they stay in the count; empty when no
+    comparison has an interval."""
     table_ = getattr(contrast, "table", pd.DataFrame())
-    if table_.empty or "d_low" not in table_:
+    if table_.empty or "d_low" not in table_ or table_["d_low"].isna().all():
         return pd.DataFrame()
-    return table_[table_["d_low"].notna()]
+    if {"fields", "control_fields"} <= set(table_):
+        return table_[(table_["fields"] > 0) & (table_["control_fields"] > 0)]
+    return table_
 
 
 def has_resolution(contrast: Any) -> bool:
@@ -48,7 +52,13 @@ def has_resolution(contrast: Any) -> bool:
 
 
 def _needing(rows: pd.DataFrame) -> pd.DataFrame:
-    return rows[~rows["resolved"] & ~rows["too_small"]]
+    """The comparisons with an interval that more fields would resolve."""
+    return rows[~rows["resolved"] & ~rows["too_small"] & rows["d_low"].notna()]
+
+
+def _unassessed(rows: pd.DataFrame) -> int:
+    """How many comparisons have no interval (too few fields to resample)."""
+    return int(rows["d_low"].isna().sum())
 
 
 def resolved_headline(contrast: Any) -> tuple[Status, str]:
@@ -68,6 +78,8 @@ def resolved_headline(contrast: Any) -> tuple[Status, str]:
         text += f"; {len(needing)} would need about {about} {fields_word} a side"
     if small:
         text += f"; {small} too small to show with more {fields_word}"
+    if _unassessed(rows):
+        text += f"; {_unassessed(rows)} not assessed (too few {fields_word} for an interval)"
     # The marker says what was found: every comparison shown is enough, any other partly or
     # not yet (owner, 2026-10-01).
     return (Status.OK if resolved == len(rows) else Status.CAUTION), text
@@ -83,6 +95,8 @@ def _name(row: dict[str, Any]) -> str:
 
 
 def _answer(row: dict[str, Any], fields: str = "fields") -> str:
+    if pd.isna(row["d_low"]):
+        return f"not assessed: too few {fields}"
     if row["resolved"]:
         return "yes (shown)"
     if row["too_small"]:
@@ -90,12 +104,18 @@ def _answer(row: dict[str, Any], fields: str = "fields") -> str:
     return f"no: about {int(row['fields_to_resolve'])} {fields} a side"
 
 
+def _interval(row: dict[str, Any]) -> str:
+    if pd.isna(row["d_low"]):
+        return "no interval" if pd.isna(row["d_objects"]) else f"{row['d_objects']:+.2f}"
+    return f"{row['d_objects']:+.2f} ({row['d_low']:+.2f} to {row['d_high']:+.2f})"
+
+
 def _rows(rows: pd.DataFrame, fields: str = "fields") -> list[list[str]]:
     return [
         [
             _name(row),
             f"{int(row['fields'])} vs {int(row['control_fields'])}",
-            f"{row['d_objects']:+.2f} ({row['d_low']:+.2f} to {row['d_high']:+.2f})",
+            _interval(row),
             _answer(row, fields),
         ]
         for row in rows.to_dict("records")

@@ -81,7 +81,7 @@ class UnusualObjects:
       or leave-one-field-out with a single reference group), the scored and
       unusual observations, and, when ``seed_checks`` were asked for, the
       agreement (Jaccard index of the unusual objects) of refits with other
-      seeds.
+      seeds, with how many failed (``seed_failures``) and why (``seed_failure``).
     """
 
     labels: pd.Series
@@ -219,9 +219,11 @@ def unusual_objects(
         flagged = scores > threshold
         distances[mine] = scores
         labels[mine] = np.where(np.isnan(scores), np.nan, flagged)
-        agreement = []
+        agreement, failed = [], []
         for other in results[1:]:
             if isinstance(other, str):
+                # A refit that fails is a sign of instability too: counted, never dropped.
+                failed.append(other)
                 continue
             other_flagged = other[0] > other[1]
             union = np.sum(flagged | other_flagged)
@@ -236,6 +238,8 @@ def unusual_objects(
                 "unusual": int(np.nansum(flagged)),
                 "unusual_share": float(np.nanmean(np.where(np.isnan(scores), np.nan, flagged))),
                 "seed_agreement": min(agreement) if agreement else None,
+                "seed_failures": len(failed),
+                "seed_failure": failed[0] if failed else None,
                 "standardize_state": state,
             }
         )

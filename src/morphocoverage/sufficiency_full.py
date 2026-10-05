@@ -39,6 +39,7 @@ from ._style import (
     wrap,
 )
 from ._wording import count, listing, number, percent, rows_of
+from .bounds import EXTRA_TRIALS_LIMIT
 from .sufficiency_short import (
     _group,
     _novelty_lines,
@@ -245,7 +246,8 @@ def _needed_line(row: Mapping[str, Any], target: float) -> str:
         else f"at least {count(int(extra), 'more field')} with nothing new to rule out unseen "
         f"states in more than {goal} of fields"
         if _present(extra)
-        else ""
+        else f"more than {count(EXTRA_TRIALS_LIMIT, 'more field')} with nothing new to rule out "
+        f"unseen states in more than {goal} of fields"
     )
     if float(row["chance_new_at_most"]) <= target:
         bound = f"the next-field bound is already below {goal}"
@@ -256,9 +258,14 @@ def _needed_line(row: Mapping[str, Any], target: float) -> str:
             if _present(rate)
             else "never, at the current rate of new fields"
         )
+        best = row.get("extra_fovs_if_nothing_new")
+        least = (
+            f"at least {count(int(best), 'more field')}"
+            if _present(best)
+            else f"more than {count(EXTRA_TRIALS_LIMIT, 'more field')}"
+        )
         bound = (
-            f"to bring the next-field bound below {goal}, at least "
-            f"{count(int(row['extra_fovs_if_nothing_new']), 'more field')} if none shows "
+            f"to bring the next-field bound below {goal}, {least} if none shows "
             f"anything new ({at_rate})"
         )
     return f"Fields still needed: {'; '.join(p for p in (rule_out, bound) if p)}."
@@ -282,7 +289,7 @@ def _check_line(report: Any, group: Mapping[str, Any]) -> list[str]:
     return [check]
 
 
-def _full_cautions(report: Any, target: float | None) -> list[str]:
+def _full_cautions(report: Any) -> list[str]:
     """What the per-group numbers rest on, once each (beyond the short form's caveats)."""
     cautions = []
     frame = report.next_fov
@@ -360,7 +367,7 @@ def full_summary(report: Any, target: float | None = None) -> str:
         blocks.append(wrap(f"'New' means {report.novelty_definition}.", 0, hang=2))
     _, novelty_cautions = _novelty_lines(report, target)
     cautions = [
-        *_full_cautions(report, target),
+        *_full_cautions(report),
         *_rule_cautions(report, tallies, name_groups=True),
         *novelty_cautions,
     ]

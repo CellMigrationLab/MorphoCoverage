@@ -32,6 +32,18 @@ def test_the_sign_flip_test_is_exact_and_states_its_floor():
     assert p == pytest.approx(6 / 8)
 
 
+def test_the_sign_flip_floor_counts_only_differences_that_are_not_zero():
+    """A zero difference flips to itself: with 1 of 6 at 0, p can reach 2/32, not 2/64,
+    so the test cannot reach 0.05 and is left out (#98)."""
+    rng = np.random.default_rng(0)
+    differences = np.array([-2.0, -3.0, 0.0, -2.5, -1.5, -2.0])
+    p, floor, exact = sign_flip_test(differences, rng)
+    assert exact and p == pytest.approx(2 / 32) and floor == pytest.approx(2 / 32)
+    assert sign_flip_test(np.zeros(4), rng)[:2] == (1.0, 1.0)
+    [row] = across_repeats(_table(list(differences)), "biological_repeat", 0).to_dict("records")
+    assert np.isnan(row["p_sign_flip"]) and row["p_sign_flip_floor"] == pytest.approx(2 / 32)
+
+
 def _table(differences, control=10.0):
     return pd.DataFrame(
         {
