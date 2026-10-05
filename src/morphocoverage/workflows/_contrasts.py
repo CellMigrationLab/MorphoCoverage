@@ -99,7 +99,8 @@ def links(setup: Setup) -> list[Link]:
 
 
 def check_controls(setup: Setup) -> None:
-    """Refuse several controls, parents or a master the workflows could not use
+    """Refuse several controls, parents or a master the workflows could not use, and a
+    contrast table that gives a declared condition another own control
     (``TypeError``/``ValueError``)."""
     if setup.contrasts is not None:
         check_contrast_table(setup.contrasts)
@@ -136,10 +137,7 @@ def check_controls(setup: Setup) -> None:
         if child == target:
             raise ValueError(f"{child!r} is declared as its own control")
         if child in reference:
-            raise ValueError(
-                f"{child!r} belongs to two controls, {reference[child]!r} and {target!r}: a "
-                "condition belongs to one control (link controls with control_parents)"
-            )
+            raise ValueError(_twice(child, reference[child], target, parents or {}))
         reference[child] = target
     keyed = [(target, key) for _, target, key in found if key is not None]
     twice = [k for i, k in enumerate(keyed) if k in keyed[:i]]
@@ -155,6 +153,40 @@ def check_controls(setup: Setup) -> None:
     master = setup.master_control
     if master is not None and master not in spec:
         raise ValueError(f"master_control {master!r} is not one of the declared controls")
+    if setup.contrasts is not None:
+        for condition, given in own_pairs(check_contrast_table(setup.contrasts)):
+            if reference.get(condition, given) != given:
+                raise ValueError(
+                    f"the contrast table compares {condition!r} with {given!r} as its own "
+                    f"control, but the declared controls give {reference[condition]!r}: a "
+                    "condition's own control comes from the declaration"
+                )
+
+
+def _twice(child: Any, first: Any, second: Any, parents: Mapping[Any, Any]) -> str:
+    """Why ``child`` cannot have both references: listed twice, or under two controls (a
+    member and a parent, or two members)."""
+    if first == second:
+        return f"{child!r} is listed twice under control {first!r}"
+    if child in parents:
+        return (
+            f"{child!r} is listed under control {first!r} and linked to the parent "
+            f"{second!r}: a control is compared with one reference, so keep one of the two"
+        )
+    return (
+        f"{child!r} belongs to two controls, {first!r} and {second!r}: a condition belongs "
+        "to one control (link controls with control_parents)"
+    )
+
+
+def one_control(setup: Setup) -> dict[str, Any] | None:
+    """A single control declared in the several-controls forms (a list, a keyed dict, a
+    master naming it) as ``{"condition": control}``, so it gives exactly what one control
+    gives (owner, 2026-10-05); ``None`` otherwise, and with parents or a contrast table."""
+    spec = _several(setup)
+    if spec is None or len(spec) != 1 or setup.control_parents or setup.contrasts is not None:
+        return None
+    return {CONDITION_COLUMN: next(iter(spec))}
 
 
 def generated(setup: Setup) -> pd.DataFrame | None:
@@ -211,12 +243,14 @@ def comparisons(setup: Setup) -> tuple[tuple[Any, Any], ...] | None:
 
 
 def own_references(setup: Setup) -> dict[Any, Any] | None:
-    """Each condition's own control (a control's parent, else itself); ``None`` with one
-    control."""
+    """Each condition's own control (a control's parent, else itself), from the declared
+    controls when there are, else from the contrast table; ``None`` with one control."""
     table = contrast_table(setup)
     if table is None:
         return None
-    own = dict(own_pairs(table))
+    # The declaration, when there is one, says each condition's own control (owner,
+    # 2026-10-05); a contrast table adds the conditions it does not name.
+    own = {**dict(own_pairs(table)), **{child: target for child, target, _ in links(setup)}}
     for reference in list(own.values()):
         own.setdefault(reference, reference)
     return own
@@ -430,6 +464,7 @@ __all__ = [
     "links",
     "normalisation_problem",
     "normalized_text",
+    "one_control",
     "own_references",
     "reference_control",
     "single_control",

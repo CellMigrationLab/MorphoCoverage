@@ -224,8 +224,10 @@ def test_report_answers_the_report_questions_and_leaves_the_rest_out():
     assert control.groupby("biological_repeat")[READOUT].mean().tolist() == pytest.approx(
         [1.0, 1.0]
     )
+    # The contrast reads the raw values and normalises them itself, so its raw columns are
+    # raw (owner, 2026-10-05).
     expected = condition_contrast(
-        prepared, fovs, feature=READOUT, control={"condition": "control"}, random_state=0
+        objects, fovs, feature=READOUT, control={"condition": "control"}, random_state=0
     )
     pd.testing.assert_frame_equal(normalised.results["contrast"].table, expected.table)
     pd.testing.assert_frame_equal(

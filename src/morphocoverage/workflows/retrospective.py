@@ -193,8 +193,9 @@ def report(
     declared by condition and the FOV table holds other conditions, and
     with several declared features ``feature_ranking``, the gated ranking
     that chooses what ``plots`` draws by default (R7). The contrast and the
-    ranking read the normalised values when ``normalize`` is set; every other
-    analysis, the stopping rules included, reads the raw values. The analyses
+    ranking read the raw values and give their tests raw and normalised to the control of
+    the same repeat (owner, 2026-10-05); every other analysis, the stopping rules included,
+    reads the raw values. The analyses
     against the control need the control's columns (and, for the contrast, the
     condition and the repeat) kept apart by the analysis groups; with
     ``group_cols`` that pool them they are "not assessed", with the reason.
@@ -275,9 +276,10 @@ def report(
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)
     prepared = setup.prepared(objects, fovs)
-    # The tests read the normalised values, or with comparisons the raw ones (each test
-    # normalises to its own reference); the populations read the figures' values.
-    compared = setup.compared_values(objects, fovs)
+    # The tests read the raw values and normalise to each condition's own control
+    # themselves, so their raw columns are raw (owner, 2026-10-05); the populations read
+    # the figures' values.
+    compared = objects
     results.update(conditions(compared, fovs, setup, reasons))
     gaps = with_gaps(results, objects, fovs, setup)  # several controls apart in intensity
     if "contrast" in results:

@@ -165,7 +165,8 @@ def check_contrast_table(table: Any) -> pd.DataFrame:
     """A contrast table as the engine reads it: the columns of ``CONTRAST_COLUMNS`` (a
     missing ``family`` is the row's kind, a missing ``label`` made from the row), every row
     a known kind naming two different conditions, the two normalising controls on an
-    ``across_normalised`` row; ``TypeError``/``ValueError`` otherwise."""
+    ``across_normalised`` row, one ``own_control`` row per condition; ``TypeError``/
+    ``ValueError`` otherwise."""
     if not isinstance(table, pd.DataFrame):
         raise TypeError("the contrast table must be a pandas DataFrame (CONTRAST_COLUMNS)")
     missing = [c for c in ("kind", "condition", "reference") if c not in table.columns]
@@ -211,6 +212,16 @@ def check_contrast_table(table: Any) -> pd.DataFrame:
     twice = checked.loc[checked["label"].duplicated(), "label"]
     if len(twice):
         raise ValueError(f"the contrast table holds {twice.iloc[0]!r} twice")
+    own = checked[checked["kind"] == OWN]
+    two = own[own["condition"].duplicated(keep=False)]
+    if len(two):
+        condition = two["condition"].iloc[0]
+        found = listing([repr(r) for r in two.loc[two["condition"] == condition, "reference"]])
+        raise ValueError(
+            f"the contrast table gives {condition!r} two own controls, {found}: a condition "
+            "has one own_control row; compare it with another condition in an "
+            "across_normalised or vs_master_raw row"
+        )
     return checked
 
 
