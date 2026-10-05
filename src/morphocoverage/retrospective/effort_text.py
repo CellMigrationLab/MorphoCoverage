@@ -155,17 +155,20 @@ def _imbalance_line(
 def _allocation_line(
     compared: pd.DataFrame, first: Mapping[str, Any], units: int, unit: str, samples: str
 ) -> str:
-    """The resolved best allocation at the same total, or why the data cannot tell."""
+    """The smallest standard error that resolved at the same total, or why the data cannot
+    tell. It is chosen after every allocation's own interval was looked at, so it describes
+    these data and is not tested as the best allocation (owner, 2026-10-05)."""
     resolved = compared[compared["resolved"]]
     if len(compared) and len(resolved):
         best = resolved.sort_values("ratio").iloc[0]
         change = 1 - best["ratio"]
         direction = "smaller" if change > 0 else "larger"
         return (
-            f"  At the same total number of fields, {best['samples']} {samples}s of about "
-            f"{best['fovs_per_sample']:.3g} fields would give a {percent(abs(change))} "
-            f"{direction} standard error than the acquired {best['current_samples']} "
-            f"{samples}s of about {best['current_fovs_per_sample']:.3g}, made balanced."
+            f"  At the same total number of fields, the smallest standard error that resolved "
+            f"here is with {best['samples']} {samples}s of about {best['fovs_per_sample']:.3g} "
+            f"fields: {percent(abs(change))} {direction} than the acquired "
+            f"{best['current_samples']} {samples}s of about "
+            f"{best['current_fovs_per_sample']:.3g}, made balanced."
         )
     if units < FEW_UNITS:
         reason = f"only {count(units, unit)}"
@@ -376,9 +379,10 @@ def _allocation_cell(
         best = resolved.sort_values("ratio").iloc[0]
         change = 1 - best["ratio"]
         direction = "smaller" if change > 0 else "larger"
+        # Described, not tested as the best: see ``_allocation_line``.
         answer = (
             f"{best['samples']} {samples}s of about {best['fovs_per_sample']:.3g} fields: "
-            f"{percent(abs(change))} {direction} SE"
+            f"{percent(abs(change))} {direction} SE, the smallest that resolved here"
         )
         return answer, None
     reason = _allocation_line(compared, first, units, unit, samples)

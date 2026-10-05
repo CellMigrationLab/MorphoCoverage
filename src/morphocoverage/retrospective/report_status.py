@@ -35,13 +35,15 @@ The rules, question by question:
   stayed within the random-object descriptor spread in some group, or when a
   group's variability could not be estimated; ✅ otherwise. Headline: how
   much more a mean from whole fields varies (the median design effect), and
-  in how many groups the mean-precision rule held with whole fields.
+  in how many groups the mean-precision rule held with whole fields; groups
+  that could not be checked are counted apart (owner, 2026-10-05).
 - **1. Controls** (``controls_status``): ❌ when the declared positive
   control (the planted objects when declared) was recognized in fewer than
   ``minimum_detection`` of checks (weak representation); ⚠️ when a stratum
   could not be judged (named, with the reason), the false-alarm rate was not
   assessed or is above ``FALSE_ALARM_CAUTION``; ➖ without a control; ✅
-  otherwise.
+  otherwise. The rates are pooled over the control's strata, and the headline
+  says so (owner, 2026-10-05).
 - **2. Did I image enough?** (``enough_status``): over the rules that judge
   the data (not the fixed amounts of effort), each by its own threshold: ❌
   when none was met in any group; ✅ when every one was met in every group,
@@ -158,7 +160,7 @@ from ..schema import observation_words
 from ..sufficiency_short import rule_tallies
 from ._text import rule_names
 from .calibration import PREMATURE_CAUTION
-from .controls_text import _selected
+from .controls_text import _selected, pooled_over
 from .inspection_text import reason_counts, tally
 from .order_text import group_comparison
 from .report_resolved import has_resolution, precision_words, resolved_headline
@@ -167,7 +169,9 @@ from .report_sampling import (
     largest_sources,
     profile_answer,
     rule_held,
+    rule_unchecked,
     skipped_strata,
+    spread_headline,
     unstable_labels,
 )
 from .report_status_conditions import conditions_status
@@ -280,28 +284,31 @@ def unit_status(variability: Any, object_rules: Any, descriptor_spread: Any) -> 
     if object_rules is not None:
         kept, total = rule_held(object_rules)
         word = group_word(object_rules)
+        # Groups that could not be checked are counted apart, neither held nor missed (#272).
+        unchecked, why = rule_unchecked(object_rules)
+        apart = f"; {unchecked} more not assessed ({why})" if unchecked and total else ""
         if not total:
             parts.append("mean-precision count rule not applicable")
         elif kept == total:
-            held = among(kept, total, word)
-            parts.append(f"the mean-precision count rule still held with whole fields in {held}")
+            held = f"the {count(total, word)} assessed" if apart else among(kept, total, word)
+            parts.append(
+                f"the mean-precision count rule still held with whole fields in {held}{apart}"
+            )
         else:
             status = Status.CAUTION
-            missed = among(total - kept, total, word)
-            parts.append(f"the mean-precision count rule missed with whole fields in {missed}")
+            missed = total - kept
+            missed = (
+                f"{missed} of the {count(total, word)} assessed"
+                if apart
+                else among(missed, total, word)
+            )
+            parts.append(
+                f"the mean-precision count rule missed with whole fields in {missed}{apart}"
+            )
     if descriptor_spread is not None:
-        rows = descriptor_spread.at_threshold
-        keys = list(descriptor_spread.group_cols)
-        if len(rows) and keys:
-            total = len(rows[keys].drop_duplicates())
-            never = rows[rows["objects_to_match"].isna()][keys].drop_duplicates()
-            missed = len(never)
-        else:
-            total, missed = 1, int(len(rows) > 0 and bool(rows["objects_to_match"].isna().any()))
-        if missed:
-            status = Status.CAUTION
-            never = among(missed, total, group_word(descriptor_spread))
-            parts.append(f"descriptors from whole fields never settled in {never}")
+        never, phrase = spread_headline(descriptor_spread, group_word(descriptor_spread))
+        status = Status.CAUTION if never else status
+        parts += [phrase] if phrase else []
     return status, "; ".join(parts) or "assessed"
 
 
@@ -327,10 +334,13 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
     what = f"{planted} planted {words}" if kind == "planted" else "positive-control fields"
     if detection is None:
         return Status.CAUTION, f"{what}: not judged"
+    # The rates are pooled over the control's strata, and the headline says so (#253).
+    pooled = pooled_over(controls)
+    over = f", {pooled}" if pooled else ""
     if detection < float(minimum_detection):
         return (
             Status.PROBLEM,
-            f"weak representation: {what} recognized in {percent(detection)} of checks",
+            f"weak representation: {what} recognized in {percent(detection)} of checks{over}",
         )
     # The headline leads with the positive control itself; the planted rate gates the status.
     positive = _rate(controls, "positive")
@@ -343,9 +353,9 @@ def controls_status(controls: Any, minimum_detection: float = 0.9) -> Answer:
     false_alarm = _rate(controls, "reference")
     status = Status.OK
     if false_alarm is None:
-        status, headline = Status.CAUTION, f"{headline}; false alarms not assessed"
+        status, headline = Status.CAUTION, f"{headline}{over}; false alarms not assessed"
     else:
-        headline += f"; false alarms {percent(false_alarm)}"
+        headline += f"; false alarms {percent(false_alarm)}{over and f', both {pooled}'}"
         if false_alarm > FALSE_ALARM_CAUTION:
             status = Status.CAUTION
     if controls.settings.get("skipped_strata"):

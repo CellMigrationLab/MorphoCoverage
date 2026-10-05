@@ -124,7 +124,7 @@ def test_a_dominant_between_sample_component_favours_more_samples():
     assert comparisons.loc[24, "resolved"] and comparisons.loc[24, "ratio"] < 1
     assert comparisons.loc[6, "resolved"] and comparisons.loc[6, "ratio"] > 1
     full = " ".join(result.summary(detail="full").split())
-    assert "24 samples of about 4 fields would give a" in full
+    assert "smallest standard error that resolved here is with 24 samples of about 4 fields" in full
     assert "Most of the uncertainty of the mean is between samples" in full
     assert "24 samples of about 4 fields" in result.summary()
     assert "between samples" in result.summary()

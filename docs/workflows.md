@@ -327,7 +327,14 @@ field; pass `rules=(...)` to assess others. `random_state` (default 0) seeds
 every random procedure the workflows run, the report's random orders
 included, and `minimum_detection` (default 0.9, a provisional preset) is the
 share of positive-control checks the representation must recognize before the
-adequacy answers are read without a warning. A `PositiveControl` without
+adequacy answers are read without a warning. The control's rates are pooled over
+its strata (the repeats, or `pair_cols`), and the report says "pooled over all
+biological repeats" wherever it applies one to a group: the warning, the
+detection-adjusted bound, the false alarms expected among the fields to check,
+and question 1 (owner, 2026-10-05). With planted objects declared, their rate is the
+warning's; when none could be planted, the warning on questions 2, 4 and 5 reads
+"not assessed: the planted check could not run", never the whole-field rate
+(owner, 2026-10-05). A `PositiveControl` without
 `pair_cols` pairs its fields with reference fields within each repeat when the
 FOV table has a repeat column; `pair_cols=()` pools the repeats, as an
 explicit request. The declaration prints every such preset.
@@ -747,9 +754,12 @@ print(bench.summary(detail="full"))           # every rule in sentences
 
 Each criterion opens with its marker: ✅ when the rule that saves most
 fields does so with an interval above 0, or when no rule beats the fixed
-count (the null result) with an interval; ⚠️ when the best saving is not
+count (the null result) with an interval; ⚠️ when the largest saving is not
 resolved or has no interval; ➖ when a fixed count never met the risk level
-lastingly, so no rule is scored.
+lastingly, so no rule is scored. With several rules, the one that saves most
+is picked after looking at every rule's own interval: the headline says it
+"saves the most here", a description of these data, not a test of the best
+rule (owner, 2026-10-05).
 
 `default_families(setup.readout)` holds the rule families and threshold grids
 of the locked protocol (version 5, whose grids are those of versions 1 to 4): the mean-precision rule and the JCS descriptor
