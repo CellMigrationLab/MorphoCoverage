@@ -78,7 +78,7 @@ from .._parallel import check_n_jobs, map_units, worker_pool
 from .._seeds import group_rng
 from ..data_check import validate_input_tables
 from ..evaluator import FovSubsets, restrict_input
-from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
+from ..metadata import MORPHOBRICKS_GROUP_COLUMNS, empty_values
 from ..schema import ValidatedInput, fov_positions, observation_words
 from ..strategies.support_novelty import SupportNoveltyEstimator
 from ..sufficiency_text import novelty_definition
@@ -434,6 +434,9 @@ def representation_control(
     missing = [c for c in pair_cols if c not in data.fovs.columns]
     if missing:
         raise ValueError(f"pair_cols missing from the FOV table: {missing}")
+    unpaired = [c for c in pair_cols if empty_values(data.fovs[c]).any()]
+    if unpaired:  # a missing value equals nothing, so those fields would silently drop out
+        raise ValueError(f"pair_cols {unpaired} have missing values: those fields cannot be paired")
     lofo_cols = _lofo_columns(data, lofo_group_cols)
     positive_mask = _select(data.fovs, control.positive)
     if control.reference is not None:
