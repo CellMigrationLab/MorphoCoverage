@@ -479,6 +479,8 @@ def sufficiency_report(
         "observation_unit": observation_unit,
     }
     data = validate_input_tables(objects, fovs=fovs, **columns)
+    if data.fovs.empty:
+        raise ValueError("the FOV table has no rows: the report needs at least one acquired FOV")
     resolved_groups = list(data.group_cols)
     # Novelty reads only its own columns; the rules read all of feature_cols.
     novelty_columns = (

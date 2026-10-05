@@ -99,6 +99,25 @@ def test_empty_inputs_are_refused(strategies, orders):
         _report("homogeneous", strategies, orders=orders)
 
 
+@pytest.mark.parametrize("groups", [[], ["condition", "biological_repeat"]])
+@pytest.mark.parametrize("novelty", [None, SupportNoveltyEstimator(0.5, 1, None, 2, 3)])
+def test_an_acquisition_without_fovs_is_refused_whatever_its_groups(groups, novelty):
+    """#128: zero FOV rows raised a KeyError or 'No objects to concatenate' with group columns."""
+    fovs = pd.DataFrame({c: pd.Series([], dtype=str) for c in ["position_id", *groups]})
+    objects = fovs.assign(a=pd.Series([], dtype=float))
+    with pytest.raises(ValueError, match="at least one acquired FOV"):
+        sufficiency_report(
+            objects,
+            fovs,
+            feature_cols=["a"],
+            strategies=[] if novelty else [FixedFOVStrategy(3)],
+            objective=POPULATION,
+            orders=PERMUTED,
+            novelty=novelty,
+            fov_col="position_id",
+        )
+
+
 def _novel_acquisition(n_fovs=12, state_fovs=(3, 7), outlier_fovs=(5,)):
     """Common cells everywhere; its own 3-cell state in ``state_fovs``, one odd cell elsewhere."""
     rng = np.random.default_rng(0)
