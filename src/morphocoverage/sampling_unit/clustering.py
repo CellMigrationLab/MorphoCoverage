@@ -157,7 +157,11 @@ def fov_clustering(
     k = as_count(min_fov_occurrences, "min_fov_occurrences", 1)
     random_state = check_seed(random_state)
     labels = objects[label_col]
+    if states is not None and (isinstance(states, (str, bytes, Mapping)) or not len(states)):
+        raise ValueError(f"states must be a list of {label_col!r} values, such as ['rare']")
     chosen = list(pd.unique(labels.dropna())) if states is None else list(states)
+    if len(set(chosen)) < len(chosen):
+        raise ValueError(f"states names a state twice: {chosen}")
     codes = pd.Series(np.nan, index=objects.index)
     lookup = {state: i for i, state in enumerate(chosen)}
     known = labels.notna()

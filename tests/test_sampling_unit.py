@@ -305,6 +305,19 @@ def test_fov_clustering_is_deterministic():
     pd.testing.assert_frame_equal(first, again)
 
 
+@pytest.mark.parametrize(
+    ("states", "message"),
+    [("rare", "must be a list"), ([], "must be a list"), (["rare", "rare"], "twice")],
+)
+def test_fov_clustering_refuses_states_it_would_misread(states, message):
+    """A bare string was read letter by letter, a state named twice gave one row with the
+    state and one without, and no state gave a table the summary could not read (#288)."""
+    objects, fovs = acquisition(n_fields=10, per_field=10)
+    objects = _labelled(objects, ["f1"], per_field=2)
+    with pytest.raises(ValueError, match=message):
+        fov_clustering(objects, fovs, label_col="state", states=states)
+
+
 # -- unusual (out-of-distribution) objects ------------------------------------------------
 
 
