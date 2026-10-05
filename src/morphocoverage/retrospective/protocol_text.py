@@ -221,11 +221,19 @@ def _validation(
     cell = []
     if len(checked):
         served, total = int(checked["adequate"].sum()), int(checked["eligible"].sum())
-        block["notes"].append(
-            f"Choosing the number on the other {w['units']} and checking it on the one left "
-            f"out: enough for {served} of {total} {w['samples']}."
+        # The number is chosen anew for each unit left out: one count, or their range.
+        counts = checked["chosen_fovs"].astype(int)
+        same = counts.nunique() == 1
+        chosen_at = (
+            fields(int(counts.iloc[0]))
+            if same
+            else f"{span(counts)} fields, by the {w['unit']} left out"
         )
-        cell.append(f"{served} of {total}")
+        block["notes"].append(
+            f"Choosing the number on the other {w['units']} ({chosen_at}) and checking it on "
+            f"the one left out: enough for {served} of {total} {w['samples']}."
+        )
+        cell.append(f"{served} of {total}" + ("" if same else f" (at {span(counts)} fields)"))
     if len(unchecked):
         named = "; ".join(
             f"{r['left_out']} (chosen {int(r['chosen_fovs'])})" for _, r in unchecked.iterrows()

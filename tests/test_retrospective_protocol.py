@@ -176,6 +176,12 @@ def test_leave_one_unit_out_chooses_on_the_others():
     assert check.loc["P2", "chosen_fovs"] == 5 and check.loc["P2", "adequate"] == 0
     # Chosen on P2 alone, 10 fields; P1 is served.
     assert check.loc["P1", "chosen_fovs"] == 10 and check.loc["P1", "adequate"] == 2
+    # #250: the counts chosen differ by the plate left out, and the text says them.
+    full = " ".join(_protocol(hard_plate).summary("full").split())
+    assert "(5-10 fields, by the plate left out)" in full
+    assert "2 of 4 (at 5-10 fields)" in " ".join(_protocol(hard_plate).summary().split())
+    same = {key: {5: 0.95, 10: 0.99} for key in hard_plate}
+    assert "on the other plates (5 fields) and" in " ".join(_protocol(same).summary("full").split())
 
 
 def test_pooling_and_sample_identity_must_be_declared():
