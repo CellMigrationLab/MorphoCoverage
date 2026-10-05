@@ -305,6 +305,24 @@ def test_fov_clustering_is_deterministic():
     pd.testing.assert_frame_equal(first, again)
 
 
+def test_a_states_p_value_depends_neither_on_the_other_states_nor_on_the_row_order():
+    """The states of a group shared one generator in their order, and the shuffles followed
+    the row order, so reordering rows or states changed an unchanged state's p (#296)."""
+    objects, fovs = acquisition(n_fields=30, per_field=10)
+    draw = np.random.default_rng(1).random(len(objects))
+    objects["state"] = np.where(draw < 0.04, "rare", np.where(draw < 0.1, "other", "common"))
+
+    def p_values(table, states=None):
+        result = fov_clustering(table, fovs, label_col="state", states=states)
+        return dict(zip(result.table["state"], result.table["p_clustered"], strict=True))
+
+    first = p_values(objects)
+    assert 0.05 < first["rare"] < 1 and 0.05 < first["other"] < 1
+    assert p_values(objects.sample(frac=1, random_state=2)) == first
+    assert p_values(objects, ["other", "rare"]) == {s: first[s] for s in ("other", "rare")}
+    assert p_values(objects, ["rare"]) == {"rare": first["rare"]}
+
+
 @pytest.mark.parametrize(
     ("states", "message"),
     [("rare", "must be a list"), ([], "must be a list"), (["rare", "rare"], "twice")],
