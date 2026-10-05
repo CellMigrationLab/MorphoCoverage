@@ -114,6 +114,7 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             status = Status.CAUTION
             parts.append("opposite signs between repeats")
     elif contrast is not None:
+        status = Status.NOT_ASSESSED
         parts.append("no condition to compare with the control")
     if discovery is not None and len(discovery.ranking):
         passing = int(discovery.ranking["score"].notna().sum())
@@ -143,6 +144,9 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
         )
         if across and not significant:
             status = Status.CAUTION
+        elif not across and contrast is None:
+            # The cell-level screen's candidates alone are hypotheses, no answer yet.
+            status = Status.NOT_ASSESSED
         return status, "; ".join(parts)
     if trend:
         status = Status.CAUTION
@@ -159,6 +163,8 @@ def conditions_status(contrast: Any, ranking: Any, discovery: Any = None) -> Ans
             limited or (contrast is not None and across_tested(contrast))
         ):
             status = Status.CAUTION
+    if not parts:
+        return Status.NOT_ASSESSED, "not assessed"
     return status, "; ".join(parts)
 
 
