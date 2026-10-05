@@ -114,12 +114,9 @@ def _number(value: float) -> str:
     return f"{value:.2f}"
 
 
-def not_judged(rows: pd.DataFrame, word: str, fields: str) -> str:
-    """That the fingerprint could not be judged in some groups of ``rows`` (one criterion),
-    and why, so a tally over the judged groups does not read as every group; empty otherwise."""
-    missing = rows[rows["met"].isna()]
-    if not len(missing):
-        return ""
+def _unjudged_reasons(missing: pd.DataFrame, fields: str) -> str:
+    """Why the groups of ``missing`` (rows without ``met``) were not judged: one reason, or each
+    with its count."""
     few = missing["fields"] < MIN_FIELDS
     reasons = []
     if few.any():
@@ -132,9 +129,17 @@ def not_judged(rows: pd.DataFrame, word: str, fields: str) -> str:
         )
         reasons.append((reason, int((~few).sum())))
     if len(reasons) == 1:
-        return f"Not judged in {count(len(missing), word)}: {reasons[0][0]}."
-    said = "; ".join(f"{n} with {reason}" for reason, n in reasons)
-    return f"Not judged in {count(len(missing), word)}: {said}."
+        return reasons[0][0]
+    return "; ".join(f"{n} with {reason}" for reason, n in reasons)
+
+
+def not_judged(rows: pd.DataFrame, word: str, fields: str) -> str:
+    """That the fingerprint could not be judged in some groups of ``rows`` (one criterion),
+    and why, so a tally over the judged groups does not read as every group; empty otherwise."""
+    missing = rows[rows["met"].isna()]
+    if not len(missing):
+        return ""
+    return f"Not judged in {count(len(missing), word)}: {_unjudged_reasons(missing, fields)}."
 
 
 def partly_undefined(judged: pd.DataFrame, word: str) -> str:
@@ -173,6 +178,11 @@ def fingerprint_lines(
     for criterion, rows in table.groupby("criterion", sort=False):
         judged = rows[rows["met"].notna()]
         if not len(judged):
+            text = (
+                f"The fingerprint, {criterion}: not judged in any {word}: "
+                f"{_unjudged_reasons(rows, fields)}."
+            )
+            lines.append(wrap(text, 2, hang=4))
             continue
         met = int(judged["met"].sum())
         errors = judged["error"]
@@ -234,7 +244,11 @@ def targets_status(
         statuses.append(Status.OK if seen == len(rows) else Status.CAUTION)
     if precision is not None:
         judged = precision[precision["met"].notna()]
-        if len(judged):
+        if not len(judged):
+            groups = len(precision) // precision["criterion"].nunique()
+            parts.append(f"the fingerprint judged in none of {groups}")
+            statuses.append(Status.NOT_ASSESSED)
+        else:
             met = int(judged["met"].sum())
             # Groups it could not be judged in are not counted: say the tally is of the judged.
             of = f"{len(judged)} judged" if len(judged) < len(precision) else f"{len(judged)}"

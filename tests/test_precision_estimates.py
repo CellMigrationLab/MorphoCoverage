@@ -172,7 +172,7 @@ def test_the_fingerprint_is_not_judged_above_10_percent_undefined_halves():
     assert (shares > 0.10).all() and precision["met"].isna().all()
     assert precision["error"].isna().all()
     text = " ".join(" ".join(fingerprint_lines(precision, "well", "fields")).split())
-    assert text == ""  # no well judged: no tally to qualify
+    assert text.startswith("The fingerprint, loose: not judged in any well: ")
     said = not_judged(precision, "well", "fields")
     assert said.startswith(
         f"Not judged in 18 wells: no defined error on {span(shares, 'percent')} of the random "
@@ -249,3 +249,32 @@ def test_the_report_states_the_field_bounds_simulated_coverage():
         for detail in ("short", "full"):
             text = " ".join(report.summary(detail).split())
             assert (sentence in text) is said, (sd, detail)
+
+
+def test_a_fingerprint_judged_in_no_well_is_said_and_not_assessed():
+    # Regression (#333): with no well judged, the text said nothing and the page's tab could
+    # show ✅ over an empty set. It now says so, and the marker is ➖ (not assessed).
+    from types import SimpleNamespace
+
+    from test_rare_fingerprint import _setup
+
+    from morphocoverage._style import Status
+    from morphocoverage.workflows._enough_targets import targets_status
+    from morphocoverage.workflows._html_enough import _targets
+
+    precision = _precision(("_0.tif",))
+    shares = precision["undefined_splits"] / precision["splits"]
+    [line] = fingerprint_lines(precision, "well", "fields")
+    assert " ".join(line.split()) == (
+        "The fingerprint, loose: not judged in any well: no defined error on "
+        f"{span(shares, 'percent')} of the random halves, more than 10%."
+    )
+    setup = _setup()
+    assert targets_status(None, precision, setup) == (
+        [Status.NOT_ASSESSED],
+        ["the fingerprint judged in none of 18"],
+    )
+    result = SimpleNamespace(setup=setup, results={"fingerprint_precision": precision})
+    lines, tabs = _targets(result, "well", "field")
+    assert lines == ["The fingerprint is not judged in any well."]
+    assert [(name, mark) for name, mark, _ in tabs] == [("fingerprint", "➖")]
