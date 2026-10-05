@@ -6,7 +6,7 @@ side each repeat needs to resolve the difference on its own. When every field ho
 observation, the advice says cells (the unit), not fields. With one repeat, one sentence
 says the variation between repeats needs a second repeat. None of it is a caution: it is
 advice. It names no limiting factor (owner, 2026-10-02): whether the repeats differ more
-than their sampling error is not something 3 repeats can tell (docs/questions.md, P10).
+than their sampling error is not something 3 repeats can tell (docs/optimise/optimise.md, P10).
 """
 
 from __future__ import annotations

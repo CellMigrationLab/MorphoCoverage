@@ -1,6 +1,6 @@
 """A synthetic acquisition whose answers are known before MorphoCoverage sees it.
 
-The tables follow the MorphoBricks format of ``docs/data_format.md``: a FOV
+The tables follow the MorphoBricks format of ``docs/common/data_format.md``: a FOV
 table with every acquired field, including fields where nothing was segmented,
 and an observation table with one row per cell. The design is small enough to
 run every workflow in seconds and large enough for each answer to be clear:

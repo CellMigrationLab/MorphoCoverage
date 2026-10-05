@@ -1,6 +1,6 @@
 """Replay acquisitions against a fixed held-back reservoir: decisions and outcomes per prefix.
 
-The shared engine of stopping-rule calibration (P6 of ``docs/questions.md``) and the
+The shared engine of stopping-rule calibration (P6 of ``docs/optimise/optimise.md``) and the
 adequacy points (R2, P4). Per analysis group and outer split:
 
 1. hold out a fixed reservoir of whole FOVs (or spatial blocks) with

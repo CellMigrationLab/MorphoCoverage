@@ -2,8 +2,8 @@
 
 MorphoCoverage does not define "enough imaging" without an acquisition objective.
 The objective names the targets a decision must cover, and they are the
-targets the microscopist declares (`docs/questions.md`, "Declare the
-target"; `workflows.Setup.objective()`): the population summary, the
+targets the microscopist declares ([the setup](../common/setup.md#what-must-the-acquisition-preserve);
+`workflows.Setup.objective()`): the population summary, the
 phenotypic fingerprint (the distribution component) and the rare phenotype.
 
 | Objective | Components required |

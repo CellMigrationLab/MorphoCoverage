@@ -73,7 +73,7 @@ def test_every_problem_is_reported_at_once_with_where_and_how_to_fix():
     short = " ".join(check.summary().split())
     assert "Feature 'intensity' is not numeric." in short and "Where:" not in short
     assert "np.float64" not in text and "nan" not in text.lower().replace("nan)", "")
-    assert text.rstrip().endswith("is in docs/data_format.md.")
+    assert text.rstrip().endswith("is in docs/common/data_format.md.")
     with pytest.raises(ValueError, match="6 errors"):
         check.raise_if_errors()
 

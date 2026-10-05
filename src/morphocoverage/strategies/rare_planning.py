@@ -1,6 +1,6 @@
 """Binomial FOV-incidence planning for a rare target: a fixed-FOV rare-state comparator.
 
-Described in ``docs/architecture.md``. If a rare
+Described in ``docs/common/architecture.md``. If a rare
 state is present in a fraction ``p`` of representative FOVs (the target's
 ``fov_incidence``) and FOVs are independent, the number of FOVs showing it
 after ``n`` FOVs is Binomial(n, p). The required number of FOVs is the

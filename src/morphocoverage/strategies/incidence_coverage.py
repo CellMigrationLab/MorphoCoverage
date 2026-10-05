@@ -1,6 +1,6 @@
 """Incidence-based sample coverage and Chao2 richness for externally labelled states.
 
-Described in ``docs/architecture.md``. Restricted to the category source that
+Described in ``docs/common/architecture.md``. Restricted to the category source that
 the critical category rule (``docs/proposals/candidate_estimators_roadmap.md``)
 accepts first: labels fixed independently of the evaluated acquisition
 (``label_col``, for example an annotated object type). The FOV is the sampling

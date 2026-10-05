@@ -1,12 +1,11 @@
 # Objects or fields? The results in plain language
 
 This page explains, without statistics, what the foundation of the report
-("Why count fields, and not only objects?", the Foundation of
-`docs/questions.md`) and the clustering of rare objects (R4) found on the
+("Why count fields, and not only objects?", the [Foundation](questions.md#foundation-why-count-fields-and-not-only-objects)) and the clustering of rare objects (R4) found on the
 committed data. An
 object is one measured thing: here a cell, elsewhere a nucleus, a patch or a
 slice. The detailed numbers, the methods and their limits are in
-`docs/preliminary_findings.md`, entries 1, 9 and 10. The code is
+[preliminary findings](../preliminary_findings.md), entries 1, 9 and 10. The code is
 `morphocoverage.sampling_unit`; the analyses on the committed data are
 `data/crick_idr/objects_vs_fields.py` and `data/crick_idr/jcs_effect_fovs.py`.
 

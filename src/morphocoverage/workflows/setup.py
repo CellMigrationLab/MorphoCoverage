@@ -6,12 +6,12 @@ argument of a workflow, visible and recorded; the workflows add the
 computational settings (draws, splits, orders, resamples) and provisional
 presets (``minimum_detection`` here, ``optimise``'s ``protocol_threshold``,
 ``benchmark``'s ``alphas``), which the declaration and the summaries print,
-and run the package's analyses in the order of ``docs/questions.md``.
+and run the package's analyses in the order of ``docs/report/questions.md``.
 A field left at ``None`` switches off the analyses that need it, and the
 report then says "Not assessed" with what it would need.
 
 The declaration also says what the acquisition must preserve (the front door
-of ``docs/questions.md``): a population summary (the mean of ``readout``
+of ``docs/common/setup.md``): a population summary (the mean of ``readout``
 within ``tolerances``), a phenotypic fingerprint (``fingerprint``: outcome
 criteria on the declared features), and a rare phenotype (``rare``: a
 ``RareTarget``, with ``rare_label`` naming the objects that carry it when a

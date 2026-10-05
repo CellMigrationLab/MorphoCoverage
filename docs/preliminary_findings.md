@@ -3,7 +3,7 @@
 These are retrospective observations made while building the framework,
 not publication claims. Entries 1 to 7, 9 and 10 are exploratory analyses,
 not benchmark results. Entry 8 is the result of the locked benchmark
-(`docs/benchmarking.md`, "The score"), preliminary because it rests on one
+(`docs/optimise/benchmarking.md`, "The score"), preliminary because it rests on one
 development dataset, one shallow held-out dataset and few independent units.
 Each entry states what was run, what it shows, and what it does not show.
 
@@ -285,7 +285,7 @@ reaches 25%:
 
 **Question.** For a stated tolerance, how often does a random set of `k`
 fields give the same answer as fields that were not used? This is P1 of
-`docs/questions.md` (`morphocoverage.retrospective.sampling_reliability`). It is a property
+`docs/optimise/optimise.md` (`morphocoverage.retrospective.sampling_reliability`). It is a property
 of the acquisition, not of any stopping rule.
 
 **Method** (`data/crick_idr/reliability_idr0028.py`, fixed seed). The data are
@@ -360,7 +360,7 @@ counts are within that error.
 mean. A stopping rule decides from the fields seen so far, in the order they
 arrive. When would the rule have stopped, and was it enough at that point,
 judged on fields the rule never saw? This is P6, R2 and P4 of
-`docs/questions.md` (`replay_acquisitions`, `stopping_calibration`,
+`docs/optimise/optimise.md` and `docs/report/questions.md` (`replay_acquisitions`, `stopping_calibration`,
 `adequacy_points`).
 
 **Method** (`data/crick_idr/stopping_idr0028.py`, fixed seed; 40 s in the third audit's run, not remeasured). The data
@@ -453,7 +453,7 @@ of them before.
 ## 6. Protocol, fields to inspect, controls, effort and order on idr0028 (2026-09-24)
 
 **Question.** The other report questions on the same 12 wells (P2, R5, R1,
-P10, P7 and P8 of `docs/questions.md`, then the whole report): what field number
+P10, P7 and P8 of `docs/report/questions.md` and `docs/optimise/optimise.md`, then the whole report): what field number
 would a protocol need, which fields should be reopened, can these features see
 the declared siYAP phenotype, would more fields or more wells help, and could
 the same positions have been visited in a better order?
@@ -565,7 +565,7 @@ development dataset.
   widening of the intervals for few units and was not rerun. Resampling only the samples was worse (68%
   for the sample component). A stated difference between allocations
   therefore also needs five or more independent units.
-- **The reading test** (`docs/questions.md`, open work) has not been done by
+- **The reading test** (`docs/common/open_work.md`) has not been done by
   the project owner on this report.
 
 ## 7. Held-out check on idr0139: does "two fields are enough for the mean" transfer? (2026-09-25)
@@ -651,8 +651,8 @@ are coarse.
 
 **Question.** Do the richer rules, or the JCB and JCS rules per field rather
 than per object, need fewer fields than a fixed count for the same risk of
-stopping too early? This is the benchmark of `docs/questions.md` (rows R2,
-P5 and P6), scored with `retrospective.frontier` (`docs/benchmarking.md`,
+stopping too early? This is the benchmark of `docs/optimise/benchmarking.md` (rows R2,
+P5 and P6), scored with `retrospective.frontier` (`docs/optimise/benchmarking.md`,
 "The score").
 
 **Method.** `data/crick_idr/benchmark.py` under protocol version 5
@@ -788,7 +788,7 @@ version 4 run gave at 10% risk are therefore not repeated.
 
 ## 9. Objects or fields, each paper's own procedure (2026-09-25)
 
-**Question** (the Foundation and P5 of `docs/questions.md`). Entry 1 compared errors.
+**Question** (the Foundation and P5: `docs/report/questions.md`, `docs/optimise/optimise.md`). Entry 1 compared errors.
 This entry runs each reference paper's own procedure twice: once with objects
 (here nuclei with their cytoplasm) drawn at random from the well, as the
 paper does, and once with the same number of objects obtained by imaging
@@ -884,7 +884,7 @@ from 14.4 to 13.9.
 (`data/crick_idr/jcs_effect_fovs.py`). The same effect-size analysis as JCS
 Fig. 3G–I and S3G–I (their Eqn 2, their wells from the companion notebooks,
 1000 samples per size) was run both ways. It compares wells, so it stays a
-benchmark script (`docs/questions.md`, open work). Its tables
+benchmark script (`docs/common/open_work.md`). Its tables
 (`results/jcs_effect_fovs*.csv`) were unchanged by the fourth audit's
 rerun. Share of samples that rank
 two treatments as the full wells do:
@@ -956,7 +956,7 @@ type, since their nuclei (up to 10,134 per well) have a much lower ratio.
 
 ## 10. Unusual objects as a rare-state readout: are they clustered by field? (2026-09-25)
 
-**Question** (R4 of `docs/questions.md`). An object-count argument about rare
+**Question** (R4 of `docs/report/questions.md`). An object-count argument about rare
 states assumes random objects: a state carried by a share `p` of objects is
 missed in `n` objects with probability `(1 - p)^n`. A microscope acquires
 fields, and what decides whether a state is seen is the share of fields that

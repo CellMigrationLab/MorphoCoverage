@@ -17,7 +17,7 @@ fields resampled as acquired, ``contrast_sampling``):
   reduce; it needs two repeats), on the values the paired t-test compares (below). When the
   repeats vary more than their sampling error, more fields per repeat help little. The
   report no longer prints it as a verdict (owner, 2026-10-02: from 3 repeats it
-  contradicted the readings, and docs/questions.md, P10, needs 5 or more units); the
+  contradicted the readings, and docs/optimise/optimise.md, P10, needs 5 or more units); the
   column stays for the advice of "Did I image enough?" (``_html_sections``);
 - **the repeats needed**: the fewest biological repeats (at most ``MAX_REPEATS``)
   for which a paired t-test on the repeat values reaches ``power`` at the

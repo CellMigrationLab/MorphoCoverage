@@ -1,6 +1,6 @@
 """Which fields should I go back and look at? A traceable list with one reason per line.
 
-Question R5 of ``docs/questions.md``. ``inspect_fovs`` lists, per analysis
+Question R5 of ``docs/report/questions.md``. ``inspect_fovs`` lists, per analysis
 group, the FOVs worth reopening, each with a plain reason and the numbers
 behind it, the image file and stage position when the FOV table has them, and
 its observation count beside the group median. Each reason is computed

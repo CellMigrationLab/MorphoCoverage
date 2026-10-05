@@ -8,7 +8,7 @@ fixes and where its tests are. The full texts of the first four, with every
 finding, are in git history, and the commands below print them; the fifth and
 sixth were never committed, so this page and their commit messages are their
 record. The
-work they left open is in [`docs/questions.md`](../questions.md), "Open work".
+work they left open is in [`docs/common/open_work.md`](../common/open_work.md).
 
 **2026-09-25: the microscopist audit.** An adversarial audit of the three
 moments of use (report, plan, online) at commit `ec80e53`: every question was

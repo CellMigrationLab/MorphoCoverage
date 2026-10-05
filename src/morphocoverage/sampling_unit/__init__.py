@@ -6,7 +6,7 @@ Object-count rules, including the published JCB and JCS rules this package
 reproduces, assume the objects they count are a random sample of the well.
 These checks measure, on a completed acquisition, whether that assumption
 holds and what it costs when it does not. They are the foundation of the
-report, before its questions (``docs/questions.md``):
+report, before its questions (``docs/report/questions.md``):
 
 - ``fov_variability``: how much FOVs differ, the design effect and the FOVs
   that differ more than random objects would (Foundation);
@@ -32,7 +32,7 @@ may normalize by declared control groups and ``unusual_objects`` scores each
 group against declared reference groups other than itself.
 ``retrospective.microscopist_report`` places their summaries in the report.
 The results on the committed data, in plain language, are in
-``docs/objects_or_fields.md``.
+``docs/report/objects_or_fields.md``.
 """
 
 from .clustering import FOVClustering, UnusualObjects, fov_clustering, unusual_objects

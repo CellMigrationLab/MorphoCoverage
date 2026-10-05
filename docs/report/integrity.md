@@ -41,7 +41,7 @@ Its **statistical screens do not apply**, and were left out:
 | An object label (`label_id`, CellProfiler's `ObjectNumber`, `object_id`, `label`) twice in one field | `check_tables` (a warning, also when a copy warning comes first); the live sources warn for a `label_id` twice |
 | A field listed twice in the FOV table | the validator and `check_tables` (an error) |
 | Plane or tile files counted as fields | the plane rule (validator, live session) |
-| Planes of one field counted as new observations of its objects, or several stage positions of a multi-position file counted as one field | the validator (an error; see `docs/data_format.md`) |
+| Planes of one field counted as new observations of its objects, or several stage positions of a multi-position file counted as one field | the validator (an error; see `docs/common/data_format.md`) |
 | A manifest line written twice, or a manifest rewritten under the live watcher | `LiveFolder` (a warning; an error) |
 | Fields unlike the others (outliers, crowded or empty fields, new states) | `inspect_fovs`, `fov_variability`'s unusual fields |
 | Between-field variation, including a collapsed one | `fov_variability` (ICC, design effect) |
@@ -163,4 +163,4 @@ collapsed between-field variation are exploratory: they are not
 deterministic and would need calibration on imaging datasets before any
 threshold could be trusted. The between-field share is already reported by
 `fov_variability` with its uncertainty; a calibrated near-duplicate
-detector stays open work (`docs/questions.md`).
+detector stays [open work](../common/open_work.md).

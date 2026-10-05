@@ -217,7 +217,7 @@ other repeats are balanced). All three datasets are unbalanced, and none has suc
 Question 9 now gives every test on raw values and on values normalised to the mean of the
 control of the same repeat (a fold change): Cohen's d, the cell-level randomization test (as
 provided and, when unbalanced, balanced), and the paired t on the repeat averages (on log ratios
-when normalised). Their assumptions and limitations are in `docs/condition_tests.md`. The
+when normalised). Their assumptions and limitations are in `docs/report/conditions.md`. The
 cell-level test's generators now depend on the values tested, so its raw p-values differ slightly
 from the seventh run (CDM siCCT8#5: Bonferroni p 0.040 here, 0.028 there).
 

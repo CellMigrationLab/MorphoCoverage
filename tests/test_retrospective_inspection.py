@@ -1,4 +1,4 @@
-"""Tests for the inspect-these-fields report (R5 of docs/questions.md)."""
+"""Tests for the inspect-these-fields report (R5 of docs/report/questions.md)."""
 
 import numpy as np
 import pandas as pd

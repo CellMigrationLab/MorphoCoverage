@@ -44,7 +44,7 @@ MIN_FIELDS = 4
 # Largest share of the random halves without a defined error that is left out.
 UNDEFINED_TOLERANCE = 0.10
 # The share of a group's fields optimise holds back (reservoir_fraction), as the page's
-# "What to do next" runs it (``_html_next``) and docs/workflows.md shows it.
+# "What to do next" runs it (``_html_next``) and docs/report/questions.md shows it.
 HELD_BACK = 0.35
 
 

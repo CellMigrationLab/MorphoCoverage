@@ -42,8 +42,8 @@ def plots(
     |d| first, the readout among them only when it ranks (and alone when none does).
 
     Within each condition the biological repeats sit side by side; every
-    object is a point coloured by technical repeat (a well), with each
-    biological repeat's median and its interval from resampling its whole
+    object is a point in its condition's colour, shaped by technical repeat (a
+    well), with each biological repeat's median and its interval from resampling its whole
     technical repeats with their fields as acquired, not reliable with only
     2-3 technical repeats, which the legend says (``plots.plots_of_data``, which
     also takes ``settings`` such as ``summary`` or ``max_conditions``). Normalised

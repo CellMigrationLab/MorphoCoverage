@@ -3,7 +3,7 @@
 An outcome metric is a function of (full acquisition of one analysis group,
 the prefix at which a strategy stopped) -> value. It never sees a strategy's
 evidence or decision, so every strategy is judged by the same criteria and not
-by its own score (docs/benchmarking.md). Metrics are retrospective by design:
+by its own score (docs/optimise/benchmarking.md). Metrics are retrospective by design:
 they use FOVs the strategy never saw, and must never be used inside an
 estimator.
 

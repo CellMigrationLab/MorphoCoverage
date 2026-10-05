@@ -388,7 +388,7 @@ def decision_view(results: Sequence[StrategyResult], order_check: OrderCheck | N
     assumption that the fields are a random sample of the well's positions).
     The results must share one objective (one session, one acquisition
     state); the view answers "if the targets disagree, is that obvious?"
-    (``docs/questions.md`` O4). The live view prints its entries one per line
+    (``docs/live/live_session.md`` O4). The live view prints its entries one per line
     (``_target_decisions``).
     """
     return "; ".join(entry.text for entry in _target_decisions(results, order_check))

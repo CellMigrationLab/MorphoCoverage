@@ -17,7 +17,7 @@ from morphocoverage.workflows._html_render import adjusted_p
 from morphocoverage.workflows._html_tests import _other_versions
 
 # A q left on the page: before a number or comparison, in brackets, before a colon, or
-# corrected / uncorrected (docs/workflows.md: the adjusted p throughout).
+# corrected / uncorrected (docs/report/conditions.md: the adjusted p throughout).
 _Q = re.compile(r"(?<![\w-])q(?: ?[<≤=:]| \d| (?:un)?corrected\b|\))|\(q\)")
 
 

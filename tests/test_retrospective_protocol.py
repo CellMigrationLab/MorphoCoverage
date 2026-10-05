@@ -1,4 +1,4 @@
-"""Tests for protocol-level reliability across samples (P2 of docs/questions.md)."""
+"""Tests for protocol-level reliability across samples (P2 of docs/optimise/optimise.md)."""
 
 import pandas as pd
 import pytest

@@ -1,6 +1,6 @@
 """Could the same positions have been visited in a better order? Acquisition-order efficiency.
 
-Questions P7 and P8 of ``docs/questions.md``. This asks about the order of the acquired
+Questions P7 and P8 of ``docs/optimise/optimise.md``. This asks about the order of the acquired
 positions, not about whether they were the right positions (that is
 sampling-frame bias, P9, not implemented):
 

@@ -3,7 +3,7 @@ papers they come from.
 
 ``GLOSSARY`` is a tuple of ``Term`` (``name``, ``meaning``, ``where`` in the report, the
 ``references``), grouped by ``section``. The HTML report prints it as its last section, and
-``glossary_markdown()`` is ``docs/glossary.md`` (a test keeps the two the same). A reference
+``glossary_markdown()`` is ``docs/common/glossary.md`` (a test keeps the two the same). A reference
 links to its DOI only where the DOI is established; methods of the lab without a paper are
 named without a link.
 """
@@ -386,7 +386,7 @@ def _reference_markdown(reference: Reference) -> str:
 
 
 def glossary_markdown() -> str:
-    """``docs/glossary.md``: the glossary by section."""
+    """``docs/common/glossary.md``: the glossary by section."""
     lines = [
         "# Glossary",
         "",
