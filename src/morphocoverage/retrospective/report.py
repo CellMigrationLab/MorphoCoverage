@@ -314,7 +314,9 @@ def microscopist_report(
     representation must recognize before the adequacy answers are read
     without a warning (provisional preset 0.9, as for the protocol threshold).
     Below it, every adequacy section is prefixed with the detection rate, since
-    a "nothing new" answer cannot exclude a phenotype the features miss.
+    a "nothing new" answer cannot exclude a phenotype the features miss. With
+    planted objects declared and none planted, it says the planted check could
+    not run instead, never reading the whole fields (owner, 2026-10-05).
     ``declaration`` is what the acquisition was asked to preserve, one sentence
     per target (``workflows.Setup.declaration()``), and ``overview`` what the
     tables hold (``dataset_overview``); the report prints them first.
@@ -401,6 +403,7 @@ def microscopist_report(
         ),
     ]
     weakened: list[str] = []
+    weak = False
     if controls is None or controls.status == "not assessed":
         notes.append(
             assumption(
@@ -409,23 +412,22 @@ def microscopist_report(
             )
         )
     else:
-        # With planted objects declared, the rare-state rate gates the warning (P6-4).
-        weak, _ = representation_gate(controls, float(minimum_detection))
-        if weak:
-            for key in ("enough", "next_time", "bought"):
-                if parts[key]:
-                    weakened.append(key)
-                    parts[key].insert(
-                        0, f"{weak}, so the answers below cannot exclude a phenotype like it."
-                    )
-            line = f"{PROBLEM} {weak}, so the answers below cannot exclude a phenotype like it."
-            for key in weakened:
+        # With planted objects declared, the rare-state rate gates the warning (P6-4); none
+        # planted, the gate is not assessed, never read from the whole fields (#270).
+        gate, weak = representation_gate(controls, float(minimum_detection))
+        after = ", so the answers below cannot exclude a phenotype like it." if weak else "."
+        marker = PROBLEM if weak else Status.NOT_ASSESSED.marker
+        for key in ("enough", "next_time", "bought") if gate else ():
+            if parts[key]:
+                weakened.append(key)
+                parts[key].insert(0, f"{gate}{after}")
                 if key in short:
-                    short[key] = f"{wrap(line, 2, hang=5)}\n{short[key]}"
+                    short[key] = f"{wrap(f'{marker} {gate}{after}', 2, hang=5)}\n{short[key]}"
+        if gate:
             # The notes close the report: the adequacy answers are above them.
             notes.append(
-                f"{weak}, so the adequacy answers (questions 2, 4 and 5) cannot exclude a "
-                "phenotype like it."
+                f"{gate}, so the adequacy answers (questions 2, 4 and 5) "
+                + ("cannot exclude a phenotype like it." if weak else "are not checked for it.")
             )
     notes.append(
         assumption(
@@ -496,7 +498,8 @@ def microscopist_report(
             statuses[key] = Status.NOT_ASSESSED
             headlines[key] = f"not assessed; {_SHORT_NEEDS[key]}"
     for key in weakened:
-        statuses[key], headlines[key] = weak_status(answers[key])
+        gated = (statuses[key], f"small-state representation not assessed; {headlines[key]}")
+        statuses[key], headlines[key] = weak_status(answers[key]) if weak else gated
     document = MicroscopistReport(
         sections,
         profile,

@@ -12,7 +12,11 @@ import pandas as pd
 from morphocoverage._style import Status
 from morphocoverage.retrospective import effort_text, microscopist_report
 from morphocoverage.retrospective.controls import ControlResult
-from morphocoverage.retrospective.controls_text import pooled_over
+from morphocoverage.retrospective.controls_text import (
+    NOT_PLANTED,
+    pooled_over,
+    representation_gate,
+)
 from morphocoverage.retrospective.frontier import BASELINE, FrontierResult
 from morphocoverage.retrospective.frontier_text import frontier_status
 from morphocoverage.retrospective.inspection import InspectionResult
@@ -155,4 +159,46 @@ def test_a_strong_plate_and_a_weak_one_are_said_to_be_pooled_wherever_the_rate_i
         Status.OK,
         "positive-control fields recognized in 95% of checks; false alarms 5%, both pooled "
         "over all plates",
+    )
+
+
+# --- #270: a declared planted check that could not run is not replaced by the whole fields --
+
+
+PLANTED = {"control": {"planted_objects": 5}}
+
+
+def test_the_planted_gate_follows_the_declaration_and_never_reads_the_whole_fields():
+    strong = _two_plates(PLANTED, positive=((9, 10), (9, 10)), planted=((10, 10), (9, 10)))
+    assert representation_gate(strong, 0.9) == ("", False)
+    weak = _two_plates(PLANTED, positive=((10, 10), (10, 10)), planted=((5, 10), (3, 10)))
+    gate, is_weak = representation_gate(weak, 0.9)
+    assert is_weak and "ordinary fields with 5 planted positive-control objects" in gate
+    assert "only 40% of checks, pooled over all plates" in gate
+    # No planting could be judged: not assessed, whether the whole fields are strong or weak.
+    for whole in ((10, 10), (2, 10)):
+        unplanted = _two_plates(PLANTED, positive=(whole, whole))
+        assert representation_gate(unplanted, 0.9) == (NOT_PLANTED, False)
+    undeclared = _two_plates(positive=((5, 10), (5, 10)))
+    gate, is_weak = representation_gate(undeclared, 0.9)
+    assert is_weak and "fields of the declared positive control" in gate
+
+
+def test_a_report_with_no_planting_says_the_gate_was_not_assessed():
+    from test_microscopist_audit import _weak_control_report
+
+    _, sufficiency = _weak_control_report()
+    plain = microscopist_report(sufficiency=sufficiency)
+    # Whole positive fields recognized in only 20% of checks: never the planted answer.
+    controls = _two_plates(PLANTED, positive=((2, 10), (2, 10)), reference=((0, 10), (0, 10)))
+    report = microscopist_report(controls=controls, sufficiency=sufficiency)
+    assert report.statuses["enough"] is plain.statuses["enough"]
+    assert report.headlines["enough"] == (
+        f"small-state representation not assessed; {plain.headlines['enough']}"
+    )
+    assert report.sections["enough"].lstrip().startswith(f"{NOT_PLANTED}.")
+    assert f"{Status.NOT_ASSESSED.marker} {NOT_PLANTED}." in report.summary()
+    assert not any(n.startswith("Weak representation") for n in report.notes)
+    assert f"{NOT_PLANTED}, so the adequacy answers (questions 2, 4 and 5) are not checked" in (
+        " ".join(report.notes)
     )

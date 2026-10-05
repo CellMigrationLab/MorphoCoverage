@@ -331,7 +331,10 @@ adequacy answers are read without a warning. The control's rates are pooled over
 its strata (the repeats, or `pair_cols`), and the report says "pooled over all
 biological repeats" wherever it applies one to a group: the warning, the
 detection-adjusted bound, the false alarms expected among the fields to check,
-and question 1 (owner, 2026-10-05). A `PositiveControl` without
+and question 1 (owner, 2026-10-05). With planted objects declared, their rate is the
+warning's; when none could be planted, the warning on questions 2, 4 and 5 reads
+"not assessed: the planted check could not run", never the whole-field rate
+(owner, 2026-10-05). A `PositiveControl` without
 `pair_cols` pairs its fields with reference fields within each repeat when the
 FOV table has a repeat column; `pair_cols=()` pools the repeats, as an
 explicit request. The declaration prints every such preset.

@@ -21,7 +21,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import pandas as pd
 
 from .._caveats import assumption, caveat_lines
@@ -39,6 +38,8 @@ _KINDS = (
     ("planted", "planted_lofo"),
     ("reference", "reference_lofo"),
 )
+# The gate of questions 2, 4 and 5 when the declared planted check could not run (#270).
+NOT_PLANTED = "Small-state representation not assessed: the planted check could not run"
 _UNJUDGED = "some fields could not be judged (missing feature values or too few fields)"
 
 
@@ -188,14 +189,16 @@ def representation_gate(result: ControlResult, minimum_detection: float) -> tupl
     """The sentence that gates the report's questions 2, 4 and 5, and whether it is a weak
     representation; ``("", False)`` when the representation is strong enough.
 
-    With ``planted_objects`` declared, the planted rate gates (P6-4), else the whole positive
-    fields. The rate is pooled over the strata, and the sentence says so (owner, 2026-10-05).
+    With ``planted_objects`` declared, the planted rate gates (P6-4); when no planting could be
+    judged the gate is not assessed, never read from the whole positive fields. Without them,
+    the positive fields gate. The rate is pooled over the strata, and the sentence says so
+    (owner, 2026-10-05).
     """
     rates = result.pooled.set_index("candidate")["rate"]
     planted = (result.settings.get("control") or {}).get("planted_objects")
-    if pd.isna(rates.get("planted", np.nan)):
-        planted = None
     rate = rates.get("planted" if planted else "positive")
+    if planted and (rate is None or pd.isna(rate)):
+        return NOT_PLANTED, False
     if rate is None or pd.isna(rate) or float(rate) >= minimum_detection:
         return "", False
     seen = (
@@ -333,6 +336,7 @@ def control_summary(result: ControlResult, detail: str = "short") -> str:
 
 
 __all__ = [
+    "NOT_PLANTED",
     "control_full",
     "control_parts",
     "control_summary",
