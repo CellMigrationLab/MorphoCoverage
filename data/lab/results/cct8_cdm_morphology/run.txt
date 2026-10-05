@@ -1,7 +1,7 @@
 dataset: cct8_cdm_morphology
-morphocoverage: unversioned at commit c3d7560
+morphocoverage: unversioned at commit 6c3929e
 readout: Area; features: 10; control: {'condition': 'siCTRL'}
 novelty: default_novelty(features); rules: the defaults; random_state 0
-run time: 8 s
+run time: 13 s
 warnings:
   UserWarning: novelty is judged on 10 standardized features at distance 3.16228, but two observations of a state varying by one SD per feature sit about 4.5 apart, so small, ordinarily variable states are often missed: reduce the dimension (Chain([RobustStandardize(), PCA(k)])) or declare fewer features

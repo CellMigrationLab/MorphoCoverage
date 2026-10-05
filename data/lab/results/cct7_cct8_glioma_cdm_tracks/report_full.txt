@@ -3,6 +3,7 @@
   13 feature columns: Mean Speed, Median Speed, Speed Standard Deviation, Mean Speed Rolling, Median Speed Rolling, Max Speed Rolling, Min Speed Rolling Rolling, Speed Standard Deviation Rolling, Total Distance Traveled Rolling, Directionality Rolling, Tortuosity Rolling, Total Turning Angle Rolling and 1 more.
   18 technical repeats (technical_repeat, a well or a dish within a repeat, 1 per condition and repeat).
   5 conditions (condition: siCTRL, siCCT7#3, siCCT7#6, siCCT8#5, siCCT8#8); 6 repeats (biological_repeat: CCT7_1, CCT7_2, CCT7_3, CCT8_1, CCT8_2, CCT8_3).
+  2 sub-experiments, each of 2 conditions and its own siCTRL in its own 3 biological repeats (siCCT7#3 and siCCT7#6; siCCT8#5 and siCCT8#8).
     condition  biological_repeat  fields  empty  tracks  technical repeats
     siCTRL     CCT7_1                  8      0      30                  1
     siCTRL     CCT7_2                  7      0      23                  1
@@ -29,23 +30,24 @@
     Exact checks for copied data, to 6 significant digits: 133 fields and 590 tracks checked, on Mean
     Speed, Median Speed, Speed Standard Deviation, Mean Speed Rolling, Median Speed Rolling and 8
     more.
-    Fields are named condition · biological_repeat · technical_repeat · position_id.
-    - copied field: siCCT7#3 · CCT7_2 · B5 · B5_04 and siCCT7#3 · CCT7_2 · B5 · B5_04-1 (5
-      observations): the same observations in the same order (to 6 significant digits).
-    - copied small field, 2 pairs of fields within siCCT7#6 · CCT7_3 · B6, e.g.
-      siCCT7#6 · CCT7_3 · B6 · B6_01-1 and siCCT7#6 · CCT7_3 · B6 · B6_02-1 (4 observations): all 4
-      observations of the first field are also in the second (to 6 significant digits, in at least 3
-      continuous features): a field too small for the whole-field checks, exported twice or pasted.
-    - copied small field: siCTRL · CCT7_1 · B4 · B4_05 and siCTRL · CCT7_1 · B4 · B4_052 (4
+    Fields are named condition · biological repeat · technical repeat · position id.
+    - copied field: siCCT7#3 · repeat CCT7_2 · B5 · B5_04 and siCCT7#3 · repeat CCT7_2 · B5 · B5_04-1
+      (5 observations): the same observations in the same order (to 6 significant digits).
+    - copied small field, 2 pairs of fields within siCCT7#6 · repeat CCT7_3 · B6, e.g.
+      siCCT7#6 · repeat CCT7_3 · B6 · B6_01-1 and siCCT7#6 · repeat CCT7_3 · B6 · B6_02-1 (4
       observations): all 4 observations of the first field are also in the second (to 6 significant
       digits, in at least 3 continuous features): a field too small for the whole-field checks,
       exported twice or pasted.
-    - repeated block: siCCT8#5 · CCT8_3 · B2 · B2_01 and siCCT8#5 · CCT8_3 · B2 · B2_02 (6
-      observations): 6 consecutive observations are the same (to 6 significant digits), from
+    - copied small field: siCTRL · repeat CCT7_1 · B4 · B4_05 and siCTRL · repeat CCT7_1 · B4 · B4_052
+      (4 observations): all 4 observations of the first field are also in the second (to 6 significant
+      digits, in at least 3 continuous features): a field too small for the whole-field checks,
+      exported twice or pasted.
+    - repeated block: siCCT8#5 · repeat CCT8_3 · B2 · B2_01 and siCCT8#5 · repeat CCT8_3 · B2 · B2_02
+      (6 observations): 6 consecutive observations are the same (to 6 significant digits), from
       observation 1 of the first field and 1 of the second.
-    - repeated block: siCTRL · CCT8_3 · B1 · B1_03 and siCTRL · CCT8_3 · B1 · B1_04 (5 observations):
-      5 consecutive observations are the same (to 6 significant digits), from observation 1 of the
-      first field and 1 of the second.
+    - repeated block: siCTRL · repeat CCT8_3 · B1 · B1_03 and siCTRL · repeat CCT8_3 · B1 · B1_04 (5
+      observations): 5 consecutive observations are the same (to 6 significant digits), from
+      observation 1 of the first field and 1 of the second.
     Check where these fields came from (a file read or exported twice, a field identifier reused, a
     copy in another unit, a merge that repeats rows) before reading the answers.
     ⚠️ Whole fields compared: 63 of 133; 70 fields held fewer than 5 observations.
@@ -63,48 +65,48 @@ What this acquisition was asked to preserve
   - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
     state was sampled enough.
   - Representation: readout Mean Speed; 13 declared feature columns for unusual tracks (against the
-    control tracks, their repeats pooled) and new phenotypes; definition of new: support_novelty.
+    control tracks, their repeats pooled) and new phenotypes (new: at least 3 similar tracks that no
+    other field shows).
   - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
     chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
     It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
     benchmark do not calibrate it. A state that fewer than 3 other fields show is counted as seen in
     few fields (few_fovs).
-  - Stopping rules: mean-precision rule, per track, 5% [scalar_precision_object_upper95
-    (feature=Mean Speed, target_cv=0.05, resampling_unit=object, sd_estimate=upper_95)] and
-    mean-precision rule, per field, 5% [scalar_precision_fov_upper95 (feature=Mean Speed,
-    target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95)] (the default, rules=None: the
-    mean-precision rule per track and per field at 5%); assessed in the report, calibrated by
-    optimise, run live. The mean-precision rules stop on the averaging CV: a CV of 5% is one
-    standard error of 5% of the mean, not a bound of ±5% on its error; whether the mean is within 5%
-    and 2.5% is judged on held-back fields (report, optimise), never by the rules.
+  - Stopping rules: mean-precision rule, per field, 5% [scalar_precision_fov_upper95 (feature=Mean
+    Speed, target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95)] (the default, rules=None: the
+    mean-precision rule per field at 5%); assessed in the report, calibrated by optimise, run live.
+    The mean-precision rules stop when the standard error of the mean is 5% of the mean (its
+    averaging CV), not on a bound of ±5% on its error; whether the mean is within 5% and 2.5% is
+    judged on held-back fields by optimise, never by the rules or this report.
   - Acquisition order: no acquisition_order_col or stage_cols, so nothing is checked and every stop
     treats the fields as a random sample of the well's positions; a raster over a spatial trend can
     stop early. Image fields in a random or dispersed order.
-  - Live decision: the population objective (population summary); a rule decides only the targets it
-    has evidence about, and a target no rule decides stays unsupported rather than assumed adequate.
+  - Live decision: a stop needs every declared target (population summary); a rule decides only the
+    targets it has evidence about, and a target no rule decides stays unsupported rather than
+    assumed adequate.
 
-⚠️ Foundation: why count fields, and not only objects?
-  How variable are the fields? Feature Mean Speed; analysis groups:
-    condition · biological_repeat · technical_repeat.
-    group                   fields  tracks  per field  between  design effect  error ratio  differ
-    siCCT7#3 · CCT7_1 · B5       7      28          4     0.5%            1.0          1.0     14%
-    siCCT7#3 · CCT7_2 · B5       8      34        4.2       0%            1.0          1.0     13%
-    siCCT7#3 · CCT7_3 · B5       7      30        4.3      28%            2.0          1.4     14%
-    siCCT7#6 · CCT7_1 · B6       7      29        4.1      15%            1.5          1.2     14%
-    siCCT7#6 · CCT7_2 · B6       8      27        3.4       0%            1.0          1.0      0%
-    siCCT7#6 · CCT7_3 · B6       6      36          6      31%            2.7          1.6     33%
-    siCTRL · CCT7_1 · B4         8      30        3.8      40%            2.3          1.5     25%
-    siCTRL · CCT7_2 · B4         7      23        3.3      45%            2.3          1.5     29%
-    siCTRL · CCT7_3 · B4         5      22        4.4       0%            1.0          1.0      0%
-    siCCT8#5 · CCT8_1 · B2       8      37        4.6       0%            1.0          1.0      0%
-    siCCT8#5 · CCT8_2 · B2       8      40          5       0%            1.0          1.0      0%
-    siCCT8#5 · CCT8_3 · B2       7      42          6       0%            1.0          1.0      0%
-    siCCT8#8 · CCT8_1 · B3       8      32          4       5%            1.2          1.1      0%
-    siCCT8#8 · CCT8_2 · B3       8      40          5       0%            1.0          1.0      0%
-    siCCT8#8 · CCT8_3 · B3       7      31        4.4      16%            1.6          1.3     14%
-    siCTRL · CCT8_1 · B1         7      31        4.4       8%            1.3          1.1     14%
-    siCTRL · CCT8_2 · B1         9      39        4.3       0%            1.0          1.0      0%
-    siCTRL · CCT8_3 · B1         8      39        4.9       0%            1.0          1.0      0%
+⚠️ Foundation: why count fields, and not only tracks?
+  How variable are the fields? Feature Mean Speed; analysis groups: condition · biological
+    repeat · technical repeat.
+    group                          fields  tracks  per field  between  design effect  error ratio  differ
+    siCCT7#3 · repeat CCT7_1 · B5       7      28          4     0.5%            1.0          1.0     14%
+    siCCT7#3 · repeat CCT7_2 · B5       8      34        4.2       0%            1.0          1.0     13%
+    siCCT7#3 · repeat CCT7_3 · B5       7      30        4.3      28%            2.0          1.4     14%
+    siCCT7#6 · repeat CCT7_1 · B6       7      29        4.1      15%            1.5          1.2     14%
+    siCCT7#6 · repeat CCT7_2 · B6       8      27        3.4       0%            1.0          1.0      0%
+    siCCT7#6 · repeat CCT7_3 · B6       6      36          6      31%            2.7          1.6     33%
+    siCTRL · repeat CCT7_1 · B4         8      30        3.8      40%            2.3          1.5     25%
+    siCTRL · repeat CCT7_2 · B4         7      23        3.3      45%            2.3          1.5     29%
+    siCTRL · repeat CCT7_3 · B4         5      22        4.4       0%            1.0          1.0      0%
+    siCCT8#5 · repeat CCT8_1 · B2       8      37        4.6       0%            1.0          1.0      0%
+    siCCT8#5 · repeat CCT8_2 · B2       8      40          5       0%            1.0          1.0      0%
+    siCCT8#5 · repeat CCT8_3 · B2       7      42          6       0%            1.0          1.0      0%
+    siCCT8#8 · repeat CCT8_1 · B3       8      32          4       5%            1.2          1.1      0%
+    siCCT8#8 · repeat CCT8_2 · B3       8      40          5       0%            1.0          1.0      0%
+    siCCT8#8 · repeat CCT8_3 · B3       7      31        4.4      16%            1.6          1.3     14%
+    siCTRL · repeat CCT8_1 · B1         7      31        4.4       8%            1.3          1.1     14%
+    siCTRL · repeat CCT8_2 · B1         9      39        4.3       0%            1.0          1.0      0%
+    siCTRL · repeat CCT8_3 · B1         8      39        4.9       0%            1.0          1.0      0%
   Between: the share of the variance that lies between fields. Design effect: how many times the
     variance of a mean from whole fields is that of one from as many random tracks; error ratio: how
     many times SD / sqrt(n) understates its error (the square root). Differ: the share of fields
@@ -112,100 +114,318 @@ What this acquisition was asked to preserve
 
   Would the mean-precision object-count rule hold with whole fields? Feature Mean Speed; reference
     mean: the mean of all siCTRL tracks of the same biological repeat; analysis groups:
-    condition · biological_repeat · technical_repeat.
-    group                   target       tracks asked  fields taken  SD/sqrt(n) → real   as fields  of
-    siCCT7#3 · CCT7_1 · B5  5% missed              28           7.4  5% → 5% (1.1x)         6 (27)   7
-    siCCT7#3 · CCT7_1 · B5  2.5% missed           110          27.9  2% → 3% (1.1x)       22 (107)   7
-    siCCT7#3 · CCT7_2 · B5  5% met                 57          13.8  5% → 4% (0.9x)        14 (55)   8
-    siCCT7#3 · CCT7_2 · B5  2.5% met              226          53.6  2% → 2% (0.9x)       53 (219)   8
-    siCCT7#3 · CCT7_3 · B5  5% missed              37           9.0  5% → 7% (1.4x)        16 (74)   7
-    siCCT7#3 · CCT7_3 · B5  2.5% missed           146          34.5  2% → 3% (1.4x)       61 (293)   7
-    siCCT7#6 · CCT7_1 · B6  5% missed              17           4.5  5% → 6% (1.2x)         6 (28)   7
-    siCCT7#6 · CCT7_1 · B6  2.5% missed            68          16.8  2% → 3% (1.2x)       23 (109)   7
-    siCCT7#6 · CCT7_2 · B6  5% met                 28           8.7  5% → 3% (0.6x)         3 (12)   8
-    siCCT7#6 · CCT7_2 · B6  2.5% met              109          32.7  2% → 1% (0.5x)        11 (46)   8
-    siCCT7#6 · CCT7_3 · B6  5% missed              17           3.3  5% → 7% (1.6x)         8 (44)   6
-    siCCT7#6 · CCT7_3 · B6  2.5% missed            66          11.5  2% → 4% (1.6x)       29 (174)   6
-    siCTRL · CCT7_1 · B4    5% missed              27           7.6  5% → 8% (1.6x)        12 (48)   8
-    siCTRL · CCT7_1 · B4    2.5% missed           105          28.4  2% → 4% (1.6x)       46 (189)   8
-    siCTRL · CCT7_2 · B4    5% missed              49          15.3  5% → 5% (1.1x)       67 (322)   7
-    siCTRL · CCT7_2 · B4    2.5% missed           195          59.8  2% → 3% (1.1x)     266 (1287)   7
-    siCTRL · CCT7_3 · B4    5% met                 25           6.1  5% → 4% (0.9x)         5 (36)   5
-    siCTRL · CCT7_3 · B4    2.5% met              100          23.2  2% → 2% (0.9x)       17 (141)   5
-    siCCT8#5 · CCT8_1 · B2  5% met                 49          11.1  5% → 4% (0.9x)        10 (39)   8
-    siCCT8#5 · CCT8_1 · B2  2.5% met              196          42.8  2% → 2% (0.9x)       38 (155)   8
-    siCCT8#5 · CCT8_2 · B2  5% met                 44           9.2  5% → 4% (0.7x)         5 (18)   8
-    siCCT8#5 · CCT8_2 · B2  2.5% met              176          35.7  2% → 2% (0.8x)        18 (71)   8
-    siCCT8#5 · CCT8_3 · B2  5% met                 15           3.0  5% → 3% (0.6x)          2 (6)   7
-    siCCT8#5 · CCT8_3 · B2  2.5% met               60          10.5  2% → 1% (0.6x)         5 (24)   7
-    siCCT8#8 · CCT8_1 · B3  5% met                 38           9.9  5% → 5% (1.0x)        15 (60)   8
-    siCCT8#8 · CCT8_1 · B3  2.5% met              151          38.2  2% → 2% (1.0x)       58 (239)   8
-    siCCT8#8 · CCT8_2 · B3  5% met                 42           8.9  5% → 2% (0.5x)         5 (21)   8
-    siCCT8#8 · CCT8_2 · B3  2.5% met              166          33.7  2% → 1% (0.5x)        20 (81)   8
-    siCCT8#8 · CCT8_3 · B3  5% met                 12           3.2  5% → 5% (1.0x)         6 (29)   7
-    siCCT8#8 · CCT8_3 · B3  2.5% met               47          11.1  2% → 2% (1.0x)       24 (115)   7
-    siCTRL · CCT8_1 · B1    5% missed              71          16.5  5% → 5% (1.0x)       21 (101)   7
-    siCTRL · CCT8_1 · B1    2.5% missed           281          63.8  2% → 3% (1.1x)       84 (404)   7
-    siCTRL · CCT8_2 · B1    5% met                 62          14.7  5% → 4% (0.8x)        11 (39)   9
-    siCTRL · CCT8_2 · B1    2.5% met              248          57.7  2% → 2% (0.8x)       43 (156)   9
-    siCTRL · CCT8_3 · B1    5% met                 48          10.4  5% → 4% (0.8x)        11 (43)   8
-    siCTRL · CCT8_3 · B1    2.5% met              192          39.9  2% → 2% (0.8x)       42 (171)   8
+    condition · biological repeat · technical repeat.
+    group                          target       tracks asked  fields taken  SD/sqrt(n) → real    as fields  of
+    siCCT7#3 · repeat CCT7_1 · B5  5% missed              28           7.4  4.8% → 5.2% (1.1x)      6 (27)   7
+    siCCT7#3 · repeat CCT7_1 · B5  2.5% missed           110          27.9  2.5% → 2.6% (1.1x)    22 (107)   7
+    siCCT7#3 · repeat CCT7_2 · B5  5% met                 57          13.8  4.9% → 4.5% (0.9x)     14 (55)   8
+    siCCT7#3 · repeat CCT7_2 · B5  2.5% met              226          53.6  2.5% → 2.3% (0.9x)    53 (219)   8
+    siCCT7#3 · repeat CCT7_3 · B5  5% missed              37           9.0  4.9% → 6.9% (1.4x)     16 (74)   7
+    siCCT7#3 · repeat CCT7_3 · B5  2.5% missed           146          34.5  2.5% → 3.5% (1.4x)    61 (293)   7
+    siCCT7#6 · repeat CCT7_1 · B6  5% missed              17           4.5  4.8% → 5.8% (1.2x)      6 (28)   7
+    siCCT7#6 · repeat CCT7_1 · B6  2.5% missed            68          16.8  2.5% → 2.9% (1.2x)    23 (109)   7
+    siCCT7#6 · repeat CCT7_2 · B6  5% met                 28           8.7  4.8% → 2.7% (0.6x)      3 (12)   8
+    siCCT7#6 · repeat CCT7_2 · B6  2.5% met              109          32.7  2.5% → 1.4% (0.5x)     11 (46)   8
+    siCCT7#6 · repeat CCT7_3 · B6  5% missed              17           3.3  4.6% → 7.3% (1.6x)      8 (44)   6
+    siCCT7#6 · repeat CCT7_3 · B6  2.5% missed            66          11.5  2.4% → 3.8% (1.6x)    29 (174)   6
+    siCTRL · repeat CCT7_1 · B4    5% missed              27           7.6  4.8% → 7.6% (1.6x)     12 (48)   8
+    siCTRL · repeat CCT7_1 · B4    2.5% missed           105          28.4  2.5% → 4.0% (1.6x)    46 (189)   8
+    siCTRL · repeat CCT7_2 · B4    5% missed              49          15.3  4.9% → 5.3% (1.1x)    67 (322)   7
+    siCTRL · repeat CCT7_2 · B4    2.5% missed           195          59.8  2.5% → 2.7% (1.1x)  266 (1287)   7
+    siCTRL · repeat CCT7_3 · B4    5% met                 25           6.1  4.8% → 4.1% (0.9x)      5 (36)   5
+    siCTRL · repeat CCT7_3 · B4    2.5% met              100          23.2  2.5% → 2.1% (0.9x)    17 (141)   5
+    siCCT8#5 · repeat CCT8_1 · B2  5% met                 49          11.1  4.9% → 4.2% (0.9x)     10 (39)   8
+    siCCT8#5 · repeat CCT8_1 · B2  2.5% met              196          42.8  2.5% → 2.2% (0.9x)    38 (155)   8
+    siCCT8#5 · repeat CCT8_2 · B2  5% met                 44           9.2  4.9% → 3.6% (0.7x)      5 (18)   8
+    siCCT8#5 · repeat CCT8_2 · B2  2.5% met              176          35.7  2.5% → 1.9% (0.8x)     18 (71)   8
+    siCCT8#5 · repeat CCT8_3 · B2  5% met                 15           3.0  4.6% → 2.6% (0.6x)       2 (6)   7
+    siCCT8#5 · repeat CCT8_3 · B2  2.5% met               60          10.5  2.4% → 1.4% (0.6x)      5 (24)   7
+    siCCT8#8 · repeat CCT8_1 · B3  5% met                 38           9.9  4.9% → 5.0% (1.0x)     15 (60)   8
+    siCCT8#8 · repeat CCT8_1 · B3  2.5% met              151          38.2  2.5% → 2.5% (1.0x)    58 (239)   8
+    siCCT8#8 · repeat CCT8_2 · B3  5% met                 42           8.9  4.8% → 2.3% (0.5x)      5 (21)   8
+    siCCT8#8 · repeat CCT8_2 · B3  2.5% met              166          33.7  2.5% → 1.2% (0.5x)     20 (81)   8
+    siCCT8#8 · repeat CCT8_3 · B3  5% met                 12           3.2  4.6% → 4.5% (1.0x)      6 (29)   7
+    siCCT8#8 · repeat CCT8_3 · B3  2.5% met               47          11.1  2.4% → 2.4% (1.0x)    24 (115)   7
+    siCTRL · repeat CCT8_1 · B1    5% missed              71          16.5  4.9% → 5.0% (1.0x)    21 (101)   7
+    siCTRL · repeat CCT8_1 · B1    2.5% missed           281          63.8  2.5% → 2.6% (1.1x)    84 (404)   7
+    siCTRL · repeat CCT8_2 · B1    5% met                 62          14.7  4.9% → 3.9% (0.8x)     11 (39)   9
+    siCTRL · repeat CCT8_2 · B1    2.5% met              248          57.7  2.5% → 2.0% (0.8x)    43 (156)   9
+    siCTRL · repeat CCT8_3 · B1    5% met                 48          10.4  4.9% → 3.8% (0.8x)     11 (43)   8
+    siCTRL · repeat CCT8_3 · B1    2.5% met              192          39.9  2.5% → 1.9% (0.8x)    42 (171)   8
   Target: met or missed by the real error. Tracks asked: the rule's number of tracks; fields taken:
     the mean number of whole fields drawn at random until that many; SD/sqrt(n) → real: the rule's
     predicted error of their mean, then its real error (the SD of that mean over the draws), both as
     shares of the reference mean, and real over predicted. As fields: the fields the rule asks for
     with the field as the unit, from the point SD (in brackets: from the upper-95 SD), of the
     acquired fields ('of').
-  ⚠️ The control means of the repeats differ by 1.8x (biological_repeat=CCT8_1: 0.355,
-     biological_repeat=CCT7_3: 0.625); each repeat is judged against its own control, but a shift
-     that large may be a batch effect or a change of units (a feature exported in other units in one
-     repeat)
 
 ➖ 1. Can these features detect what I care about?
-  Not assessed: declare a positive control (and a reference) with representation_control.
+  Not assessed: name a condition known to change the phenotype as the positive control (the guided session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it can be added after the acquisition, whenever such a condition was imaged.
 
 ⚠️ 2. Did I image enough?
-  Enough to resolve the difference from the control? Mean Speed, each condition against the control of
-    the same repeat, 95% interval of d from the fields resampled as acquired:
-    contrast                     fields  d tracks (95% interval)  enough?
-    siCCT7#3 vs siCTRL · CCT7_1  7 vs 8  -0.37 (-1.21 to 0.36)    too small to settle here
-    siCCT7#6 vs siCTRL · CCT7_1  7 vs 8  -0.60 (-1.52 to -0.03)   resolved
-    siCCT7#3 vs siCTRL · CCT7_2  8 vs 7  0.86 (0.40 to 1.44)      resolved
-    siCCT7#6 vs siCTRL · CCT7_2  8 vs 7  0.55 (-0.04 to 1.18)     about 9 fields a side
-    siCCT7#3 vs siCTRL · CCT7_3  7 vs 5  0.01 (-0.61 to 0.70)     too small to settle here
-    siCCT7#6 vs siCTRL · CCT7_3  6 vs 5  -0.46 (-1.20 to 0.11)    about 11 fields a side
-    siCCT8#5 vs siCTRL · CCT8_1  8 vs 7  -1.00 (-1.70 to -0.45)   resolved
-    siCCT8#8 vs siCTRL · CCT8_1  8 vs 7  -0.81 (-1.47 to -0.32)   resolved
-    siCCT8#5 vs siCTRL · CCT8_2  8 vs 9  -0.59 (-1.01 to -0.26)   resolved
-    siCCT8#8 vs siCTRL · CCT8_2  8 vs 9  -0.80 (-1.18 to -0.55)   resolved
-    siCCT8#5 vs siCTRL · CCT8_3  7 vs 8  -1.58 (-2.04 to -1.27)   resolved
-    siCCT8#8 vs siCTRL · CCT8_3  7 vs 8  -1.71 (-2.31 to -1.32)   resolved
-    Resolved: the 95% interval of d, from the fields resampled as they were acquired (technical repeats, then their fields, with replacement), excludes 0. The fields a side to resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields)); beyond 4 times the fields acquired a difference is called too small to settle here. This asks whether the fields pin down the difference between these tracks; whether it holds across biological repeats is question 9.
+  Each feature alike, 13 features, ordered as in “Do the conditions differ?” (significant across
+    repeats first); the rule of the last column: the mean-precision rule, per field, 5%:
+    feature                           difference from the control shown  to show the rest                                wells whose mean meets the rule
+    Tortuosity Rolling                partly: shown in 8 of 12           4 too small to show                             1 of 18 wells
+    Median Speed                      partly: shown in 8 of 12           about 15-26 fields a side; 2 too small to show  0 of 18 wells
+    Total Turning Angle Rolling       partly: shown in 8 of 12           about 12 fields a side; 3 too small to show     0 of 18 wells
+    Median Speed Rolling              partly: shown in 8 of 12           about 8-26 fields a side; 1 too small to show   0 of 18 wells
+    Mean Speed                        partly: shown in 8 of 12           about 9-11 fields a side; 2 too small to show   0 of 18 wells
+    Mean Speed Rolling                partly: shown in 8 of 12           about 10-12 fields a side; 2 too small to show  0 of 18 wells
+    Total Distance Traveled Rolling   partly: shown in 8 of 12           about 10-12 fields a side; 2 too small to show  0 of 18 wells
+    Spatial Coverage Rolling          partly: shown in 7 of 12           about 11-12 fields a side; 3 too small to show  0 of 18 wells
+    Min Speed Rolling Rolling         partly: shown in 6 of 12           about 10-20 fields a side; 2 too small to show  0 of 18 wells
+    Max Speed Rolling                 partly: shown in 5 of 12           about 14-18 fields a side; 4 too small to show  0 of 18 wells
+    Speed Standard Deviation Rolling  partly: shown in 4 of 12           about 10-17 fields a side; 4 too small to show  0 of 18 wells
+    Speed Standard Deviation          partly: shown in 3 of 12           about 15-25 fields a side; 6 too small to show  1 of 18 wells
+    Directionality Rolling            partly: shown in 5 of 12           about 18-19 fields a side; 5 too small to show  14 of 18 wells
 
-  Analysis groups: condition · biological_repeat · technical_repeat.
+  Within each repeat, does the difference from the control show? Tortuosity Rolling, each condition
+    against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.20 (-1.07 to +0.48)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.32 (-1.07 to +0.23)      no: too small to show with more fields
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.51 (+0.02 to +1.11)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.82 (+0.40 to +1.30)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         -0.14 (-0.75 to +0.51)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         +0.02 (-0.40 to +0.59)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.59 (-1.41 to -0.13)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.93 (-1.49 to -0.45)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.79 (-1.46 to -0.37)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.79 (-1.34 to -0.41)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -0.60 (-0.93 to -0.28)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -0.76 (-1.07 to -0.57)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Median Speed, each condition against
+    the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.37 (-1.12 to +0.28)      no: about 26 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.49 (-1.37 to +0.04)      no: about 15 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.94 (+0.49 to +1.49)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.68 (+0.14 to +1.27)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         +0.12 (-0.52 to +0.84)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.24 (-1.01 to +0.38)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -1.21 (-2.06 to -0.64)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -1.13 (-1.98 to -0.56)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.77 (-1.21 to -0.41)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -1.04 (-1.53 to -0.70)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.49 (-2.07 to -1.12)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.71 (-2.27 to -1.29)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Total Turning Angle Rolling, each
+    condition against the control of the same repeat, 95% interval of d from the fields resampled as
+    acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.47 (-1.09 to +0.09)      no: about 12 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.23 (-0.82 to +0.28)      no: too small to show with more fields
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +1.14 (+0.73 to +1.61)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.95 (+0.54 to +1.44)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         -0.31 (-0.94 to +0.37)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.17 (-0.82 to +0.47)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -1.13 (-1.80 to -0.64)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -1.23 (-2.05 to -0.60)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -1.25 (-1.75 to -0.95)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -1.19 (-1.86 to -0.82)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -0.80 (-1.18 to -0.48)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -0.97 (-1.42 to -0.59)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Median Speed Rolling, each condition
+    against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.38 (-1.13 to +0.29)      no: about 26 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.68 (-1.52 to -0.14)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.97 (+0.47 to +1.56)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.60 (-0.02 to +1.22)      no: about 8 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         -0.02 (-0.61 to +0.70)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.38 (-1.11 to +0.21)      no: about 16 fields a side
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -1.11 (-1.80 to -0.59)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.88 (-1.52 to -0.35)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.64 (-1.07 to -0.31)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.90 (-1.40 to -0.60)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.58 (-1.99 to -1.27)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.71 (-2.18 to -1.33)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Mean Speed, each condition against
+    the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.37 (-1.21 to +0.36)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.60 (-1.52 to -0.03)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.86 (+0.40 to +1.44)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.55 (-0.04 to +1.18)      no: about 9 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         +0.01 (-0.61 to +0.70)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.46 (-1.20 to +0.11)      no: about 11 fields a side
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -1.00 (-1.70 to -0.45)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.81 (-1.47 to -0.32)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.59 (-1.01 to -0.26)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.80 (-1.18 to -0.55)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.58 (-2.04 to -1.27)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.71 (-2.31 to -1.32)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Mean Speed Rolling, each condition
+    against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.39 (-1.22 to +0.34)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.61 (-1.58 to -0.03)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.86 (+0.39 to +1.43)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.53 (-0.04 to +1.17)      no: about 10 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         +0.02 (-0.61 to +0.71)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.45 (-1.22 to +0.14)      no: about 12 fields a side
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.99 (-1.68 to -0.44)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.83 (-1.47 to -0.33)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.59 (-1.02 to -0.26)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.78 (-1.16 to -0.54)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.56 (-2.00 to -1.24)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.69 (-2.26 to -1.30)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Total Distance Traveled Rolling, each
+    condition against the control of the same repeat, 95% interval of d from the fields resampled as
+    acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.39 (-1.22 to +0.34)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.61 (-1.58 to -0.03)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.86 (+0.39 to +1.43)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.53 (-0.04 to +1.17)      no: about 10 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         +0.02 (-0.61 to +0.71)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.45 (-1.22 to +0.14)      no: about 12 fields a side
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.99 (-1.68 to -0.44)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.83 (-1.47 to -0.33)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.59 (-1.02 to -0.26)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.78 (-1.16 to -0.54)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.56 (-2.00 to -1.24)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.69 (-2.26 to -1.30)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Spatial Coverage Rolling, each
+    condition against the control of the same repeat, 95% interval of d from the fields resampled as
+    acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.36 (-1.21 to +0.36)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.68 (-1.64 to +0.04)      no: about 11 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.92 (+0.48 to +1.36)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.42 (-0.12 to +0.95)      no: about 12 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         -0.06 (-0.61 to +0.63)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.29 (-0.92 to +0.23)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -1.05 (-1.75 to -0.49)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.84 (-1.51 to -0.35)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.66 (-1.04 to -0.33)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.73 (-1.08 to -0.48)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.19 (-1.65 to -0.97)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.20 (-1.70 to -0.88)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Min Speed Rolling Rolling, each
+    condition against the control of the same repeat, 95% interval of d from the fields resampled as
+    acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.20 (-0.78 to +0.41)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.36 (-0.97 to +0.09)      no: about 15 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.80 (+0.29 to +1.41)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.73 (+0.27 to +1.25)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         -0.13 (-0.71 to +0.37)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.23 (-0.69 to +0.22)      no: about 20 fields a side
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.52 (-1.13 to +0.06)      no: about 10 fields a side
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.49 (-1.01 to +0.16)      no: about 10 fields a side
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.73 (-1.08 to -0.41)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.78 (-1.08 to -0.50)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -0.88 (-1.18 to -0.57)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.16 (-1.45 to -0.87)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Max Speed Rolling, each condition
+    against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.65 (-1.75 to +0.08)      no: about 14 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.49 (-1.44 to +0.11)      no: about 18 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.42 (-0.13 to +1.07)      no: about 15 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.05 (-0.52 to +0.74)      no: too small to show with more fields
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         +0.05 (-0.43 to +0.65)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.42 (-0.77 to -0.07)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.48 (-1.21 to -0.07)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.52 (-0.89 to -0.17)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.15 (-0.59 to +0.25)      no: too small to show with more fields
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.22 (-0.81 to +0.22)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.63 (-2.16 to -1.22)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.60 (-2.26 to -1.14)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Speed Standard Deviation Rolling,
+    each condition against the control of the same repeat, 95% interval of d from the fields resampled
+    as acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.59 (-1.49 to +0.07)      no: about 13 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.45 (-1.23 to +0.14)      no: about 17 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.37 (-0.14 to +0.91)      no: about 15 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         -0.01 (-0.57 to +0.58)      no: too small to show with more fields
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         +0.22 (-0.36 to +0.94)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.36 (-0.83 to +0.16)      no: about 10 fields a side
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.48 (-1.01 to -0.10)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.42 (-0.77 to -0.12)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.02 (-0.43 to +0.32)      no: too small to show with more fields
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.08 (-0.59 to +0.25)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.37 (-1.82 to -1.03)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.34 (-1.89 to -0.88)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Speed Standard Deviation, each
+    condition against the control of the same repeat, 95% interval of d from the fields resampled as
+    acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.31 (-1.25 to +0.37)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         -0.50 (-1.37 to +0.08)      no: about 15 fields a side
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.30 (-0.33 to +1.00)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         +0.06 (-0.54 to +0.80)      no: too small to show with more fields
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         -0.17 (-0.82 to +0.52)      no: too small to show with more fields
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         -0.67 (-1.39 to -0.13)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.33 (-0.97 to +0.02)      no: about 16 fields a side
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.24 (-0.70 to +0.20)      no: about 25 fields a side
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.02 (-0.39 to +0.33)      no: too small to show with more fields
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         -0.04 (-0.42 to +0.28)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.45 (-1.88 to -1.20)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         -1.46 (-1.98 to -1.07)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Within each repeat, does the difference from the control show? Directionality Rolling, each
+    condition against the control of the same repeat, 95% interval of d from the fields resampled as
+    acquired:
+    comparison                         fields (condition vs control)  d on tracks (95% interval)  enough in this repeat?
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8                         +0.46 (-0.21 to +1.26)      no: about 19 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8                         +0.17 (-0.46 to +1.01)      no: too small to show with more fields
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7                         -0.82 (-1.35 to -0.34)      yes (shown)
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7                         -0.87 (-1.30 to -0.48)      yes (shown)
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5                         +0.37 (-0.26 to +1.12)      no: about 18 fields a side
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5                         +0.02 (-0.58 to +0.61)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7                         -0.16 (-0.60 to +0.30)      no: too small to show with more fields
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7                         +0.03 (-0.41 to +0.59)      no: too small to show with more fields
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9                         +0.88 (+0.39 to +1.44)      yes (shown)
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9                         +0.48 (+0.04 to +0.93)      yes (shown)
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8                         +0.16 (-0.20 to +0.53)      no: too small to show with more fields
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8                         +0.29 (+0.01 to +0.65)      yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The fields a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(fields)); the part between wells does not shrink with more fields, and when it alone is as wide as the difference, more fields will not resolve it: more wells or biological repeats. Beyond 4 times the fields acquired a difference is called too small to show.
+
+  Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 18 groups:
-    rule                                met in   random orders: median (10-90%)
-    mean-precision rule, per track, 5%  0 of 18  never
-    mean-precision rule, per field, 5%  0 of 18  5.2 (3-7); 3 of 90 orders
-    nothing new (≤5%)                   0 of 18  never
-  First met after: the fields acquired when it first said enough; random: the median of the groups'
-    medians, 10-90% from the lowest to the highest group.
-  Rules: mean-precision rule, per track, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05;
-    config 17ac4f49f10d88ce); mean-precision rule, per field, 5% (scalar_precision_fov_upper95:
-    averaging_cv <= 0.05; config d757b01eda57fc1e); nothing new (≤5%) (support_novelty:
-    lofo_novel_fov_upper <= 0.05; config 3270f42ad71a05ec).
+    rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
+    mean-precision rule, per field, 5%  0 of 18                       never
+    nothing new (≤5%)                   0 of 18                       never
+  Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
+    lowest to the highest group.
+  Rules: mean-precision rule, per field, 5% (scalar_precision_fov_upper95: averaging_cv <= 0.05;
+    config d757b01eda57fc1e); nothing new (≤5%) (support_novelty: lofo_novel_fov_upper <= 0.05; config
+    3270f42ad71a05ec).
   Per group below: whether each rule was met by its own threshold, where it was first met, and the
     fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
     without them; only where the acquired fields are enough).
 
-  siCCT7#3 · CCT7_1 · B5 — 7 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT7#3 · repeat CCT7_1 · B5 — 7 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 1 of 7 fields hold a state seen in 2 to 3 fields; together 14% of fields (95%
@@ -215,14 +435,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
       anything new (52 at the current rate of new fields).
 
-  siCCT7#3 · CCT7_2 · B5 — 8 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT7#3 · repeat CCT7_2 · B5 — 8 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
@@ -232,14 +448,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
       anything new (51 at the current rate of new fields).
 
-  siCCT7#3 · CCT7_3 · B5 — 7 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT7#3 · repeat CCT7_3 · B5 — 7 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields (95%
@@ -247,16 +459,12 @@ What this acquisition was asked to preserve
       fields, up to 81 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none shows
-      anything new (never at it of new fields).
+      anything new (never, at the current rate of new fields).
 
-  siCCT7#6 · CCT7_1 · B6 — 7 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT7#6 · repeat CCT7_1 · B6 — 7 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields (95%
@@ -264,16 +472,12 @@ What this acquisition was asked to preserve
       fields, up to 29 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none shows
-      anything new (never at it of new fields).
+      anything new (never, at the current rate of new fields).
 
-  siCCT7#6 · CCT7_2 · B6 — 8 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         7 (7-7); 1 of 5 orders                   –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT7#6 · repeat CCT7_2 · B6 — 8 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields (95%
@@ -281,16 +485,12 @@ What this acquisition was asked to preserve
       fields, up to 947 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none shows
-      anything new (never at it of new fields).
+      anything new (never, at the current rate of new fields).
 
-  siCCT7#6 · CCT7_3 · B6 — 6 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT7#6 · repeat CCT7_3 · B6 — 6 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 17% (nominal 95% bound 58%); 1 of 6 fields showed a state counted as new.
     Not yet seen: at most 39% of fields (95% confidence, about 3 / 6).
     Seen in few fields: 2 of 6 fields hold a state seen in 2 to 3 fields; together 33% of fields (95%
@@ -298,16 +498,12 @@ What this acquisition was asked to preserve
       fields, up to 68 at the low end of the interval.
     Fields still needed: at least 53 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 87 more fields if none shows
-      anything new (never at it of new fields).
+      anything new (never, at the current rate of new fields).
 
-  siCTRL · CCT7_1 · B4 — 8 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCTRL · repeat CCT7_1 · B4 — 8 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 13% (nominal 95% bound 47%); 1 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 3 of 8 fields hold a state seen in 2 to 3 fields; together 38% of fields (95%
@@ -315,16 +511,12 @@ What this acquisition was asked to preserve
       fields, up to 34 at the low end of the interval.
     Fields still needed: at least 51 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 85 more fields if none shows
-      anything new (never at it of new fields).
+      anything new (never, at the current rate of new fields).
 
-  siCTRL · CCT7_2 · B4 — 7 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCTRL · repeat CCT7_2 · B4 — 7 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields (95%
@@ -334,14 +526,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
       anything new (52 at the current rate of new fields).
 
-  siCTRL · CCT7_3 · B4 — 5 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCTRL · repeat CCT7_3 · B4 — 5 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 45%); 0 of 5 fields showed a state counted as new.
     Not yet seen: at most 45% of fields (95% confidence, about 3 / 5).
     Seen in few fields: 4 of 5 fields hold a state seen in 2 to 3 fields; together 80% of fields (95%
@@ -352,14 +540,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 54 more fields if none shows
       anything new (54 at the current rate of new fields).
 
-  siCCT8#5 · CCT8_1 · B2 — 8 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT8#5 · repeat CCT8_1 · B2 — 8 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
@@ -369,14 +553,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
       anything new (51 at the current rate of new fields).
 
-  siCCT8#5 · CCT8_2 · B2 — 8 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT8#5 · repeat CCT8_2 · B2 — 8 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields (95%
@@ -386,14 +566,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
       anything new (51 at the current rate of new fields).
 
-  siCCT8#5 · CCT8_3 · B2 — 7 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         3.5 (0.6; 3-4); 2 of 5 orders            –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT8#5 · repeat CCT8_3 · B2 — 7 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 4 of 7 fields hold a state seen in 2 to 3 fields; together 57% of fields (95%
@@ -404,14 +580,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
       anything new (52 at the current rate of new fields).
 
-  siCCT8#8 · CCT8_1 · B3 — 8 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT8#8 · repeat CCT8_1 · B3 — 8 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 4 of 8 fields hold a state seen in 2 to 3 fields; together 50% of fields (95%
@@ -422,14 +594,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
       anything new (51 at the current rate of new fields).
 
-  siCCT8#8 · CCT8_2 · B3 — 8 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT8#8 · repeat CCT8_2 · B3 — 8 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 1 of 8 fields hold a state seen in 2 to 3 fields; together 13% of fields (95%
@@ -439,14 +607,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 51 more fields if none shows
       anything new (51 at the current rate of new fields).
 
-  siCCT8#8 · CCT8_3 · B3 — 7 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCCT8#8 · repeat CCT8_3 · B3 — 7 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 35%); 0 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 2 of 7 fields hold a state seen in 2 to 3 fields; together 29% of fields (95%
@@ -456,14 +620,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 52 more fields if none shows
       anything new (52 at the current rate of new fields).
 
-  siCTRL · CCT8_1 · B1 — 7 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCTRL · repeat CCT8_1 · B1 — 7 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 14% (nominal 95% bound 52%); 1 of 7 fields showed a state counted as new.
     Not yet seen: at most 35% of fields (95% confidence, about 3 / 7).
     Seen in few fields: 3 of 7 fields hold a state seen in 2 to 3 fields; together 43% of fields (95%
@@ -471,16 +631,12 @@ What this acquisition was asked to preserve
       fields, up to 29 at the low end of the interval.
     Fields still needed: at least 52 more fields with nothing new to rule out unseen states in more
       than 5% of fields; to bring the next-field bound below 5%, at least 86 more fields if none shows
-      anything new (never at it of new fields).
+      anything new (never, at the current rate of new fields).
 
-  siCTRL · CCT8_2 · B1 — 9 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCTRL · repeat CCT8_2 · B1 — 9 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 28%); 0 of 9 fields showed a state counted as new.
     Not yet seen: at most 28% of fields (95% confidence, about 3 / 9).
     Seen in few fields: 2 of 9 fields hold a state seen in 2 to 3 fields; together 22% of fields (95%
@@ -490,14 +646,10 @@ What this acquisition was asked to preserve
       than 5% of fields; to bring the next-field bound below 5%, at least 50 more fields if none shows
       anything new (50 at the current rate of new fields).
 
-  siCTRL · CCT8_3 · B1 — 8 fields acquired:
-    rule                                enough     5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per track, 5%  undefined  never                                    –
-    mean-precision rule, per field, 5%  no         never                                    –
-    nothing new (≤5%)                   no         never                                    –
-    Cautions here: mean-precision rule, per track, 5%: undefined (the object-unit mean-precision
-      criterion assumes observation rows are individual objects (observation_unit in ('cell',
-      'nucleus', 'object')), got 'track').
+  siCTRL · repeat CCT8_3 · B1 — 8 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per field, 5%  no      never                                    –
+    nothing new (≤5%)                   no      never                                    –
     One more field: chance 0% (nominal 95% bound 31%); 0 of 8 fields showed a state counted as new.
     Not yet seen: at most 31% of fields (95% confidence, about 3 / 8).
     Seen in few fields: 2 of 8 fields hold a state seen in 2 to 3 fields; together 25% of fields (95%
@@ -512,23 +664,18 @@ What this acquisition was asked to preserve
     (robust_standardize), on 13 features (Mean Speed, Median Speed, Speed Standard Deviation and 10
     more); two observations of a state that varies by one SD per feature sit about 5.1 apart.
 
-  ⚠️ Mean-precision rule, per track, 5% is undefined in all 18 groups: the object-unit mean-precision
-     criterion assumes observation rows are individual objects (observation_unit in ('cell',
-     'nucleus', 'object')), got 'track'.
-  ⚠️ Mean-precision rule, per field, 5%, in 1 of 18 groups (siCCT8#5 · CCT8_1 · B2): the SD between
-     tracks exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
-  ⚠️ Mean-precision rule, per field, 5% was met and then lost as more fields arrived, in 2 of 18
-     groups.
-  ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of the
-     well's positions; a raster over a spatial trend can stop early.
+  ⚠️ Mean-precision rule, per field, 5%, in 1 of 18 groups (siCCT8#5 · repeat CCT8_1 · B2): the SD
+     between tracks exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and
+     repeating the estimate.
   Assumptions:
     - A state below the not-yet-seen bound can remain: rarer states can remain.
     - A state seen in few fields (fields counted as new are not among them) is not new to the next
       field but is not established either: it counts as recurrent, so look at those fields before
       calling the sample settled.
     - Fields that cluster a state need more fields than the planning numbers.
-    - Mean-precision rule, per track, 5% treats tracks as independent draws: it assumes a spatially
-      uniform sample.
+    - Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole
+      fields, covered the true averaging error about 85-95% of the time with uneven field sizes and
+      93-99% with Poisson sizes.
     - The next-field bound is approximate: the leave-one-field-out outcomes share their reference
       fields.
     - The novelty bounds treat fields as independent, representative draws: neighbouring fields
@@ -544,240 +691,281 @@ What this acquisition was asked to preserve
     effect of the variance between the fields of each group (condition, biological_repeat,
     technical_repeat), range 1.0-2.7); 6% of fields differ more than random tracks would (5%
     expected) [median of 18 groups; fov_variability]
-  - unusual tracks: clustered in a few fields (p <= 0.05) in 0 of the 4 groups where it was seen
+  - unusual tracks: clustered in a few fields (q <= 0.05) in 0 of the 5 groups where it was seen
     [all groups; fov_clustering]
   - new states come from 6 fields [all groups; inspect_fovs]
 
   Unusual tracks: farther from the reference (siCTRL) than all but 1% of reference tracks are from
-    the other reference groups (13 standardized features, 5 nearest neighbours). Groups:
-    condition · biological_repeat · technical_repeat.
-    group                   tracks scored  unusual  share  refits agree  threshold  calibrated
-    siCCT7#3 · CCT7_1 · B5             28        0     0%          100%       3.91  leave-one-group-out
-    siCCT7#3 · CCT7_2 · B5             34        4    12%           80%       3.91  leave-one-group-out
-    siCCT7#3 · CCT7_3 · B5             30        0     0%            0%       3.91  leave-one-group-out
-    siCCT7#6 · CCT7_1 · B6             29        0     0%          100%       3.91  leave-one-group-out
-    siCCT7#6 · CCT7_2 · B6             27        0     0%            0%       3.91  leave-one-group-out
-    siCCT7#6 · CCT7_3 · B6             36        0     0%          100%       3.91  leave-one-group-out
-    siCTRL · CCT7_1 · B4               30        0     0%          100%       4.02  leave-one-group-out
-    siCTRL · CCT7_2 · B4               23        0     0%          100%       4.58  leave-one-group-out
-    siCTRL · CCT7_3 · B4               22        1     5%            0%       4.75  leave-one-group-out
-    siCCT8#5 · CCT8_1 · B2             37        1     3%          100%       3.91  leave-one-group-out
-    siCCT8#5 · CCT8_2 · B2             40        0     0%          100%       3.91  leave-one-group-out
-    siCCT8#5 · CCT8_3 · B2             42        0     0%          100%       3.91  leave-one-group-out
-    siCCT8#8 · CCT8_1 · B3             32        0     0%          100%       3.91  leave-one-group-out
-    siCCT8#8 · CCT8_2 · B3             40        0     0%          100%       3.91  leave-one-group-out
-    siCCT8#8 · CCT8_3 · B3             31        0     0%          100%       3.91  leave-one-group-out
-    siCTRL · CCT8_1 · B1               31        0     0%          100%       4.01  leave-one-group-out
-    siCTRL · CCT8_2 · B1               39        0     0%          100%        4.2  leave-one-group-out
-    siCTRL · CCT8_3 · B1               39        1     3%          100%        4.8  leave-one-group-out
-  ⚠️ Refits with other reference samples agree on only 0-80% of the unusual tracks in 4 of 18 groups
-     (siCCT7#3 · CCT7_2 · B5, siCCT7#3 · CCT7_3 · B5, siCCT7#6 · CCT7_2 · B6 and 1 more; below 90%):
-     treat those labels as unstable.
+    the other reference groups (13 standardized features, 5 nearest neighbours), each group against
+    the reference of its own sub-experiment (the conditions that share its repeats and control).
+    Groups: condition · biological repeat · technical repeat.
+    group                          tracks scored  unusual  share  refits agree  threshold  calibrated
+    siCCT7#3 · repeat CCT7_1 · B5             28        0     0%          100%       5.38  leave-one-group-out
+    siCCT7#3 · repeat CCT7_2 · B5             34        1     3%           25%       5.38  leave-one-group-out
+    siCCT7#3 · repeat CCT7_3 · B5             30        0     0%          100%       5.38  leave-one-group-out
+    siCCT7#6 · repeat CCT7_1 · B6             29        0     0%          100%       5.38  leave-one-group-out
+    siCCT7#6 · repeat CCT7_2 · B6             27        1     4%          100%       5.38  leave-one-group-out
+    siCCT7#6 · repeat CCT7_3 · B6             36        0     0%          100%       5.38  leave-one-group-out
+    siCTRL · repeat CCT7_1 · B4               30        0     0%          100%       6.27  leave-one-group-out
+    siCTRL · repeat CCT7_2 · B4               23        0     0%          100%       7.32  leave-one-group-out
+    siCTRL · repeat CCT7_3 · B4               22        2     9%          100%       5.41  leave-one-group-out
+    siCCT8#5 · repeat CCT8_1 · B2             37        1     3%          100%       5.58  leave-one-group-out
+    siCCT8#5 · repeat CCT8_2 · B2             40        0     0%          100%       5.58  leave-one-group-out
+    siCCT8#5 · repeat CCT8_3 · B2             42        0     0%          100%       5.58  leave-one-group-out
+    siCCT8#8 · repeat CCT8_1 · B3             32        0     0%          100%       5.58  leave-one-group-out
+    siCCT8#8 · repeat CCT8_2 · B3             40        0     0%          100%       5.58  leave-one-group-out
+    siCCT8#8 · repeat CCT8_3 · B3             31        0     0%          100%       5.58  leave-one-group-out
+    siCTRL · repeat CCT8_1 · B1               31        0     0%          100%       6.56  leave-one-group-out
+    siCTRL · repeat CCT8_2 · B1               39        0     0%          100%       7.41  leave-one-group-out
+    siCTRL · repeat CCT8_3 · B1               39        2     5%          100%       6.38  leave-one-group-out
+  ⚠️ Refits with other reference samples agree on only 25% of the unusual tracks in 1 of 18 groups
+     (siCCT7#3 · repeat CCT7_2 · B5; below 90%): treat those labels as unstable.
 
-  Are the unusual tracks spread over the fields? Clustered in a few fields (p ≤ 0.05) in none of 4
-    groups where seen. Not seen in siCCT7#3 · CCT7_1 · B5 (28 labelled tracks in 7 fields),
-    siCCT7#3 · CCT7_3 · B5 (30 labelled tracks in 7 fields), siCCT7#6 · CCT7_1 · B6 (29 labelled
-    tracks in 7 fields) and 11 more.
-    group                    tracks  in fields  if random  ratio  p  holding ≥3  reference holding  to see, 95%  if random
-    siCCT7#3 · CCT7_2 · B5  4 (12%)     4 of 8        3.4    0.8  1      0 of 8       0 of 44 (0%)            –          –
-    siCTRL · CCT7_3 · B4     1 (5%)     1 of 5        1.0    1.0  1      0 of 5       0 of 39 (0%)            –          –
-    siCCT8#5 · CCT8_1 · B2   1 (3%)     1 of 8        1.0    1.0  1      0 of 8       0 of 44 (0%)            –          –
-    siCTRL · CCT8_3 · B1     1 (3%)     1 of 8        1.0    1.0  1      0 of 8       0 of 36 (0%)            –          –
+  Are the unusual tracks spread over the fields? Clustered in a few fields (q ≤ 0.05 after
+    Benjamini-Hochberg over the 5 tests of every group and state) in none of 5 groups where seen.
+    Not seen in siCCT7#3 · repeat CCT7_1 · B5 (28 labelled tracks in 7 fields), siCCT7#3 · repeat
+    CCT7_3 · B5 (30 labelled tracks in 7 fields), siCCT7#6 · repeat CCT7_1 · B6 (29 labelled tracks
+    in 7 fields) and 10 more.
+    group                          tracks  in fields  if random  ratio  p  q  holding ≥3  reference holding  to see, 95%  if random
+    siCCT7#3 · repeat CCT7_2 · B5  1 (3%)     1 of 8        1.0    1.0  1  1      0 of 8       0 of 44 (0%)            –          –
+    siCCT7#6 · repeat CCT7_2 · B6  1 (4%)     1 of 8        1.0    1.0  1  1      0 of 8       0 of 44 (0%)            –          –
+    siCTRL · repeat CCT7_3 · B4    2 (9%)     2 of 5        1.8    0.9  1  1      0 of 5       0 of 39 (0%)            –          –
+    siCCT8#5 · repeat CCT8_1 · B2  1 (3%)     1 of 8        1.0    1.0  1  1      0 of 8       0 of 44 (0%)            –          –
+    siCTRL · repeat CCT8_3 · B1    2 (5%)     2 of 8        1.9    0.9  1  1      0 of 8       0 of 36 (0%)            –          –
   In fields: the fields holding the state; if random: the fields as many random tracks would fill;
-    p: how often shuffled labels reach as few fields. To see: the fields to see it from its field
-    incidence (up to: from the low end of its interval), against the fields a count of random tracks
-    asks for.
+    p: how often shuffled labels reach as few fields; q: that p corrected over every group and state
+    (Benjamini-Hochberg). To see: the fields to see it from its field incidence (up to: from the low
+    end of its interval), against the fields a count of random tracks asks for.
   Technical repeats holding each state:
-    condition · biological_repeat  state           held by
-    siCCT7#3 · CCT7_2              unusual tracks  0 of 1 technical repeat
-    siCTRL · CCT7_3                unusual tracks  0 of 1 technical repeat
-    siCCT8#5 · CCT8_1              unusual tracks  0 of 1 technical repeat
-    siCTRL · CCT8_3                unusual tracks  0 of 1 technical repeat
-  ⚠️ No field holds at least 3 unusual tracks in siCCT7#3 · CCT7_2 · B5, siCTRL · CCT7_3 · B4,
-     siCCT8#5 · CCT8_1 · B2 and 1 more, so no field count is given there.
+    condition · biological repeat  state           held by
+    siCCT7#3 · repeat CCT7_2       unusual tracks  0 of 1 technical repeat
+    siCCT7#6 · repeat CCT7_2       unusual tracks  0 of 1 technical repeat
+    siCTRL · repeat CCT7_3         unusual tracks  0 of 1 technical repeat
+    siCCT8#5 · repeat CCT8_1       unusual tracks  0 of 1 technical repeat
+    siCTRL · repeat CCT8_3         unusual tracks  0 of 1 technical repeat
+  ⚠️ No field holds at least 3 unusual tracks in siCCT7#3 · repeat CCT7_2 · B5, siCCT7#6 · repeat
+     CCT7_2 · B6, siCTRL · repeat CCT7_3 · B4 and 2 more, so no field count is given there.
 
   The reference of the unusual tracks pools the control tracks of 6 repeats: a shift shared by one repeat (a staining or plating batch) makes its tracks read as unusual, so compare the unusual share between repeats before reading it as biology.
   Assumptions:
+    - A state the reference already holds, at any share, is not unusual: only its share can change,
+      and the populations (“Are there groups of tracks?”) compare each condition's share of such a
+      state with its control's.
     - The field counts assume fields from independent technical repeats: a state held by few
       technical repeats is clustered in their fields, so seeing it needs fields from more technical
       repeats than the count says (no two-level plan is made).
 
 ⚠️ 6. Which fields should I look at?
-  Analysis groups: condition · biological_repeat · technical_repeat.
-  siCCT7#3 · CCT7_3 · B5: fields to reopen before trusting the result
+  Analysis groups: condition · biological repeat · technical repeat.
+  siCCT7#3 · repeat CCT7_3 · B5: fields to reopen before trusting the result
     B5_01-1 (image_file unrecorded): 5 tracks of a state no other field shows.
-  siCCT7#6 · CCT7_1 · B6: fields to reopen before trusting the result
+  siCCT7#6 · repeat CCT7_1 · B6: fields to reopen before trusting the result
     B6_05 (image_file unrecorded): 3 tracks of a state no other field shows.
-  siCCT7#6 · CCT7_2 · B6: fields to reopen before trusting the result
+  siCCT7#6 · repeat CCT7_2 · B6: fields to reopen before trusting the result
     B6_01-1 (image_file unrecorded): 3 tracks of a state no other field shows.
-  siCCT7#6 · CCT7_3 · B6: fields to reopen before trusting the result
+  siCCT7#6 · repeat CCT7_3 · B6: fields to reopen before trusting the result
     B6_05-1 (image_file unrecorded): 5 tracks of a state no other field shows.
-  siCTRL · CCT7_1 · B4: fields to reopen before trusting the result
+  siCTRL · repeat CCT7_1 · B4: fields to reopen before trusting the result
     B4_02 (image_file unrecorded): 4 tracks of a state no other field shows.
     B4_04 (image_file unrecorded): 1 track; the median is 4.
-  siCTRL · CCT7_2 · B4: fields to reopen before trusting the result
-    B4_08-1 (image_file unrecorded): removing it lowers the field-weighted mean of Mean Speed by 12%;
-      1 track; the median is 3.
-  siCCT8#8 · CCT8_1 · B3: fields to reopen before trusting the result
+  siCTRL · repeat CCT7_2 · B4: fields to reopen before trusting the result
+    B4_08-1 (image_file unrecorded): 1 track; the median is 3.
+  siCCT8#8 · repeat CCT8_1 · B3: fields to reopen before trusting the result
     B3_06 (image_file unrecorded): 1 track; the median is 4.
-  siCTRL · CCT8_1 · B1: fields to reopen before trusting the result
+  siCTRL · repeat CCT8_1 · B1: fields to reopen before trusting the result
     B1_01 (image_file unrecorded): 3 tracks of a state no other field shows.
   None of these is called an error: look at the images to see whether it is biology, technique or
     simply a large field.
 
   The data-integrity checks (in the overview) name 12 fields in 6 findings (fields that hold another
     field's observations, or their own twice); every answer here counts them as independent fields,
-    so look at them first: siCCT7#3 · CCT7_2 · B5 · B5_04, siCCT7#6 · CCT7_3 · B6 · B6_01-1,
-    siCCT7#6 · CCT7_3 · B6 · B6_04-1, siCTRL · CCT7_1 · B4 · B4_05, siCCT8#5 · CCT8_3 · B2 · B2_01
-    and 7 more.
+    so look at them first: siCCT7#3 · repeat CCT7_2 · B5 · B5_04, siCCT7#6 · repeat
+    CCT7_3 · B6 · B6_01-1, siCCT7#6 · repeat CCT7_3 · B6 · B6_04-1, siCTRL · repeat
+    CCT7_1 · B4 · B4_05, siCCT8#5 · repeat CCT8_3 · B2 · B2_01 and 7 more.
 
 ✅ 9. Do the conditions differ, and how confidently?
-  Feature Mean Speed, each condition against the control {'condition': 'siCTRL'}, within each
-    biological repeat. The fields of a condition's analysis groups are pooled for this comparison.
-    Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
-    the field as the unit and, where each side has at least two, with the technical repeat
-    (technical_repeat) as the unit.
-  Reading, condition by condition, against siCTRL (paired test: Bonferroni, on normalised values;
-    cell-level: the version below that is least biased by the repeats):
+  Feature Mean Speed, each condition against the control (siCTRL), within each biological repeat. The
+    fields of a condition's analysis groups are pooled for this comparison. Tracks are compared as
+    Plot&Stats does and, since a microscope acquires them through fields, with the field as the unit
+    and, where each side has at least two, with the technical repeat (technical_repeat) as the unit.
+  Design: 2 sub-experiments, each with its own siCTRL in its own 3 biological repeats (siCCT7#3 and
+    siCCT7#6; siCCT8#5 and siCCT8#8). Reading, condition by condition, against siCTRL. Significant
+    across repeats: the paired t-test on the biological repeat means (as SuperPlots; values normalised
+    to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg within the condition's
+    sub-experiment, over its 13 features and their conditions: this is the result to report. Same
+    direction, not significant: on one side of the control in every repeat without reaching q ≤ 0.05,
+    a consistent trend and not evidence of no effect (with 3 repeats only large, consistent effects
+    reach it). Beside it, the track-level screen (as Plot&Stats, every track an independent draw) is
+    exploratory: it finds candidates, not effects that repeat:
     - siCCT7#3 — no consistent direction: lower in 1 and higher in 2 of 3 biological repeats; paired
-      test p 1; cell-level p 0.71 (balanced, normalised; false-positive chance about 36% here); the
-      raw pooled test gives p 0.002, but it pools the control of repeats this condition was not imaged
-      in; siCCT7#6 (CCT7) agrees in 2 of 3 biological repeats.
+      t-test on the 3 repeat means p 0.65, q 0.99; track-level screen (exploratory) q 0.41 (balanced,
+      normalised; with no real effect it gives p ≤ 0.05 in about 36% of experiments like this one);
+      the raw pooled test is not read here: it pools the control of repeats this condition was not
+      imaged in; siCCT7#6 (CCT7) agrees in 2 of 3 biological repeats.
     - siCCT7#6 — no consistent direction: lower in 2 and higher in 1 of 3 biological repeats; paired
-      test p 1; cell-level p 1 (balanced, normalised; false-positive chance about 35% here); the raw
-      pooled test gives p 0.02, but it pools the control of repeats this condition was not imaged in;
-      siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
-    - siCCT8#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
-      -1.06); paired test p 0.2; cell-level p 0.004 (balanced, normalised; false-positive chance about
-      34% here); siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
-    - siCCT8#8 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
-      -1.11); paired test p 0.2; cell-level p 0.004 (balanced, normalised; false-positive chance about
-      35% here); siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
+      t-test on the 3 repeat means p 0.75, q 0.99; track-level screen (exploratory) q 0.87 (balanced,
+      normalised; with no real effect it gives p ≤ 0.05 in about 35% of experiments like this one);
+      the raw pooled test is not read here: it pools the control of repeats this condition was not
+      imaged in; siCCT7#3 (CCT7) agrees in 2 of 3 biological repeats.
+    - siCCT8#5 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
+      (Cohen's d per repeat, mean -1.06, mean 35% lower than the control); paired t-test on the 3
+      repeat means p 0.0494, q 0.082; track-level screen (exploratory) q 0.0011 (balanced, normalised;
+      with no real effect it gives p ≤ 0.05 in about 34% of experiments like this one); siCCT8#8
+      (CCT8) agrees in 3 of 3 biological repeats.
+    - siCCT8#8 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
+      (Cohen's d per repeat, mean -1.11, mean 36% lower than the control); paired t-test on the 3
+      repeat means p 0.0506, q 0.082; track-level screen (exploratory) q 0.0011 (balanced, normalised;
+      with no real effect it gives p ≤ 0.05 in about 35% of experiments like this one); siCCT8#5
+      (CCT8) agrees in 3 of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its tracks, paired with the
     control of the same repeat):
-    condition           vs control, by repeat  d tracks: mean (range)  paired t p (Bonf.)  normalised
-    siCCT7#3 vs siCTRL  1 lower, 2 higher      0.17 (-0.37 to 0.86)    0.61 (1)            0.65 (1)
-    siCCT7#6 vs siCTRL  2 lower, 1 higher      -0.17 (-0.60 to 0.55)   0.79 (1)            0.75 (1)
-    siCCT8#5 vs siCTRL  lower in 3 of 3        -1.06 (-1.58 to -0.59)  0.064 (0.25)        0.049 (0.2)
-    siCCT8#8 vs siCTRL  lower in 3 of 3        -1.11 (-1.71 to -0.80)  0.074 (0.3)         0.051 (0.2)
+    condition           vs control, by repeat  d tracks per repeat: mean (range)  paired t, raw: p (q)  paired t, normalised: p (q)
+    siCCT7#3 vs siCTRL  1 lower, 2 higher      +0.17 (-0.37 to 0.86)              0.61 (0.99)           0.65 (0.99)
+    siCCT7#6 vs siCTRL  2 lower, 1 higher      -0.17 (-0.60 to 0.55)              0.79 (0.99)           0.75 (0.99)
+    siCCT8#5 vs siCTRL  lower in 3 of 3        -1.06 (-1.58 to -0.59)             0.064 (0.13)          0.0494 (0.082)
+    siCCT8#8 vs siCTRL  lower in 3 of 3        -1.11 (-1.71 to -0.80)             0.074 (0.13)          0.0506 (0.082)
   Independent reagents for one target (target), against the control in each repeat:
     target  reagents            repeats
     CCT7    siCCT7#3, siCCT7#6  on one side in 2 of 3, lower in some and higher in others
     CCT8    siCCT8#5, siCCT8#8  all lower in 3 of 3
-  Cell-level test (as in Plot&Stats): Cohen's d on every track against the control, the randomization
-    test shuffling the labels over the tracks:
+  Track-level screen (exploratory, as in Plot&Stats): Cohen's d on every track against the control,
+    the randomization test shuffling the labels over the tracks:
     Balance: for every condition, one biological repeat holds more than 25% more tracks than another
-      (up to 1.4 times) and the control is pooled from 3 biological repeats the condition was not
-      imaged in, so the test is given as provided and balanced (each condition against the control of
-      its own biological repeats, the same number of tracks from each biological repeat; the median d
-      and p over 100 draws). The control means differ up to 1.8x between biological repeats, so the
-      raw test as provided compares each condition with other repeats' level: read the normalised or
-      balanced columns.
-    As provided:
-    condition           raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
-    siCCT7#3 vs siCTRL  0.68 (0.002)      0.25 (0.21)    about 38%
-    siCCT7#6 vs siCTRL  0.37 (0.02)       -0.11 (1)      about 38%
-    siCCT8#5 vs siCTRL  -1.27 (0.002)     -1.05 (0.002)  about 36%
-    siCCT8#8 vs siCTRL  -1.33 (0.002)     -1.07 (0.002)  about 37%
+      on one side (up to 1.4 times); and for every condition, the control as provided is pooled from 3
+      biological repeats the condition was not imaged in; so the test is also given balanced (each
+      condition against the control of its own biological repeats, the same number of tracks from each
+      biological repeat; the median d over 100 draws, labels shuffled within each biological repeat
+      for p), and as provided only where the control comes from the condition's own biological
+      repeats. The control means differ up to 1.8x between biological repeats, so a raw test pooling
+      them would compare each condition with other repeats' level: read the normalised or balanced
+      columns.
+    Not given as provided for siCCT7#3, siCCT7#6, siCCT8#5 and 1 more: their control would include
+      biological repeats the condition was not imaged in.
     Balanced over the repeats:
-    condition           raw: d (p Bonf.)  normalised     tracks per repeat, condition / control  p ≤ 0.05 without an effect
-    siCCT7#3 vs siCTRL  0.21 (0.8)        0.22 (0.71)    28 / 22                                 about 36%
-    siCCT7#6 vs siCTRL  -0.10 (1)         -0.10 (1)      27 / 22                                 about 35%
-    siCCT8#5 vs siCTRL  -0.98 (0.004)     -1.00 (0.004)  37 / 31                                 about 34%
-    siCCT8#8 vs siCTRL  -1.07 (0.004)     -1.05 (0.004)  31 / 31                                 about 35%
+    condition           raw: d, p (q)         normalised: d, p (q)   tracks per repeat, condition / control  gives p ≤ 0.05 with no effect
+    siCCT7#3 vs siCTRL  +0.21, 0.17 (0.35)    +0.22, 0.17 (0.41)     28 / 22                                 about 36%
+    siCCT7#6 vs siCTRL  -0.11, 0.48 (0.48)    -0.09, 0.57 (0.87)     27 / 22                                 about 35%
+    siCCT8#5 vs siCTRL  -0.99, 0.001 (0.001)  -1.00, 0.001 (0.0011)  37 / 31                                 about 34%
+    siCCT8#8 vs siCTRL  -1.09, 0.001 (0.001)  -1.05, 0.001 (0.0011)  31 / 31                                 about 35%
+    q: the version the reading uses (balanced and normalised when given, else normalised) is corrected
+      over the 13 features and their conditions of each sub-experiment, as the feature ranking; the
+      other columns over this feature's conditions only.
   Within each repeat:
-    contrast                     fields  tracks    tech. repeats  d tracks  d fields  JCS, every track
-    siCCT7#3 vs siCTRL · CCT7_1  7 vs 8  28 vs 30  1 vs 1         -0.37     -0.83     -0.38
-    siCCT7#6 vs siCTRL · CCT7_1  7 vs 8  29 vs 30  1 vs 1         -0.60     -1.10     -0.54
-    siCCT7#3 vs siCTRL · CCT7_2  8 vs 7  34 vs 23  1 vs 1         0.86      0.76      0.90
-    siCCT7#6 vs siCTRL · CCT7_2  8 vs 7  27 vs 23  1 vs 1         0.55      0.41      0.48
-    siCCT7#3 vs siCTRL · CCT7_3  7 vs 5  30 vs 22  1 vs 1         0.01      0.12      0.02
-    siCCT7#6 vs siCTRL · CCT7_3  6 vs 5  36 vs 22  1 vs 1         -0.46     -0.96     -0.41
-    siCCT8#5 vs siCTRL · CCT8_1  8 vs 7  37 vs 31  1 vs 1         -1.00     -1.89     -0.92
-    siCCT8#8 vs siCTRL · CCT8_1  8 vs 7  32 vs 31  1 vs 1         -0.81     -1.02     -0.71
-    siCCT8#5 vs siCTRL · CCT8_2  8 vs 9  40 vs 39  1 vs 1         -0.59     -1.55     -0.54
-    siCCT8#8 vs siCTRL · CCT8_2  8 vs 9  40 vs 39  1 vs 1         -0.80     -2.14     -0.73
-    siCCT8#5 vs siCTRL · CCT8_3  7 vs 8  42 vs 39  1 vs 1         -1.58     -3.68     -1.27
-    siCCT8#8 vs siCTRL · CCT8_3  7 vs 8  31 vs 39  1 vs 1         -1.71     -3.41     -1.40
-  Planning the next experiment, with 3 biological repeats as here: the fields a side each repeat needs
-    to resolve the difference from the control, and what limits it (full report: the repeats a paired
-    test needs for 80% power at p ≤ 0.05, per condition):
-    condition           d tracks, mean  fields a side per repeat  limited by                                repeats needed  with twice the fields
-    siCCT7#3 vs siCTRL  0.17            too small to settle       repeats differ (more fields help little)  more than 30    more than 30
-    siCCT7#6 vs siCTRL  -0.17           about 11                  repeats differ (more fields help little)  more than 30    more than 30
-    siCCT8#5 vs siCTRL  -1.06           about 4                   repeats differ (more fields help little)  5               4
-    siCCT8#8 vs siCTRL  -1.11           about 4                   repeats differ (more fields help little)  5               4
+    contrast                           fields  tracks    tech. repeats  d on tracks  d on field means  over control SD, every track
+    siCCT7#3 vs siCTRL, repeat CCT7_1  7 vs 8  28 vs 30  1 vs 1         -0.37        -0.83             -0.38
+    siCCT7#6 vs siCTRL, repeat CCT7_1  7 vs 8  29 vs 30  1 vs 1         -0.60        -1.10             -0.54
+    siCCT7#3 vs siCTRL, repeat CCT7_2  8 vs 7  34 vs 23  1 vs 1         +0.86        +0.76             +0.90
+    siCCT7#6 vs siCTRL, repeat CCT7_2  8 vs 7  27 vs 23  1 vs 1         +0.55        +0.41             +0.48
+    siCCT7#3 vs siCTRL, repeat CCT7_3  7 vs 5  30 vs 22  1 vs 1         +0.01        +0.12             +0.02
+    siCCT7#6 vs siCTRL, repeat CCT7_3  6 vs 5  36 vs 22  1 vs 1         -0.46        -0.96             -0.41
+    siCCT8#5 vs siCTRL, repeat CCT8_1  8 vs 7  37 vs 31  1 vs 1         -1.00        -1.89             -0.92
+    siCCT8#8 vs siCTRL, repeat CCT8_1  8 vs 7  32 vs 31  1 vs 1         -0.81        -1.02             -0.71
+    siCCT8#5 vs siCTRL, repeat CCT8_2  8 vs 9  40 vs 39  1 vs 1         -0.59        -1.55             -0.54
+    siCCT8#8 vs siCTRL, repeat CCT8_2  8 vs 9  40 vs 39  1 vs 1         -0.80        -2.14             -0.73
+    siCCT8#5 vs siCTRL, repeat CCT8_3  7 vs 8  42 vs 39  1 vs 1         -1.58        -3.68             -1.27
+    siCCT8#8 vs siCTRL, repeat CCT8_3  7 vs 8  31 vs 39  1 vs 1         -1.71        -3.41             -1.40
+  Planning the next experiment on Mean Speed (for a new experiment, if the difference and the
+    variation seen here recur; not what the current result needs): the biological repeats a paired
+    t-test on the repeat means needs for 80% power, corrected over the conditions of its
+    sub-experiment (a follow-up on Mean Speed alone), with the fields per repeat as now and with twice
+    as many; then the fields a side each of 3 repeats needs to show the difference on its own:
+    condition           change across repeats  mean d per repeat (tracks)  repeats needed  with twice the fields  fields a side per repeat
+    siCCT7#3 vs siCTRL  ×1.061                 +0.17                       more than 30    more than 30           more than 4 times the fields
+    siCCT7#6 vs siCTRL  ×0.966                 -0.17                       more than 30    more than 30           about 11
+    siCCT8#5 vs siCTRL  ×0.65                  -1.06                       5               5                      about 4
+    siCCT8#8 vs siCTRL  ×0.64                  -1.11                       5               5                      about 4
 
-  Which features separate the conditions? 12 of 13 features pass the cell-level gate (q ≤ 0.05,
-    Benjamini-Hochberg over 52 tests: each condition against the control (siCTRL), Cohen's d on the
-    observations and a randomization test over them, normalised to each repeat's control and balanced
-    over the repeats where they are not), ranked by |d| (capped at 20); the paired t on the repeat
-    means is the second gate:
-    rank  feature                               d  condition  q cells  q paired  repeats
-       1  Median Speed                      -1.23  siCCT8#8     0.002     0.164  3 of 3 lower
-       2  Total Turning Angle Rolling       -1.11  siCCT8#8     0.002     0.164  3 of 3 lower
-       3  Median Speed Rolling              -1.11  siCCT8#8     0.002     0.164  3 of 3 lower
-       4  Total Distance Traveled Rolling   -1.06  siCCT8#8     0.002     0.164  3 of 3 lower
-       5  Mean Speed                        -1.06  siCCT8#8     0.002     0.164  3 of 3 lower
-       6  Mean Speed Rolling                -1.05  siCCT8#8     0.002     0.164  3 of 3 lower
-       7  Spatial Coverage Rolling          -0.97  siCCT8#5     0.002     0.164  3 of 3 lower
-       8  Tortuosity Rolling                -0.83  siCCT8#8     0.002     0.160  3 of 3 lower
-       9  Min Speed Rolling Rolling         -0.69  siCCT8#8     0.002     0.164  3 of 3 lower
-      10  Max Speed Rolling                 -0.63  siCCT8#8     0.002     0.434  3 of 3 lower
-      11  Speed Standard Deviation Rolling  -0.52  siCCT8#5     0.002     0.461  3 of 3 lower
-      12  Speed Standard Deviation          -0.48  siCCT8#5     0.005     0.487  3 of 3 lower
-    Confirmed across repeats (paired q ≤ 0.05): 1 feature (Tortuosity Rolling).
-  No contrast passes the gate for 1 feature: Directionality Rolling.
-  Plotted by default: the readout and up to 5 best-ranked features.
+  Which features separate the conditions? 12 of 13 features are candidates in the exploratory
+    track-level screen: they differ for at least one condition (each condition against the control,
+    siCTRL: Cohen's d on the observations normalised to each repeat's control, randomization test, q ≤
+    0.05 after Benjamini-Hochberg within each sub-experiment: 26 tests in each of 2 sub-experiments).
+    Ranked by the largest difference (|d|); change: the condition's mean over the control's, the fold
+    change the paired t-test compares (the difference of the means where a mean is not positive); a
+    candidate is significant across repeats when the paired t-test on the repeat means also gives q ≤
+    0.05:
+    rank  feature                               d  condition  change  q track level  q repeat means  repeats
+       1  Median Speed                      -1.24  siCCT8#8    ×0.48         0.0011           0.082  3 of 3 lower
+       2  Total Turning Angle Rolling       -1.12  siCCT8#8    ×0.63         0.0011           0.082  3 of 3 lower
+       3  Median Speed Rolling              -1.11  siCCT8#8    ×0.60         0.0011           0.082  3 of 3 lower
+       4  Mean Speed                        -1.05  siCCT8#8    ×0.64         0.0011           0.082  3 of 3 lower
+       5  Mean Speed Rolling                -1.04  siCCT8#8    ×0.64         0.0011           0.082  3 of 3 lower
+       6  Total Distance Traveled Rolling   -1.04  siCCT8#8    ×0.64         0.0011           0.082  3 of 3 lower
+       7  Spatial Coverage Rolling          -0.96  siCCT8#5    ×0.44         0.0011           0.082  3 of 3 lower
+       8  Tortuosity Rolling                -0.83  siCCT8#8    ×0.81         0.0011           0.080  3 of 3 lower
+       9  Min Speed Rolling Rolling         -0.69  siCCT8#8    ×0.35         0.0011           0.082  3 of 3 lower
+      10  Max Speed Rolling                 -0.65  siCCT8#8    ×0.75         0.0011            0.22  3 of 3 lower
+      11  Speed Standard Deviation Rolling  -0.52  siCCT8#5    ×0.78         0.0011            0.25  3 of 3 lower
+      12  Speed Standard Deviation          -0.47  siCCT8#5    ×0.82         0.0011            0.27  3 of 3 lower
+    Significant across repeats (paired t-test on the repeat means, q ≤ 0.05): 1 feature (Tortuosity Rolling, for siCCT8#5 ×0.83; not siCCT8#8).
+  Not a candidate for any condition (1 feature): Directionality Rolling.
+  Plotted by default: up to 5 best-ranked features (the readout when none ranks).
   Assumptions:
     - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) treats
       each biological repeat as one replicate and assumes the differences (raw) or the log ratios to
       the control (normalised) are normally distributed and independent between biological repeats.
       It keeps false positives at 5% when the effect varies between biological repeats, which the
-      cell-level test does not; the cost is power: with 3 biological repeats and 30 cells a well, d
+      track-level test does not; the cost is power: with 3 biological repeats and 30 cells a well, d
       1.5 is found in 98, 90 and 63% of experiments and d 1.0 in 85, 67 and 39% as biological
-      repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py);
-      Bonferroni-corrected over the conditions.
+      repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py). p uncorrected, q
+      corrected (Benjamini-Hochberg within each sub-experiment: the conditions sharing their repeats
+      and control).
     - Reagents of one target that go the same way in every repeat speak against an off-target effect
       of one of them; this is described, not tested, since they share the control.
-    - Cell-level test (Cohen's d, randomization over the tracks): it assumes the tracks are
+    - Track-level test (Cohen's d, randomization over the tracks): it assumes the tracks are
       independent draws, so it asks whether these wells differ, not whether the effect repeats, and
       it responds with one or two repeats. Limitation: when the difference varies between repeats it
       gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n tracks
       per well, each repeat weighted by its share when they differ; s the SD between repeats in
-      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'without an effect'
+      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'with no effect'
       column; more tracks per well raise it, and a stricter cutoff does not remove it (22% at p ≤
       0.01 with 30 per well and s = 0.5).
     - Normalised: each value divided by the mean of its own repeat's control, which removes a scale
       both wells of a repeat share (staining, imaging) and pairs every condition with its own
       repeat's control. It assumes a positive feature on a ratio scale (not computed when a control
       mean is 0 or below); it does not remove the part of the effect that varies between repeats, so
-      the cell-level chance still applies.
-    - Balanced: the median d and median p over 100 draws taking the same number of tracks from each
-      repeat, against the control of the condition's own repeats; it describes the typical draw and
-      is not the p of one test. In data/simulations/unbalanced.py, with one repeat holding 2 to 8
-      times the cells of the others, the test as provided gives 22-46% false positives where equal
-      repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control pooled from
-      repeats the condition was not imaged in, the raw test as provided gives 46% even when the
-      repeats agree, the balanced test 2%. Balancing removes the weight of the repeats holding more,
-      not the independence assumption.
+      the track-level chance still applies.
+    - Balanced: one permutation test against the control of the condition's own repeats, d the
+      median over 100 draws taking the same number of tracks from each repeat, p from the condition
+      and control labels shuffled within each repeat, the same statistic on the same draws for each
+      shuffle. In data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of
+      the others, the test as provided gives 22-46% false positives where equal repeats give 16% (s
+      = 0.25), and the balanced test 15-19%; with the control pooled from repeats the condition was
+      not imaged in, the raw test as provided gives 46% even when the repeats agree, the balanced
+      test about 5%. Balancing removes the weight of the repeats holding more, not the independence
+      assumption.
     - Within a repeat the conditions are described by their effect sizes; they are tested across
       repeats (the first table).
     - The test and the effect sizes compare means: a difference confined to a subpopulation of
       tracks or to the shape of the distribution is not tested (see the unusual tracks and the rare
       label).
-    - The fields a side per repeat are the most any repeat needs, projected from its interval of d
-      (narrowing as 1/sqrt(fields)); limited by: whether the repeats' d differ more than their
-      sampling error, which more fields cannot reduce. Both are estimated from the repeats here, so
-      the plan is a guide.
-    - The cell-level gate treats every observation as an independent draw: it finds candidates, and
-      when a difference varies between repeats it passes more often than 0.05 without an effect
-      (question 9 gives that chance for the readout). The paired t on the repeat means holds its
-      rate, but needs 3 or more repeats and has little power with 3.
+    - Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment
+      (what Benjamini-Hochberg asks at most), on the values that test compares: each repeat's change
+      (its mean over its control's, a fold change; the difference of the means where a mean is not
+      positive; the table gives their geometric mean, as the verdict does), its spread between the
+      repeats and its sampling error within one. All projected from the repeats here, so the plan is
+      a guide.
+    - The fields a side per repeat are the most any repeat needs, projected from the part of its
+      interval of d within wells (narrowing as 1/sqrt of the number); the part between wells stays,
+      and when it alone is as wide as the difference, more fields will not resolve it: more wells or
+      biological repeats.
+    - Most repeats searched: 30; per condition, its own experiment's m.
+    - Candidates come from the track-level test, which treats every observation as an independent
+      draw and so finds differences that may not repeat; only the paired t-test on the repeat means
+      (3 or more repeats) decides significance.
+
+➖ 10. Are there groups of tracks, and is a condition enriched in one?
+  590 tracks in all, every condition pooled, clustered on the 13 declared features (HDBSCAN on a
+    5-dimensional UMAP of their robust standardisation; a cluster holds at least 15 tracks), each
+    cluster then judged on all the features: no candidate group passed the neighbours-inside check
+    on these features (94% or more of a cluster's tracks' 10 nearest neighbours in it).
 
 What this dataset cannot tell me
-  ➖ 1. Can these features detect what I care about?: not assessed; needs: declare a positive control
-     (and a reference) with representation_control.
+  ➖ 1. Can these features detect what I care about?: not assessed; needs: name a condition known to
+     change the phenotype as the positive control (the guided session asks for it; in Python,
+     Setup(positive=PositiveControl(...))) and run the report again; it can be added after the
+     acquisition, whenever such a condition was imaged.
+  ➖ 10. Are there groups of tracks, and is a condition enriched in one?: no group: no candidate
+     group passed the check on these features.
   ❌ Data integrity: the checks in the overview name 12 fields in 6 findings (fields that hold
      another field's observations, or their own twice), and every answer counts them as independent
      fields.
@@ -797,12 +985,11 @@ What this dataset cannot tell me
     - The Foundation, the stopping rules and the inspection's influence and neighbour reasons read
       the readout (Mean Speed) only; the other declared features (Median Speed, Speed Standard
       Deviation, Mean Speed Rolling, Median Speed Rolling, Max Speed Rolling and 7 more) enter
-      novelty, the representation control, the unusual tracks and the feature ranking, so a heavy
-      tail or a between-well spread in them is not judged by any stopping rule.
-    - No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
-      redundancy and dispersed orders were not assessed.
-    - No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
-      random orders treat the fields as exchangeable, so a drift or a raster along the acquisition
-      is not seen.
+      novelty, the unusual tracks and the feature ranking, so a heavy tail or a between-well spread
+      in them is not judged by any stopping rule.
+    - No stage coordinates: neighbouring fields were not compared, and spatial redundancy and
+      dispersed orders were not assessed.
+    - No acquisition order: the recorded order was not replayed, and the random orders treat the
+      fields as exchangeable, so a drift or a raster along the acquisition is not seen.
 
 Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.

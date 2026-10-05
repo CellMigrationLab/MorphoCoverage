@@ -15,9 +15,9 @@ What the dataset is
 
 Loaded correctly?
   ✅ The data check found nothing to fix.
-  ❌ 1 copy finding in 2 fields (siCCT8#5 · 1 · single · siCCT8#5|1|cell007 and
-     siCCT8#5 · 1 · single · siCCT8#5|1|cell008): structure to inspect, not a judgment;
-     scan.integrity.summary() names each.
+  ❌ 1 copy finding in 2 fields (siCCT8#5 · repeat 1 · siCCT8#5|1|cell007 and siCCT8#5 · repeat
+     1 · siCCT8#5|1|cell008): structure to inspect, not a judgment; scan.integrity.summary() names
+     each.
   ✅ The cells per biological repeat differ by more than 25% in 3 conditions of 3 (up to 2.2× in
      siCTRL); the report tests the cells both as provided and balanced over the repeats.
 

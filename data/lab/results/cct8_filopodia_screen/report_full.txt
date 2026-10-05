@@ -3,11 +3,12 @@
   1 feature column: Filopodia number.
   54 technical repeats (technical_repeat, a well or a dish within a repeat, 1 per condition and repeat).
   13 conditions (condition: siCTRL, siCCT8#5, siCCT8#8, siCSNK1A1#11, siCSNK1A1#5, siMAP4K4#5, siMAP4K4#6, siMINK1#10, siMINK1#3, siNF2#17, siNF2#7, siSCRIB#6 and 1 more); 18 repeats (biological_repeat: siCCT8_1, siCCT8_2, siCCT8_3, siCSNK1A1_1, siCSNK1A1_2, siCSNK1A1_3, siMAP4K4_1, siMAP4K4_2, siMAP4K4_3, siMINK1_1, siMINK1_2, siMINK1_3 and 6 more).
-    (54 condition-and-repeat combinations; see the layout table)
+  6 sub-experiments, each of 2 conditions and its own siCTRL in its own 3 biological repeats.
+    (54 condition-and-repeat combinations: too many to list; DatasetOverview.layout holds them)
   Values: as given (not normalised).
   ✅ Data checks: no warning.
 
-  ✅ Data integrity — nothing found by the exact copy checks
+  ➖ Data integrity — no copied rows; copied fields not checkable here
     Exact checks for copied data, to 6 significant digits: 1686 fields and 1686 cells checked, on
     Filopodia number.
     ➖ Not checked, copied small field: fewer than 3 continuous features (1), so one shared observation
@@ -27,7 +28,8 @@ What this acquisition was asked to preserve
   - Rare phenotype: not declared (no RareTarget in rare), so no answer below says whether a rare
     state was sampled enough.
   - Representation: readout Filopodia number; 1 declared feature column for unusual cells (against
-    the control cells, their repeats pooled) and new phenotypes; definition of new: support_novelty.
+    the control cells, their repeats pooled) and new phenotypes (new: at least 3 similar cells that
+    no other field shows).
   - Report-only rule: with this definition of new, 'Did I image enough?' also judges whether the
     chance that one more field shows something new is at most 5% (its upper bound; novelty_target).
     It is not one of the stopping rules (rules): the live decision does not run it, and optimise and
@@ -38,70 +40,71 @@ What this acquisition was asked to preserve
     mean-precision rule, per field, 5% [scalar_precision_fov_upper95 (feature=Filopodia number,
     target_cv=0.05, resampling_unit=fov, sd_estimate=upper_95)] (the default, rules=None: the
     mean-precision rule per cell and per field at 5%); assessed in the report, calibrated by
-    optimise, run live. The mean-precision rules stop on the averaging CV: a CV of 5% is one
-    standard error of 5% of the mean, not a bound of ±5% on its error; whether the mean is within 5%
-    and 2.5% is judged on held-back fields (report, optimise), never by the rules.
+    optimise, run live. The mean-precision rules stop when the standard error of the mean is 5% of
+    the mean (its averaging CV), not on a bound of ±5% on its error; whether the mean is within 5%
+    and 2.5% is judged on held-back fields by optimise, never by the rules or this report.
   - Acquisition order: no acquisition_order_col or stage_cols, so nothing is checked and every stop
     treats the fields as a random sample of the well's positions; a raster over a spatial trend can
     stop early. Image fields in a random or dispersed order.
-  - Live decision: the population objective (population summary); a rule decides only the targets it
-    has evidence about, and a target no rule decides stays unsupported rather than assumed adequate.
+  - Live decision: a stop needs every declared target (population summary); a rule decides only the
+    targets it has evidence about, and a target no rule decides stays unsupported rather than
+    assumed adequate.
 
-➖ Foundation: why count fields, and not only objects?
+➖ Foundation: why count fields, and not only cells?
   Not applicable: each field holds one cell, so fields and cells coincide and every per-cell answer is also the per-field one.
 
 ➖ 1. Can these features detect what I care about?
-  Not assessed: declare a positive control (and a reference) with representation_control.
+  Not assessed: name a condition known to change the phenotype as the positive control (the guided session asks for it; in Python, Setup(positive=PositiveControl(...))) and run the report again; it can be added after the acquisition, whenever such a condition was imaged.
 
 ⚠️ 2. Did I image enough?
-  Enough to resolve the difference from the control? Filopodia number, each condition against the
-    control of the same repeat, 95% interval of d from the fields resampled as acquired:
-    contrast                              fields    d cells (95% interval)  enough?
-    siCCT8#5 vs siCTRL · siCCT8_1         34 vs 33  -1.11 (-1.65 to -0.64)  resolved
-    siCCT8#8 vs siCTRL · siCCT8_1         31 vs 33  -1.10 (-1.79 to -0.56)  resolved
-    siCCT8#5 vs siCTRL · siCCT8_2         49 vs 39  -1.66 (-2.22 to -1.19)  resolved
-    siCCT8#8 vs siCTRL · siCCT8_2         38 vs 39  -1.33 (-1.79 to -0.97)  resolved
-    siCCT8#5 vs siCTRL · siCCT8_3         30 vs 32  -1.56 (-2.20 to -1.06)  resolved
-    siCCT8#8 vs siCTRL · siCCT8_3         31 vs 32  -2.18 (-2.88 to -1.72)  resolved
-    siCSNK1A1#11 vs siCTRL · siCSNK1A1_1  34 vs 31  -1.43 (-2.01 to -1.11)  resolved
-    siCSNK1A1#5 vs siCTRL · siCSNK1A1_1   35 vs 31  -1.53 (-2.16 to -1.08)  resolved
-    siCSNK1A1#11 vs siCTRL · siCSNK1A1_2  34 vs 33  -1.98 (-2.58 to -1.58)  resolved
-    siCSNK1A1#5 vs siCTRL · siCSNK1A1_2   34 vs 33  -1.83 (-2.31 to -1.46)  resolved
-    siCSNK1A1#11 vs siCTRL · siCSNK1A1_3  34 vs 33  -2.17 (-2.81 to -1.75)  resolved
-    siCSNK1A1#5 vs siCTRL · siCSNK1A1_3   34 vs 33  -2.40 (-3.13 to -1.95)  resolved
-    siMAP4K4#5 vs siCTRL · siMAP4K4_1     31 vs 30  1.00 (0.55 to 1.50)     resolved
-    siMAP4K4#6 vs siCTRL · siMAP4K4_1     37 vs 30  2.08 (1.64 to 2.85)     resolved
-    siMAP4K4#5 vs siCTRL · siMAP4K4_2     13 vs 32  0.69 (-0.03 to 1.37)    about 14 fields a side
-    siMAP4K4#6 vs siCTRL · siMAP4K4_2     29 vs 32  0.89 (0.39 to 1.51)     resolved
-    siMAP4K4#5 vs siCTRL · siMAP4K4_3     32 vs 31  0.77 (0.26 to 1.51)     resolved
-    siMAP4K4#6 vs siCTRL · siMAP4K4_3     32 vs 31  1.21 (0.68 to 1.73)     resolved
-    siMINK1#10 vs siCTRL · siMINK1_1      33 vs 34  -0.38 (-0.96 to 0.08)   about 62 fields a side
-    siMINK1#3 vs siCTRL · siMINK1_1       38 vs 34  -0.73 (-1.24 to -0.26)  resolved
-    siMINK1#10 vs siCTRL · siMINK1_2      29 vs 32  -1.05 (-1.70 to -0.57)  resolved
-    siMINK1#3 vs siCTRL · siMINK1_2       27 vs 32  -0.42 (-1.01 to 0.04)   about 44 fields a side
-    siMINK1#10 vs siCTRL · siMINK1_3      27 vs 18  -1.21 (-2.03 to -0.59)  resolved
-    siMINK1#3 vs siCTRL · siMINK1_3       20 vs 18  -0.32 (-1.06 to 0.38)   too small to settle here
-    siNF2#17 vs siCTRL · siNF2_1          32 vs 31  0.16 (-0.31 to 0.64)    too small to settle here
-    siNF2#7 vs siCTRL · siNF2_1           30 vs 31  0.37 (-0.20 to 0.84)    about 59 fields a side
-    siNF2#17 vs siCTRL · siNF2_2          31 vs 29  0.36 (-0.15 to 0.93)    about 64 fields a side
-    siNF2#7 vs siCTRL · siNF2_2           31 vs 29  0.30 (-0.25 to 0.83)    about 98 fields a side
-    siNF2#17 vs siCTRL · siNF2_3          30 vs 31  1.08 (0.46 to 1.88)     resolved
-    siNF2#7 vs siCTRL · siNF2_3           31 vs 31  0.99 (0.51 to 1.66)     resolved
-    siSCRIB#6 vs siCTRL · siSCRIB_1       30 vs 30  -0.95 (-1.43 to -0.52)  resolved
-    siSCRIB#7 vs siCTRL · siSCRIB_1       33 vs 30  -1.17 (-1.74 to -0.86)  resolved
-    siSCRIB#6 vs siCTRL · siSCRIB_2       31 vs 26  -1.96 (-2.80 to -1.41)  resolved
-    siSCRIB#7 vs siCTRL · siSCRIB_2       29 vs 26  -1.44 (-2.06 to -0.90)  resolved
-    siSCRIB#6 vs siCTRL · siSCRIB_3       28 vs 30  -1.94 (-2.74 to -1.40)  resolved
-    siSCRIB#7 vs siCTRL · siSCRIB_3       29 vs 30  -2.05 (-2.94 to -1.48)  resolved
-    Resolved: the 95% interval of d, from the fields resampled as they were acquired (technical repeats, then their fields, with replacement), excludes 0. The fields a side to resolve a difference are projected from these fields (the interval narrowing as 1/sqrt(fields)); beyond 4 times the fields acquired a difference is called too small to settle here. This asks whether the fields pin down the difference between these cells; whether it holds across biological repeats is question 9.
+  Within each repeat, does the difference from the control show? Filopodia number, each condition
+    against the control of the same repeat, 95% interval of d from the fields resampled as acquired:
+    comparison                                  cells (condition vs control)  d on cells (95% interval)  enough in this repeat?
+    siCCT8#5 vs siCTRL, repeat siCCT8_1         34 vs 33                      -1.11 (-1.65 to -0.64)     yes (shown)
+    siCCT8#8 vs siCTRL, repeat siCCT8_1         31 vs 33                      -1.10 (-1.79 to -0.56)     yes (shown)
+    siCCT8#5 vs siCTRL, repeat siCCT8_2         49 vs 39                      -1.66 (-2.22 to -1.19)     yes (shown)
+    siCCT8#8 vs siCTRL, repeat siCCT8_2         38 vs 39                      -1.33 (-1.79 to -0.97)     yes (shown)
+    siCCT8#5 vs siCTRL, repeat siCCT8_3         30 vs 32                      -1.56 (-2.20 to -1.06)     yes (shown)
+    siCCT8#8 vs siCTRL, repeat siCCT8_3         31 vs 32                      -2.18 (-2.88 to -1.72)     yes (shown)
+    siCSNK1A1#11 vs siCTRL, repeat siCSNK1A1_1  34 vs 31                      -1.43 (-2.01 to -1.11)     yes (shown)
+    siCSNK1A1#5 vs siCTRL, repeat siCSNK1A1_1   35 vs 31                      -1.53 (-2.16 to -1.08)     yes (shown)
+    siCSNK1A1#11 vs siCTRL, repeat siCSNK1A1_2  34 vs 33                      -1.98 (-2.58 to -1.58)     yes (shown)
+    siCSNK1A1#5 vs siCTRL, repeat siCSNK1A1_2   34 vs 33                      -1.83 (-2.31 to -1.46)     yes (shown)
+    siCSNK1A1#11 vs siCTRL, repeat siCSNK1A1_3  34 vs 33                      -2.17 (-2.81 to -1.75)     yes (shown)
+    siCSNK1A1#5 vs siCTRL, repeat siCSNK1A1_3   34 vs 33                      -2.40 (-3.13 to -1.95)     yes (shown)
+    siMAP4K4#5 vs siCTRL, repeat siMAP4K4_1     31 vs 30                      +1.00 (+0.55 to +1.50)     yes (shown)
+    siMAP4K4#6 vs siCTRL, repeat siMAP4K4_1     37 vs 30                      +2.08 (+1.64 to +2.85)     yes (shown)
+    siMAP4K4#5 vs siCTRL, repeat siMAP4K4_2     13 vs 32                      +0.69 (-0.03 to +1.37)     no: about 14 cells a side
+    siMAP4K4#6 vs siCTRL, repeat siMAP4K4_2     29 vs 32                      +0.89 (+0.39 to +1.51)     yes (shown)
+    siMAP4K4#5 vs siCTRL, repeat siMAP4K4_3     32 vs 31                      +0.77 (+0.26 to +1.51)     yes (shown)
+    siMAP4K4#6 vs siCTRL, repeat siMAP4K4_3     32 vs 31                      +1.21 (+0.68 to +1.73)     yes (shown)
+    siMINK1#10 vs siCTRL, repeat siMINK1_1      33 vs 34                      -0.38 (-0.96 to +0.08)     no: about 62 cells a side
+    siMINK1#3 vs siCTRL, repeat siMINK1_1       38 vs 34                      -0.73 (-1.24 to -0.26)     yes (shown)
+    siMINK1#10 vs siCTRL, repeat siMINK1_2      29 vs 32                      -1.05 (-1.70 to -0.57)     yes (shown)
+    siMINK1#3 vs siCTRL, repeat siMINK1_2       27 vs 32                      -0.42 (-1.01 to +0.04)     no: about 44 cells a side
+    siMINK1#10 vs siCTRL, repeat siMINK1_3      27 vs 18                      -1.21 (-2.03 to -0.59)     yes (shown)
+    siMINK1#3 vs siCTRL, repeat siMINK1_3       20 vs 18                      -0.32 (-1.06 to +0.38)     no: too small to show with more cells
+    siNF2#17 vs siCTRL, repeat siNF2_1          32 vs 31                      +0.16 (-0.31 to +0.64)     no: too small to show with more cells
+    siNF2#7 vs siCTRL, repeat siNF2_1           30 vs 31                      +0.37 (-0.20 to +0.84)     no: about 59 cells a side
+    siNF2#17 vs siCTRL, repeat siNF2_2          31 vs 29                      +0.36 (-0.15 to +0.93)     no: about 64 cells a side
+    siNF2#7 vs siCTRL, repeat siNF2_2           31 vs 29                      +0.30 (-0.25 to +0.83)     no: about 98 cells a side
+    siNF2#17 vs siCTRL, repeat siNF2_3          30 vs 31                      +1.08 (+0.46 to +1.88)     yes (shown)
+    siNF2#7 vs siCTRL, repeat siNF2_3           31 vs 31                      +0.99 (+0.51 to +1.66)     yes (shown)
+    siSCRIB#6 vs siCTRL, repeat siSCRIB_1       30 vs 30                      -0.95 (-1.43 to -0.52)     yes (shown)
+    siSCRIB#7 vs siCTRL, repeat siSCRIB_1       33 vs 30                      -1.17 (-1.74 to -0.86)     yes (shown)
+    siSCRIB#6 vs siCTRL, repeat siSCRIB_2       31 vs 26                      -1.96 (-2.80 to -1.41)     yes (shown)
+    siSCRIB#7 vs siCTRL, repeat siSCRIB_2       29 vs 26                      -1.44 (-2.06 to -0.90)     yes (shown)
+    siSCRIB#6 vs siCTRL, repeat siSCRIB_3       28 vs 30                      -1.94 (-2.74 to -1.40)     yes (shown)
+    siSCRIB#7 vs siCTRL, repeat siSCRIB_3       29 vs 30                      -2.05 (-2.94 to -1.48)     yes (shown)
+    Shown: the 95% interval of d, from resampling the technical repeats and their fields as acquired, empty fields included, excludes 0. The cells a side it would take are projected from the part of the interval within wells (narrowing as 1/sqrt(cells)); the part between wells does not shrink with more cells, and when it alone is as wide as the difference, more cells will not resolve it: more wells or biological repeats. Beyond 4 times the cells acquired a difference is called too small to show.
 
-  Analysis groups: condition · biological_repeat · technical_repeat.
+  Analysis groups: condition · biological repeat · technical repeat.
   Each rule by its own threshold (not a held-out check), in 54 groups:
-    rule                                met in   random orders: median (10-90%)
-    mean-precision rule, per cell, 5%   0 of 54  17 (11-25); 3 of 270 orders
-    mean-precision rule, per field, 5%  0 of 54  17 (11-25); 3 of 270 orders
-  First met after: the fields acquired when it first said enough; random: the median of the groups'
-    medians, 10-90% from the lowest to the highest group.
+    rule                                met with the fields acquired  fields needed in random orders: median (10-90%)
+    mean-precision rule, per cell, 5%   0 of 54                       never in 267 of 270 orders; 17 (11-25) in the 3 that met it
+    mean-precision rule, per field, 5%  0 of 54                       never in 267 of 270 orders; 20 (14-29) in the 3 that met it
+  Fields when first met in random orders; random: the median of the groups' medians, 10-90% from the
+    lowest to the highest group.
   Rules: mean-precision rule, per cell, 5% (scalar_precision_object_upper95: averaging_cv <= 0.05;
     config e9f24df659290c3b); mean-precision rule, per field, 5% (scalar_precision_fov_upper95:
     averaging_cv <= 0.05; config a98770e3a9571327).
@@ -109,399 +112,432 @@ What this acquisition was asked to preserve
     fields imaged beyond that point (beyond: a median over the random orders, or the recorded one
     without them; only where the acquired fields are enough).
 
-  siCCT8#5 · siCCT8_1 · single — 34 fields acquired:
+  siCCT8#5 · repeat siCCT8_1 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCCT8#5 · siCCT8_2 · single — 49 fields acquired:
+  siCCT8#5 · repeat siCCT8_2 — 49 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCCT8#5 · siCCT8_3 · single — 30 fields acquired:
+  siCCT8#5 · repeat siCCT8_3 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCCT8#8 · siCCT8_1 · single — 31 fields acquired:
+  siCCT8#8 · repeat siCCT8_1 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.6, bimodality coefficient
-      0.48.
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.6.
 
-  siCCT8#8 · siCCT8_2 · single — 38 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-
-  siCCT8#8 · siCCT8_3 · single — 31 fields acquired:
+  siCCT8#8 · repeat siCCT8_2 — 38 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siCCT8_1 · single — 33 fields acquired:
+  siCCT8#8 · repeat siCCT8_3 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siCCT8_2 · single — 39 fields acquired:
+  siCTRL · repeat siCCT8_1 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siCCT8_3 · single — 32 fields acquired:
+  siCTRL · repeat siCCT8_2 — 39 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCSNK1A1#11 · siCSNK1A1_1 · single — 34 fields acquired:
+  siCTRL · repeat siCCT8_3 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCSNK1A1#11 · siCSNK1A1_2 · single — 34 fields acquired:
+  siCSNK1A1#11 · repeat siCSNK1A1_1 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCSNK1A1#11 · siCSNK1A1_3 · single — 34 fields acquired:
+  siCSNK1A1#11 · repeat siCSNK1A1_2 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCSNK1A1#5 · siCSNK1A1_1 · single — 35 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 3.4, bimodality coefficient
-      0.43.
-
-  siCSNK1A1#5 · siCSNK1A1_2 · single — 34 fields acquired:
+  siCSNK1A1#11 · repeat siCSNK1A1_3 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCSNK1A1#5 · siCSNK1A1_3 · single — 34 fields acquired:
+  siCSNK1A1#5 · repeat siCSNK1A1_1 — 35 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 3.4.
+
+  siCSNK1A1#5 · repeat siCSNK1A1_2 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siCSNK1A1_1 · single — 31 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.2, bimodality coefficient
-      0.54.
-
-  siCTRL · siCSNK1A1_2 · single — 33 fields acquired:
+  siCSNK1A1#5 · repeat siCSNK1A1_3 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siCSNK1A1_3 · single — 33 fields acquired:
+  siCTRL · repeat siCSNK1A1_1 — 31 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.2.
+
+  siCTRL · repeat siCSNK1A1_2 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siMAP4K4_1 · single — 30 fields acquired:
+  siCTRL · repeat siCSNK1A1_3 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siMAP4K4_2 · single — 32 fields acquired:
+  siCTRL · repeat siMAP4K4_1 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siMAP4K4_3 · single — 31 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.4, bimodality coefficient
-      0.51.
-
-  siMAP4K4#5 · siMAP4K4_1 · single — 31 fields acquired:
+  siCTRL · repeat siMAP4K4_2 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siMAP4K4#5 · siMAP4K4_2 · single — 13 fields acquired:
+  siCTRL · repeat siMAP4K4_3 — 31 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.4.
+
+  siMAP4K4#5 · repeat siMAP4K4_1 — 31 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+
+  siMAP4K4#5 · repeat siMAP4K4_2 — 13 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 6.3, bimodality coefficient
-      0.59.
+      0.594.
 
-  siMAP4K4#5 · siMAP4K4_3 · single — 32 fields acquired:
+  siMAP4K4#5 · repeat siMAP4K4_3 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siMAP4K4#6 · siMAP4K4_1 · single — 37 fields acquired:
+  siMAP4K4#6 · repeat siMAP4K4_1 — 37 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.2, bimodality coefficient
-      0.34.
+    mean-precision rule, per field, 5%  no      29 (29-29); 1 of 5 orders                –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.2.
 
-  siMAP4K4#6 · siMAP4K4_2 · single — 29 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-
-  siMAP4K4#6 · siMAP4K4_3 · single — 32 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.8, bimodality coefficient
-      0.48.
-
-  siCTRL · siMINK1_1 · single — 34 fields acquired:
+  siMAP4K4#6 · repeat siMAP4K4_2 — 29 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siMINK1_2 · single — 32 fields acquired:
+  siMAP4K4#6 · repeat siMAP4K4_3 — 32 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.8.
+
+  siCTRL · repeat siMINK1_1 — 34 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siMINK1_3 · single — 18 fields acquired:
+  siCTRL · repeat siMINK1_2 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siMINK1#10 · siMINK1_1 · single — 33 fields acquired:
+  siCTRL · repeat siMINK1_3 — 18 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siMINK1#10 · siMINK1_2 · single — 29 fields acquired:
+  siMINK1#10 · repeat siMINK1_1 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siMINK1#10 · siMINK1_3 · single — 27 fields acquired:
+  siMINK1#10 · repeat siMINK1_2 — 29 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siMINK1#3 · siMINK1_1 · single — 38 fields acquired:
+  siMINK1#10 · repeat siMINK1_3 — 27 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siMINK1#3 · siMINK1_2 · single — 27 fields acquired:
+  siMINK1#3 · repeat siMINK1_1 — 38 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siMINK1#3 · siMINK1_3 · single — 20 fields acquired:
+  siMINK1#3 · repeat siMINK1_2 — 27 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siNF2_1 · single — 31 fields acquired:
+  siMINK1#3 · repeat siMINK1_3 — 20 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siNF2_2 · single — 29 fields acquired:
+  siCTRL · repeat siNF2_1 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siNF2_3 · single — 31 fields acquired:
+  siCTRL · repeat siNF2_2 — 29 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+
+  siCTRL · repeat siNF2_3 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      23 (2.5; 21-25); 2 of 5 orders           –
-    mean-precision rule, per field, 5%  no      23 (2.5; 21-25); 2 of 5 orders           –
+    mean-precision rule, per field, 5%  no      20 (20-20); 1 of 5 orders                –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.6, bimodality coefficient
-      0.56.
+      0.556.
 
-  siNF2#17 · siNF2_1 · single — 32 fields acquired:
+  siNF2#17 · repeat siNF2_1 — 32 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siNF2#17 · siNF2_2 · single — 31 fields acquired:
+  siNF2#17 · repeat siNF2_2 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siNF2#17 · siNF2_3 · single — 30 fields acquired:
+  siNF2#17 · repeat siNF2_3 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siNF2#7 · siNF2_1 · single — 30 fields acquired:
+  siNF2#7 · repeat siNF2_1 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 3.9, bimodality coefficient
-      0.51.
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 3.9.
 
-  siNF2#7 · siNF2_2 · single — 31 fields acquired:
+  siNF2#7 · repeat siNF2_2 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siNF2#7 · siNF2_3 · single — 31 fields acquired:
+  siNF2#7 · repeat siNF2_3 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      11 (11-11); 1 of 5 orders                –
-    mean-precision rule, per field, 5%  no      11 (11-11); 1 of 5 orders                –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.8, bimodality coefficient
-      0.31.
+    mean-precision rule, per field, 5%  no      14 (14-14); 1 of 5 orders                –
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 4.8.
 
-  siCTRL · siSCRIB_1 · single — 30 fields acquired:
+  siCTRL · repeat siSCRIB_1 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
     Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 5.9, bimodality coefficient
-      0.60.
+      0.595.
 
-  siCTRL · siSCRIB_2 · single — 26 fields acquired:
+  siCTRL · repeat siSCRIB_2 — 26 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siCTRL · siSCRIB_3 · single — 30 fields acquired:
+  siCTRL · repeat siSCRIB_3 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siSCRIB#6 · siSCRIB_1 · single — 30 fields acquired:
+  siSCRIB#6 · repeat siSCRIB_1 — 30 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siSCRIB#6 · siSCRIB_2 · single — 31 fields acquired:
+  siSCRIB#6 · repeat siSCRIB_2 — 31 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.0, bimodality coefficient
-      0.51.
+    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis 2.0.
 
-  siSCRIB#6 · siSCRIB_3 · single — 28 fields acquired:
-    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
-    mean-precision rule, per cell, 5%   no      never                                    –
-    mean-precision rule, per field, 5%  no      never                                    –
-    Cautions here: mean-precision rule, per cell, 5%: excess kurtosis -0.8, bimodality coefficient
-      0.57.
-
-  siSCRIB#7 · siSCRIB_1 · single — 33 fields acquired:
+  siSCRIB#6 · repeat siSCRIB_3 — 28 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siSCRIB#7 · siSCRIB_2 · single — 29 fields acquired:
+  siSCRIB#7 · repeat siSCRIB_1 — 33 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  siSCRIB#7 · siSCRIB_3 · single — 29 fields acquired:
+  siSCRIB#7 · repeat siSCRIB_2 — 29 fields acquired:
     rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
     mean-precision rule, per cell, 5%   no      never                                    –
     mean-precision rule, per field, 5%  no      never                                    –
 
-  ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siCCT8#5 · siCCT8_2 · single): the SD
-     between cells exceeds 50% CV; the paper advises acquiring more data and repeating the estimate;
-     the upper-95 SD bound assumes normal values, and these cells have excess kurtosis 2.7 and
-     bimodality coefficient 0.51 (above 2 or 0.56: a heavy tail or a minority state), so the bound can
-     be optimistic (with 10% of cells at four times the level of the rest it covered the true SD
-     68-88% of the time, not 97.5%)
-  ⚠️ Mean-precision rule, per cell, 5%, in 13 of 54 groups (siCCT8#8 · siCCT8_1 · single,
-     siCSNK1A1#5 · siCSNK1A1_1 · single, siCTRL · siCSNK1A1_1 · single, siCTRL · siMAP4K4_3 · single,
-     siMAP4K4#5 · siMAP4K4_2 · single and 8 more): the upper-95 SD bound assumes normal values, and
-     these cells have excess kurtosis -0.8 to 6.3 and bimodality coefficient 0.31 to 0.60 (above 2 or
-     0.56: a heavy tail or a minority state), so the bound can be optimistic (with 10% of cells at
-     four times the level of the rest it covered the true SD 68-88% of the time, not 97.5%)
-  ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siMINK1#10 · siMINK1_2 · single): the SD
-     between cells exceeds 50% CV; the paper advises acquiring more data and repeating the estimate.
+  siSCRIB#7 · repeat siSCRIB_3 — 29 fields acquired:
+    rule                                enough  5 random orders: median (MC SE; 10-90%)  beyond
+    mean-precision rule, per cell, 5%   no      never                                    –
+    mean-precision rule, per field, 5%  no      never                                    –
+
+  ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siCCT8#5 · repeat siCCT8_2): the SD between
+     cells exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and repeating
+     the estimate; the upper-95 SD bound assumes normal values, and these cells have excess kurtosis
+     2.7 (above 2: a heavy tail), so the bound can be optimistic (with 10% of cells at four times the
+     level of the rest it covered the true SD 68-88% of the time, not 97.5%)
+  ⚠️ Mean-precision rule, per cell, 5%, in 9 of 54 groups (siCCT8#8 · repeat siCCT8_1,
+     siCSNK1A1#5 · repeat siCSNK1A1_1, siCTRL · repeat siCSNK1A1_1, siCTRL · repeat siMAP4K4_3,
+     siMAP4K4#6 · repeat siMAP4K4_1 and 4 more): the upper-95 SD bound assumes normal values, and
+     these cells have excess kurtosis 2.0 to 4.8 (above 2: a heavy tail), so the bound can be
+     optimistic (with 10% of cells at four times the level of the rest it covered the true SD 68-88%
+     of the time, not 97.5%)
+  ⚠️ Mean-precision rule, per cell, 5%, in 3 of 54 groups (siMAP4K4#5 · repeat siMAP4K4_2,
+     siCTRL · repeat siNF2_3 and siCTRL · repeat siSCRIB_1): the upper-95 SD bound assumes normal
+     values, and these cells have excess kurtosis 4.6 to 6.3 (above 2: a heavy tail) and bimodality
+     coefficient 0.556 to 0.595 (above 5/9 = 0.556: two groups of values), so the bound can be
+     optimistic (with 10% of cells at four times the level of the rest it covered the true SD 68-88%
+     of the time, not 97.5%)
+  ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siMINK1#10 · repeat siMINK1_2): the SD
+     between cells exceeds 50% of their mean; Zweifach (JCB 2024) advises acquiring more data and
+     repeating the estimate.
+  ⚠️ Mean-precision rule, per cell, 5%, in 1 of 54 groups (siSCRIB#6 · repeat siSCRIB_3): the upper-95
+     SD bound assumes normal values, and these cells have bimodality coefficient 0.575 (above 5/9 =
+     0.556: two groups of values), so the bound can be optimistic (with 10% of cells at four times the
+     level of the rest it covered the true SD 68-88% of the time, not 97.5%)
   ⚠️ Mean-precision rule, per cell, 5% was met and then lost as more fields arrived, in 2 of 54
      groups.
-  ⚠️ Mean-precision rule, per field, 5%, in 2 of 54 groups (siCCT8#5 · siCCT8_2 · single and
-     siMINK1#10 · siMINK1_2 · single): the SD between cells exceeds 50% CV; the paper advises
-     acquiring more data and repeating the estimate.
-  ⚠️ Mean-precision rule, per field, 5% was met and then lost as more fields arrived, in 2 of 54
+  ⚠️ Mean-precision rule, per field, 5%, in 2 of 54 groups (siCCT8#5 · repeat siCCT8_2 and
+     siMINK1#10 · repeat siMINK1_2): the SD between cells exceeds 50% of their mean; Zweifach (JCB
+     2024) advises acquiring more data and repeating the estimate.
+  ⚠️ Mean-precision rule, per field, 5% was met and then lost as more fields arrived, in 3 of 54
      groups.
   ⚠️ The acquisition order was not checked, so every stop treats the fields as a random sample of the
      well's positions; a raster over a spatial trend can stop early.
   Assumptions:
     - Mean-precision rule, per cell, 5% treats cells as independent draws: it assumes a spatially
       uniform sample.
+    - Mean-precision rule, per field, 5%: in simulations its upper bound, a bootstrap of whole
+      fields, covered the true averaging error about 85-95% of the time with uneven field sizes and
+      93-99% with Poisson sizes.
 
-  'nothing new' is left out: the definition of new needs 3 similar cells in one field, and each
-    field holds one.
+  Whether unseen cell states remain is not asked: a new state needs 3 similar cells in one field,
+    and each field holds one.
 
 ➖ 3. What is limiting my sampling?
   Not applicable: with one cell per field, how cells spread over fields cannot be measured.
 
 ✅ 6. Which fields should I look at?
-  Analysis groups: condition · biological_repeat · technical_repeat.
+  Analysis groups: condition · biological repeat · technical repeat.
   No field stands out under the declared thresholds (influence, count checked).
 
 ✅ 9. Do the conditions differ, and how confidently?
-  Feature Filopodia number, each condition against the control {'condition': 'siCTRL'}, within each
-    biological repeat. The fields of a condition's analysis groups are pooled for this comparison.
-    Objects are compared as Plot&Stats does and, since a microscope acquires them through fields, with
-    the field as the unit and, where each side has at least two, with the technical repeat
-    (technical_repeat) as the unit.
-  Reading, condition by condition, against siCTRL (paired test: Bonferroni, on normalised values;
-    cell-level: the version below that is least biased by the repeats):
-    - siCCT8#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
-      -1.44); paired test p 0.44; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 8% here); siCCT8#8 (CCT8) agrees in 3 of 3 biological repeats.
-    - siCCT8#8 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
-      -1.54); paired test p 0.32; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 37% here); siCCT8#5 (CCT8) agrees in 3 of 3 biological repeats.
-    - siCSNK1A1#11 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
-      (d -1.86); paired test p 0.14; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 21% here); siCSNK1A1#5 (CSNK1A1) agrees in 3 of 3 biological repeats.
-    - siCSNK1A1#5 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
-      (d -1.92); paired test p 0.12; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 26% here); siCSNK1A1#11 (CSNK1A1) agrees in 3 of 3 biological repeats.
-    - siMAP4K4#5 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats
-      (d 0.82); paired test p 0.16; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 5% here); siMAP4K4#6 (MAP4K4) agrees in 3 of 3 biological repeats.
-    - siMAP4K4#6 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats
-      (d 1.39); paired test p 0.69; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 40% here); siMAP4K4#5 (MAP4K4) agrees in 3 of 3 biological repeats.
-    - siMINK1#10 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats
-      (d -0.88); paired test p 0.77; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 18% here); siMINK1#3 (MINK1) agrees in 3 of 3 biological repeats.
-    - siMINK1#3 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
-      -0.49); paired test p 0.74; cell-level p 0.15 (balanced, normalised; false-positive chance about
-      5% here); the raw pooled test gives p 0.006, but it pools the control of repeats this condition
-      was not imaged in; siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
-    - siNF2#17 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats (d
-      0.53); paired test p 1; cell-level p 0.048 (balanced, normalised; false-positive chance about
-      27% here); siNF2#7 (NF2) agrees in 3 of 3 biological repeats.
-    - siNF2#7 — same direction in every repeat, not confirmed: higher in 3 of 3 biological repeats (d
-      0.55); paired test p 0.99; cell-level p 0.024 (balanced, normalised; false-positive chance about
-      17% here); siNF2#17 (NF2) agrees in 3 of 3 biological repeats.
-    - siSCRIB#6 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
-      -1.62); paired test p 0.15; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 34% here); siSCRIB#7 (SCRIB) agrees in 3 of 3 biological repeats.
-    - siSCRIB#7 — same direction in every repeat, not confirmed: lower in 3 of 3 biological repeats (d
-      -1.55); paired test p 0.11; cell-level p 0.012 (balanced, normalised; false-positive chance
-      about 22% here); siSCRIB#6 (SCRIB) agrees in 3 of 3 biological repeats.
+  Feature Filopodia number, each condition against the control (siCTRL), within each biological
+    repeat. The fields of a condition's analysis groups are pooled for this comparison. Cells are
+    compared as Plot&Stats does and, since a microscope acquires them through fields, with the field
+    as the unit and, where each side has at least two, with the technical repeat (technical_repeat) as
+    the unit.
+  Design: 6 sub-experiments, each with its own siCTRL in its own 3 biological repeats (siCCT8#5 and
+    siCCT8#8; siCSNK1A1#11 and siCSNK1A1#5; siMAP4K4#5 and siMAP4K4#6; siMINK1#10 and siMINK1#3;
+    siNF2#17 and siNF2#7; siSCRIB#6 and siSCRIB#7). Reading, condition by condition, against siCTRL.
+    Significant across repeats: the paired t-test on the biological repeat means (as SuperPlots;
+    values normalised to each repeat's control) gives q ≤ 0.05 after Benjamini-Hochberg within the
+    condition's sub-experiment: this is the result to report. Same direction, not significant: on one
+    side of the control in every repeat without reaching q ≤ 0.05, a consistent trend and not evidence
+    of no effect (with 3 repeats only large, consistent effects reach it). Beside it, the cell-level
+    screen (as Plot&Stats, every cell an independent draw) is exploratory: it finds candidates, not
+    effects that repeat:
+    - siCCT8#5 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per repeat,
+      mean -1.44, mean 44% lower than the control); paired t-test on the 3 repeat means p 0.037, q
+      0.037; on raw values q 0.069; cell-level screen (exploratory) q 0.001 (balanced, normalised;
+      with no real effect it gives p ≤ 0.05 in about 8% of experiments like this one); siCCT8#8 (CCT8)
+      agrees in 3 of 3 biological repeats.
+    - siCCT8#8 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per repeat,
+      mean -1.54, mean 45% lower than the control); paired t-test on the 3 repeat means p 0.027, q
+      0.037; on raw values q 0.069; cell-level screen (exploratory) q 0.001 (balanced, normalised;
+      with no real effect it gives p ≤ 0.05 in about 37% of experiments like this one); siCCT8#5
+      (CCT8) agrees in 3 of 3 biological repeats.
+    - siCSNK1A1#11 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -1.86, mean 48% lower than the control); paired t-test on the 3 repeat means p
+      0.012, q 0.012; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 21% of experiments like this one); siCSNK1A1#5 (CSNK1A1)
+      agrees in 3 of 3 biological repeats.
+    - siCSNK1A1#5 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -1.92, mean 51% lower than the control); paired t-test on the 3 repeat means p
+      0.0098, q 0.012; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 26% of experiments like this one); siCSNK1A1#11 (CSNK1A1)
+      agrees in 3 of 3 biological repeats.
+    - siMAP4K4#5 — significant across repeats: higher in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean +0.82, mean 32% higher than the control); paired t-test on the 3 repeat means p
+      0.014, q 0.027; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 5% of experiments like this one); siMAP4K4#6 (MAP4K4) agrees
+      in 3 of 3 biological repeats.
+    - siMAP4K4#6 — same direction in every repeat, not significant: higher in 3 of 3 biological
+      repeats (Cohen's d per repeat, mean +1.39, mean 60% higher than the control); paired t-test on
+      the 3 repeat means p 0.058, q 0.058; cell-level screen (exploratory) q 0.001 (balanced,
+      normalised; with no real effect it gives p ≤ 0.05 in about 40% of experiments like this one);
+      siMAP4K4#5 (MAP4K4) agrees in 3 of 3 biological repeats.
+    - siMINK1#10 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
+      (Cohen's d per repeat, mean -0.88, mean 29% lower than the control); paired t-test on the 3
+      repeat means p 0.064, q 0.064; cell-level screen (exploratory) q 0.002 (balanced, normalised;
+      with no real effect it gives p ≤ 0.05 in about 18% of experiments like this one); siMINK1#3
+      (MINK1) agrees in 3 of 3 biological repeats.
+    - siMINK1#3 — same direction in every repeat, not significant: lower in 3 of 3 biological repeats
+      (Cohen's d per repeat, mean -0.49, mean 17% lower than the control); paired t-test on the 3
+      repeat means p 0.062, q 0.064; on raw values q 0.043; cell-level screen (exploratory) q 0.008
+      (balanced, normalised; with no real effect it gives p ≤ 0.05 in about 5% of experiments like
+      this one); siMINK1#10 (MINK1) agrees in 3 of 3 biological repeats.
+    - siNF2#17 — same direction in every repeat, not significant: higher in 3 of 3 biological repeats
+      (Cohen's d per repeat, mean +0.53, mean 16% higher than the control); paired t-test on the 3
+      repeat means p 0.15, q 0.15; cell-level screen (exploratory) q 0.004 (balanced, normalised; with
+      no real effect it gives p ≤ 0.05 in about 27% of experiments like this one); siNF2#7 (NF2)
+      agrees in 3 of 3 biological repeats.
+    - siNF2#7 — same direction in every repeat, not significant: higher in 3 of 3 biological repeats
+      (Cohen's d per repeat, mean +0.55, mean 17% higher than the control); paired t-test on the 3
+      repeat means p 0.083, q 0.15; cell-level screen (exploratory) q 0.002 (balanced, normalised;
+      with no real effect it gives p ≤ 0.05 in about 17% of experiments like this one); siNF2#17 (NF2)
+      agrees in 3 of 3 biological repeats.
+    - siSCRIB#6 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -1.62, mean 46% lower than the control); paired t-test on the 3 repeat means p
+      0.013, q 0.013; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 34% of experiments like this one); siSCRIB#7 (SCRIB) agrees in
+      3 of 3 biological repeats.
+    - siSCRIB#7 — significant across repeats: lower in 3 of 3 biological repeats (Cohen's d per
+      repeat, mean -1.55, mean 45% lower than the control); paired t-test on the 3 repeat means p
+      0.0088, q 0.013; cell-level screen (exploratory) q 0.001 (balanced, normalised; with no real
+      effect it gives p ≤ 0.05 in about 22% of experiments like this one); siSCRIB#6 (SCRIB) agrees in
+      3 of 3 biological repeats.
   Across the 3 biological repeats (each repeat's value is the mean of its cells, paired with the
     control of the same repeat):
-    condition               vs control, by repeat  d cells: mean (range)   paired t p (Bonf.)  normalised
-    siCCT8#5 vs siCTRL      lower in 3 of 3        -1.44 (-1.66 to -1.11)  0.069 (0.83)        0.037 (0.44)
-    siCCT8#8 vs siCTRL      lower in 3 of 3        -1.54 (-2.18 to -1.10)  0.036 (0.44)        0.027 (0.32)
-    siCSNK1A1#11 vs siCTRL  lower in 3 of 3        -1.86 (-2.17 to -1.43)  0.0072 (0.087)      0.012 (0.14)
-    siCSNK1A1#5 vs siCTRL   lower in 3 of 3        -1.92 (-2.40 to -1.53)  0.0048 (0.058)      0.0098 (0.12)
-    siMAP4K4#5 vs siCTRL    higher in 3 of 3       0.82 (0.69 to 1.00)     0.01 (0.12)         0.014 (0.16)
-    siMAP4K4#6 vs siCTRL    higher in 3 of 3       1.39 (0.89 to 2.08)     0.065 (0.78)        0.058 (0.69)
-    siMINK1#10 vs siCTRL    lower in 3 of 3        -0.88 (-1.21 to -0.38)  0.073 (0.88)        0.064 (0.77)
-    siMINK1#3 vs siCTRL     lower in 3 of 3        -0.49 (-0.73 to -0.32)  0.022 (0.26)        0.062 (0.74)
-    siNF2#17 vs siCTRL      higher in 3 of 3       0.53 (0.16 to 1.08)     0.11 (1)            0.15 (1)
-    siNF2#7 vs siCTRL       higher in 3 of 3       0.55 (0.30 to 0.99)     0.046 (0.55)        0.083 (0.99)
-    siSCRIB#6 vs siCTRL     lower in 3 of 3        -1.62 (-1.96 to -0.95)  0.013 (0.16)        0.013 (0.15)
-    siSCRIB#7 vs siCTRL     lower in 3 of 3        -1.55 (-2.05 to -1.17)  0.007 (0.084)       0.0088 (0.11)
+    condition               vs control, by repeat  d cells per repeat: mean (range)  paired t, raw: p (q)  paired t, normalised: p (q)
+    siCCT8#5 vs siCTRL      lower in 3 of 3        -1.44 (-1.66 to -1.11)            0.069 (0.069)         0.037 (0.037)
+    siCCT8#8 vs siCTRL      lower in 3 of 3        -1.54 (-2.18 to -1.10)            0.036 (0.069)         0.027 (0.037)
+    siCSNK1A1#11 vs siCTRL  lower in 3 of 3        -1.86 (-2.17 to -1.43)            0.0072 (0.0072)       0.012 (0.012)
+    siCSNK1A1#5 vs siCTRL   lower in 3 of 3        -1.92 (-2.40 to -1.53)            0.0048 (0.0072)       0.0098 (0.012)
+    siMAP4K4#5 vs siCTRL    higher in 3 of 3       +0.82 (0.69 to 1.00)              0.010 (0.021)         0.014 (0.027)
+    siMAP4K4#6 vs siCTRL    higher in 3 of 3       +1.39 (0.89 to 2.08)              0.065 (0.065)         0.058 (0.058)
+    siMINK1#10 vs siCTRL    lower in 3 of 3        -0.88 (-1.21 to -0.38)            0.073 (0.073)         0.064 (0.064)
+    siMINK1#3 vs siCTRL     lower in 3 of 3        -0.49 (-0.73 to -0.32)            0.022 (0.043)         0.062 (0.064)
+    siNF2#17 vs siCTRL      higher in 3 of 3       +0.53 (0.16 to 1.08)              0.11 (0.11)           0.15 (0.15)
+    siNF2#7 vs siCTRL       higher in 3 of 3       +0.55 (0.30 to 0.99)              0.0458 (0.092)        0.083 (0.15)
+    siSCRIB#6 vs siCTRL     lower in 3 of 3        -1.62 (-1.96 to -0.95)            0.013 (0.013)         0.013 (0.013)
+    siSCRIB#7 vs siCTRL     lower in 3 of 3        -1.55 (-2.05 to -1.17)            0.007 (0.013)         0.0088 (0.013)
   Independent reagents for one target (target), against the control in each repeat:
     target   reagents                   repeats
     CCT8     siCCT8#5, siCCT8#8         all lower in 3 of 3
@@ -510,97 +546,89 @@ What this acquisition was asked to preserve
     MINK1    siMINK1#10, siMINK1#3      all lower in 3 of 3
     NF2      siNF2#17, siNF2#7          all higher in 3 of 3
     SCRIB    siSCRIB#6, siSCRIB#7       all lower in 3 of 3
-  Cell-level test (as in Plot&Stats): Cohen's d on every cell against the control, the randomization
-    test shuffling the labels over the cells:
-    Balance: for every condition, one biological repeat holds more than 25% more cells than another
-      (up to 2.5 times) and the control is pooled from 15 biological repeats the condition was not
-      imaged in, so the test is given as provided and balanced (each condition against the control of
-      its own biological repeats, the same number of cells from each biological repeat; the median d
-      and p over 100 draws). The control means differ up to 2.0x between biological repeats, so the
-      raw test as provided compares each condition with other repeats' level: read the normalised or
+  Cell-level screen (exploratory, as in Plot&Stats): Cohen's d on every cell against the control, the
+    randomization test shuffling the labels over the cells:
+    Balance: for siCCT8#5, siMAP4K4#5, siMAP4K4#6 and 2 more, one biological repeat holds more than
+      25% more cells than another on one side (up to 2.5 times); and for every condition, the control
+      as provided is pooled from 15 biological repeats the condition was not imaged in; so the test is
+      also given balanced (each condition against the control of its own biological repeats, the same
+      number of cells from each biological repeat; the median d over 100 draws, labels shuffled within
+      each biological repeat for p), and as provided only where the control comes from the condition's
+      own biological repeats. The control means differ up to 2.0x between biological repeats, so a raw
+      test pooling them would compare each condition with other repeats' level: read the normalised or
       balanced columns.
-    As provided:
-    condition               raw: d (p Bonf.)  normalised     p ≤ 0.05 without an effect
-    siCCT8#5 vs siCTRL      -0.99 (0.006)     -1.36 (0.006)  about 8%
-    siCCT8#8 vs siCTRL      -0.97 (0.006)     -1.36 (0.006)  about 39%
-    siCSNK1A1#11 vs siCTRL  -1.16 (0.006)     -1.49 (0.006)  about 21%
-    siCSNK1A1#5 vs siCTRL   -1.24 (0.006)     -1.58 (0.006)  about 26%
-    siMAP4K4#5 vs siCTRL    -0.10 (1)         0.95 (0.006)   about 5%
-    siMAP4K4#6 vs siCTRL    0.50 (0.006)      1.67 (0.006)   about 41%
-    siMINK1#10 vs siCTRL    -0.75 (0.006)     -0.81 (0.006)  about 21%
-    siMINK1#3 vs siCTRL     -0.51 (0.006)     -0.55 (0.006)  about 5%
-    siNF2#17 vs siCTRL      0.19 (1)          0.46 (0.006)   about 28%
-    siNF2#7 vs siCTRL       0.23 (0.55)       0.51 (0.006)   about 17%
-    siSCRIB#6 vs siCTRL     -1.07 (0.006)     -1.38 (0.006)  about 35%
-    siSCRIB#7 vs siCTRL     -1.04 (0.006)     -1.36 (0.006)  about 23%
+    Not given as provided for siCCT8#5, siCCT8#8, siCSNK1A1#11 and 9 more: their control would include
+      biological repeats the condition was not imaged in.
     Balanced over the repeats:
-    condition               raw: d (p Bonf.)  normalised     cells per repeat, condition / control  p ≤ 0.05 without an effect
-    siCCT8#5 vs siCTRL      -1.30 (0.012)     -1.38 (0.012)  30 / 32                                about 8%
-    siCCT8#8 vs siCTRL      -1.31 (0.012)     -1.45 (0.012)  31 / 32                                about 37%
-    siCSNK1A1#11 vs siCTRL  -1.84 (0.012)     -1.85 (0.012)  34 / 31                                about 21%
-    siCSNK1A1#5 vs siCTRL   -1.89 (0.012)     -1.88 (0.012)  34 / 31                                about 26%
-    siMAP4K4#5 vs siCTRL    0.86 (0.012)      0.82 (0.012)   13 / 30                                about 5%
-    siMAP4K4#6 vs siCTRL    1.34 (0.012)      1.29 (0.012)   29 / 30                                about 40%
-    siMINK1#10 vs siCTRL    -0.87 (0.012)     -0.82 (0.012)  27 / 18                                about 18%
-    siMINK1#3 vs siCTRL     -0.43 (0.29)      -0.49 (0.15)   20 / 18                                about 5%
-    siNF2#17 vs siCTRL      0.40 (0.11)       0.45 (0.048)   30 / 29                                about 27%
-    siNF2#7 vs siCTRL       0.44 (0.048)      0.51 (0.024)   30 / 29                                about 17%
-    siSCRIB#6 vs siCTRL     -1.51 (0.012)     -1.46 (0.012)  28 / 26                                about 34%
-    siSCRIB#7 vs siCTRL     -1.49 (0.012)     -1.48 (0.012)  29 / 26                                about 22%
+    condition               raw: d, p (q)         normalised: d, p (q)  cells per repeat, condition / control  gives p ≤ 0.05 with no effect
+    siCCT8#5 vs siCTRL      -1.29, 0.001 (0.001)  -1.39, 0.001 (0.001)  30 / 32                                about 8%
+    siCCT8#8 vs siCTRL      -1.29, 0.001 (0.001)  -1.47, 0.001 (0.001)  31 / 32                                about 37%
+    siCSNK1A1#11 vs siCTRL  -1.85, 0.001 (0.001)  -1.84, 0.001 (0.001)  34 / 31                                about 21%
+    siCSNK1A1#5 vs siCTRL   -1.89, 0.001 (0.001)  -1.89, 0.001 (0.001)  34 / 31                                about 26%
+    siMAP4K4#5 vs siCTRL    +0.86, 0.001 (0.001)  +0.83, 0.001 (0.001)  13 / 30                                about 5%
+    siMAP4K4#6 vs siCTRL    +1.33, 0.001 (0.001)  +1.29, 0.001 (0.001)  29 / 30                                about 40%
+    siMINK1#10 vs siCTRL    -0.87, 0.001 (0.002)  -0.81, 0.001 (0.002)  27 / 18                                about 18%
+    siMINK1#3 vs siCTRL     -0.45, 0.005 (0.005)  -0.48, 0.008 (0.008)  20 / 18                                about 5%
+    siNF2#17 vs siCTRL      +0.39, 0.009 (0.009)  +0.45, 0.004 (0.004)  30 / 29                                about 27%
+    siNF2#7 vs siCTRL       +0.44, 0.003 (0.006)  +0.52, 0.001 (0.002)  30 / 29                                about 17%
+    siSCRIB#6 vs siCTRL     -1.52, 0.001 (0.001)  -1.47, 0.001 (0.001)  28 / 26                                about 34%
+    siSCRIB#7 vs siCTRL     -1.51, 0.001 (0.001)  -1.48, 0.001 (0.001)  29 / 26                                about 22%
   Within each repeat:
-    contrast                              fields    cells     tech. repeats  d cells  JCS, every cell
-    siCCT8#5 vs siCTRL · siCCT8_1         34 vs 33  34 vs 33  1 vs 1         -1.11    -1.05
-    siCCT8#8 vs siCTRL · siCCT8_1         31 vs 33  31 vs 33  1 vs 1         -1.10    -1.04
-    siCCT8#5 vs siCTRL · siCCT8_2         49 vs 39  49 vs 39  1 vs 1         -1.66    -1.38
-    siCCT8#8 vs siCTRL · siCCT8_2         38 vs 39  38 vs 39  1 vs 1         -1.33    -1.10
-    siCCT8#5 vs siCTRL · siCCT8_3         30 vs 32  30 vs 32  1 vs 1         -1.56    -1.31
-    siCCT8#8 vs siCTRL · siCCT8_3         31 vs 32  31 vs 32  1 vs 1         -2.18    -1.84
-    siCSNK1A1#11 vs siCTRL · siCSNK1A1_1  34 vs 31  34 vs 31  1 vs 1         -1.43    -1.15
-    siCSNK1A1#5 vs siCTRL · siCSNK1A1_1   35 vs 31  35 vs 31  1 vs 1         -1.53    -1.34
-    siCSNK1A1#11 vs siCTRL · siCSNK1A1_2  34 vs 33  34 vs 33  1 vs 1         -1.98    -1.55
-    siCSNK1A1#5 vs siCTRL · siCSNK1A1_2   34 vs 33  34 vs 33  1 vs 1         -1.83    -1.51
-    siCSNK1A1#11 vs siCTRL · siCSNK1A1_3  34 vs 33  34 vs 33  1 vs 1         -2.17    -1.76
-    siCSNK1A1#5 vs siCTRL · siCSNK1A1_3   34 vs 33  34 vs 33  1 vs 1         -2.40    -1.91
-    siMAP4K4#5 vs siCTRL · siMAP4K4_1     31 vs 30  31 vs 30  1 vs 1         1.00     1.13
-    siMAP4K4#6 vs siCTRL · siMAP4K4_1     37 vs 30  37 vs 30  1 vs 1         2.08     2.56
-    siMAP4K4#5 vs siCTRL · siMAP4K4_2     13 vs 32  13 vs 32  1 vs 1         0.69     0.89
-    siMAP4K4#6 vs siCTRL · siMAP4K4_2     29 vs 32  29 vs 32  1 vs 1         0.89     1.00
-    siMAP4K4#5 vs siCTRL · siMAP4K4_3     32 vs 31  32 vs 31  1 vs 1         0.77     0.79
-    siMAP4K4#6 vs siCTRL · siMAP4K4_3     32 vs 31  32 vs 31  1 vs 1         1.21     1.75
-    siMINK1#10 vs siCTRL · siMINK1_1      33 vs 34  33 vs 34  1 vs 1         -0.38    -0.39
-    siMINK1#3 vs siCTRL · siMINK1_1       38 vs 34  38 vs 34  1 vs 1         -0.73    -0.67
-    siMINK1#10 vs siCTRL · siMINK1_2      29 vs 32  29 vs 32  1 vs 1         -1.05    -1.08
-    siMINK1#3 vs siCTRL · siMINK1_2       27 vs 32  27 vs 32  1 vs 1         -0.42    -0.47
-    siMINK1#10 vs siCTRL · siMINK1_3      27 vs 18  27 vs 18  1 vs 1         -1.21    -0.90
-    siMINK1#3 vs siCTRL · siMINK1_3       20 vs 18  20 vs 18  1 vs 1         -0.32    -0.30
-    siNF2#17 vs siCTRL · siNF2_1          32 vs 31  32 vs 31  1 vs 1         0.16     0.19
-    siNF2#7 vs siCTRL · siNF2_1           30 vs 31  30 vs 31  1 vs 1         0.37     0.41
-    siNF2#17 vs siCTRL · siNF2_2          31 vs 29  31 vs 29  1 vs 1         0.36     0.35
-    siNF2#7 vs siCTRL · siNF2_2           31 vs 29  31 vs 29  1 vs 1         0.30     0.30
-    siNF2#17 vs siCTRL · siNF2_3          30 vs 31  30 vs 31  1 vs 1         1.08     1.21
-    siNF2#7 vs siCTRL · siNF2_3           31 vs 31  31 vs 31  1 vs 1         0.99     1.09
-    siSCRIB#6 vs siCTRL · siSCRIB_1       30 vs 30  30 vs 30  1 vs 1         -0.95    -0.79
-    siSCRIB#7 vs siCTRL · siSCRIB_1       33 vs 30  33 vs 30  1 vs 1         -1.17    -0.89
-    siSCRIB#6 vs siCTRL · siSCRIB_2       31 vs 26  31 vs 26  1 vs 1         -1.96    -1.58
-    siSCRIB#7 vs siCTRL · siSCRIB_2       29 vs 26  29 vs 26  1 vs 1         -1.44    -1.35
-    siSCRIB#6 vs siCTRL · siSCRIB_3       28 vs 30  28 vs 30  1 vs 1         -1.94    -1.75
-    siSCRIB#7 vs siCTRL · siSCRIB_3       29 vs 30  29 vs 30  1 vs 1         -2.05    -1.70
-  Planning the next experiment, with 3 biological repeats as here: the fields a side each repeat needs
-    to resolve the difference from the control, and what limits it (full report: the repeats a paired
-    test needs for 80% power at p ≤ 0.05, per condition):
-    condition               d cells, mean  fields a side per repeat  limited by                                repeats needed  with twice the fields
-    siCCT8#5 vs siCTRL      -1.44          about 7                   sampling (more fields help)               3               3
-    siCCT8#8 vs siCTRL      -1.54          about 10                  repeats differ (more fields help little)  4               4
-    siCSNK1A1#11 vs siCTRL  -1.86          about 4                   repeats differ (more fields help little)  3               3
-    siCSNK1A1#5 vs siCTRL   -1.92          about 4                   repeats differ (more fields help little)  3               3
-    siMAP4K4#5 vs siCTRL    0.82           about 21                  sampling (more fields help)               4               3
-    siMAP4K4#6 vs siCTRL    1.39           about 12                  repeats differ (more fields help little)  4               4
-    siMINK1#10 vs siCTRL    -0.88          about 62                  repeats differ (more fields help little)  5               4
-    siMINK1#3 vs siCTRL     -0.49          too small to settle       sampling (more fields help)               6               4
-    siNF2#17 vs siCTRL      0.53           too small to settle       repeats differ (more fields help little)  9               8
-    siNF2#7 vs siCTRL       0.55           about 98                  sampling (more fields help)               6               5
-    siSCRIB#6 vs siCTRL     -1.62          about 7                   repeats differ (more fields help little)  4               4
-    siSCRIB#7 vs siCTRL     -1.55          about 5                   repeats differ (more fields help little)  3               3
+    contrast                                    fields    cells     tech. repeats  d on cells  over control SD, every cell
+    siCCT8#5 vs siCTRL, repeat siCCT8_1         34 vs 33  34 vs 33  1 vs 1         -1.11       -1.05
+    siCCT8#8 vs siCTRL, repeat siCCT8_1         31 vs 33  31 vs 33  1 vs 1         -1.10       -1.04
+    siCCT8#5 vs siCTRL, repeat siCCT8_2         49 vs 39  49 vs 39  1 vs 1         -1.66       -1.38
+    siCCT8#8 vs siCTRL, repeat siCCT8_2         38 vs 39  38 vs 39  1 vs 1         -1.33       -1.10
+    siCCT8#5 vs siCTRL, repeat siCCT8_3         30 vs 32  30 vs 32  1 vs 1         -1.56       -1.31
+    siCCT8#8 vs siCTRL, repeat siCCT8_3         31 vs 32  31 vs 32  1 vs 1         -2.18       -1.84
+    siCSNK1A1#11 vs siCTRL, repeat siCSNK1A1_1  34 vs 31  34 vs 31  1 vs 1         -1.43       -1.15
+    siCSNK1A1#5 vs siCTRL, repeat siCSNK1A1_1   35 vs 31  35 vs 31  1 vs 1         -1.53       -1.34
+    siCSNK1A1#11 vs siCTRL, repeat siCSNK1A1_2  34 vs 33  34 vs 33  1 vs 1         -1.98       -1.55
+    siCSNK1A1#5 vs siCTRL, repeat siCSNK1A1_2   34 vs 33  34 vs 33  1 vs 1         -1.83       -1.51
+    siCSNK1A1#11 vs siCTRL, repeat siCSNK1A1_3  34 vs 33  34 vs 33  1 vs 1         -2.17       -1.76
+    siCSNK1A1#5 vs siCTRL, repeat siCSNK1A1_3   34 vs 33  34 vs 33  1 vs 1         -2.40       -1.91
+    siMAP4K4#5 vs siCTRL, repeat siMAP4K4_1     31 vs 30  31 vs 30  1 vs 1         +1.00       +1.13
+    siMAP4K4#6 vs siCTRL, repeat siMAP4K4_1     37 vs 30  37 vs 30  1 vs 1         +2.08       +2.56
+    siMAP4K4#5 vs siCTRL, repeat siMAP4K4_2     13 vs 32  13 vs 32  1 vs 1         +0.69       +0.89
+    siMAP4K4#6 vs siCTRL, repeat siMAP4K4_2     29 vs 32  29 vs 32  1 vs 1         +0.89       +1.00
+    siMAP4K4#5 vs siCTRL, repeat siMAP4K4_3     32 vs 31  32 vs 31  1 vs 1         +0.77       +0.79
+    siMAP4K4#6 vs siCTRL, repeat siMAP4K4_3     32 vs 31  32 vs 31  1 vs 1         +1.21       +1.75
+    siMINK1#10 vs siCTRL, repeat siMINK1_1      33 vs 34  33 vs 34  1 vs 1         -0.38       -0.39
+    siMINK1#3 vs siCTRL, repeat siMINK1_1       38 vs 34  38 vs 34  1 vs 1         -0.73       -0.67
+    siMINK1#10 vs siCTRL, repeat siMINK1_2      29 vs 32  29 vs 32  1 vs 1         -1.05       -1.08
+    siMINK1#3 vs siCTRL, repeat siMINK1_2       27 vs 32  27 vs 32  1 vs 1         -0.42       -0.47
+    siMINK1#10 vs siCTRL, repeat siMINK1_3      27 vs 18  27 vs 18  1 vs 1         -1.21       -0.90
+    siMINK1#3 vs siCTRL, repeat siMINK1_3       20 vs 18  20 vs 18  1 vs 1         -0.32       -0.30
+    siNF2#17 vs siCTRL, repeat siNF2_1          32 vs 31  32 vs 31  1 vs 1         +0.16       +0.19
+    siNF2#7 vs siCTRL, repeat siNF2_1           30 vs 31  30 vs 31  1 vs 1         +0.37       +0.41
+    siNF2#17 vs siCTRL, repeat siNF2_2          31 vs 29  31 vs 29  1 vs 1         +0.36       +0.35
+    siNF2#7 vs siCTRL, repeat siNF2_2           31 vs 29  31 vs 29  1 vs 1         +0.30       +0.30
+    siNF2#17 vs siCTRL, repeat siNF2_3          30 vs 31  30 vs 31  1 vs 1         +1.08       +1.21
+    siNF2#7 vs siCTRL, repeat siNF2_3           31 vs 31  31 vs 31  1 vs 1         +0.99       +1.09
+    siSCRIB#6 vs siCTRL, repeat siSCRIB_1       30 vs 30  30 vs 30  1 vs 1         -0.95       -0.79
+    siSCRIB#7 vs siCTRL, repeat siSCRIB_1       33 vs 30  33 vs 30  1 vs 1         -1.17       -0.89
+    siSCRIB#6 vs siCTRL, repeat siSCRIB_2       31 vs 26  31 vs 26  1 vs 1         -1.96       -1.58
+    siSCRIB#7 vs siCTRL, repeat siSCRIB_2       29 vs 26  29 vs 26  1 vs 1         -1.44       -1.35
+    siSCRIB#6 vs siCTRL, repeat siSCRIB_3       28 vs 30  28 vs 30  1 vs 1         -1.94       -1.75
+    siSCRIB#7 vs siCTRL, repeat siSCRIB_3       29 vs 30  29 vs 30  1 vs 1         -2.05       -1.70
+  Planning the next experiment on Filopodia number (for a new experiment, if the difference and the
+    variation seen here recur; not what the current result needs): the biological repeats a paired
+    t-test on the repeat means needs for 80% power, corrected over the conditions of its
+    sub-experiment (a follow-up on Filopodia number alone), with the cells per repeat as now and with
+    twice as many; then the cells a side each of 3 repeats needs to show the difference on its own:
+    condition               change across repeats  mean d per repeat (cells)  repeats needed  with twice the cells  cells a side per repeat
+    siCCT8#5 vs siCTRL      ×0.56                  -1.44                      4               4                     about 7
+    siCCT8#8 vs siCTRL      ×0.55                  -1.54                      4               4                     about 10
+    siCSNK1A1#11 vs siCTRL  ×0.52                  -1.86                      3               3                     about 4
+    siCSNK1A1#5 vs siCTRL   ×0.49                  -1.92                      3               3                     about 4
+    siMAP4K4#5 vs siCTRL    ×1.32                  +0.82                      4               4                     about 21
+    siMAP4K4#6 vs siCTRL    ×1.60                  +1.39                      5               5                     about 12
+    siMINK1#10 vs siCTRL    ×0.71                  -0.88                      5               5                     about 62
+    siMINK1#3 vs siCTRL     ×0.83                  -0.49                      6               5                     more than 4 times the cells
+    siNF2#17 vs siCTRL      ×1.16                  +0.53                      9               7                     more than 4 times the cells
+    siNF2#7 vs siCTRL       ×1.17                  +0.55                      6               5                     about 98
+    siSCRIB#6 vs siCTRL     ×0.54                  -1.62                      3               3                     about 7
+    siSCRIB#7 vs siCTRL     ×0.55                  -1.55                      3               3                     about 5
   Assumptions:
     - Across biological repeats, the paired t-test on the repeat means (as in SuperPlots) treats
       each biological repeat as one replicate and assumes the differences (raw) or the log ratios to
@@ -608,8 +636,9 @@ What this acquisition was asked to preserve
       It keeps false positives at 5% when the effect varies between biological repeats, which the
       cell-level test does not; the cost is power: with 3 biological repeats and 30 cells a well, d
       1.5 is found in 98, 90 and 63% of experiments and d 1.0 in 85, 67 and 39% as biological
-      repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py);
-      Bonferroni-corrected over the conditions.
+      repeats differ by 0, 0.25 and 0.5 cell SD (data/simulations/test_choice.py). p uncorrected, q
+      corrected (Benjamini-Hochberg within each sub-experiment: the conditions sharing their repeats
+      and control).
     - Reagents of one target that go the same way in every repeat speak against an off-target effect
       of one of them; this is described, not tested, since they share the control.
     - Cell-level test (Cohen's d, randomization over the cells): it assumes the cells are
@@ -617,7 +646,7 @@ What this acquisition was asked to preserve
       it responds with one or two repeats. Limitation: when the difference varies between repeats it
       gives p ≤ 0.05 without an effect in about 2·P(Z > 1.96/√(1 + n·s²/2)) of experiments (n cells
       per well, each repeat weighted by its share when they differ; s the SD between repeats in
-      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'without an effect'
+      observation SDs; data/simulations/test_choice.py and unbalanced.py), the 'with no effect'
       column; more cells per well raise it, and a stricter cutoff does not remove it (22% at p ≤
       0.01 with 30 per well and s = 0.5).
     - Normalised: each value divided by the mean of its own repeat's control, which removes a scale
@@ -625,33 +654,47 @@ What this acquisition was asked to preserve
       repeat's control. It assumes a positive feature on a ratio scale (not computed when a control
       mean is 0 or below); it does not remove the part of the effect that varies between repeats, so
       the cell-level chance still applies.
-    - Balanced: the median d and median p over 100 draws taking the same number of cells from each
-      repeat, against the control of the condition's own repeats; it describes the typical draw and
-      is not the p of one test. In data/simulations/unbalanced.py, with one repeat holding 2 to 8
-      times the cells of the others, the test as provided gives 22-46% false positives where equal
-      repeats give 16% (s = 0.25), and the balanced test 12-14%; with the control pooled from
-      repeats the condition was not imaged in, the raw test as provided gives 46% even when the
-      repeats agree, the balanced test 2%. Balancing removes the weight of the repeats holding more,
-      not the independence assumption.
+    - Balanced: one permutation test against the control of the condition's own repeats, d the
+      median over 100 draws taking the same number of cells from each repeat, p from the condition
+      and control labels shuffled within each repeat, the same statistic on the same draws for each
+      shuffle. In data/simulations/unbalanced.py, with one repeat holding 2 to 8 times the cells of
+      the others, the test as provided gives 22-46% false positives where equal repeats give 16% (s
+      = 0.25), and the balanced test 15-19%; with the control pooled from repeats the condition was
+      not imaged in, the raw test as provided gives 46% even when the repeats agree, the balanced
+      test about 5%. Balancing removes the weight of the repeats holding more, not the independence
+      assumption.
     - Within a repeat the conditions are described by their effect sizes; they are tested across
       repeats (the first table).
     - The test and the effect sizes compare means: a difference confined to a subpopulation of cells
       or to the shape of the distribution is not tested (see the unusual cells and the rare label).
-    - The fields a side per repeat are the most any repeat needs, projected from its interval of d
-      (narrowing as 1/sqrt(fields)); limited by: whether the repeats' d differ more than their
-      sampling error, which more fields cannot reduce. Both are estimated from the repeats here, so
-      the plan is a guide.
+    - Repeats needed: for a paired t-test at p ≤ 0.05/m, m the conditions of the sub-experiment
+      (what Benjamini-Hochberg asks at most), on the values that test compares: each repeat's change
+      (its mean over its control's, a fold change; the difference of the means where a mean is not
+      positive; the table gives their geometric mean, as the verdict does), its spread between the
+      repeats and its sampling error within one. All projected from the repeats here, so the plan is
+      a guide.
+    - The cells a side per repeat are the most any repeat needs, projected from the part of its
+      interval of d within wells (narrowing as 1/sqrt of the number); the part between wells stays,
+      and when it alone is as wide as the difference, more cells will not resolve it: more wells or
+      biological repeats.
+    - Most repeats searched: 30; per condition, its own experiment's m.
+
+➖ 10. Are there groups of cells, and is a condition enriched in one?
+  Not assessed: declare at least two features: the populations are found on all of them.
 
 What this dataset cannot tell me
-  ➖ Foundation: why count fields, and not only objects?: not assessed; needs: run fov_variability
-     (and object_rule_check or descriptor_spread_check) from morphocoverage.sampling_unit.
-  ➖ 1. Can these features detect what I care about?: not assessed; needs: declare a positive control
-     (and a reference) with representation_control.
-  ➖ 3. What is limiting my sampling?: not assessed; needs: run representation_control,
-     fov_variability, fov_clustering, effort_projection, redundancy_distance or inspect_fovs; the
-     profile lists what they measured.
-  ⚠️ 2. Did I image enough? 'nothing new' is left out: the definition of new needs 3 similar cells
-     in one field, and each field holds one.
+  ➖ Foundation: why count fields, and not only cells?: not applicable: each field holds one cell, so
+     fields and cells coincide and every per-cell answer is also the per-field one.
+  ➖ 1. Can these features detect what I care about?: not assessed; needs: name a condition known to
+     change the phenotype as the positive control (the guided session asks for it; in Python,
+     Setup(positive=PositiveControl(...))) and run the report again; it can be added after the
+     acquisition, whenever such a condition was imaged.
+  ➖ 3. What is limiting my sampling?: not applicable: with one cell per field, how cells spread over
+     fields cannot be measured.
+  ➖ 10. Are there groups of cells, and is a condition enriched in one?: not assessed; needs: declare
+     at least two features: the populations are found on all of them.
+  ⚠️ 2. Did I image enough? Whether unseen cell states remain is not asked: a new state needs 3
+     similar cells in one field, and each field holds one.
   Assumptions:
     - Every answer holds for the stated features, tolerances and definition of new.
     - Replays, draws and hold-outs describe these samples; they are not independent experiments.
@@ -662,10 +705,9 @@ What this dataset cannot tell me
       and this definition of new cannot see.
     - Technical drift between repeats, batches or plates is not assessed: groups are analysed apart,
       and a shift shared by all fields of a group is not new within it.
-    - No stage coordinates (stage_cols): neighbouring fields were not compared, and spatial
-      redundancy and dispersed orders were not assessed.
-    - No acquisition order (acquisition_order_col): the recorded order was not replayed, and the
-      random orders treat the fields as exchangeable, so a drift or a raster along the acquisition
-      is not seen.
+    - No stage coordinates: neighbouring fields were not compared, and spatial redundancy and
+      dispersed orders were not assessed.
+    - No acquisition order: the recorded order was not replayed, and the random orders treat the
+      fields as exchangeable, so a drift or a raster along the acquisition is not seen.
 
 Settings: 'Did I image enough?' replays each rule in 5 random orders (seeded from random_state); random_state 0.
