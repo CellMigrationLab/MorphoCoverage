@@ -185,6 +185,11 @@ def test_the_documents_open_with_the_declaration_and_judge_every_declared_criter
     assert merged.startswith(opening) and DECLARATION_TITLE in merged
     with pytest.raises(ValueError, match="rare_label"):
         report(objects.drop(columns="state"), fovs, setup)
+    # Regression (#344): a label coded 0/2 was True where it was cast to bool and another
+    # state where it was compared with True; text labels failed converting to float.
+    for coded in (objects["state"].astype(int) * 2, np.where(objects["state"], "yes", "no")):
+        with pytest.raises(ValueError, match="rare_label 'state' must hold booleans or 0/1"):
+            report(objects.assign(state=coded), fovs, setup)
 
 
 def test_report_answers_the_report_questions_and_leaves_the_rest_out():

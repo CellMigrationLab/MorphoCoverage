@@ -122,6 +122,15 @@ def check_workflow_inputs(
             f"rare_label {setup.rare_label!r} is not a column of the object table: the rare "
             "phenotype cannot be judged on held-back fields without its labels"
         )
+    if setup.rare_label is not None:
+        # The analyses read the label as True/False: any other value ("no", 2) would be
+        # True for some of them and another state for others.
+        labels = objects[setup.rare_label].dropna()
+        if not (pd.api.types.is_bool_dtype(labels) or set(labels.unique()) <= {0, 1}):
+            raise ValueError(
+                f"rare_label {setup.rare_label!r} must hold booleans or 0/1, got "
+                f"{sorted(map(str, labels.unique()))[:5]}"
+            )
     check = _check_tables(
         objects, fovs, feature_cols=setup.columns, control=setup.control, **setup.common
     )
