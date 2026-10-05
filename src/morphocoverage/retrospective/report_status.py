@@ -78,9 +78,9 @@ The rules, question by question:
   did not reach one (not reached; not shown: every unserved sample capped
   by its held-back fields; or not judged at any depth); ✅ otherwise, fewer
   than ``FEW_UNITS`` (5) independent units behind the counts being said in
-  the headline, not flagged (a usual design). Reliability curves alone (no protocol): the fewest listed
-  fields from which ``RELIABLE_SHARE`` (90%) of random acquisitions were
-  enough in every group, per criterion; ❌ when no
+  the headline, not flagged (a usual design). Reliability curves alone (no
+  protocol): the fewest listed fields from which ``RELIABLE_SHARE`` (90%) of
+  random acquisitions were enough in every group, per criterion; ❌ when no
   criterion reached it, ⚠️ otherwise, since nothing was checked across
   samples (a count that served these samples is not yet a protocol).
 - **5. What did the extra fields buy?** (``bought_status``): over the
