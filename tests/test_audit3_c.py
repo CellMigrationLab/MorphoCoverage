@@ -115,8 +115,14 @@ def test_c1_a_feature_constant_so_far_is_not_yet_enough_data_in_every_variant():
             elif a.step == 2:  # one FOV with objects is too few for the FOV unit anyway
                 assert qa.reason == "no spread among the FOV means so far"
             assert a.result.decision == "continue"
-    # Once the fields differ, every variant has a CV again.
-    assert all(r.result.evidence.value("averaging_cv") > 0 for r in full if r.step == 3)
+    # Once the fields differ, every variant has a CV again; the FOV unit's upper-95 bootstrap
+    # waits until under 5% of its resamples draw only the two saturated fields (#97).
+    fov_upper = "scalar_precision_fov_upper95"
+    assert all(
+        r.result.evidence.value("averaging_cv") > 0
+        for r in full
+        if r.step == 5 or (r.step == 3 and r.result.strategy != fov_upper)
+    )
     # The observation unit names the rows in the reason.
     [cells] = _run(
         *_acquisition([[5.0, 5.0], [5.0]]),

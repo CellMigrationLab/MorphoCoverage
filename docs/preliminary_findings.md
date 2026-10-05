@@ -684,7 +684,9 @@ fields when the rule stopped; the unit is the well. Before locking, a
 reduced dry run (one split, one order, not scored) showed several grids
 ending before the cheap end; they were widened under a stated rule (every
 grid reaches from never stopping to stopping at the first allowed field), not
-on a result. Tables: `results/benchmark_*`.
+on a result. Tables: `results/benchmark_*`. Since then the JCB per-field
+upper-95 bound is a bootstrap of whole fields (owner, 2026-10-05); the JCB
+per-field numbers below are from the former chi-square bound and were not rerun.
 
 Fields saved against a fixed count, idr0028 (negative: costs fields):
 

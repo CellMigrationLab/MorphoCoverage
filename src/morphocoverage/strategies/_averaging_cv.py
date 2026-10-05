@@ -26,11 +26,12 @@ from scipy import stats
 
 from .._repeat_statistics import sarle
 from ..statistics import (
-    effective_sd_upper_bound_factor,
+    RELATIVE_TOLERANCE,
     jcb_required_objects,
     kish_effective_fields,
     object_weighted_mean_se,
     sd_upper_bound_factor,
+    small_sample_widening,
     spread_is_zero,
 )
 
@@ -55,37 +56,36 @@ def _object_cv_from_moments(n: int, mean: float, sd: float) -> dict[str, float]:
     }
 
 
-def fov_averaging_cv(sums: np.ndarray, counts: np.ndarray) -> dict[str, Any]:
+# The whole-field bootstrap of the FOV unit's upper-95 bound: resamples (owner, 2026-10-05).
+BOUND_RESAMPLES = 400
+
+
+def fov_averaging_cv(sums: np.ndarray, counts: np.ndarray, random_state: int = 0) -> dict[str, Any]:
     """Averaging CV of the object-weighted mean with FOVs as the sampling unit.
 
     ``statistics.object_weighted_mean_se`` (the ratio estimator for cluster
     sampling, with per-FOV sums ``T_j`` and object counts ``N_j``) as a
     fraction of the mean. Estimand: the per-object mean over the sampled
     area. Only the ``k'`` FOVs holding objects enter the ``k' / (k' - 1)``
-    factor. The upper bound is the object criterion's chi-square bound on
-    ``n_eff - 1`` degrees of freedom, where ``n_eff`` is Kish's effective
-    number of FOVs, ``(sum N_j) ** 2 / sum N_j ** 2``
-    (``statistics.kish_effective_fields``, reported as ``effective_fovs``):
+    factor. ``effective_fovs`` is Kish's effective number of FOVs,
+    ``(sum N_j) ** 2 / sum N_j ** 2`` (``statistics.kish_effective_fields``):
     ``k'`` when every FOV holds as many objects, about 1 when one crowded FOV
-    holds nearly all of them. With ``k' - 1`` degrees of freedom the bound
-    covered the true averaging CV 93-98% of the time for a nominal 95% only
-    when field sizes were Poisson (including 30-80% empty fields); with
-    over-dispersed sizes (negative binomial, dispersion 1 or 0.5) it covered
-    70-85% and with skewed field means 63-76%, and one field of 1000 objects
-    beside one of 5 stopped the rule at 2 FOVs, 20% off the well mean (audit
-    4, P3-1 and P4-3). Below 2 effective FOVs the bound is undefined (NaN
-    here; the estimator reports ``insufficient_data``). Acquired FOVs without
-    objects are still effort: they count in ``required_fovs`` and in the
-    pilot projection, since future FOVs may be empty too. The unweighted mean
-    of FOV means (``field_weighted_mean_se``) is a different estimand;
+    holds nearly all of them; below 2 the estimator reports
+    ``insufficient_data``.
+
+    The upper bound is a bootstrap of whole fields (owner, 2026-10-05; it
+    replaces the chi-square bound on Kish's effective FOVs minus one, which
+    covered 70-85% with over-dispersed field sizes): ``_bootstrap_upper``,
+    seeded with ``random_state``. Acquired FOVs without objects are still
+    effort: they count in ``required_fovs`` and in the pilot projection,
+    since future FOVs may be empty too. The unweighted mean of FOV means
+    (``field_weighted_mean_se``) is a different estimand;
     ``sampling_unit.object_rule_check`` uses it.
     """
     mean, se, filled = object_weighted_mean_se(sums, counts)
     cv_mean = se / mean
     effective = kish_effective_fields(counts)
-    upper = (
-        cv_mean * effective_sd_upper_bound_factor(effective - 1) if effective >= 2 else float("nan")
-    )
+    upper = _bootstrap_upper(sums, counts, cv_mean, random_state) if effective >= 2 else math.nan
     return {
         "mean": mean,
         "cv_mean": cv_mean,
@@ -93,6 +93,62 @@ def fov_averaging_cv(sums: np.ndarray, counts: np.ndarray) -> dict[str, Any]:
         "fovs_with_objects": filled,
         "effective_fovs": effective,
     }
+
+
+def _bootstrap_upper(
+    sums: np.ndarray, counts: np.ndarray, cv_mean: float, random_state: int
+) -> float:
+    """The upper-95 bound of the FOV-unit averaging CV from a bootstrap of whole fields.
+
+    The ``k'`` FOVs holding objects are resampled with replacement
+    (``BOUND_RESAMPLES`` times; empty FOVs add nothing to the CV, so padding
+    with them leaves the bound as it is) and the averaging CV ``c*`` is
+    recomputed on each resample. The bound is ``c`` times the 95th percentile
+    of ``c / c*``, as the chi-square bound divides by a low quantile of the SD
+    estimate's spread, with the log half-width widened for ``k'`` units
+    (``statistics.small_sample_widening(k', 0.90)``, the one-sided 95% level).
+    The 95th percentile of ``c*`` itself covered only 23-77% with over-dispersed field
+    sizes. A resample without spread between its FOVs gives an infinite ratio: when the 95th
+    percentile falls on one, the bound is NaN (the estimator reports ``insufficient_data``),
+    as with 2 or 3 FOVs (one FOV drawn every time in 50% and 11% of the resamples).
+
+    Coverage of the true averaging CV at a nominal 95%, simulated with 1000 wells per cell
+    (5-40 FOVs; field sizes Poisson or negative binomial with mean 20 objects and dispersion 1
+    or 0.5; lognormal field effects of SD 0.1 or 0.3): with Poisson sizes 93-99%; with
+    over-dispersed sizes 89-98% up to 10 FOVs, but 83-89% with 20-40 FOVs, where the
+    ratio-estimator CV itself is below the truth in most wells. The chi-square bound on
+    Kish's effective FOVs at the same level covered 79-96%. Resamples are drawn over the FOVs
+    sorted by count and sum, so the bound depends on the FOVs' values, never on their order,
+    and the full and incremental paths agree. Between seeds the bound moves by about 7% of
+    its value with 10 FOVs, 4% with 20 and 2% with 40; one bound costs well under a
+    millisecond up to 40 FOVs.
+    """
+    filled = counts > 0
+    order = np.lexsort((sums[filled], counts[filled]))
+    field_sums, field_counts = sums[filled][order], counts[filled][order]
+    units = len(field_sums)
+    rng = np.random.default_rng(random_state)
+    draws = rng.integers(0, units, (BOUND_RESAMPLES, units))
+    drawn_sums, drawn_counts = field_sums[draws], field_counts[draws]
+    totals = drawn_counts.sum(axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        means = drawn_sums.sum(axis=1) / totals
+        residuals = np.sum((drawn_sums - means[:, None] * drawn_counts) ** 2, axis=1)
+        resampled = np.sqrt(units / (units - 1) * residuals) / totals / means
+        log_ratio = np.log(cv_mean) - np.log(resampled)
+    # No spread (one FOV drawn every time, or FOVs of one mean, up to rounding) or no positive
+    # mean: this resample cannot bound the CV.
+    log_ratio[~(resampled > RELATIVE_TOLERANCE) | ~np.isfinite(log_ratio)] = np.inf
+    high = float(np.quantile(log_ratio, 0.95, method="inverted_cdf"))
+    if not math.isfinite(high):
+        return math.nan
+    return cv_mean * math.exp(_one_sided_widening(units) * high)
+
+
+@lru_cache(maxsize=1024)
+def _one_sided_widening(units: int) -> float:
+    """``statistics.small_sample_widening`` at the one-sided 95% level, cached."""
+    return small_sample_widening(units, 0.90)
 
 
 def required_objects(cv_objects: float, target_cv: float) -> int:

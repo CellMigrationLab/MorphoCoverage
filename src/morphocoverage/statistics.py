@@ -506,9 +506,10 @@ def kish_effective_fields(counts: np.ndarray) -> float:
     ``counts`` are the object counts ``N_j`` of the fields (empty fields add
     nothing). Equal counts give the number of fields holding objects; one
     crowded field among sparse ones gives about 1 (1000 and 5 objects: 1.01),
-    since the object-weighted mean is then that field's mean. It is the degrees
-    of freedom basis of the FOV-unit JCB bound (effective fields minus one);
-    0 when no field holds objects.
+    since the object-weighted mean is then that field's mean. Below 2 the
+    FOV-unit JCB rule has too little information (its upper bound is a
+    bootstrap of whole fields since 2026-10-05, owner); 0 when no field holds
+    objects.
     """
     counts = np.asarray(counts, dtype=float)
     squares = float(np.sum(counts**2))
@@ -522,8 +523,9 @@ def effective_sd_upper_bound_factor(df: float, confidence: float = 0.95) -> floa
 
     The same chi-square bound, ``sqrt(df / chi2.ppf((1 - confidence) / 2, df))``,
     for a degrees-of-freedom basis that need not be whole, such as Kish's
-    effective number of fields minus one (``kish_effective_fields``); at an
-    integer it equals ``sd_upper_bound_factor``.
+    effective number of fields minus one (``kish_effective_fields``; the
+    FOV-unit JCB bound used it until a bootstrap of whole fields replaced it,
+    owner, 2026-10-05); at an integer it equals ``sd_upper_bound_factor``.
     """
     if not (is_number(df) and df >= 1):
         raise ValueError("df must be a number of at least 1")
