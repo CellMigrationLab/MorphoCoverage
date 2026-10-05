@@ -81,7 +81,8 @@ session = guide("cells.csv", folder="results")   # paths or DataFrames; asked fo
 
 or, from a terminal, `python -m morphocoverage.workflows cells.csv [fovs.csv] --folder results`.
 The session loads the tables, scans them and prints the scan, then asks: did
-the dataset load correctly (if not, it stops); whether all the conditions are
+the dataset load correctly (if not, it stops); what one row is (owner, 2026-10-05: asked
+here, so the scan's words follow it); whether all the conditions are
 compared with the same control (owner, 2026-10-05; No is proposed, after a table of the
 images per condition and biological repeat, when the likeliest control is missing from
 repeats where other conditions are imaged). Yes: the control to log (the scan's
@@ -95,12 +96,15 @@ control; the tests these answers give are then listed, one per line with its fam
 a positive control, a
 condition known to change the phenotype, which checks that the features can see
 a change ("none", the default, leaves that check out; it can be named later,
-whenever such a condition was imaged); the aim (population
-averages, a phenotypic fingerprint, or both); the features to assess
-(several by number, range or name, or all the numeric columns); the readout
-among them; what one row is; and, for a fingerprint, its tolerance (the
-covariance of the standardised features within a share you state; 10% is
-offered, with no published meaning). Enter takes each default.
+whenever such a condition was imaged); whether you want to know if the average of each
+feature differs, the whole distribution (shape, spread, tails), or both; the features to
+assess (several by number, range or name, or all the numeric columns); the readout among
+them; an optional column that marks a phenotype you care about (true/false or 0/1 per cell,
+such as mitotic: `Setup.rare_label`, its share taken as the rare target's prevalence, to be
+seen in 3 fields with 95% chance); and, for the whole distribution, its tolerance (the
+covariance of the standardised features within a share you state; 10% is offered, with no
+published meaning). Last, it asks whether to run the report now (the default) or to save
+the answers and stop, as `run_report=False` does. Enter takes each default.
 
 The answers are saved in the folder as `morphocoverage_answers.json`, with a
 checksum of the observation table and one of the FOV table (`None` without
