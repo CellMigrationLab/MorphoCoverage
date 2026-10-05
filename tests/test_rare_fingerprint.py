@@ -220,3 +220,46 @@ def test_the_targets_have_their_own_tabs_after_the_features(screen, tmp_path):
         fingerprint
     )
     assert "Optimise judges it" not in card and "held-back" not in card
+
+
+def test_issue_145_a_comparison_not_tested_is_not_called_not_significant():
+    from morphocoverage.workflows._distribution import distribution_headline, distribution_text
+
+    objects, fovs = _screen()
+    dropped = "narrow_2026_01_19"
+    objects = objects[~objects["image_file"].str.startswith(dropped)]
+    fovs = fovs[~fovs["image_file"].str.startswith(dropped)]
+    result = distribution_contrast(
+        objects, fovs, features=FEATURES, control={"condition": "siCTRL"}
+    )
+    assert result.tests.query("condition == 'narrow'")["q"].isna().all()
+    paragraph = distribution_text(result)
+    line = " ".join(paragraph.split("- narrow — ")[1].split("\n    condition")[0].split())
+    assert line.startswith("the same way in every repeat, not tested (fewer than 3 repeats): ")
+    assert "not significant" not in line and "q –" not in line
+    assert "    narrow  " in paragraph  # its values are in the table
+    assert "not significant" not in distribution_headline(result)
+
+
+def test_issue_147_the_table_keeps_the_smallest_q_when_it_is_cut():
+    from morphocoverage.sampling_unit.distribution import STATISTICS, DistributionContrast
+    from morphocoverage.workflows._distribution import MAX_ROWS, distribution_text
+
+    rows = []
+    # Sub-experiment 1: 30 features, each p 0.01 on one statistic (q 0.04 after BH over 120).
+    for i in range(30):
+        for statistic, p in zip(STATISTICS, (0.01, 0.9, 0.9, 0.9), strict=True):
+            rows.append(("A", f"f{i:02d}", statistic, p, 0.04 if p < 0.5 else 0.9, 1))
+    # Sub-experiment 2: a larger p but a smaller q (0.02 over 4 tests).
+    for statistic in STATISTICS:
+        rows.append(("B", "g", statistic, 0.02, 0.02, 2))
+    tests = pd.DataFrame(
+        rows, columns=["condition", "feature", "statistic", "p", "q", "experiment"]
+    )
+    tests = tests.assign(repeats=3, lower=0, higher=3, mean=0.1, low=0.0, high=0.2)
+    settings = {"alpha": 0.05, "families": 2, "observation_unit": "cell"}
+    text = distribution_text(DistributionContrast(tests, settings))
+    table = text.split("90% shift")[1]
+    assert table.split("\n")[1].split()[:2] == ["B", "g"]
+    assert table.count(" (q ") == 4 * MAX_ROWS
+    assert "and 7 more features" in text
