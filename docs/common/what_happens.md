@@ -155,7 +155,7 @@ names only the tables.
 | Analysis | Values it reads | Level | Correction family | Not run, or not applicable, when |
 | --- | --- | --- | --- | --- |
 | Per-feature tests, heatmap, SuperPlots, "enough" per feature | never | | | always |
-| Whole-table test, the verdict | raw columns robustly standardised, field means, the shift per repeat projected on the other repeats' mean shift | biological repeat | per table and sub-experiment, apart from the features | no control or no repeat column; fewer than 3 repeats: "not tested"; rows across experiments are not tested |
+| Whole-table test, the verdict | raw columns robustly scaled per comparison on its two sides' within-group residuals (owner, 2026-10-06), field means, the shift per repeat projected on the other repeats' mean shift | biological repeat | per table and sub-experiment, apart from the features | no control or no repeat column; fewer than 3 repeats: "not tested"; rows across experiments are not tested |
 | Whole-table shuffle | the same centres, labels of units shuffled within repeats, 999 times | wells, else the group columns beyond condition and repeat, else fields | none, in `tests_whole_table.csv` only | fewer than 40 distinct assignments |
 | Mean-precision rules | none | | | always |
 | Fingerprint per table | raw columns robustly standardised, the first k principal components fitted on every complete observation | analysis group of at least 4 fields | none | k under 2: not assessable; no group of 4 fields: kept as declared, judged in no group |
@@ -203,8 +203,9 @@ report. No test reads them: the whole-table test and the fingerprint read raw va
 
 **Robust standardisation and MFA weighting.** Before distances or principal components,
 each column is centred on its median and divided by its MAD as an SD, or by its SD when the
-MAD is under a quarter of it: the maps, the populations, the separation, the whole-table
-test and a wide fingerprint read this. Novelty uses its own transform, `RobustStandardize`
+MAD is under a quarter of it: the maps, the populations, the separation and a wide
+fingerprint read this; the whole-table test divides by the same robust scale, taken per
+comparison on the within-group residuals of its two sides (owner, 2026-10-06). Novelty uses its own transform, `RobustStandardize`
 by default, and unusual observations a mean and SD fitted on the reference. MFA weighting
 divides each table by its first singular value so that a wide or correlated table does not
 outweigh another: the explainable tables among themselves when there are two or more, for

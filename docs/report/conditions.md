@@ -381,10 +381,17 @@ are the main rows of the contrast table (each condition against its own control,
 against its parent); its rows across experiments are tested feature by feature only, as a
 difference of log ratios has no meaning in an embedding, and the report says so once.
 
-The table's columns are robustly standardised on every observation holding all of them, as
-the maps do (median and MAD, the SD where the MAD is under a quarter of it). The MFA
-weighting of the combined space divides a whole table by one number, which changes none of
-the statistics below.
+Each comparison scales the table's columns on its own two sides (owner, 2026-10-06): every
+observation of the condition and of its control, in the repeats holding both, minus the
+centre of its side in its repeat; each column is divided by the robust scale of these
+within-group residuals, as the maps scale theirs (the MAD as an SD, the SD where the MAD is
+under a quarter of it). Another condition's effect or a repeat's batch thus never changes
+a comparison's scale: on all the observations, a condition shifted 4 SDs on one column cut
+another comparison's power from 43% to 9% (audit 8). A column that does not vary within
+the groups is left out; a comparison whose sides hold one observation in every repeat has
+no residual and is "not tested, one observation a side and repeat". The MFA weighting of
+the combined space divides a whole table by one number, which changes none of the
+statistics below.
 
 - **Across repeats, the verdict.** The field is the sampling unit: each field's
   observations are averaged first (a field of one image is that image), and a side's
@@ -412,7 +419,7 @@ the statistics below.
   units differ, not whether the shift repeats, and shuffling fields counts any well effect
   the data do not name.
 - **The effect size**: the length of the mean shift over the repeats in within-group SDs,
-  the root of the summed variances of the observations around their own group's centre (a
+  on the comparison's scale: the root of the summed variances of the observations around their own group's centre (a
   side in a repeat), the typical distance of an observation from its group's centre. For one
   column it is a Cohen's d.
 
