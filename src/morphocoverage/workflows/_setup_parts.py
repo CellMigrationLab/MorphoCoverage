@@ -1,5 +1,5 @@
-"""Parts of a ``Setup`` declared on their own (private): the positive control and the
-default definition of new.
+"""Parts of a ``Setup`` declared on their own (private): the positive control and its
+checks, the default definition of new.
 
 Shared-private: re-exported by ``workflows.setup``, where they are imported from.
 """
@@ -81,6 +81,22 @@ class PositiveControl:
         return (REPEAT_COLUMN,) if REPEAT_COLUMN in fovs.columns else ()
 
 
+def check_positive(setup: Setup) -> None:
+    """A positive control is a ``PositiveControl``, checked against the control with the
+    definition of new: refused otherwise, with what to declare."""
+    if setup.positive is None:
+        return
+    if not isinstance(setup.positive, PositiveControl):
+        raise TypeError("positive must be a PositiveControl")
+    if setup.reference_control is None:
+        raise ValueError("a positive control is checked against the control: declare both")
+    if setup.novelty is None:
+        raise ValueError(
+            "a positive control is judged with the definition of new: declare novelty "
+            "(and features), or leave the positive control out"
+        )
+
+
 def check_presets(setup: Setup) -> None:
     """The novelty target, the detection preset and the computational settings."""
     target = setup.novelty_target
@@ -151,6 +167,7 @@ __all__ = [
     "PositiveControl",
     "check_embedding_only",
     "check_few_fovs",
+    "check_positive",
     "check_presets",
     "default_novelty",
     "warn_novelty_dimension",

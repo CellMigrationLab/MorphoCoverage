@@ -68,6 +68,7 @@ from ._setup_parts import (
     PositiveControl,
     check_embedding_only,
     check_few_fovs,
+    check_positive,
     check_presets,
     default_novelty,
     warn_novelty_dimension,
@@ -267,10 +268,6 @@ class Setup:
         if single is not None:  # one control in the new forms is one control
             object.__setattr__(self, "control", single)
             object.__setattr__(self, "master_control", None)
-        if self.positive is not None and not isinstance(self.positive, PositiveControl):
-            raise TypeError("positive must be a PositiveControl")
-        if self.positive is not None and self.reference_control is None:
-            raise ValueError("a positive control is checked against the control: declare both")
         if self.normalize is not None:
             if self.normalize not in NORMALIZATIONS:
                 raise ValueError(f"normalize must be one of {list(NORMALIZATIONS)} or None")
@@ -286,11 +283,7 @@ class Setup:
                 "novelty is computed on the feature columns: declare features (the readout "
                 "alone is not the representation the definition of new was made for)"
             )
-        if self.positive is not None and self.novelty is None:
-            raise ValueError(
-                "a positive control is judged with the definition of new: declare novelty "
-                "(and features), or leave the positive control out"
-            )
+        check_positive(self)
         check_embedding_only(self)
         check_presets(self)
         check_few_fovs(self)
