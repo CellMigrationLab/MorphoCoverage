@@ -75,6 +75,23 @@ Features measured plane by plane are split before the `Setup`:
 ... (objects matched by `label_id`), and those names are the `readout` and
 `features` declared here ([`data_format.md`](data_format.md#features-measured-per-plane)).
 
+## Features from explainable tables
+
+Features may come from several tables, each tagged explainable or not (owner, 2026-10-06;
+[feature tables](../report/feature_tables_and_maps.md#explainable-and-non-explainable-tables)).
+An explainable table's columns are declared in `features` (or as the `readout`) under their
+names in the report (a name also in another table is prefixed, `"fiberfeatures: area"`).
+With explainable tables given and no `features` declared, every column of the explainable
+tables is a feature; the `readout` is still declared, and a Setup without one is refused
+when explainable tables are given. The workflows record the tables in
+`Setup.explainable_tables` (name to final columns); `Setup.feature_tables` keeps naming the
+non-explainable ones.
+
+```python
+setup = Setup(readout="area", control={"condition": "ctrl"})  # every fiberfeatures column too
+result = report(objects, fovs, setup, feature_tables={"fiberfeatures": (fiber, "explainable")})
+```
+
 ## Embedding-only reports (no explainable features)
 
 A dataset may have no feature to read one by one, only an embedding such as DINO (owner,
