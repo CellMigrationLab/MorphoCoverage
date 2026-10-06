@@ -308,23 +308,45 @@ print(len(data.fovs), "fields,", len(data.objects), "cells")  # 6 fields, 5 cell
 
 ## Other feature tables: embeddings beside the explainable features
 
-The observation table holds the **explainable** features: each is tested one by
-one (the discovery, the heatmap, the SuperPlots, "Did I image enough?" per
-feature). Features that are not read one by one, such as the deep-learning
-embedding of a DINO model, come as **other feature tables**, each with a name
-(owner, 2026-10-05). Several can be loaded side by side, a DINOv2 and a DINOv3
-embedding say, to compare the models. They are never tested feature by feature:
-each is tested whole, beside the per-feature tests (owner, 2026-10-06,
-[the whole-table test](../report/conditions.md#the-whole-table-test-other-feature-tables)),
-and a dataset may have no explainable feature at all
-([embedding-only reports](setup.md#embedding-only-reports-no-explainable-features)); they join the PCA and UMAP (one map per
-table, and a weighted combined map first), the populations (searched in each
-table, in the explainable features and in the combined space), the copy checks
-(on each table apart) and their own fingerprints, never novelty or unusual
-observations, which read the explainable features only (owner, 2026-10-06;
-[Feature tables and maps](../report/feature_tables_and_maps.md)). Pass them by name to `report`, `html_report`, `scan_design`
-and `guide` (`feature_tables={"DINOv2": dino}`); `attach_feature_tables` checks
-them on their own.
+Feature tables come one per provenance (fiberfeatures, CellProfiler, DINOv2),
+each with a name and **tagged** explainable or non-explainable (owner,
+2026-10-06); any mix is allowed:
+
+```text
+feature_tables={"fiberfeatures": (fiber, "explainable"),
+                "CellProfiler": (profiler, "explainable"),
+                "DINOv2": (dino, "non-explainable")}
+```
+
+The tag is `"explainable"` or `"non-explainable"`, in any case, with `_` or a
+space accepted for the hyphen (`"non_explainable"`); any other tag is refused.
+A bare DataFrame, `{"DINOv2": dino}`, is non-explainable, so a call written
+before the tags gives the same report.
+
+- An **explainable** table's columns are explainable features, as the
+  observation table's own numeric columns are: each is declared in
+  `Setup.features` (or as the readout) under its name in the report, and tested
+  one by one (the discovery, the heatmap, the SuperPlots, "Did I image
+  enough?" per feature), one Benjamini-Hochberg family over the explainable
+  features of every table. With no features declared, every column of the
+  explainable tables is a feature; the readout is always declared. See
+  [Feature tables and maps](../report/feature_tables_and_maps.md#explainable-and-non-explainable-tables).
+- A **non-explainable** table, such as the deep-learning embedding of a DINO
+  model, is not read one by one (owner, 2026-10-05). Several can be loaded
+  side by side, a DINOv2 and a DINOv3 embedding say, to compare the models.
+  They are never tested feature by feature: each is tested whole, beside the
+  per-feature tests (owner, 2026-10-06,
+  [the whole-table test](../report/conditions.md#the-whole-table-test-other-feature-tables)),
+  and a dataset may have no explainable feature at all
+  ([embedding-only reports](setup.md#embedding-only-reports-no-explainable-features)); they join the PCA and UMAP (one map per
+  table, and a weighted combined map first), the populations (searched in each
+  table, in the explainable features and in the combined space), the copy checks
+  (on each table apart) and their own fingerprints, never novelty or unusual
+  observations, which read the explainable features only (owner, 2026-10-06;
+  [Feature tables and maps](../report/feature_tables_and_maps.md)).
+
+Pass them by name to `report`, `html_report`, `scan_design` and `guide`;
+`attach_feature_tables` checks them on their own.
 
 One row of a table is one observation, identified as the observation table
 identifies it: the field key columns the observation table holds (the analysis
@@ -344,18 +366,28 @@ must be told apart by these columns (several cells of one field need a
 - hold no infinite value; missing values are kept and counted, never imputed:
   each analysis that reads the table leaves out the observations missing one of
   its values, and says how many;
-- use column names found neither in the observation table nor in another table;
-- have a non-empty name of its own, other than `explainable` and `combined`
-  (the names of the observation table's features and of the combined space),
-  compared ignoring case.
+- have a non-empty name of its own, other than `explainable`, `combined` and
+  `observation table` (the names of the explainable features, of the combined
+  space and of the observation table's own features beside explainable
+  tables), compared ignoring case.
+
+A column name found in two tables is no longer refused (owner, 2026-10-06): the
+observation table's columns keep their names, and every other table's copy is
+prefixed with its table's name, `"fiberfeatures: area"`; a name found once is
+kept. The renaming is said once, in the line of the table, and the new name is
+the one to declare in `Setup.features`. Two embeddings with the same column
+names (DINOv2 `f0`, DINOv3 `f0`) load together this way.
 
 Every problem is raised at once, naming the table; a column with one value
 everywhere is accepted and listed, as no analysis can use it. In the combined
 space, each table, robustly standardised, is divided by its own first singular
 value (MFA; owner, 2026-10-06), so no table's first axis outweighs another's,
-the explainable features keeping weight 1. An other table is never divided by a
-control: an embedding has no ratio scale; its map centred on each repeat's
-control is a view of the maps only.
+the explainable features keeping weight 1 (with several explainable tables,
+each is a table of its own there, the first keeping weight 1). An explainable
+table follows the features' normalisation (`Setup.normalize`); a
+non-explainable table is never divided by a control: an embedding has no ratio
+scale; it is centred per repeat instead
+([batch normalisation](../report/feature_tables_and_maps.md)).
 
 ```python
 import numpy as np

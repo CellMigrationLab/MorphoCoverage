@@ -47,7 +47,7 @@ import pandas as pd
 from .._integrity_tables import integrity_by_table
 from .._style import DASH
 from .._wording import count
-from ..feature_tables import EXPLAINABLE
+from ..feature_tables import any_explainable
 from ..metadata import MORPHOBRICKS_GROUP_COLUMNS
 from ..retrospective import (
     MicroscopistReport,
@@ -88,6 +88,7 @@ from ._feature_space import (
     analysed_tables,
     attached,
     centring_line,
+    copy_tables,
     novelty_space,
     separation_in_report,
     table_columns,
@@ -132,7 +133,7 @@ def report(
     setup: Setup,
     *,
     integrity: bool = False,
-    feature_tables: Mapping[str, pd.DataFrame] | None = None,
+    feature_tables: Mapping[str, pd.DataFrame | tuple[pd.DataFrame, str]] | None = None,
 ) -> Report:
     """REPORT on a finished acquisition: what can be trusted, and what cannot.
 
@@ -160,18 +161,24 @@ def report(
     data-integrity checks (``integrity_checks``: copied, reordered or scaled
     fields, repeated blocks and field summaries) on every declared column.
 
-    ``feature_tables`` are other feature tables for the same observations, by name (a DINO
-    embedding, owner 2026-10-05): checked and attached (``attach_feature_tables``), never
-    tested feature by feature, they join the maps, the populations (in each table and in the
-    weighted combined space, ``_feature_space``), the copy checks (on each table apart) and
-    their own fingerprints, never novelty or unusual observations (owner, 2026-10-06); the
-    report's ``setup`` names them.
+    ``feature_tables`` are other feature tables for the same observations, by name, each a
+    DataFrame (non-explainable, a DINO embedding, owner 2026-10-05) or ``(DataFrame,
+    "explainable" or "non-explainable")`` (owner, 2026-10-06), checked and attached
+    (``attach_feature_tables``). An explainable table's columns are explainable features,
+    tested one by one. The others are never tested feature by feature; they join the maps, the
+    populations (in each table and in the weighted combined space, ``_feature_space``), the
+    copy checks (on each table apart) and their own fingerprints, never novelty or unusual
+    observations (owner, 2026-10-06); the report's ``setup`` names them.
     """
     given = feature_tables is not None
+    # Explainable tables hold declared features: the data are checked once they are attached.
+    explainable = any_explainable(feature_tables)
     objects, fovs, data_check = check_workflow_inputs(
-        objects, fovs, setup, warn=False, tables_given=given
+        objects, fovs, setup, warn=False, tables_given=given, check=not explainable
     )
     objects, setup, tables = attached(objects, fovs, setup, feature_tables)
+    if explainable:
+        data_check = check_workflow_inputs(objects, fovs, setup, warn=False)[2]
     if setup.embedding_only:  # the other tables alone (owner, 2026-10-06)
         return embedding_report(objects, fovs, setup, data_check, tables, integrity)
     common = setup.common
@@ -230,7 +237,7 @@ def report(
             lofo_group_cols=common["group_cols"],
         )
     if integrity:  # on each feature table apart, the union said (owner, 2026-10-06)
-        tables_read = {EXPLAINABLE: setup.columns, **(setup.feature_tables or {})}
+        tables_read = copy_tables(setup)
         results["integrity"] = integrity_by_table(objects, fovs, tables=tables_read, **common)
     if setup.rare_label is not None:
         results["rare_clustering"] = rare_clustering(objects, fovs, setup)

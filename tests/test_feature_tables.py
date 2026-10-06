@@ -103,7 +103,6 @@ def test_missing_values_are_counted_and_kept():
         (lambda e: pd.concat([e, e.iloc[[0]]]), "holds 1 observation more than once"),
         (lambda e: e.assign(e1="high"), "columns that are not numbers: e1"),
         (lambda e: e.assign(e1=np.inf), "holds 16 infinite values"),
-        (lambda e: e.rename(columns={"e0": "area"}), "has columns of the observation table"),
         (lambda e: e.drop(columns="label_id"), "lacks the identity columns ['label_id']"),
         (lambda e: e.assign(z=0), "holds metadata columns ['z']"),
         (lambda e: e[["condition", "biological_repeat", "image_file", "label_id"]], "no feature"),
@@ -115,18 +114,25 @@ def test_each_problem_of_a_table_is_named(change, expected):
     assert expected in message and "'DINO'" in message
 
 
-def test_two_tables_may_not_share_a_column():
+def test_two_tables_sharing_columns_load_with_their_names_before_them():
+    # Owner, 2026-10-06: a name found in two tables is prefixed, no longer refused.
     objects, fovs, embedding = _tables()
-    message = _message(objects, fovs, {"DINOv2": embedding, "DINOv3": embedding})
-    assert "'DINOv2' and 'DINOv3' share columns e0, e1 and e2" in message
+    both = attach_feature_tables(objects, fovs, {"DINOv2": embedding, "DINOv3": embedding})
+    assert both.columns["DINOv3"] == ("DINOv3: e0", "DINOv3: e1", "DINOv3: e2")
 
 
 @pytest.mark.parametrize(
     ("names", "expected"),
     [
         (("",), "non-empty text"),
-        (("combined",), "names the observation table's features or the combined space"),
-        (("Explainable",), "names the observation table's features or the combined space"),
+        (
+            ("combined",),
+            "names the explainable features, the observation table or the combined space",
+        ),
+        (
+            ("Explainable",),
+            "names the explainable features, the observation table or the combined space",
+        ),
         (("dino", "DINO"), "'DINO' names two tables"),
     ],
 )
@@ -406,7 +412,7 @@ def test_the_scan_lists_the_tables_before_loaded_correctly_and_names_them_in_the
     objects, fovs, sep, _ = _experiment()
     scan = scan_design(objects, fovs, feature_cols=["f1", "f2", "f3"], feature_tables={"sep": sep})
     text = scan.summary()
-    assert text.index("Other feature table sep: 6 feature columns") < text.index(
+    assert text.index("Other feature table sep (non-explainable): 6 feature columns") < text.index(
         "Loaded correctly?"
     )
     assert set(scan.integrity.settings["feature_cols"]) >= {"s0", "s5"}

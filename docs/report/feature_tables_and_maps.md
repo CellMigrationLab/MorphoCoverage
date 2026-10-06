@@ -1,16 +1,77 @@
 # Feature tables and maps
 
-Features that are not read one by one, such as a deep-learning embedding, come as other
-feature tables beside the explainable features. This page is how they enter the report,
-the PCA and UMAP maps of all the features, and the separation score under each map.
+Feature tables come one per provenance, each tagged explainable (fiberfeatures,
+CellProfiler: each column read and tested one by one) or non-explainable (an embedding such
+as DINO, read only as a whole). This page is how they enter the report, the PCA and UMAP
+maps of all the features, and the separation score under each map.
+
+## Explainable and non-explainable tables
+
+Each table passed to `report`, `html_report`, `scan_design` or `guide` is tagged (owner,
+2026-10-06), any mix allowed:
+
+```python
+tables = {
+    "fiberfeatures": (fiber, "explainable"),
+    "CellProfiler": (profiler, "explainable"),
+    "DINOv2": (dino, "non-explainable"),
+}
+setup = Setup(readout="area", control={"condition": "ctrl"})
+result = report(objects, fovs, setup, feature_tables=tables)
+html_report(result, objects, fovs, "results", feature_tables=tables)
+```
+
+The tag is `"explainable"` or `"non-explainable"` in any case (`"non_explainable"` too);
+another tag is refused. A bare DataFrame is non-explainable, so every call written before
+the tags gives the same output. The observation table's own numeric columns form an
+implicit explainable table, as before.
+
+- **Names.** A column name found in two tables is kept in the observation table and
+  prefixed with its table's name in every other table, `"fiberfeatures: area"`; a name
+  found once is kept. The line of the table in the overview and the scan says the renaming
+  once. Metadata names stay refused.
+- **Tests.** An explainable table's columns are explainable features: declared in
+  `Setup.features` (or as the readout) under their final names, each is tested one by one
+  exactly as an observation-table feature is, in one Benjamini-Hochberg family over every
+  explainable feature of every table, per sub-experiment. **With no features declared,
+  every column of the explainable tables is a feature**, the readout still declared (a
+  Setup without a readout is refused when explainable tables are given, since it would not
+  say which feature the stopping rules read); the overview says this in one sentence. The
+  result tables gain a `table` column (`feature_discovery.csv`, `tests_across_repeats.csv`,
+  `tests_cell_level.csv`, `heatmap_d.csv`, `tests_beyond_the_mean.csv`; the observation
+  table's own features under `observation table`), and the page lists the features under
+  their table (the significant features of each condition, the tabs of "Did I image
+  enough?"). With one explainable table, nothing changes.
+- **Novelty, unusual observations and the populations** read the declared explainable
+  features. When they come from two tables or more, each table is weighted by MFA
+  (robustly standardised, divided by its first singular value, the first table keeping
+  weight 1), so a table of many columns does not outweigh one of few: unusual observations
+  and the populations on all the observations, the definition of new on the visible fields
+  (`transforms.BlockWeights` after its own transform; its radius as declared). A population
+  rule may use any explainable feature, and with several tables names the table of each
+  ("length from fiberfeatures, int0 from CellProfiler").
+- **Maps and separation**: with two or more explainable tables, each has its own map and
+  separation line; the "Explainable" map is all the explainable features MFA-weighted
+  across their tables; the "Combined" map is MFA over every table, each explainable and each
+  non-explainable table its own block. The declared fingerprint reads the explainable
+  features as before; each non-explainable table keeps its own fingerprint, and only the
+  non-explainable tables are tested whole.
+- **Normalisation**: the explainable tables follow the features' control normalisation
+  (`Setup.normalize`); the non-explainable tables the batch normalisation below. The copy
+  checks run on each table apart, each explainable table on its own.
+- **The Setup** records the explainable tables in `Setup.explainable_tables` (name to final
+  columns) beside `Setup.feature_tables`, which keeps naming the non-explainable ones.
+- **The guided session** asks, for each table it loads, whether it is explainable; the
+  scan lists each table with its tag, and the saved answers record it (answers saved before
+  the tags read as non-explainable).
 
 ## Other feature tables: embeddings
 
 The features you test one by one (explainable features, such as the readout and the
-shape and intensity measurements) are the observation table's. Features that are not
-read one by one, such as the embedding of a deep-learning model, come as other feature
-tables, each with a name, so that several models can be compared side by side (owner,
-2026-10-05):
+shape and intensity measurements) are the observation table's and the explainable tables'.
+Features that are not read one by one, such as the embedding of a deep-learning model, come
+as non-explainable tables (a bare DataFrame), each with a name, so that several models can
+be compared side by side (owner, 2026-10-05):
 
 ```python
 tables = {"DINOv2": dino_v2, "DINOv3": dino_v3}
@@ -21,8 +82,8 @@ html_report(result, objects, fovs, "results", feature_tables=tables)
 Each table is checked against the observation table at loading
 ([its rules](../common/data_format.md#other-feature-tables-embeddings-beside-the-explainable-features):
 every observation matched exactly once by the same identity, numeric columns, no column
-without a value, missing values counted, constant columns listed, no clashing names, a name
-of its own), and `result.setup.feature_tables` names their columns. They are never tested
+without a value, missing values counted, constant columns listed, a name found twice
+prefixed, a name of its own), and `result.setup.feature_tables` names their columns. They are never tested
 feature by feature: the discovery, the heatmap, the SuperPlots, "Did I image enough?" and
 the contrasts read the explainable features as before. Each table is **tested whole**
 instead, beside the per-feature tests (owner, 2026-10-06): for each condition against its

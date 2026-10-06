@@ -59,7 +59,7 @@ from ..strategies.base import SamplingStrategy
 from ..sufficiency import SufficiencyReport
 from ._contrasts import declared_conditions
 from ._document import pooling_reason
-from ._feature_space import attached, table_columns, unusual_space
+from ._feature_space import attached, table_columns, unusual_space, with_table
 from ._rare_share import compared_columns, share_column, with_share
 from .setup import Setup, default_novelty
 
@@ -96,7 +96,13 @@ def orders(
 
 
 def check_workflow_inputs(
-    objects: Any, fovs: Any, setup: Any, *, warn: bool = True, tables_given: bool = False
+    objects: Any,
+    fovs: Any,
+    setup: Any,
+    *,
+    warn: bool = True,
+    tables_given: bool = False,
+    check: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame, DataCheck | None]:
     """Refuse inputs the workflows cannot use, before any analysis runs, and check the rest.
 
@@ -107,7 +113,9 @@ def check_workflow_inputs(
     (copied rows, labels that print alike, repeats without a control, ...) a
     workflow would otherwise never mention. With ``warn`` they are also issued
     as one ``UserWarning``; ``report`` prints them in its overview instead. Its
-    errors are left to the analyses, which raise with the same report.
+    errors are left to the analyses, which raise with the same report. With ``check=False``
+    the tables are not checked (``None``): explainable tables hold declared features, so
+    ``report`` checks the tables once they are attached.
     """
     if fovs is None:
         raise TypeError(
@@ -137,6 +145,8 @@ def check_workflow_inputs(
                 f"{sorted(map(str, labels.unique()))[:5]}"
             )
     columns = setup.columns
+    if not check:
+        return objects, fovs, None
     if setup.embedding_only:  # the tables' columns, once attached (owner, 2026-10-06)
         columns = [c for c in table_columns(setup) if c in objects.columns]
         if not columns:
@@ -417,7 +427,7 @@ def control_checks(
             weights=weights,
             **common,
         )
-        if setup.feature_tables:  # which space, said beside the other tables
+        if setup.feature_tables or weights:  # which space, said beside the tables
             unusual.settings["space"] = space
         results["unusual"] = unusual
         label = unusual_label(objects, setup)
@@ -504,6 +514,10 @@ def conditions(
         )
         # The headline counts the share apart from the features (report_status_conditions).
         results["discovery"].settings["share"] = share_column(setup)
+        found = results["discovery"]  # each feature's table named (owner, 2026-10-06)
+        results["discovery"] = replace(
+            found, tests=with_table(found.tests, setup), ranking=with_table(found.ranking, setup)
+        )
         # One correction family on the page: the readout's tests take the discovery's.
         from ._families import shared_across, shared_family
 

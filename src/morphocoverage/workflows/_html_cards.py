@@ -165,9 +165,19 @@ def _direction(row: Any) -> str:
 
 
 def _named(rows: Any, words: Callable[[Any], str]) -> str:
-    """One sub-bullet per feature, the first ``NAMED``; the rest counted."""
-    shown = [f"<li>{html.escape(words(r))}</li>" for r in rows.head(NAMED).itertuples()]
-    more = len(rows) - len(shown)
+    """One sub-bullet per feature, the first ``NAMED``; the rest counted. With explainable
+    tables (a ``table`` column), the features listed under their table (owner, 2026-10-06)."""
+    first = rows.head(NAMED)
+    if "table" in first:
+        shown = [
+            f"<li>{html.escape(str(table))}<ul>"
+            + "".join(f"<li>{html.escape(words(r))}</li>" for r in mine.itertuples())
+            + "</ul></li>"
+            for table, mine in first.groupby("table", sort=False)
+        ]
+    else:
+        shown = [f"<li>{html.escape(words(r))}</li>" for r in first.itertuples()]
+    more = len(rows) - len(first)
     if more > 0:
         shown.append(f"<li>and {more} more (the heatmap below)</li>")
     return f"<ul>{''.join(shown)}</ul>"

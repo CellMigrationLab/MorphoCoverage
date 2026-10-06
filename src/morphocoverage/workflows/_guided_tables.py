@@ -1,13 +1,16 @@
 """The guided session's other feature tables (private; ``guided``): asked for at load, each
-with a path and a name, checked against the observation table (owner, 2026-10-05).
+with a path, a name and its tag, checked against the observation table (owner, 2026-10-05).
 
 ``ask_tables`` asks "Do you have other feature tables for the same observations?"; each table
-is read and checked with the ones before it (``attach_feature_tables``), and one that cannot
-be used is said and asked again. ``read_tables`` reads tables given to ``guide`` (a
-DataFrame or a CSV path by name), and ``entries`` records them in the saved answers: each
-name, path and checksum, of the rows sorted by their identity so that the row order does not
-count; answers are reused only for the same names and checksums, and ``changed`` names the
-table that differs (owner, 2026-10-06).
+is read, asked whether it is explainable (each column read and tested one by one, like area
+or intensity) or not (an embedding such as DINO, read only as a whole; owner, 2026-10-06),
+and checked with the ones before it (``attach_feature_tables``), and one that cannot be used
+is said and asked again. ``read_tables`` reads tables given to ``guide`` (a DataFrame or a
+CSV path by name, or either with its tag), and ``entries`` records them in the saved answers:
+each name, path, tag and checksum, of the rows sorted by their identity so that the row order
+does not count; answers are reused only for the same names, checksums and tags (a saved
+table without a tag is non-explainable), and ``changed`` names the table that differs (owner,
+2026-10-06).
 """
 
 from __future__ import annotations
@@ -19,15 +22,25 @@ from typing import Any
 import pandas as pd
 
 from .._wording import count
-from ..feature_tables import attach_feature_tables, identity_text
+from ..feature_tables import (
+    EXPLAINABLE_TAG,
+    NON_EXPLAINABLE_TAG,
+    attach_feature_tables,
+    identity_text,
+    read_tag,
+)
 from . import _guided_ask as q
 
 QUESTION = (
     "Do you have other feature tables for the same observations, e.g. deep-learning "
     "embeddings such as DINO?"
 )
-# Each table: its DataFrame and the path it was read from (None for a DataFrame).
-Tables = dict[str, tuple[pd.DataFrame, str | None]]
+TAG_QUESTION = (
+    "Is {name} explainable, each column read and tested one by one, like area or intensity? "
+    "No: an embedding such as DINO, read only as a whole."
+)
+# Each table: its DataFrame, the path it was read from (None for a DataFrame) and its tag.
+Tables = dict[str, tuple[pd.DataFrame, str | None, str]]
 
 
 def _read(source: Any) -> tuple[pd.DataFrame, str | None]:
@@ -41,8 +54,22 @@ def _read(source: Any) -> tuple[pd.DataFrame, str | None]:
 
 
 def read_tables(given: Mapping[str, Any] | None) -> Tables:
-    """The tables given to ``guide`` by name, read."""
-    return {name: _read(source) for name, source in (given or {}).items()}
+    """The tables given to ``guide`` by name, read: each a DataFrame or a CSV path,
+    non-explainable, or either with its tag, ``(source, "explainable")``."""
+    tables: Tables = {}
+    for name, source in (given or {}).items():
+        tag: str | None = NON_EXPLAINABLE_TAG
+        if isinstance(source, tuple) and len(source) == 2:
+            source, tag = source[0], read_tag(source[1])
+        if tag is None:
+            raise ValueError(f"tag the table {name!r} 'explainable' or 'non-explainable'")
+        tables[name] = (*_read(source), tag)
+    return tables
+
+
+def tagged(tables: Tables) -> dict[str, tuple[pd.DataFrame, str]]:
+    """The tables with their tags, as ``attach_feature_tables`` takes them."""
+    return {name: (table, tag) for name, (table, _, tag) in tables.items()}
 
 
 def ask_tables(
@@ -67,14 +94,17 @@ def ask_tables(
         name = q.text(
             ask, "Its name, as the report shows it (for example DINOv2):", Path(path).stem
         )
-        trial = {**{n: t for n, (t, _) in tables.items()}, name: table}
+        explainable = q.yes_no(ask, say, TAG_QUESTION.format(name=name), False)
+        tag = EXPLAINABLE_TAG if explainable else NON_EXPLAINABLE_TAG
+        trial = {**tagged(tables), name: (table, tag)}
         try:
             attached = attach_feature_tables(objects, fovs, trial)
         except (ValueError, TypeError) as error:
             say(f"It cannot be used: {error}.")
             continue
-        tables[name] = (table, read)
-        say(f"{name}: {count(len(attached.columns[name]), 'feature column')}, checked.")
+        tables[name] = (table, read, tag)
+        columns = count(len(attached.columns[name]), "feature column")
+        say(f"{name}: {columns}, {tag}, checked.")
 
 
 def _sorted(table: pd.DataFrame, objects: pd.DataFrame) -> pd.DataFrame:
@@ -89,19 +119,30 @@ def _sorted(table: pd.DataFrame, objects: pd.DataFrame) -> pd.DataFrame:
 
 
 def entries(tables: Tables, objects: pd.DataFrame) -> list[dict[str, Any]]:
-    """The tables as the saved answers record them: name, path and checksum, of the rows
+    """The tables as the saved answers record them: name, path, tag and checksum, of the rows
     sorted by their identity."""
     from .guided import table_checksum  # guided imports this module
 
     return [
-        {"name": name, "path": path, "checksum": table_checksum(_sorted(table, objects))}
-        for name, (table, path) in tables.items()
+        {
+            "name": name,
+            "path": path,
+            "tag": tag,
+            "checksum": table_checksum(_sorted(table, objects)),
+        }
+        for name, (table, path, tag) in tables.items()
     ]
 
 
-def identity(dataset: Mapping[str, Any]) -> list[tuple[str, str]]:
-    """The tables' names and checksums, which must match for saved answers to be reused."""
-    return [(e["name"], e["checksum"]) for e in dataset.get("feature_tables") or []]
+def tag_of(entry: Mapping[str, Any]) -> str:
+    """A saved table's tag; non-explainable when saved without one (before 2026-10-06)."""
+    return read_tag(entry.get("tag")) or NON_EXPLAINABLE_TAG
+
+
+def identity(dataset: Mapping[str, Any]) -> list[tuple[str, str, str]]:
+    """The tables' names, checksums and tags, which must match for saved answers to be
+    reused."""
+    return [(e["name"], e["checksum"], tag_of(e)) for e in dataset.get("feature_tables") or []]
 
 
 def changed(saved: Mapping[str, Any], dataset: Mapping[str, Any]) -> list[str]:
@@ -113,7 +154,8 @@ def changed(saved: Mapping[str, Any], dataset: Mapping[str, Any]) -> list[str]:
         found.append("the observation table")
     if saved.get("fovs_checksum", "missing") != dataset.get("fovs_checksum"):
         found.append("the FOV table")
-    before, now = dict(identity(saved)), dict(identity(dataset))
+    before = {name: rest for name, *rest in identity(saved)}
+    now = {name: rest for name, *rest in identity(dataset)}
     for name in dict.fromkeys([*before, *now]):
         if name not in now:
             found.append(f"the feature table {name!r}, not given this time")
@@ -124,4 +166,15 @@ def changed(saved: Mapping[str, Any], dataset: Mapping[str, Any]) -> list[str]:
     return found
 
 
-__all__ = ["QUESTION", "Tables", "ask_tables", "changed", "entries", "identity", "read_tables"]
+__all__ = [
+    "QUESTION",
+    "TAG_QUESTION",
+    "Tables",
+    "ask_tables",
+    "changed",
+    "entries",
+    "identity",
+    "read_tables",
+    "tag_of",
+    "tagged",
+]
