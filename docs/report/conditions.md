@@ -204,7 +204,9 @@ repeat holding under a quarter of the median repeat on its side, or fewer than
 kept in the test as provided and left out of the balanced one, which balances
 the other repeats. A small control repeat is left out of both sides, so each
 condition stays paired with its own repeats' control. When every repeat is that
-small, nothing is balanced and only the test as provided is given.
+small, or all but one, nothing is balanced and only the test as provided is given: one
+repeat alone is not balanced over the repeats, and the reading reads the test as provided,
+never a "balanced" test of one repeat (audit 10, owner, 2026-10-06).
 
 ## Assumptions
 

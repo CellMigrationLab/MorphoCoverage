@@ -17,6 +17,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+import numpy as np
 import pytest
 
 from morphocoverage import (
@@ -29,6 +30,7 @@ from morphocoverage import (
 )
 from morphocoverage.plots_pairwise import PANEL_KEYS, verdict_note
 from morphocoverage.policies import decide
+from morphocoverage.sampling_unit.contrast_cells import repeats_to_balance, trusted_test
 from morphocoverage.sufficiency_short import met_count
 from morphocoverage.workflows import Setup, plots, report
 
@@ -112,3 +114,17 @@ def test_panel_c_says_its_q_is_the_figures_and_gives_the_verdicts_q() -> None:
                 assert "Verdict q (the feature's family): " in legend
     assert checked
     assert PANEL_KEYS["C"].endswith("adjusted over this figure only")
+
+
+def test_a_balanced_test_left_with_one_repeat_gives_way_to_the_test_as_provided() -> None:
+    # B5: the image-level "balanced" test kept R3 alone (the other repeats had fewer than 5
+    # control images) and the reading quoted it as the condition's image-level q.
+    rng = np.random.default_rng(3)
+    by_t = {"R1": rng.normal(1, 1, 3), "R2": rng.normal(1, 1, 4), "R3": rng.normal(1, 1, 12)}
+    by_c = {"R1": rng.normal(0, 1, 3), "R2": rng.normal(0, 1, 4), "R3": rng.normal(0, 1, 12)}
+    assert repeats_to_balance(by_t, {"R1", "R2"}, unbalanced=True) == []
+    assert repeats_to_balance(by_t, {"R1"}, unbalanced=True) == ["R2", "R3"]
+    test = trusted_test(by_t, by_c, by_c, 199, np.random.default_rng(0))
+    assert not test["balanced"]
+    assert test["observations"] == 19 and test["control_observations"] == 19
+    assert np.isfinite(test["p"])
