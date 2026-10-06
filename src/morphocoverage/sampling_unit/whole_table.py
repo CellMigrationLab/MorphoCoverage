@@ -23,7 +23,7 @@ which changes none of the statistics below, so it is not applied.
   ``s_r`` is above 0, with its t corrected for the repeats the ``s_r`` share: repeat ``q``
   enters every ``u_−r`` but its own, so under no effect the ``s_r`` are positively
   correlated, by up to ``1/(n − 1)`` in a table of many effective dimensions, and the plain
-  t-test rejected 8-22% of null datasets at 5% (``data/simulations/whole_table.py``). The
+  t-test rejected 8-20% of null datasets at 5% (``data/simulations/whole_table.py``). The
   t is multiplied by ``sqrt((n − 2) / (2 (n − 1)))``, the factor at that largest
   correlation (``n − 1`` degrees of freedom): calibrated in wide tables, conservative in
   narrow ones. It needs ``MIN_REPEATS`` (3) repeats; with fewer, "not tested: n repeats".

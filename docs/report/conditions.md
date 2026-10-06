@@ -392,7 +392,7 @@ centre of its side in its repeat; each column is divided by the robust scale of 
 within-group residuals, as the maps scale theirs (the MAD as an SD, the SD where the MAD is
 under a quarter of it). Another condition's effect or a repeat's batch thus never changes
 a comparison's scale: on all the observations, a condition shifted 4 SDs on one column cut
-another comparison's power from 43% to 9% (audit 8). A column that does not vary within
+another comparison's power from 43% to 9% (audit 8); scaled on its own sides, it stays at 46%. A column that does not vary within
 the groups is left out; a comparison whose sides hold one observation in every repeat has
 no residual and is "not tested, one observation a side and repeat". The MFA weighting of
 the combined space divides a whole table by one number, which changes none of the
@@ -407,7 +407,7 @@ statistics below.
   paired t-test across repeats with its t **corrected for the repeats the projections
   share**: repeat `q` enters every `u_−r` but its own, so without an effect the `s_r` are
   positively correlated, by up to `1/(n − 1)` in a table of many effective dimensions, and
-  the plain paired t rejected 8-22% of null datasets at 5% in the simulation below. The t is
+  the plain paired t rejected 8-20% of null datasets at 5% in the simulation below. The t is
   multiplied by `sqrt((n − 2) / (2 (n − 1)))`, its value at that largest correlation (`n −
   1` degrees of freedom): calibrated in wide tables, conservative in narrow ones. It needs 3
   repeats; with fewer, "not tested across repeats, 2 repeats". Benjamini-Hochberg: the tests
@@ -441,17 +441,17 @@ ECM tables, little beside the per-feature work.
 `data/simulations/results/whole_table.csv`): 400 datasets per setting, 3, 4 and 6 repeats,
 one image per field (6 a side and repeat) or 20 cells in each of 5 fields, 50 and 384
 correlated columns, with and without a batch (a shift of each repeat and of each well),
-even and uneven counts (2 to 10 fields a side and repeat). Without an effect, the repeat-level
-test rejected 2.3-7.5% at 5% (mean 4.1% without a batch, 4.5% with one; the highest, 7.5%,
-with 3 repeats, within two standard errors of 5%); the plain paired t on the same
-projections 8-22%. The shuffle test, on fields since the simulated wells are not named,
-rejected 2.5-7.8% without a batch, and with one it is **anti-conservative**, as the
-cell-level screen is: 13-22% with one image per field and 39-58% with 20 cells per field,
-since a well's own shift counts for it; hence wells shuffled when named, and never a
-verdict. Power, a shift of
-0.3 within-group SDs in every repeat: 58% with 3 repeats, 79% with 4, 97% with 6 (34%, 57%
-and 86% with a batch); a shift of 0.6: 94% with 3 repeats (82% with a batch) and at least
-98% from 4.
+even and uneven counts (2 to 10 fields a side and repeat), each comparison scaled on its own
+two sides. Without an effect, the repeat-level test rejected 1.8-7.5% at 5% (mean 4.1%
+without a batch, 4.4% with one; the highest, 7.5%, with 3 repeats, within two standard
+errors of 5%); the plain paired t on the same projections 8-20%. The shuffle test, on fields
+since the simulated wells are not named, rejected 3.0-8.3% without a batch, and with one it
+is **anti-conservative**, as the cell-level screen is: 17-29% with one image per field and
+38-62% with 20 cells per field, since a well's own shift counts for it; hence wells shuffled
+when named, and never a verdict. Power, a shift of 0.3 within-group SDs in every repeat: 60%
+with 3 repeats, 81% with 4, 98% with 6 (36%, 59% and 87% with a batch); a shift of 0.6: 96%
+with 3 repeats (86% with a batch) and at least 99% from 4 (scaled on every observation of
+the table, before audit 8: 2.3-7.5% without an effect, and 58%, 79% and 97% power).
 
 ## Reading them together
 
