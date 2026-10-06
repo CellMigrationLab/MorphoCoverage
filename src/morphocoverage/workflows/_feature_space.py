@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 
 from .._wording import count, listing
-from ..embedding import robust_scale
+from ..embedding import MIN_FEATURES, robust_scale
 from ..feature_tables import (
     COMBINED,
     EXPLAINABLE,
@@ -394,14 +394,17 @@ def separation_in_report(
     setup: Setup,
     names: Sequence[str] | None = None,
 ) -> Separation | None:
-    """The separation of the conditions and of the repeats in each space (``space_names``,
-    or those of ``names``), on the values the figures read; ``None`` with one condition or
-    no condition column."""
+    """The separation of the conditions and of the repeats in each space with a map
+    (``space_names``, or those of ``names``), on the values the figures read; ``None`` with
+    one condition, no condition column or no space of ``MIN_FEATURES`` columns."""
     if CONDITION_COLUMN not in fovs or fovs[CONDITION_COLUMN].nunique() < 2:
         return None
-    spaces = space_names(setup)
+    # Only the spaces with a map (``MIN_FEATURES`` columns), so every score has its map.
+    spaces = {n: s for n, s in space_names(setup).items() if len(s[0]) >= MIN_FEATURES}
     if names is not None:
         spaces = {name: spaces[name] for name in names if name in spaces}
+    if not spaces:
+        return None
     return separation(
         objects,
         fovs,
@@ -461,7 +464,9 @@ def _centring(
     # A control of few observations in a repeat: that repeat is left out of the view.
     shift[held < CENTRED_MIN_CONTROL] = np.nan
     centred = frame[columns].to_numpy(dtype=float) - shift
-    few = {(c, r, int(n)) for (c, r), n in zip(pairs, held, strict=True) if 0 < n}
+    # A repeat whose control holds no observation is left out too, and named (audit 8B); a
+    # condition with no control at all has none to name.
+    few = {(c, r, int(n)) for (c, r), n in zip(pairs, held, strict=True) if pd.notna(c)}
     small = sorted(
         (item for item in few if item[2] < CENTRED_MIN_CONTROL),
         key=lambda item: (str(item[1]), str(item[0])),

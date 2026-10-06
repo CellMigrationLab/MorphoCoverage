@@ -155,6 +155,15 @@ def _columns(contrast: Any) -> list[str]:
 
 def _notes(contrast: Any) -> list[str]:
     _, fields = field_words(contrast)
+    if not contrast.settings.get("unit"):  # no technical repeat: the fields alone (audit 8B)
+        return [
+            assumption(
+                f"Shown: the {percent(LEVEL)} interval of d, from resampling the {fields} as "
+                f"acquired, empty fields included, excludes 0. The {fields} a side it would take "
+                f"are projected from it (narrowing as 1/sqrt({fields})). Beyond {PRACTICAL} "
+                f"times the {fields} acquired a difference is called too small to show."
+            )
+        ]
     return [
         assumption(
             f"Shown: the {percent(LEVEL)} interval of d, from resampling the technical repeats "

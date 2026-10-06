@@ -11,6 +11,7 @@ import pytest
 from test_embedding_only import _cells
 
 from morphocoverage.objectives import RareTarget
+from morphocoverage.retrospective import dataset_overview
 from morphocoverage.workflows import (
     Answers,
     PositiveControl,
@@ -22,6 +23,9 @@ from morphocoverage.workflows import (
     save_answers,
     scan_design,
 )
+from morphocoverage.workflows._feature_space import centred_left_out, separation_in_report
+
+KEY = ["condition", "biological_repeat", "image_file", "label_id"]
 
 MITOTIC = RareTarget(
     detection_probability=0.95, min_fov_occurrences=2, object_prevalence=0.2, phenotype="mitotic"
@@ -208,3 +212,106 @@ def test_seed6_the_batch_line_says_unusual_observations_read_the_explainable_fea
         result = report(objects, fovs, setup, feature_tables={"DINO": table})
     full = " ".join(result.summary(detail="full").split())
     assert "the centred map, the populations and the separation read them, never a test" in full
+
+
+SEVERAL = {"condition": {"cA": ["a1"], "cB": ["b1"]}}
+
+
+def _several(seed: int = 0):
+    """cA, a1, cB, b1 in 3 repeats (cB not imaged in R2), 3 fields of 6 cells; ``area`` in
+    the observation table, an explainable table ``fiber`` (fib_len, fib_w) and a table
+    ``DINO`` of 4 columns, a1 and b1 shifted."""
+    rng = np.random.default_rng(seed)
+    rows = [
+        {
+            "condition": c,
+            "biological_repeat": f"R{r}",
+            "image_file": f"{c}_{r}_{f}.tif",
+            "label_id": k,
+        }
+        for c in ("cA", "a1", "cB", "b1")
+        for r in range(3)
+        for f in range(3)
+        for k in range(1, 7)
+        if (c, r) != ("cB", 1)
+    ]
+    objects = pd.DataFrame(rows)
+    fovs = objects[KEY[:3]].drop_duplicates().reset_index(drop=True)
+    shift = objects["condition"].isin(["a1", "b1"]).to_numpy() * 0.8
+    objects["area"] = 10 * np.exp(rng.normal(0, 0.2, len(objects)) + shift)
+    fiber = objects[KEY].assign(
+        fib_len=5 + rng.normal(size=len(objects)) + shift, fib_w=2 + rng.normal(size=len(objects))
+    )
+    dino = objects[KEY].assign(**{f"d{j}": rng.normal(size=len(objects)) for j in range(4)})
+    return objects, fovs, {"fiber": (fiber, "explainable"), "DINO": dino}
+
+
+def test_b7_the_csvs_name_each_features_table(tmp_path):
+    objects, fovs, tables = _several()
+    setup = Setup(
+        readout="area",
+        features=("area", "fib_len", "fib_w"),
+        control=SEVERAL,
+        master_control="cA",
+        observation_unit="cell",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup, feature_tables=tables)
+        html_report(result, objects, fovs, tmp_path, feature_tables=tables)
+    figures = tmp_path / "figures"
+    across = pd.read_csv(figures / "tests_across_experiments.csv")
+    assert list(across.columns[2:4]) == ["feature", "table"]
+    assert set(across.loc[across["feature"] == "fib_len", "table"]) == {"fiber"}
+    pairs = sorted(figures.glob("*_pairs.csv"))
+    assert pairs and all(pd.read_csv(p).columns[0] == "table" for p in pairs)
+    loadings = pd.read_csv(next(figures.glob("pca_loadings_raw_Combined.csv")))
+    assert dict(zip(loadings["feature"], loadings["table"], strict=True))["d0"] == "DINO"
+    assert dict(zip(loadings["feature"], loadings["table"], strict=True))["fib_w"] == "fiber"
+
+
+def test_b10_embedding_only_says_the_rows_across_experiments_are_not_tested():
+    objects, fovs, tables = _several()
+    setup = Setup(control=SEVERAL, master_control="cA", observation_unit="cell")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup, feature_tables={"DINO": tables["DINO"]})
+    full = " ".join(result.summary(detail="full").split())
+    assert "tested feature by feature only" not in full
+    assert "there are no explainable features to test them on" in full
+
+
+def test_seed5_a_repeat_whose_control_holds_nothing_is_named():
+    objects, fovs, tables = _several()
+    names = tuple(f"d{j}" for j in range(4))
+    merged = objects.merge(tables["DINO"], on=KEY)
+    setup = Setup(control=SEVERAL, observation_unit="cell", feature_tables={"DINO": names})
+    assert "R1 of cB (0 cells)" in centred_left_out(merged, fovs, setup)
+
+
+def test_seed22_separation_only_on_spaces_with_a_map():
+    objects, fovs, tables = _several()
+    merged = objects.merge(tables["DINO"], on=KEY)
+    names = tuple(f"d{j}" for j in range(4))
+    two = Setup(readout="area", features=("area",), feature_tables={"DINO": names})
+    found = separation_in_report(merged, fovs, two)
+    assert set(found.table["space"]) == {"Combined", "DINO"}  # no one-column map
+    alone = Setup(readout="area", features=("area",))
+    assert separation_in_report(merged, fovs, alone) is None
+
+
+def test_b6_a_condition_label_is_never_capitalised():
+    objects, fovs, _ = _several()
+    overview = dataset_overview(objects, fovs, feature_cols=["area"], observation_unit="cell")
+    assert "\ncB in 2 of the 3 repeats." in overview.summary(detail="full")
+
+
+def test_b5_without_a_technical_repeat_the_fields_alone_are_resampled():
+    objects, fovs, _ = _several()
+    setup = Setup(readout="area", control={"condition": "cA"}, observation_unit="cell")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = report(objects, fovs, setup)
+    full = " ".join(result.summary(detail="full").split())
+    assert "from resampling the fields as acquired" in full
+    assert "resampling the technical repeats" not in full and "within wells" not in full

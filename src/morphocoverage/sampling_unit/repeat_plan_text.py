@@ -165,7 +165,14 @@ def plan_parts(contrast: Any, indent: int = 2, full: bool = False) -> tuple[list
             "repeats here, so the plan is a guide."
         )
     ]
-    if full:
+    if full and not contrast.settings.get("unit"):  # no wells recorded (audit 8B)
+        notes.append(
+            assumption(
+                f"The {fields} a side per repeat are the most any repeat needs, projected from "
+                "its interval of d (narrowing as 1/sqrt of the number)."
+            )
+        )
+    elif full:
         notes.append(
             assumption(
                 f"The {fields} a side per repeat are the most any repeat needs, projected from "
