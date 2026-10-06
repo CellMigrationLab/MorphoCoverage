@@ -14,6 +14,7 @@ Shared-private: ``declaration`` is used by ``workflows.setup``.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from .._caveats import assumption, caveat_lines
@@ -28,15 +29,19 @@ from ..schema import resolve_observation_unit
 from ..statistics import fovs_to_detect
 from ..strategies import ScalarPrecisionStrategy
 from ._contrasts import controls_sentence, normalised_readers
+from ._fingerprint_space import fingerprint_line
 from ._one_per_field import field_unit
 
 if TYPE_CHECKING:
     from .setup import Setup
 
 
-def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
+def declaration(
+    setup: Setup, per_field: bool = True, unassessed: Sequence[str] = ()
+) -> tuple[str, ...]:
     """What ``setup`` asks the acquisition to preserve, in sentences (see the module);
-    ``per_field=False`` (one observation per field) leaves out what then does not run."""
+    ``per_field=False`` (one observation per field) leaves out what then does not run;
+    ``unassessed``: the fingerprint criteria the report could not judge, by label."""
     tolerances = " and ".join(rate(t) for t in setup.tolerances)
     units = setup.unit_words
     lines = [
@@ -48,8 +53,7 @@ def declaration(setup: Setup, per_field: bool = True) -> tuple[str, ...]:
         )
     ]
     if setup.fingerprint:
-        named = "; ".join(c.description or c.name for c in setup.fingerprint)
-        lines.append(f"Phenotypic fingerprint: {named}; judged on held-back fields.")
+        lines.append(fingerprint_line(setup, unassessed, short=False))
     elif setup.readout is None:
         lines.append(
             "Phenotypic fingerprint: not declared (no distribution criterion in fingerprint), "
@@ -484,7 +488,9 @@ def _order_short(setup: Setup) -> tuple[str | None, list[str]]:
     ]
 
 
-def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> str:
+def declaration_short(
+    setup: Setup, indent: int = 2, per_field: bool = True, unassessed: Sequence[str] = ()
+) -> str:
     """The declaration in a line per target and setting, each caveat once (a missing
     declaration as a ⚠️ line, a standing assumption under "Assumptions:"); ``per_field`` as
     for ``declaration``.
@@ -503,8 +509,7 @@ def declaration_short(setup: Setup, indent: int = 2, per_field: bool = True) -> 
     ]
     cautions = []
     if setup.fingerprint:
-        named = "; ".join(c.description or c.name for c in setup.fingerprint)
-        lines.append(f"Phenotypic fingerprint: {named} (judged on held-back fields by optimise).")
+        lines.append(fingerprint_line(setup, unassessed, short=True))
     else:
         cautions.append(
             assumption(

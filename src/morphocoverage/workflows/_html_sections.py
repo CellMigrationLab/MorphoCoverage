@@ -37,6 +37,7 @@ from ..schema import resolve_observation_unit
 from ..strategies.base import SamplingStrategy
 from ..sufficiency_short import rule_tallies
 from ._contrasts import controls_sentence
+from ._fingerprint_space import plain
 from ._html_render import in_units
 
 ORDER = (
@@ -223,7 +224,7 @@ def what_checked(setup: Any, undefined: Sequence[str] = ()) -> list[str]:
             "error is a set share of the mean)."
         )
     if setup.fingerprint:
-        named = "; ".join(c.description or c.name for c in setup.fingerprint)
+        named = "; ".join(plain(c) for c in setup.fingerprint)
         lines.append(f"Fingerprint: {named}.")
     if several and setup.normalize:
         lines.append(

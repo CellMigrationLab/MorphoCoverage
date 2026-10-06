@@ -91,8 +91,15 @@ def embedding_reasons(
         reasons[key] = f"{part}{NOT_APPLICABLE}" if part and answered.get(key) else whole
     # One observation per field: what does not apply within a field, beside the rest.
     if not per_field and "profile" in other:
-        reasons["profile"] = "; ".join(dict.fromkeys([reasons["profile"], other["profile"]]))
+        reasons["profile"] = _one_reason([reasons["profile"], other["profile"]])
     return reasons
+
+
+def _one_reason(parts: list[str]) -> str:
+    """Reasons as one sentence: "not applicable" said once (audit 10, C13)."""
+    head = "not applicable: "
+    said = [p.replace(f"; {head}", "; ") for p in dict.fromkeys(parts)]
+    return "; ".join([said[0], *(p.removeprefix(head) for p in said[1:])])
 
 
 def _other_reasons(setup: Setup, fovs: pd.DataFrame | None, per_field: bool) -> dict[str, str]:
@@ -117,7 +124,7 @@ def _other_reasons(setup: Setup, fovs: pd.DataFrame | None, per_field: bool) -> 
             "the repeats"
         )
     for key, reason in ({} if per_field else one_per_field_reasons(setup)).items():
-        found[key] = "; ".join(r for r in (found.get(key), reason) if r)  # within a field
+        found[key] = _one_reason([r for r in (found.get(key), reason) if r])  # within a field
     return found
 
 
@@ -213,10 +220,7 @@ def embedding_plan(
         f"{PLAN_TITLE} {DASH} {count(len(objects), unit, setup.unit_words)} in "
         f"{count(len(fovs), 'field')}"
     )
-    unread = [
-        f"The {space.nouns.get(c, 'fingerprint')}, {c}, is not assessable: {r}."
-        for c, r in space.not_assessable.items()
-    ]
+    unread = space.unread()
     unread += space.small_groups(setup.unit_word, setup.unit_words)  # audit 8
     document = replace(
         with_reasons(document, reasons), title=title, notes=(*document.notes, *unread)

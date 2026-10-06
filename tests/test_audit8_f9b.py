@@ -183,7 +183,7 @@ def test_seed13_the_label_share_is_counted_apart_from_the_features():
     )
     found.settings["share"] = "mitotic share"
     text = " ".join(found.summary().split())
-    assert "of 2 features and the mitotic share" in text
+    assert "of 3 (2 features and the mitotic share)" in text  # never "of 2 features and" (C20)
 
 
 def test_seed17_an_embedding_only_fingerprint_and_label_need_no_population():
@@ -401,7 +401,7 @@ def test_item10_one_image_per_field_leaves_the_rare_clustering_out_of_question_3
             short = " ".join(report(objects, fovs, setup, feature_tables=tables).summary().split())
             # Plan v2: question 3 runs on the images; only the clustering within fields of
             # the labelled state (and of the unusual images) is said not to apply.
-            assert "or the labelled state cluster in a few fields is not applicable" in short
+            assert "or unusual images cluster in a few fields is not applicable" in short
             assert "spread like random images" not in short
 
 

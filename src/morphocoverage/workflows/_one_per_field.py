@@ -101,12 +101,13 @@ def one_per_field_reasons(setup: Setup) -> dict[str, str]:
             f"one {unit}, so random {words} and whole fields are the same draws"
         )
     clustered = [
-        *([f"unusual {words}"] if setup.reference_control is not None else []),
         *(["the labelled state"] if setup.rare_label is not None else []),
+        *([f"unusual {words}"] if setup.reference_control is not None else []),
     ]
     if clustered:
+        verb = "clusters" if clustered[-1] == "the labelled state" else "cluster"  # C13
         reasons["profile"] = (
-            f"whether {' or '.join(clustered)} cluster in a few fields is not applicable: each "
+            f"whether {' or '.join(clustered)} {verb} in a few fields is not applicable: each "
             f"field holds one {unit}, so a field holds a state or not"
         )
     return reasons
