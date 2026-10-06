@@ -230,7 +230,9 @@ conditions in every repeat, balanced or not (owner, 2026-10-06, audit 8); withou
 condition, within each sub-experiment on the conditions in all of its repeats, a
 sub-experiment with none left out of the centred values and named (raw values in a centred
 space would read as a batch; with no centre at all, the tables are read as given). One line
-says which conditions set the centre. The centred map view is shown whenever there is a
+says which conditions set the centre, and when each sub-experiment is centred on one
+condition, that the centred view shows no difference between those conditions (owner,
+2026-10-06, audit 10). The centred map view is shown whenever there is a
 centre. With `normalize` the
 populations and the separation of the conditions read the centred values, and so do unusual
 observations in an embedding-only report. No test reads them: the whole-table test and the

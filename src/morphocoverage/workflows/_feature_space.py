@@ -451,11 +451,10 @@ def _dropped_reason(
 
 @dataclass(frozen=True)
 class Centring:
-    """How the other tables were centred per biological repeat (``centred_tables``):
-    ``values`` the centred columns; ``centres`` each sub-experiment's repeats and the
-    conditions in all of them, whose per-condition medians set its repeats' centres;
-    ``uncentred`` the repeats of a sub-experiment no condition is in every repeat of, left
-    out (missing) of the centred values."""
+    """How the other tables were centred per repeat (``centred_tables``): ``values`` the
+    centred columns; ``centres`` each sub-experiment's repeats and the conditions in all of
+    them, which set its centres; ``uncentred`` the repeats of a sub-experiment no condition
+    is in every repeat of, left out (missing) of the centred values."""
 
     values: pd.DataFrame
     centres: tuple[tuple[tuple[Any, ...], tuple[Any, ...]], ...]
@@ -464,8 +463,7 @@ class Centring:
 
 def _centring(objects: pd.DataFrame, fovs: pd.DataFrame, setup: Setup) -> Centring | None:
     """The centring of the other tables (see ``centred_tables``); ``None`` without them."""
-    columns = table_columns(setup)
-    if not columns:
+    if not (columns := table_columns(setup)):
         return None
     data = validate_input_tables(objects, fovs=fovs, feature_cols=columns, **setup.common)
     frame = data.objects
@@ -538,7 +536,10 @@ def _centre_words(found: Centring) -> str:
         f"{listing([str(c) for c in common], 4)} in {listing([str(r) for r in repeats], 4)}"
         for repeats, common in found.centres
     ]
-    return f"of the conditions in every repeat of its sub-experiment: {'; '.join(parts)}"
+    # Each centred on one condition: those conditions differ by nothing there (audit 10, C33).
+    one = all(len(common) == 1 for _, common in found.centres)
+    erased = ", so the centred view shows no difference between these conditions" if one else ""
+    return f"of the conditions in every repeat of its sub-experiment: {'; '.join(parts)}{erased}"
 
 
 def centring_line(
@@ -556,9 +557,8 @@ def centring_line(
             "Batch: the other tables are not centred, as no condition is in every repeat of a "
             "sub-experiment; they are read as given."
         )
-    else:
-        how = "centred per biological repeat on the median of the per-condition medians "
-        how += _centre_words(found)
+    how = "centred per biological repeat on the median of the per-condition medians "
+    how += _centre_words(found)
     if found.uncentred and found.centres:
         named = listing([str(r) for r in found.uncentred], 8)
         verb = "is" if len(found.uncentred) == 1 else "are"
