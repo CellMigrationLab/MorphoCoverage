@@ -33,10 +33,10 @@ import pandas as pd
 from .._caveats import _SENTENCE_END, _assumption_block, assumption, assumption_lines
 from .._wording import change, count, listing, p_value, percent
 from ..sampling_unit.cells_text import balance_lines
-from ..sampling_unit.contrast_repeats import MIN_REPEATS
+from ..sampling_unit.contrast_repeats import MIN_REPEATS, TREND_REPEATS
 from ..sampling_unit.distribution import shift_words, spread_words
 from ..sampling_unit.legend_text import described_rows, feature_counts, figure_legend
-from ..sampling_unit.reading_text import CONFIRMED, CONSISTENT, MIXED
+from ..sampling_unit.reading_text import CONFIRMED, CONSISTENT, MIXED, NOT_SIGNIFICANT
 from ..sampling_unit.repeat_plan_text import plan_parts
 from ._families import _CELL_VERSIONS
 from ._feature_space import with_table
@@ -113,7 +113,7 @@ def _verdict(
         return CONFIRMED
     if significant:
         return f"adjusted p ≤ 0.05, but not a candidate of the {one}-level screen"
-    return CONSISTENT
+    return CONSISTENT if n >= TREND_REPEATS else NOT_SIGNIFICANT
 
 
 def _order(tests: pd.DataFrame, discovery: Any) -> pd.DataFrame:
@@ -486,8 +486,9 @@ def _explainer(result: Any, kinds: Sequence[str], family: str) -> str:
         "mean of the control of the same repeat; the repeats' ratios are tested against no "
         f"change. Each repeat counts once, so the answer holds across repeats. It needs "
         f"{MIN_REPEATS} repeats, and with 3 only large, consistent effects reach adjusted "
-        "p ≤ 0.05: the same direction in every repeat without it is a trend, not evidence "
-        "of no effect."
+        f"p ≤ 0.05: from {TREND_REPEATS} repeats, the same direction in every repeat without "
+        "it is a trend, not evidence of no effect; with fewer it happens by chance too often "
+        "(1 experiment in 4 with 3 repeats)."
     )
     screen = (
         f"Cohen's d of every {one} against the control's, and a randomization test that "

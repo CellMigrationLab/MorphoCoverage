@@ -31,6 +31,7 @@ from .._control import VS
 from .._style import Status, wrap
 from .._wording import count, listing, p_value
 from ..metadata import CONDITION_COLUMN, REPEAT_COLUMN
+from ..sampling_unit.contrast_repeats import TREND_REPEATS
 from ..sampling_unit.whole_table import (
     ALPHA,
     MIN_REPEATS,
@@ -179,7 +180,9 @@ def whole_headline(result: WholeTable) -> tuple[Status, str]:
             f"no whole-table test: at most {count(fewest, 'repeat')} hold a condition and its "
             f"control, and the test needs {MIN_REPEATS}"
         )
-    every = tested[tested["same_way"] == tested["repeats"]]
+    # The trend from TREND_REPEATS repeats only (owner, 2026-10-06, audit 8): with fewer,
+    # every repeat goes the same way without an effect too often (25% with 3).
+    every = tested[(tested["same_way"] == tested["repeats"]) & (tested["repeats"] >= TREND_REPEATS)]
     if len(every):
         names = listing([str(c) for c in dict.fromkeys(every["condition"])], 4)
         return Status.CAUTION, (

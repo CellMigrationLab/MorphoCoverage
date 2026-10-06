@@ -108,3 +108,47 @@ def test_a7_the_main_test_reads_one_scale_per_feature():
     assert contrast.repeats["p_paired_t_normalised"].isna().all()
     assert contrast.repeats["fold_change"].isna().all()
     assert set(contrast.plan["planned_on"]) <= {"difference", "d"}
+
+
+def test_seed11_the_trend_line_needs_six_repeats():
+    from types import SimpleNamespace
+
+    from morphocoverage.sampling_unit.reading_text import (
+        CONSISTENT,
+        NOT_SIGNIFICANT,
+        condition_readings,
+    )
+    from morphocoverage.workflows._whole_table import whole_headline
+
+    def reading(n):
+        row = {
+            "condition": "A",
+            "control_condition": "CTRL",
+            "repeats": n,
+            "lower": 0,
+            "higher": n,
+            "d_mean": 1.0,
+            "q_paired_t": 0.4,
+            "q_paired_t_normalised": 0.3,
+        }
+        contrast = SimpleNamespace(
+            table=pd.DataFrame(),
+            settings={"repeat_col": "biological_repeat", "observation_unit": "cell"},
+            repeats=pd.DataFrame([row]),
+            cells=pd.DataFrame(),
+            targets=pd.DataFrame(),
+        )
+        return condition_readings(contrast).iloc[0]
+
+    assert reading(5)["verdict"] == NOT_SIGNIFICANT
+    assert "higher in 5 of 5 biological repeats" in reading(5)["reading"]
+    assert reading(6)["verdict"] == CONSISTENT
+
+    def whole(n):
+        tests = pd.DataFrame(
+            [{"table": "DINO", "condition": "a", "status": "tested", "repeats": n}]
+        ).assign(same_way=n, q_repeats=0.4)
+        return whole_headline(SimpleNamespace(tests=tests))[1]
+
+    assert whole(5) == "no whole-table shift significant across repeats"
+    assert whole(6).endswith("a shifted the same way in every repeat")

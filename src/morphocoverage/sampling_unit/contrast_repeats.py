@@ -57,6 +57,10 @@ from ._reach import reachable
 
 # The fewest biological repeats holding both sides for a test across repeats.
 MIN_REPEATS = 3
+# The fewest repeats for the trend line "the same direction in every repeat, not significant"
+# (owner, 2026-10-06, audit 8): without an effect every repeat goes the same way in 25% of
+# experiments with 3 repeats, 13% with 4, 6% with 5 and 3% with 6.
+TREND_REPEATS = 6
 # Sign assignments enumerated at most (2 ** 16): beyond, the repeats are many and the
 # assignments are drawn at random.
 _EXACT_REPEATS = 16
@@ -239,6 +243,7 @@ __all__ = [
     "MIN_REPEATS",
     "REPEAT_COLUMNS",
     "TARGET_COLUMNS",
+    "TREND_REPEATS",
     "across_repeats",
     "reagent_agreement",
     "sign_flip_test",

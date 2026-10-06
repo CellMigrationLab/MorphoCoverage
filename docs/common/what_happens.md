@@ -170,7 +170,9 @@ names only the tables.
 | `live_session` | the columns sent with each field | analysis group | none | no `rules` in an embedding-only Setup |
 
 The whole-table headline names a condition shifted the same way in every repeat as a trend
-when no shift is significant. The test, its calibration and its words are in
+when no shift is significant, from 6 repeats only, as the per-feature "same direction in
+every repeat, not significant" (owner, 2026-10-06): with fewer, every repeat goes the same
+way without an effect too often (25% with 3 repeats, 13% with 4). The test, its calibration and its words are in
 [the whole-table test](../report/conditions.md#the-whole-table-test-other-feature-tables);
 the spaces and the centred view in
 [feature tables and maps](../report/feature_tables_and_maps.md).

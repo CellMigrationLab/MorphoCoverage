@@ -9,9 +9,12 @@ Each condition gets one verdict:
 - **significant across repeats**: the paired test across repeats gives q <= 0.05 (Benjamini-Hochberg
   within the condition's sub-experiment, ``_experiments``; on normalised values when they
   exist, else raw), with the condition on one side of the control in every repeat;
-- **same direction, not significant**: on one side of the control in every repeat
-  (two or more), and the paired test does not reach q <= 0.05 or cannot run (a
-  consistent trend, not evidence of no effect);
+- **same direction, not significant**: on one side of the control in every repeat, from
+  ``TREND_REPEATS`` (6) repeats, and the paired test does not reach q <= 0.05 (a
+  consistent trend, not evidence of no effect); with fewer repeats every repeat goes the
+  same way by chance too often (25% with 3), so the verdict is **not significant across
+  repeats**, or **not tested across repeats** with 2, the directions given as for any
+  condition (owner, 2026-10-06, audit 8);
 - **no consistent direction**: lower in some repeats and higher in others;
 - **one repeat**: imaged in a single repeat, so only the cell-level test speaks.
 
@@ -47,13 +50,15 @@ from ..statistics import repeat_values
 from ._experiments import bridges, family_words, not_compared
 from .across_text import own_gap_lines
 from .contrast_cells import ALPHA
-from .contrast_repeats import MIN_REPEATS
+from .contrast_repeats import MIN_REPEATS, TREND_REPEATS
 
 CONFIRMED = "significant across repeats"
 CONSISTENT = "same direction in every repeat, not significant"
+NOT_SIGNIFICANT = "not significant across repeats"
+NOT_TESTED = "not tested across repeats"
 MIXED = "no consistent direction"
 ONE_REPEAT = "one repeat"
-VERDICTS = (CONFIRMED, CONSISTENT, MIXED, ONE_REPEAT)
+VERDICTS = (CONFIRMED, CONSISTENT, NOT_SIGNIFICANT, NOT_TESTED, MIXED, ONE_REPEAT)
 # The status of a contrast whose repeat holds no control field (``condition_contrast``).
 NO_CONTROL = "no control group in"
 
@@ -281,7 +286,8 @@ def condition_readings(contrast: Any) -> pd.DataFrame:
                 verdict = MIXED
                 parts = [f"lower in {lower} and higher in {higher} of {n} {word}s"]
             else:
-                verdict = CONFIRMED if confirmed else CONSISTENT
+                trend = CONSISTENT if n >= TREND_REPEATS else NOT_SIGNIFICANT
+                verdict = CONFIRMED if confirmed else trend if n >= MIN_REPEATS else NOT_TESTED
                 parts = [f"{direction} in {n} of {n} {word}s" + (f" ({d})" if d else "")]
             parts.append(paired)
         left_out = _left_out(contrast, condition, str(row["control_condition"]), word)
@@ -336,7 +342,9 @@ def readings_parts(contrast: Any, indent: int = 2) -> list[str]:
             f"{family_words(contrast.settings, own=True)}: this is the result to report. Same "
             "direction, not significant: on one side of the control in every repeat without "
             "reaching q ≤ 0.05, a consistent trend and not evidence of no effect (with 3 "
-            "repeats only large, consistent effects reach it). Beside it, the "
+            "repeats only large, consistent effects reach it), said from "
+            f"{TREND_REPEATS} repeats: with fewer, every repeat goes the same way by chance "
+            "too often (1 experiment in 4 with 3 repeats). Beside it, the "
             f"{unit}-level screen (as Plot&Stats, every {unit} an independent draw) is "
             "exploratory: it finds candidates, not effects that repeat:"
         )
@@ -470,6 +478,8 @@ __all__ = [
     "CONFIRMED",
     "CONSISTENT",
     "MIXED",
+    "NOT_SIGNIFICANT",
+    "NOT_TESTED",
     "NO_CONTROL",
     "ONE_REPEAT",
     "VERDICTS",

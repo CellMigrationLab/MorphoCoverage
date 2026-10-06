@@ -247,8 +247,10 @@ GLOSSARY: tuple[Term, ...] = (
         "condition; it is significant across repeats when the paired t-test on the repeat "
         "means gives q ≤ 0.05 for that condition too (with n repeats: n is said beside it). "
         "The first finds candidates; the second says the mean difference holds across the "
-        "repeats. 'Same direction, not significant' is a consistent trend, not evidence of no "
-        "effect.",
+        "repeats. 'Same direction in every repeat, not significant', said from 6 repeats, is a "
+        "consistent trend, not evidence of no effect; with fewer, every repeat goes the same "
+        "way by chance too often (1 experiment in 4 with 3 repeats), so it reads 'not "
+        "significant across repeats' (owner, 2026-10-06).",
         "Do the conditions differ?, the feature ranking",
     ),
     Term(

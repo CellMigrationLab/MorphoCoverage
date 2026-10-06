@@ -432,7 +432,10 @@ The text reads, per table and comparison: "DINO (384 columns): - THBS5_SiCol6a1 
 THBS5_SiNC: shifted the same way in 4 of 5 repeats, p 0.03 (q 0.06) across repeats; the
 centres 0.41 within-group SDs apart." A shift
 significant across repeats is named in the answer's line, so "At a glance" mentions it,
-and turns the marker to ✅. The page shows the block under "Do the conditions differ?" and
+and turns the marker to ✅. When none is, a comparison shifted the same way in every repeat
+is named as a trend from 6 repeats only (owner, 2026-10-06): with fewer, the projections are
+all positive without an effect too often (25% of null datasets with 3 repeats, 13-15% with
+4, 7-9% with 5, 3-5% with 6; audit 8). The page shows the block under "Do the conditions differ?" and
 saves the tests as `tests_whole_table.csv`. Observations missing a value of the table are
 left out, counted. The cost is a few matrix products per comparison: under a second for the
 ECM tables, little beside the per-feature work.
