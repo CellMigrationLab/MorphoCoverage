@@ -147,10 +147,13 @@ def control_means(
             "control to be normalised; drop the repeat or turn normalisation off"
         )
     listed = ", ".join(f"{column!r} is {reason}" for column, reason in refused)
+    named = ", ".join(repr(column) for column, _ in dict.fromkeys(refused))
+    # What to do, in the arguments the caller sets (audit 10, C34).
     raise ValueError(
         f"the control mean in {label}: {listed}. Dividing by a zero or undefined mean "
         "has no meaning and dividing by a negative one flips the sign of the effect: "
-        "leave these features out of normalisation (compare them raw)"
+        f"remove {named} from the features, or set normalize=None to compare every feature "
+        "raw"
     )
 
 

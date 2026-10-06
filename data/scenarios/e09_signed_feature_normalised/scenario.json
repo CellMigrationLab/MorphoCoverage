@@ -21,6 +21,6 @@
   "outcome": "refused",
   "at": "report",
   "error": "ValueError",
-  "match": "negative"
+  "match": "negative.*remove 'velocity' from the features"
  }
 }

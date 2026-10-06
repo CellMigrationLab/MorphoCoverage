@@ -1,7 +1,7 @@
 {
  "name": "a01_tagged_several_image_none_rare",
  "kind": "axes",
- "checks": "features; own controls and the rows across experiments; the field questions on the images; the rare label's share and clustering",
+ "checks": "features; own controls and the rows across experiments; the field questions on the images; the rare label's share",
  "axes": {
   "tables": "tagged",
   "controls": "several",
