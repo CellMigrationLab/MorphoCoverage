@@ -443,7 +443,8 @@ def enough_status(sufficiency: Any, calibration: Any = None, contrast: Any = Non
     nowhere = [t for t in data if t["met"] == 0]
     word = group_word(sufficiency)
     if len(nowhere) == len(data):
-        return Status.PROBLEM, f"no rule met in any of {among(groups, groups, word)}"
+        where = f"the {word}" if groups == 1 else f"any of the {count(groups, word)}"
+        return Status.PROBLEM, f"no rule met in {where}"  # not "any of all 6" (audit 10, C19)
     cautions = any(t["warned"] or t["flagged"] or t["lost"] for t in data)
     status = Status.OK if len(everywhere) == len(data) and not cautions else Status.CAUTION
     if late:
@@ -482,13 +483,13 @@ def weak_status(answer: Answer) -> Answer:
 
 
 def profile_status(
-    profile: pd.DataFrame, clustering: Sequence[Any] = (), unusual: Any = None
+    profile: pd.DataFrame, clustering: Sequence[Any] = (), unusual: Any = None, fields: Any = None
 ) -> Answer:
     """3. What is limiting my sampling? (see the module)."""
     _, clustered, seen = clustered_states(clustering)
     if not len(profile) and not seen and not unusual_alone(unusual, clustering):
         return Status.NOT_ASSESSED, "not assessed"
-    parts = profile_answer(profile, clustering, unusual)
+    parts = profile_answer(profile, clustering, unusual, fields)  # fields: fov_variability
     _, uncertain = largest_sources(profile)
     status = Status.CAUTION if clustered or uncertain or unstable_labels(unusual) else Status.OK
     return status, "; ".join(parts) or f"{count(len(profile), 'quantity', 'quantities')} measured"
@@ -561,15 +562,14 @@ def question_statuses(
         "unit": unit_status(get("variability"), get("object_rules"), get("descriptor_spread")),
         "controls": controls_status(get("controls"), minimum_detection),
         "enough": enough_status(get("sufficiency"), get("calibration"), get("contrast")),
-        "profile": profile_status(profile, [get("clustering")], get("unusual")),
+        "profile": profile_status(profile, [get("clustering")], get("unusual"), get("variability")),
         "next_time": next_time_status(get("reliability"), get("protocol")),
         "bought": bought_status(get("adequacy")),
         "inspect": inspect_status(get("inspection")),
         "effort": effort_status(get("effort")),
         "order": order_status(get("efficiency")),
         "conditions": conditions_status(get("contrast"), get("ranking"), get("discovery")),
-        # Filled by the workflows (workflows/_populations), which find the populations.
-        "populations": (Status.NOT_ASSESSED, "not assessed"),
+        "populations": (Status.NOT_ASSESSED, "not assessed"),  # set by _populations
     }
 
 

@@ -220,7 +220,8 @@ def _needed(row: dict[str, Any], fields: str) -> str:
     if row["too_small"]:
         parts.append(f"{row['too_small']} too small to show")
     if row.get("between_wells", 0):
-        parts.append(f"{row['between_wells']} {MORE_WELLS}")
+        wells = int(row["between_wells"])  # "1 needs more wells ..." (audit 10, A19)
+        parts.append(f"{wells} {'needs' if wells == 1 else 'need'} {MORE_WELLS}")
     return "; ".join(parts) or "–"
 
 

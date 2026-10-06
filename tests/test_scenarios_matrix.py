@@ -118,6 +118,11 @@ def _words(result: Any) -> None:
         assert not ("No condition to compare" in text and "Not compared:" in text)  # C8
         assert text.count("Which features separate the conditions?") <= 1  # A9
         assert not re.search(r"\d+ of \d+ features and the", text)  # C20: 4 of 3 features
+        assert "any of all" not in text  # C19
+        assert "no spatial autocorrelation (" not in text  # A21: flagged at its threshold
+        assert "fov_variability]" not in text  # A22: no internal names
+        if result.document.units != "cells":  # C18: the unit's words, never cells
+            assert "random cells" not in text and "not only cells" not in text
         if statuses.str.startswith(NO_CONTROL).any():  # B4, C9: the reason is the control
             assert "has a value of every feature" not in text
 

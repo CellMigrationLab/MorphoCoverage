@@ -196,7 +196,7 @@ def _needs(contrast: Any, fields: str, repeats: int = 0) -> str:
         parts.append(f"{small} too small even with {PRACTICAL} times the {fields}")
     wells = int(between_wells(rows).sum())
     if wells:
-        parts.append(f"{wells} {MORE_WELLS}")
+        parts.append(f"{wells} {'needs' if wells == 1 else 'need'} {MORE_WELLS}")
     return "; ".join(parts) or "–"
 
 

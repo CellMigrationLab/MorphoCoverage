@@ -74,7 +74,9 @@ in each rule's line and after the overall decision):
   the well's positions, and that a raster over a spatial trend can stop early.
 
 The two tests share a 5% level (Bonferroni), and each needs 4 fields with a
-mean. The check **flags, it never vetoes**: a flagged stop stays a stop. A
+mean. A check that flags nothing says so at that threshold, "no trend with acquisition order
+or spatial autocorrelation flagged at the Bonferroni threshold of 0.025", never "no
+spatial autocorrelation" for a p of 0.037 (audit 10, owner, 2026-10-06). The check **flags, it never vetoes**: a flagged stop stays a stop. A
 check that finds nothing does not show the fields to be representative: in a
 raster over a gradient it has little power in the first rows, where the
 early stops happen. It reads only the fields seen so far, so a replay of the

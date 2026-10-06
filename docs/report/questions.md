@@ -224,7 +224,12 @@ Question 2, R2 with the next-field question R3: [Did I image enough?](did_i_imag
 
 ### What limits the sampling? Why count fields?
 
-The sampling profile (R4) and the Foundation above. Their results on the committed
+The sampling profile (R4) and the Foundation above, in the words of the observations
+("not only images", "random images"); with one observation per field the headline says so
+rather than a ratio of 1, the full form gives each measured quantity with where it holds,
+never the name of the function that made it, and question 2 reads "no rule met in any of the
+6 groups" and "1 needs more wells or biological repeats" (audit 10, owner, 2026-10-06).
+Their results on the committed
 data, in plain language, are in [Objects or fields?](objects_or_fields.md).
 
 ### Can these features detect what I care about?

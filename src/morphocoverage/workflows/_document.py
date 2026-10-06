@@ -28,7 +28,7 @@ from .._style import CAUTION, Status, worst, wrap
 from .._wording import count, fields, listing, number, percent
 from ..retrospective import MicroscopistReport, SamplingHierarchy, microscopist_report
 from ..retrospective.effort_design import between_technical_repeats
-from ..retrospective.report import QUESTIONS, with_opening
+from ..retrospective.report import questions_for, with_opening
 from ..retrospective.report_profile import sampling_profile
 from ..retrospective.report_sampling import states_lines
 from ..retrospective.report_status import (
@@ -86,7 +86,7 @@ def with_reasons(document: MicroscopistReport, reasons: Mapping[str, str]) -> Mi
     """
     if not reasons:
         return document
-    titles = dict(QUESTIONS)
+    titles = dict(questions_for(document.units))  # "not only images" (audit 10, C18)
     sections, notes = dict(document.sections), list(document.notes)
     short, headlines = dict(document.short), dict(document.headlines)
     for key, reason in reasons.items():
@@ -140,7 +140,7 @@ def assemble(
     rare = results.get("rare_clustering")  # clustering in fields needs several a field
     if rare is not None and per_field:
         rows = sampling_profile(None, None, None, None, clustering=rare)
-        lines = "\n".join(f"{r.statement} [{r.where}; {r.source}]" for r in rows.itertuples())
+        lines = "\n".join(f"{r.statement} [{r.where}]" for r in rows.itertuples())
         text = "\n\n".join(part for part in (lines, rare.summary(detail="full")) if part)
         status, glance = profile_status(rows, [rare])
         words = observation_words(rare.settings)[1]

@@ -415,14 +415,14 @@ def profile_full(
     if len(profile):
         lines = [
             wrap(
-                "Measured quantities (the sampling profile), each with where it holds and its "
-                "source:",
+                "Measured quantities (the sampling profile), each with where it holds:",
                 indent,
                 hang=indent + 2,
             )
         ]
         for row in profile.itertuples():
-            text = f"- {row.statement} [{row.where}; {row.source}]"
+            # Where it holds, never the internal function's name (audit 10, A22).
+            text = f"- {row.statement} [{row.where}]"
             lines.append(wrap(text, indent, hang=indent + 2))
         blocks.append("\n".join(lines))
     if unusual is not None:
@@ -473,19 +473,29 @@ def unusual_alone(unusual: Any, clustering: Sequence[Any] = ()) -> str:
     return f"unusual {words} {shares} of each group (exploratory)"
 
 
-def profile_answer(profile: pd.DataFrame, clustering: Sequence[Any], unusual: Any) -> list[str]:
-    """The parts of question 3's headline (``report_status.profile_status``)."""
+def profile_answer(
+    profile: pd.DataFrame, clustering: Sequence[Any], unusual: Any, variability: Any = None
+) -> list[str]:
+    """The parts of question 3's headline (``report_status.profile_status``), in the words of
+    the observations the results declare (``variability`` too: never "random cells" in a
+    report on images, audit 10, C18)."""
     names, clustered, seen = clustered_states(clustering)
     parts = []
     fields = profile[profile["item"] == "fields against random objects"] if len(profile) else []
     if len(fields):
-        words = _unit(clustering, unusual)
+        words = _unit(clustering, unusual, variability)
         effect = float(fields["value"].iloc[0])
-        parts.append(f"whole fields {effect:.1f}x as variable as random {words}")
+        # One observation per field: fields and observations coincide, no ratio to give (B21).
+        single = str(fields["statement"].iloc[0]).startswith("each field holds one of")
+        parts.append(
+            f"one of the {words} per field"
+            if single
+            else f"whole fields {effect:.1f}x as variable as random {words}"
+        )
     parts += [alone] if (alone := unusual_alone(unusual, clustering)) else []
     parts += names
     if seen and not clustered:
-        words = _unit(clustering, unusual)
+        words = _unit(clustering, unusual, variability)
         where = "the one group seen" if seen == 1 else f"all {seen} groups seen"
         parts.append(f"{_seen_states(clustering, words)} spread like random {words} in {where}")
     # The main answer only: whether the largest share is established and whether the

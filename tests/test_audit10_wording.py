@@ -11,9 +11,11 @@ from types import SimpleNamespace
 
 import pandas as pd
 
+from morphocoverage.order_check import OrderCheck
 from morphocoverage.sampling_unit._units import NOT_INDEPENDENT
 from morphocoverage.sampling_unit.contrast import UNREACHABLE
 from morphocoverage.sampling_unit.contrast_text import _no_within_test
+from morphocoverage.workflows._enough_features import _needed
 
 ONE_WELL = "only one technical repeat (well) with observations on one side, no replication"
 
@@ -35,3 +37,19 @@ def test_no_test_within_a_repeat_gives_the_status_reason_never_one_well_each_a6_
     assert unknown == "no well recorded, so treated as one well per condition and repeat"
     for text in (said, unknown):
         assert "each condition has one well" not in text
+
+
+def test_an_order_check_that_flags_nothing_names_its_threshold_a21():
+    check = OrderCheck("area", 20, "order", ("x", "y"), 0.4, 0.037, 0.1, 0.84)
+    said = check.caution()
+    assert "no trend with acquisition order or spatial autocorrelation flagged at the " in said
+    assert "Bonferroni threshold of 0.025 (Spearman p = 0.037; Moran's I permutation p" in said
+    assert "no spatial autocorrelation (" not in said
+
+
+def test_one_comparison_needs_more_wells_a19():
+    row = {"needing": 0, "too_small": 2, "between_wells": 1}
+    assert _needed(row, "fields") == "2 too small to show; 1 needs more wells or biological repeats"
+    assert _needed({**row, "between_wells": 2}, "fields").endswith(
+        "2 need more wells or biological repeats"
+    )
